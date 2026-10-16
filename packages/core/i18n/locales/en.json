@@ -9229,7 +9229,8 @@
         "deleted_at": "Deleted",
         "purge_after": "Deleted forever in"
       },
-      "days_left": "{{count}} days",
+      "days_left_one": "{{count}} day",
+      "days_left_other": "{{count}} days",
       "read_only_hint": "View only · manager can restore",
       "footer_note": "Per-item restore: documents return to their previous folder if it still exists, otherwise to the workspace root. Restoring a folder only brings back child items you manage. Document owners are notified when someone else moves their document to the trash.",
       "pending_deleted_by": "Not available yet",
@@ -9425,85 +9426,57 @@
         "name_too_long": "A document name is at most {{max}} characters.",
         "failed": "Could not rename the document. Try again."
       },
-      "greeting": {
-        "morning": "Good morning. What would you like to create today?",
-        "morning_named": "Good morning, {{name}}. What would you like to create today?",
-        "afternoon": "Good afternoon. What would you like to create today?",
-        "afternoon_named": "Good afternoon, {{name}}. What would you like to create today?",
-        "evening": "Good evening. What would you like to create today?",
-        "evening_named": "Good evening, {{name}}. What would you like to create today?",
-        "hint_root": "New files go to the workspace root and open straight in the editor.",
-        "hint_folder": "New files go to the {{folder}} folder and open straight in the editor.",
-        "morning_read_only": "Good morning.",
-        "morning_read_only_named": "Good morning, {{name}}.",
-        "afternoon_read_only": "Good afternoon.",
-        "afternoon_read_only_named": "Good afternoon, {{name}}.",
-        "evening_read_only": "Good evening.",
-        "evening_read_only_named": "Good evening, {{name}}.",
-        "hint_read_only": "You can only view the {{folder}} folder: open files to read them, not to create or edit.",
-        "hint_read_only_plain": "You can only view this folder: open files to read them, not to create or edit."
-      },
       "quick_create": {
+        "hint_root": "New files go to the workspace root and open straight in the editor.",
         "label": "Quick create"
       },
       "create": {
-        "label": "Create",
         "menu": "New",
-        "ai_badge": "AI",
         "unavailable_hint": "Not available on this server yet",
         "page": {
-          "card": "Page",
           "chip": "UniNote",
           "hint": "UniWork page with tasks and mentions",
           "menu": "Page",
           "ext": "UniWork"
         },
         "docx": {
-          "card": "AI Docs",
           "chip": "Document",
           "hint": ".docx",
           "menu": "Docs document",
           "ext": ".docx"
         },
         "xlsx": {
-          "card": "AI Sheets",
           "chip": "Spreadsheet",
           "hint": ".xlsx",
           "menu": "Sheets spreadsheet",
           "ext": ".xlsx"
         },
         "pptx": {
-          "card": "AI Slides",
           "chip": "Presentation",
           "hint": ".pptx",
           "menu": "Slides presentation",
           "ext": ".pptx"
         },
         "md": {
-          "card": "AI Markdown",
           "chip": "Markdown file",
           "hint": ".md",
           "menu": "Markdown",
           "ext": ".md"
         },
         "html": {
-          "card": "AI HTML",
           "chip": "HTML",
           "hint": ".html",
           "menu": "HTML",
           "ext": ".html"
         },
         "pdf": {
-          "card": "AI PDF",
           "chip": "PDF",
           "hint": ".pdf",
           "menu": "PDF",
           "ext": ".pdf"
         },
         "upload": {
-          "card": "Upload file",
-          "button": "Upload",
-          "hint": "docx, xlsx, pptx, pdf, md, html, images"
+          "button": "Upload"
         },
         "folder": {
           "menu": "Folder"
@@ -9515,7 +9488,23 @@
         "documents": "Documents"
       },
       "folder": {
-        "info_banner": "New and uploaded files here will be placed in “{{folder}}”. Drag and drop files into the list to upload."
+        "info_banner": "New and uploaded files here will be placed in “{{folder}}”. Drag and drop files into the list to upload.",
+        "menu": "Folder actions"
+      },
+      "folder_card": {
+        "folders_one": "{{count}} folder",
+        "folders_other": "{{count}} folders"
+      },
+      "filters": {
+        "type": "Type",
+        "editor": "Edited by",
+        "updated": "Updated",
+        "editor_any": "Any",
+        "editor_me": "Me",
+        "updated_any": "Any time",
+        "updated_today": "Today",
+        "updated_7d": "Past 7 days",
+        "updated_30d": "Past 30 days"
       },
       "sidebar": {
         "label": "Documents navigation",
@@ -9548,13 +9537,6 @@
         "task": "Tasks",
         "meeting": "Meetings",
         "email": "Email"
-      },
-      "scope_label": "Scope",
-      "scope": {
-        "home": "All",
-        "recent": "Recent",
-        "shared": "Shared",
-        "archived": "Trash"
       },
       "chips_label": "Filter by type",
       "chips": {

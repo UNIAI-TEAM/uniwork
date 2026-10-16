@@ -134,9 +134,7 @@ describe("access filter in the toolbar", () => {
   function renderToolbar(access: AccessFilter, onAccess = vi.fn()) {
     render(
       <LibraryToolbar
-        scope="home"
-        count={null}
-        onScope={vi.fn()}
+        variant="list"
         chip="all"
         onChip={vi.fn()}
         access={access}

@@ -125,8 +125,11 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
 
   const subtitle = (doc: DocumentSummaryRow): string => {
     if (doc.kind === "folder") return t("documents.file_types.folder");
-    const parent = doc.parent_id ? titles.get(doc.parent_id) : undefined;
-    return parent ? t("documents.trash.row_in_folder", { folder: parent }) : t("documents.trash.row_from_root");
+    if (!doc.parent_id) return t("documents.trash.row_from_root");
+    // The parent may be in the trash too: name it from the rows, and say
+    // nothing when it is in neither list rather than guess the root.
+    const parent = titles.get(doc.parent_id) ?? rows.find((other) => other.id === doc.parent_id)?.title;
+    return parent ? t("documents.trash.row_in_folder", { folder: parent }) : "";
   };
 
   return (
@@ -159,12 +162,13 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
               const left = daysLeft(doc.archived_at, now);
               const deletedAt = doc.archived_at ? formatDate(doc.archived_at, i18n.language) : "";
               const canRestore = canArchiveRow(rowLevel(doc));
+              const origin = subtitle(doc);
               const nameCell = (
                 <>
                   <DocumentTypeIcon format={folder ? "folder" : rowFormat(documentRow(doc))} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-body font-medium text-foreground">{title}</span>
-                    <span className="block truncate text-caption text-muted-foreground">{subtitle(doc)}</span>
+                    {origin ? <span className="block truncate text-caption text-muted-foreground">{origin}</span> : null}
                   </span>
                 </>
               );

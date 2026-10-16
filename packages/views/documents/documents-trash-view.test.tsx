@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setLocale } from "@uniwork/core/i18n";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentsTrashView, type DocumentsTrashViewProps } from "./documents-trash-view";
 import type { DocumentSummaryRow } from "./library-rows";
@@ -80,6 +81,9 @@ describe("DocumentsTrashView", () => {
       rows: [
         row("dir", { kind: "folder", title: "Dự án cũ" }),
         row("child", { parent_id: "f1", title: "Biên bản.docx" }),
+        // A parent that was trashed too is named from the rows, not the tree.
+        row("goneparent", { kind: "folder", title: "Hồ sơ hết hạn" }),
+        row("child2", { parent_id: "goneparent", title: "Phụ lục.docx" }),
         row("loose", { title: "Nháp.docx" }),
         row("lost", { parent_id: "gone", title: "Mồ côi.docx" }),
       ],
@@ -87,8 +91,10 @@ describe("DocumentsTrashView", () => {
     const rows = screen.getAllByRole("row").slice(1);
     expect(within(rows[0]!).getByText("Thư mục")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("Trong thư mục “Dự án cũ”")).toBeInTheDocument();
-    expect(within(rows[2]!).getByText("Từ Tài liệu của workspace")).toBeInTheDocument();
-    expect(within(rows[3]!).getByText("Từ Tài liệu của workspace")).toBeInTheDocument();
+    expect(within(rows[3]!).getByText("Trong thư mục “Hồ sơ hết hạn”")).toBeInTheDocument();
+    expect(within(rows[4]!).getByText("Từ Tài liệu của workspace")).toBeInTheDocument();
+    // A parent id that is in neither the tree nor the rows gets no subtitle.
+    expect(within(rows[5]!).queryByText(/Từ |Trong /)).not.toBeInTheDocument();
   });
 
   it("shows a muted dash in Xóa bởi that names the missing data, never an invented person", () => {
@@ -98,6 +104,24 @@ describe("DocumentsTrashView", () => {
     expect(dash).toHaveTextContent("—");
     expect(dash).toHaveClass("text-muted-foreground");
     expect(cell).not.toHaveTextContent("someone-else");
+  });
+
+  it("pluralizes the days left in English (1 day, not 1 days)", async () => {
+    await setLocale("en");
+    renderView({
+      rows: [
+        // archived_at + 30 days lands 23h after NOW: 1 day left.
+        row("one", { archived_at: "2026-09-17T04:00:00Z" }),
+        row("many", { archived_at: "2026-10-01T00:00:00Z" }),
+      ],
+    });
+    const [one, many] = screen.getAllByRole("row").slice(1);
+    try {
+      expect(within(one!).getAllByRole("cell")[3]).toHaveTextContent(/^1 day$/);
+      expect(within(many!).getAllByRole("cell")[3]).toHaveTextContent(/^15 days$/);
+    } finally {
+      await setLocale("vi");
+    }
   });
 
   it("formats Xóa lúc from archived_at and counts the days left from archived_at + 30 days", () => {

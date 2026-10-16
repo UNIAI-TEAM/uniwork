@@ -12,7 +12,7 @@ import { favoriteRow } from "./starred-rows";
 
 // Review fixes for the Documents home (UNI-1305 review-fe r1): the type chip
 // that can reach the next page, the sidebar that does not flicker, the folder
-// create and rename that submit once, the header count, the starred rows.
+// create and rename that submit once, the documents count, the starred rows.
 
 const { t } = initI18n();
 
@@ -102,6 +102,15 @@ function route(routes: Routes) {
 }
 
 const queryOf = (path: string) => new URLSearchParams(path.split("?")[1] ?? "");
+
+/** Picks a type in the home filter bar's "Loại" select (TRASH-A3 replaced the chip row at home). */
+async function pickType(chip: string) {
+  fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) }));
+  const option = within(await screen.findByRole("listbox")).getByText(t(`documents.home.chips.${chip}`));
+  // Base UI only commits a click that started on the item with a pointer.
+  fireEvent.pointerDown(option);
+  fireEvent.click(option);
+}
 const writes = (method: string) =>
   requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === method);
 
@@ -128,7 +137,7 @@ describe("type chip over paged lists (M2)", () => {
     renderView();
     await screen.findByText("Báo giá.docx");
 
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.xlsx") }));
+    await pickType("xlsx");
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     expect(screen.getByText(t("documents.home.no_matches_more_description"))).toBeInTheDocument();
 
@@ -137,11 +146,11 @@ describe("type chip over paged lists (M2)", () => {
     expect(screen.queryByText(t("documents.library.no_matches_title"))).toBeNull();
   });
 
-  it("points at the create cards when they are on screen, and offers no Load more once exhausted", async () => {
+  it("points at the Tạo nhanh strip when it is on screen, and offers no Load more once exhausted", async () => {
     route({ list: () => [summary()] });
     renderView();
     await screen.findByText("Kế hoạch Q4");
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.pdf") }));
+    await pickType("pdf");
     expect(await screen.findByText(t("documents.home.no_matches_description"))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull();
   });
@@ -156,7 +165,7 @@ describe("sidebar sources section (m2)", () => {
     renderView();
     expect(await screen.findByText(t("documents.home.sidebar.elsewhere"))).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.docx") }));
+    await pickType("docx");
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => queryOf(String(path)).get("type") === "docx")).toBe(true));
     expect(screen.getByText(t("documents.home.sidebar.elsewhere"))).toBeInTheDocument();
   });
@@ -198,7 +207,9 @@ describe("folder rename (m4)", () => {
       patch: () => ({ document: folderDetail({ title: "CCB 2027", revision: "4" }) }),
     });
     renderView();
-    fireEvent.click(await within(await screen.findByRole("table")).findByText("Dự án CCB"));
+    // The folder is a card above the table (TRASH-A3).
+    const folders = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
+    fireEvent.click(await within(folders).findByRole("button", { name: /^Dự án CCB/ }));
     const crumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.home.folders.rename") }));
     return within(crumbs).getByRole("textbox", { name: t("documents.home.folders.rename_label") });
@@ -223,16 +234,19 @@ describe("folder rename (m4)", () => {
   });
 });
 
-describe("header count (m9, visual r1)", () => {
-  it("counts the rows the list shows, folders and linked files included, like the tab", async () => {
+describe("documents count (m9, visual r1; TRASH-A3)", () => {
+  it("counts the table's rows, linked files included, beside Tài liệu; folders are cards, not counted there", async () => {
     route({
+      tree: () => [{ id: "fo1", title: "Hợp đồng", kind: "folder", position: 0, children: [] }],
       list: () => [summary(), summary({ id: "d2", title: "Biên bản" }), summary({ id: "fo1", kind: "folder", title: "Hợp đồng" })],
       sources: () => [source()],
     });
     renderView();
     await screen.findByText("Đề xuất ngân sách.pdf");
-    const heading = screen.getByRole("heading", { level: 1, name: t("documents.page.title") });
-    expect(heading.parentElement).toHaveTextContent(new RegExp(`${t("documents.page.title")}4$`));
+    const heading = screen.getByRole("heading", { level: 2, name: new RegExp(`^${t("documents.home.sections.documents")}`) });
+    expect(heading).toHaveTextContent(new RegExp(`${t("documents.home.sections.documents")} 3$`));
+    const folders = screen.getByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
+    expect(within(folders).getByRole("heading", { level: 2 })).toHaveTextContent(new RegExp(`${t("documents.home.sections.folders")} 1$`));
   });
 });
 

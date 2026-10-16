@@ -5,14 +5,13 @@ import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwo
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
-import { DocumentsGreeting } from "./documents-home-create";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
 import { libraryLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
 // Visual r1 fixes for the Documents home (UNI-1305): the phone row keeps its
-// name, one count, read-only copy, the app command in the row menu, one drop hint.
+// name, one count, no create copy for a viewer, the app command in the row menu, one drop hint.
 
 const { t } = initI18n();
 
@@ -143,40 +142,6 @@ describe("phone row menu (finding 7)", () => {
   });
 });
 
-describe("read-only greeting (finding 5)", () => {
-  const now = new Date("2026-10-12T14:00:00");
-
-  it("says what the viewer can do instead of asking what to create", () => {
-    render(<DocumentsGreeting name="An" folderTitle="Thư mục chỉ xem" readOnly now={now} />);
-    expect(screen.getByRole("heading", { name: t("documents.home.greeting.afternoon_read_only_named", { name: "An" }) })).toBeInTheDocument();
-    expect(screen.getByText(t("documents.home.greeting.hint_read_only", { folder: "Thư mục chỉ xem" }))).toBeInTheDocument();
-    expect(screen.queryByText(/tạo gì/)).toBeNull();
-    expect(screen.queryByText(t("documents.home.greeting.hint_folder", { folder: "Thư mục chỉ xem" }))).toBeNull();
-  });
-
-  it("has a name-less line and a folder-less hint", () => {
-    render(<DocumentsGreeting name={null} folderTitle={null} readOnly now={now} />);
-    expect(screen.getByRole("heading", { name: t("documents.home.greeting.afternoon_read_only") })).toBeInTheDocument();
-    expect(screen.getByText(t("documents.home.greeting.hint_read_only_plain"))).toBeInTheDocument();
-  });
-
-  it("keeps the creation greeting for someone who can create", () => {
-    render(<DocumentsGreeting name="An" folderTitle={null} now={now} />);
-    expect(screen.getByRole("heading", { name: t("documents.home.greeting.afternoon_named", { name: "An" }) })).toBeInTheDocument();
-    expect(screen.getByText(t("documents.home.greeting.hint_root"))).toBeInTheDocument();
-  });
-
-  it("has the new keys translated in both languages", () => {
-    for (const part of ["morning", "afternoon", "evening"]) {
-      for (const suffix of ["_read_only", "_read_only_named"]) {
-        const key = `documents.home.greeting.${part}${suffix}`;
-        expect(t(key, { name: "An" })).not.toBe(key);
-      }
-    }
-    expect(t("documents.home.greeting.hint_read_only", { folder: "X" })).not.toBe("documents.home.greeting.hint_read_only");
-  });
-});
-
 describe("page view (findings 4, 5, 8)", () => {
   function renderView() {
     const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
@@ -213,15 +178,17 @@ describe("page view (findings 4, 5, 8)", () => {
     });
   });
 
-  it("shows the same number in the header and on the active tab", async () => {
-    route([file("d1", "Báo giá.docx"), file("d2", "Biên bản.docx"), file("fo1", "Hợp đồng", { kind: "folder" })]);
+  it("shows the same number beside Tài liệu as the table has rows; folders are cards (TRASH-A3)", async () => {
+    route(
+      [file("d1", "Báo giá.docx"), file("d2", "Biên bản.docx"), file("fo1", "Hợp đồng", { kind: "folder" })],
+      [{ id: "fo1", title: "Hợp đồng", kind: "folder", position: 0, children: [] }],
+    );
     renderView();
     await screen.findByText("Báo giá.docx");
-    const tab = screen.getByRole("tab", { name: new RegExp(t("documents.home.scope.home")) });
-    const tabCount = within(tab).getByText(/^\d+$/).textContent;
-    expect(tabCount).toBe("3");
-    const heading = screen.getByRole("heading", { level: 1, name: t("documents.page.title") });
-    expect(heading.parentElement).toHaveTextContent(new RegExp(`${t("documents.page.title")}${tabCount}$`));
+    const section = screen.getByRole("region", { name: new RegExp(`^${t("documents.home.sections.documents")} [0-9]+$`) });
+    const rows = within(within(section).getByRole("table")).getAllByRole("row").filter((row) => within(row).queryAllByRole("cell").length > 0);
+    expect(rows).toHaveLength(2);
+    expect(within(section).getByRole("heading", { level: 2 })).toHaveTextContent(new RegExp(`${t("documents.home.sections.documents")} ${rows.length}$`));
   });
 
   it("shows the drop hint once on an empty workspace: in the empty state, not again below it", async () => {
@@ -238,7 +205,7 @@ describe("page view (findings 4, 5, 8)", () => {
     expect(screen.getByText(t("documents.home.drop_hint"))).toBeInTheDocument();
   });
 
-  it("swaps the creation greeting for a read-only line in a folder the user may only view", async () => {
+  it("offers no create copy in a folder the user may only view, only the view-only line", async () => {
     route(
       [],
       [{ id: "fo1", title: "Thư mục chỉ xem", kind: "folder", position: 0, children: [] }],
@@ -247,8 +214,9 @@ describe("page view (findings 4, 5, 8)", () => {
     renderView();
     fireEvent.click(await screen.findByRole("treeitem", { name: /Thư mục chỉ xem/ }));
     await screen.findByText(t("documents.home.empty.view_only"));
-    await waitFor(() => expect(screen.getByText(t("documents.home.greeting.hint_read_only", { folder: "Thư mục chỉ xem" }))).toBeInTheDocument());
-    expect(screen.queryByText(/tạo gì/)).toBeNull();
-    expect(screen.queryByText(t("documents.home.greeting.hint_folder", { folder: "Thư mục chỉ xem" }))).toBeNull();
+    await screen.findByRole("heading", { level: 1, name: /Thư mục chỉ xem/ });
+    expect(screen.queryByText(t("documents.home.folder.info_banner", { folder: "Thư mục chỉ xem" }))).toBeNull();
+    expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
+    expect(screen.queryByRole("button", { name: new RegExp(t("documents.home.create.menu")) })).toBeNull();
   });
 });

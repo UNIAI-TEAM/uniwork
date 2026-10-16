@@ -67,6 +67,7 @@ function source(over: Record<string, unknown> = {}) {
 
 interface Routes {
   list?: (path: string) => unknown[];
+  tree?: () => unknown[];
   recent?: (path: string) => unknown[] | Promise<never>;
   recentCursor?: (path: string) => string | null;
   shared?: () => unknown[];
@@ -88,7 +89,7 @@ function route(routes: Routes) {
       }
     };
     if (path.includes("/documents/favorites")) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
-    if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+    if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: routes.tree?.() ?? [] });
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
       return run(() => ({ items: routes.sources?.(path) ?? [], next_cursor: routes.sourcesCursor?.(path) ?? null }));
     }
@@ -115,14 +116,14 @@ function nav(): NavigationAdapter {
   };
 }
 
-function renderView(adapter: NavigationAdapter = nav()) {
+function renderView(adapter: NavigationAdapter = nav(), onOpen: (id: string) => void = vi.fn()) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   render(
     wrap(
       <NavigationProvider value={adapter}>
         <WorkspaceProvider workspace={workspace} user={user}>
           <FeatureFlagsProvider service={service}>
-            <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            <DocumentsPageView wsId={WS} onOpen={onOpen} />
           </FeatureFlagsProvider>
         </WorkspaceProvider>
       </NavigationProvider>,
@@ -404,16 +405,14 @@ describe("library views", () => {
     expect(screen.queryByText(t("documents.library.error_title"))).toBeNull();
   });
 
-  it("lists archived documents without move or archive commands", async () => {
+  it("lists trashed documents in the Trash table with Restore and no row menu", async () => {
     route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? [summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z" })] : []) });
     renderView();
-    fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) }));
     const row = await rowOf("Cũ");
-    expect(within(row).getByText(t("documents.library.archived_badge"))).toBeInTheDocument();
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) }));
-    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(within(row).getByRole("button", { name: t("documents.actions.restore") })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) })).toBeNull();
   });
 
   it("lists one module's files from the sidebar and names the view after it", async () => {
@@ -483,60 +482,63 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
   const archivedList = (rows: unknown[]) => (path: string) =>
     new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? rows : [];
 
-  async function openArchiveScope() {
-    fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
-  }
-
-  /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
-  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
-
   async function openMenu(title: string) {
     const row = await rowOf(title);
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
   }
 
-  it("offers Restore, not Open folder, on a trashed folder in the Archive scope", async () => {
+  async function openArchiveScope() {
+    fireEvent.click((await screen.findAllByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) }))[0]!);
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
+  }
+
+  /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
+  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
+  const restoreOf = (row: HTMLElement) => within(row).queryByRole("button", { name: t("documents.actions.restore") });
+
+  it("offers Restore, not Open folder or a row menu, on a trashed folder in the Trash view", async () => {
     route({ list: archivedList([archivedFolder()]) });
     renderView();
     await openArchiveScope();
-    await openMenu("Dự án CCB");
-    expect(await screen.findByRole("menuitem", { name: t("documents.actions.restore") })).toBeInTheDocument();
+    const row = await rowOf("Dự án CCB");
+    expect(restoreOf(row)).not.toBeNull();
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeNull();
   });
 
-  it("hides Restore from a viewer who cannot manage the trashed folder (no menu at all)", async () => {
+  it("shows the read-only hint instead of Restore for a viewer who cannot manage the trashed folder", async () => {
     route({ list: archivedList([archivedFolder({ my_level: "edit" })]) });
     renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
-    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
+    expect(restoreOf(row)).toBeNull();
+    expect(within(row).getByText(t("documents.trash.read_only_hint"))).toBeInTheDocument();
   });
 
-  it("opens the restore dialog, and does not navigate, on click of a trashed folder row", async () => {
+  it("opens the restore dialog from the Restore button, and does not navigate, on a trashed folder row", async () => {
     route({ list: archivedList([archivedFolder()]) });
     const adapter = renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
-    fireEvent.click(primaryOf(row)!);
+    fireEvent.click(restoreOf(row)!);
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
     expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
   });
 
-  it("opens the restore dialog, and does not navigate, on Enter over a trashed folder row", async () => {
+  it("opens the restore dialog on Enter over the Restore button of a trashed folder row", async () => {
     route({ list: archivedList([archivedFolder()]) });
     const adapter = renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
-    const open = primaryOf(row)!;
-    open.focus();
+    restoreOf(row)!.focus();
     await userEvent.keyboard("{Enter}");
     expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
     expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
   });
 
-  it("makes a trashed folder row inert for a viewer who cannot manage it: no link, no dialog, no navigation", async () => {
-    route({ list: archivedList([archivedFolder({ my_level: "edit" })]) });
+  it("makes a trashed folder's name inert: no button, no dialog, no navigation on click", async () => {
+    route({ list: archivedList([archivedFolder()]) });
     const adapter = renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
@@ -546,16 +548,18 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
   });
 
-  it("keeps an archived document's menu as it was: Open on the web, no Restore", async () => {
+  it("keeps a trashed document's title opening it, beside Restore", async () => {
     route({ list: archivedList([summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z" })]) });
-    renderView();
+    const onOpen = vi.fn();
+    renderView(nav(), onOpen);
     await openArchiveScope();
-    await openMenu("Cũ");
-    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.actions.restore") })).toBeNull();
+    const row = await rowOf("Cũ");
+    expect(restoreOf(row)).not.toBeNull();
+    fireEvent.click(primaryOf(row)!);
+    expect(onOpen).toHaveBeenCalledWith("a1");
   });
 
-  it("restores through the dialog, toasts the returned title and drops the row from the Archive list", async () => {
+  it("restores through the dialog, toasts the returned title and drops the row from the Trash list", async () => {
     let restored = false;
     route({
       list: (path) => (restored ? [] : archivedList([archivedFolder()])(path)),
@@ -567,8 +571,8 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     });
     renderView();
     await openArchiveScope();
-    await openMenu("Dự án CCB");
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.actions.restore") }));
+    const row = await rowOf("Dự án CCB");
+    fireEvent.click(restoreOf(row)!);
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.archive.restore_confirm") }));
@@ -577,10 +581,14 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     await waitFor(() => expect(screen.queryByText("Dự án CCB")).toBeNull());
   });
 
-  it("names the same actions the same way on a folder row and in the tree menu", async () => {
-    route({ list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })] });
+  it("names the same actions the same way on a folder card menu and in the tree menu", async () => {
+    route({
+      tree: () => [{ id: "f1", title: "Hợp đồng", kind: "folder", position: 0, children: [] }],
+      list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })],
+    });
     renderView();
-    await openMenu("Hợp đồng");
+    const section = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
+    fireEvent.click(await within(section).findByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
     expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.delete") })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();

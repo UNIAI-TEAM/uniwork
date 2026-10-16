@@ -9419,85 +9419,57 @@
         "name_too_long": "Tên tài liệu tối đa {{max}} ký tự.",
         "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
-      "greeting": {
-        "morning": "Chào buổi sáng. Hôm nay bạn muốn tạo gì?",
-        "morning_named": "Chào buổi sáng, {{name}}. Hôm nay bạn muốn tạo gì?",
-        "afternoon": "Chào buổi chiều. Hôm nay bạn muốn tạo gì?",
-        "afternoon_named": "Chào buổi chiều, {{name}}. Hôm nay bạn muốn tạo gì?",
-        "evening": "Chào buổi tối. Hôm nay bạn muốn tạo gì?",
-        "evening_named": "Chào buổi tối, {{name}}. Hôm nay bạn muốn tạo gì?",
-        "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
-        "hint_folder": "File mới nằm trong thư mục {{folder}} và mở ngay trong trình soạn thảo.",
-        "morning_read_only": "Chào buổi sáng.",
-        "morning_read_only_named": "Chào buổi sáng, {{name}}.",
-        "afternoon_read_only": "Chào buổi chiều.",
-        "afternoon_read_only_named": "Chào buổi chiều, {{name}}.",
-        "evening_read_only": "Chào buổi tối.",
-        "evening_read_only_named": "Chào buổi tối, {{name}}.",
-        "hint_read_only": "Bạn chỉ có quyền xem thư mục {{folder}}: mở file để đọc, không tạo hay sửa được.",
-        "hint_read_only_plain": "Bạn chỉ có quyền xem ở đây: mở file để đọc, không tạo hay sửa được."
-      },
       "quick_create": {
+        "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
         "label": "Tạo nhanh"
       },
       "create": {
-        "label": "Tạo mới",
         "menu": "Tạo mới",
-        "ai_badge": "AI",
         "unavailable_hint": "Chưa dùng được trên máy chủ này",
         "page": {
-          "card": "Trang",
           "chip": "UniNote",
           "hint": "Trang UniWork, gắn được công việc và nhắc tên",
           "menu": "Trang",
           "ext": "UniWork"
         },
         "docx": {
-          "card": "AI Docs",
           "chip": "Văn bản",
           "hint": ".docx",
           "menu": "Tài liệu Docs",
           "ext": ".docx"
         },
         "xlsx": {
-          "card": "AI Sheets",
           "chip": "Bảng tính",
           "hint": ".xlsx",
           "menu": "Bảng tính Sheets",
           "ext": ".xlsx"
         },
         "pptx": {
-          "card": "AI Slides",
           "chip": "Trình chiếu",
           "hint": ".pptx",
           "menu": "Trình chiếu Slides",
           "ext": ".pptx"
         },
         "md": {
-          "card": "AI Markdown",
           "chip": "Tệp Markdown",
           "hint": ".md",
           "menu": "Markdown",
           "ext": ".md"
         },
         "html": {
-          "card": "AI HTML",
           "chip": "HTML",
           "hint": ".html",
           "menu": "HTML",
           "ext": ".html"
         },
         "pdf": {
-          "card": "AI PDF",
           "chip": "PDF",
           "hint": ".pdf",
           "menu": "PDF",
           "ext": ".pdf"
         },
         "upload": {
-          "card": "Tải file lên",
-          "button": "Tải lên",
-          "hint": "docx, xlsx, pptx, pdf, md, html, ảnh"
+          "button": "Tải lên"
         },
         "folder": {
           "menu": "Thư mục"
@@ -9509,7 +9481,22 @@
         "documents": "Tài liệu"
       },
       "folder": {
-        "info_banner": "Tạo mới và tải lên ở đây sẽ vào thư mục “{{folder}}”. Kéo thả tệp vào danh sách để tải lên."
+        "info_banner": "Tạo mới và tải lên ở đây sẽ vào thư mục “{{folder}}”. Kéo thả tệp vào danh sách để tải lên.",
+        "menu": "Thao tác với thư mục"
+      },
+      "folder_card": {
+        "folders": "{{count}} thư mục"
+      },
+      "filters": {
+        "type": "Loại",
+        "editor": "Người sửa",
+        "updated": "Cập nhật",
+        "editor_any": "Bất kỳ",
+        "editor_me": "Tôi",
+        "updated_any": "Bất kỳ lúc nào",
+        "updated_today": "Hôm nay",
+        "updated_7d": "7 ngày qua",
+        "updated_30d": "30 ngày qua"
       },
       "sidebar": {
         "label": "Điều hướng tài liệu",
@@ -9542,13 +9529,6 @@
         "task": "Công việc",
         "meeting": "Cuộc họp",
         "email": "Email"
-      },
-      "scope_label": "Phạm vi",
-      "scope": {
-        "home": "Tất cả",
-        "recent": "Gần đây",
-        "shared": "Được chia sẻ",
-        "archived": "Thùng rác"
       },
       "chips_label": "Lọc theo loại",
       "chips": {

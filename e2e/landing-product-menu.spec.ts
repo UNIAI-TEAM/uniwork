@@ -78,7 +78,7 @@ test("create, search and save stay inside the demo across view switches", async 
   await search.fill("tài liệu");
   await search.press("Enter");
   await expect(stage.locator('[data-feature="documents"]')).toHaveAttribute("aria-selected", "true");
-  await panel.getByRole('list', { name: vi.documents.home.create.label }).getByRole('button').first().click();
+  await panel.getByRole('region', { name: vi.documents.home.quick_create.label }).getByRole('button').first().click();
   await panel.locator('[contenteditable=true]').fill("Nội dung đã chỉnh trong demo");
   await panel.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(panel).toContainText("Nội dung đã chỉnh trong demo");
