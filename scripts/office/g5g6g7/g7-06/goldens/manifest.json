@@ -2,7 +2,7 @@
   "schema": 1,
   "pinVersion": "0.1.0-bf4ff7b",
   "forkSha": "bf4ff7b",
-  "capturedOn": "2026-10-16T01:14:15.095Z",
+  "capturedOn": "2026-10-16T02:29:45.283Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -32,7 +32,7 @@
       "masks": []
     },
     "desktop/fx-pptx-deck-vi": {
-      "sha256": "eeaf6edabb566266192414c5adcad9d50e188d3ff96bf2ccc5f2e57fe70b68cf",
+      "sha256": "d0e57bf684d92c87ed0f0c855b99815e4f91fd40149add1a486eb9b2da3f37f7",
       "masks": []
     },
     "desktop/fx-pdf-invoice-vi": {
@@ -48,27 +48,27 @@
       "masks": []
     },
     "web/fx-xlsx-revenue-xyz": {
-      "sha256": "3f2ec5a343751a4155935d6d21a502cbd91821404dc1be75d8feb8e16206aca0",
+      "sha256": "8ad6fc7a7519e989494a5e2aa309858486d4cc84db865c84405ea92a380ff09f",
       "masks": []
     },
     "web/fx-docx-report-vi": {
-      "sha256": "7750b2e5b3c1b058dcc02620d213b215fc83e08951866b8d26ff32b6aee8db9a",
+      "sha256": "c5e7ff5ee25ed94649de076add2b1396ea1b93141fea702389dc1892118cf6df",
       "masks": []
     },
     "web/fx-pptx-deck-vi": {
-      "sha256": "e79946da3d1d3e3a5f8c12461445cbb2f741c21ddcd9978ed1c1dba80fb99118",
+      "sha256": "bb673898f82b1acfe3bd2f7133be609c70f2c40db7755e48f55d8891490314ca",
       "masks": []
     },
     "web/fx-pdf-invoice-vi": {
-      "sha256": "4121fd7cd3a881946ac33bcd7351305fc016477600bb2dad5a3957b34fde9118",
+      "sha256": "715ed441b86394a539197c71b365bba339ba88a6cf173eed0ddd9044ae158003",
       "masks": []
     },
     "web/fx-md-notes-vi": {
-      "sha256": "e5dcdc3b8f3ef4143a0496c295270c441ef91c395811c489a3362a835524b32e",
+      "sha256": "7d4aa8ef7b3548c7231871686d6c1fb993b31892c5620107d8148ec4f6638bad",
       "masks": []
     },
     "web/fx-html-page-vi": {
-      "sha256": "d159004577161c4853b80744027abeddd69c793d3e014c743044daa6af9f347f",
+      "sha256": "ac6fb0b3b603db048814e7c46b960307b2a029b03eaa97207c63041f4ecdf010",
       "masks": []
     }
   }
