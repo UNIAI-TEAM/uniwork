@@ -1,0 +1,10 @@
+$ npm run fixtures
+
+> genoffice@0.1.0 fixtures
+> npm run fixtures -w @genoffice/docx-engine
+
+
+> @genoffice/docx-engine@0.1.0 fixtures
+> tsx scripts/generate-fixtures.ts
+
+fixtures written to /home/ubuntu/work/uniwork-office/fixtures/generated
