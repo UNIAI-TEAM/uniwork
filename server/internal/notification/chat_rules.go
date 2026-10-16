@@ -44,15 +44,18 @@ func chatMessageRule(kind string) rule {
 		if ev.OrganizationID.Valid && room.OrganizationID != ev.OrganizationID.String {
 			return nil, nil
 		}
+		// A public channel's thread can be followed without joining (authorizeRoomRead);
+		// the send-time follower query admits those readers too (UNI-1721).
+		publicThread := kind == KindChatThreadReplied && room.Kind == "channel" && room.Visibility == "public"
 		mem, err := e.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: room.ID, UserID: userID})
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		if err != nil {
+			if !publicThread {
+				return nil, nil
+			}
+		} else if err != nil {
 			return nil, err
-		}
-		// Read at delivery, so a mute set after the send still holds (UNI-1697).
-		if mem.NotificationsMuted {
+		} else if mem.NotificationsMuted {
+			// Read at delivery, so a mute set after the send still holds (UNI-1697).
 			return nil, nil
 		}
 		wsID, err := chatRecipientWorkspace(ctx, e, room, userID)
