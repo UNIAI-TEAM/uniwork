@@ -1166,8 +1166,14 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 			t.Errorf("%s: head or truncation marker missing: %.60q ... %.60q", what, excerpt, tail(excerpt, 60))
 		}
 	}
+	// Terms are 3+ runes now, so "mô tả" no longer scores: "dài" alone ties with
+	// the meeting and the task only has to be among the hits.
 	found, err := x.tools.Search(ctx, x.p, x.w.ID, "mô tả dài")
-	if err != nil || len(found) == 0 || found[0].ID != long.ID {
+	hit := false
+	for _, f := range found {
+		hit = hit || f.ID == long.ID
+	}
+	if err != nil || !hit {
 		t.Fatalf("search = %+v, %v", found, err)
 	}
 	checkCut("search", found[0].Excerpt, ai.MaxExcerpt, "Trạng thái:")
@@ -1265,14 +1271,14 @@ func TestCapRunes(t *testing.T) {
 	}
 }
 
-// A query with no word of two or more characters has nothing to score with;
+// A query with no word of three or more characters (or number) has nothing to score with;
 // Ask UNI answers it with the latest items, a connector would hand the model an
 // arbitrary slice of the workspace.
 func TestMcpSearchRefusesAQueryWithNoWord(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
 	var bad McpInvalidArgs
-	for _, q := range []string{"a", "?", "a b c", "!!! ... ???", "ạ", "1 2"} {
+	for _, q := range []string{"a", "?", "a b c", "!!! ... ???", "ạ", "ab"} {
 		if out, err := x.tools.Search(ctx, x.p, x.w.ID, q); !errors.As(err, &bad) || out != nil {
 			t.Errorf("Search(%q) = %+v, %v; want McpInvalidArgs", q, out, err)
 		}
@@ -1280,7 +1286,7 @@ func TestMcpSearchRefusesAQueryWithNoWord(t *testing.T) {
 			t.Errorf("search tool %q: %v", q, err)
 		}
 	}
-	for _, q := range []string{"ab", "báo cáo", "a báo", "10"} {
+	for _, q := range []string{"abc", "báo cáo", "a báo", "10", "1 2"} {
 		if _, err := x.tools.Search(ctx, x.p, x.w.ID, q); err != nil {
 			t.Errorf("Search(%q): %v", q, err)
 		}

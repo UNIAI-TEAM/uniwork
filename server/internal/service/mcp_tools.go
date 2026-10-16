@@ -211,7 +211,7 @@ func (s *McpToolService) Search(ctx context.Context, p McpPrincipal, workspaceID
 	// Ask UNI answers a query it cannot score with the latest items; a
 	// connector would hand the model an arbitrary slice of the workspace.
 	if len(terms(query)) == 0 {
-		return nil, McpInvalidArgs{Msg: "query needs at least one word of 2 or more characters"}
+		return nil, McpInvalidArgs{Msg: "query needs at least one word of 3 or more characters, or a number"}
 	}
 	if err := s.inGrant(ctx, p, workspaceID); err != nil {
 		return nil, err

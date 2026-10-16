@@ -104,12 +104,18 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 
 // ---- scoring ------------------------------------------------------------
 
+// tokens splits the diacritic-folded text into words.
+func tokens(q string) []string {
+	return strings.FieldsFunc(foldForSearch(q), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+}
+
 // ponytail: keyword overlap; swap for the A-04 search index when it exists.
+// Terms are folded words of 3+ runes or all digits, so "do"/"co"/"la" do not
+// match half the workspace while "10" still finds "tháng 10".
 func terms(q string) []string {
-	fields := strings.FieldsFunc(strings.ToLower(q), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
-	out := fields[:0]
-	for _, f := range fields {
-		if len([]rune(f)) >= 2 {
+	var out []string
+	for _, f := range tokens(q) {
+		if len([]rune(f)) >= 3 || strings.IndexFunc(f, func(r rune) bool { return !unicode.IsDigit(r) }) < 0 {
 			out = append(out, f)
 		}
 	}
@@ -117,7 +123,7 @@ func terms(q string) []string {
 }
 
 func score(text string, ts []string) int {
-	low := strings.ToLower(text)
+	low := foldForSearch(text)
 	n := 0
 	for _, t := range ts {
 		if strings.Contains(low, t) {
@@ -127,24 +133,23 @@ func score(text string, ts []string) int {
 	return n
 }
 
-func asksOverdue(q string) bool {
-	low := strings.ToLower(q)
-	for _, k := range []string{"quá hạn", "qua han", "trễ hạn", "overdue", "late", "trễ"} {
-		if strings.Contains(low, k) {
+// hasPhrase reports whether any folded keyword occurs as whole adjacent tokens.
+func hasPhrase(q string, keywords ...string) bool {
+	hay := " " + strings.Join(tokens(q), " ") + " "
+	for _, k := range keywords {
+		if strings.Contains(hay, " "+k+" ") {
 			return true
 		}
 	}
 	return false
 }
 
+func asksOverdue(q string) bool {
+	return hasPhrase(q, "qua han", "tre han", "overdue", "late")
+}
+
 func asksMembers(q string) bool {
-	low := strings.ToLower(q)
-	for _, k := range []string{"thành viên", "thanh vien", "member", "ai ", "who", "nhân sự", "đội"} {
-		if strings.Contains(low, k) {
-			return true
-		}
-	}
-	return false
+	return hasPhrase(q, "thanh vien", "member", "members", "ai", "who", "nhan su", "doi ngu", "doi minh")
 }
 
 type scored struct {

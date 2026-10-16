@@ -403,3 +403,44 @@ func TestAskWithoutSourcesStoresNoticeNotText(t *testing.T) {
 		}
 	}
 }
+
+func TestAskMatchesWithoutDiacritics(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	for _, in := range []CreateTaskInput{{Title: "ĐƠN HÀNG THÁNG 10"}, {Title: "Banner Tết", DueDate: &yesterday}} {
+		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, in); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for q, want := range map[string]string{"don hang": "ĐƠN HÀNG THÁNG 10", "tet": "Banner Tết", "task nao tre han": "Banner Tết"} {
+		srcs, err := s.Sources(ctx, ai.SourceQuery{UserID: ua.ID, WorkspaceID: w.ID, Question: q})
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, src := range srcs {
+			found = found || src.Title == want
+		}
+		if !found {
+			t.Errorf("%q did not cite %q: %+v", q, want, srcs)
+		}
+	}
+}
+
+func TestAskIntentKeywordsMatchWholeWords(t *testing.T) {
+	for q, want := range map[string]bool{"lịch template task": false, "task nào trễ hạn": true} {
+		if got := asksOverdue(q); got != want {
+			t.Errorf("asksOverdue(%q) = %v", q, got)
+		}
+	}
+	for q, want := range map[string]bool{
+		"hai đơn hàng chậm": false, "remember this task": false,
+		"đổi tên task":         false, // guard: already false on the substring code
+		"ai đang làm đơn hàng": true, "đội ngũ gồm ai": true,
+	} {
+		if got := asksMembers(q); got != want {
+			t.Errorf("asksMembers(%q) = %v", q, got)
+		}
+	}
+}

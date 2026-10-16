@@ -526,8 +526,16 @@ func TestMcpGetDocumentReadsTextFiles(t *testing.T) {
 		t.Fatalf("pdf = %+v", d)
 	}
 	// A file is found by its name, not by what its bytes say.
-	if ids := x.searchIDs(t, x.p, "bao-cao.pdf"); len(ids) != 1 || ids[0] != pdf {
-		t.Errorf("a file is found by its name: %v", ids)
+	// Task search now folds diacritics, so a "Báo cáo" task may match the same
+	// words; the file must be among the hits exactly once.
+	hits := 0
+	for _, id := range x.searchIDs(t, x.p, "bao-cao.pdf") {
+		if id == pdf {
+			hits++
+		}
+	}
+	if hits != 1 {
+		t.Errorf("a file is found by its name: %d hits", hits)
 	}
 }
 
