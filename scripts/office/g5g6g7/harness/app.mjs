@@ -272,8 +272,20 @@ export async function connectApp({
     /** sign the app in as `user` through the desktop consent flow (contract §7) */
     async signIn(user, { expectOrgChoice = false } = {}) {
       let status = await aiOffice("accountStatus");
-      if (status?.state === "signed-in") await aiOffice("accountLogout");
-      else if (status?.state === "signing-in") await evalBounded(shellPage, () => window.aiOffice.accountCancelLogin?.(), undefined, "aiOffice.accountCancelLogin");
+      if (status?.state === "signed-in") {
+        // The product's own sign-out call, confirmation included. The fork asks the shell
+        // renderer before it signs out a session whose working copy still holds unsent work
+        // (uniwork-docs/wiring.ts:875-889 -> account-boundary.ts:198-214) and only that
+        // renderer's answer resolves the question, so a BARE `accountLogout()` with such a
+        // session never settles: cloud D2/D3's 4th row (a warm app still holding the previous
+        // row's dirty edit) hung `app-open` to the 90 s step bound with
+        // "aiOffice.accountLogout did not settle within 90 s" (D3-03; the same hang is
+        // documented for the fault rows at fault/app-session.mjs:169-181). The confirmed
+        // form is what the product's own account UI sends
+        // (`accountLogout({ confirmed: true })`, renderer/src/account-model.ts:443) and what
+        // cross-host.mjs's `signOutPreviousSession` already sends; the bridge stays bounded.
+        await aiOffice("accountLogout", { confirmed: true });
+      } else if (status?.state === "signing-in") await evalBounded(shellPage, () => window.aiOffice.accountCancelLogin?.(), undefined, "aiOffice.accountCancelLogin");
       const logOffset = existsSync(serverLog) ? statSync(serverLog).size : 0;
       const userSession = apiSession(user, { apiOrigin, fetchImpl });
       const callApi = async (name, { query, body } = {}) => {
@@ -301,7 +313,9 @@ export async function connectApp({
     },
     selectOrg: async (orgId) => sanitizeAccountStatus(await aiOffice("accountSelectOrg", orgId)),
     async signOut() {
-      await aiOffice("accountLogout");
+      // The same confirmation `signIn` sends, for the same reason (D3-03): a session that
+      // still holds unsent work would otherwise leave a bare `accountLogout()` unanswered.
+      await aiOffice("accountLogout", { confirmed: true });
       return sanitizeAccountStatus(await aiOffice("accountStatus"));
     },
 

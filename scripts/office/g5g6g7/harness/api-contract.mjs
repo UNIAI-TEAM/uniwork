@@ -142,7 +142,7 @@ export const TRACER_CALLS = {
  * Pinned against the router by harness/api.test.mjs.
  */
 export const G8_CALLS = {
-  patchDocument: { method: "PATCH", path: "/documents/{documentID}", params: { documentID: "id" }, sdi: "PatchDocumentSDI", body: ["revision", "title"] },
+  patchDocument: { method: "PATCH", path: "/documents/{documentID}", params: { documentID: "id" }, sdi: "PatchDocumentSDI", body: ["revision", "title", "visibility"] },
   archiveDocument: { method: "POST", path: "/documents/{documentID}/archive", params: { documentID: "id" } },
   restoreDocument: { method: "POST", path: "/documents/{documentID}/restore", params: { documentID: "id" } },
   copyDocument: { method: "POST", path: "/documents/{documentID}/copies", params: { documentID: "id" }, sdi: "CopyDocumentSDI", body: ["consent", "title"] },
@@ -193,6 +193,10 @@ export const G8_CALLS = {
   createInvitation: { method: "POST", path: "/workspaces/{workspaceID}/invitations", params: { workspaceID: "id" }, sdi: "CreateInvitationSDI", body: ["email", "role"] },
   myInvitations: { method: "GET", path: "/me/invitations" },
   acceptInvitation: { method: "POST", path: "/invitations/{token}/accept", params: { token: "token" } },
+  // The G7-04 revoke driver's member-removal case: DELETE
+  // /workspaces/{workspaceID}/members/{userID} (handler/workspace.go deleteMember
+  // -> WorkspaceService.RemoveMember(actorID, workspaceID, targetUserID)).
+  removeWorkspaceMember: { method: "DELETE", path: "/workspaces/{workspaceID}/members/{userID}", params: { workspaceID: "id", userID: "id" } },
   // `{org}` of this route is the organization SLUG (handler/organization_members.go deactivateOrgMember -> orgIDFromSlug)
   deactivateOrgMember: { method: "POST", path: "/orgs/{org}/members/{userID}/deactivate", params: { org: "slug", userID: "id" } },
 };
