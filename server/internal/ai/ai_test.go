@@ -1040,3 +1040,18 @@ func TestRenderSourcesKeepsTitleAndExcerptInsideUntrusted(t *testing.T) {
 		t.Fatal("unicode-spaced tag not escaped")
 	}
 }
+
+func TestStripUntrustedTagsNestedAndUnclosed(t *testing.T) {
+	for in, want := range map[string]string{
+		"a<<untrusted>untrusted>b":   "ab",
+		"a<</untrusted>/untrusted>b": "ab",
+		"x <untrusted source=\"x\"":  "x ",
+		"x </untrusted":              "x ",
+		"x < / UNTRUSTED >y":         "x y",
+		"keep <b>this</b> and a < b": "keep <b>this</b> and a < b",
+	} {
+		if got := StripUntrustedTags(in); got != want {
+			t.Errorf("Strip(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

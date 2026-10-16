@@ -82,7 +82,7 @@ func BuildContext(sources []Source) (pack []Source, truncated bool) {
 var untrustedTag = regexp.MustCompile(`(?i)<([\s\p{Z}\p{Cf}]*/?[\s\p{Z}\p{Cf}]*untrusted)`)
 
 // untrustedTagFull matches a whole tag, attributes included, for stripping.
-var untrustedTagFull = regexp.MustCompile(`(?i)<[\s\p{Z}\p{Cf}]*/?[\s\p{Z}\p{Cf}]*untrusted[^>]*>`)
+var untrustedTagFull = regexp.MustCompile(`(?i)<[\s\p{Z}\p{Cf}]*/?[\s\p{Z}\p{Cf}]*untrusted[^>\n]*>?`)
 
 // EscapeUntrusted turns every look-alike untrusted tag in s into inert text
 // so user-typed content cannot close or open a block.
@@ -94,7 +94,16 @@ func WrapUntrusted(source, s string) string {
 }
 
 // StripUntrustedTags removes untrusted tags a model may echo into its answer.
-func StripUntrustedTags(s string) string { return untrustedTagFull.ReplaceAllString(s, "") }
+func StripUntrustedTags(s string) string {
+	// Loop: removing an inner tag can rebuild an outer one (`<<untrusted>untrusted>`).
+	for {
+		out := untrustedTagFull.ReplaceAllString(s, "")
+		if out == s {
+			return out
+		}
+		s = out
+	}
+}
 
 // RenderSources is the prompt fragment: every title and excerpt wrapped as
 // untrusted data under its number, so a citation can be checked and neither
