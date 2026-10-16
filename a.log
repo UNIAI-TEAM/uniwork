@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+54a24d6c61c88f1e76f360bc459a055b94ff4418
+54a24d6c6 test(e2e): keep the library row lookup off the go-to-source button
+40265f41f fix(documents): compact go-to-source on every row width, keep the preview close off the image
+cb6b6db57 chore: merge root 549906774 (S2V-1 fix) into SRC-02
+549906774 fix(documents): unescape the source file id in its routes
+a95885f5c fix(documents): unescape the source file id in its routes
+e00598cb4 fix(documents): type the go-to-source row and isolate the late preview test
+e0614f724 refactor(documents): move the source preview into its own file
+c81a2fba3 fix(documents): source rows — link only known parents, name the email button, preview renderable images
