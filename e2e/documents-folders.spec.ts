@@ -576,8 +576,8 @@ test("FD-A03 upload into the open folder places the uploaded file under the open
       .getByText("Thư mục Nhận Tải Lên"),
   ).toBeVisible();
 
-  // Open the real Upload file dialog from the header/cards (packages/views/documents/documents-home-create.tsx:117,135).
-  await page.getByRole("button", { name: /^Tải file lên/ }).first().click();
+  // Open the real Upload file dialog from the header "Tải lên" (documents-home-create.tsx CreateMenu).
+  await page.getByRole("button", { name: "Tải lên" }).click();
   const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
   await expect(uploadDialog).toBeVisible();
   await uploadDialog
@@ -1406,7 +1406,7 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
   });
   await expect(breadcrumb).toBeVisible();
   await expect(
-    breadcrumb.getByRole("button", { name: "Tài liệu", exact: true }),
+    breadcrumb.getByRole("button", { name: "Tài liệu của workspace", exact: true }),
   ).toBeVisible();
   await expect(
     breadcrumb.getByRole("button", { name: "Khối Kỹ thuật" }),
@@ -1428,7 +1428,7 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
   );
   await expect(contentRow(page, "Nền tảng")).toBeVisible();
 
-  await breadcrumb.getByRole("button", { name: "Tài liệu", exact: true }).click();
+  await breadcrumb.getByRole("button", { name: "Tài liệu của workspace", exact: true }).click();
   await expect(page).toHaveURL(
     new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
   );
@@ -1535,7 +1535,7 @@ test("FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and th
     name: "Đường dẫn thư mục",
   });
   // Visible segments: root, the "…" menu, the parent folder and the open folder (leaf).
-  await expect(breadcrumb.getByRole("button", { name: "Tài liệu", exact: true })).toBeVisible();
+  await expect(breadcrumb.getByRole("button", { name: "Tài liệu của workspace", exact: true })).toBeVisible();
   const more = breadcrumb.getByRole("button", { name: "Các cấp ẩn" });
   await expect(more).toBeVisible();
   await expect(

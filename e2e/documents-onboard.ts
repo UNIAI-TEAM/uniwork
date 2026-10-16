@@ -71,9 +71,9 @@ export async function signIn(page: Page, w: WorkspaceSeed) {
   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
 }
 
-/** The "Page" create card of the Documents home (it keeps today's New page flow). */
+/** The UniWork page ("UniNote") pill of the Tạo nhanh strip at the Documents home root (the create cards are gone). */
 export function newPageCard(page: Page) {
-  return page.getByRole("list", { name: "Tạo mới" }).getByRole("button", { name: /^Trang/ });
+  return page.getByRole("region", { name: "Tạo nhanh" }).getByRole("button", { name: /^UniNote/ });
 }
 
 /** New page from the library, `text` typed and confirmed saved; returns its URL. */
