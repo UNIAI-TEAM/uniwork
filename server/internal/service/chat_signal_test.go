@@ -5,13 +5,54 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// failingExec fails the one statement whose text contains match.
+type failingExec struct {
+	db.DBTX
+	match string
+}
+
+func (f failingExec) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	if strings.Contains(sql, f.match) {
+		return pgconn.CommandTag{}, errors.New("injected exec failure")
+	}
+	return f.DBTX.Exec(ctx, sql, arguments...)
+}
+
+func TestMarkRoomReadReportsAStoreFailure(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendRoomMessage(ctx, ub.ID, w.ID, dm.ID, SendChatMessageInput{Body: "ping"}); err != nil {
+		t.Fatal(err)
+	}
+	s.q = db.New(failingExec{DBTX: pool, match: "-- name: UpdateChatRoomMemberLastRead "})
+	if err := s.MarkRoomRead(ctx, ua.ID, w.ID, dm.ID); err == nil {
+		t.Fatal("MarkRoomRead: want error when last_read update fails")
+	}
+	s.q = db.New(failingExec{DBTX: pool, match: "-- name: UpdateChatRoomMemberLastRead "})
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatalf("ListRoomMessages: %v", err)
+	}
+	if len(msgs) == 0 {
+		t.Fatal("want messages despite read pointer failure")
+	}
+}
 
 func TestSignalVoiceAndTyping(t *testing.T) {
 	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)

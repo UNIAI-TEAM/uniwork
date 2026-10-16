@@ -532,3 +532,27 @@ func TestDocumentSourceCursorAndFilters(t *testing.T) {
 		t.Fatal("equal times must order by id descending")
 	}
 }
+
+func TestDocumentSourceChatParentIncludesMessageID(t *testing.T) {
+	row := db.ListDocumentSourceChatFilesRow{
+		SourceID:    "chat:01MSG",
+		RowID:       "01MSG",
+		SortAt:      pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ParentKind:  chatRoomKindChannel,
+		ParentID:    "01ROOM",
+		ParentTitle: "General",
+		Name:        "file.pdf",
+		MimeType:    "application/pdf",
+		SizeBytes:   100,
+	}
+	item := documentSourceItem(DocumentSourceChat, row)
+	if item.Parent.MessageID != "01MSG" {
+		t.Fatalf("MessageID = %q, want 01MSG", item.Parent.MessageID)
+	}
+	taskRow := row
+	taskRow.ParentKind = "task"
+	item = documentSourceItem(DocumentSourceTask, taskRow)
+	if item.Parent.MessageID != "" {
+		t.Fatalf("task parent MessageID = %q, want empty", item.Parent.MessageID)
+	}
+}

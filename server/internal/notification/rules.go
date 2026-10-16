@@ -12,8 +12,16 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// refused is a gate answer meaning "not a member now"; any other error is an
+// outage the outbox must retry (UNI-1709).
+func refused(err error) bool {
+	return errors.Is(err, service.ErrForbidden) || errors.Is(err, service.ErrNotFound) ||
+		errors.Is(err, service.ErrMemberDeactivated) || errors.Is(err, service.ErrOrganizationSuspended)
+}
 
 // MemberChecker is the one membership gate (CLAUDE.md § Database and
 // Migration Rules); WorkspaceService satisfies it. A recipient who is no
@@ -187,6 +195,7 @@ type recipients struct {
 	wsID  string
 	seen  map[string]bool
 	order []string
+	err   error
 }
 
 func newRecipients(ctx context.Context, e env, ev outbox.Row, wsID string) *recipients {
@@ -202,6 +211,9 @@ func (r *recipients) add(userID string) {
 	}
 	if r.wsID != "" {
 		if _, err := r.e.members.RequireMember(r.ctx, r.wsID, userID); err != nil {
+			if !refused(err) && r.err == nil {
+				r.err = err
+			}
 			return
 		}
 	}
@@ -209,7 +221,10 @@ func (r *recipients) add(userID string) {
 	r.order = append(r.order, userID)
 }
 
-func (r *recipients) drafts(orgID, kind, groupKey, resType, resID string, params map[string]string) []Draft {
+func (r *recipients) drafts(orgID, kind, groupKey, resType, resID string, params map[string]string) ([]Draft, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	out := make([]Draft, 0, len(r.order))
 	for _, uid := range r.order {
 		out = append(out, Draft{
@@ -218,7 +233,7 @@ func (r *recipients) drafts(orgID, kind, groupKey, resType, resID string, params
 			ActorKind: actorKindOf(r.ev), ActorID: r.ev.ActorID.String, Params: params,
 		})
 	}
-	return out
+	return out, nil
 }
 
 // actorKindOf defaults to system for rows written before actor_kind existed.
@@ -261,7 +276,11 @@ func ruleTaskUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 	if _, ok := changes["assignee_id"]; ok && task.AssigneeID.Valid && task.AssigneeKind == string(audit.KindHuman) {
 		r := newRecipients(ctx, e, ev, task.WorkspaceID)
 		r.add(task.AssigneeID.String)
-		out = append(out, r.drafts(orgID, KindTaskAssigned, "task:"+task.ID+":assigned", "task", task.ID, params)...)
+		ds, err := r.drafts(orgID, KindTaskAssigned, "task:"+task.ID+":assigned", "task", task.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
 	}
 	if status, ok := changeTo(changes, "status"); ok {
 		sp := map[string]string{"actor": params["actor"], "task": task.Title, "status": status}
@@ -272,7 +291,11 @@ func ruleTaskUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 		if task.CreatedByKind == string(audit.KindHuman) {
 			r.add(task.CreatedBy)
 		}
-		out = append(out, r.drafts(orgID, KindTaskStatusChanged, "task:"+task.ID+":status", "task", task.ID, sp)...)
+		ds, err := r.drafts(orgID, KindTaskStatusChanged, "task:"+task.ID+":status", "task", task.ID, sp)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
 	}
 	return out, nil
 }
@@ -333,7 +356,11 @@ func ruleTaskCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[strin
 		for _, uid := range r.order {
 			mentioned[uid] = true
 		}
-		out = append(out, r.drafts(orgID, KindMentioned, "task:"+task.ID+":mention:"+p["comment_id"], "task", task.ID, params)...)
+		ds, err := r.drafts(orgID, KindMentioned, "task:"+task.ID+":mention:"+p["comment_id"], "task", task.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
 	}
 
 	r := newRecipients(ctx, e, ev, task.WorkspaceID)
@@ -351,7 +378,11 @@ func ruleTaskCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[strin
 			r.add(c.AuthorID)
 		}
 	}
-	out = append(out, r.drafts(orgID, KindTaskCommented, "task:"+task.ID+":commented", "task", task.ID, params)...)
+	ds, err := r.drafts(orgID, KindTaskCommented, "task:"+task.ID+":commented", "task", task.ID, params)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, ds...)
 	return out, nil
 }
 
@@ -596,7 +627,7 @@ func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p 
 		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
 		"document_id": doc.ID, "grant_id": p["grant_id"],
 	}
-	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params), nil
+	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params)
 }
 
 func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
@@ -621,7 +652,7 @@ func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[str
 	r := newRecipients(ctx, e, ev, m.WorkspaceID)
 	r.add(part.UserID.String)
 	params := map[string]string{"actor": actorName(ctx, e.q, ev), "meeting": m.Title}
-	return r.drafts(orgID, KindMeetingInvited, "meeting:"+m.ID+":invited", "meeting", m.ID, params), nil
+	return r.drafts(orgID, KindMeetingInvited, "meeting:"+m.ID+":invited", "meeting", m.ID, params)
 }
 
 func ruleMemberJoined(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
@@ -639,7 +670,7 @@ func ruleMemberJoined(ctx context.Context, e env, ev outbox.Row, p map[string]st
 	r := newRecipients(ctx, e, ev, wsID)
 	r.add(p["user_id"])
 	params := map[string]string{"actor": actorName(ctx, e.q, ev), "workspace": ws.Name}
-	return r.drafts(ws.OrganizationID, KindMemberAdded, "workspace:"+wsID+":added", "workspace", wsID, params), nil
+	return r.drafts(ws.OrganizationID, KindMemberAdded, "workspace:"+wsID+":added", "workspace", wsID, params)
 }
 
 func ruleRoleChanged(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
@@ -662,7 +693,7 @@ func ruleRoleChanged(ctx context.Context, e env, ev outbox.Row, p map[string]str
 	r := newRecipients(ctx, e, ev, wsID)
 	r.add(p["user_id"])
 	params := map[string]string{"actor": actorName(ctx, e.q, ev), "workspace": ws.Name, "role": role}
-	return r.drafts(ws.OrganizationID, KindRoleChanged, "workspace:"+wsID+":role", "workspace", wsID, params), nil
+	return r.drafts(ws.OrganizationID, KindRoleChanged, "workspace:"+wsID+":role", "workspace", wsID, params)
 }
 
 func ruleAuditExported(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
@@ -796,8 +827,12 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 		}
 		r := newRecipients(ctx, e, ev, wsID)
 		r.add(uid)
-		out = append(out, r.drafts(msg.OrganizationID, KindChatReminder, "chat_reminder:"+msg.ID,
-			"chat_message", msg.ID, map[string]string{"body": snippet(msg.Body)})...)
+		ds, err := r.drafts(msg.OrganizationID, KindChatReminder, "chat_reminder:"+msg.ID,
+			"chat_message", msg.ID, map[string]string{"body": snippet(msg.Body)})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
 	}
 	return out, nil
 }
@@ -842,7 +877,10 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 		return nil, nil
 	}
 	if _, err := e.members.RequireMember(ctx, m.WorkspaceID, m.HostUserID); err != nil {
-		return nil, nil
+		if refused(err) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	return []Draft{{
 		UserID: m.HostUserID, OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID,

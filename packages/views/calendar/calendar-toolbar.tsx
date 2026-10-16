@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, RefreshCw, SlidersHorizontal } from "lucide-react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -67,6 +67,8 @@ export function CalendarToolbar({
   onShowWeekendsChange,
   onViewModeChange,
   className,
+  connectionsAction,
+  exportAction,
 }: {
   anchorDate: Date;
   mine: boolean;
@@ -82,6 +84,8 @@ export function CalendarToolbar({
   onShowWeekendsChange: (next: boolean) => void;
   onViewModeChange: (mode: CalendarViewMode) => void;
   className?: string;
+  connectionsAction?: ReactNode;
+  exportAction?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === "vi" ? viLocale : enUS;
@@ -158,7 +162,7 @@ export function CalendarToolbar({
         </Select>
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <CalendarConnectionsDialog workspaceId={workspaceId} />
+        {connectionsAction === undefined ? <CalendarConnectionsDialog workspaceId={workspaceId} /> : connectionsAction}
         <ActionTooltip label={t(isRefreshing ? "calendar.refreshing" : "calendar.refresh")}>
           <Button
             type="button"
@@ -175,7 +179,7 @@ export function CalendarToolbar({
             />
           </Button>
         </ActionTooltip>
-        <CalendarExportButton workspaceId={workspaceId} from={exportFrom} to={exportTo} />
+        {exportAction === undefined ? <CalendarExportButton workspaceId={workspaceId} from={exportFrom} to={exportTo} /> : exportAction}
         <Popover>
           <Tooltip>
             <TooltipTrigger
