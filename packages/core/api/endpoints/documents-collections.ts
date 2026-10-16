@@ -5,8 +5,10 @@ import {
   DocumentListSchema,
   DocumentTreeSchema,
   type Document,
+  type DocumentAccessFilter,
   type DocumentArchive,
   type DocumentArchiveImpact,
+  type DocumentFileFormat,
   type DocumentKind,
   type DocumentList,
   type DocumentTree,
@@ -35,6 +37,15 @@ export interface ListDocumentsBaseOpts {
   q?: string;
   /** "document" is every kind but folder (folders contract v1.0). */
   kind?: DocumentKind | "document";
+  /** The library's type chip: the file format of the row's current version
+   *  (the MIME the server verified, else the title's extension). Folders stay
+   *  in the answer; pages never match; `kind: "page"` together with it is
+   *  refused with 400 `invalid_filter`. */
+  format?: DocumentFileFormat;
+  /** The library's access filter: `manage` the rows the caller manages,
+   *  `edit` those they manage or edit, `restricted` those with restricted
+   *  visibility. On the trash only `restricted` is accepted. */
+  access?: DocumentAccessFilter;
   /** "title" searches the accent-folded title instead of the full text;
    *  left out, the search keeps its old behaviour. */
   match?: "title";
@@ -60,6 +71,8 @@ function listQuery(opts?: ListDocumentsOpts): string {
   if (opts.sharedByMe) p.set("shared_by_me", "true");
   if (opts.q) p.set("q", opts.q);
   if (opts.kind) p.set("kind", opts.kind);
+  if (opts.format) p.set("format", opts.format);
+  if (opts.access) p.set("access", opts.access);
   if (opts.match) p.set("match", opts.match);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);
@@ -90,10 +103,11 @@ export async function listDocuments(
 }
 
 /** GET /api/v1/workspaces/{workspaceID}/documents/recent — what the person
- *  opened or last edited. Humans only; an agent token answers 403. */
+ *  opened or last edited. Humans only; an agent token answers 403. Takes the
+ *  same `format`/`access` filters as the flat list. */
 export async function listRecentDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/recent${listQuery(opts)}`, { signal });
@@ -110,7 +124,7 @@ export async function listRecentDocuments(
  *  the page (default 50, max 100), and a denied candidate never takes a slot. */
 export async function listSharedWithMe(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -133,7 +147,7 @@ export async function listSharedWithMe(
  */
 export async function listSharedByMe(
   wsId: string,
-  cursorOrOpts?: string | Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
+  cursorOrOpts?: string | Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const opts = typeof cursorOrOpts === "string" ? { cursor: cursorOrOpts } : cursorOrOpts;
@@ -142,6 +156,8 @@ export async function listSharedByMe(
       sharedByMe: true,
       cursor: opts?.cursor,
       limit: opts?.limit,
+      format: opts?.format,
+      access: opts?.access,
     })}`,
     { signal },
   );

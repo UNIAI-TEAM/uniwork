@@ -10,6 +10,7 @@ import {
   listSharedWithMe,
   moveDocument,
   restoreDocument,
+  type ListDocumentsBaseOpts,
   type ListDocumentsOpts,
   type MoveDocumentBody,
 } from "../api/endpoints/documents-collections";
@@ -35,6 +36,18 @@ export function documentFilterKey(filter?: ListDocumentsOpts): string {
     .filter(([, value]) => value !== undefined)
     .sort(([a], [b]) => a.localeCompare(b));
   return JSON.stringify(entries);
+}
+
+/** The library's type/access chips (UNI-1868), shared by every collection
+ *  list: the format a row's current version carries, and the level the caller
+ *  holds on it. */
+export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "access">;
+
+/** The key fragment of the chip filters: "" when neither is set, so an
+ *  unfiltered list keeps the key it had before the chips became query params. */
+function documentListFilterKey(filters?: DocumentListFilters): string {
+  if (!filters?.format && !filters?.access) return "";
+  return documentFilterKey({ format: filters.format, access: filters.access });
 }
 
 /**
@@ -92,12 +105,22 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
   });
 }
 
-/** Recently opened/edited documents (humans only; agents get 403). */
-export function useRecentDocuments(wsId: string, opts?: { enabled?: boolean }) {
+/** Recently opened/edited documents (humans only; agents get 403). The
+ *  format/access chips filter it server-side and key it like the flat list. */
+export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
   return useInfiniteQuery({
-    queryKey: documentKeys.recent(wsId),
+    queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
     queryFn: ({ pageParam, signal }) =>
-      listRecentDocuments(wsId, { cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
+      listRecentDocuments(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          format: opts?.format,
+          access: opts?.access,
+        },
+        signal,
+      ),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,
@@ -106,11 +129,20 @@ export function useRecentDocuments(wsId: string, opts?: { enabled?: boolean }) {
 
 /** Documents the caller received through a share, across the organization.
  *  Paged like the other lists: `next_cursor` drives the next page. */
-export function useSharedWithMe(wsId: string, opts?: { enabled?: boolean }) {
+export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
   return useInfiniteQuery({
-    queryKey: documentKeys.sharedWithMe(wsId),
+    queryKey: documentKeys.sharedWithMe(wsId, documentListFilterKey(opts)),
     queryFn: ({ pageParam, signal }) =>
-      listSharedWithMe(wsId, { cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
+      listSharedWithMe(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          format: opts?.format,
+          access: opts?.access,
+        },
+        signal,
+      ),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,
@@ -121,11 +153,20 @@ export function useSharedWithMe(wsId: string, opts?: { enabled?: boolean }) {
  *  person/group share or workspace visibility; public links and My Folder rows
  *  excluded). Under `documentKeys.workspace(wsId)` so `document.shared`,
  *  `document.share_revoked`, and `document.workspace_access_changed` refresh it. */
-export function useSharedByMe(wsId: string, opts?: { enabled?: boolean }) {
+export function useSharedByMe(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
   return useInfiniteQuery({
-    queryKey: documentKeys.sharedByMe(wsId),
+    queryKey: documentKeys.sharedByMe(wsId, documentListFilterKey(opts)),
     queryFn: ({ pageParam, signal }) =>
-      listSharedByMe(wsId, { cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
+      listSharedByMe(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          format: opts?.format,
+          access: opts?.access,
+        },
+        signal,
+      ),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,

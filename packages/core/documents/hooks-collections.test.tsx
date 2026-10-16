@@ -12,6 +12,7 @@ import {
   useDocumentTree,
   useEnsureMyFolder,
   useMoveDocument,
+  useRecentDocuments,
   useSharedByMe,
   useSharedWithMe,
 } from "./hooks-collections";
@@ -354,6 +355,54 @@ describe("documents collection hooks", () => {
       "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=n1&limit=50",
     );
     expect(qc.getQueryData(documentKeys.sharedByMe("w1"))).toBeDefined();
+  });
+
+  // ---- UNI-1868 (LISTFILTER-01): the type/access chips on every list -------
+
+  it("useRecentDocuments sends the chip filters and keys the combination", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody([summary("d1", { kind: "file", format: "pdf" })])),
+    );
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useRecentDocuments("w1", { format: "pdf", access: "edit" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.pathname).toBe("/api/v1/workspaces/w1/documents/recent");
+    expect(url.searchParams.get("format")).toBe("pdf");
+    expect(url.searchParams.get("access")).toBe("edit");
+    expect(url.searchParams.get("limit")).toBe("50");
+    expect(result.current.data?.pages[0]?.documents[0]?.format).toBe("pdf");
+    // The chip combination is its own cache entry, so switching a chip starts
+    // from page 1 instead of reusing the unfiltered pages.
+    const filtered = documentKeys.recent("w1", documentFilterKey({ format: "pdf", access: "edit" }));
+    expect(qc.getQueryData(filtered)).toBeDefined();
+    expect(filtered).not.toEqual(documentKeys.recent("w1"));
+    expect(qc.getQueryData(documentKeys.recent("w1"))).toBeUndefined();
+  });
+
+  it("useSharedWithMe and useSharedByMe take the same chips", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("s1", { my_level: "edit", via: "share" })])))
+      .mockResolvedValueOnce(json(listBody([summary("s2")])));
+    const { qc, wrapper } = setup();
+    const shared = renderHook(() => useSharedWithMe("w1", { access: "edit" }), { wrapper });
+    await waitFor(() => expect(shared.result.current.isSuccess).toBe(true));
+    const byMe = renderHook(() => useSharedByMe("w1", { format: "docx" }), { wrapper });
+    await waitFor(() => expect(byMe.result.current.isSuccess).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?access=edit&limit=50",
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&format=docx&limit=50",
+    );
+    expect(
+      qc.getQueryData(documentKeys.sharedWithMe("w1", documentFilterKey({ access: "edit" }))),
+    ).toBeDefined();
+    expect(
+      qc.getQueryData(documentKeys.sharedByMe("w1", documentFilterKey({ format: "docx" }))),
+    ).toBeDefined();
   });
 });
 

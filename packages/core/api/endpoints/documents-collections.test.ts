@@ -75,6 +75,8 @@ describe("documents-collections endpoints", () => {
       parentId: "",
       q: "kế hoạch",
       kind: "page",
+      format: "docx",
+      access: "manage",
       archived: false,
       updatedBy: "u2",
       updatedFrom: "2026-09-01T00:00:00Z",
@@ -87,6 +89,8 @@ describe("documents-collections endpoints", () => {
     expect(parsed.searchParams.get("parent_id")).toBe("");
     expect(parsed.searchParams.get("q")).toBe("kế hoạch");
     expect(parsed.searchParams.get("kind")).toBe("page");
+    expect(parsed.searchParams.get("format")).toBe("docx");
+    expect(parsed.searchParams.get("access")).toBe("manage");
     expect(parsed.searchParams.get("archived")).toBe("0");
     expect(parsed.searchParams.get("updated_by")).toBe("u2");
     expect(parsed.searchParams.get("updated_from")).toBe("2026-09-01T00:00:00Z");
@@ -94,6 +98,57 @@ describe("documents-collections endpoints", () => {
     expect(parsed.searchParams.get("limit")).toBe("10");
     expect(init?.method ?? "GET").toBe("GET");
     expect(out.documents[0]?.title).toBe("Kế hoạch Q4");
+  });
+
+  it("listDocuments omits both chip filters when neither is asked for", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listDocuments("w1", { access: undefined, format: undefined });
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/w1/documents");
+  });
+
+  // ---- UNI-1868 (LISTFILTER-01): the type/access chips ----------------------
+
+  it("the three sibling lists carry the same chip filters", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { format: "pdf", access: "edit", cursor: "c9", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?format=pdf&access=edit&cursor=c9&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedWithMe("w1", { format: "md", access: "restricted", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?format=md&access=restricted&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedByMe("w1", { format: "html", access: "manage", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&format=html&access=manage&limit=5",
+    );
+  });
+
+  it("keeps a row's format and degrades a malformed one to absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "d1", kind: "file", format: "docx" }),
+            summary({ id: "d2", kind: "file", format: 7 }),
+            summary({ id: "d3", kind: "folder", format: null }),
+            // A format this client does not know stays a string on the wire;
+            // the view renders it as a generic file.
+            summary({ id: "d4", kind: "file", format: "exe" }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1");
+    expect(out.documents[0]?.format).toBe("docx");
+    expect(out.documents[1]?.format).toBeUndefined();
+    expect(out.documents[2]?.format).toBeNull();
+    expect(out.documents[3]?.format).toBe("exe");
   });
 
   it("list rows keep admin_scope: true and degrade a non-boolean admin_scope to undefined", async () => {
