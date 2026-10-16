@@ -56,7 +56,7 @@ const src = (over: Partial<DocumentSourceFile> = {}) =>
   sourceRow({
     id: "chat:1",
     source: "chat",
-    parent: { kind: "chat_channel", id: "c", title: "C" },
+    parent: { kind: "chat_channel", id: "c", title: "C", message_id: "" },
     name: "a.pdf",
     mime_type: "application/pdf",
     extension: "pdf",

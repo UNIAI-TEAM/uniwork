@@ -21,3 +21,31 @@ describe("paths.workspace().documentsFolder", () => {
     expect(url.searchParams.get("folder")).toBe("f1");
   });
 });
+
+describe("paths.workspace().chat", () => {
+  const ws = paths.workspace("acme", "team");
+
+  it("is the plain module path with no target, as every existing caller uses it", () => {
+    expect(ws.chat()).toBe("/acme/team/chat");
+    expect(ws.chat({})).toBe("/acme/team/chat");
+  });
+
+  it("opens a room, and a message in it", () => {
+    expect(ws.chat({ room: "r1" })).toBe("/acme/team/chat?room=r1");
+    expect(ws.chat({ room: "r1", message: "m1" })).toBe("/acme/team/chat?room=r1&message=m1");
+  });
+
+  it("names a message only together with its room", () => {
+    expect(ws.chat({ message: "m1" })).toBe("/acme/team/chat");
+  });
+
+  it("encodes both ids", () => {
+    expect(ws.chat({ room: "a/b?c", message: "x&y" })).toBe("/acme/team/chat?room=a%2Fb%3Fc&message=x%26y");
+  });
+
+  // Not a page: the query rides on the existing chat route (use-chat-room-url).
+  it("adds no route of its own", () => {
+    const url = new URL(ws.chat({ room: "r1", message: "m1" }), "http://x.test");
+    expect(url.pathname).toBe(ws.chat());
+  });
+});

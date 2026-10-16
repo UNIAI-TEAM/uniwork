@@ -97,7 +97,14 @@ export const paths = {
       document: (id: string) => `${base}/documents/${id}`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
-      chat: () => `${base}/chat`,
+      // `?room=` and `&message=` ride on the one chat route: use-chat-room-url
+      // opens the room (falling back for a room the reader is not in) and
+      // use-chat-message-deep-link scrolls to the message. A message needs its room.
+      chat: (target?: { room?: string; message?: string }) => {
+        if (!target?.room) return `${base}/chat`;
+        const room = `${base}/chat?room=${encodeURIComponent(target.room)}`;
+        return target.message ? `${room}&message=${encodeURIComponent(target.message)}` : room;
+      },
       inbox: () => `${base}/inbox`,
       email: () => `${base}/email`,
       members: () => `${base}/members`,
