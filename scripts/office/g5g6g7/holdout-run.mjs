@@ -11,6 +11,9 @@
 // g712-runs/); an --out inside the repo (symlinks resolved) is refused unless --allow-in-repo is given (tests use a temp
 // dir). One invocation writes ONE session folder <out>/<sessionId>/ holding run-NN.json and manifest.json (session id,
 // case-set hash, the sha256 of every run file): the report counts exactly the runs the manifest lists.
+// A run's own cap ends an ask (G7-12 run409): the answer's x_uniwork.step/limit stops the tool loop (1 question turn
+// + 8 tool rounds = 9 model calls, never a tenth) and a 409 run_limit_reached ends it the same way, recorded as the
+// ask's `capReached` - never an ask error and never a harness abort.
 // Both credentials expire mid-run (access token 15 min, frame token 10 min, against a run of ~100 min at one thread):
 // the runner renews each one before use and once after a 401, and counts the renewals per ask, per run and in the report.
 // The test user's credentials (password, refresh cookie, access token) live in the session closure only - never a run file.
@@ -35,8 +38,13 @@ export const MANIFEST_KIND = 'uniwork-office-g7-holdout-manifest';
 export const sha256Hex = (value) => createHash('sha256').update(value).digest('hex');
 export const DEFAULT_CASES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/holdout/cases');
 export const DEFAULT_OUT_DIR = path.join(os.homedir(), 'office-g5g6g7/reports/g6-ai_server/g712-runs');
-// The façade's own cap is 10 model calls per run (server/internal/ai/run_store.go); a run that reaches it is an error.
-export const MAX_STEPS = 10;
+// One run allows 1 question turn + 8 tool-result turns = 9 model calls (A3; server/internal/ai/run_store.go,
+// design G6-03b §4.4/§5.4): the ninth tool round - the tenth call - is refused by contract, so the loop never sends
+// it. The answer's own x_uniwork.step/limit ends the loop even earlier when the run's cap is already spent
+// (run409 report §5.1).
+export const MAX_STEPS = 9;
+/** The cap one run's tool-result turns are held under: x_uniwork.limit (A13, design §4.4). */
+export const TOOL_ROUND_LIMIT_KIND = 'tool_rounds';
 export const LANGS = ['vi', 'en'];
 const FIXTURES_REL = 'docs/office/g5g6g7/fixtures';
 // The windows of the D server (server/internal/config/config.go: AccessTokenTTL 15 min; server/internal/service/office_frame.go:
@@ -276,6 +284,15 @@ async function callFacade({ transport, mount, remount, headers, body, step, reco
       record.counts.serverErrors += 1;
       wait = Math.min(2000 * (attempt + 1), opts.retryWaitCapMs);
     } else {
+      const detail = errorBodyOf(res.text);
+      // A run_limit_reached is the run's documented end, not a fault (A3; design §4.3; run409 report §5.2): the ask
+      // ends where it is, with the refused cap's kind ('tool_rounds' | 'model_calls') recorded. Every other 4xx -
+      // conversation_expired and run_expired included - stays the call's failure.
+      if (res.status === 409 && detail?.code === 'run_limit_reached') {
+        call.refusal = 'run_limit_reached';
+        const kind = typeof detail.fields?.limit === 'string' && detail.fields.limit !== '' ? detail.fields.limit : 'unknown';
+        return { res, call, mount: current, capReached: { kind, refused: true } };
+      }
       call.error = `HTTP ${res.status}`;
       return { res, call, mount: current, failed: `HTTP ${res.status}: ${String(res.text).slice(0, 160)}` };
     }
@@ -286,6 +303,14 @@ async function callFacade({ transport, mount, remount, headers, body, step, reco
     record.counts.retries += 1;
     await sleep(wait);
   }
+}
+
+/** The run's tool-round cap as the answer reports it ({ kind, step, limit }), null when the answer carries none. */
+function toolRoundCap(xUniwork) {
+  const step = Number(xUniwork?.step);
+  const limit = Number(xUniwork?.limit);
+  if (!Number.isFinite(step) || !Number.isFinite(limit)) return null;
+  return { kind: TOOL_ROUND_LIMIT_KIND, step, limit };
 }
 
 /** Asks one case in one language through the façade; returns the ask record (graded, with every call it made). */
@@ -331,6 +356,11 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   let run = '';
   let messages = firstMessages(caseDoc, lang);
   let reply = '';
+  // The run cap that ended the ask: null when the ask ended with a final reply or an error (design §4.4; run409 §5).
+  let capReached = null;
+  let lastStep = null;
+  let lastLimit = null;
+  let lastContent = '';
   let usageTokens = { input: 0, output: 0, source: 'none' };
   const models = new Set();
   for (let step = 0; step < MAX_STEPS; step += 1) {
@@ -340,6 +370,15 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     const body = { model: 'uniwork', stream: true, messages, ...(tools.length > 0 ? { tools } : {}) };
     const out = await callFacade({ transport, mount, remount, headers, body, step, record, opts });
     mount = out.mount ?? mount;
+    if (out.capReached) {
+      // A 409 run_limit_reached is the run's documented end (design §4.3; run409 report §5.2): the finished run's
+      // header is dropped and the conversation is kept, so a later question opens a new run in it. The ask ends with
+      // what the model produced so far - never an error, never a harness abort.
+      run = '';
+      capReached = { ...out.capReached, step: lastStep, limit: lastLimit };
+      reply = lastContent;
+      break;
+    }
     if (out.failed) { record.error = out.failed; break; }
     conversation = out.res.headers.get('x-uniwork-ai-conversation') ?? conversation;
     run = out.res.headers.get('x-uniwork-ai-run') ?? run;
@@ -357,7 +396,24 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     if (usage) usageTokens = { input: usageTokens.input + usage.input, output: usageTokens.output + usage.output, source: 'facade' };
     out.call.finishReason = parsed.finishReason;
     out.call.model = parsed.model || null;
+    const observed = toolRoundCap(parsed.xUniwork);
+    if (observed) { lastStep = observed.step; lastLimit = observed.limit; }
+    lastContent = parsed.content;
+    // A reply with no tool call is a natural finish: the cap cut nothing off, so capReached stays null (G712-R13-1/2).
     if (!parsed.toolCalls || parsed.toolCalls.length === 0) { reply = parsed.content; break; }
+    // The run's own cap, read from the answer (A13, design §4.4): step is the tool rounds the run has spent after
+    // this turn and limit is 8, so an answer that spends the last round ends the ask here - one more tool turn would
+    // be refused. The last answer's tool calls are not executed: their result has no turn left to come back on.
+    if (observed && observed.step >= observed.limit) {
+      capReached = { ...observed, refused: false };
+      reply = parsed.content;
+      break;
+    }
+    if (step === MAX_STEPS - 1) {
+      capReached = { kind: TOOL_ROUND_LIMIT_KIND, step: observed?.step ?? lastStep, limit: observed?.limit ?? lastLimit, refused: false };
+      reply = parsed.content;
+      break;
+    }
     const results = [];
     for (const tc of parsed.toolCalls) {
       const name = tc.function?.name ?? '';
@@ -378,8 +434,8 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
         : result) });
     }
     messages = results;
-    if (step === MAX_STEPS - 1) record.error = `no final reply within ${MAX_STEPS} model calls (run_limit_reached)`;
   }
+  record.capReached = capReached;
   record.models = [...models];
   record.tokens = usageTokens;
   record.writes = backend.writes();
@@ -458,7 +514,7 @@ async function askSafely({ caseDoc, lang, ...rest }) {
       calls: [], toolCalls: [], dropped: [], writeLog: [], invalidArguments: [], denied: [], writes: 0, models: [], modelTurns: 0,
       expects: { numeric: caseDoc.expected.numeric.length, writes: caseDoc.expected.writes, mustNotContain: caseDoc.expected.mustNotContain.length },
       counts: { rateLimited: 0, serverErrors: 0, retries: 0 }, renewals: [], tokens: { input: 0, output: 0, source: 'none' },
-      adapter: { reportStatus: 'missing', anchorLenient: 0, extraFigures: 0 }, answer: null, unobtainableOps: [],
+      adapter: { reportStatus: 'missing', anchorLenient: 0, extraFigures: 0 }, answer: null, unobtainableOps: [], capReached: null,
       error: message, errored: true, status: scored.status, checks: scored.checks, outsideAllowlist: [], wallMs: 0, renewalMs: 0, wallMsNoRenewals: 0, redactions: [],
     };
   }
@@ -671,12 +727,18 @@ async function postJsonRaw(serverUrl, route, body, { cookie = null } = {}) {
   return { ok: res.ok, status: res.status, text: await res.text(), cookie: refreshCookieOf(res.headers.get('set-cookie')) };
 }
 
-/** The error_class of a server error body ({ error: { code, error_class } }), null when the body is not one. */
-export function errorClassOf(text) {
+/** The error detail of a server error body ({ error: { code, error_class, fields } }), null when the body is not one. */
+export function errorBodyOf(text) {
   try {
     const body = JSON.parse(String(text));
-    return typeof body?.error?.error_class === 'string' ? body.error.error_class : null;
+    return body?.error && typeof body.error === 'object' ? body.error : null;
   } catch { return null; }
+}
+
+/** The error_class of a server error body ({ error: { code, error_class } }), null when the body is not one. */
+export function errorClassOf(text) {
+  const value = errorBodyOf(text)?.error_class;
+  return typeof value === 'string' ? value : null;
 }
 
 /** The refresh cookie of a Set-Cookie header, as the "name=value" pair, null when the header is not one. */

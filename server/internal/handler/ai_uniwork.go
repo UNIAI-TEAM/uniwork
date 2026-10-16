@@ -132,6 +132,18 @@ func (h *handlers) uniworkError(w http.ResponseWriter, ctx context.Context, err 
 	if retry, ok := uniworkRetryAfter(err); ok {
 		w.Header().Set("Retry-After", retry)
 	}
+	// The refusal's machine-readable fields reach the answer: run_limit_reached
+	// carries fields.limit so logs and telemetry can tell the two caps of A3
+	// apart (D-3, design §2.3) — the three routes' error list advertises it,
+	// and ai.Error.Fields is "the machine-readable detail ... the error
+	// envelope shows them" (ai/errors.go). The shared mapping drops them, so
+	// the UniWork routes answer with them here, the way every CodedError
+	// already does.
+	var aiErr *ai.Error
+	if errors.As(err, &aiErr) && len(aiErr.Fields) > 0 {
+		respondErrorFields(w, aiErr.Status, aiErr.Code, aiErr.Msg, aiErr.Fields)
+		return
+	}
 	h.mapServiceError(w, err)
 }
 

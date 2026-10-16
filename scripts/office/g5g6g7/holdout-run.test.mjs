@@ -615,8 +615,8 @@ describe('answer adapter', () => {
 const usageReader = async (ids) => new Map(ids.map((id, i) => [id, { promptId: 'office_uniwork_ai@test', provider: 'fake', model: 'stub-resolved', status: 'succeeded', latencyMs: 100 + (i % 7), inputTokens: 5, outputTokens: 2 }]));
 const noSleep = async () => {};
 
-async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, mintDelayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
-  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs, mintDelayMs });
+async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, mintDelayMs = 0, toolRoundLimit = 8, announceSteps = true, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
+  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs, mintDelayMs, toolRoundLimit, announceSteps });
   const session = await createServerSession({ serverUrl: facade.url });
   const mounts = [];
   const wrapped = { ...session, mount: (id, o) => { mounts.push({ id, ...o }); return mount ? mount(id, o, session, mounts.length) : session.mount(id, o); } };
@@ -772,13 +772,99 @@ describe('runner faults and failures', () => {
     assert.equal(facade.stats.mints, 2, 'the mount mint, then the renewal');
   });
 
-  it('stops a run that never answers at the façade limit of model calls', async () => {
+  it('ends an ask that never stops calling tools at the run cap: nine model calls, cap_reached, no tenth call (G7-12 run409)', async () => {
     const forever = mutate((r, ctx) => ({ toolCalls: [{ id: `call_${ctx.state.step}`, type: 'function', function: { name: 'read_range', arguments: '{}' } }] }));
-    const { docs } = await runWith({ ...only(readOnlyNumeric), model: forever }, 'limit');
-    const [ask] = docs[0].asks;
-    assert.equal(ask.modelTurns, MAX_STEPS);
-    assert.match(ask.error, /run_limit_reached/);
-    assert.equal(ask.status, 'fail');
+    const { docs, facade } = await runWith({ ...only(readOnlyNumeric), model: forever, threads: 1 }, 'limit');
+    assert.equal(docs[0].status, 'completed');
+    for (const ask of docs[0].asks) {
+      assert.equal(ask.modelTurns, MAX_STEPS, '1 question turn + 8 tool rounds');
+      assert.equal(ask.calls.length, MAX_STEPS, 'the tenth call of a run is never sent');
+      assert.deepEqual(ask.capReached, { kind: 'tool_rounds', step: 8, limit: 8, refused: false });
+      assert.equal(ask.errored, false, 'a cap-ended ask is not an error');
+      assert.equal(ask.error, null);
+      assert.equal(ask.status, 'fail', 'scored on what it produced: no final reply, no reporting line');
+    }
+    assert.equal(facade.requests.length, 2 * MAX_STEPS, 'nothing past the cap reached the façade');
+  });
+
+  it('reads the cap from every answer: a run whose limit is spent ends there, not at MAX_STEPS (G7-12 run409)', async () => {
+    const forever = mutate((r, ctx) => ({ toolCalls: [{ id: `call_${ctx.state.step}`, type: 'function', function: { name: 'read_range', arguments: '{}' } }] }));
+    const { docs, facade } = await runWith({ ...only(readOnlyNumeric), model: forever, threads: 1, toolRoundLimit: 2 }, 'limit-low');
+    for (const ask of docs[0].asks) {
+      assert.equal(ask.calls.length, 3, 'two tool rounds spent: the third call is the last of the run');
+      assert.deepEqual(ask.capReached, { kind: 'tool_rounds', step: 2, limit: 2, refused: false });
+      assert.equal(ask.errored, false);
+    }
+    assert.equal(facade.requests.length, 6, 'the stop follows the announced limit, not the ninth call');
+  });
+
+  it('treats a final answer that lands exactly on the cap as a natural finish: no cap metadata, no extra call, scored normally (G712-R13-1/2)', async () => {
+    // The model spends the announced cap on tool rounds and then answers for real on the last one (step == limit): no
+    // tool call is pending, so the cap did not cut the ask off - it ends by itself, exactly like a pre-cap final.
+    const roundsThenFinal = (rounds) => ({ body, state }) => {
+      if (state.step >= rounds) return { content: `${readOnlyNumeric.referenceAnswer.text}\n${referenceLine(readOnlyNumeric)}` };
+      const names = toolsToCall(readOnlyNumeric, body.tools ?? []);
+      return { toolCalls: names.map((name, i) => ({ id: `call_${state.step}_${i}`, type: 'function', function: { name, arguments: argumentsFor(readOnlyNumeric, name) } })) };
+    };
+    const atCap = await runWith({ ...only(readOnlyNumeric), model: roundsThenFinal(2), threads: 1, toolRoundLimit: 2 }, 'final-at-cap');
+    for (const ask of atCap.docs[0].asks) {
+      assert.equal(ask.calls.length, 3, 'limit + 1 calls: two tool rounds and the final answer at step == limit');
+      assert.equal(ask.modelTurns, 3);
+      assert.equal(ask.capReached, null, 'a final answer with no pending tool call is not a cap stop; the record keeps the field null');
+      assert.equal(ask.errored, false);
+      assert.equal(ask.status, 'pass', 'the final reply is scored like any other answer');
+      assert.ok(ask.checks.some((c) => c.id.startsWith('numeric:') && c.status === 'pass'), 'the numeric check ran on the final reply');
+    }
+    assert.equal(atCap.facade.requests.length, 6, 'nothing past the final answer: limit + 1 calls for each of the two asks');
+
+    const beforeCap = await runWith({ ...only(readOnlyNumeric), model: roundsThenFinal(1), threads: 1, toolRoundLimit: 2 }, 'final-before-cap');
+    for (const ask of beforeCap.docs[0].asks) {
+      assert.equal(ask.calls.length, 2, 'one tool round and the final answer, before the cap');
+      assert.equal(ask.capReached, null);
+      assert.equal(ask.errored, false);
+      assert.equal(ask.status, 'pass');
+    }
+  });
+
+  it('never sends a tenth call even when the answer carries no step/limit (G7-12 run409)', async () => {
+    const forever = mutate((r, ctx) => ({ toolCalls: [{ id: `call_${ctx.state.step}`, type: 'function', function: { name: 'read_range', arguments: '{}' } }] }));
+    const { docs, facade } = await runWith({ ...only(readOnlyNumeric), model: forever, threads: 1, announceSteps: false }, 'limit-unannounced');
+    for (const ask of docs[0].asks) {
+      assert.equal(ask.calls.length, MAX_STEPS);
+      assert.deepEqual(ask.capReached, { kind: 'tool_rounds', step: null, limit: null, refused: false }, 'no announced cap: the nine calls of a full run are the stop');
+    }
+    assert.equal(facade.requests.length, 2 * MAX_STEPS);
+  });
+
+  it('ends an ask at a 409 run_limit_reached: cap_reached with the refusal\'s limit, never an ask error (G7-12 run409)', async () => {
+    // Every second request is the tool-result turn of an ask: forced to the refusal the run409 report §2 shows on the wire.
+    const body = { error: { code: 'run_limit_reached', message: 'hết trần', fields: { limit: 'tool_rounds' } } };
+    const { docs, facade } = await runWith({
+      ...only(readOnlyNumeric), threads: 1, hooks: { before: (i) => (i % 2 === 1 ? { status: 409, body } : null) },
+    }, 'refused');
+    assert.equal(docs[0].status, 'completed', 'a refusal ends an ask, it never aborts the run');
+    assert.equal(docs[0].asks.filter((a) => a.errored).length, 0, 'a cap refusal is not counted as an error');
+    for (const ask of docs[0].asks) {
+      assert.deepEqual(ask.capReached, { kind: 'tool_rounds', step: 0, limit: 8, refused: true }, 'the refusal\'s fields.limit is the recorded cap');
+      assert.deepEqual(ask.calls.map((c) => c.status), [200, 409], 'the refusal is a call, not a retry');
+      assert.equal(ask.calls.at(-1).refusal, 'run_limit_reached');
+      assert.equal(ask.error, null);
+      assert.equal(ask.status, 'fail', 'scored on what the model produced before the refusal');
+    }
+    assert.equal(facade.requests.length, 4, 'a refusal is never retried');
+  });
+
+  it('keeps a 409 conversation_expired or run_expired a real ask error: only the cap ends an ask quietly (G7-12 run409)', async () => {
+    for (const code of ['conversation_expired', 'run_expired']) {
+      const body = { error: { code, message: 'hội thoại hoặc run đã hết' } };
+      const { docs } = await runWith({ ...only(readOnlyNumeric), threads: 1, hooks: { before: (i) => (i === 1 ? { status: 409, body } : null) } }, `refused-${code}`);
+      const [ask] = docs[0].asks;
+      assert.equal(ask.errored, true, code);
+      assert.equal(ask.capReached, null, code);
+      assert.equal(ask.status, 'fail', code);
+      assert.match(ask.error, new RegExp(`HTTP 409.*${code}`), code);
+      assert.equal(docs[0].status, 'completed', 'one errored ask does not abort the run');
+    }
   });
 
   it('replays setup.history before the question and runs the case through the same path', async () => {
