@@ -622,7 +622,7 @@ func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p 
 		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
 		"document_id": doc.ID, "grant_id": p["grant_id"],
 	}
-	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params), nil
+	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params)
 }
 
 func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
