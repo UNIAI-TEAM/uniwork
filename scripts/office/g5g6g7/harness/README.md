@@ -543,10 +543,14 @@ counts, whatever its path (the exact-path matcher turned a reload through anothe
 route into "no open at all"), and a miss reports the GETs it saw and what the frame
 SHOWED — its bar text and actions, the dialog's choices, the docs host's dirty flag.
 
-The reload window opens at the ANNOUNCE's own timestamp (D5-01), never at the instant
-the driver starts waiting nor at the instant its click returns (BE-704-401) — with
-`ANNOUNCE_OPEN_TOLERANCE_MS` (50 ms) of slack for the postMessage -> host -> `api.open`
-hop between the announce's own `at` and the GET it causes. A clean frame reloads as
+The reload window opens at the ANNOUNCE's own timestamp EXACTLY (D5-01/BE-704-501), never at the
+instant the driver starts waiting and never at the instant its click returns (BE-704-401): the floor
+is `Number(entry.at) >= match.at` with nothing subtracted, so a matching GET recorded even 1 ms
+before the announce is a stale open and can never stand in for the reload (the round-5 window
+subtracted `ANNOUNCE_OPEN_TOLERANCE_MS` from the anchor, which admitted a refresh that had finished
+before the announce). `ANNOUNCE_OPEN_TOLERANCE_MS` (50 ms) is the postMessage -> host -> `api.open`
+hop's slack on the COMPLETION deadline only (`waitForReload`'s bound), never on the floor. A clean
+frame reloads as
 soon as the announce lands, so its GET can be recorded while the reload click is still
 in flight: a window anchored at the click would count that reload as
 "0 office-frame GET(s) after the announce", which is why the anchor is the announce
@@ -560,6 +564,18 @@ the pinned wire's own names (`file.fileId`, `file.versionId`, `file.revision`,
 `file.version_id` and could therefore never match the announced version, and a GET is
 recorded when it is ISSUED — one that never answers is the measured "a GET with no
 answer yet" / "the GET failed", not the absence of a GET.
+
+`web-sees` spends ONE budget (BE-704-502). The step sets a single deadline before its
+first poll; the announce poll and the reload wait draw on it, holding back
+`MISS_DIAGNOSTIC_RESERVE_MS` (10 s, never more than half the step bound) so a miss can
+still be explained, and the miss diagnostics (`frameAudit`, `frameSurface`,
+`frameEvidence`) get the remaining deadline and start no read after it: every read they
+did not make is recorded — with its reason — in `details.webSeesMiss.diagnostics`
+(`read`, `started`, `budgetMs`, the frames read, the reads that expired), and the miss
+reason names it ("diagnostics left unread: …"). Round 5 read each of those with a FRESH
+`stepTimeout` after the poll had already spent its own, so a hung renderer could pin a
+failing step for the poll bound plus two more read budgets; the whole step now returns
+inside one bound.
 
 A miss names the guard that dropped the announce FROM MEASURED VALUES (D5-01), never
 from a guess. The recorder keeps the announce's own `document_id` / `revision` /
@@ -576,7 +592,7 @@ own order — the endpoint's origin/source checks
 — and says so when NO guard explains the drop, which is a delivery/handler finding
 rather than a guess. The same fields are recorded on the artifact as
 `details.webSeesMiss` (`announced`, `reloadClick`, `announceRealm`, `announceTypes`,
-`held`, `verdict`, `documents`, `opens`); round 5's "the frame's own guard needs a DECIMAL revision"
+`held`, `verdict`, `documents`, `opens`, `diagnostics`); round 5's "the frame's own guard needs a DECIMAL revision"
 asserted a type nobody had read and is gone. By the same rule the APP's S6 reload is driven through the fork's whole flow
 (D4-02), not one text-matched click: the bar's own action
 (`div.uw-remote-bar button.uw-remote-action[data-action="reload"]`) asks the main
@@ -598,7 +614,12 @@ that reaches the web Save's bytes without that confirmation FAILs with the
 measured confirm reason instead of passing on the bytes alone, and the step
 records the dirty working-copy checksum it read JUST BEFORE the click
 (`details.appReload.dirtyShaBeforeClick`) so the discard is a measured
-before/after transition, and the click's own outcome is on `details.appReload`.
+before/after transition, and the click's own outcome is on `details.appReload`. With the
+confirmation made, the step's own settle predicate closes it: the working copy must reach
+the web Save's base VERSION **and** its `sha256` (BE-704-504), so a bug
+that only keeps one half cannot pass — the tests drive the confirmed click that never
+settles, the announced version with the wrong bytes, and the right bytes under a stale
+binding version, each FAILing with what the poll measured.
 
 The rows share ONE app process, and both sides sign a previous session out with
 `accountLogout({ confirmed: true })` — the call the product's own account UI
