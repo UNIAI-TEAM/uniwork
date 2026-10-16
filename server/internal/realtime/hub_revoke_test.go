@@ -1,14 +1,35 @@
 package realtime
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+// pendingChatGate blocks the first AuthorizeChatScope until release is closed,
+// returns true on that call (a stale yes), and false on every later call.
+type pendingChatGate struct {
+	once    sync.Once
+	started chan struct{}
+	release chan struct{}
+	calls   atomic.Int32
+}
+
+func (g *pendingChatGate) AuthorizeChatScope(_ context.Context, _, _, _ string) (bool, error) {
+	g.once.Do(func() { close(g.started) })
+	if g.calls.Add(1) == 1 {
+		<-g.release
+		return true, nil
+	}
+	return false, nil
+}
 
 // connectAs opens a socket to workspaceID authenticated as id (the test
 // parser reads a JSON Identity as the token).
@@ -120,6 +141,46 @@ func TestSocketClosesWhenItsAccessTokenExpires(t *testing.T) {
 	conn := connectAs(t, server, "ws-a", Identity{UserID: "u1", ExpiresAt: time.Now().Add(300 * time.Millisecond)})
 	expectClose(t, conn, CloseSessionEnded)
 	waitFor(t, "expired socket unregistered", func() bool { return totalClients(hub) == 0 })
+}
+
+func TestRevokeScopeDuringAPendingSubscribeDropsIt(t *testing.T) {
+	gate := &pendingChatGate{started: make(chan struct{}), release: make(chan struct{})}
+	hub := NewHub()
+	hub.SetAuthorizer(ScopeAuthorizers{ScopeChat: NewChatScopeAuthorizer(gate)})
+	c := newDirectHubClient(hub, "u1", "ws1")
+
+	done := make(chan struct{})
+	go func() {
+		c.handleSubscribe(ScopeChat, "r1")
+		close(done)
+	}()
+	<-gate.started
+	hub.RevokeScope("u1", ScopeChat, "r1")
+	close(gate.release)
+	<-done
+
+	assertSubscribeError(t, c, "forbidden")
+	if inScopeRoom(hub, c, ScopeChat, "r1") {
+		t.Fatal("pending subscribe landed in the room after a revoke")
+	}
+	c.handleSubscribe(ScopeChat, "r1")
+	assertSubscribeError(t, c, "forbidden")
+}
+
+func TestGrantCacheDoesNotRememberAnAnswerOlderThanARevoke(t *testing.T) {
+	g := newGrantCache(time.Minute)
+	key := scopeGrantKey{userID: "u1", workspaceID: "ws1", scopeID: "r1"}
+	ctx := context.Background()
+	ok, err := g.authorize(ctx, key, func(context.Context) (bool, error) {
+		g.RevokeScope("u1", ScopeChat, "r1")
+		return true, nil
+	})
+	if err != nil || !ok {
+		t.Fatalf("authorize = %v, %v; want true, nil", ok, err)
+	}
+	if g.cached(key) {
+		t.Fatal("cached a grant after RevokeScope ran inside ask")
+	}
 }
 
 func TestRevokeScopeDropsAScopeTheGateNoLongerAllowsEvenWhenCached(t *testing.T) {
