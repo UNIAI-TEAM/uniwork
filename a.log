@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1809-fd-11-app-folder-tree; git log --oneline -3
+4aa21857de2bbdc445704419081817aab2d998d5
+4aa21857de2bbdc445704419081817aab2d998d5
+4aa21857 fix(shell): keep the folder action failure type after the rejection catch (R1-4)
+d56bc7d0 fix(shell): restore the formatForMime prototype guard lost in the FD-11 BE merge (F11-L5)
+f5c843c7 merge: FD-11 fix round 1 BE (fd11-fix-be 974e8055e..338ec9b37) into the FD-11 branch

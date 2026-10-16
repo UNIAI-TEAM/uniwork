@@ -1,0 +1,11 @@
+$ command -v rustup >/dev/null || (curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal); . "$HOME/.cargo/env"; rustup toolchain install 1.90.0 --profile minimal --target wasm32-wasip1; rc=$?; echo; echo "RUST_WASM_EXIT=$rc"; exit $rc
+bash: line 1: /home/ubuntu/.cargo/env: No such file or directory
+info: syncing channel updates for 1.90.0-x86_64-unknown-linux-gnu
+info: latest update on 2025-09-18 for version 1.90.0 (1159e78c4 2025-09-14)
+info: downloading 4 components
+
+  1.90.0-x86_64-unknown-linux-gnu installed - rustc 1.90.0 (1159e78c4 2025-09-14)
+
+info: checking for self-update (current version: 1.29.1)
+
+RUST_WASM_EXIT=0
