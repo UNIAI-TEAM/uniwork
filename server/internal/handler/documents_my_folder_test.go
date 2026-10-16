@@ -218,3 +218,42 @@ func TestMyFolderSystemKindAndAdminHideRoutes(t *testing.T) {
 		t.Fatalf("admin GET member's My Folder = %d code=%q class=%q, want 403 document_restricted/permission", resGetAdmin.StatusCode, code, class)
 	}
 }
+
+func TestMyFolderIsolation(t *testing.T) {
+	w := newDocsWorld(t)
+
+	// Route classification check (MF-8): POST /api/v1/workspaces/{workspaceID}/documents/my-folder
+	// is walked, classified as isoScoped in isoRoutes, and leaves no unclassified/stale rows.
+	routes := isoWalk(t, w.srv.Config.Handler)
+	if missing := isoUnclassified(routes); len(missing) > 0 {
+		t.Fatalf("isoUnclassified: %v", missing)
+	}
+	if stale := isoStaleRows(routes); len(stale) > 0 {
+		t.Fatalf("isoStaleRows: %v", stale)
+	}
+	r := isoRoute{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/my-folder"}
+	spec := isoSpecFor(r)
+	if !spec.class.tenantScoped() {
+		t.Fatalf("expected tenantScoped spec for %v, got class=%v", r, spec.class)
+	}
+
+	// Cross-tenant attack: another organization's owner (w.outsider) calling A's workspace
+	// is refused with 404 and creates no row in A; A's owner control succeeds with 200.
+	path := "/api/v1/workspaces/" + w.wsID + "/documents/my-folder"
+	resAttack, outAttack := doJSON(t, w.srv, "POST", path, w.outsider, nil)
+	if resAttack.StatusCode != 404 || !spec.refused(resAttack.StatusCode, nil) {
+		t.Fatalf("cross-tenant POST my-folder = %d %v, want 404 refused", resAttack.StatusCode, outAttack)
+	}
+	var count int
+	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM documents WHERE workspace_id = $1 AND system_kind = 'my_folder'`, w.wsID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("cross-tenant attack created %d My Folder rows in A", count)
+	}
+
+	resControl, outControl := doJSON(t, w.srv, "POST", path, w.token, nil)
+	if !spec.controlOK(resControl.StatusCode, nil) {
+		t.Fatalf("owner control POST my-folder = %d %v, want 200", resControl.StatusCode, outControl)
+	}
+}
