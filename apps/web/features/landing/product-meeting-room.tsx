@@ -71,7 +71,7 @@ export function ProductMeetingRoom({ step, onLeave, onTask, meetingTitle }: { st
           <span className="product-meeting-person-name">{index === 3 ? t("meetings.youSuffix", { name }) : name}</span>
         </div>)}</div>
       </div>
-      {captions && <p className="product-meeting-captions">Minh Linh: {t("landing.reference.meetingChat")}</p>}
+      {captions && <p className="product-meeting-captions">An Nhiên: {t("landing.reference.meetingChat")}</p>}
       <footer className="product-meeting-footer" data-auto-hide={autoHide}>
         <TooltipProvider><div className={MEETING_DARK_BAR} data-demo-meeting-controls>
           <IconControl label={t("meetings.mic")} pressed={mic} tone={mic ? "active" : "off"} onClick={() => setMic(value => !value)}>{mic ? <Mic aria-hidden /> : <MicOff aria-hidden />}</IconControl>

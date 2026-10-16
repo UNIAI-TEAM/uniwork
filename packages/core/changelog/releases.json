@@ -1,5 +1,65 @@
 [
   {
+    "id": "release-1-5-1",
+    "version": "1.5.1",
+    "date": "2026-10-16",
+    "sourceRef": "bcb332c5b378f8b32c02f97c2cb3dffad69753a7",
+    "contentKey": "v1_5_1",
+    "sections": [
+      {
+        "kind": "improvements",
+        "items": [
+          "c31a87b6e474f69e33cd44093e483d24dfe1a4f39"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-5-0",
+    "version": "1.5.0",
+    "date": "2026-10-16",
+    "sourceRef": "396bdf484173223218ed4c7b1b0628a6637ec6f6",
+    "contentKey": "v1_5_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "cee5763d0eba8a1097ad8cce142b06b1f2c59795d",
+          "c055cc969f60bf8f56d5575ab9107fbc60495e67b",
+          "cb8db488814c8f81523fae678d92bf08f62087d6a"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "cfde652d9c629769761cea53dd8c62c816bb5438d",
+          "c0ec00567d931c302d0f8cb9ad80d9e788ed44dfa"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c00ede2f34a81c4247c10125bc13b53f2963e02cc",
+          "cd12a4989a99624ed944cf68d8baa10dce67e56a7",
+          "cb59d1c98dba066ccdad3658a5f8f1c5f2bfdfad8",
+          "c60ce04b243311f6f337b7ccbcdd003e73aeea914",
+          "c7458c4c4acf123f2d4392446cadadca8c5b24a7c",
+          "c3b5dbfd16c9e9698479dc08ae75fea87678df71a",
+          "c6764d566d5eb554969fc4b987ae3e8e3a66708af",
+          "cd363ca48e750a9dfe29aa3efbef9a9c4045c48de",
+          "c13087a29b3cb2ad63dc7a132870cbb4b3018c836",
+          "c8d3b953959e51a40d91645de8e49a89fa4e7a9a2"
+        ]
+      }
+    ]
+  },
+  {
     "id": "release-1-4-0",
     "version": "1.4.0",
     "date": "2026-10-15",

@@ -14,9 +14,10 @@ import { PeopleCards } from "@uniwork/views/people/people-cards";
 import { PeopleTable } from "@uniwork/views/people/people-table";
 import { PersonAvatar } from "@uniwork/views/people/person-avatar";
 import { ProductDemoNavigation } from "./product-demo-navigation";
+import { DEMO_MEMBERS } from "./product-demo-data";
 
 const DEPARTMENTS: Department[] = ["Product", "Engineering", "Design"].map((name, index) => ({ id: `department-${index}`, name, member_count: 2, sort_order: index }));
-const PEOPLE: Person[] = ["Đạt Đặng", "Minh Linh", "Hoàng Anh", "Thanh Ngân", "Lê Tùng", "Nam Nguyễn"].map((display_name, index) => ({ user_id: `demo-person-${index}`, display_name, email: `member${index + 1}@uniwork.example`, org_role: index === 0 ? "owner" : "member", status: "active", title: ["Product manager", "Product designer", "Software engineer"][index % 3]!, department: DEPARTMENTS[index % 3], phone_visible: false, timezone: "Asia/Saigon", is_self: index === 0 }));
+const PEOPLE: Person[] = DEMO_MEMBERS.map((member, index) => ({ user_id: member.id, display_name: member.name, email: member.email, org_role: index === 0 ? "owner" : "member", status: "active", title: ["Product manager", "Product designer", "Software engineer"][index % 3]!, department: DEPARTMENTS[index % 3], phone_visible: false, timezone: "Asia/Saigon", is_self: index === 0 }));
 
 export function ProductPeoplePreview({ onChat }: { onChat: () => void }) {
   const { t } = useTranslation();
