@@ -525,7 +525,8 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     expect(frame.hook.result.current.blocked).toBeNull();
   });
 
-  it("a home-row access change for the open document blocks when the head read answers restricted 403; another document's event does not (BE-SHS1-40)", async () => {
+  it.each([true, false])("a home-row access change for the open document blocks when the head read answers restricted 403, office_sync_feed %s; another document's event does not (BE-SHS1-40/-50)", async (syncFeed) => {
+    flag.syncFeed = syncFeed;
     const frame = await openedFrame();
     frame.server.headError = new ApiError("restricted", "document_restricted", 403);
     await act(async () => {
@@ -542,6 +543,7 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
       expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "permission_revoked" }]),
     );
     expect(frame.hook.result.current.blocked).toBe("permission_revoked");
+    if (!syncFeed) expect(frame.events("doc.remoteVersion")).toHaveLength(0);
   });
 
   it("after a reconnect the feed lists the document and its head is gone: doc.blocked document_deleted", async () => {
