@@ -125,6 +125,22 @@ describe('measures', () => {
     assert.equal(s.byFormat.md.total, 2);
   });
 
+  it('counts the asks that ended at a run cap per run and per group, next to errors (G7-12 run409)', () => {
+    const asks = suite((a) => {
+      if (a.id === 'HO-T-01') return { ...a, capReached: { kind: 'tool_rounds', step: 8, limit: 8, refused: false } };
+      if (a.id === 'HO-T-02') return { ...a, capReached: { kind: 'tool_rounds', refused: true }, errored: true, status: 'fail', checks: [{ id: 'answer_shape', status: 'fail', detail: '' }] };
+      return a;
+    });
+    const s = summarizeRun(run(1, asks));
+    assert.deepEqual([s.errored, s.capReached], [2, 4], 'two capped cases and one of them errored, each in two languages');
+    assert.deepEqual(s.capKinds, ['tool_rounds']);
+    assert.deepEqual([s.byGroup.xlsx.capped, s.byGroup.docx.capped], [4, 0], 'the cap count is per group too');
+    const md = renderReport(buildReport([run(1, asks)]));
+    assert.match(md, /\| 1 \| 2 \| 20 \| 20 \| 0 \| 0 \| 0 \| 2 \/ 4 \|/, 'the load table prints errors next to the cap count');
+    assert.match(md, /\| xlsx \(8 lượt hỏi\) \| [^|]*\| [^|]*\| 4 \|/, 'the group table prints the cap count');
+    assert.match(md, /Hết trần \(cap_reached\): 4 lượt hỏi \(trần: tool_rounds\)/);
+  });
+
   it('measures the safety counts fail-closed: an error or an unreadable reply never counts as clean', () => {
     const asks = suite((a) => {
       if (a.id === 'HO-T-01') return { ...a, outsideAllowlist: ['web_search', 'x'] };
