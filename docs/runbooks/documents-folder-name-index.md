@@ -51,53 +51,39 @@ trường**: binary đó chuẩn hóa tiêu đề, kiểm trùng dưới khóa c
 
 Theo đúng thứ tự, kiểm lại sau mỗi bước.
 
-1. Chạy lại hai câu dọn trùng — **chép nguyên văn** từ `9991791949247558_documents_folder_name_dedupe.up.sql`
-   (idempotent: chạy lại không đổi gì; file đã có hàng `schema_migrations` nên runner không tự chạy lại):
+1. Chạy lại hai câu dọn trùng dưới đây (idempotent: chạy lại không đổi gì). **Không chép** `9991791949247558_documents_folder_name_dedupe.up.sql`:
+   file lịch sử đó chưa biết `system_kind`, sẽ đổi tên My Folder hợp lệ (`system_kind = 'my_folder'`) và cả thư mục gốc thường tên "My Folder"; lịch sử migration đã áp dụng giữ nguyên, không sửa. **Không bao giờ đổi tên hàng hệ thống (`system_kind = 'my_folder'`)** — tên của chúng cố định, và chúng không nằm trong index. Cả hai câu chỉ nhắm đúng tập hàng của index hiện hành (`kind = 'folder' AND archived_at IS NULL AND owner_id IS NULL AND system_kind IS NULL`):
    ```sql
-   -- Folder name dedupe (E6 FD-02, UNI-1462 PR 1; appendix §3.3). Two data
-   -- fixes, in this order, so the unique index of PR 2 builds on a clean table:
-   --
-   --   1. every live folder title is composed (NFC), because the duplicate key
-   --      lower(title COLLATE "und-x-icu") compares composed text;
-   --   2. in each group of live folders sharing the key of one workspace under
-   --      one parent, the oldest row (created_at, id) keeps the name and the
-   --      later ones take "Tên (n)", n the smallest free number in that parent
-   --      - a number an existing "Tên (2)" already holds is skipped, and the
-   --      numbers this run hands out do not collide with each other.
-   --
-   -- Not reversible (a data fix cannot know which of two equal names came
-   -- first), no audit row (this is not a user command), no index and no foreign
-   -- key. Idempotent: a second run finds single-row groups and composed titles
-   -- and changes nothing.
+   -- Folder name dedupe for the current index population only: live user
+   -- folders (system_kind IS NULL). System rows (My Folder) are never touched.
+   -- The oldest row (created_at, id) of each group keeps the name; later ones
+   -- take "Tên (n)", n the smallest free number in that parent.
 
    UPDATE documents
    SET title = normalize(title, NFC)
    WHERE kind = 'folder'
      AND archived_at IS NULL
+     AND owner_id IS NULL
+     AND system_kind IS NULL
      AND normalize(title, NFC) <> title;
 
    WITH live AS (
      SELECT d.id, d.workspace_id, COALESCE(d.parent_id, '') AS parent_key, d.title,
             lower(d.title COLLATE "und-x-icu") AS name_key, d.created_at
      FROM documents d
-     WHERE d.kind = 'folder' AND d.archived_at IS NULL AND d.owner_id IS NULL
+     WHERE d.kind = 'folder' AND d.archived_at IS NULL AND d.owner_id IS NULL AND d.system_kind IS NULL
    ),
    ranked AS (
      SELECT l.*,
             row_number() OVER (PARTITION BY l.workspace_id, l.parent_key, l.name_key ORDER BY l.created_at, l.id) AS rn
      FROM live l
    ),
-   -- One representative per group: every member shares the key, so the names it
-   -- builds ("Tên (n)") collide or not together.
    groups AS (
      SELECT DISTINCT ON (workspace_id, parent_key, name_key)
             workspace_id, parent_key, name_key, title AS base_title
      FROM ranked
      ORDER BY workspace_id, parent_key, name_key, rn
    ),
-   -- The free numbers of each group, in order: every number the parent does not
-   -- already use. A parent can hold at most one live row per number it uses, so
-   -- its own row count bounds the search.
    free AS (
      SELECT g.workspace_id, g.parent_key, g.name_key, n.n,
             row_number() OVER (PARTITION BY g.workspace_id, g.parent_key, g.name_key ORDER BY n.n) AS slot
@@ -130,6 +116,20 @@ Theo đúng thứ tự, kiểm lại sau mỗi bước.
 4. Kiểm lại: mục 1 của Kiểm tra trả đúng một hàng với `indisvalid = t`, `indisready = t`; mục 2 có version
    `9991792100200003_documents_folder_name_user_uidx` và `9991792100200004_documents_drop_folder_name_legacy_idx`.
 5. Không sửa `schema_migrations` bằng tay; không tạo index bằng tay (phải để runner ghi version).
+
+## Rollback
+
+Chính sách (review r1a, BE-MF-2): sau khi đã có My Folder, rollback được hỗ trợ **chỉ ở tầng ứng dụng**.
+
+1. Schema additive ở lại: cột `system_kind`, `idx_documents_my_folder_uidx`, `idx_documents_folder_name_user_uidx`. Binary cũ thấy My Folder như thư mục gốc thường.
+2. File down của `9991792100200004` dựng lại index cũ `idx_documents_folder_name_uidx` và sẽ lỗi `23505` khi hai My Folder của hai thành viên (hoặc một My Folder cùng một thư mục gốc thường tên "My Folder") cùng nằm trong một workspace. Lỗi đó là chủ ý; không đổi tên hay xóa hàng hệ thống để cho nó qua.
+3. Một lần `CREATE INDEX CONCURRENTLY` lỗi để lại `idx_documents_folder_name_uidx` INVALID mà `IF NOT EXISTS` sẽ bỏ qua. Trước mọi lần thử lại:
+   ```sql
+   SELECT indisvalid FROM pg_index WHERE indexrelid = 'idx_documents_folder_name_uidx'::regclass;
+   ```
+   ```sh
+   psql "$DATABASE_URL" -c 'DROP INDEX CONCURRENTLY IF EXISTS idx_documents_folder_name_uidx;'
+   ```
 
 ## Leo thang
 

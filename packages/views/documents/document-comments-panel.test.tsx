@@ -48,7 +48,7 @@ function makeDoc(over: Record<string, unknown> = {}): Document {
     id: DOC, workspace_id: WS, organization_id: "org1", kind: "page", title: "Tài liệu",
     revision: "3", current_version: 1, my_level: "edit", ...over,
   });
-  return { ...parsed, kind: parsed.kind as Document["kind"], visibility: parsed.visibility as Document["visibility"], my_level: parsed.my_level as Document["my_level"], via: parsed.via as Document["via"], owner_kind: parsed.owner_kind as Document["owner_kind"] };
+  return { ...parsed, kind: parsed.kind as Document["kind"], visibility: parsed.visibility as Document["visibility"], my_level: parsed.my_level as Document["my_level"], via: parsed.via as Document["via"], owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"], };
 }
 const docxDoc = (over: Record<string, unknown> = {}) => makeDoc({ kind: "file", title: "Plan.docx", file: DOCX, ...over });
 

@@ -44,12 +44,23 @@ export type CreateDocumentInput = Omit<CreateDocumentBody, "parent_id" | "destin
   idempotencyKey?: string;
 } & CreateDocumentPlacementInput;
 
-export type CreateDocumentFileInput = {
-  file: Blob;
-  meta?: CreateDocumentFileMeta;
-  title?: string;
-  idempotencyKey?: string;
-} & CreateDocumentPlacementInput;
+type CreateDocumentFileBase = { file: Blob; title?: string; idempotencyKey?: string };
+
+// Placement is one choice across the whole input: the top level and `meta`
+// must agree, so a destination never sits beside a parent at either level.
+export type CreateDocumentFileInput =
+  | (CreateDocumentFileBase & {
+      parent_id?: string;
+      parentId?: string;
+      destination?: never;
+      meta?: { title?: string; parent_id?: string; parentId?: string; destination?: never };
+    })
+  | (CreateDocumentFileBase & {
+      destination?: DocumentCreateDestination;
+      parent_id?: never;
+      parentId?: never;
+      meta?: { title?: string; destination?: DocumentCreateDestination; parent_id?: never; parentId?: never };
+    });
 
 export function useDocument(
   wsId: string,
@@ -110,6 +121,10 @@ export function useCreateDocumentFile(wsId: string) {
     mutationFn: async (input: CreateDocumentFileInput) => {
       const parent_id = input.meta?.parent_id ?? input.meta?.parentId ?? input.parent_id ?? input.parentId;
       const destination = input.meta?.destination ?? input.destination;
+      if (destination !== undefined && parent_id !== undefined) {
+        // The types forbid this; refuse it at runtime too rather than drop the parent.
+        throw new Error("createDocumentFile: destination and parent are mutually exclusive");
+      }
       const title = input.meta?.title ?? input.title;
       const meta: CreateDocumentFileMeta | undefined =
         destination !== undefined

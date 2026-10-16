@@ -1266,6 +1266,30 @@ func TestDocumentListSharedByMeHTTP(t *testing.T) {
 		wantErr(t, res, out, 400, "invalid_filter", "")
 	}
 
+	// 5. Shared by me is live-only: with archived=true it is an empty page, even
+	// though an archived, owned and shared document exists (the trash alone lists it).
+	_, archivedSharedDoc := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Archived Shared", "kind": "page", "visibility": "workspace",
+	})
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+archivedSharedDoc+"/archive", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("archive archivedSharedDoc: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?archived=true", w.token, nil)
+	if res.StatusCode != 200 || !containsID(docIDs(t, out), archivedSharedDoc) {
+		t.Fatalf("control: archived=true should list %s: %d %v", archivedSharedDoc, res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?archived=true&shared_by_me=true", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("archived+shared_by_me status=%d out=%v", res.StatusCode, out)
+	}
+	if got := docIDs(t, out); len(got) != 0 {
+		t.Fatalf("archived+shared_by_me must be empty, got %v", got)
+	}
+	if next, _ := out["next_cursor"].(string); next != "" {
+		t.Fatalf("archived+shared_by_me must carry no next_cursor, got %q", next)
+	}
+
 	// 4. Outsider is refused with 403 forbidden before any filter check.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?shared_by_me=true", w.outsider, nil)
 	wantErr(t, res, out, 403, "forbidden", "permission")
