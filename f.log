@@ -1,0 +1,69 @@
+$ grep -aq "backend=gnome_libsecret available=true" /tmp/probe.out || { echo "probe did not show gnome_libsecret; e2e not started"; echo "UNIWORK_E2E_EXIT=3"; exit 3; }; timeout 1320 dbus-run-session -- bash -c 'printf "uniwork-ci" | timeout 20 gnome-keyring-daemon --unlock --components=secrets >/dev/null; export XDG_CURRENT_DESKTOP=GNOME; xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts --reporter=list e2e/uniwork-folders.spec.ts e2e/uniwork-documents.spec.ts'; rc=$?; echo; echo "UNIWORK_E2E_EXIT=$rc"; exit $rc
+
+Running 34 tests using 1 worker
+
+(node:28251) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+dbus-daemon[28204]: [session uid=1000 pid=28204] Activating service name='org.a11y.Bus' requested by ':1.2' (uid=1000 pid=28263 comm="/home/ubuntu/work/uniwork-office/node_modules/elec" label="kernel")
+dbus-daemon[28204]: [session uid=1000 pid=28204] Successfully activated service 'org.a11y.Bus'
+  ✓   1 e2e/uniwork-documents.spec.ts:336:7 › UniWork documents › a. open from the UniWork picker, edit, Ctrl+S: one upload, one commit, Saved, recents (5.9s)
+  ✓   2 e2e/uniwork-documents.spec.ts:390:7 › UniWork documents › b. launch from the web: the link opens the right document once, a reused link does nothing (12.9s)
+  ✓   3 e2e/uniwork-documents.spec.ts:427:7 › UniWork documents › b2. launch from the web: an expired link is refused with a message, a view link opens read-only (10.3s)
+  ✓   4 e2e/uniwork-documents.spec.ts:460:7 › UniWork documents › c. no autosave: an edit left alone for over 35 s sends nothing and keeps a local recovery copy (38.4s)
+  ✓   5 e2e/uniwork-documents.spec.ts:605:7 › UniWork documents › d. conflict: 409 keeps the local edit and the base, Save refuses, S5 Overwrite commits on the new base (2.8s)
+  ✓   6 e2e/uniwork-documents.spec.ts:708:7 › UniWork documents › d2. conflict: S5 "Reload latest" keeps a draft by default and loads the server version (2.9s)
+  ✓   7 e2e/uniwork-documents.spec.ts:762:7 › UniWork documents › d2b. conflict: S5 "Reload latest" with "Discard my changes" loads the server version without keeping a draft (3.0s)
+  ✓   8 e2e/uniwork-documents.spec.ts:809:7 › UniWork documents › d3. conflict: S5 "Save as a copy…" creates a real copy with the LOCAL bytes, shows the done notice and keeps the document in conflict (3.3s)
+  ✓   9 e2e/uniwork-documents.spec.ts:877:7 › UniWork documents › d3b. conflict: a failing step 2 archives the copy, shows the failure alert and keeps the document in conflict (2.7s)
+  ✓  10 e2e/uniwork-documents.spec.ts:915:7 › UniWork documents › d3c. conflict: a 403 on the copy (no seat in the workspace) shows the reason, offers Download my version and writes the LOCAL bytes to the picked file (2.8s)
+  ✓  11 e2e/uniwork-documents.spec.ts:979:7 › UniWork documents › d3d. conflict: a copy commit that landed but lost its answer twice is kept (lookup says committed), no archive request, done notice (2.7s)
+  ✓  12 e2e/uniwork-documents.spec.ts:1027:7 › UniWork documents › d3e. conflict: a copy commit that landed with its answer lost and a retry cut before the server is found by the lookup (committed): kept, done notice, no archive (2.6s)
+  ✓  13 e2e/uniwork-documents.spec.ts:1077:7 › UniWork documents › d3f. conflict: both copy commits cut before the server acts -> the lookup says not_committed, the pristine copy is archived, failure alert (2.6s)
+  ✓  14 e2e/uniwork-documents.spec.ts:1126:7 › UniWork documents › e. view-only: opens read-only, typing changes nothing, Ctrl+S sends nothing (4.8s)
+  ✓  15 e2e/uniwork-documents.spec.ts:1160:7 › UniWork documents › f. offline: a dropped commit keeps the intent, Retry reuses the same key and succeeds (2.6s)
+  ✓  16 e2e/uniwork-documents.spec.ts:1203:7 › UniWork documents › f2. offline: a commit that landed but lost its answer is replayed by Retry without a second version (3.2s)
+  ✘  17 e2e/uniwork-documents.spec.ts:1343:9 › UniWork documents › g1. xlsx: open, edit, explicit Save: one upload, one commit (3ms)
+  -  18 e2e/uniwork-documents.spec.ts:1343:9 › UniWork documents › g2. pptx: open, edit, explicit Save: one upload, one commit
+  -  19 e2e/uniwork-documents.spec.ts:1343:9 › UniWork documents › g3. md: open, edit, explicit Save: one upload, one commit
+  -  20 e2e/uniwork-documents.spec.ts:1343:9 › UniWork documents › g4. html: open, edit, explicit Save: one upload, one commit
+  -  21 e2e/uniwork-documents.spec.ts:1361:7 › UniWork documents › g9. pdf: opens, an explicit Save settles with at most one intent
+  -  22 e2e/uniwork-documents.spec.ts:1379:7 › UniWork documents › g10. pdf: a view-only pdf opens read-only and a Save sends nothing
+  -  23 e2e/uniwork-documents.spec.ts:1399:7 › UniWork documents › h. a local file saves exactly as before and nothing goes to UniWork
+  -  24 e2e/uniwork-documents.spec.ts:1531:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (en)
+  -  25 e2e/uniwork-documents.spec.ts:1531:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (vi)
+  -  26 e2e/uniwork-documents.spec.ts:1626:9 › UniWork documents › i1. xlsx: offline, then Retry from the chip saves with the same key
+  -  27 e2e/uniwork-documents.spec.ts:1626:9 › UniWork documents › i2. pptx: offline, then Retry from the chip saves with the same key
+  -  28 e2e/uniwork-documents.spec.ts:1626:9 › UniWork documents › i3. md: offline, then Retry from the chip saves with the same key
+  -  29 e2e/uniwork-documents.spec.ts:1626:9 › UniWork documents › i4. html: offline, then Retry from the chip saves with the same key
+(node:29966) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  30 e2e/uniwork-folders.spec.ts:219:7 › UniWork folders (FD-11) › a. create a folder in the app: stub holds it with the right parent and duplicate names report folder_name_taken (2.2s)
+  ✓  31 e2e/uniwork-folders.spec.ts:273:7 › UniWork folders (FD-11) › b. stub-side move + feed tick updates tree and contents without reload; vanished open folder falls back to live ancestor (3.5s)
+  ✓  32 e2e/uniwork-folders.spec.ts:359:7 › UniWork folders (FD-11) › c. open 3 levels and go back via the breadcrumb (1.9s)
+  ✓  33 e2e/uniwork-folders.spec.ts:428:7 › UniWork folders (FD-11) › d. search shows each result path, filters by kind, and Escape returns to the open folder (2.0s)
+  ✓  34 e2e/uniwork-folders.spec.ts:518:7 › UniWork folders (FD-11) › e. save a copy into another folder from the conflict dialog: the copy lands in that folder in the stub (3.8s)
+
+
+  1) e2e/uniwork-documents.spec.ts:1343:9 › UniWork documents › g1. xlsx: open, edit, explicit Save: one upload, one commit 
+
+    Error: ENOENT: no such file or directory, open '/home/ubuntu/work/uniwork-office/apps/sheets/fixtures/generated/compatibility-basic.xlsx'
+
+      1343 |     test(`g${index + 1}. ${driver.key}: open, edit, explicit Save: one upload, one commit`, async () => {
+      1344 |       test.setTimeout(150_000)
+    > 1345 |       const doc = stub.addDocument({ filename: driver.filename, bytes: await driver.bytes() })
+           |                                                                        ^
+      1346 |       await withApp(`uniwork-docs-${driver.key}`, async (ctx) => {
+      1347 |         await openFromPicker(ctx.shell, driver.filename)
+      1348 |         const { save } = await driver.edit(ctx)
+        at /home/ubuntu/work/uniwork-office/e2e/uniwork-documents.spec.ts:1345:72
+
+    Error Context: e2e/test-results/uniwork-documents-UniWork--c6e9b--Save-one-upload-one-commit/error-context.md
+
+    Error Context: e2e/test-results/uniwork-documents-UniWork--c6e9b--Save-one-upload-one-commit/error-context.md
+
+  1 failed
+    e2e/uniwork-documents.spec.ts:1343:9 › UniWork documents › g1. xlsx: open, edit, explicit Save: one upload, one commit 
+  12 did not run
+  21 passed (2.2m)
+
+UNIWORK_E2E_EXIT=1

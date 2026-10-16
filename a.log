@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1809-fd-11-app-folder-tree; git log --oneline -3
+dd44532c9e6df1be91c15ba003390f0485c0d16c
+dd44532c9e6df1be91c15ba003390f0485c0d16c
+dd44532c merge: FD-11 W5 fix2 e2e (fd11-fix-e2e2 d4a04ab9a) into the FD-11 branch
+d4a04ab9 test(shell): align FD-11 breadcrumb locators and G5-06u conflict Ctrl+S assertion
+0141114a fix(shell): raise folder reason/path contrast, auto-expand on own create, and prevent empty-state selection
