@@ -15,7 +15,7 @@ import {
   TOOL_OPS, createBackend, frameToolCounts, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
 } from './holdout-backend.mjs';
 import {
-  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, httpTransport,
+  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, fixtureEmails, httpTransport,
   isInsideRepo, parseArgs, preflight, redactSecrets, runHoldout, sha256Hex,
 } from './holdout-run.mjs';
 import { OPERATIONS, loadCases, score } from './holdout-score.mjs';
@@ -615,8 +615,8 @@ describe('answer adapter', () => {
 const usageReader = async (ids) => new Map(ids.map((id, i) => [id, { promptId: 'office_uniwork_ai@test', provider: 'fake', model: 'stub-resolved', status: 'succeeded', latencyMs: 100 + (i % 7), inputTokens: 5, outputTokens: 2 }]));
 const noSleep = async () => {};
 
-async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
-  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs });
+async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, mintDelayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
+  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs, mintDelayMs });
   const session = await createServerSession({ serverUrl: facade.url });
   const mounts = [];
   const wrapped = { ...session, mount: (id, o) => { mounts.push({ id, ...o }); return mount ? mount(id, o, session, mounts.length) : session.mount(id, o); } };
@@ -676,7 +676,7 @@ describe('runner against a stub façade', () => {
     assert.ok(ask.toolCalls.length >= 1);
     assert.ok(ask.calls.every((c) => c.status === 200 && c.traceId && c.clientMs >= 0 && c.usage.latencyMs >= 100));
     assert.deepEqual(ask.counts, { rateLimited: 0, serverErrors: 0, retries: 0 });
-    assert.deepEqual(ask.renewals, [], 'a reference run renews nothing');
+    assert.deepEqual(ask.renewals.filter((r) => r.kind !== 'mount_wait'), [], 'a reference run renews nothing (waiting for a shared mount is not a renewal, G712-70)');
     assert.equal(ask.tokens.source, 'ai_usage_events');
     assert.equal(ask.tokens.input, 5 * ask.calls.length);
     assert.equal(ask.answer.tools.used.includes('compute'), true);
@@ -891,6 +891,44 @@ describe('runner faults and failures', () => {
     for (const text of harmless) assert.deepEqual(redactSecrets(text), { text, hits: [] }, text);
   });
 
+  it('redacts an email as a soft kind, and keeps an address the case set itself carries (G712-62)', () => {
+    const email = 'g712-holdout-test@example.com';
+    const flagged = redactSecrets(`sign-in for ${email} was refused`);
+    assert.deepEqual(flagged.hits, [{ kind: 'email', count: 1 }]);
+    assert.equal(flagged.text, 'sign-in for [redacted:email] was refused');
+    // Exact provenance, not a broad pattern: the case's own address stays, another address beside it still goes.
+    const exemptEmails = new Set([email]);
+    assert.deepEqual(redactSecrets(`write to ${email} today`, { exemptEmails }), { text: `write to ${email} today`, hits: [] });
+    const mixed = redactSecrets(`write to ${email} or bookkeeping@example.com`, { exemptEmails });
+    assert.deepEqual(mixed.hits, [{ kind: 'email', count: 1 }], 'only the exact address the cases carry is exempt');
+    assert.equal(mixed.text, `write to ${email} or [redacted:email]`);
+  });
+
+  it('reads the emails a case set really carries, so the runner exempts exactly them (G712-62)', () => {
+    const synthetic = [
+      { id: 'S-1', query: { vi: 'thư gửi ops@example.org' }, referenceAnswer: { text: 'gửi ops@example.org và kế toán', structural: [{ value: 'ops@example.org' }] } },
+      { id: 'S-2', query: { vi: 'không có địa chỉ nào' } },
+    ];
+    assert.deepEqual([...fixtureEmails(synthetic)], ['ops@example.org'], 'every address-shaped value of the loaded case data is read');
+    assert.deepEqual([...fixtureEmails([])], [], 'a case set without an address exempts nothing');
+  });
+
+  it('reports an address-shaped secret under its hard kind, so it still voids a run (G712-71)', async () => {
+    // The soft address rule (G712-62) runs last: a value that is also a key, a credential assignment or a private host
+    // keeps the hard kind, and with it the flag that keeps the run out of a pass.
+    assert.deepEqual(redactSecrets('key sk-abcdefgh1234@example.com').hits, [{ kind: 'key', count: 1 }], 'an address-shaped key is a key');
+    assert.deepEqual(redactSecrets('api_key=abc12345def67890@example.com').hits, [{ kind: 'credential', count: 1 }], 'an address-shaped credential assignment is a credential');
+    assert.deepEqual(redactSecrets('mail user@gw.corp.example:8443').hits, [{ kind: 'private_host', count: 1 }], 'a private host carrying an address is a private host');
+    assert.deepEqual(redactSecrets('ops@example.com').hits, [{ kind: 'email', count: 1 }], 'a bare address stays the soft kind');
+    assert.deepEqual(redactSecrets('write to ops@example.com today', { exemptEmails: new Set(['ops@example.com']) }), { text: 'write to ops@example.com today', hits: [] }, 'the exact-address exemption still holds');
+    // Through the runner: the run file lists the hard kind, which the report turns into "a flagged run cannot count as a pass".
+    const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'write to sk-abcdefgh1234@example.com\nUNIWORK_ANSWER') } : r));
+    const { docs, files } = await runWith({ ...only(readOnlyNumeric), model: leak }, 'secret-address');
+    assert.doesNotMatch(fs.readFileSync(files[0], 'utf8'), /sk-abcdefgh1234@example\.com/);
+    assert.deepEqual(docs[0].asks.map((a) => a.redactions.map((h) => h.kind)), [['key'], ['key']], 'the ask lists the hard kind, not the soft address kind');
+    assert.deepEqual(docs[0].asks.map((a) => a.status), ['pass', 'pass'], 'redaction happens after grading and never changes a verdict');
+  });
+
   it('keeps the base64 guard\'s miss rate at or under the number its comment documents (G712-41)', () => {
     // The comment on looksEncoded documents the measurement (2.2% of 40-character blobs missed on 100000 random blobs, 2026-10-16).
     // This is a deterministic sample of the same population: same blobs every run, so a guard that got worse fails here and an
@@ -1010,8 +1048,9 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
   it('renews an expired session and an expired frame token: the run completes, both are counted and no fixture is re-uploaded', async () => {
     const dir = path.join(tmpRoot, 'renew');
     const password = 'Holdout-Test-Pw!';
+    const email = 'g712-holdout-test@example.com';
     const facade = await startStubFacade({ model: scriptedModel(cases), sessionExpiresAfterCalls: 2, frameExpiresAfterCalls: 2 });
-    const session = await createServerSession({ serverUrl: facade.url, password });
+    const session = await createServerSession({ serverUrl: facade.url, email, password });
     const lines = [];
     try {
       const files = await runHoldout({
@@ -1028,14 +1067,18 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
       assert.equal(facade.stats.uploads, 2, 'each fixture is uploaded once; a renewal mints for the document that still exists');
       assert.ok(facade.stats.mints > facade.stats.uploads, 'the renewals minted again');
       const notes = doc.asks.flatMap((a) => a.renewals);
-      assert.equal(notes.length, doc.renewals.session + doc.renewals.frame, 'the run summary counts every ask note');
-      assert.ok(notes.every((r) => ['session', 'frame'].includes(r.kind) && Number.isFinite(r.ms) && r.ms >= 0), JSON.stringify(notes));
+      assert.deepEqual(
+        ['session', 'frame'].map((kind) => notes.filter((r) => r.kind === kind).length),
+        [doc.renewals.session, doc.renewals.frame],
+        'the run summary counts the renewal notes, one per token minted (a shared-mount wait is not a renewal, G712-60, G712-70)',
+      );
+      assert.ok(notes.every((r) => ['session', 'frame', 'mount_wait'].includes(r.kind) && Number.isFinite(r.ms) && r.ms >= 0), JSON.stringify(notes));
       // The renewal time is not a call's latency: the retried call keeps its own clientMs, and the renewal is named on it.
       const retried = doc.asks.flatMap((a) => a.calls).filter((c) => c.renewed);
       assert.ok(retried.length >= 1);
       assert.ok(retried.every((c) => c.status === 200 && Number.isFinite(c.clientMs)));
-      // The test user's credentials never reach the run file or a log line.
-      for (const secret of [password, 'stub-access-', 'stub-refresh-', 'uniwork_refresh']) {
+      // The test user's credentials (the email address too) never reach the run file or a log line.
+      for (const secret of [email, password, 'stub-access-', 'stub-refresh-', 'uniwork_refresh']) {
         assert.equal(text.includes(secret), false, `the run file carries ${secret}`);
         assert.ok(lines.every((line) => !line.includes(secret)), `a log line carries ${secret}`);
       }
@@ -1055,6 +1098,149 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
     assert.deepEqual(ask.calls.map((c) => c.status), [401, 401]);
     assert.equal(facade.stats.uploads, 1, 'the fixture is uploaded once');
     assert.equal(facade.stats.mints, 3, 'the mount mint, then one renewal per ask');
+  });
+
+  it('counts a frame renewal once per token minted when two asks share a fixture (G712-60)', async () => {
+    const byFixture = new Map();
+    for (const c of cases) byFixture.set(c.fixtures[0].id, [...(byFixture.get(c.fixtures[0].id) ?? []), c]);
+    const shared = [...byFixture.values()].find((group) => group.length >= 2)[0];
+    const dir = path.join(tmpRoot, 'renew-shared');
+    // Both asks of the one case 401 on their first call, so both renew the frame token at once; the held-back mint keeps
+    // the second renewal inside the first one's window, where it joins and mints nothing.
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i < 2 ? { status: 401 } : null) }, mintDelayMs: 20 });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 2, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [shared.id], sessionId: 's-renew-shared', opts: { sleep: noSleep },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => `${a.id}/${a.lang}: ${a.error}`), []);
+      assert.equal(doc.asks.length, 2, 'one case, two languages, one fixture');
+      assert.equal(facade.stats.uploads, 1, 'the fixture is uploaded once: a renewal mints for the document that still exists');
+      assert.equal(facade.stats.mints - facade.stats.uploads, 1, 'exactly one frame token was renewed');
+      assert.equal(doc.renewals.frame, 1, 'the printed count is the tokens minted, not the asks that asked for one');
+      assert.equal(doc.asks.flatMap((a) => a.renewals).filter((r) => r.kind === 'frame').length, doc.renewals.frame, 'the frame notes equal the run summary');
+      assert.ok(doc.asks.every((a) => a.calls.some((c) => c.renewed === 'frame')), 'both asks recorded the renewal action');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('keeps the renewal time out of the per-ask wall used for server overhead, and keeps the raw wall (G712-61)', async () => {
+    const fixtureId = one.fixtures[0].id;
+    const dir = path.join(tmpRoot, 'renew-wall');
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null) }, mintDelayMs: 60 });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      // Warm the mount first: the asks' walls then carry no upload or first mint, only their own work.
+      await session.mount(fixtureId);
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-wall', opts: { sleep: noSleep },
+      });
+      const [renewing, plain] = JSON.parse(fs.readFileSync(files[0], 'utf8')).asks;
+      assert.equal(renewing.renewals.length, 1);
+      assert.ok(renewing.renewalMs >= 60, `the held-back mint is part of the renewal time: ${renewing.renewalMs} ms`);
+      assert.equal(renewing.wallMsNoRenewals, Number((renewing.wallMs - renewing.renewalMs).toFixed(1)), 'the raw wall is kept beside the clean one');
+      const modelSum = (a) => a.calls.filter((c) => c.status === 200).reduce((n, c) => n + c.clientMs, 0);
+      const cleanOverhead = renewing.wallMsNoRenewals - modelSum(renewing);
+      const plainOverhead = plain.wallMs - modelSum(plain);
+      assert.ok(cleanOverhead - plainOverhead < renewing.renewalMs, `server overhead (wall − model sum) reads at the level of an ask that never renewed: ${cleanOverhead} vs ${plainOverhead}`);
+      assert.deepEqual([plain.renewalMs, plain.wallMsNoRenewals], [0, plain.wallMs], 'an ask that renewed nothing keeps its wall');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('leaves the shared-mount wait out of the joining ask\'s clean wall too (G712-70)', async () => {
+    const fixtureId = one.fixtures[0].id;
+    const modelSum = (a) => a.calls.filter((c) => c.status === 200).reduce((n, c) => n + c.clientMs, 0);
+    const cleanOverhead = (a) => a.wallMsNoRenewals - modelSum(a);
+    // One arm where both asks renew together (one mints the token, the other joins that mint) and one where neither
+    // renews; in both the mount is warmed first, so a wall carries only the ask's own work beside the shared mint.
+    const arm = async (dirName, hooks) => {
+      const facade = await startStubFacade({ model: scriptedModel(cases), hooks, mintDelayMs: 150 });
+      try {
+        const session = await createServerSession({ serverUrl: facade.url });
+        await session.mount(fixtureId);
+        const files = await runHoldout({
+          cases, runs: 1, threads: 2, outDir: path.join(tmpRoot, dirName), session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+          onlyIds: [one.id], sessionId: `s-${dirName}`, opts: { sleep: noSleep },
+        });
+        return JSON.parse(fs.readFileSync(files[0], 'utf8')).asks;
+      } finally {
+        await facade.close();
+      }
+    };
+    const [vi, en] = await arm('renew-join-wall', { before: (i) => (i < 2 ? { status: 401 } : null) });
+    assert.equal([vi, en].reduce((n, a) => n + a.renewals.filter((r) => r.kind === 'frame').length, 0), 1, 'one token was minted, so one frame note');
+    const [plainVi, plainEn] = await arm('renew-join-plain', {});
+    assert.deepEqual([plainVi, plainEn].map((a) => a.renewals), [[], []], 'an ask that renewed nothing records no note');
+    const baseline = Math.max(cleanOverhead(plainVi), cleanOverhead(plainEn));
+    // Whichever of the two asks joined the other's mint, its clean wall must read at the level of an ask that renewed
+    // nothing: before the note existed the joining ask held the whole held-back mint as "server overhead" (G712-70).
+    for (const ask of [vi, en]) {
+      assert.ok(cleanOverhead(ask) - baseline < 75, `every ask reads its server overhead at the level of an ask that renewed nothing: ${cleanOverhead(ask)} vs ${baseline} (the mint is held back 150 ms)`);
+    }
+    const minting = [vi, en].find((a) => a.renewals.some((r) => r.kind === 'frame'));
+    const joining = [vi, en].find((a) => a.renewals.some((r) => r.kind === 'mount_wait'));
+    assert.ok(minting && joining, `one ask mints the token and the other joins its mint: ${JSON.stringify([vi, en].map((a) => a.renewals))}`);
+    assert.ok(joining.renewals.find((r) => r.kind === 'mount_wait').ms >= 100, `the join wait is the held-back mint: ${joining.renewalMs} ms`);
+    assert.equal(joining.wallMsNoRenewals, Number((joining.wallMs - joining.renewalMs).toFixed(1)), 'the raw wall is kept beside the clean one');
+  });
+
+  it('redacts the test user\'s address when a renewal failure text carries it: run file and log lines stay clean (G712-62)', async () => {
+    const dir = path.join(tmpRoot, 'renew-email');
+    const email = 'g712-holdout-test@example.com';
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null) } });
+    const session = await createServerSession({ serverUrl: facade.url, email });
+    // A renewal that fails the way a server body could echo the address back: the error text names it.
+    const failing = { ...session, mount: (fixtureId, o) => (o?.fresh ? Promise.reject(new Error(`session renewal via login failed: 401 ${email} is not allowed`)) : session.mount(fixtureId, o)) };
+    const lines = [];
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session: failing, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-email', opts: { sleep: noSleep }, log: (line) => lines.push(line),
+      });
+      const text = fs.readFileSync(files[0], 'utf8');
+      const doc = JSON.parse(text);
+      assert.equal(doc.status, 'completed', 'the failed renewal is one error ask, not a dead run');
+      const errored = doc.asks.filter((a) => a.errored);
+      assert.equal(errored.length, 1);
+      assert.match(errored[0].error, /session renewal via login failed: 401 \[redacted:email\] is not allowed/);
+      assert.equal(text.includes(email), false, 'the run file carries no address');
+      assert.ok(lines.every((line) => !line.includes(email)), 'no log line carries the address');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('re-uploads the fixture once when the mint says the document is gone, then mints for the new one (G712-63)', async () => {
+    const dir = path.join(tmpRoot, 'renew-404');
+    const mintedOnce = new Set();
+    const goneAfterFirstMint = (docId) => { const again = mintedOnce.has(docId); mintedOnce.add(docId); return again ? 404 : null; };
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null), mint: goneAfterFirstMint } });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-404', opts: { sleep: noSleep },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      const [renewing] = doc.asks;
+      assert.equal(renewing.errored, false, 'the renewal re-uploads and the ask goes on');
+      assert.equal(facade.stats.uploads, 2, 'the fixture is uploaded again exactly once');
+      assert.equal(facade.stats.mints, 2, 'the first mount minted, the 404 mint minted nothing, the new document minted');
+      const askedDocs = [...new Set(facade.requests.map((r) => r.doc))];
+      assert.equal(askedDocs.length, 2, 'the retried call goes to the document uploaded in its place');
+      assert.notEqual(askedDocs[0], askedDocs[1]);
+      assert.equal(renewing.renewals.filter((r) => r.kind === 'frame').length, 1, 'the re-upload renewal is one token minted');
+    } finally {
+      await facade.close();
+    }
   });
 
   it('renews through POST /api/v1/auth/login when the sign-in left no refresh cookie', async () => {
@@ -1123,6 +1309,21 @@ describe('sessions, manifest and tool surface', () => {
       assert.ok(docs.every((d) => d.sessionId === 's-test-1' && d.caseCount === 2 && d.caseSetSha256 === manifest.caseSetSha256));
       await assert.rejects(go(), /already holds manifest\.json, run-01\.json, run-02\.json/);
       assert.equal(JSON.parse(fs.readFileSync(files[0], 'utf8')).sessionId, 's-test-1', 'the refused run left the files alone');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('redacts the test user\'s address in a session-setup failure before it reaches stderr (G712-72)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    const facade = await startStubFacade({ hooks: { register: (payload) => ({ status: 400, body: { error: { code: 'invalid', message: `email ${payload.email} is not allowed` } } }) } });
+    try {
+      await assert.rejects(createServerSession({ serverUrl: facade.url, email }), (err) => {
+        assert.match(err.message, /^\/api\/v1\/auth\/register failed: 400 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
     } finally {
       await facade.close();
     }
@@ -1211,9 +1412,19 @@ describe('usage rows and arguments', () => {
     assert.equal(parseArgs(['--server-url', 'http://localhost:1', '--anchors', 'lenient']).anchors, 'lenient');
   });
 
-  it('resolves symlinks before deciding an --out is outside the repo (G712-15)', () => {
+  it('resolves symlinks before deciding an --out is outside the repo (G712-15)', (t) => {
     const link = path.join(tmpRoot, 'link-into-repo');
-    fs.symlinkSync(path.join(repoRoot, 'docs'), link);
+    try {
+      fs.symlinkSync(path.join(repoRoot, 'docs'), link);
+    } catch (err) {
+      // G712-73: the sibling of the review export's symlink case - a host that refuses symlink creation (win32 without
+      // developer mode) skips this case with the reason instead of failing it, and a host that can create one runs it.
+      if (err?.code === 'EPERM' || err?.code === 'EACCES') {
+        t.skip(`this host does not permit creating a symlink (${err.code})`);
+        return;
+      }
+      throw err;
+    }
     assert.equal(isInsideRepo(path.join(link, 'runs')), true);
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--out', path.join(link, 'runs')]), /inside the repo/);
     assert.equal(isInsideRepo(path.join(tmpRoot, 'plain', 'runs')), false);

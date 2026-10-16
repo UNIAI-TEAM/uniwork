@@ -172,15 +172,28 @@ describe('blinded export', () => {
     assert.equal(inRepo.status, 4);
     assert.match(inRepo.stderr, /inside the repo/);
     assert.equal(fs.existsSync(path.join(repoRoot, 'tmp-review-out')), false);
-    const link = path.join(tmpRoot, 'link-into-repo');
-    fs.symlinkSync(repoRoot, link);
-    const viaLink = spawnSync(process.execPath, [script, '--runs', base.dir, '--out', path.join(link, 'tmp-review-out2')], { encoding: 'utf8' });
-    assert.equal(viaLink.status, 4, 'a symlink into the repo does not get around it');
     const out = path.join(tmpRoot, 'export-out');
     const res = spawnSync(process.execPath, [script, '--runs', base.dir, '--out', out, '--seed', String(SEED)], { encoding: 'utf8' });
     assert.equal(res.status, 0, res.stderr);
     assert.deepEqual(fs.readdirSync(out).sort(), ['GRADER-BRIEF.md', 'review-packet.json', 'reviews-skeleton.json']);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(out, 'review-packet.json'), 'utf8')).items.map(key), packet.items.map(key));
+  });
+
+  it('refuses an out dir that reaches the repo through a symlink', (t) => {
+    const link = path.join(tmpRoot, 'link-into-repo');
+    try {
+      fs.symlinkSync(repoRoot, link);
+    } catch (err) {
+      // G712-W1: a symlink needs a privilege Windows does not grant without developer mode, so the case is skipped there
+      // (with the reason) and keeps running on hosts that can create one.
+      if (err?.code === 'EPERM' || err?.code === 'EACCES') {
+        t.skip(`this host does not permit creating a symlink (${err.code})`);
+        return;
+      }
+      throw err;
+    }
+    const viaLink = spawnSync(process.execPath, [path.join(here, 'holdout-review-export.mjs'), '--runs', base.dir, '--out', path.join(link, 'tmp-review-out2')], { encoding: 'utf8' });
+    assert.equal(viaLink.status, 4, 'a symlink into the repo does not get around it');
   });
 });
 

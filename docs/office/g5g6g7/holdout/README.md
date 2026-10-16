@@ -167,9 +167,11 @@ Runner **đọc ca lúc chạy** từ `cases/`; không câu hỏi, đáp án hay
 model có thể lặp lại giá trị tham chiếu, file kết quả mặc định nằm **ngoài repo** (`~/office-g5g6g7/reports/g6-ai_server/g712-runs/`);
 runner từ chối `--out` trong repo (kể cả khi đi qua symlink; báo cáo cũng vậy), và **che** (`[redacted:<loại>]`) mọi giá trị trông
 như bí mật ngay trong từng lượt hỏi thay vì bỏ cả lần chạy: lần chạy vẫn được ghi và đếm, nhưng bị đánh dấu `redactions` và
-không thể là kết luận đạt. Ngoại lệ: loại `base64_run` / `hex_run` (chuỗi dài trông như mã hóa, có thể chỉ là một định danh dài) vẫn được
-liệt kê trong `redactions` để người đọc xem, nhưng không làm mất hiệu lực lần chạy; các loại khoá, token, userinfo, host:port, IPv4
-vẫn làm mất hiệu lực. Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
+không thể là kết luận đạt. Ngoại lệ: loại `base64_run` / `hex_run` (chuỗi dài trông như mã hóa, có thể chỉ là một định danh dài) và loại
+`email` (địa chỉ trong câu trả lời có thể là nội dung hợp lệ) vẫn được liệt kê trong `redactions` để người đọc xem, nhưng không làm mất
+hiệu lực lần chạy; các loại khoá, token, userinfo, host:port, IPv4 vẫn làm mất hiệu lực. Địa chỉ mà **bộ ca mang sẵn** (đọc lúc chạy) là ngoại lệ theo đúng chuỗi đó, không theo mẫu rộng: một địa chỉ
+khác trong cùng câu trả lời vẫn bị che (G712-62). Luật địa chỉ chạy **sau** các loại cứng (G712-71): một giá trị vừa có dạng địa chỉ vừa là khoá, là phép gán
+thông tin đăng nhập hay là host nội bộ thì được báo theo loại cứng đó và vẫn làm lần chạy không thể là đạt. Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
 khi đứng cạnh dấu hiệu tiền tệ (`đồng`, `VNĐ`, `₫`) hoặc sau chữ "số" — đứng một mình, làm host của URL không cổng, hay đứng trước cổng thì bị che và đánh dấu (G712-40). Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
 (mã phiên, hash bộ ca, sha256 của từng file run); báo cáo chỉ tính đúng các lần chạy mà manifest liệt kê.
 
@@ -242,15 +244,23 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
 - **Token hết hạn giữa lần chạy là chuyện bình thường, và bộ chạy tự gia hạn** (điểm chặn của phi công G7-12). Token truy cập
   của máy chủ sống 15 phút và token khung 10 phút, còn một lần chạy ở 1 luồng kéo dài khoảng 100 phút, nên lần nào cũng đi qua cả
   hai cửa sổ. Bộ chạy giữ thông tin đăng nhập của người dùng thử **trong tiến trình** — mật khẩu, cookie refresh và token truy cập
-  không bao giờ vào `run-NN.json`, `manifest.json`, `report.md` hay dòng log — và gia hạn theo cách ứng dụng web làm: `POST
+  không bao giờ vào `run-NN.json`, `manifest.json`, `report.md` hay dòng log, kể cả khi một bước dựng phiên (đăng ký, tạo tổ chức, tải
+  fixture, mint token khung) thất bại và thân lỗi của máy chủ nhắc lại địa chỉ: văn bản lỗi cũng đi qua bộ che trước khi ra stderr
+  (G712-72) — và gia hạn theo cách ứng dụng web làm: `POST
   /api/v1/auth/refresh` khi còn cookie refresh của lần đăng nhập, không thì `POST /api/v1/auth/login`. Gia hạn trước khi dùng khi
   token truy cập cũ hơn 12 phút và token khung cũ hơn 8 phút, rồi gia hạn thêm một lần khi một lượt gọi trả 401; 401 thứ hai liên
   tiếp làm lượt hỏi lỗi như trước. Gia hạn token khung chỉ **mint lại cho đúng tài liệu đã gắn**, không tải lại fixture (chỉ tải
   lại khi máy chủ trả 404: tài liệu đã bị xoá), nên một lần gia hạn không tốn thêm tài liệu. Mỗi lần gia hạn là một ghi chú
   `{ kind: session|frame, ms }` trên lượt hỏi, tổng hợp thành `renewals` của lần chạy và thành cột "Gia hạn token (phiên / khung)"
   ở mục 2 báo cáo; lượt gọi thử lại giữ độ trễ của chính nó (thời gian gia hạn không tính vào độ trễ model) và **một lần gia hạn
-  không làm mất hiệu lực lần chạy**. Hội thoại không đổi khi gia hạn token khung — cùng một mã hội thoại; còn nếu máy chủ trả 409
-  `conversation_expired` thì đó là lỗi thật, bộ chạy ghi nhận chứ không che.
+  không làm mất hiệu lực lần chạy**. Gia hạn token khung được đếm theo **token thật sự được mint**: hai lượt hỏi cùng một tài liệu
+  gia hạn cùng lúc thì chỉ mint một token và chỉ ghi một ghi chú (G712-60). Lượt hỏi **chờ** lần mount đang chạy của lượt khác ghi
+  lại thời gian chờ đó thành ghi chú `mount_wait` (G712-70): nó không phải một token được mint nên không vào cột đếm gia hạn, nhưng
+  vẫn được trừ khỏi `wallMsNoRenewals`. `wallMs` mỗi lượt hỏi là thời gian thô, gồm cả thời
+  gian gia hạn đã ghi trên lượt đó; `wallMsNoRenewals` đã trừ phần gia hạn ấy — dùng nó cho phép đo "server overhead (wall − model
+  sum)", còn báo cáo cộng cả hai theo từng lần chạy (`summaries[].wallMs` và `summaries[].wallMsNoRenewals`, G712-61).
+  Hội thoại không đổi khi gia hạn token khung — cùng một mã hội thoại; còn nếu máy chủ trả 409 `conversation_expired` thì đó là
+  lỗi thật, bộ chạy ghi nhận chứ không che.
 - Dòng báo cáo `UNIWORK_ANSWER <json>` được nối vào câu hỏi để model báo đáp án ở dạng máy đọc được; dòng này giống nhau
   cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm;
   `report.md` in nguyên văn đoạn này cùng sha256, chính sách chấm, danh sách mô phỏng và bộ công cụ ở mục 0.
@@ -262,7 +272,7 @@ backend giả lập, đường façade, bộ công cụ từng module và nguồ
 và release tuple, tải (lượt gọi, 429/5xx, thử lại, token và tỷ lệ lượt gọi có dòng `ai_usage_events`), mọi chỉ số §9.2 với
 **min / trung vị / max** trên các lần chạy, theo nhóm (XLSX 40, DOCX 20, định dạng khác 20, cross 20) và theo định dạng, độ
 trễ p50/p95 mỗi lần và gộp, ca không ổn định (khớp ở lần này, lệch ở lần khác), số lượt hỏi có **giá trị bị che** theo từng lần chạy kèm loại đã che
-(loại `base64_run`/`hex_run` không làm mất hiệu lực lần chạy, G712-42), ca **chờ người duyệt** (ca `rubric` và ca có
+(loại `base64_run`/`hex_run`/`email` không làm mất hiệu lực lần chạy, G712-42, G712-62), ca **chờ người duyệt** (ca `rubric` và ca có
 `caveat`: scorer không bao giờ tự xác nhận), và giới hạn của adapter.
 
 Hai hàng "ghi áp lên bản cũ" và "ghi trái phép" của viewer/thu hồi quyền ghi rõ **mô phỏng, bằng 0 theo cấu trúc** (backend từ
