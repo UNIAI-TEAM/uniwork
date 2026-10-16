@@ -209,22 +209,24 @@ export function useArchiveDocument(wsId: string) {
 }
 
 /** Restore the target trashed item and the trashed descendants in its batch
- *  that the caller manages (RESTORE-01). */
+ *  that the caller manages (RESTORE-01). Partial restore may leave unmanaged
+ *  descendants in trash and detach the restored root (`parent_id: null`);
+ *  invalidating the workspace root refreshes the trash list, the old parent's
+ *  list, the workspace root list, and the tree. */
 export function useRestoreDocument(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { documentId: string; idempotencyKey?: string }) =>
-      requireVerifiableArchive(
-        await restoreDocument(input.documentId, { idempotencyKey: input.idempotencyKey }),
-      ),
+    mutationFn: async (input: string | { documentId: string; idempotencyKey?: string }) => {
+      const { documentId, idempotencyKey } =
+        typeof input === "string" ? { documentId: input, idempotencyKey: undefined } : input;
+      return requireVerifiableArchive(await restoreDocument(documentId, { idempotencyKey }));
+    },
     onSuccess: (res) => {
       qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
       return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
     },
   });
 }
-
-export type PurgeDocumentInput = string | { documentId: string; idempotencyKey?: string };
 
 /** Permanently delete a trashed item and the trashed descendants in its batch
  *  that the caller manages (RESTORE-01). Awaits the server (no optimistic
@@ -233,7 +235,7 @@ export type PurgeDocumentInput = string | { documentId: string; idempotencyKey?:
 export function usePurgeDocument(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: PurgeDocumentInput) => {
+    mutationFn: async (input: string | { documentId: string; idempotencyKey?: string }) => {
       const { documentId, idempotencyKey } =
         typeof input === "string" ? { documentId: input, idempotencyKey: undefined } : input;
       await purgeDocument(documentId, { idempotencyKey });

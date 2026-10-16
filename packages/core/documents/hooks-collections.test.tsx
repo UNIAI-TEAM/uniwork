@@ -15,6 +15,7 @@ import {
   useMoveDocument,
   usePurgeDocument,
   useRecentDocuments,
+  useRestoreDocument,
   useSharedByMe,
   useSharedWithMe,
 } from "./hooks-collections";
@@ -483,6 +484,99 @@ describe("documents collection hooks", () => {
           status: 400,
         } satisfies Partial<ApiError>),
       );
+    });
+    expect(qc.getQueryState(trashKey)?.isInvalidated).toBe(false);
+  });
+
+  // ---- RESTORE-01 (UNI-1843): useRestoreDocument ---------------------------
+
+  it("useRestoreDocument handles partial batch restore (detached to root) and invalidates trash list, old parent list, and workspace tree", async () => {
+    const restoredDoc = summary("d1", {
+      parent_id: null,
+      archived_at: null,
+      revision: "4",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: restoredDoc,
+        // Partial batch: d1 and d2 restored (caller has manage); d3 stays in trash.
+        affected: ["d1", "d2"],
+      }),
+    );
+
+    const { qc, wrapper } = setup();
+    const trashKey = documentKeys.list("w1", documentFilterKey({ archived: true }));
+    const oldParentKey = documentKeys.list("w1", documentFilterKey({ parentId: "f-trashed-parent" }));
+    const rootListKey = documentKeys.list("w1", "");
+    const treeKey = documentKeys.tree("w1", "");
+    const foldersTreeKey = documentKeys.tree("w1", "folders");
+    const otherWsTrashKey = documentKeys.list("w2", documentFilterKey({ archived: true }));
+
+    qc.setQueryData(
+      trashKey,
+      listBody([
+        summary("d1", { parent_id: "f-trashed-parent", archived_at: "2026-10-16T00:00:00Z" }),
+        summary("d2", { parent_id: "d1", archived_at: "2026-10-16T00:00:00Z" }),
+        summary("d3", { parent_id: "d1", archived_at: "2026-10-16T00:00:00Z" }),
+      ]),
+    );
+    qc.setQueryData(oldParentKey, listBody([]));
+    qc.setQueryData(rootListKey, listBody([]));
+    qc.setQueryData(treeKey, { documents: [] });
+    qc.setQueryData(foldersTreeKey, { documents: [] });
+    qc.setQueryData(otherWsTrashKey, listBody([summary("d9")]));
+
+    const { result } = renderHook(() => useRestoreDocument("w1"), { wrapper });
+    let out: unknown;
+    await act(async () => {
+      out = await result.current.mutateAsync({ documentId: "d1", idempotencyKey: "rs-key" });
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/restore");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("rs-key");
+    expect(out).toMatchObject({
+      document: { id: "d1", parent_id: null, archived_at: null },
+      affected: ["d1", "d2"],
+    });
+    expect(qc.getQueryData(documentKeys.detail("w1", "d1"))).toMatchObject({
+      id: "d1",
+      parent_id: null,
+      archived_at: null,
+      revision: "4",
+    });
+    expect(qc.getQueryState(trashKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(oldParentKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(rootListKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(treeKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(foldersTreeKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(otherWsTrashKey)?.isInvalidated).toBe(false);
+  });
+
+  it("useRestoreDocument accepts a bare documentId and refuses an unverifiable response without invalidating", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: summary("d1", { archived_at: null }), affected: ["d1"] }),
+    );
+    const { qc, wrapper } = setup();
+    const trashKey = documentKeys.list("w1", documentFilterKey({ archived: true }));
+    qc.setQueryData(trashKey, listBody([summary("d1", { archived_at: "2026-10-16T00:00:00Z" })]));
+
+    const { result } = renderHook(() => useRestoreDocument("w1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("d1");
+    });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/documents/d1/restore",
+    );
+    expect(qc.getQueryState(trashKey)?.isInvalidated).toBe(true);
+
+    // Reset invalidation state by writing fresh data, then verify a malformed
+    // response throws DocumentNotVerifiableError and does not invalidate.
+    qc.setQueryData(trashKey, listBody([summary("d2", { archived_at: "2026-10-16T00:00:00Z" })]));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: { id: "d2" } }));
+    await act(async () => {
+      await expectNotVerifiable(() => result.current.mutateAsync({ documentId: "d2" }));
     });
     expect(qc.getQueryState(trashKey)?.isInvalidated).toBe(false);
   });
