@@ -43,12 +43,18 @@
 .product-current-people-body { flex: 1; min-height: 0; overflow: hidden; }
 .product-current-calendar-body { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .product-current-calendar-planner { display: flex; min-height: 0; flex-shrink: 0; }
-.product-current-calendar-grid { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.product-current-calendar-grid { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .product-my-tasks-scopes { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; }
 .feature-page-visual > .product-playback { height: min(760px, 85dvh); }
-/* FullCalendar measures DOM pixels for event positions; keep that viewport unzoomed. */
+/* Keep the calendar's measured grid unzoomed while matching the surrounding demo chrome. */
 @media (min-width: 1024px) and (pointer: fine) {
-  .product-demo .product-demo-shell[data-demo-feature=calendar] { zoom: 1; --product-demo-height: clamp(576px, calc(69.54dvh + 65.1px), 650.7px); grid-template-columns: 148px minmax(0, 1fr); }
+  .product-demo .product-demo-shell[data-demo-feature=calendar] { zoom: 1; --product-demo-height: clamp(576px, calc(69.54dvh + 65.1px), 650.7px); grid-template-columns: calc(var(--product-demo-menu-width) * .75) minmax(0, 1fr); }
+  .product-demo-shell[data-demo-feature=calendar] > .product-demo-sidebar,
+  .product-demo-shell[data-demo-feature=calendar] > .product-demo-app > .product-demo-toolbar,
+  .product-current-calendar > header,
+  .product-calendar-toolbar,
+  .product-current-calendar-planner { zoom: .75; }
+  .product-current-calendar .uniwork-fc .fc { font-size: var(--text-caption); }
 }
 @media (max-width: 1279px) {
   .product-documents-sidebar { display: none; }
