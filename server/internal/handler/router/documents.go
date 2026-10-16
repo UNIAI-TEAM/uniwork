@@ -441,7 +441,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	// contiguous block so the parallel comment/office lanes merge cleanly.
 	d.Get("/workspaces/{workspaceID}/documents", h.ListDocuments, apiOp{
 		summary:     "List documents",
-		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; kind/archived/updated_by/updated_from/updated_to là filter. Quyền được lọc trong query trước limit nên cursor ổn định; archived=1 chỉ manage.",
+		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; shared_by_me=true = tài liệu sống người gọi làm ACL owner đang chia sẻ (dùng cùng parent_id -> 400 invalid_filter); kind/archived/updated_by/updated_from/updated_to là filter. Quyền được lọc trong query trước limit nên cursor ổn định; archived=1 chỉ manage.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},

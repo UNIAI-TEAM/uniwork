@@ -30,11 +30,12 @@ import (
 func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocumentsInput, bool) {
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
-		Query:     strings.TrimSpace(q.Get("q")),
-		Match:     strings.TrimSpace(q.Get("match")),
-		Kind:      strings.TrimSpace(q.Get("kind")),
-		UpdatedBy: strings.TrimSpace(q.Get("updated_by")),
-		Cursor:    strings.TrimSpace(q.Get("cursor")),
+		Query:      strings.TrimSpace(q.Get("q")),
+		Match:      strings.TrimSpace(q.Get("match")),
+		Kind:       strings.TrimSpace(q.Get("kind")),
+		UpdatedBy:  strings.TrimSpace(q.Get("updated_by")),
+		SharedByMe: strings.TrimSpace(q.Get("shared_by_me")) == "true",
+		Cursor:     strings.TrimSpace(q.Get("cursor")),
 	}
 	if q.Has("parent_id") {
 		parent := strings.TrimSpace(q.Get("parent_id"))
