@@ -325,3 +325,40 @@ func TestCreateTasksFromSummaryNamesEveryDuplicateItem(t *testing.T) {
 		t.Fatalf("without the duplicates: %v", err)
 	}
 }
+
+// UNI-1853 review: an omitted project takes the meeting's project only while
+// it still exists; a deleted one leaves the tasks without a project instead
+// of refusing the batch with 404.
+func TestCreateTasksFromSummaryIgnoresADeletedMeetingProject(t *testing.T) {
+	s, ua, _, w, _ := summaryTasksFixture(t)
+	ctx := context.Background()
+	project, err := s.Tasks.CreateProject(ctx, Human(ua.ID), w.ID, CreateProjectInput{Title: "Dự án cũ"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now().Add(time.Hour).Truncate(time.Second)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{
+		Title: "Họp dự án", StartsAt: start, EndsAt: start.Add(time.Hour), ProjectID: project.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Tasks.DeleteProject(ctx, Human(ua.ID), w.ID, project.ID); err != nil {
+		t.Fatal(err)
+	}
+	sum := seedSummary(t, s, m, ua.ID, ai.ActionItem{Title: "Gửi báo cáo"})
+	res, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0}}})
+	if err != nil {
+		t.Fatalf("the meeting's deleted project refused the batch: %v", err)
+	}
+	if res.Tasks[0].ProjectID.Valid {
+		t.Fatalf("task took the deleted project %v", res.Tasks[0].ProjectID)
+	}
+	// A deleted project the host names is still refused.
+	gone := project.ID
+	sum = seedSummary(t, s, m, ua.ID, ai.ActionItem{Title: "Đặt phòng"})
+	_, err = s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0, ProjectID: &gone}}})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("named deleted project: %v, want not found", err)
+	}
+}

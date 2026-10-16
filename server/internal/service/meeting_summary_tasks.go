@@ -220,6 +220,22 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 		indexes = append(indexes, it.Index)
 	}
 
+	// The meeting's project is the default only while it still exists:
+	// deleting a project leaves meetings.project_id in place, and a dangling
+	// default would refuse the whole batch as not found.
+	var meetingProject *string
+	if m.ProjectID.Valid {
+		_, err := s.q.GetProject(ctx, db.GetProjectParams{
+			ID: m.ProjectID.String, OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID,
+		})
+		switch {
+		case err == nil:
+			meetingProject = &m.ProjectID.String
+		case !errors.Is(err, pgx.ErrNoRows):
+			return SummaryTasksResult{}, err
+		}
+	}
+
 	origin := meetingID
 	inputs := make([]CreateTaskInput, 0, len(in.Items))
 	for _, it := range in.Items {
@@ -229,8 +245,8 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 			title = strings.TrimSpace(item.Title)
 		}
 		projectID := it.ProjectID
-		if projectID == nil && m.ProjectID.Valid {
-			projectID = &m.ProjectID.String
+		if projectID == nil {
+			projectID = meetingProject
 		}
 		inputs = append(inputs, CreateTaskInput{
 			Title: title, Description: summaryTaskDescription(it, item, m.Title),
