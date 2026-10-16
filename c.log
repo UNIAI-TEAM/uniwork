@@ -1,0 +1,62 @@
+$ unset OPENAI_API_KEY; AI_PROVIDER=fake bash scripts/test-go.sh; rc=$?; echo; echo "TEST_GO_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/cmd/files-backfill	1.952s	coverage: 37.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/graph-rebuild	1.336s	coverage: 70.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.055s	coverage: 6.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal	2.512s	coverage: [no statements]
+ok  	github.com/unicomhub/uniwork/server/internal/ai	20.322s	coverage: 87.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.396s	coverage: 79.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/audit	6.628s	coverage: 77.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/auth	0.262s	coverage: 86.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/billing	0.108s	coverage: 81.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.012s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/document	7.287s	coverage: 96.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub	0.003s	coverage: 87.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/bodystore	0.005s	coverage: 51.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/imapclient	5.653s	coverage: 60.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/netguard	0.003s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/retention	0.002s	coverage: 84.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient	0.308s	coverage: 93.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/events	0.002s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/featureflags	0.004s	coverage: 88.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files	0.011s	coverage: 95.0% of statements
+	github.com/unicomhub/uniwork/server/internal/files/filescontract		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	0.021s	coverage: 93.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph	1.715s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph/projector	23.001s	coverage: 81.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler	664.733s	coverage: 82.0% of statements
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.014s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	3.460s	coverage: 99.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/logger	0.006s	coverage: 93.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mail	5.262s	coverage: 79.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/meetings	0.815s	coverage: 76.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mentions	0.002s	coverage: 68.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	19.545s	coverage: 87.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	1.946s	coverage: 88.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/notification	53.457s	coverage: 79.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/office	0.036s	coverage: 80.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	4.775s	coverage: 87.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/realtime	44.995s	coverage: 90.2% of statements
+2026/10/16 10:58:42 WARN ai: byok vendor unreachable usage_event_id=01M525TDXNYCAJ7RDKZ9SENA2R provider=openai err="provider: vendor unreachable: connection failed"
+redis: 2026/10/16 10:59:00 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:41119: connect: connection refused
+--- FAIL: TestSendRoomMessageStatementCount (0.20s)
+    chat_rooms_statements_test.go:71: nhóm cần ít nhất 2 thành viên
+redis: 2026/10/16 11:13:19 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+FAIL
+coverage: 75.7% of statements
+FAIL	github.com/unicomhub/uniwork/server/internal/service	927.587s
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	22.482s	coverage: 79.0% of statements
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/storage	0.563s	coverage: 75.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/telemetry	0.004s	coverage: 86.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util	0.003s	coverage: 67.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util/secretbox	0.002s	coverage: 88.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/workcapability	0.002s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/migrations	37.455s	coverage: 74.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	0.005s	coverage: 82.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	0.004s	coverage: 85.9% of statements
+FAIL
+
+TEST_GO_EXIT=1

@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+1c60e6894050f6c8e732adce502852b8124239a4
+0ab6d24b943734ceb1818b2e4730e1ef073e6787
+1c60e6894 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1780-sh-s1-workspace-level
+6fd19ed3b test(mcp): set workspace visibility on MCP document test fixtures
+a17503673 fix(mcp): describe create_document root pages as private by default
+0ab6d24b9 chore: merge DOCX-SNIFF-01 (UNI-1855, 9089f6b7f) into the G5-G7 root
+9089f6b7f fix(files): type a large OOXML upload from its central directory
+13e32d974 chore: merge develop 2829996db sync (integrator pr2 c780ed152) into the G5-G7 root
+c780ed152 fix(notification): return the break-glass rule's drafts with their error
+da10d72cb Merge remote-tracking branch 'origin/develop' into feature/UNI-923-office-g5g7-develop-pr2
