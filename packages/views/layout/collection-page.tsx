@@ -19,6 +19,8 @@ interface CollectionPageHeaderProps {
   /** Module tint for the leading glyph; omitted, it stays neutral. */
   tone?: Tint;
   title: ReactNode;
+  /** A collection embedded in a larger page keeps that page's heading hierarchy. */
+  headingAs?: "h1" | "h2" | "h3";
   count?: number;
   /** What the count counts, for screen readers ("12 unread"); without it the bare number is read. */
   countLabel?: string;
@@ -35,6 +37,7 @@ export function CollectionPageHeader({
   icon: Icon,
   tone,
   title,
+  headingAs: Heading = "h1",
   count,
   countLabel,
   description,
@@ -47,7 +50,7 @@ export function CollectionPageHeader({
         <span className={PAGE_LEADING_ICON}>
           <Icon aria-hidden="true" className={cn("size-4", tone ? tintForegroundClass[tone] : "text-muted-foreground")} />
         </span>
-        <h1 className="truncate text-body font-medium">{title}</h1>
+        <Heading className="truncate text-body font-medium">{title}</Heading>
         {typeof count === "number" && count > 0 ? (
           <span className="shrink-0 font-mono text-caption tabular-nums text-muted-foreground">
             {countLabel ? (

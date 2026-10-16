@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"testing"
 )
 
@@ -31,6 +32,35 @@ func TestMessageMentionsCurrentUser(t *testing.T) {
 	}
 	if messageMentionsCurrentUser(raw, "USER9") {
 		t.Fatal("unexpected mention match")
+	}
+}
+
+func TestEncodeMentionsMetadataKeepsUnknownKeys(t *testing.T) {
+	raw := []byte(`{"voice_call_summary":{"call_id":"c1"}}`)
+	next, err := encodeMentionsMetadata(raw, chatMentions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(next, []byte(`voice_call_summary`)) {
+		t.Fatalf("unknown key dropped: %s", next)
+	}
+	next, err = encodeMentionsMetadata(raw, chatMentions{Named: []string{"USER2"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(next, []byte(`voice_call_summary`)) {
+		t.Fatalf("unknown key dropped after mention: %s", next)
+	}
+}
+
+func TestEncodeMessagePriorityMetadataKeepsUnknownKeys(t *testing.T) {
+	raw := []byte(`{"voice_call_summary":{"call_id":"c1"}}`)
+	next, err := encodeMessagePriorityMetadata(raw, chatMessagePriorityUrgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(next, []byte(`voice_call_summary`)) || !bytes.Contains(next, []byte(`urgent`)) {
+		t.Fatalf("got %s", next)
 	}
 }
 

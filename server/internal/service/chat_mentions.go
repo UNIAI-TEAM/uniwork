@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -192,14 +191,18 @@ func mentionedUserIDsFromMetadata(meta chatMessageMetadata) []string {
 }
 
 func encodeMentionsMetadata(raw []byte, m chatMentions) ([]byte, error) {
-	meta := decodeChatMessageMetadata(raw)
-	meta.MentionedUserIDs = m.Named
-	meta.MentionsAll = m.All
-	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 && !meta.MentionsAll &&
-		meta.Priority == "" && meta.Poll == nil && meta.Reminder == nil && meta.Note == nil && meta.Post == nil {
-		return []byte("{}"), nil
+	var named, all any
+	if len(m.Named) > 0 {
+		named = m.Named
 	}
-	return json.Marshal(meta)
+	if m.All {
+		all = true
+	}
+	out, err := patchMetadataKey(raw, "mentioned_user_ids", named)
+	if err != nil {
+		return nil, err
+	}
+	return patchMetadataKey(out, "mentions_all", all)
 }
 
 // messageMentionsCurrentUser reports whether a message mentions userID; an
@@ -221,22 +224,22 @@ func messageMentionsCurrentUser(raw []byte, userID string) bool {
 	return false
 }
 
-func (s *ChatService) persistMessageMentions(
-	ctx context.Context,
-	q *db.Queries,
-	msg db.ChatMessage,
-	m chatMentions,
-) (db.ChatMessage, error) {
-	if len(m.Recipients) == 0 && !m.All {
-		return msg, nil
+func buildChatTextMessageMetadata(mentions chatMentions, priority string) ([]byte, error) {
+	var raw []byte
+	if len(mentions.Recipients) > 0 || mentions.All {
+		var err error
+		raw, err = encodeMentionsMetadata(nil, mentions)
+		if err != nil {
+			return nil, err
+		}
 	}
-	meta, err := encodeMentionsMetadata(msg.Metadata, m)
-	if err != nil {
-		return msg, err
+	if p := normalizeMessagePriority(priority); p != "" {
+		return encodeMessagePriorityMetadata(raw, p)
 	}
-	return q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: msg.ID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID, Metadata: meta,
-	})
+	if len(raw) == 0 {
+		return []byte("{}"), nil
+	}
+	return raw, nil
 }
 
 func (s *ChatService) publishMentionNotifications(

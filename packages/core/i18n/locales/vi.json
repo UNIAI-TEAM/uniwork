@@ -5861,6 +5861,90 @@
     }
   },
   "landing": {
+    "productDemo": {
+      "officeHome": "Mở UniWork Office",
+      "taskOwnerAnswer": "{{name}} phụ trách công việc “{{task}}”.",
+      "email": {
+        "localOnly": "Hộp thư mẫu. Thao tác chỉ lưu trong demo, không gửi email thật.",
+        "draftSaved": "Đã lưu thư nháp trong demo.",
+        "sentLocally": "Đã lưu thư vào hộp thư đi của demo. Không gửi email thật.",
+        "sampleAttachment": "Đây là tệp đính kèm mẫu trong demo.",
+        "messages": {
+          "0": {
+            "subject": "Bản tóm tắt ra mắt sản phẩm",
+            "snippet": "Bản kế hoạch đã sẵn sàng. Cùng rà soát phạm vi trước thứ Sáu nhé."
+          },
+          "1": {
+            "subject": "Rà soát thiết kế — góp ý và bước tiếp theo",
+            "snippet": "Các màn hình hướng dẫn mới đã sẵn sàng để duyệt lần cuối."
+          },
+          "2": {
+            "subject": "Cập nhật không gian làm việc tuần này",
+            "snippet": "Tổng hợp công việc, cuộc họp và quyết định trong tuần."
+          },
+          "3": {
+            "subject": "Ghi chú cuộc họp đồng bộ dự án",
+            "snippet": "Các quyết định và đầu việc tiếp theo từ buổi họp đồng bộ dự án."
+          },
+          "4": {
+            "subject": "Kế hoạch triển khai đã cập nhật",
+            "snippet": "Gửi bạn kế hoạch điều chỉnh và các mốc bàn giao kèm theo."
+          },
+          "5": {
+            "subject": "Tài nguyên giao diện mới cần rà soát",
+            "snippet": "Nhờ cả nhóm xem bộ biểu tượng và hình minh họa sản phẩm mới."
+          },
+          "6": {
+            "subject": "Danh sách kiểm tra bản phát hành tuần tới",
+            "snippet": "Đã bổ sung người phụ trách và thời hạn cho từng hạng mục."
+          },
+          "7": {
+            "subject": "Lịch hướng dẫn sử dụng không gian làm việc",
+            "snippet": "Buổi giới thiệu ngắn dành cho các thành viên mới của nhóm."
+          },
+          "8": {
+            "subject": "Tiến độ ra mắt và phân công trách nhiệm",
+            "snippet": "Cùng xác nhận người phụ trách từng mốc trước khi công bố nhé."
+          },
+          "9": {
+            "subject": "Phản hồi khách hàng về trải nghiệm ban đầu",
+            "snippet": "Một số ghi nhận từ các buổi hướng dẫn khách hàng tuần này."
+          },
+          "10": {
+            "subject": "Xác nhận phạm vi và thứ tự ưu tiên",
+            "snippet": "Gửi lại phạm vi cả nhóm đã thống nhất cho đợt công việc này."
+          },
+          "11": {
+            "subject": "Chuẩn bị cho buổi demo sản phẩm tiếp theo",
+            "snippet": "Nội dung trình bày và không gian làm việc mẫu đã sẵn sàng."
+          },
+          "12": {
+            "subject": "Chào mừng đến với không gian làm việc kết nối",
+            "snippet": "Kết nối công việc, trao đổi và quyết định của nhóm trong UniWork."
+          }
+        }
+      },
+      "deviceDefault": "Thiết bị mặc định",
+      "title": "Khám phá UniWork",
+      "search": "Tìm trong sản phẩm…",
+      "saved": "Đã lưu trong demo",
+      "board": {
+        "all": "Tất cả",
+        "filter": "Bộ lọc",
+        "display": "Hiển thị",
+        "tasks": {
+          "brief": "Họp với PA Việt Nam về hợp tác làm đại lý tên miền, hosting",
+          "uranus": "Triển khai uniwork cho Uranus",
+          "mytel": "Triển khai uniwork cho Mytel",
+          "viconnect": "Triển khai Uniwork cho Viconnect",
+          "simulation": "Triển khai Demo giải pháp Mô phỏng diễn tập",
+          "design": "Triển khai Uniwork cho Unicom",
+          "review": "Triển khai uniwork cho Athena",
+          "launch": "Làm lại dự toán theo quy mô, phạm vi của Quảng Ngãi",
+          "followup": "Cập nhật onboarding từ trao đổi của nhóm"
+        }
+      }
+    },
     "businessOs": {
       "title": "UniWork Business OS",
       "subtitle": "37 năng lực. Cùng một ngữ cảnh.",

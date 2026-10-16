@@ -48,6 +48,8 @@ type ChatComposerProps = {
   onSendVoice?: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   onSendFile?: (file: File) => void | Promise<void>;
   showCreatePoll?: boolean;
+  /** A host may provide its own voice capture flow. */
+  onRecordVoice?: () => void;
   ref?: Ref<ChatComposerHandle>;
 };
 
@@ -69,6 +71,7 @@ export function ChatComposer({
   onSendVoice,
   onSendFile,
   showCreatePoll = true,
+  onRecordVoice,
   ref,
 }: ChatComposerProps) {
   const { t } = useTranslation();
@@ -366,7 +369,7 @@ export function ChatComposer({
                 <ComposerToolbarButton
                   label={t("chat.composer_state.record")}
                   disabled={disabled}
-                  onClick={() => void voiceRecorder.start()}
+                  onClick={() => { if (onRecordVoice) onRecordVoice(); else void voiceRecorder.start(); }}
                 >
                   <Mic aria-hidden className="size-5" />
                 </ComposerToolbarButton>
