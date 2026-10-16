@@ -102,7 +102,7 @@ test("the mandatory case list cannot shrink or silently duplicate", () => {
   const ids = FAULT_CASES.map((c) => c.id);
   assert.equal(new Set(ids).size, ids.length, "duplicate case id");
   assert.deepEqual([...ids].sort(), [...REQUIRED_CASE_IDS].sort());
-  assert.equal(REQUIRED_CASE_IDS.length, 33);
+  assert.equal(REQUIRED_CASE_IDS.length, 36);
   for (const c of FAULT_CASES) {
     assert.ok(c.requirement.length > 0, c.id + " has no requirement text");
     assert.ok(c.expect && Object.keys(c.expect).length > 0, c.id + " has no literal oracle");

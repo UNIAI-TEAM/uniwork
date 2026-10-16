@@ -380,6 +380,63 @@ describe("input byte bounds (SIZE-S1)", () => {
     expect(status.status).toBe(404);
   });
 
+  it("lets a declared input_length at exactly the ceiling reach the checksum check - 409, never upload_bounds", async () => {
+    // R4-1 pin (size-cap:005): the comparison is strict, so declaring the
+    // 383 MiB ceiling itself is NOT a 413 - the one-byte real payload then
+    // fails as upload_checksum_mismatch, and no job exists.
+    const job = makeJob(h.target, { text: "x" });
+    const envelope = {
+      ...job.envelope,
+      payload: {
+        ...(job.envelope.payload as object),
+        input_bytes: Buffer.from("x").toString("base64"),
+        input_length: ENGINE_LIMITS.max_input_bytes,
+      },
+    };
+    const res = await submit(h, { token: job.token, envelope });
+    expect(res.status).toBe(409);
+    expect(errorCode(res)).toBe("upload_checksum_mismatch");
+    const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
+    expect(status.status).toBe(404);
+  });
+
+  it("refuses a negative declared input_length as a contract violation, no job created", async () => {
+    // R4-1 pin: -1 is a wire violation (below_min), not a boundary refusal.
+    const job = makeJob(h.target, { text: "x" });
+    const envelope = {
+      ...job.envelope,
+      payload: {
+        ...(job.envelope.payload as object),
+        input_bytes: Buffer.from("x").toString("base64"),
+        input_length: -1,
+      },
+    };
+    const res = await submit(h, { token: job.token, envelope });
+    expect(res.status).toBe(400);
+    expect(errorCode(res)).toBe("contract_violation");
+    const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
+    expect(status.status).toBe(404);
+  });
+
+  it("refuses an unsafe declared input_length as a contract violation, no job created", async () => {
+    // R4-1 pin: Number.MAX_SAFE_INTEGER + 1 reads as over-ceiling unless the
+    // safe-integer check answers first with a wire violation.
+    const job = makeJob(h.target, { text: "x" });
+    const envelope = {
+      ...job.envelope,
+      payload: {
+        ...(job.envelope.payload as object),
+        input_bytes: Buffer.from("x").toString("base64"),
+        input_length: Number.MAX_SAFE_INTEGER + 1,
+      },
+    };
+    const res = await submit(h, { token: job.token, envelope });
+    expect(res.status).toBe(400);
+    expect(errorCode(res)).toBe("contract_violation");
+    const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
+    expect(status.status).toBe(404);
+  });
+
 });
 
 describe("submit body memory bound (SIZE-S1 fix3)", () => {
