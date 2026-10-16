@@ -1,0 +1,78 @@
+$ git checkout -q 19cf0c244 -- apps/markdown/src/main/asset-lifecycle.ts; npm exec -w @genoffice/markdown -- vitest run tests/g6-09-md-asset-restore-race.test.ts tests/g6-09-md-asset-restore.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_RBG4 md=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ❯ tests/g6-09-md-asset-restore-race.test.ts (3 tests | 2 failed) 58ms
+     × puts back both pictures before a named discard of the same run deletes one 25ms
+     × puts back both pictures before a full-document discard of the same run deletes them 16ms
+ ❯ tests/g6-09-md-asset-restore.test.ts (12 tests | 1 failed) 89ms
+     × refuses a leading-dot name the restore could never put back 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-09-md-asset-restore-race.test.ts > a discard issued while a multi-picture restore is in flight > puts back both pictures before a named discard of the same run deletes one
+AssertionError: expected 'discard-unlink' to be 'restore' // Object.is equality
+
+Expected: "restore"
+Received: "discard-unlink"
+
+ ❯ tests/g6-09-md-asset-restore-race.test.ts:226:23
+    224|     const run = await restoreOfTwoPicturesRacingDiscard('named')
+    225|
+    226|     expect(run.first).toBe('restore')
+       |                       ^
+    227|     expect(run.restored).toEqual({ restored: ['a.png', 'b.png'], error…
+    228|     // every name the call reported as restored was on disk with the r…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/g6-09-md-asset-restore-race.test.ts > a discard issued while a multi-picture restore is in flight > puts back both pictures before a full-document discard of the same run deletes them
+AssertionError: expected 'discard-unlink' to be 'restore' // Object.is equality
+
+Expected: "restore"
+Received: "discard-unlink"
+
+ ❯ tests/g6-09-md-asset-restore-race.test.ts:242:23
+    240|     const run = await restoreOfTwoPicturesRacingDiscard('document')
+    241|
+    242|     expect(run.first).toBe('restore')
+       |                       ^
+    243|     expect(run.restored).toEqual({ restored: ['a.png', 'b.png'], error…
+    244|     expect(run.onDiskWhenDone).toEqual({ a: true, b: true })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/g6-09-md-asset-restore.test.ts > names a named discard refuses > refuses a leading-dot name the restore could never put back
+AssertionError: expected { deleted: [ '.hidden.png' ], …(2) } to match object { deleted: [], preserved: [], …(1) }
+
+- Expected
++ Received
+
+  {
+-   "deleted": [],
++   "deleted": [
++     ".hidden.png",
++   ],
+    "errors": [],
+    "preserved": [],
+  }
+
+ ❯ tests/g6-09-md-asset-restore.test.ts:242:23
+    240|     ])
+    241|
+    242|     expect(discarded).toMatchObject({ deleted: [], preserved: [], erro…
+       |                       ^
+    243|     expect(existsSync(asset)).toBe(true)
+    244|     expect(await readOwnedAssetManifest(doc)).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  3 failed | 12 passed (15)
+   Start at  05:39:38
+   Duration  289ms (transform 176ms, setup 0ms, import 218ms, tests 147ms, environment 0ms)
+
+
+RED_RBG4 md=1
+RED_OK

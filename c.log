@@ -1,0 +1,71 @@
+$ git checkout -q 705332278 -- apps/markdown/src/main/asset-lifecycle.ts apps/markdown/src/shared/ipc.ts; npm exec -w @genoffice/markdown -- vitest run tests/g6-09-md-asset-restore-race.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_RBG3 md=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ❯ tests/g6-09-md-asset-restore-race.test.ts (3 tests | 3 failed) 69ms
+     × never reports a picture restored while leaving it deleted 29ms
+     × puts back both pictures before a named discard of the same run deletes one 21ms
+     × puts back both pictures before a full-document discard of the same run deletes them 17ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-09-md-asset-restore-race.test.ts > a redo while the undo’s discard is still running > never reports a picture restored while leaving it deleted
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-09-md-asset-restore-race.test.ts:165:31
+    163|     expect(restored.errors).toEqual([])
+    164|     // whatever the redo just re-applied its markup to must really be …
+    165|     expect(existsSync(asset)).toBe(true)
+       |                               ^
+    166|     expect(await readFile(asset, 'utf8')).toBe('bytes-1')
+    167|     const manifest = await readOwnedAssetManifest(doc)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/g6-09-md-asset-restore-race.test.ts > a discard issued while a multi-picture restore is in flight > puts back both pictures before a named discard of the same run deletes one
+AssertionError: expected 'discard-unlink' to be 'restore' // Object.is equality
+
+Expected: "restore"
+Received: "discard-unlink"
+
+ ❯ tests/g6-09-md-asset-restore-race.test.ts:226:23
+    224|     const run = await restoreOfTwoPicturesRacingDiscard('named')
+    225|
+    226|     expect(run.first).toBe('restore')
+       |                       ^
+    227|     expect(run.restored).toEqual({ restored: ['a.png', 'b.png'], error…
+    228|     // every name the call reported as restored was on disk with the r…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/g6-09-md-asset-restore-race.test.ts > a discard issued while a multi-picture restore is in flight > puts back both pictures before a full-document discard of the same run deletes them
+AssertionError: expected 'discard-unlink' to be 'restore' // Object.is equality
+
+Expected: "restore"
+Received: "discard-unlink"
+
+ ❯ tests/g6-09-md-asset-restore-race.test.ts:242:23
+    240|     const run = await restoreOfTwoPicturesRacingDiscard('document')
+    241|
+    242|     expect(run.first).toBe('restore')
+       |                       ^
+    243|     expect(run.restored).toEqual({ restored: ['a.png', 'b.png'], error…
+    244|     expect(run.onDiskWhenDone).toEqual({ a: true, b: true })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  05:39:37
+   Duration  277ms (transform 91ms, setup 0ms, import 112ms, tests 69ms, environment 0ms)
+
+
+RED_RBG3 md=1
+RED_OK

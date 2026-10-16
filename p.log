@@ -1,0 +1,11 @@
+$ npx playwright install chromium >/dev/null 2>&1; xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/html-preview-csp.spec.ts; rc=$?; echo; echo "CSP_E2E_GREEN_EXIT=$rc"; [ $rc -eq 0 ]
+
+Running 1 test using 1 worker
+
+(node:8280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/html-preview-csp.spec.ts:21:7 › html preview policy (desktop) › blocks fetch and nested frames of a page, keeps its own inline script running (1.9s)
+
+  1 passed (2.3s)
+
+CSP_E2E_GREEN_EXIT=0

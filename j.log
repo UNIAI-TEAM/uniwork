@@ -1,0 +1,12 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/docs -- vitest run tests/ai-edits-paused.test.ts tests/ai-marker-doc.test.ts tests/ai-panel-skin-g6-09.test.ts tests/ai-rollback-after-save.test.ts tests/ai-run-undo.test.ts tests/ai-track-forced-pill-g6-09.test.ts tests/ai-track-toggle-protection.test.ts tests/ai-worked-steps.test.ts tests/docs-protection-ai.test.ts tests/g6-09-n1-disclosure-ack-first-save.test.ts tests/g6-09-n5-paused-wording.test.ts tests/g6-09-n6-worked-label.test.ts tests/g6-09-n8-rollback-kept-style.test.ts tests/g6-09-print-preview-marker.test.ts tests/print-args.test.ts; rc=$?; echo; echo "DOCS_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+
+ Test Files  15 passed (15)
+      Tests  87 passed (87)
+   Start at  05:39:48
+   Duration  9.57s (transform 7.68s, setup 0ms, import 16.88s, tests 3.86s, environment 5.63s)
+
+
+DOCS_TARGETED_EXIT=0

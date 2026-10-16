@@ -1,0 +1,12 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/html -- vitest run tests/g6-09-ai-save-offer.test.ts tests/g6-09-html-app-save-offer.test.ts tests/g6-09-html-asset-csp.test.ts tests/g6-09-html-preview-limit-desktop.test.ts tests/g6-09-html-run-hooks.test.ts tests/g6-09-html-shift-redo.test.ts tests/g6-09-html-worked-steps.test.ts tests/preview-protocol-web-parity.test.ts tests/web-export-and-limits.test.ts; rc=$?; echo; echo "HTML_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+
+ Test Files  9 passed (9)
+      Tests  48 passed (48)
+   Start at  05:40:02
+   Duration  4.95s (transform 3.80s, setup 0ms, import 6.41s, tests 3.71s, environment 3.29s)
+
+
+HTML_TARGETED_EXIT=0

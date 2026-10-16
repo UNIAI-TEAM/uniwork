@@ -1,0 +1,42 @@
+$ sed -i -z "s/\(PREVIEW_CONTENT_SECURITY_POLICY = \)\[[^]]*\]\.join('; ')/\1''/" apps/html/src/main/preview-protocol.ts; grep -c "PREVIEW_CONTENT_SECURITY_POLICY = ''" apps/html/src/main/preview-protocol.ts; npm run build:all >/dev/null 2>&1; xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/html-preview-csp.spec.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_CSP_E2E=$a"; [ $a -ne 0 ] && echo RED_OK
+1
+
+Running 1 test using 1 worker
+
+(node:8786) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 e2e/html-preview-csp.spec.ts:21:7 › html preview policy (desktop) › blocks fetch and nested frames of a page, keeps its own inline script running (16.1s)
+
+
+  1) e2e/html-preview-csp.spec.ts:21:7 › html preview policy (desktop) › blocks fetch and nested frames of a page, keeps its own inline script running 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.preview-frame').contentFrame().locator('#violations li').filter({ hasText: 'connect-src' })
+    Expected: 1
+    Received: 0
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 15000ms
+      - waiting for locator('.preview-frame').contentFrame().locator('#violations li').filter({ hasText: 'connect-src' })
+        33 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      69 |       // Chromium reported the blocked requests as violations of the two directives
+      70 |       // (each on its own: the order the two events land in is not part of the contract)
+    > 71 |       await expect(frame.locator('#violations li', { hasText: 'connect-src' })).toHaveCount(1)
+         |                                                                                 ^
+      72 |       await expect(frame.locator('#violations li', { hasText: 'frame-src' })).toHaveCount(1)
+      73 |       await editorPage.screenshot({ path: screenshotPath('html-preview-csp') })
+      74 |       // and neither request ever left the page: the local server saw nothing
+        at /home/ubuntu/work/uniwork-office/e2e/html-preview-csp.spec.ts:71:81
+
+    Error Context: e2e/test-results/html-preview-csp-html-prev-6a063-s-own-inline-script-running/error-context.md
+
+  1 failed
+    e2e/html-preview-csp.spec.ts:21:7 › html preview policy (desktop) › blocks fetch and nested frames of a page, keeps its own inline script running 
+
+RED_CSP_E2E=1
+RED_OK

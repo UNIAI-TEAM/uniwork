@@ -1,0 +1,12 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/pdf -- vitest run tests/g6-09-pdf-run-undo-action.test.ts tests/g6-09-pdf-vfix-r1.test.ts tests/g6-09-pdf-vother-fix2.test.ts; rc=$?; echo; echo "PDF_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+
+ Test Files  3 passed (3)
+      Tests  14 passed (14)
+   Start at  05:40:07
+   Duration  1.21s (transform 1.47s, setup 360ms, import 1.63s, tests 45ms, environment 1.24s)
+
+
+PDF_TARGETED_EXIT=0

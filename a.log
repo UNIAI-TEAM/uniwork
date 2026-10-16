@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+c7d1653c0573a422dd8bcb450a3f02cdd32441c7
+99e5a5253ccc82929a9b3c62df2ac6d7e7371d7d
+c7d1653c fix(ai): group summary and docs result chip reach AA contrast (G6-09 r4 S-1/S-2)
+ab7f921f test(ai): group summary and docs result chip must reach AA contrast in light and dark (G6-09 r4 S-1/S-2)
+a140b20b test(markdown): a multi-picture restore keeps going past a failed entry (G6-09 RBG5-1)
+2f2ed1c2 fix(docs): forced Track pill shows a lock cue, stays focusable and keeps its tip inside the panel (G6-09 r3 P-1/P-2)
+4152e183 test(docs): forced Track pill is aria-disabled, shows a lock cue and an in-panel tip on focus (G6-09 r3 P-1/P-2)
+bdf8eae5 test(docs): worked-steps vi label expects Đã xử lý after N-6 (G6-09)
+d6b7d7ec merge: fork main 99e5a5253 (OQ-F12 blocked-intent requeue) into the G6-09 fix branch
+fbc9e7f5 fix(ui): keep the G6-09 Track pill wrapper and focus rings working under the shared AI skin
+
+SYNCED_EXIT=0

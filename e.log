@@ -1,0 +1,57 @@
+$ git checkout -q 705332278 -- packages/agent-core/src/loop.ts; npm exec -w @genoffice/agent-core -- vitest run tests/loop-run-hooks.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_W0 agent-core=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/agent-core
+
+ ❯ tests/loop-run-hooks.test.ts (21 tests | 2 failed) 346ms
+     × reset() while a tool is in flight ends the run as aborted and may-have-mutated 29ms
+     × a tool left behind by reset() does not mark a later run as mutated 26ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/loop-run-hooks.test.ts > AgentLoop run hooks > reset() while a tool is in flight ends the run as aborted and may-have-mutated
+AssertionError: expected 'end:run-15-i7vtoj:false:aborted' to be 'end:run-15-i7vtoj:true:aborted' // Object.is equality
+
+Expected: "end:run-15-i7vtoj:true:aborted"
+Received: "end:run-15-i7vtoj:false:aborted"
+
+ ❯ tests/loop-run-hooks.test.ts:344:24
+    342|     // the run is dropped with the tool mid-execution: its partial edi…
+    343|     // undoable, so the run reports may-have-mutated like a mid-tool s…
+    344|     expect(log.at(-1)).toBe(`end:${id}:true:aborted`)
+       |                        ^
+    345|   })
+    346|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/loop-run-hooks.test.ts > AgentLoop run hooks > a tool left behind by reset() does not mark a later run as mutated
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+-   "end:run-16-khaemi:true:aborted",
++   "end:run-16-khaemi:false:aborted",
+    "end:run-17-z0c0g3:false:done",
+  ]
+
+ ❯ tests/loop-run-hooks.test.ts:371:20
+    369|     const starts = log.filter((l) => l.startsWith('start:')).map((l) =…
+    370|     const ends = () => log.filter((l) => l.startsWith('end:'))
+    371|     expect(ends()).toEqual([`end:${starts[0]}:true:aborted`, `end:${st…
+       |                    ^
+    372|     release() // the abandoned tool finally returns, after the second …
+    373|     await settle()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 19 passed (21)
+   Start at  05:39:39
+   Duration  575ms (transform 119ms, setup 0ms, import 141ms, tests 346ms, environment 0ms)
+
+
+RED_W0 agent-core=1
+RED_OK

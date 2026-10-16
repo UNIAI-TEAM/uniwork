@@ -1,0 +1,136 @@
+$ git checkout -q fbc9e7f5e -- apps/docs/src/renderer/ai/AiPanel.tsx apps/docs/src/renderer/styles.css; AI_PROVIDER=fake npm exec -w @genoffice/docs -- vitest run tests/ai-track-forced-pill-g6-09.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_PILL docs=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ❯ tests/ai-track-forced-pill-g6-09.test.ts (8 tests | 7 failed) 269ms
+     × is aria-disabled instead of disabled, so Tab can land on it 111ms
+     × shows a lock glyph and a locked state class; the free pill has neither 31ms
+     × keeps aria-describedby on the reason, which is the in-panel tip 31ms
+     × shows the tip on keyboard focus and hides it on blur and Escape 24ms
+     × shows the tip on hover of the wrapper too 27ms
+     × has a locked style and a keyboard focus ring 1ms
+     × clamps the tip inside the composer box, aligned to its end 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ai-track-forced-pill-g6-09.test.ts > forced Track pill: visible locked cue and keyboard reach (P-1) > is aria-disabled instead of disabled, so Tab can land on it
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/ai-track-forced-pill-g6-09.test.ts:37:26
+     35|     h = await mountDocsAiPanel(['one'], { protection: 'trackedChanges'…
+     36|     const btn = pill(h.container)
+     37|     expect(btn.disabled).toBe(false)
+       |                          ^
+     38|     expect(btn.getAttribute('aria-disabled')).toBe('true')
+     39|     expect(btn.tabIndex).toBeGreaterThanOrEqual(0)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/ai-track-forced-pill-g6-09.test.ts > forced Track pill: visible locked cue and keyboard reach (P-1) > shows a lock glyph and a locked state class; the free pill has neither
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/ai-track-forced-pill-g6-09.test.ts:48:46
+     46|     const btn = pill(h.container)
+     47|     expect(btn.classList.contains('on')).toBe(true)
+     48|     expect(btn.classList.contains('locked')).toBe(true)
+       |                                              ^
+     49|     const lock = btn.querySelector('.ai-track-lock')
+     50|     expect(lock).not.toBeNull()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/ai-track-forced-pill-g6-09.test.ts > forced Track pill: visible locked cue and keyboard reach (P-1) > keeps aria-describedby on the reason, which is the in-panel tip
+AssertionError: expected <span …(2)></span> to be null // Object.is equality
+
+- Expected:
+null
+
++ Received:
+<span
+  class="ai-sr-status"
+  id="ai-track-forced-reason"
+>
+  This document is protected: Track changes must stay on, so the AI’s edits are recorded as revisions.
+</span>
+
+ ❯ tests/ai-track-forced-pill-g6-09.test.ts:66:20
+     64|       `#${btn.getAttribute('aria-describedby')}`,
+     65|     ) as HTMLElement
+     66|     expect(reason).toBe(tip(h.container))
+       |                    ^
+     67|     expect(reason.textContent).toBe(dicts.en!.aiTrackForced)
+     68|     // the global ScreenTip would overflow the panel and rewrite aria-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/ai-track-forced-pill-g6-09.test.ts > forced Track pill: visible locked cue and keyboard reach (P-1) > shows the tip on keyboard focus and hides it on blur and Escape
+TypeError: Cannot read properties of null (reading 'getAttribute')
+ ❯ tests/ai-track-forced-pill-g6-09.test.ts:76:27
+     74|     h = await mountDocsAiPanel(['one'], { protection: 'trackedChanges'…
+     75|     const btn = pill(h.container)
+     76|     expect(tip(h.container)!.getAttribute('data-open')).toBe('false')
+       |                           ^
+     77|     await act(async () => btn.focus())
+     78|     expect(tip(h.container)!.getAttribute('data-open')).toBe('true')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/ai-track-forced-pill-g6-09.test.ts > forced Track pill: visible locked cue and keyboard reach (P-1) > shows the tip on hover of the wrapper too
+TypeError: Cannot read properties of null (reading 'getAttribute')
+ ❯ tests/ai-track-forced-pill-g6-09.test.ts:94:27
+     92|     const w = wrap(h.container)
+     93|     await act(async () => w.dispatchEvent(new MouseEvent('mouseover', …
+     94|     expect(tip(h.container)!.getAttribute('data-open')).toBe('true')
+       |                           ^
+     95|     await act(async () => w.dispatchEvent(new MouseEvent('mouseout', {…
+     96|     expect(tip(h.container)!.getAttribute('data-open')).toBe('false')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/ai-track-forced-pill-g6-09.test.ts > forced Track pill: styles (P-1 cue, P-2 clamp) > has a locked style and a keyboard focus ring
+AssertionError: rule .ai-track-btn.locked: expected -1 to be greater than or equal to 0
+ ❯ rule tests/ai-track-forced-pill-g6-09.test.ts:29:37
+     27| function rule(selector: string): string {
+     28|   const start = appCss.indexOf(`\n${selector} {`)
+     29|   expect(start, `rule ${selector}`).toBeGreaterThanOrEqual(0)
+       |                                     ^
+     30|   return appCss.slice(start, appCss.indexOf('}', start))
+     31| }
+ ❯ tests/ai-track-forced-pill-g6-09.test.ts:111:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/ai-track-forced-pill-g6-09.test.ts > forced Track pill: styles (P-1 cue, P-2 clamp) > clamps the tip inside the composer box, aligned to its end
+AssertionError: rule .ai-track-tip: expected -1 to be greater than or equal to 0
+ ❯ rule tests/ai-track-forced-pill-g6-09.test.ts:29:37
+     27| function rule(selector: string): string {
+     28|   const start = appCss.indexOf(`\n${selector} {`)
+     29|   expect(start, `rule ${selector}`).toBeGreaterThanOrEqual(0)
+       |                                     ^
+     30|   return appCss.slice(start, appCss.indexOf('}', start))
+     31| }
+ ❯ tests/ai-track-forced-pill-g6-09.test.ts:119:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed (8)
+   Start at  05:39:41
+   Duration  4.14s (transform 2.64s, setup 0ms, import 3.46s, tests 269ms, environment 317ms)
+
+
+RED_PILL docs=1
+RED_OK

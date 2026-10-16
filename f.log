@@ -1,0 +1,43 @@
+$ git checkout -q 705332278 -- apps/docs/src/main/print-args.ts apps/docs/src/main/docs-main.ts; AI_PROVIDER=fake npm exec -w @genoffice/docs -- vitest run tests/print-args.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_N3 docs=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ❯ tests/print-args.test.ts (8 tests | 2 failed) 6ms
+     × keeps the picked .html/.htm name (no .pdf suffix) 2ms
+     × swaps a typed .docx for .html and appends to anything else 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/print-args.test.ts > htmlExportPath > keeps the picked .html/.htm name (no .pdf suffix)
+TypeError: htmlExportPath is not a function
+ ❯ tests/print-args.test.ts:70:12
+     68| describe('htmlExportPath', () => {
+     69|   it('keeps the picked .html/.htm name (no .pdf suffix)', () => {
+     70|     expect(htmlExportPath('/tmp/report.html')).toBe('/tmp/report.html')
+       |            ^
+     71|     expect(htmlExportPath('C:\\out\\Untitled.HTML')).toBe('C:\\out\\Un…
+     72|     expect(htmlExportPath('/tmp/report.htm')).toBe('/tmp/report.htm')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/print-args.test.ts > htmlExportPath > swaps a typed .docx for .html and appends to anything else
+TypeError: htmlExportPath is not a function
+ ❯ tests/print-args.test.ts:76:12
+     74|
+     75|   it('swaps a typed .docx for .html and appends to anything else', () …
+     76|     expect(htmlExportPath('/tmp/report.docx')).toBe('/tmp/report.html')
+       |            ^
+     77|     expect(htmlExportPath('/tmp/report.DOCX')).toBe('/tmp/report.html')
+     78|     expect(htmlExportPath('/tmp/report')).toBe('/tmp/report.html')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 passed (8)
+   Start at  05:39:40
+   Duration  517ms (transform 32ms, setup 0ms, import 42ms, tests 6ms, environment 376ms)
+
+
+RED_N3 docs=1
+RED_OK

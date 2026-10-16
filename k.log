@@ -1,0 +1,22 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/markdown -- vitest run tests/close-asset-cleanup.test.ts tests/g6-09-md-ai-highlight-keep.test.ts tests/g6-09-md-ai-hint-wrap.test.ts tests/g6-09-md-asset-restore-race.test.ts tests/g6-09-md-asset-restore.test.ts tests/g6-09-md-run-undo-assets.test.ts tests/g6-09-md-save-name.test.ts tests/g6-09-md-vother-fix2.test.ts; rc=$?; echo; echo "MD_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+5:39:58 AM [vite] (client) warning: Duplicate key "loadURL" in object literal
+33 |      loadFile: vi.fn(),
+34 |      loadURL: vi.fn(),
+35 |      loadURL: vi.fn(),
+   |      ^
+36 |      once: vi.fn((event: string, listener: () => void) => listeners.set(event, listener)),
+37 |      send: vi.fn(),
+
+  Plugin: vite:esbuild
+  File: /home/ubuntu/work/uniwork-office/apps/markdown/tests/close-asset-cleanup.test.ts
+
+ Test Files  8 passed (8)
+      Tests  60 passed (60)
+   Start at  05:39:58
+   Duration  3.37s (transform 3.08s, setup 0ms, import 4.67s, tests 1.51s, environment 2.14s)
+
+
+MD_TARGETED_EXIT=0
