@@ -151,6 +151,7 @@ export function DocumentsLibraryList({
   const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
   const groupTitle = (group: RowGroup): string => {
     if (group.title) return group.title;
+    if (group.key === "folders") return t("documents.home.groups.type.folder");
     if (group.key === "unfiled") return t("documents.home.groups.unfiled");
     if (group.key.startsWith("origin:")) return t(`documents.home.origin.${group.key.slice(7)}`);
     if (group.key.startsWith("type:")) return t(`documents.home.groups.type.${group.key.slice(5)}`, { defaultValue: t("documents.home.groups.type.other") });

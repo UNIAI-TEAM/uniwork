@@ -141,6 +141,7 @@ export function DocumentCommentThread({
     <DocumentCommentEntry
       wsId={ctx.wsId}
       documentId={ctx.documentId}
+      documentWorkspaceId={ctx.doc?.workspace_id}
       comment={comment}
       authorName={ctx.nameOf(comment)}
       authorId={isRoot ? authorId : undefined}

@@ -110,6 +110,7 @@ function EditBox({ initial, onSave, onClose }: { initial: string; onSave: (body:
 export function DocumentCommentEntry({
   wsId,
   documentId,
+  documentWorkspaceId,
   comment,
   authorName,
   authorId,
@@ -126,6 +127,7 @@ export function DocumentCommentEntry({
 }: {
   wsId: string;
   documentId: string;
+  documentWorkspaceId?: string;
   comment: DocumentComment;
   authorName: string;
   /** Id of the author's name element, part of the thread's accessible name. */
@@ -229,6 +231,7 @@ export function DocumentCommentEntry({
           <PostSendMentionNotice
             wsId={wsId}
             documentId={documentId}
+            documentWorkspaceId={documentWorkspaceId}
             items={noticeItems}
             nameOfId={nameOf}
             body={comment.body}

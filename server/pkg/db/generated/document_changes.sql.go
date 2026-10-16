@@ -190,18 +190,19 @@ WHERE d.organization_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND ($4::boolean
-       OR ($5::boolean AND d.visibility = 'workspace')
-       OR ($6::boolean AND d.acl_owner_id = $7::text)
-       OR ($8::boolean AND EXISTS (
+       OR ($5::boolean AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($6::text[]))
+       OR ($7::boolean AND d.acl_owner_id = $8::text)
+       OR ($9::boolean AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND ((s.principal_type = 'user' AND s.principal_id = $7)
+              AND ((s.principal_type = 'user' AND s.principal_id = $8)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($9::text[]))))))
+                       AND s.principal_id = ANY($10::text[]))))))
 `
 
 type InsertDocumentChangeSnapshotItemsParams struct {
@@ -210,6 +211,7 @@ type InsertDocumentChangeSnapshotItemsParams struct {
 	WorkspaceID     string   `json:"workspace_id"`
 	SeeAll          bool     `json:"see_all"`
 	MemberVisible   bool     `json:"member_visible"`
+	ShareLevels     []string `json:"share_levels"`
 	AclOwner        bool     `json:"acl_owner"`
 	ActorID         string   `json:"actor_id"`
 	AllowShares     bool     `json:"allow_shares"`
@@ -227,6 +229,7 @@ func (q *Queries) InsertDocumentChangeSnapshotItems(ctx context.Context, arg Ins
 		arg.WorkspaceID,
 		arg.SeeAll,
 		arg.MemberVisible,
+		arg.ShareLevels,
 		arg.AclOwner,
 		arg.ActorID,
 		arg.AllowShares,
@@ -387,7 +390,7 @@ const listDocumentsForChangeFeed = `-- name: ListDocumentsForChangeFeed :many
 SELECT
   d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
   d.current_version, d.file_version_id, d.archived_at,
-  d.owner_id, d.visibility, d.acl_owner_id
+  d.owner_id, d.visibility, d.acl_owner_id, d.workspace_level
 FROM documents d
 WHERE d.organization_id = $1
   AND d.id = ANY($2::text[])
@@ -410,6 +413,7 @@ type ListDocumentsForChangeFeedRow struct {
 	OwnerID        pgtype.Text        `json:"owner_id"`
 	Visibility     string             `json:"visibility"`
 	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
+	WorkspaceLevel string             `json:"workspace_level"`
 }
 
 // One page's documents, WITHOUT the workspace filter: a row whose document now
@@ -438,6 +442,7 @@ func (q *Queries) ListDocumentsForChangeFeed(ctx context.Context, arg ListDocume
 			&i.OwnerID,
 			&i.Visibility,
 			&i.AclOwnerID,
+			&i.WorkspaceLevel,
 		); err != nil {
 			return nil, err
 		}

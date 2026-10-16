@@ -283,12 +283,14 @@ type DocumentFileResult struct {
 }
 
 // CreateFileDocumentInput is POST /workspaces/{ws}/documents/files
-// (C-01 §5.1 as amended by §14.2).
+// (C-01 §5.1 as amended by §14.2). Visibility empty means the parent's (a
+// child inherits it at create time, C-01 §4), or private at the root (U-SH2).
 type CreateFileDocumentInput struct {
 	ParentID       string
 	Title          string
 	Filename       string
 	Body           io.Reader
+	Visibility     string
 	IdempotencyKey string
 	// engine is the provenance of bytes the Office engine produced (blank
 	// create); set only inside the service, never from a request.
@@ -316,6 +318,13 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		// Agents never write documents directly (ADR 0010).
 		return DocumentFileResult{}, ErrForbidden
 	}
+	// The request is checked before its bytes are staged, like the page route:
+	// a bad visibility must not leave a claimed upload behind.
+	if in.Visibility != "" {
+		if err := validDocumentVisibility(in.Visibility); err != nil {
+			return DocumentFileResult{}, err
+		}
+	}
 	ws, err := s.ws.RequireMember(ctx, workspaceID, actor.ID)
 	if err != nil {
 		return DocumentFileResult{}, err
@@ -338,8 +347,14 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	fingerprint := IdempotencyFingerprint("documents.files.create", workspaceID, in.ParentID, title, up.File.ChecksumSHA256)
-	opts := IdempotencyOptions{Fingerprint: fingerprint, RequireFingerprint: true}
+	fingerprintParts := []string{"documents.files.create", workspaceID, in.ParentID, title, up.File.ChecksumSHA256}
+	if in.Visibility != "" {
+		// Only a named visibility joins the fingerprint: a retry in flight
+		// across the deploy that never sent the field keeps its key (the page
+		// route's rule).
+		fingerprintParts = append(fingerprintParts, in.Visibility)
+	}
+	opts := IdempotencyOptions{Fingerprint: IdempotencyFingerprint(fingerprintParts...), RequireFingerprint: true}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -379,16 +394,17 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentFileResult{}, err
 	}
-	visibility := documentVisibilityWorkspace
+	var parent *db.Document
 	if in.ParentID != "" {
-		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, orgID, workspaceID, DocumentKindFile)
+		p, err := s.lockPageParent(ctx, q, actor, in.ParentID, orgID, workspaceID, DocumentKindFile)
 		if err != nil {
 			return DocumentFileResult{}, err
 		}
-		// A file child inherits its parent's visibility like a page child
-		// does: a restricted page never gains a workspace-visible file.
-		visibility = parent.Visibility
+		// A file child inherits its parent's home row like a page child does:
+		// a restricted page never gains a workspace-visible file.
+		parent = &p
 	}
+	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
 	if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -401,6 +417,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		Kind:           DocumentKindFile,
 		Title:          title,
 		Visibility:     visibility,
+		WorkspaceLevel: workspaceLevel,
 		SearchText:     documentSearchText(title, ""),
 		CurrentVersion: 1,
 		FileVersionID:  pgtype.Text{String: versionID, Valid: true},

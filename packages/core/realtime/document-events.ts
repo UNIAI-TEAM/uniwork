@@ -45,11 +45,15 @@ export function documentFrameKeys(
     case "document.version_created":
     case "document.shared":
     case "document.share_revoked":
+    case "document.workspace_access_changed":
     case "document.link_created":
     case "document.link_revoked":
     case "document.moved":
     case "document.archived":
     case "document.restored": {
+      // SH-S1: document.workspace_access_changed (the workspace home row turned
+      // on, off or changed level) takes the same refetch a document.updated
+      // visibility change always took.
       // Ids-only refetch: the workspace root is the prefix of every document
       // key (list/tree roots, detail, versions, downloadMeta, archive-impact),
       // so one invalidation covers the whole subtree. The frame only marks

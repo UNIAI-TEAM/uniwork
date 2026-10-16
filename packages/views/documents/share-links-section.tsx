@@ -11,7 +11,7 @@ import {
   useDocumentShares,
   useRevokeDocumentLink,
 } from "@uniwork/core/documents/hooks-sharing";
-import type { Document } from "@uniwork/core/types/document";
+import { isDocumentNotVerifiable, type Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
@@ -79,7 +79,9 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
       } else if (cls.cls === "permission") {
         setCreateError({ text: t("documents.share.link_entitlement") });
       } else {
-        setCreateError({ text: apiErrorMessage(err) ?? t("documents.share.link_create_failed") });
+        setCreateError({
+          text: (isDocumentNotVerifiable(err) ? undefined : apiErrorMessage(err)) ?? t("documents.share.link_create_failed"),
+        });
       }
     }
   };

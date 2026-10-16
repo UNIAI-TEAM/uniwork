@@ -683,7 +683,7 @@ func TestAIUniworkPackModuleMapping(t *testing.T) {
 		if _, err := OfficeSystemPrompt(pack); err != nil {
 			t.Errorf("UniworkPackModule(%q) = %q, which the pack refuses: %v", module, pack, err)
 		}
-		if got := UniworkModuleAllowlist(module, nil, false).Module; got != pack {
+		if got := UniworkModuleAllowlist(module, nil, false, false).Module; got != pack {
 			t.Errorf("allowlist of %q carries module %q, want %q", module, got, pack)
 		}
 	}
@@ -695,7 +695,7 @@ func TestAIUniworkPackModuleMapping(t *testing.T) {
 			t.Errorf("UniworkPackModule(%q) = %q, want no mapping (the Gateway refuses such a turn)", module, pack)
 		}
 	}
-	if got := UniworkModuleAllowlist("nope", nil, false).Module; got != "" {
+	if got := UniworkModuleAllowlist("nope", nil, false, false).Module; got != "" {
 		t.Fatalf("an unknown module's allowlist carries %q, want empty", got)
 	}
 }
@@ -707,7 +707,7 @@ func TestAIUniworkPackModuleMapping(t *testing.T) {
 // offers nothing at all.
 func TestAIUniworkModuleToolTableGovernsTheAllowlist(t *testing.T) {
 	offered := facadeSpecs("read_blocks", "delete_note", "run_shell", "read_range")
-	allow := UniworkModuleAllowlist("docs", offered, false)
+	allow := UniworkModuleAllowlist("docs", offered, false, false)
 	if got := strings.Join(allow.Tools.Names(), ","); got != "read_blocks,delete_note" {
 		t.Fatalf("docs allowlist = %q, want the known tools in the client's order", got)
 	}
@@ -725,7 +725,7 @@ func TestAIUniworkModuleToolTableGovernsTheAllowlist(t *testing.T) {
 		t.Fatalf("registry entry = %+v, want the client's schema and the table's kind", entry)
 	}
 
-	viewOnly := UniworkModuleAllowlist("docs", offered, true)
+	viewOnly := UniworkModuleAllowlist("docs", offered, true, false)
 	if got := viewOnly.Tools.Names(); len(got) != 1 || got[0] != "read_blocks" {
 		t.Fatalf("view-only allowlist = %v, want the read tool only", got)
 	}
@@ -734,11 +734,11 @@ func TestAIUniworkModuleToolTableGovernsTheAllowlist(t *testing.T) {
 	}
 
 	for _, module := range []string{"", "nope", "xlsx"} {
-		if got := UniworkModuleAllowlist(module, offered, false); len(got.Tools) != 0 {
+		if got := UniworkModuleAllowlist(module, offered, false, false); len(got.Tools) != 0 {
 			t.Fatalf("module %q offered %v", module, got.Tools.Names())
 		}
 	}
-	if got := UniworkModuleAllowlist("docs", nil, false); len(got.Tools) != 0 {
+	if got := UniworkModuleAllowlist("docs", nil, false, false); len(got.Tools) != 0 {
 		t.Fatal("tools appeared that the client never offered")
 	}
 
@@ -961,7 +961,7 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 	}
 
 	offered := facadeSpecs(append([]string{"apply_ops", "read_slide"}, removed...)...)
-	allow := UniworkModuleAllowlist("slides", offered, false)
+	allow := UniworkModuleAllowlist("slides", offered, false, false)
 	if got := strings.Join(allow.Tools.Names(), ","); got != "apply_ops,read_slide" {
 		t.Fatalf("slides allowlist = %q, want only the tools UniWork AI keeps", got)
 	}
@@ -980,7 +980,7 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 	// not_allowlisted, not view_only: the five are out of the module table
 	// altogether, so the write set no longer names them (before G6-09a a call
 	// for one read as view_only and drove aiErrViewOnlyEdit).
-	viewOnly := UniworkModuleAllowlist("slides", offered, true)
+	viewOnly := UniworkModuleAllowlist("slides", offered, true, false)
 	if got := strings.Join(viewOnly.Tools.Names(), ","); got != "read_slide" {
 		t.Fatalf("slides view-only allowlist = %q, want only read_slide", got)
 	}
@@ -1117,5 +1117,116 @@ func facadeAssertExactNames(t *testing.T, module, kind string, got, want []strin
 	slices.Sort(w)
 	if !slices.Equal(g, w) {
 		t.Errorf("%s %s names = %v, want the pinned %v", module, kind, g, w)
+	}
+}
+
+// FU-G6-03a-BOUND (G6-09 relay): on a bound turn (scope.DocumentID != ""),
+// UniworkModuleAllowlist hides create_document (docs, sheets, pdf) and the 8
+// pdf file-level page tools, while unbound turns offer them, viewOnly composes
+// with bound, and a model call for a hidden tool is dropped as not_allowlisted
+// (even when viewOnly is also set).
+func TestAIUniworkBoundDocumentHidesDocumentCreatingTools(t *testing.T) {
+	pdfPageTools := []string{
+		"insert_blank_page", "set_page_size", "crop_pages", "replace_pages",
+		"extract_pages", "split_pdf", "split_pages", "merge_pages",
+	}
+	cases := []struct {
+		module string
+		read   string
+		write  string
+		hidden []string
+	}{
+		{module: "docs", read: "read_blocks", write: "apply_ops", hidden: []string{"create_document"}},
+		{module: "sheets", read: "read_range", write: "propose_operations", hidden: []string{"create_document"}},
+		{module: "pdf", read: "read_pages", write: "edit_text", hidden: append([]string{"create_document"}, pdfPageTools...)},
+	}
+
+	for _, tc := range cases {
+		allNames := append([]string{tc.read, tc.write}, tc.hidden...)
+		offered := facadeSpecs(allNames...)
+
+		// Unbound editable turn offers every tool in the module table, hidden ones included.
+		unbound := UniworkModuleAllowlist(tc.module, offered, false, false)
+		facadeAssertExactNames(t, tc.module+" unbound", "tools", unbound.Tools.Names(), allNames)
+
+		// Bound editable turn hides exactly the bound-hidden tools; other read and write tools stay.
+		bound := UniworkModuleAllowlist(tc.module, offered, false, true)
+		facadeAssertExactNames(t, tc.module+" bound", "tools", bound.Tools.Names(), []string{tc.read, tc.write})
+		for _, h := range tc.hidden {
+			if _, ok := bound.Tools.Get(h); ok {
+				t.Errorf("%s bound: %q reached Tools", tc.module, h)
+			}
+			if slices.Contains(bound.WriteNames, h) {
+				t.Errorf("%s bound: %q stayed in WriteNames", tc.module, h)
+			}
+		}
+
+		// PlanUniworkTurn with a client offering a hidden tool on a bound turn omits it from turn.Tools.
+		turn, err := PlanUniworkTurn(nil, facadeBody(t, map[string]any{
+			"messages": []map[string]string{{"role": "user", "content": "hỏi"}},
+			"tools":    offered,
+		}), bound)
+		if err != nil {
+			t.Fatalf("%s bound PlanUniworkTurn: %v", tc.module, err)
+		}
+		gotTurnTools := make([]string, 0, len(turn.Tools))
+		for _, spec := range turn.Tools {
+			gotTurnTools = append(gotTurnTools, spec.Function.Name)
+		}
+		facadeAssertExactNames(t, tc.module+" bound turn", "tools", gotTurnTools, []string{tc.read, tc.write})
+
+		// A model call for a hidden tool on a bound editable turn is dropped as not_allowlisted.
+		calls := make([]provider.ToolCall, 0, len(tc.hidden)+1)
+		calls = append(calls, provider.ToolCall{ID: "call_ok", Name: tc.write, Input: json.RawMessage(`{}`)})
+		for i, h := range tc.hidden {
+			calls = append(calls, provider.ToolCall{ID: fmt.Sprintf("call_h_%d", i), Name: h, Input: json.RawMessage(`{}`)})
+		}
+		kept, dropped := FilterUniworkToolCalls(calls, bound)
+		if len(kept) != 1 || kept[0].Name != tc.write {
+			t.Fatalf("%s bound kept = %+v, want only %q", tc.module, kept, tc.write)
+		}
+		if len(dropped) != len(tc.hidden) {
+			t.Fatalf("%s bound dropped = %+v, want %d", tc.module, dropped, len(tc.hidden))
+		}
+		for i, d := range dropped {
+			if d.Name != tc.hidden[i] || d.Reason != UniworkDropNotAllowlisted {
+				t.Errorf("%s bound dropped[%d] = %+v, want %q not_allowlisted", tc.module, i, d, tc.hidden[i])
+			}
+		}
+
+		// Bound + viewOnly composes: only read tools are offered, regular write tools
+		// drop as view_only, and bound-hidden tools drop as not_allowlisted.
+		boundViewOnly := UniworkModuleAllowlist(tc.module, offered, true, true)
+		facadeAssertExactNames(t, tc.module+" bound+viewOnly", "tools", boundViewOnly.Tools.Names(), []string{tc.read})
+		if !slices.Contains(boundViewOnly.WriteNames, tc.write) {
+			t.Errorf("%s bound+viewOnly lost regular write tool %q from WriteNames", tc.module, tc.write)
+		}
+		for _, h := range tc.hidden {
+			if slices.Contains(boundViewOnly.WriteNames, h) {
+				t.Errorf("%s bound+viewOnly kept hidden tool %q in WriteNames", tc.module, h)
+			}
+		}
+		voKept, voDropped := FilterUniworkToolCalls(calls, boundViewOnly)
+		if len(voKept) != 0 || len(voDropped) != len(calls) {
+			t.Fatalf("%s bound+viewOnly filter = %d kept / %d dropped", tc.module, len(voKept), len(voDropped))
+		}
+		if voDropped[0].Name != tc.write || voDropped[0].Reason != UniworkDropViewOnly {
+			t.Errorf("%s bound+viewOnly regular write drop = %+v, want view_only", tc.module, voDropped[0])
+		}
+		for i, d := range voDropped[1:] {
+			if d.Name != tc.hidden[i] || d.Reason != UniworkDropNotAllowlisted {
+				t.Errorf("%s bound+viewOnly hidden drop[%d] = %+v, want %q not_allowlisted", tc.module, i, d, tc.hidden[i])
+			}
+		}
+	}
+
+	// Modules with no bound-hidden tools (markdown, html, slides) are unchanged when bound=true.
+	for _, module := range []string{"markdown", "html", "slides"} {
+		mod := officeUniworkModulesV1[module]
+		offered := facadeSpecs(append(append([]string(nil), mod.Read...), mod.Write...)...)
+		unbound := UniworkModuleAllowlist(module, offered, false, false)
+		bound := UniworkModuleAllowlist(module, offered, false, true)
+		facadeAssertExactNames(t, module+" bound vs unbound", "tools", bound.Tools.Names(), unbound.Tools.Names())
+		facadeAssertExactNames(t, module+" bound vs unbound", "writes", bound.WriteNames, unbound.WriteNames)
 	}
 }
