@@ -612,8 +612,12 @@ turn 1 that answered anything else but `200` (and is not the fake deployment's
 `503 ai_disabled`) is a **FAIL** naming both routes' status and code. A
 capability that turns off **between** the two turns (turn 1 `200` on both, turn 2
 `office_capability_off`) is a **FAIL** named as that capability flip, not as a
-revoke result (D2-03). The revoke assertions still run in every one of these
-rows, and a broken revoke assertion wins over the BLOCKED.
+revoke result (D2-03). The run-level test drives that flip through `downgrade` —
+the only case whose member the server still admits, because `RequireMember`
+(`service/ai_uniwork.go:241-244`) runs before the capability check (:503-515), so
+a deactivated member is never answered `office_capability_off` (BE-704-353). The
+revoke assertions still run in every one of these rows, and a broken revoke
+assertion wins over the BLOCKED.
 
 The commit-intent lookup is read with the owner's token — the revoke never
 refuses that read — and the intent the route answers for is the CALLER's own
@@ -639,12 +643,34 @@ question the same way). Every revoke assertion is still recorded as PASS, so the
 artifact still shows the revoke itself was proven, and a broken revoke assertion
 wins over that BLOCKED exactly as it wins over the other two.
 
-BLOCKED and FAIL reasons print the **measured** answers — the status and code
-each route really answered — never the expectations the case names (BE-704-204),
-and they are kept short enough to survive the record's own 240-char redaction.
-The unit tests pin the process environment they depend on (`AI_PROVIDER` and the
-real-upstream guard, BE-704-203), so a runner that exports `AI_PROVIDER=fake`
-decides none of them.
+Every BLOCKED and FAIL **verdict** reason — the row's own `reason`, what the
+record and the CLI print — is built by ONE helper (`verdictReasonOf`) from a
+compact **measured** tuple: never prose, and never the expectation the case names
+(BE-704-204, BE-704-350, BE-704-351). Each failing step record names the same
+compact verdict code and carries the measurement it read in its own fields.
+
+```
+<verdict code>; t1 s<session>/f<frame> t2 s<session>/f<frame> v <before>-><after> save up <upload>/cm <commit>
+```
+
+Each entry is the measured `status code` of that route (the frame route's
+distinctive `error_class`, the transport message and the whole expectation live
+in `details`, which is not character-capped), and a route that produced no HTTP
+answer carries its own transport code instead: `timeout` (the request never came
+back), `transport` (any other failure), or `http_<status>` for a 5xx the call
+refuses (BE-704-352). Each route captures its own failure and BOTH routes are
+always tried, so a session 500 or timeout still reports the frame route's
+measurement in the turn-1 FAIL instead of a generic exception. The reason is
+therefore inside the record's own 240-char redaction by construction
+(`redactSignInError(reason) === reason`; the tests pin that for every verdict,
+including the widest one a row can compose), while the long text — the
+expectation the row was read against, the mismatch prose, the blocker and the
+file:line why — lives in `details` (and in `blocker` for BLOCKED). A prerequisite
+reason that was never measured (the start gate, an unknown case) is still one
+helper's compact code, with the whole start.sh text in `details.gate`,
+`steps.start.reason` and the run's log. The unit tests pin the process
+environment they depend on (`AI_PROVIDER` and the real-upstream guard,
+BE-704-203), so a runner that exports `AI_PROVIDER=fake` decides none of them.
 
 **G7-A02.2 (a late AI result not applied to a newer base) is not implemented
 here.** It belongs to G7-03a (FQ-28/29/32); G7-04 records the cross-reference
