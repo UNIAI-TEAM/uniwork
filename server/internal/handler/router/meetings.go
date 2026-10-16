@@ -11,7 +11,9 @@ import (
 // it from the global rate limiter by this exact path.
 const liveKitWebhookPath = "/integrations/livekit/webhook"
 
-func registerMeetings(r api, h Routes) {
+// summaryLimit wraps POST /meetings/{id}/summary only: the ai-meeting-summary
+// bucket router.go builds (UNI-1853 M9).
+func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
 		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
 	})
@@ -173,8 +175,12 @@ func registerMeetings(r api, h Routes) {
 			"(suggested_assignee_id), hạn đã đọc (due_date) và task_id khi việc đó đã thành task còn tồn tại.",
 		tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
-	r.Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
+	r.With(summaryLimit).Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
 		summary: "Generate AI summary from transcript and notes", tags: []string{"meetings"},
+		description: "Chỉ host hoặc admin workspace. Mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm. " +
+			"Lỗi: 403 entitlement_required (gói không có meeting.ai_summary), 402 ai_quota_exceeded, " +
+			"409 summary_no_source / summary_in_progress, 429 rate_limited (bucket ai-meeting-summary: 6 lượt/phút/người, Retry-After) " +
+			"hoặc ai_rate_limited (fields.retry_after), 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
 		sdi: sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/summary/tasks", h.CreateSummaryTasks, apiOp{

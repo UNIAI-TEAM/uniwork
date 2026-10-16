@@ -239,7 +239,12 @@ func New(d Deps, h Routes) http.Handler {
 			registerAudit(authed, h)
 			registerPrivacy(authed, h)
 			registerGraph(authed, h)
-			registerMeetings(authed, h)
+			// An AI meeting summary pays the model for the whole meeting:
+			// 6 a minute per signed-in person on its own bucket (UNI-1853 M9),
+			// so a member who makes instant meetings to host cannot drain the
+			// organization's AI quota through the 300/min global budget. The
+			// service adds one run per meeting at a time (summary_in_progress).
+			registerMeetings(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-meeting-summary", 6, time.Minute, proxies, bearerUser(d.Minter)))
 			// Chat writes budget per signed-in person and per route: an office
 			// NAT must not pool everyone's sends, and walking message or room
 			// ids must not mint a fresh budget per id.
