@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+dcc3737fa5b7d1c95bcd44d0183aae207264ec28
+7d27601f7ee788864940c27e89ad23e323b3986c
+dcc3737fa test(core): run the reverse My Folder placement conflict
+9b3c3e6e7 docs(documents): keep owned folders out of the runbook normalization
+b9134ae3f docs(documents): keep the rollback policy under the fix section of the runbook
+f012db095 test(documents): let the runbook recovery differ from the migration only by the My Folder scope
+bb92f1fa4 test(views): narrow system_kind in the document fixtures
+141819134 test(documents): pin the empty Shared by me page in the trash view
+ef322ac83 fix(core): refuse an upload that names both My Folder and a parent
+b1d0508c8 docs(documents): scope the folder-name recovery to user folders and state the rollback policy

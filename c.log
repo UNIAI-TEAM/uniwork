@@ -1,0 +1,12 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test ./internal/handler -run "SharedByMe|MyFolder" -count=1 -v > /tmp/h.log 2>&1); rc=$?; grep -E "^(--- (PASS|FAIL)|FAIL|ok|PASS)" /tmp/h.log | tail -40; echo; echo "HANDLER_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestDocumentListSharedByMeHTTP (0.35s)
+--- PASS: TestEnsureMyFolderRoute (0.26s)
+--- PASS: TestCreateWithMyFolderDestinationRoutes (0.25s)
+--- PASS: TestMyFolderSystemKindAndAdminHideRoutes (0.24s)
+--- PASS: TestMyFolderIsolation (0.25s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	1.373s
+
+HANDLER_EXIT=0
