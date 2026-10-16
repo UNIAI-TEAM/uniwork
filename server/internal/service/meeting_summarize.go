@@ -11,13 +11,15 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// The helpers of MeetingService.Summarize (UNI-1853): the single-flight lock,
+// The helpers of MeetingService.Summarize (UNI-1853): the single-flight lease,
 // the one transaction that stores a summary with its audit row and event, the
 // notes budget, and the mapping of every failure to a fixed refusal.
 
@@ -32,9 +34,17 @@ const (
 	summaryNotesRunes = summaryTranscriptRunes / 4
 	summaryNoteRunes  = 4000
 
-	// summaryUnlockTimeout bounds giving the run lock back; past it the
-	// connection is closed instead, which releases the lock server-side.
-	summaryUnlockTimeout = 5 * time.Second
+	// summaryRunLease is how long a claimed run keeps other runs of its
+	// meeting out. It is also how long a meeting stays refused after the node
+	// running its summary died.
+	summaryRunLease = 3 * time.Minute
+	// summaryRunBudget bounds gathering the sources and the model call, so a
+	// live run always stores (or fails) and gives its lease back before the
+	// lease expires: a second run never starts while the first can still pay.
+	summaryRunBudget = summaryRunLease - time.Minute
+	// summaryReleaseTimeout bounds giving the lease back; past it the lease
+	// is left to expire.
+	summaryReleaseTimeout = 5 * time.Second
 )
 
 // Reasons label uniwork_meeting_summary_errors_total and the failure log.
@@ -141,49 +151,38 @@ func summaryIsEmpty(res ai.MeetingSummary) bool {
 	return strings.TrimSpace(res.Summary) == "" && len(res.Decisions) == 0 && len(res.ActionItems) == 0
 }
 
-// lockSummaryRun takes the meeting's summary run lock (UNI-1853 M9): a
-// session advisory lock on a connection of its own, held until release. A
-// lock already held, on this node or another, is 409 summary_in_progress.
+// claimSummaryRun claims the meeting's summary run lease (UNI-1853 M9): one
+// row in meeting_summary_runs that expires after summaryRunLease, given back
+// by release. A live lease, taken on this node or another, is 409
+// summary_in_progress.
 //
-// Why Postgres and not Redis or memory: MeetingService has no Redis client,
-// and a process-local guard would let two API nodes pay the model twice. The
-// lock lives in the one database every node shares, so it holds across
-// nodes, and a node that dies mid-run closes its connection and frees it.
-// The cost is one pooled connection per summary in flight, for at most the
-// gateway timeout; the ai-meeting-summary rate limit (6 a minute a person)
-// bounds how many there can be. A transaction-pooling proxy (PgBouncer in
-// transaction mode) would break session locks; the server talks to Postgres
-// directly.
-func (s *MeetingService) lockSummaryRun(ctx context.Context, meetingID string) (func(), error) {
-	if s.pool == nil {
-		return func() {}, nil
-	}
-	conn, err := s.pool.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	q := db.New(conn)
-	locked, err := q.MeetingSummaryTryRunLock(ctx, meetingID)
-	if err != nil {
-		conn.Release()
-		return nil, err
-	}
-	if !locked {
-		conn.Release()
+// Why a lease row and not a lock: MeetingService has no Redis client, and a
+// process-local guard would let two API nodes pay the model twice, so the
+// lease lives in the one database every node shares. A session advisory lock
+// would pin a pooled connection through the whole model call while the run
+// needs more connections for its reads and its store, so summaries in flight
+// could starve the pool (and it breaks behind a transaction-pooling proxy).
+// The claim and the release are one short statement each and hold nothing in
+// between; a node that dies mid-run leaves a lease that expires on its own.
+func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting) (func(), error) {
+	runID := util.NewID()
+	_, err := s.q.ClaimMeetingSummaryRun(ctx, db.ClaimMeetingSummaryRunParams{
+		OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID, LeaseSeconds: summaryRunLease.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, errSummaryInProgress()
 	}
+	if err != nil {
+		return nil, err
+	}
 	return func() {
-		uctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), summaryUnlockTimeout)
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), summaryReleaseTimeout)
 		defer cancel()
-		unlocked, err := q.MeetingSummaryRunUnlock(uctx, meetingID)
-		if err == nil && unlocked {
-			conn.Release()
-			return
+		if err := s.q.ReleaseMeetingSummaryRun(rctx, db.ReleaseMeetingSummaryRunParams{
+			OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID,
+		}); err != nil {
+			slog.Warn("meetings: summary run lease not released, it expires on its own", "meeting_id", m.ID, "err", err)
 		}
-		// A connection that may still hold the lock never returns to the
-		// pool: closing it is what releases the lock for the next run.
-		slog.Warn("meetings: summary run lock not released, closing its connection", "meeting_id", meetingID, "err", err)
-		_ = conn.Hijack().Close(uctx)
 	}, nil
 }
 

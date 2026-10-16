@@ -237,7 +237,7 @@ func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID s
 // closed votes, asks the gateway (capability meeting_summarization) and
 // stores the result with the usage row that paid for it. Any host/admin may
 // re-run it; the latest row wins. One run per meeting at a time
-// (lockSummaryRun): a second one answers 409 summary_in_progress instead of
+// (claimSummaryRun): a second one answers 409 summary_in_progress instead of
 // paying the model twice. Every failure carries a fixed message and a code
 // the client translates (summaryFailure); the cause is logged, ids only.
 func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, locale string) (db.MeetingSummary, error) {
@@ -255,17 +255,20 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if m.Status != MeetingInProgress && m.Status != MeetingEnded {
 		return db.MeetingSummary{}, errInvalidState()
 	}
-	release, err := s.lockSummaryRun(ctx, meetingID)
+	release, err := s.claimSummaryRun(ctx, m)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
 	defer release()
+	// Reading the sources and asking the model end inside the lease.
+	runCtx, cancelRun := context.WithTimeout(ctx, summaryRunBudget)
+	defer cancelRun()
 	var segs []db.MeetingTranscriptSegment
 	var notes []db.ListMeetingNotesRow
 	var chat []db.MeetingChatMessage
 	var rep AttendanceReport
 	var closed []db.MeetingMotion
-	g, gctx := errgroup.WithContext(ctx)
+	g, gctx := errgroup.WithContext(runCtx)
 	g.Go(func() error {
 		var err error
 		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: summaryTranscriptRows})
@@ -324,7 +327,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	chatLines = windowSummaryLines(chatLines, summaryChatRunes,
 		func(l ai.ChatLine) int { return utf8.RuneCountInString(l.Sender) + utf8.RuneCountInString(l.Text) + 3 },
 		func(n int) ai.ChatLine { return ai.ChatLine{Sender: "…", Text: summaryOmitted(n)} })
-	resp, err := s.AI.Complete(ctx, ai.Request{
+	resp, err := s.AI.Complete(runCtx, ai.Request{
 		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
 		Vars: map[string]any{

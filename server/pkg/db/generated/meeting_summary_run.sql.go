@@ -9,33 +9,61 @@ import (
 	"context"
 )
 
-const meetingSummaryRunUnlock = `-- name: MeetingSummaryRunUnlock :one
-SELECT pg_advisory_unlock(hashtextextended('meeting_summary:' || $1::text, 0)) AS unlocked
+const claimMeetingSummaryRun = `-- name: ClaimMeetingSummaryRun :one
+
+INSERT INTO meeting_summary_runs (organization_id, meeting_id, run_id, expires_at)
+VALUES (
+  $1, $2, $3,
+  now() + make_interval(secs => $4::float8)
+)
+ON CONFLICT (organization_id, meeting_id) DO UPDATE
+SET run_id = EXCLUDED.run_id, started_at = now(), expires_at = EXCLUDED.expires_at
+WHERE meeting_summary_runs.expires_at <= now()
+RETURNING run_id
 `
 
-func (q *Queries) MeetingSummaryRunUnlock(ctx context.Context, meetingID string) (bool, error) {
-	row := q.db.QueryRow(ctx, meetingSummaryRunUnlock, meetingID)
-	var unlocked bool
-	err := row.Scan(&unlocked)
-	return unlocked, err
+type ClaimMeetingSummaryRunParams struct {
+	OrganizationID string  `json:"organization_id"`
+	MeetingID      string  `json:"meeting_id"`
+	RunID          string  `json:"run_id"`
+	LeaseSeconds   float64 `json:"lease_seconds"`
 }
 
-const meetingSummaryTryRunLock = `-- name: MeetingSummaryTryRunLock :one
+// Single flight for AI meeting summaries (UNI-1853 M9). One summary run per
+// meeting at a time: the run claims a lease on the meeting in
+// meeting_summary_runs before it gathers the sources and asks the model, and
+// deletes it when it has stored the result or failed. A second run of the same
+// meeting, on any node, finds a live lease and is refused instead of paying
+// the model a second time. Each statement commits on its own, so no
+// connection is held while the model answers; a lease left by a crashed node
+// expires, and the next claim takes it over.
+// No row back means another run holds a lease that has not expired.
+func (q *Queries) ClaimMeetingSummaryRun(ctx context.Context, arg ClaimMeetingSummaryRunParams) (string, error) {
+	row := q.db.QueryRow(ctx, claimMeetingSummaryRun,
+		arg.OrganizationID,
+		arg.MeetingID,
+		arg.RunID,
+		arg.LeaseSeconds,
+	)
+	var run_id string
+	err := row.Scan(&run_id)
+	return run_id, err
+}
 
-SELECT pg_try_advisory_lock(hashtextextended('meeting_summary:' || $1::text, 0)) AS locked
+const releaseMeetingSummaryRun = `-- name: ReleaseMeetingSummaryRun :exec
+DELETE FROM meeting_summary_runs
+WHERE organization_id = $1 AND meeting_id = $2 AND run_id = $3
 `
 
-// Single flight for AI meeting summaries (UNI-1853 M9). One summary run per
-// meeting at a time: the run takes a session advisory lock on its own pooled
-// connection before it gathers the sources and asks the model, and gives it
-// back when it has stored the result or failed. A second run of the same
-// meeting, on any node, finds the lock taken and is refused instead of paying
-// the model a second time. The lock lives in Postgres, so it holds across
-// every API node that shares the database; a crashed node's connection closes
-// and takes the lock with it.
-func (q *Queries) MeetingSummaryTryRunLock(ctx context.Context, meetingID string) (bool, error) {
-	row := q.db.QueryRow(ctx, meetingSummaryTryRunLock, meetingID)
-	var locked bool
-	err := row.Scan(&locked)
-	return locked, err
+type ReleaseMeetingSummaryRunParams struct {
+	OrganizationID string `json:"organization_id"`
+	MeetingID      string `json:"meeting_id"`
+	RunID          string `json:"run_id"`
+}
+
+// Only the run that holds the lease gives it back; a run whose lease expired
+// and was taken over deletes nothing.
+func (q *Queries) ReleaseMeetingSummaryRun(ctx context.Context, arg ReleaseMeetingSummaryRunParams) error {
+	_, err := q.db.Exec(ctx, releaseMeetingSummaryRun, arg.OrganizationID, arg.MeetingID, arg.RunID)
+	return err
 }

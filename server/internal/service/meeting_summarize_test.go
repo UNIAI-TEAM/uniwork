@@ -216,11 +216,12 @@ func TestSummarizeRecordsAuditAndEventWithTheSummary(t *testing.T) {
 	}
 }
 
-// UNI-1853 M9: one summary run per meeting at a time, across nodes. A run
-// already holding the meeting's lock (here, another connection standing in
-// for another API node) makes the next one answer 409 summary_in_progress
-// before the model is asked; another meeting is not held up; once the lock is
-// given back the meeting summarizes again.
+// UNI-1853 M9: one summary run per meeting at a time, across nodes. A live
+// lease on the meeting (here, one claimed under another run id, standing in
+// for another API node) makes the next run answer 409 summary_in_progress
+// before the model is asked; another meeting is not held up; once the lease
+// is given back, or has expired because its node died, the meeting
+// summarizes again, and a finished run leaves no lease behind.
 func TestSummarizeIsSingleFlightPerMeeting(t *testing.T) {
 	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
 		return provider.CompletionResponse{Text: `{"summary":"ok","decisions":[],"action_items":[]}`, Model: "fake"}
@@ -235,16 +236,16 @@ func TestSummarizeIsSingleFlightPerMeeting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conn, err := s.pool.Acquire(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Release()
-	holder := db.New(conn)
-	if ok, err := holder.MeetingSummaryTryRunLock(ctx, m.ID); err != nil || !ok {
-		t.Fatalf("take the lock: %v %v", ok, err)
+	claim := func(runID string) {
+		t.Helper()
+		if _, err := s.q.ClaimMeetingSummaryRun(ctx, db.ClaimMeetingSummaryRunParams{
+			OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID, LeaseSeconds: 60,
+		}); err != nil {
+			t.Fatalf("claim the lease as %s: %v", runID, err)
+		}
 	}
 
+	claim("other-node")
 	_, err = s.Summarize(ctx, ua.ID, m.ID, "vi")
 	var ce CodedError
 	if !errors.As(err, &ce) || ce.Code != "summary_in_progress" || ce.Status != http.StatusConflict {
@@ -254,21 +255,78 @@ func TestSummarizeIsSingleFlightPerMeeting(t *testing.T) {
 		t.Fatalf("the refused run still asked the model (%d calls)", fake.Calls)
 	}
 	if _, err := s.Summarize(ctx, ua.ID, other.ID, "vi"); err != nil {
-		t.Fatalf("another meeting is held up by this meeting's lock: %v", err)
+		t.Fatalf("another meeting is held up by this meeting's lease: %v", err)
+	}
+	// The refused run neither took the lease over nor dropped it.
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM meeting_summary_runs WHERE meeting_id = $1 AND run_id = 'other-node'`, m.ID); n != 1 {
+		t.Fatalf("the other node's lease rows = %d, want 1", n)
 	}
 
-	if ok, err := holder.MeetingSummaryRunUnlock(ctx, m.ID); err != nil || !ok {
-		t.Fatalf("give the lock back: %v %v", ok, err)
+	if err := s.q.ReleaseMeetingSummaryRun(ctx, db.ReleaseMeetingSummaryRunParams{
+		OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: "other-node",
+	}); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil {
-		t.Fatalf("after the lock is free: %v", err)
+		t.Fatalf("after the lease is free: %v", err)
 	}
-	// The service gave its own lock back too: the holder can take it again.
-	if ok, err := holder.MeetingSummaryTryRunLock(ctx, m.ID); err != nil || !ok {
-		t.Fatalf("lock still held after a finished run: %v %v", ok, err)
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM meeting_summary_runs WHERE meeting_id = $1`, m.ID); n != 0 {
+		t.Fatalf("a finished run left %d leases", n)
 	}
-	if _, err := holder.MeetingSummaryRunUnlock(ctx, m.ID); err != nil {
+
+	// A node that died mid-run leaves its lease; once it expires the next run
+	// takes it over.
+	claim("dead-node")
+	if _, err := s.pool.Exec(ctx, `UPDATE meeting_summary_runs SET expires_at = now() - interval '1 second' WHERE meeting_id = $1`, m.ID); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil {
+		t.Fatalf("an expired lease still refuses the run: %v", err)
+	}
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM meeting_summary_runs WHERE meeting_id = $1`, m.ID); n != 0 {
+		t.Fatalf("the run that took an expired lease over left %d leases", n)
+	}
+}
+
+// UNI-1853 review: a run holds no pooled connection while the model answers,
+// so summaries in flight cannot starve the pool the rest of the API (and the
+// run's own store) needs; and a second run started meanwhile is refused by
+// the lease, not by waiting.
+func TestSummarizeHoldsNoConnectionThroughTheModelCall(t *testing.T) {
+	inModel := make(chan int32, 1)
+	answer := make(chan struct{})
+	var s *MeetingService
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		inModel <- s.pool.Stat().AcquiredConns()
+		<-answer
+		return provider.CompletionResponse{Text: `{"summary":"ok","decisions":[],"action_items":[]}`, Model: "fake"}
+	}}
+	s, ua, m, _ := summaryFixture(t, fake, ai.Options{})
+	ctx := context.Background()
+	idle := s.pool.Stat().AcquiredConns()
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+		done <- err
+	}()
+	var held int32
+	select {
+	case held = <-inModel:
+	case err := <-done:
+		t.Fatalf("the run ended before the model was asked: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the model was never asked")
+	}
+	_, second := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	close(answer)
+	if err := <-done; err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	if held != idle {
+		t.Fatalf("%d pooled connections held during the model call, want %d (none for the run)", held, idle)
+	}
+	if !codedIs(second, "summary_in_progress") {
+		t.Fatalf("a run started during the model call = %v, want summary_in_progress", second)
 	}
 }
 

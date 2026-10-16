@@ -1042,6 +1042,15 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		tn.ids["meetingSummary"], tn.orgID, tn.ids["meeting"], m+" summary", string(rawItems), tn.userID); err != nil {
 		t.Fatalf("meeting summary: %v", err)
 	}
+	// A summary run's lease lives only while the run does; an expired one is
+	// what a node that died mid-run leaves, so meeting_summary_runs holds a
+	// row without holding the meeting's summaries up.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_summary_runs
+		(organization_id, meeting_id, run_id, expires_at)
+		VALUES ($1, $2, $3, now() - interval '1 minute')`,
+		tn.orgID, tn.ids["meeting"], util.NewID()); err != nil {
+		t.Fatalf("meeting summary run: %v", err)
+	}
 	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/summary/tasks", tn.token, map[string]any{
 		"summary_id": tn.ids["meetingSummary"], "items": []any{map[string]any{"index": 3, "assignee_id": tn.peerID}},
 	})

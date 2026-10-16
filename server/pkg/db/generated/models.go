@@ -1604,6 +1604,14 @@ type MeetingSummary struct {
 	OrganizationID string             `json:"organization_id"`
 }
 
+type MeetingSummaryRun struct {
+	OrganizationID string             `json:"organization_id"`
+	MeetingID      string             `json:"meeting_id"`
+	RunID          string             `json:"run_id"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
 type MeetingSummaryTaskLink struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
