@@ -4,6 +4,7 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -1416,6 +1417,89 @@ describe('sessions, manifest and tool surface', () => {
     } finally {
       await facade.close();
     }
+  });
+
+  // G712-81: the other four session-setup throw sites (postJson for org/ws, renewSession, upload, mint) each redact the
+  // server body before throwing so an address echoed by any setup route never reaches stderr.
+  const withSetupStageServer = async (failStage, email, run) => {
+    const send = (res, status, body) => {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+    const fail = (res, status, stage) => send(res, status, { error: { code: 'denied', message: `${stage} refused for ${email}` } });
+    const server = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        const url = req.url ?? '';
+        if (url === '/api/v1/auth/register') return send(res, 200, { access_token: 'stub-access-1', user: { id: 'stub-user' } });
+        if (url === '/api/v1/orgs') return failStage === 'orgs' ? fail(res, 400, 'orgs') : send(res, 200, { organization: { id: 'stub-org' } });
+        if (url === '/api/v1/orgs/stub-org/workspaces') return failStage === 'workspaces' ? fail(res, 400, 'workspaces') : send(res, 200, { workspace: { id: 'stub-ws' } });
+        if (url === '/api/v1/auth/login' || url === '/api/v1/auth/refresh') return failStage === 'renewal' ? fail(res, 401, 'renewal') : send(res, 200, { access_token: 'stub-access-2' });
+        if (url === '/api/v1/workspaces/stub-ws/documents/files') return failStage === 'upload' ? fail(res, 500, 'upload') : send(res, 200, { document: { id: 'stub-doc-1' } });
+        if (url === '/api/v1/documents/stub-doc-1/office/frame-token') return failStage === 'mint' ? fail(res, 500, 'mint') : send(res, 200, { token: 'stub-frame-1' });
+        return send(res, 404, { error: 'not found' });
+      });
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const url = ['http', '://', '127.0.0.1', ':', String(server.address().port)].join('');
+    try {
+      await run(url);
+    } finally {
+      await new Promise((resolve) => { server.close(resolve); server.closeAllConnections?.(); });
+    }
+  };
+
+  it('redacts the test user\'s address when org or workspace creation fails in postJson (G712-81)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    for (const [stage, prefix] of [['orgs', /^\/api\/v1\/orgs failed: 400 /], ['workspaces', /^\/api\/v1\/orgs\/stub-org\/workspaces failed: 400 /]]) {
+      await withSetupStageServer(stage, email, async (serverUrl) => {
+        await assert.rejects(createServerSession({ serverUrl, email }), (err) => {
+          assert.match(err.message, prefix);
+          assert.equal(err.message.includes(email), false, `the thrown text carries the address (${stage}): ${err.message}`);
+          assert.match(err.message, /\[redacted:email\]/);
+          return true;
+        });
+      });
+    }
+  });
+
+  it('redacts the test user\'s address when session renewal fails in renewSession (G712-81)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    await withSetupStageServer('renewal', email, async (serverUrl) => {
+      const session = await createServerSession({ serverUrl, email, sessionRenewAfterMs: 0 });
+      await assert.rejects(session.mount(cases[0].fixtures[0].id), (err) => {
+        assert.match(err.message, /^session renewal via login failed: 401 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
+    });
+  });
+
+  it('redacts the test user\'s address when fixture upload fails in upload (G712-81)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    await withSetupStageServer('upload', email, async (serverUrl) => {
+      const session = await createServerSession({ serverUrl, email });
+      await assert.rejects(session.mount(cases[0].fixtures[0].id), (err) => {
+        assert.match(err.message, /^upload file .* failed: 500 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
+    });
+  });
+
+  it('redacts the test user\'s address when frame-token minting fails in mint (G712-81)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    await withSetupStageServer('mint', email, async (serverUrl) => {
+      const session = await createServerSession({ serverUrl, email });
+      await assert.rejects(session.mount(cases[0].fixtures[0].id), (err) => {
+        assert.match(err.message, /^mint frame token for .* failed: 500 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
+    });
   });
 
   it('hashes the case set, not its content: a different set gives a different hash', async () => {
