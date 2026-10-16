@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+b1d738f9d0dcb36ab53b44d267569d5a2e082b0d
+e99471fe238b441f44e72a315569c2f8f3d41645
+
+SYNCED_EXIT=0
