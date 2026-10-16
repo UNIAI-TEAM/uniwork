@@ -23,30 +23,56 @@ fork `main`; ở `REV=3e4e9b71f` khối §3 có 143 dòng, sha256 `235ceb7a82b5c
 ra khớp từng ô hash trong bảng §3 trừ hàng `docs/set_page_setup` đã ghi trong test):
 
 ```bash
-REV=3e4e9b71f # hoặc <rev mới>
-git -C "$FORK" show 3e4e9b71f:scripts/genoffice-tools-extract.mjs > /tmp/extractor-3e4e9b71f.mjs
+(
+  set -euo pipefail
+  REV=3e4e9b71f # hoặc <rev mới>
+  TMP=$(mktemp -d)
+  trap 'rm -rf "$TMP"' EXIT
 
-# 1. Sinh lại khối trích xuất §3, ghép giữa hai marker của genoffice-tools.md và kiểm AC-2 từng byte
-node /tmp/extractor-3e4e9b71f.mjs --repo "$FORK" --rev "$REV" > /tmp/extract.md
-awk '
-  /^<!-- extract:begin -->$/ {
-    print
-    while ((getline line < "/tmp/extract.md") > 0) print line
-    close("/tmp/extract.md")
-    skip = 1
-    next
-  }
-  /^<!-- extract:end -->$/ { skip = 0 }
-  !skip { print }
-' docs/office/g5g6g7/genoffice-tools.md > /tmp/genoffice-tools.md && \
-  mv /tmp/genoffice-tools.md docs/office/g5g6g7/genoffice-tools.md
-sed -e '1,/^<!-- extract:begin -->$/d' -e '/^<!-- extract:end -->$/,$d' \
-  docs/office/g5g6g7/genoffice-tools.md | diff - /tmp/extract.md && echo AC-2 OK
+  git -C "$FORK" show 3e4e9b71f:scripts/genoffice-tools-extract.mjs > "$TMP/extractor.mjs"
 
-# 2. Sinh tệp schema JSON ở cùng rev và chạy test đối chiếu hai tạo phẩm
-node /tmp/extractor-3e4e9b71f.mjs --repo "$FORK" --rev "$REV" \
-  --emit-schemas docs/office/g5g6g7/genoffice-tool-schemas.json
-node --test scripts/office/g5g6g7/genoffice-tool-schemas.test.mjs
+  # 1. Sinh khối trích xuất §3 vào tệp tạm, kiểm hình dạng (header rev + bảng + dòng dữ liệu)
+  node "$TMP/extractor.mjs" --repo "$FORK" --rev "$REV" > "$TMP/extract.md"
+  awk '
+    NR == 1 && /^<!-- genoffice-tools-extract v1 rev=[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+ -->$/ { h1 = 1; next }
+    NR == 2 && /^\| module \| tool \| input_schema_sha256 \| editor_write \| source \|$/ { h2 = 1; next }
+    NR == 3 && /^\| --- \| --- \| --- \| --- \| --- \|$/ { h3 = 1; next }
+    NR > 3 && /^\| [a-z-]+ \| [a-z0-9_]+ \| [^|]+ \| (yes|no|undeclared) \| [^|]+ \|$/ { rows++; next }
+    { bad = 1 }
+    END { if (!h1 || !h2 || !h3 || rows < 1 || bad) exit 1 }
+  ' "$TMP/extract.md"
+
+  # 2. Kiểm đúng một cặp marker có thứ tự rồi ghép vào bản tạm và kiểm AC-2 từng byte trước khi thay tệp
+  awk -v ext="$TMP/extract.md" '
+    /^<!-- extract:begin -->$/ {
+      if (begins > 0 || ends > 0) { bad = 1; exit 1 }
+      begins++
+      print
+      while ((getline line < ext) > 0) print line
+      close(ext)
+      in_block = 1
+      next
+    }
+    /^<!-- extract:end -->$/ {
+      if (!in_block || ends > 0) { bad = 1; exit 1 }
+      ends++
+      in_block = 0
+      print
+      next
+    }
+    !in_block { print }
+    END { if (bad || begins != 1 || ends != 1 || in_block) exit 1 }
+  ' docs/office/g5g6g7/genoffice-tools.md > "$TMP/genoffice-tools.md"
+  sed -e '1,/^<!-- extract:begin -->$/d' -e '/^<!-- extract:end -->$/,$d' \
+    "$TMP/genoffice-tools.md" | diff - "$TMP/extract.md" && echo AC-2 OK
+
+  # 3. Sinh tệp schema JSON vào tệp tạm, chỉ thay cả hai tạo phẩm sau khi mọi bước đều qua, rồi chạy test
+  node "$TMP/extractor.mjs" --repo "$FORK" --rev "$REV" --emit-schemas "$TMP/genoffice-tool-schemas.json"
+  test -s "$TMP/genoffice-tool-schemas.json"
+  mv "$TMP/genoffice-tools.md" docs/office/g5g6g7/genoffice-tools.md
+  mv "$TMP/genoffice-tool-schemas.json" docs/office/g5g6g7/genoffice-tool-schemas.json
+  node --test scripts/office/g5g6g7/genoffice-tool-schemas.test.mjs
+)
 ```
 
 `genoffice-tool-schemas.test.mjs` giữ tệp khớp khối trích xuất (cùng rev, cùng danh sách công cụ theo module) và khớp
