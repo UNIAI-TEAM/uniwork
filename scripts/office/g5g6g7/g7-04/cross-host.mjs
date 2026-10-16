@@ -558,11 +558,18 @@ export function newerBarReport(found, version) {
 
 // ---- small polling helper ------------------------------------------------------------------
 
+/**
+ * Poll `fn` until `pred` accepts its value, or `boundMs` elapses. `fn` is called with the poll's
+ * own DEADLINE (`started + boundMs`, an absolute timestamp) so a poll whose work is itself bounded
+ * — every frame read in `frameReports`, BE-704-405 — uses what is LEFT of this poll's budget
+ * instead of a fresh one; a caller that ignores the argument is unaffected.
+ */
 async function pollUntil(fn, pred, { boundMs = DEFAULT_STEP_TIMEOUT_MS, intervalMs = DEFAULT_POLL_MS, sleepFn = sleep, now = Date.now } = {}) {
   const started = now();
+  const deadlineMs = started + boundMs;
   let value;
   for (;;) {
-    value = await fn();
+    value = await fn(deadlineMs);
     if (pred(value)) return { value, ok: true, elapsedMs: now() - started };
     if (now() - started >= boundMs) return { value, ok: false, elapsedMs: now() - started };
     await sleepFn(Math.min(intervalMs, Math.max(1, boundMs - (now() - started))));
@@ -583,6 +590,33 @@ async function pollUntil(fn, pred, { boundMs = DEFAULT_STEP_TIMEOUT_MS, interval
 export const OFFLINE_SAVE_STATES = Object.freeze(["offline", "paused_offline"]);
 
 /**
+ * The name the fork's durable store gives THIS document's intent record (BE-704-404). The store
+ * names a record after the hash of its key — `recordFileName(key) = sha256(key) + ".rec"`
+ * (`apps/shell/src/main/uniwork-sync/store/paths.ts:13-15`, used by `layer.ts`
+ * `recordPath(root, scope, store, key)` — `uniwork-sync/store/layer.ts`) — and the intent key IS
+ * the document key: the coordinator writes `intents.put(doc.key, …)`
+ * (`uniwork-docs/save-coordinator.ts:492`, the same key at l.688) and `doc.key` is the
+ * working-copy folder segment (`uniwork-docs/binding-store.ts:88-91`, `lookup` at l.335-345),
+ * which the docs service builds with the DOCUMENT ID itself
+ * (`uniwork-docs/service.ts:1456-1461` `boundDocFor` -> `dirFor(identity.deploymentId,
+ * identity.accountId, documentId)`, and the same call for the open paths at l.3493/l.3571).
+ *
+ * The record's own META carries `documentId` too (`uniwork-sync/queue/record.ts:52-75`
+ * `IntentRecordV2.documentId`, and the v1 `PendingIntentRecord`), but the record is sealed
+ * AES-256-GCM on disk — `store/codec.ts` writes `UWS1` + a plaintext header + IV + tag +
+ * ciphertext, and the key is wrapped by Electron safeStorage (`uniwork-docs/wiring.ts`
+ * `createSyncStoreLayer`) — so the driver cannot read that field without the account's store key.
+ * The FILE NAME is therefore the document identity the harness can read, and it is the fork's own
+ * derivation, not a guess; the binding state beside this document's working copy is the other,
+ * per-document half of the receipt. A same-document re-Save OVERWRITES the same record name, which
+ * is why the step also accepts this document's own offline / paused_offline binding state.
+ */
+export function appIntentRecordName(documentId) {
+  const id = documentId === null || documentId === undefined ? "" : String(documentId);
+  return id ? `${sha256Hex(id)}.rec` : "";
+}
+
+/**
  * One read of the app's own receipt for a Save (D2-01): the `.rec` intent files
  * its durable store holds (the `listAppSyncIntentFiles` location —
  * `<userData>/uniwork-sync/store/<deploymentId>/<accountId>/intents`, the layer
@@ -600,17 +634,26 @@ export const OFFLINE_SAVE_STATES = Object.freeze(["offline", "paused_offline"]);
  * the Save can therefore still be empty — exactly how D2-01 failed all four
  * rows in 986-1521 ms — so a step polls this instead.
  */
-export function readAppSaveReceipt(app, baseline = null) {
+export function readAppSaveReceipt(app, baseline = null, { documentId = null } = {}) {
   const workingCopy = app.workingCopy();
   const intentFiles = app.intents();
   const names = Array.isArray(intentFiles) ? intentFiles : [];
   // The set the step captured before it fired the Save: an intent this row must not
   // mistake for its own is one that was already there (BE-704-302).
   const previous = baseline === null || baseline === undefined ? null : new Set(Array.isArray(baseline) ? baseline : baseline.names ?? []);
+  // …and one that belongs to ANOTHER document is never this document's receipt either
+  // (BE-704-404): the store keys one record per document, named by the hash of that key
+  // (`appIntentRecordName`), so a new `.rec` of another document cannot satisfy this row.
+  const documentRecord = appIntentRecordName(documentId);
+  const mine = documentRecord ? names.filter((name) => name === documentRecord) : names;
   return {
     workingCopy,
+    documentRecord,
+    // the user-level counts stay on the receipt (they are the evidence a miss prints)…
     intentFiles: names.length,
-    newIntentFiles: previous === null ? names.length : names.filter((name) => !previous.has(name)).length,
+    // …and these are THIS document's own
+    documentIntentFiles: mine.length,
+    newIntentFiles: previous === null ? mine.length : mine.filter((name) => !previous.has(name)).length,
     state: String(workingCopy?.binding?.state ?? workingCopy?.bindingState ?? "none"),
     baseVersion: Number(workingCopy?.binding?.baseVersion ?? 0),
   };
@@ -639,8 +682,21 @@ const FRAME_DOC_GET_PATH = /\/api\/v1\/office-frame\/documents\/[^/]+/;
  * (`use-docs-frame-session.ts:216`) — so the round-2 capture, which patched
  * `postMessage` and then read `window.__crossHostFrameMessages` in the TOP page,
  * could never see it: the announce is recorded where it is delivered. Reading
- * `readFrameMessages` in every document and merging with
+ * (`readFrameMessages` in every document and merging with
  * `summarizeFrameRecordings` sees it whichever realm the call resolved in.
+ *
+ * Since D5-01 a record carries what a GUARD comparison needs, measured rather
+ * than guessed: the receiving realm (`href`), whether the parent window sent the
+ * message (`fromParent`) and its `origin`, the envelope's `ns` / `v`, the
+ * announce's own `document_id` / `revision` / `version_id` / `saved_at` with the
+ * JS `typeof` each one arrived as, and the `file` a host `open` push or a
+ * frame-visible `api.open` / `api.save` / `api.saveAs` reply carried
+ * (`fileId`, `versionId`, `revision`, `etag`). That file is the frame's own held
+ * copy: the pin derives `host.current()` from it
+ * (`web/modules/shared/remote-version.ts:617` -> `revisionOf`,
+ * `web/modules/shared/conflict-dialog.ts:135-140`), so the driver can name the
+ * guard that dropped an announce instead of asserting one (the round-5 wording
+ * "the frame's own guard needs a DECIMAL revision" was never measured).
  *
  * This function is serialized into the page: keep it self-contained (no
  * module-scope constants), the way `readRemoteNewerSurface` now is.
@@ -650,19 +706,59 @@ export function installFrameRecorder(target = window) {
   // the newest 1000 envelopes: a run's frame traffic is far below it, and the document is
   // replaced when the frame reloads
   const limit = 1000;
+  const realm = (() => {
+    try {
+      return target?.location?.href ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  const parentWindow = (() => {
+    try {
+      return target?.parent ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  // the file meta a frame-visible envelope carried, in the pin's own field names
+  // (`web/docs/protocol/types.ts:326-346`: the wire `FileMeta` is camelCase)
+  const fileOf = (payload) => {
+    const raw = payload?.save?.file ?? payload?.file;
+    if (!raw || typeof raw !== "object" || typeof raw.fileId !== "string") return null;
+    return {
+      fileId: raw.fileId,
+      versionId: typeof raw.versionId === "string" ? raw.versionId : null,
+      revision: typeof raw.revision === "string" ? raw.revision : null,
+      etag: typeof raw.etag === "string" ? raw.etag : null,
+    };
+  };
   Object.defineProperty(target, "__crossHostFrameMessages", { value: list, configurable: true });
   target.addEventListener("message", (event) => {
     try {
       const data = event?.data;
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
       const payload = data.payload ?? {};
+      const seen = (key) => (key in payload ? payload[key] : null);
       list.push({
         kind: typeof data.kind === "string" ? data.kind : null,
         type: data.type,
-        versionId: payload.version_id ?? null,
-        version: payload.version ?? null,
-        revision: payload.revision ?? null,
-        reason: payload.reason ?? null,
+        ns: typeof data.ns === "string" ? data.ns : null,
+        v: typeof data.v === "number" ? data.v : null,
+        versionId: seen("version_id"),
+        versionIdType: typeof payload.version_id,
+        version: seen("version"),
+        revision: seen("revision"),
+        revisionType: typeof payload.revision,
+        documentId: seen("document_id"),
+        documentIdType: typeof payload.document_id,
+        savedAt: seen("saved_at"),
+        savedAtType: typeof payload.saved_at,
+        reason: seen("reason"),
+        file: fileOf(payload),
+        href: realm,
+        origin: typeof event?.origin === "string" ? event.origin : null,
+        // a synthetic event (a unit test's fake) has no `source`: unmeasured, never "not the parent"
+        fromParent: event != null && "source" in event ? event.source === parentWindow : null,
         at: Date.now(),
       });
       if (list.length > limit) list.shift();
@@ -684,7 +780,7 @@ export function readFrameMessages(target = window) {
  * the driver makes goes through this: a renderer that is busy or gone costs at most `timeoutMs`
  * and answers a measured `{ ok: false, error }` instead of pinning the step past its bound.
  */
-export async function evalFrameBounded(frame, fn, { timeoutMs = FRAME_READ_TIMEOUT_MS } = {}) {
+export async function evalFrameBounded(frame, fn, { timeoutMs = FRAME_READ_TIMEOUT_MS, arg = undefined } = {}) {
   const boundMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : FRAME_READ_TIMEOUT_MS;
   const expired = { readExpired: true };
   let timer = null;
@@ -693,7 +789,7 @@ export async function evalFrameBounded(frame, fn, { timeoutMs = FRAME_READ_TIMEO
   });
   try {
     const value = await Promise.race([
-      frame.evaluate(fn).catch((err) => ({ readError: err?.message ?? String(err) })),
+      frame.evaluate(fn, arg).catch((err) => ({ readError: err?.message ?? String(err) })),
       bound,
     ]);
     if (value === expired) return { ok: false, error: `the frame read timed out after ${boundMs} ms`, value: null };
@@ -704,20 +800,63 @@ export async function evalFrameBounded(frame, fn, { timeoutMs = FRAME_READ_TIMEO
   }
 }
 
+/** The named miss for a frame read that was never started because the step's budget was spent. */
+export const FRAME_READ_NO_BUDGET = "the frame read was not started: the step's remaining budget was 0 ms";
+
 /**
- * `readFrameMessages` off ONE frame, bounded (BE-704-304): a renderer that is busy
- * or gone must report a measured miss inside the step bound instead of pinning the
- * poll forever. Playwright's `frame.evaluate` has no driver-level timeout here
- * (`harness/web.mjs` sets none on the context), so the bound is explicit and the
- * outcome is `{ messages: null, error }` — never a rejection the caller could read
- * as "no announce was ever captured".
+ * Every document's one read, off the SAME step budget (BE-704-405). `pollUntil` only checks its
+ * elapsed bound after the polled function resolves, so a poll that read N frames one after another
+ * could pin the step N x the per-read bound past it (each read is bounded on its own, BE-704-304,
+ * but nothing bounded the aggregate). Here the reads:
+ *
+ *   * start TOGETHER (one concurrent wave, so a hung renderer costs ONE bound, not N), in frame
+ *     order so `frameRemoteState`'s `isTop: index 0` stays right;
+ *   * take the SMALLER of the per-read bound and what is left of `deadlineMs` (the poll's own
+ *     deadline, passed down by the caller), so one wave can never overrun the step;
+ *   * are not started at all once no budget remains — the frame is still accounted for, with
+ *     {@link FRAME_READ_NO_BUDGET} as its `readError`, because "the read never ran" and "the frame
+ *     carried no recorder" must not read the same in a miss;
+ *   * keep each frame's own `readError` (a timeout, a detached frame, a no-budget skip).
+ *
+ * `read` is the page function each frame is asked (`readFrameMessages`, or the surface probe).
+ * A report carries `value` (whatever the read answered), `messages` (that value when it is an
+ * envelope list, null otherwise — what the recorder merge reads) and the frame's own `readError`.
  */
-export async function readFrameMessagesBounded(frame, { timeoutMs = FRAME_READ_TIMEOUT_MS } = {}) {
-  const read = await evalFrameBounded(frame, readFrameMessages, { timeoutMs });
-  return {
-    messages: read.ok && Array.isArray(read.value) ? read.value : null,
-    error: read.ok ? "" : read.error,
+export async function readFrameReports({
+  frames = [],
+  read = readFrameMessages,
+  deadlineMs = Number.POSITIVE_INFINITY,
+  perReadTimeoutMs = FRAME_READ_TIMEOUT_MS,
+  now = Date.now,
+} = {}) {
+  const reports = new Array(frames.length);
+  const urlOf = (frame) => {
+    try {
+      return typeof frame?.url === "function" ? frame.url() : null;
+    } catch {
+      return null;
+    }
   };
+  const wave = [];
+  frames.forEach((frame, index) => {
+    const remaining = Number.isFinite(deadlineMs) ? deadlineMs - now() : perReadTimeoutMs;
+    if (!(remaining > 0)) {
+      reports[index] = { url: urlOf(frame), value: null, messages: null, readError: FRAME_READ_NO_BUDGET };
+      return;
+    }
+    wave.push(
+      evalFrameBounded(frame, read, { timeoutMs: Math.min(perReadTimeoutMs, remaining) }).then((result) => {
+        reports[index] = {
+          url: urlOf(frame),
+          value: result.ok ? result.value : null,
+          messages: result.ok && Array.isArray(result.value) ? result.value : null,
+          readError: result.ok ? "" : result.error,
+        };
+      }),
+    );
+  });
+  await Promise.all(wave);
+  return reports;
 }
 
 /**
@@ -807,6 +946,290 @@ export function summarizeFrameRecordings(reports = [], sinceMs = 0) {
   };
 }
 
+/** The docs frame protocol's namespace and version, as the INSTALLED pin defines them
+ * (`web/docs/protocol/types.ts:25-27` at the frame pin): a mismatch drops the envelope as
+ * `foreign` / `version_mismatch` before any handler runs. */
+export const FRAME_PROTOCOL_NS = "uniwork.office.docs";
+export const FRAME_PROTOCOL_VERSION = 1;
+
+/**
+ * The pin's decimal-revision predicate (`web/docs/protocol/types.ts:521-523`): `revision` is a
+ * decimal STRING on this wire, never a JSON number. Mirrored here so the driver can measure
+ * whether an announce would survive the guard instead of asserting which guard dropped it.
+ */
+export function isDecimalRevisionText(x) {
+  return typeof x === "string" && x.length <= 20 && /^(0|[1-9][0-9]*)$/.test(x);
+}
+
+/**
+ * `revisionOf` of the pinned frame (`web/modules/shared/conflict-dialog.ts:135-140`): the file's
+ * own `revision` when that is a decimal, else an `etag` that is one (quotes stripped), else null.
+ * This is what `host.current().revision` returns for the frame's held copy
+ * (`web/docs/bridge/webapi.ts:616-617`), and therefore what the announce guards compare against.
+ */
+export function revisionOfFile(file) {
+  if (!file) return null;
+  if (isDecimalRevisionText(file.revision)) return file.revision;
+  const etag = typeof file.etag === "string" ? file.etag.replace(/^"|"$/g, "") : null;
+  return isDecimalRevisionText(etag) ? etag : null;
+}
+
+/**
+ * What the web frame itself held and heard, measured inside its own realm (D5-01): the announce
+ * envelope it received with the JS type of every field, the realm that recorded it, and the last
+ * `file` a host `open` push or an `api.open` / `api.save` / `api.saveAs` reply carried — the
+ * frame's held copy, which `revisionOfFile` turns into the `revision` the guards compare with.
+ *
+ * Playwright lists the main frame FIRST (`page.frames()`), so `isTop: true` on the first report is
+ * the page and every other one is an embedded document: an announce recorded in the top page was
+ * never delivered to the frame at all.
+ */
+export function frameRemoteState(reports = [], { versionId = null } = {}) {
+  const docs = (reports ?? []).map((report, index) => ({
+    url: report?.url ?? null,
+    isTop: index === 0,
+    messages: Array.isArray(report?.messages) ? report.messages : null,
+    readError: typeof report?.readError === "string" ? report.readError : "",
+  }));
+  const announcesIn = (doc) =>
+    (doc.messages ?? []).filter(
+      (m) => m && m.kind === "event" && m.type === "doc.remoteVersion" && (versionId === null || m.versionId === versionId),
+    );
+  const lastFileIn = (doc) => {
+    const files = (doc.messages ?? []).filter((m) => m?.file && typeof m.file.fileId === "string");
+    return files.length > 0 ? files[files.length - 1] : null;
+  };
+  const realm = docs.find((doc) => announcesIn(doc).length > 0) ?? null;
+  const holder = realm ?? docs.find((doc) => lastFileIn(doc) !== null) ?? null;
+  const announce = realm ? announcesIn(realm).at(-1) : null;
+  const file = holder ? lastFileIn(holder) : null;
+  return {
+    announce: announce ?? null,
+    announceRealm: realm ? { url: realm.url, isTop: realm.isTop } : null,
+    held: file
+      ? { ...file.file, revisionOf: revisionOfFile(file.file), at: file.at, envelope: `${file.kind}:${file.type}` }
+      : null,
+    heldRealm: holder ? { url: holder.url, isTop: holder.isTop } : null,
+    documents: docs.map((doc) => ({
+      url: doc.url,
+      isTop: doc.isTop,
+      recorder: doc.messages !== null,
+      messages: (doc.messages ?? []).length,
+      readError: doc.readError,
+    })),
+  };
+}
+
+/**
+ * Which of the pin's guards drops the announce, EVALUATED over measured values (D5-01) — the
+ * guard is named (with its file:line) only when the values actually fail it; `guard: null` means
+ * no guard explains the drop and the remaining surface is the delivery/handler wiring. The order
+ * is the pin's own: the envelope reaches a handler only after
+ * `web/docs/protocol/endpoint.ts:264-293` (origin, source, `parseEnvelope`), then
+ * `web/docs/protocol/client.ts:489-493` filters by document, then the handler's chain at
+ * `web/modules/shared/remote-version.ts:442-452`.
+ */
+export function announceGuardVerdict({ announce = null, held = null, announceRealm = null, heldRealm = null } = {}) {
+  const described = (value, type) => `${JSON.stringify(value)} (${type ?? (typeof value)})`;
+  if (!announce) return { guard: null, detail: "no doc.remoteVersion envelope was recorded in any document of the page" };
+  const values = `document_id ${described(announce.documentId, announce.documentIdType)}, revision ${described(
+    announce.revision,
+    announce.revisionType,
+  )}, version_id ${described(announce.versionId, announce.versionIdType)}`;
+  const where = announceRealm ? `${announceRealm.isTop ? "the top page" : "a frame"}` : "an unrecorded document";
+  if (announceRealm?.isTop) {
+    return {
+      guard: "the D host's post target (packages/core/office/docs-frame-endpoint.ts:236-238, peer = iframe.contentWindow)",
+      detail: `the announce was recorded in ${where} and never in the frame, so no frame handler could run: ${values}`,
+    };
+  }
+  if (announce.fromParent === false) {
+    return {
+      guard: "the frame endpoint's source/origin check (web/docs/protocol/endpoint.ts:264-275)",
+      detail: `the announce reached ${where} but not from the parent window (origin ${JSON.stringify(
+        announce.origin,
+      )}, fromParent false): ${values}`,
+    };
+  }
+  if (announce.ns !== FRAME_PROTOCOL_NS) {
+    return {
+      guard: "parseEnvelope isOwnTraffic (web/docs/protocol/types.ts:1758-1760)",
+      detail: `the announce's ns ${JSON.stringify(announce.ns)} is not ${JSON.stringify(FRAME_PROTOCOL_NS)}, so the frame drops it as foreign: ${values}`,
+    };
+  }
+  if (announce.v !== FRAME_PROTOCOL_VERSION) {
+    return {
+      guard: "parseEnvelope version check (web/docs/protocol/types.ts:1801)",
+      detail: `the announce's v ${JSON.stringify(announce.v)} is not ${FRAME_PROTOCOL_VERSION}: ${values}`,
+    };
+  }
+  if (!isDecimalRevisionText(announce.revision)) {
+    return {
+      guard: "!isDecimalRevision(p.revision) (web/modules/shared/remote-version.ts:443)",
+      detail: `the announced revision arrived as ${described(announce.revision, announce.revisionType)}, which that guard drops silently: ${values}`,
+    };
+  }
+  if (!held) {
+    return {
+      guard: null,
+      detail: `the frame's own host.current() could not be measured: no host open push or api.open/api.save reply was recorded in ${
+        heldRealm?.isTop ? "the top page" : "the frame's realm"
+      }, so the fileId / revision guards cannot be evaluated (${values})`,
+    };
+  }
+  if (held.fileId !== announce.documentId) {
+    return {
+      guard: "cur.fileId !== p.document_id (web/modules/shared/remote-version.ts:445)",
+      detail: `the frame holds fileId ${JSON.stringify(held.fileId)} (${held.envelope}), the announce names document_id ${JSON.stringify(
+        announce.documentId,
+      )}`,
+    };
+  }
+  const open = held.revisionOf;
+  if (open !== null && BigInt(announce.revision) <= BigInt(open)) {
+    return {
+      guard: "rev <= open (web/modules/shared/remote-version.ts:448)",
+      detail: `the frame already holds revision ${JSON.stringify(open)} (${held.envelope}) and the announce carries ${JSON.stringify(announce.revision)}`,
+    };
+  }
+  return {
+    guard: null,
+    detail: `no guard at the pin explains the drop from these measured values: the frame holds fileId ${JSON.stringify(
+      held.fileId,
+    )} at revision ${JSON.stringify(open)} (${held.envelope}), the announce is ${values} and reached ${where} from the parent window`,
+  };
+}
+
+/**
+ * The slack between the announce a frame RECEIVED (its `at` is taken in the frame's own realm,
+ * in the message listener) and the HTTP GET that announce causes (recorded in the driver's
+ * process, once the frame's `load` has crossed postMessage -> host -> `api.open`): the reload
+ * window opens this much before the announce so a same-hop round trip on a busy VM is not read
+ * as "the frame never fetched" (D5-01). It is far too small for a stale open (the boot open is
+ * minutes earlier) to sneak in.
+ */
+export const ANNOUNCE_OPEN_TOLERANCE_MS = 50;
+
+/**
+ * The recorded `office-frame` GETs at or after `sinceMs` (D5-01). The reload window is anchored at
+ * the ANNOUNCE's own timestamp, not at the instant the driver starts waiting: the frame reloads
+ * the moment the announce lands, and round 5's window began after the driver's poll noticed the
+ * announce — so a reload that had already happened was counted as "0 GET(s) after the announce".
+ */
+export function freshOpensAfter(opens, sinceMs) {
+  const floor = Number.isFinite(sinceMs) && sinceMs > 0 ? sinceMs - 1 : 0;
+  return (opens ?? []).filter((entry) => Number(entry?.at ?? 0) >= floor);
+}
+
+/**
+ * Whether the frame's own `office-frame` GET for the announced version has landed yet (D4-01/
+ * D5-01/BE-704-401). The window is anchored at `sinceMs` — the ANNOUNCE's own timestamp, with
+ * `ANNOUNCE_OPEN_TOLERANCE_MS` of slack — never at the instant the driver started waiting or the
+ * instant its click returned: a CLEAN frame reloads the moment the announce lands
+ * (`web/modules/shared/remote-version.ts:364-379` -> `load` l.286-300), so its GET can be recorded
+ * during the reload click and still be the reload. A GET recorded before the announce is a boot or
+ * stale open and is reported as such (`opensBefore`), never taken for the reload.
+ *
+ * The verdict carries the whole miss — how many of this document's GETs landed at/after the
+ * announce, what they answered, and how many landed before it and how long before — so a row can
+ * print what was measured instead of "no fresh open".
+ */
+export function evaluateReloadWindow(opens = [], { versionId = null, sinceMs = null, now = Date.now() } = {}) {
+  const floor = Number.isFinite(sinceMs) && sinceMs > 0 ? Math.min(sinceMs, now) : now;
+  const fresh = freshOpensAfter(opens, floor);
+  const hit = versionId === null ? fresh[0] ?? null : fresh.find((entry) => entry?.versionId === versionId) ?? null;
+  if (hit) return { reloaded: true, floor, hit, opensSeen: fresh.length, opensBefore: (opens ?? []).filter((entry) => Number(entry?.at ?? 0) < floor - 1).length, reason: "" };
+  const described = (entry) => {
+    if (entry?.versionId) return entry.versionId;
+    if (entry?.failed) return "the GET failed";
+    if (entry?.answered) return `a GET with no versionId (${entry?.status ?? "no status"})`;
+    return "a GET with no answer yet";
+  };
+  const seen = (fresh ?? [])
+    .slice(0, 4)
+    .map((entry) => `${described(entry)}${entry?.pathname ? ` @${entry.pathname}` : ""}`)
+    .join(", ");
+  const before = (opens ?? []).filter((entry) => Number(entry?.at ?? 0) < floor - 1);
+  const beforeSeen = before
+    .slice(-4)
+    .map((entry) => `${entry?.versionId ?? "no version id"} @${entry?.pathname ?? "no path"} (${Math.max(0, floor - Number(entry?.at ?? 0))} ms before the announce)`)
+    .join(", ");
+  return {
+    reloaded: false,
+    floor,
+    hit: null,
+    opensSeen: fresh.length,
+    opensBefore: before.length,
+    reason: `the web frame made no fresh office-frame open for ${versionId ?? "any version"} (${fresh.length} office-frame GET(s) of this document at/after the announce: ${
+      seen || "none"
+    }; ${before.length} of its GET(s) landed before the announce${beforeSeen ? `: ${beforeSeen}` : ""})`,
+  };
+}
+
+/**
+ * The frame's own S6 reload flow, SERIALIZED into the FRAME's document (D4-01/BE-704-402/406).
+ *
+ * A dirty frame (or one with an AI run live) shows its warn bar; its action is
+ * `section.uw-remote-bar button.uw-remote-link[data-action="reload"]`
+ * (`web/modules/shared/remote-bar.ts:118-124`, the bar `remote-version.ts:188-193` builds;
+ * the action calls `reloadFlow` -> the conflict dialog at its reload step,
+ * `web/modules/shared/conflict-dialog.ts:424-446`). That step offers `download` FIRST whenever the
+ * host can download (`choices.push({id:'download', …})` l.426-433, then `discard` at l.434-438), so
+ * a driver that clicks the first `[data-choice]` clicks DOWNLOAD: that starts a file delivery and
+ * never reloads. This flow clicks ONLY `button[data-choice="discard"]` — "Discard changes and
+ * reload" — and reports the choices it saw, so a step that never made the discard choice is a
+ * measured miss rather than a silent download.
+ *
+ * It clicks nothing else, waits at most `boundMs` for the dialog (a clean frame shows none: it
+ * reloads itself on the announce, and the caller then only waits for the fresh GET), and answers
+ * `clicked: false, bar: false` when this document carries no bar at all. It is self-contained (no
+ * module scope) because Playwright serializes only its own source.
+ */
+export async function driveFrameReloadFlow({ boundMs = 5_000, pollMs = 100 } = {}) {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const deadline = Date.now() + Math.max(0, Number(boundMs) || 0);
+  const barAction = 'section.uw-remote-bar button.uw-remote-link[data-action="reload"]';
+  const maskOf = () => document.querySelector('[data-office-web="conflict"]');
+  const choicesOf = () =>
+    [...((maskOf() ?? { querySelectorAll: () => [] }).querySelectorAll("button[data-choice]"))].map((el) => el.getAttribute("data-choice"));
+  const action = document.querySelector(barAction);
+  if (!action) {
+    return { clicked: false, bar: false, choseDiscard: false, reason: "no S6 reload action is up in the frame (a clean document reloads itself on the announce)" };
+  }
+  if (action.getAttribute("aria-disabled") === "true") {
+    return { clicked: false, bar: true, choseDiscard: false, reason: "the frame's S6 reload action is aria-disabled (the fork is still waiting on its own work)" };
+  }
+  const label = (action.textContent ?? "").trim();
+  action.click();
+  for (;;) {
+    const mask = maskOf();
+    const discard = mask ? mask.querySelector('button[data-choice="discard"]') : null;
+    if (discard) {
+      const choices = choicesOf();
+      if (discard.getAttribute("aria-disabled") === "true") {
+        return { clicked: true, bar: true, label, choices, choseDiscard: false, reason: 'the reload step\'s "discard" choice is aria-disabled' };
+      }
+      const confirmText = (discard.textContent ?? "").trim();
+      discard.click();
+      return { clicked: true, bar: true, label, choices, choseDiscard: true, confirmText };
+    }
+    if (Date.now() >= deadline) {
+      const choices = mask ? choicesOf() : null;
+      return {
+        clicked: true,
+        bar: true,
+        label,
+        choices,
+        choseDiscard: false,
+        reason: choices
+          ? `the reload step offers no "discard" choice (it offers: ${choices.join(", ") || "none"})`
+          : "the frame showed no reload confirm (its action reloads a clean document by itself)",
+      };
+    }
+    await sleep(pollMs);
+  }
+}
+
 /**
  * The web half on Playwright: signs the seeded account in at `/login`, opens
  * the document URL the D Inbox builds, waits for the Office frame host
@@ -875,27 +1298,56 @@ async function createPlaywrightWebCtrl({
   try {
     web = await webLogin(browser, user, { webOrigin, locale: "en", timeoutMs: stepTimeoutMs });
     await web.context.addInitScript(installFrameRecorder);
+    // Every GET of this document's office-frame route is recorded when it is ISSUED, and its
+    // answer filled in when it lands (D5-01). Two round-5 defects are answered here:
+    //   * a GET that never answers was invisible (the old record was pushed from the response
+    //     body only), so "0 office-frame GET(s)" could not be told from "one that hung";
+    //   * the reply's fields were read as `file.version_id` / `file.checksum_sha256`, but the
+    //     pinned wire `FileMeta` is CAMELCASE (`fileId`, `versionId`, `revision`, `etag` —
+    //     `web/docs/protocol/types.ts:326-346`), so every open this recorder saw was filed as
+    //     "no version id" and the announced-version match could never succeed.
+    const openEntryFor = (request) => {
+      if (request.method() !== "GET") return null;
+      const url = new URL(request.url());
+      if (!FRAME_DOC_GET_PATH.test(url.pathname) || !url.pathname.includes(documentId)) return null;
+      return { at: Date.now(), pathname: url.pathname, answered: false, failed: false, versionId: null, version: null, revision: null, checksum: null, fileId: null, etag: null };
+    };
+    const openEntries = new Map();
+    web.page.on("request", (request) => {
+      try {
+        const entry = openEntryFor(request);
+        if (!entry) return;
+        opens.push(entry);
+        openEntries.set(request, entry);
+      } catch {
+        // a malformed URL is not a frame open
+      }
+    });
+    web.page.on("requestfailed", (request) => {
+      const entry = openEntries.get(request);
+      if (entry) entry.failed = true;
+    });
     web.page.on("response", (response) => {
       try {
-        const url = new URL(response.url());
-        if (response.request().method() !== "GET" || !FRAME_DOC_GET_PATH.test(url.pathname)) return;
-        if (!url.pathname.includes(documentId)) return;
-        const at = Date.now();
-        const pathname = url.pathname;
+        const request = response.request();
+        const entry = openEntries.get(request) ?? openEntryFor(request);
+        if (!entry) return;
+        if (!openEntries.has(request)) opens.push(entry);
+        entry.status = response.status();
         response
           .json()
           .then((body) => {
-            opens.push({
-              at,
-              pathname,
-              versionId: body?.file?.version_id ?? null,
-              version: body?.file?.version ?? null,
-              checksum: body?.file?.checksum_sha256 ?? null,
-              revision: body?.revision ?? null,
-            });
+            const file = body?.file ?? null;
+            entry.answered = true;
+            entry.fileId = file?.fileId ?? null;
+            entry.versionId = file?.versionId ?? file?.version_id ?? null;
+            entry.version = file?.version ?? body?.version ?? null;
+            entry.revision = file?.revision ?? body?.revision ?? null;
+            entry.etag = file?.etag ?? null;
+            entry.checksum = file?.checksum_sha256 ?? null;
           })
           .catch(() => {
-            opens.push({ at, pathname, versionId: null, version: null, checksum: null, revision: null });
+            entry.answered = true;
           });
       } catch {
         // a malformed URL is not a frame open
@@ -928,20 +1380,14 @@ async function createPlaywrightWebCtrl({
     const hostReady = () => web.page.waitForSelector(sel.ready, { state: "visible", timeout: stepTimeoutMs }).then(() => true).catch(() => false);
 
     /**
-     * What every document of this page received (D3-01). A document whose recorder
-     * never ran, or a frame that went away mid-read, reports `messages: null` — a
-     * measured fact the miss reason counts rather than hides.
+     * What every document of this page received (D3-01), off ONE step budget (BE-704-405). A
+     * document whose recorder never ran, a frame that went away mid-read, or a read that was never
+     * started because the budget was spent reports `messages: null` with its own `readError` — a
+     * measured fact the miss reason counts rather than hides. The reads are concurrent (one bound
+     * for N frames) and share `deadlineMs`, which the poll passes down from its own budget.
      */
-    const frameReports = async () => {
-      const reports = [];
-      for (const frame of web.page.frames()) {
-        // every read is bounded on its own (BE-704-304), so a hung renderer costs
-        // at most one read bound and then counts against the poll's step bound
-        const read = await evalFrameBounded(frame, readFrameMessages, { timeoutMs: Math.min(stepTimeoutMs, FRAME_READ_TIMEOUT_MS) });
-        reports.push({ url: frame.url(), messages: read.ok && Array.isArray(read.value) ? read.value : null, readError: read.ok ? "" : read.error });
-      }
-      return reports;
-    };
+    const frameReports = async ({ deadlineMs = Date.now() + stepTimeoutMs, read = readFrameMessages } = {}) =>
+      readFrameReports({ frames: web.page.frames(), read, deadlineMs, perReadTimeoutMs: FRAME_READ_TIMEOUT_MS });
 
     const editFrame = async (marker) => {
       const frame = web.page.frameLocator(sel.iframe);
@@ -1001,50 +1447,72 @@ async function createPlaywrightWebCtrl({
           revision: saved.revision ?? null,
         };
       },
-      async announcements({ sinceMs = 0 } = {}) {
-        // every document's recorder is read: the host posts to the frame's window (D3-01)
-        return summarizeFrameRecordings(await frameReports(), sinceMs).announcements;
+      async announcements({ sinceMs = 0, deadlineMs = Date.now() + stepTimeoutMs } = {}) {
+        // every document's recorder is read: the host posts to the frame's window (D3-01), off the
+        // poll's OWN remaining budget so N frames can never overrun it (BE-704-405)
+        return summarizeFrameRecordings(await frameReports({ deadlineMs }), sinceMs).announcements;
       },
       /** The same merge with the shape of what was read, for a miss's reason (D3-01). */
-      async frameAudit() {
-        return summarizeFrameRecordings(await frameReports(), 0);
+      async frameAudit({ deadlineMs = Date.now() + stepTimeoutMs } = {}) {
+        return summarizeFrameRecordings(await frameReports({ deadlineMs }), 0);
       },
-      async waitForReload({ versionId, timeoutMs = stepTimeoutMs }) {
-        const startedAt = Date.now();
+      /**
+       * The fresh `office-frame` open of the announced version. The window is anchored at the
+       * ANNOUNCE's own timestamp (`sinceMs`, the recorder's `at` in the frame's realm), never at
+       * the instant this call starts (D5-01) nor at the instant the reload click returned
+       * (BE-704-401): a CLEAN frame reloads the moment the announce lands, so its GET can be
+       * recorded before the click returns and is still the reload.
+       */
+      async waitForReload({ versionId, sinceMs = null, timeoutMs = stepTimeoutMs }) {
         const settled = await pollUntil(
-          async () => opens.filter((o) => o.at >= startedAt - 1),
-          (list) => list.some((o) => o.versionId === versionId),
+          async () => evaluateReloadWindow(opens, { versionId, sinceMs }),
+          (verdict) => verdict.reloaded,
           { boundMs: timeoutMs, intervalMs: pollMs },
         );
-        const fresh = settled.value ?? [];
-        const hit = fresh.find((o) => o.versionId === versionId) ?? null;
-        if (!hit) {
-          // What the frame actually fetched, measured (D4-01): the old reason said only
-          // "no fresh open", which read the same whether the frame never fetched, fetched
-          // another route, or fetched another version.
-          const seen = fresh
-            .slice(0, 4)
-            .map((o) => `${o.versionId ?? "no version id"}${o.pathname ? ` @${o.pathname}` : ""}`)
-            .join(", ");
+        const verdict = settled.value ?? evaluateReloadWindow(opens, { versionId, sinceMs });
+        if (!verdict.reloaded) {
           return {
             reloaded: false,
             elapsedMs: settled.elapsedMs,
-            opensSeen: fresh.length,
-            reason: `the web frame made no fresh office-frame open for ${versionId} within ${timeoutMs} ms (${fresh.length} office-frame GET(s) of this document after the announce: ${seen || "none"})`,
+            opensSeen: verdict.opensSeen,
+            opensBefore: verdict.opensBefore,
+            reason: `${verdict.reason} within ${timeoutMs} ms`,
           };
         }
+        const hit = verdict.hit;
         return { reloaded: true, versionId: hit.versionId, version: hit.version, checksum: hit.checksum, revision: hit.revision, elapsedMs: settled.elapsedMs };
       },
       /**
-       * The frame's OWN S6 reload action (D4-01). At the fork pin a CLEAN frame reloads
+       * What the frame itself held and heard, measured in its own realm (D5-01): the announce
+       * envelope with the JS type of every field, the realm that received it, the frame's held
+       * file (`host open` push / `api.open` / `api.save`), and which of the pin's guards those
+       * values fail. The guard is NAMED from the measurement — never assumed.
+       */
+      async frameEvidence({ versionId = null, deadlineMs = Date.now() + stepTimeoutMs } = {}) {
+        const state = frameRemoteState(await frameReports({ deadlineMs }), { versionId });
+        return {
+          ...state,
+          verdict: announceGuardVerdict({
+            announce: state.announce,
+            held: state.held,
+            announceRealm: state.announceRealm,
+            heldRealm: state.heldRealm,
+          }),
+        };
+      },
+      /**
+       * The frame's OWN S6 reload action (D4-01/BE-704-402). At the fork pin a CLEAN frame reloads
        * itself on the announce (`web/modules/shared/remote-version.ts:364-379` `evaluate`
-       * -> `load` l.286-300), but a DIRTY frame (or one with an AI run live) only shows the
-       * warn bar; its "Reload latest…" ({@link ../remote-version.ts} l.210-228 -> `reloadFlow`
+       * -> `load` l.286-300), but a DIRTY frame (or one with an AI run live) only shows the warn
+       * bar: its "Reload latest…" ({@link ../remote-version.ts} l.210-228 -> `reloadFlow`
        * l.400-430) opens the conflict dialog's Reload step, whose control is
        * `button[data-choice="discard"]` ("Discard changes and reload",
-       * `conflict-dialog.ts:417-446`). The web frame is an IFRAME, so the click goes to the
-       * frame's own document — `page.click` on the top page never reaches it.
+       * `conflict-dialog.ts:417-446`) — NEVER `download`, which the same step offers FIRST and
+       * which starts a file delivery instead of reloading. The web frame is an IFRAME, so the
+       * whole flow runs INSIDE it (`driveFrameReloadFlow`, serialized into the frame's document).
        *
+       * This call only DRIVES the fork: it never claims the reload happened. The caller waits for
+       * the fresh open of the announced version id, and that GET is what confirms (BE-704-402).
        * Nothing to click (a clean frame that reloads itself) is not a failure: it answers
        * `clicked: false` with that reason, and the caller waits for the open either way.
        */
@@ -1053,52 +1521,35 @@ async function createPlaywrightWebCtrl({
         // REVISION, not a version id (`uwRemoteNewerDirty` `{n}`), so the control is found by its
         // own action, and the argument is only carried into the record.
         void versionId;
-        const barAction = 'section.uw-remote-bar button.uw-remote-link[data-action="reload"]';
-        const confirmChoice = '[data-office-web="conflict"] button[data-choice="discard"], [data-office-web="conflict"] button[data-choice="download"]';
-        const clickTimeout = Math.min(stepTimeoutMs, 5000);
+        const clickTimeout = Math.min(stepTimeoutMs, 5_000);
         for (const frame of web.page.frames()) {
           if (frame === web.page.mainFrame()) continue;
-          const action = frame.locator(barAction);
-          const count = await action.count().catch(() => 0);
-          if (count === 0) continue;
-          let label = "";
-          try {
-            label = ((await action.first().textContent()) ?? "").trim();
-            await action.first().click({ timeout: clickTimeout });
-          } catch (err) {
-            return { clicked: false, frame: editorKindOfUrl(frame.url()) ?? "frame", reason: `the frame's S6 reload action could not be clicked: ${err.message}` };
+          const read = await evalFrameBounded(frame, driveFrameReloadFlow, {
+            timeoutMs: clickTimeout + 500,
+            arg: { boundMs: clickTimeout, pollMs },
+          });
+          if (!read.ok) {
+            return { clicked: false, bar: false, frame: editorKindOfUrl(frame.url()) ?? "frame", reason: `the frame's S6 reload flow could not be driven: ${read.error}` };
           }
-          // the bar's Reload confirm renders a tick after the click, so WAIT for it instead of
-          // reading once: leaving it up would keep the frame on the old version with nobody
-          // waiting for it (the dialog's `discard` is what actually discards and reloads)
-          const confirmDeadline = Date.now() + Math.min(stepTimeoutMs, 5000);
-          for (;;) {
-            const confirm = frame.locator(confirmChoice);
-            if ((await confirm.count().catch(() => 0)) > 0) {
-              try {
-                await confirm.first().click({ timeout: clickTimeout });
-                return { clicked: true, confirmed: true, frame: editorKindOfUrl(frame.url()) ?? "frame", label, confirmText: ((await confirm.first().textContent()) ?? "").trim() };
-              } catch (err) {
-                return { clicked: true, confirmed: false, frame: editorKindOfUrl(frame.url()) ?? "frame", label, reason: `the frame's Reload confirm could not be clicked: ${err.message}` };
-              }
-            }
-            if (Date.now() >= confirmDeadline) break;
-            await sleep(Math.min(pollMs, 250));
-          }
-          // no confirm: the bar's action reloaded by itself (the frame was not dirty)
-          return { clicked: true, confirmed: false, frame: editorKindOfUrl(frame.url()) ?? "frame", label, reason: "the frame showed no Reload confirm (its action reloads a clean document by itself)" };
+          const { bar: carriesBar, ...flow } = read.value ?? {};
+          // no bar in THIS document (a clean frame reloads itself): another frame may carry it
+          if (carriesBar !== true) continue;
+          return { ...flow, frame: editorKindOfUrl(frame.url()) ?? "frame" };
         }
-        return { clicked: false, reason: "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)" };
+        return { clicked: false, bar: false, reason: "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)" };
       },
       /** What each document showed when the reload did not happen (D4-01), read where it lives. */
-      async frameSurface() {
-        const reports = [];
-        // the docs host element is on the TOP page, the bar and the dialog are inside the frame
-        const host = await evalFrameBounded(web.page, readFrameHostState, { timeoutMs: Math.min(stepTimeoutMs, FRAME_READ_TIMEOUT_MS) });
-        reports.push({ url: web.page.url(), host: host.ok ? host.value : null, surface: null, error: host.ok ? "" : host.error });
-        for (const frame of web.page.frames()) {
-          const read = await evalFrameBounded(frame, readFrameRemoteSurface, { timeoutMs: Math.min(stepTimeoutMs, FRAME_READ_TIMEOUT_MS) });
-          reports.push({ url: frame.url(), host: null, surface: read.ok ? read.value : null, error: read.ok ? "" : read.error });
+      async frameSurface({ deadlineMs = Date.now() + stepTimeoutMs } = {}) {
+        // the docs host element is on the TOP page, the bar and the dialog are inside the frame;
+        // the frames' own reads share one budget and run concurrently (BE-704-405)
+        const hostBudget = Math.min(FRAME_READ_TIMEOUT_MS, deadlineMs - Date.now());
+        const hostRead =
+          hostBudget > 0
+            ? await evalFrameBounded(web.page, readFrameHostState, { timeoutMs: hostBudget })
+            : { ok: false, error: FRAME_READ_NO_BUDGET };
+        const reports = [{ url: web.page.url(), host: hostRead.ok ? hostRead.value : null, surface: null, error: hostRead.ok ? "" : hostRead.error }];
+        for (const report of await frameReports({ deadlineMs, read: readFrameRemoteSurface })) {
+          reports.push({ url: report.url, host: null, surface: report.value, error: report.readError });
         }
         return reports;
       },
@@ -1149,6 +1600,103 @@ export async function signOutPreviousSession(aiOffice) {
   // sends (`account-model.ts:443`) and what `harness/app.mjs` sends for its own logout.
   await aiOffice("accountLogout", { confirmed: true });
   return { signedOut: true, state: status.state };
+}
+
+/**
+ * The app's own S6 reload flow, SERIALIZED into the editor page (D4-02/BE-704-406). The fork's
+ * reload is a FLOW, not one click, and it is all in this page:
+ *
+ *   1. the bar's own action — `div.uw-remote-bar button.uw-remote-action[data-action="reload"]`
+ *      (`UniworkChrome.tsx:1085-1113`, label `uwRemoteReload`) — calls
+ *      `aiOffice.uniworkRemoteAction(path, 'reload')` (`UniworkChrome.tsx:582`); a page that has
+ *      not been re-rendered by this fork keeps a text-matched fallback;
+ *   2. the main process opens the conflict dialog for the stored notice
+ *      (`service.ts:3860-3874`), whose step 1 offers "Reload latest"
+ *      (`button[data-conflict-action="reload"]`, `UniworkConflictDialog.tsx:573-577`);
+ *   3. its reload step asks what happens to the local edits — "Keep my version as a draft" /
+ *      "Discard my changes" (`input[type="radio"][value="discard"]`, l.519-535) — and the confirm
+ *      refuses while no choice is made (`canSubmit = selectedKeep === 'discard' || (selectedKeep
+ *      === 'draft' && keepOk)`, `uniwork-conflict-model.ts:326`);
+ *   4. the confirm is `button[data-conflict-action="reload-go"]` (l.624-642), rendered
+ *      `aria-disabled="true"` until that choice is made.
+ *
+ * The old driver clicked one text-matched button and never made the choice, so the confirm stayed
+ * disabled and the app kept the old version (cloud D4's `app-reload` FAIL). This returns the
+ * steps it walked (`bar`, `step1`, `choseDiscard`), the `aria-disabled` text that refused, and
+ * whether the confirm was actually clicked (`confirmed`) — so a row can FAIL on the confirmation
+ * instead of on a settle timeout (BE-704-403). It is self-contained (no module scope) because
+ * Playwright serializes only its own source.
+ */
+export async function driveAppConflictReloadFlow(boundMs = 8_000) {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const dialog = () => document.querySelector('[role="alertdialog"]');
+  const steps = { bar: false, step1: false, choseDiscard: false, disabled: "" };
+  const deadline = Date.now() + Math.max(0, Number(boundMs) || 0);
+  for (;;) {
+    if (!steps.bar) {
+      const el =
+        document.querySelector('div.uw-remote-bar button.uw-remote-action[data-action="reload"]') ??
+        [...document.querySelectorAll("button,a,[role='button']")].find(
+          (button) =>
+            !button.closest('[role="alertdialog"]') &&
+            /(Tải lại bản mới nhất|Reload latest)/i.test((button.textContent ?? "").trim()),
+        );
+      if (el) {
+        if (el.getAttribute("aria-disabled") === "true") {
+          return { ...steps, clicked: false, confirmed: false, reason: "the S6 bar's reload action is aria-disabled (the fork is still waiting on its own save)" };
+        }
+        el.click();
+        steps.bar = true;
+        await sleep(150);
+        continue;
+      }
+    }
+    if (steps.bar && !steps.step1) {
+      const step1 = dialog()?.querySelector('button[data-conflict-action="reload"]');
+      if (step1) {
+        if (step1.getAttribute("aria-disabled") === "true") {
+          return { ...steps, clicked: true, confirmed: false, reason: `the conflict dialog's "Reload latest" is aria-disabled (${(step1.textContent ?? "").trim()})` };
+        }
+        step1.click();
+        steps.step1 = true;
+        await sleep(150);
+        continue;
+      }
+    }
+    if (steps.bar && !steps.choseDiscard) {
+      const radio = dialog()?.querySelector('input[type="radio"][value="discard"]');
+      if (radio) {
+        if (!radio.checked) radio.click();
+        steps.choseDiscard = Boolean(radio.checked);
+        await sleep(100);
+        continue;
+      }
+    }
+    if (steps.bar) {
+      const go = dialog()?.querySelector('button[data-conflict-action="reload-go"]');
+      if (go) {
+        if (go.getAttribute("aria-disabled") === "true") {
+          steps.disabled = (go.textContent ?? "").trim();
+        } else {
+          go.click();
+          return { ...steps, clicked: true, confirmed: true, confirmText: (go.textContent ?? "").trim() };
+        }
+      }
+    }
+    if (Date.now() >= deadline) {
+      return {
+        ...steps,
+        clicked: steps.bar,
+        confirmed: false,
+        reason: steps.disabled
+          ? `the reload confirm "${steps.disabled}" stayed disabled after the keep choice`
+          : steps.bar
+            ? "the conflict dialog's reload step never appeared"
+            : "the S6 bar's reload action was never found",
+      };
+    }
+    await sleep(200);
+  }
 }
 
 /**
@@ -1347,98 +1895,15 @@ async function createCdpAppCtrl({
     async clickReload({ version = null } = {}) {
       const { page, probe, probeErrors } = await findRemoteNewerPage(version);
       if (!page) return { clicked: false, reason: remoteNewerMissReason(version, probeErrors) };
-      // The fork's S6 reload is a FLOW, not one click, and it is all in this page (D4-02):
-      //   1. the bar's own action — `div.uw-remote-bar button.uw-remote-action[data-action="reload"]`
-      //      (`UniworkChrome.tsx:1093-1113`, label `uwRemoteReload`) — calls
-      //      `aiOffice.uniworkRemoteAction(path, 'reload')` (`UniworkChrome.tsx:582`);
-      //   2. the main process opens the conflict dialog for the stored notice
-      //      (`service.ts:3860-3874`), whose step 1 offers "Reload latest"
-      //      (`button[data-conflict-action="reload"]`, `UniworkConflictDialog.tsx:572-577`);
-      //   3. its reload step asks what happens to the local edits — "Keep my version as a draft"
-      //      / "Discard my changes" (`input[type="radio"][value="discard"]`, l.519-535) — and the
-      //      confirm refuses while no choice is made (`canSubmit = selectedKeep === 'discard' ||
-      //      (selectedKeep === 'draft' && keepOk)`, `uniwork-conflict-model.ts:326`);
-      //   4. the confirm is `button[data-conflict-action="reload-go"]` (l.624-642).
-      // The old driver clicked one text-matched button and never made the choice, so the confirm
-      // stayed disabled and the app kept v2 (cloud D4's `app-reload` FAIL).
+      // The fork's S6 reload is a FLOW, not one click (D4-02): see
+      // `driveAppConflictReloadFlow` for the pin's own steps — the bar's action,
+      // the dialog's "Reload latest", the "Discard my changes" radio and the
+      // confirm that stays `aria-disabled` until that choice is made
+      // (`uniwork-conflict-model.ts:326`). The flow is a serialized page function
+      // so the page-side markup is testable against a fake DOM (BE-704-406).
       const boundMs = Math.min(stepTimeoutMs, 8000);
       const flow = await ctrl
-        .evalBounded(
-          page,
-          async (bound) => {
-            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            const dialog = () => document.querySelector('[role="alertdialog"]');
-            const steps = { bar: false, step1: false, choseDiscard: false, disabled: "" };
-            const deadline = Date.now() + bound;
-            for (;;) {
-              if (!steps.bar) {
-                const el =
-                  document.querySelector('div.uw-remote-bar button.uw-remote-action[data-action="reload"]') ??
-                  [...document.querySelectorAll("button,a,[role='button']")].find(
-                    (button) =>
-                      !button.closest('[role="alertdialog"]') &&
-                      /(Tải lại bản mới nhất|Reload latest)/i.test((button.textContent ?? "").trim()),
-                  );
-                if (el) {
-                  if (el.getAttribute("aria-disabled") === "true") {
-                    return { ...steps, clicked: false, reason: "the S6 bar's reload action is aria-disabled (the fork is still waiting on its own save)" };
-                  }
-                  el.click();
-                  steps.bar = true;
-                  await sleep(150);
-                  continue;
-                }
-              }
-              if (steps.bar && !steps.step1) {
-                const step1 = dialog()?.querySelector('button[data-conflict-action="reload"]');
-                if (step1) {
-                  if (step1.getAttribute("aria-disabled") === "true") {
-                    return { ...steps, clicked: true, reason: `the conflict dialog's "Reload latest" is aria-disabled (${(step1.textContent ?? "").trim()})` };
-                  }
-                  step1.click();
-                  steps.step1 = true;
-                  await sleep(150);
-                  continue;
-                }
-              }
-              if (steps.bar && !steps.choseDiscard) {
-                const radio = dialog()?.querySelector('input[type="radio"][value="discard"]');
-                if (radio) {
-                  if (!radio.checked) radio.click();
-                  steps.choseDiscard = Boolean(radio.checked);
-                  await sleep(100);
-                  continue;
-                }
-              }
-              if (steps.bar) {
-                const go = dialog()?.querySelector('button[data-conflict-action="reload-go"]');
-                if (go) {
-                  if (go.getAttribute("aria-disabled") === "true") {
-                    steps.disabled = (go.textContent ?? "").trim();
-                  } else {
-                    go.click();
-                    return { ...steps, clicked: true, confirmed: true, confirmText: (go.textContent ?? "").trim() };
-                  }
-                }
-              }
-              if (Date.now() >= deadline) {
-                return {
-                  ...steps,
-                  clicked: steps.bar,
-                  confirmed: false,
-                  reason: steps.disabled
-                    ? `the reload confirm "${steps.disabled}" stayed disabled after the keep choice`
-                    : steps.bar
-                      ? "the conflict dialog's reload step never appeared"
-                      : "the S6 bar's reload action was never found",
-                };
-              }
-              await sleep(200);
-            }
-          },
-          boundMs,
-          "click:remoteNewerReloadFlow",
-        )
+        .evalBounded(page, driveAppConflictReloadFlow, boundMs, "click:remoteNewerReloadFlow")
         .catch((err) => {
           if (err?.isAppStepTimeout) throw err;
           return { clicked: false, reason: err.message };
@@ -1918,11 +2383,29 @@ export async function runCrossHostRow({
 
       // --- discard/reload the dirty edit to continue ------------------------
       const appReload = await runStep("app-reload", "app-ui", async () => {
+        // the dirty checksum just BEFORE the click (BE-704-403): the discard is only a measured
+        // transition from these bytes, so record them before the fork can replace the copy
+        const before = wc0();
         // the bar must name the version the web just saved (BE-704-303); the click then drives
         // the fork's own reload path, keep choice and confirm included (D4-02)
         const clicked = await app.clickReload({ version: record.versionCounts.afterWebSave2 });
         if (!clicked?.clicked) {
           return { status: "BLOCKED", blocker: `the S6 reload action could not be driven: ${clicked?.reason ?? "unknown"}`, owner: BLOCKED_OWNER };
+        }
+        // The discard is only ACCEPTED with the confirmation the fork requires: the reload step's
+        // confirm refuses until the keep choice is made (`canSubmit = selectedKeep === 'discard'
+        // || …`, uniwork-conflict-model.ts:326). A copy that reaches the web Save's bytes without
+        // that confirmation (a stray reload, another sync path) must not PASS this row (BE-704-403).
+        if (clicked.confirmed !== true || clicked.choseDiscard !== true) {
+          const wc = wc0();
+          return {
+            status: "FAIL",
+            reason: `the app's reload was not confirmed with the discard choice (confirmed=${clicked.confirmed === true}, choseDiscard=${clicked.choseDiscard === true}); the fork answered: ${
+              clicked.confirmReason || clicked.reason || "no confirm answer"
+            }; the dirty working copy before the click was ${digestForReason(before?.sha256)} (binding v${
+              before?.binding?.baseVersion ?? "none"
+            }) and is now ${digestForReason(wc?.sha256)} (binding v${wc?.binding?.baseVersion ?? "none"})`,
+          };
         }
         const settled = await pollUntil(
           async () => app.workingCopy(),
@@ -1942,9 +2425,11 @@ export async function runCrossHostRow({
         }
         record.details.appReload = {
           clicked: true,
-          confirmed: clicked.confirmed === true,
+          confirmed: true,
+          choseDiscard: true,
           confirmText: clicked.confirmText ?? "",
-          choseDiscard: clicked.choseDiscard === true,
+          dirtyShaBeforeClick: before?.sha256 ?? "",
+          baseVersionBeforeClick: Number(before?.binding?.baseVersion ?? 0),
         };
         return { versionId: settled.value.binding.baseVersionId, version: record.versionCounts.afterWebSave2 };
       });
@@ -1985,7 +2470,7 @@ export async function runCrossHostRow({
       // offline binding is there, THEN assert the split held. Reading once raced
       // the app's own Save and failed all four rows of D2-01 in 986-1521 ms.
       const held = await pollUntil(
-        async () => readAppSaveReceipt(app, intentBaseline),
+        async () => readAppSaveReceipt(app, intentBaseline, { documentId }),
         (receipt) => receipt.newIntentFiles > 0 || OFFLINE_SAVE_STATES.includes(receipt.state),
         { boundMs: stepTimeout, intervalMs: pollMs },
       );
@@ -1996,9 +2481,11 @@ export async function runCrossHostRow({
       if (!held.ok) {
         // the state in quotes: `state=<value>` is redacted as a credential by
         // `redactSignInError`'s key/value rule, and the observed value is the
-        // point of this message
+        // point of this message. `documentIntents` is THIS document's own count
+        // (BE-704-404): a new `.rec` of another open document moves `intents`
+        // but never the document's own record.
         problems.push(
-          `the app held no NEW save intent and no offline state for the offline Save within ${stepTimeout} ms (intents=${receipt.intentFiles}, newIntents=${receipt.newIntentFiles}, binding state "${receipt.state}", baseVersion=${receipt.baseVersion})`,
+          `the app held no NEW save intent and no offline state for document ${documentId} (record ${receipt.documentRecord ? digestForReason(receipt.documentRecord) : "none"}) within ${stepTimeout} ms (intents=${receipt.intentFiles}, documentIntents=${receipt.documentIntentFiles}, newIntents=${receipt.newIntentFiles}, binding state "${receipt.state}", baseVersion=${receipt.baseVersion})`,
         );
       }
       if (versions !== baseVersion) problems.push(`the server created a version while the app was offline (${versions}, want ${baseVersion})`);
@@ -2006,7 +2493,13 @@ export async function runCrossHostRow({
       if (problems.length > 0) return { status: "FAIL", reason: problems.join("; ") };
       record.versionCounts.whileCut = versions;
       record.details.offlineEdit = { source: uiEdit ? "app-ui" : "harness-working-copy-write", plan: dirty?.plan ?? "" };
-      return { editSource: uiEdit ? "app-ui" : "harness-working-copy-write", intentFiles: receipt.intentFiles, newIntentFiles: receipt.newIntentFiles, versionsWhileCut: versions };
+      return {
+        editSource: uiEdit ? "app-ui" : "harness-working-copy-write",
+        intentFiles: receipt.intentFiles,
+        documentIntentFiles: receipt.documentIntentFiles,
+        newIntentFiles: receipt.newIntentFiles,
+        versionsWhileCut: versions,
+      };
     });
     if (aborts("app-offline-save")) return;
 
@@ -2048,7 +2541,9 @@ export async function runCrossHostRow({
       const reconnectVersionId = record.versionIds[`v${record.versionCounts.afterReconnect}`];
       const since = (record.details.webSaveAt ?? 0) - 1;
       const announced = await pollUntil(
-        async () => web.announcements({ sinceMs: Math.max(0, since) }),
+        // the poll passes its OWN remaining budget down to the frame reads (BE-704-405), so N
+        // frames read on one wave can never overrun this poll's bound
+        async (deadlineMs) => web.announcements({ sinceMs: Math.max(0, since), deadlineMs }),
         (list) => Array.isArray(list) && list.some((m) => m.versionId === reconnectVersionId),
         { boundMs: stepTimeout, intervalMs: pollMs },
       );
@@ -2073,7 +2568,17 @@ export async function runCrossHostRow({
         typeof web.clickReload === "function"
           ? await web.clickReload({ versionId: reconnectVersionId }).catch((err) => ({ clicked: false, reason: err.message }))
           : null;
-      const reload = await web.waitForReload({ versionId: reconnectVersionId, timeoutMs: stepTimeout });
+      // The window opens at the ANNOUNCE's own timestamp, not at this instant (D5-01) and not at
+      // the instant the click returned (BE-704-401): a clean frame reloads as soon as the announce
+      // lands, so its GET can be recorded while the click is still in flight and is still the reload.
+      const reload = await web.waitForReload({
+        versionId: reconnectVersionId,
+        sinceMs: Math.max(0, Number(match.at ?? 0) - ANNOUNCE_OPEN_TOLERANCE_MS),
+        timeoutMs: stepTimeout,
+      });
+      // BE-704-402: the fresh open of the ANNOUNCED version id is what confirms the reload — the
+      // click itself never claims it (`clickReload` only drives the fork's own discard choice).
+      const confirmed = reload?.reloaded === true && reload.versionId === reconnectVersionId;
       if (!reload?.reloaded) {
         // what the frame SHOWED, measured: the bar it left un-clicked, the dialog waiting
         const surface = typeof web.frameSurface === "function" ? await web.frameSurface().catch(() => null) : null;
@@ -2090,12 +2595,56 @@ export async function runCrossHostRow({
             }`;
           })
           .join("; ");
+        // What the frame HELD and HEARD, measured in its own realm (D5-01), and which of the
+        // pin's guards those values fail. Round 5 asserted "the frame's own guard needs a
+        // DECIMAL revision" without measuring anything; the announce's own JS type is recorded
+        // now, so the reason names only what the values prove.
+        const evidence = typeof web.frameEvidence === "function" ? await web.frameEvidence({ versionId: reconnectVersionId }).catch(() => null) : null;
+        const verdict = evidence?.verdict ?? null;
+        const realm = evidence?.announceRealm
+          ? `received in ${evidence.announceRealm.isTop ? "the TOP page" : "a frame"}`
+          : "recorded in no document";
+        const held = evidence?.held
+          ? `the frame holds fileId ${evidence.held.fileId} at revision ${JSON.stringify(evidence.held.revisionOf ?? null)} (${evidence.held.envelope})`
+          : "the frame's held file was not measured";
+        const verdictText = verdict
+          ? verdict.guard
+            ? `dropped by ${verdict.guard} — ${verdict.detail}`
+            : verdict.detail
+          : "the frame's own realm was not read";
+        if (evidence) {
+          record.details.webSeesMiss = {
+            announced: match,
+            reloadClick,
+            announceRealm: evidence.announceRealm,
+            announceTypes: evidence.announce
+              ? {
+                  document_id: evidence.announce.documentIdType,
+                  revision: evidence.announce.revisionType,
+                  version_id: evidence.announce.versionIdType,
+                  saved_at: evidence.announce.savedAtType,
+                }
+              : null,
+            held: evidence.held,
+            verdict,
+            documents: evidence.documents,
+            opens: { seen: reload?.opensSeen ?? 0, beforeTheAnnounce: reload?.opensBefore ?? 0 },
+          };
+        } else {
+          record.details.webSeesMiss = { announced: match, reloadClick, opens: { seen: reload?.opensSeen ?? 0, beforeTheAnnounce: reload?.opensBefore ?? 0 } };
+        }
         return {
           status: "FAIL",
           reason: `the web frame did not reload the announced version: ${reload?.reason ?? "no reload"} (announced version_id ${match.versionId} revision ${
             match.revision ?? "none"
-          } — the frame's own guard needs a DECIMAL revision; S6 reload click: ${
-            reloadClick?.clicked ? `clicked "${reloadClick.label ?? ""}" in the ${reloadClick.frame} frame` : reloadClick?.reason ?? "not attempted"
+          }${match.revisionType ? ` as ${match.revisionType}` : ""}, ${realm}; ${held}; the guard the measured values fail: ${verdictText}; S6 reload click: ${
+            reloadClick?.clicked
+              ? `clicked "${reloadClick.label ?? ""}" in the ${reloadClick.frame} frame${
+                  reloadClick.choseDiscard === true
+                    ? " and made the discard choice"
+                    : ` but never made the discard choice (${reloadClick.reason ?? "no confirm"})`
+                }`
+              : reloadClick?.reason ?? "not attempted"
           }${shown ? `; frame surface: ${shown}` : ""})`,
         };
       }
@@ -2109,8 +2658,11 @@ export async function runCrossHostRow({
       record.checksums.webContent = head.sha256;
       record.details.webSees = {
         announced: match,
+        reloadWindowFrom: Math.max(0, Number(match.at ?? 0) - ANNOUNCE_OPEN_TOLERANCE_MS),
         reloadClick,
         reload: { versionId: reload.versionId, version: reload.version },
+        // the confirmation is the fresh open of the ANNOUNCED version id (BE-704-402), never the click
+        confirmed,
         webContentSha256: head.sha256,
       };
       return { versionId: reload.versionId, announcedVersionId: match.versionId, webContentSha256: head.sha256 };

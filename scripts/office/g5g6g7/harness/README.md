@@ -491,14 +491,32 @@ the top page alone can never see it (D3-01) — and a miss reports what was read
 how many documents the page had, how many carried the recorder, which protocol
 envelopes the run saw at all, and how many frame reads FAILED (each frame read has
 its own timeout, BE-704-304: `evalFrameBounded`, so a hung renderer is a measured
-miss inside the step bound, never a hang); `G7-A01.3` the offline Save holds a NEW
-intent with zero server versions (the step polls for the app's own receipt — a
-`.rec` intent file that was NOT there before the Save, or an `offline`/
-`paused_offline` binding — within the step bound, because the fork writes it only
-after the module's own Save lands, so a read straight after `aiOffice.uniworkSave`
-can still be empty). An intent a previous parked row left behind does not count
-(BE-704-302), and a miss reports `intents`/`newIntents`, the binding state and the
-base version it measured; `G7-A01.5` the AI
+miss inside the step bound, never a hang). Those reads now share the step's own
+budget (BE-704-405, `readFrameReports`): the frames of one page are read in ONE
+concurrent wave, each read takes the smaller of its 10 s bound and what is left of
+the poll's deadline (the poll hands its deadline down), a read is NOT started once
+no budget remains — that frame is reported with
+`the frame read was not started: the step's remaining budget was 0 ms` instead of
+reading as a document without a recorder — and every frame keeps its own
+`readError`. N sequential 10 s reads can no longer pin a step past its bound;
+`G7-A01.3` the offline Save holds a NEW intent **for this document**, with zero
+server versions. The step polls the app's own receipt — an intent record the fork
+writes only after its module's own Save lands, so a read straight after
+`aiOffice.uniworkSave` can still be empty — and the record it accepts must be THIS
+document's: the durable store names one record per intent KEY,
+`recordFileName(key) = sha256(key) + ".rec"` (`uniwork-sync/store/paths.ts`), and
+the intent key is the working-copy folder segment, which the docs service builds
+with the document id (`uniwork-docs/service.ts` `dirFor(…, documentId)`;
+`save-coordinator.ts` `intents.put(doc.key, …)`). The record's own meta names the
+document too (`IntentRecordV2.documentId`), but it is sealed AES-256-GCM on disk
+(`uniwork-sync/store/codec.ts`, key wrapped by safeStorage), so the driver cannot
+read that field: the record NAME is the document identity it checks, and this
+document's own `offline` / `paused_offline` binding state is the second, per-document
+half of the receipt. A new `.rec` of ANOTHER open document of the same user
+therefore never satisfies the row (`intents` moves, `documentIntents` does not), an
+intent a previous parked row left behind never counts (BE-704-302), and a miss
+reports `intents`, `documentIntents`, `newIntents`, the binding state and the base
+version it measured; `G7-A01.5` the AI
 turn creates zero versions and the Save after it exactly one (polled the same way,
 until the server head and the app binding agree); a timeout there names both
 measured checksums beside the versions (BE-704-305), grouped with a `.` so the
@@ -508,14 +526,58 @@ agree and the tally is one version per user Save.
 The web reload is DRIVEN, not only awaited (D4-01). At the fork pin a CLEAN frame
 reloads itself on the announce, but a dirty frame (or one with an AI run live) only
 shows its own warn bar: the driver finds that bar's reload control INSIDE the frame
-(`section.uw-remote-bar button[data-action="reload"]`, the frame is an iframe and
-the top page never carries it) and, if the bar's Reload confirm comes up, clicks
-that dialog's own choice (`button[data-choice="discard"]`, "Discard changes and
-reload"). It then waits for a fresh `office-frame` GET of the announced version id.
-Every GET of that document's own route counts, whatever its path (the exact-path
-matcher turned a reload through another route into "no open at all"), and a miss
-reports the GETs it saw and what the frame SHOWED — its bar text and actions, the
-dialog's choices, the docs host's dirty flag. By the same rule the APP's S6 reload is driven through the fork's whole flow
+(`section.uw-remote-bar button.uw-remote-link[data-action="reload"]`, the frame is an iframe and
+the top page never carries it) and, when the bar's Reload confirm comes up, clicks
+ONLY that dialog's discard choice (`button[data-choice="discard"]`, "Discard
+changes and reload", BE-704-402) — never `download`, which the same step offers
+FIRST whenever the host can download (`conflict-dialog.ts:424-446`) and which
+starts a file delivery instead of reloading. The whole frame-side flow is the
+serialized `driveFrameReloadFlow` (BE-704-406), so the pinned markup — the choice
+order included — is exercised by a page-style test against a fake DOM. The click
+only DRIVES the fork: it claims no reload. The step then waits for a fresh
+`office-frame` GET of the announced version id, and THAT is what confirms the
+reload (`details.webSees.confirmed`); a dialog that never offers the discard choice
+is reported with the choices it did offer, and the click's own outcome is on the
+miss (`details.webSeesMiss.reloadClick`). Every GET of that document's own route
+counts, whatever its path (the exact-path matcher turned a reload through another
+route into "no open at all"), and a miss reports the GETs it saw and what the frame
+SHOWED — its bar text and actions, the dialog's choices, the docs host's dirty flag.
+
+The reload window opens at the ANNOUNCE's own timestamp (D5-01), never at the instant
+the driver starts waiting nor at the instant its click returns (BE-704-401) — with
+`ANNOUNCE_OPEN_TOLERANCE_MS` (50 ms) of slack for the postMessage -> host -> `api.open`
+hop between the announce's own `at` and the GET it causes. A clean frame reloads as
+soon as the announce lands, so its GET can be recorded while the reload click is still
+in flight: a window anchored at the click would count that reload as
+"0 office-frame GET(s) after the announce", which is why the anchor is the announce
+(the unit tests pin both sides of it, and the controller fake times its open against
+the announce). The
+announce poll can notice the announce afterwards, so a miss also says how many of the
+document's GETs landed BEFORE it, with their offsets. The reply's fields are read with
+the pinned wire's own names (`file.fileId`, `file.versionId`, `file.revision`,
+`file.etag`; the frame protocol's `FileMeta` is camelCase,
+`web/docs/protocol/types.ts:326-346` at the frame pin), where round 5 read
+`file.version_id` and could therefore never match the announced version, and a GET is
+recorded when it is ISSUED — one that never answers is the measured "a GET with no
+answer yet" / "the GET failed", not the absence of a GET.
+
+A miss names the guard that dropped the announce FROM MEASURED VALUES (D5-01), never
+from a guess. The recorder keeps the announce's own `document_id` / `revision` /
+`version_id` / `saved_at` with the JS `typeof` each arrived as, the realm that recorded
+it (the top page, or the frame), whether the parent window sent it, and the last `file`
+the frame's realm received (a host `open` push, or an `api.open` / `api.save` reply) —
+the frame's held copy, which `revisionOf` (`web/modules/shared/conflict-dialog.ts:135-140`)
+turns into the `revision` the pin's guards compare against. The verdict follows the pin's
+own order — the endpoint's origin/source checks
+(`web/docs/protocol/endpoint.ts:264-275`), `parseEnvelope`'s ns and version
+(`web/docs/protocol/types.ts:1758-1760`, l.1801), then
+`web/modules/shared/remote-version.ts:443` (`!isDecimalRevision(p.revision)`), `:445`
+(`cur.fileId !== p.document_id`) and `:448` (`rev <= open`, over the pin's `revisionOf`)
+— and says so when NO guard explains the drop, which is a delivery/handler finding
+rather than a guess. The same fields are recorded on the artifact as
+`details.webSeesMiss` (`announced`, `reloadClick`, `announceRealm`, `announceTypes`,
+`held`, `verdict`, `documents`, `opens`); round 5's "the frame's own guard needs a DECIMAL revision"
+asserted a type nobody had read and is gone. By the same rule the APP's S6 reload is driven through the fork's whole flow
 (D4-02), not one text-matched click: the bar's own action
 (`div.uw-remote-bar button.uw-remote-action[data-action="reload"]`) asks the main
 process for the reload, which opens the conflict dialog for the stored notice;
@@ -527,8 +589,16 @@ my changes" (`input[type="radio"][value="discard"]`) — before its confirm
 (`canSubmit = selectedKeep === 'discard' || …`, `uniwork-conflict-model.ts:326`).
 The driver clicks each of those in turn and reports the first one that refused
 (an `aria-disabled` bar action or confirm), so "the fork did not reload" never
-reads the same as "the driver never confirmed". The step records the click's own
-outcome (`details.appReload`).
+reads the same as "the driver never confirmed". That whole flow is the serialized
+page function `driveAppConflictReloadFlow` (BE-704-406), exercised page-style
+against a fake DOM that copies the pinned step markup, including the confirm that
+stays `aria-disabled` until the keep choice. App-reload then ACCEPTS the final
+state only with `confirmed === true && choseDiscard === true` (BE-704-403): a copy
+that reaches the web Save's bytes without that confirmation FAILs with the
+measured confirm reason instead of passing on the bytes alone, and the step
+records the dirty working-copy checksum it read JUST BEFORE the click
+(`details.appReload.dirtyShaBeforeClick`) so the discard is a measured
+before/after transition, and the click's own outcome is on `details.appReload`.
 
 The rows share ONE app process, and both sides sign a previous session out with
 `accountLogout({ confirmed: true })` — the call the product's own account UI
