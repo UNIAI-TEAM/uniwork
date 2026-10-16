@@ -44,7 +44,32 @@ func (s *AskUNIService) emailThreadContext(ctx context.Context, tc ai.ToolContex
 	if title == "" {
 		title = "Email"
 	}
-	excerpt := body
+	// Always give the model a usable excerpt: subject/from alone still beat an
+	// empty pack that yields "Chưa đủ dữ liệu…" (UNI-1648).
+	var head strings.Builder
+	if title != "" && title != "Email" {
+		fmt.Fprintf(&head, "Subject: %s\n", title)
+	}
+	if from := strings.TrimSpace(view.FromName); from != "" {
+		fmt.Fprintf(&head, "From: %s", from)
+		if addr := strings.TrimSpace(view.FromAddr); addr != "" {
+			fmt.Fprintf(&head, " <%s>", addr)
+		}
+		head.WriteByte('\n')
+	} else if addr := strings.TrimSpace(view.FromAddr); addr != "" {
+		fmt.Fprintf(&head, "From: %s\n", addr)
+	}
+	excerpt := strings.TrimSpace(head.String())
+	if body != "" {
+		if excerpt != "" {
+			excerpt += "\n" + body
+		} else {
+			excerpt = body
+		}
+	}
+	if excerpt == "" {
+		excerpt = title
+	}
 	if len([]rune(excerpt)) > ai.MaxExcerpt {
 		excerpt = string([]rune(excerpt)[:ai.MaxExcerpt])
 	}

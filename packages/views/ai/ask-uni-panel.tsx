@@ -43,6 +43,7 @@ const KNOWN_ERRORS = new Set([
 ]);
 
 const SUGGESTIONS = ["suggestion_overdue", "suggestion_meetings", "suggestion_chat"] as const;
+const EMAIL_SUGGESTIONS = ["suggestion_email_summary", "suggestion_email_reply", "suggestion_email_actions"] as const;
 
 function resolveErrorKey(err: unknown): string {
   const code = errorCode(err) ?? "";
@@ -149,8 +150,24 @@ export function AskUniPanel() {
   };
   const turns: Pick<AiMessage, "id" | "role" | "content" | "citations">[] = [...(messages.data ?? [])];
   if (pendingQuestion) turns.push({ id: "pending", role: "user", content: pendingQuestion, citations: [] });
+  // Show the assistant turn from the mutation right away — waiting only on the
+  // messages refetch left a blank pane that looked like "no answer" (UNI-1648).
+  if (
+    ask.data?.message &&
+    ask.data.conversation_id === conversationId &&
+    !ask.isPending &&
+    !turns.some((m) => m.id === ask.data.message.id)
+  ) {
+    turns.push({
+      id: ask.data.message.id,
+      role: ask.data.message.role,
+      content: ask.data.message.content,
+      citations: ask.data.message.citations ?? [],
+    });
+  }
   const showHome = !conversationId && !pendingQuestion;
   const recent = conversations.data ?? [];
+  const focusSuggestions = pendingFocus?.kind === "email_thread" ? EMAIL_SUGGESTIONS : SUGGESTIONS;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -239,8 +256,11 @@ export function AskUniPanel() {
                   <p className="text-caption text-muted-foreground">{t("empty_description")}</p>
                 </div>
               </div>
+              {pendingFocus?.kind === "email_thread" ? (
+                <p className="text-center text-caption text-muted-foreground">{t("focus_email_hint")}</p>
+              ) : null}
               <div className="flex flex-wrap justify-center gap-2">
-                {SUGGESTIONS.map((key) => (
+                {focusSuggestions.map((key) => (
                   <Button
                     key={key}
                     type="button"

@@ -709,9 +709,13 @@ func (s *EmailHubService) Sync(
 	var synced bool
 	var newUnread int
 	var syncErr error
-	if folder == "" || folder == emailhub.FolderStarred {
+	switch {
+	case folder == emailhub.FolderStarred:
+		// Virtual folder: IMAP SEARCH \Flagged (and Gmail \Starred), not a mailbox.
+		synced, newUnread, syncErr = s.syncStarred(ctx, acc, force)
+	case folder == "":
 		synced, newUnread, syncErr = s.syncAccount(ctx, acc, reconcile, force)
-	} else {
+	default:
 		synced, newUnread, syncErr = s.syncSingleFolder(ctx, acc, folder, reconcile, force, live, false)
 	}
 	if syncErr != nil {
