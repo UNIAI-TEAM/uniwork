@@ -1,0 +1,12 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root web/modules; rc=$?; echo; echo "WEB_MODULES_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+
+ Test Files  31 passed | 1 skipped (32)
+      Tests  812 passed | 23 skipped (835)
+   Start at  19:51:34
+   Duration  11.07s (transform 5.33s, setup 0ms, import 9.63s, tests 7.07s, environment 12.54s)
+
+
+WEB_MODULES_EXIT=0
