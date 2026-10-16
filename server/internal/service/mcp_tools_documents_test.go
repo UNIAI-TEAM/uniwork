@@ -805,7 +805,7 @@ func TestMcpCreateDocument(t *testing.T) {
 		t.Fatalf("create_document = %s", raw)
 	}
 	onlyKeys(t, "create_document item", item, "kind", "id", "workspace_id", "title", "url", "doc_kind", "revision", "parent_id")
-	if row.Kind != DocumentKindPage || row.Visibility != documentVisibilityWorkspace || row.CreatedBy != x.ua.ID || row.CreatedByKind != "human" || row.ParentID.Valid || row.Title != "Biên bản" {
+	if row.Kind != DocumentKindPage || row.Visibility != documentVisibilityRestricted || row.CreatedBy != x.ua.ID || row.CreatedByKind != "human" || row.ParentID.Valid || row.Title != "Biên bản" {
 		t.Errorf("stored row = %+v", row)
 	}
 	if n := x.count(t, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'document.created'`, id); n != 1 {
