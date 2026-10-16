@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+9b867eaba80ae5078e89661b5a05013ba507d0da
+9b867eaba chore: merge G5-G7 root 1dcb78457 into the G7-09 lane
+7f090c8d9 docs: G7-09 checklist owners per Advisor routing (UNI-1824, D re-pin)
+d0a950932 test(office): G7-09 UX floor review r1 fixes + reach S5 on the Docs frame
+c913db7e2 docs: G7-09 checklist owner column, text spacing row, UXF-10

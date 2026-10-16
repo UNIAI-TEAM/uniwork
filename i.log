@@ -1,0 +1,2108 @@
+$ export E2E_DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" E2E_BASE_URL=http://localhost:13461 E2E_API_URL=http://localhost:18561 NEXT_PUBLIC_API_URL=http://localhost:18561 OFFICE_UX_FLOOR_E2E=1 PLAYWRIGHT_OUTPUT_DIR=test-results-ux2 PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ux2-report.json; rm -rf e2e/test-results-ux2; pnpm --filter @uniwork/e2e exec playwright test office-ux-floor.spec.ts --reporter=list,json > /tmp/ux2-UX_FLOOR.log 2>&1; rc=$?; echo "PLAYWRIGHT_RC=$rc"; echo "===== full playwright log (stack frames dropped)"; grep -vE "^\s+at " /tmp/ux2-UX_FLOOR.log; for f in e2e/test-results-ux2/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 4000 "$f"; echo; }; done; grep -E "[0-9]+ (passed|failed|skipped|flaky|did not run|interrupted)|expected to fail" /tmp/ux2-UX_FLOOR.log; grep -qE "[0-9]+ passed" /tmp/ux2-UX_FLOOR.log || { echo "no passing test in office-ux-floor.spec.ts"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_UX_FLOOR_EXIT=$rc"
+PLAYWRIGHT_RC=1
+===== full playwright log (stack frames dropped)
+
+Running 28 tests using 1 worker
+
+(node:19865) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:19865) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 office-ux-floor.spec.ts:76:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light vi (6.5s)
+  ✓   2 office-ux-floor.spec.ts:76:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light en (7.3s)
+  ✓   3 office-ux-floor.spec.ts:76:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark vi (6.8s)
+  ✓   4 office-ux-floor.spec.ts:76:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark en (6.1s)
+  ✓   5 office-ux-floor.spec.ts:121:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert (5.3s)
+  ✓   6 office-ux-floor.spec.ts:166:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › aria-disabled choices (web offline) stay in the Tab loop with a reason (5.0s)
+  ✘   7 office-ux-floor.spec.ts:187:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy sits between Reload and Overwrite with edit access (4.8s)
+  ✘   8 office-ux-floor.spec.ts:198:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Docs shows 'Xem khác biệt' before Reload (5.1s)
+  ✘   9 office-ux-floor.spec.ts:210:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › the window live nodes stay outside the inert tree while S5 is open (5.1s)
+  ✘  10 office-ux-floor.spec.ts:222:3 › live regions (Floor › Vùng live) › the frame has its two fixed live nodes from load, before any bar (4.0s)
+  ✓  11 office-ux-floor.spec.ts:237:3 › live regions (Floor › Vùng live) › an S6 bar is read once, through the window node; the bar itself is not live (6.9s)
+  ✓  12 office-ux-floor.spec.ts:265:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 buttons keep a visible border, not colour alone (5.2s)
+  ✘  13 office-ux-floor.spec.ts:282:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 aria-disabled buttons use GrayText text and border (5.2s)
+  ✓  14 office-ux-floor.spec.ts:312:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable (4.6s)
+  ✓  15 office-ux-floor.spec.ts:333:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable (5.3s)
+  ✓  16 office-ux-floor.spec.ts:351:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked (4.7s)
+  ✘  17 office-ux-floor.spec.ts:351:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked (4.0s)
+  ✓  18 office-ux-floor.spec.ts:371:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › reduced motion: no slide/fade on S6 or S5 (7.2s)
+  ✓  19 office-ux-floor.spec.ts:392:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer) (4.6s)
+  ✘  20 office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi (19.5s)
+(node:20234) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20234) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  21 office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en (19.5s)
+(node:20318) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20318) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  22 office-ux-floor.spec.ts:422:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — light (19.1s)
+(node:20401) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20401) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  23 office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi (19.5s)
+(node:20486) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20486) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  24 office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en (19.0s)
+(node:20572) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20572) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  25 office-ux-floor.spec.ts:422:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark (19.5s)
+(node:20657) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20657) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  26 office-ux-floor.spec.ts:448:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill (19.6s)
+(node:20743) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20743) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  27 office-ux-floor.spec.ts:470:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it (19.2s)
+(node:20827) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20827) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  28 office-ux-floor.spec.ts:484:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send (19.3s)
+
+
+  1) office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) office-ux-floor.spec.ts:422:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — light 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-28ad1-against-accent-soft-—-light/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-28ad1-against-accent-soft-—-light/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-28ad1-against-accent-soft-—-light/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) office-ux-floor.spec.ts:422:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-e6195--against-accent-soft-—-dark/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-e6195--against-accent-soft-—-dark/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-e6195--against-accent-soft-—-dark/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) office-ux-floor.spec.ts:448:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-304b1-ight-border-not-only-a-fill/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-304b1-ight-border-not-only-a-fill/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-304b1-ight-border-not-only-a-fill/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) office-ux-floor.spec.ts:470:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-7c82f-ooter-are-siblings-after-it/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-7c82f-ooter-are-siblings-after-it/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-7c82f-ooter-are-siblings-after-it/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) office-ux-floor.spec.ts:484:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send 
+
+    Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+      - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+
+
+      142 |   await frame.locator(".ai-model-chip").first().click();
+      143 |   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
+    > 144 |   await expect(frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first(), "S7: no UniWork AI option (grant uniwork_ai off?)").toBeVisible({ timeout: 15_000 });
+          |                                                                                                                                                       ^
+      145 | }
+      146 |
+      147 | /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
+
+    Error Context: test-results-ux2/office-ux-floor-UniWork-AI-b3e64-Work-AI-turn-and-gates-Send/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux2/office-ux-floor-UniWork-AI-b3e64-Work-AI-turn-and-gates-Send/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux2/office-ux-floor-UniWork-AI-b3e64-Work-AI-turn-and-gates-Send/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9 failed
+    office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi 
+    office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en 
+    office-ux-floor.spec.ts:422:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — light 
+    office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi 
+    office-ux-floor.spec.ts:404:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en 
+    office-ux-floor.spec.ts:422:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark 
+    office-ux-floor.spec.ts:448:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill 
+    office-ux-floor.spec.ts:470:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it 
+    office-ux-floor.spec.ts:484:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send 
+  19 passed (6.4m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-ux-floor.spec.ts --reporter=list,json
+===== e2e/test-results-ux2/office-ux-floor-forced-col-7cde1-se-GrayText-text-and-border/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> forced colors (DESIGN.md › Colors › Forced colors) >> S5 aria-disabled buttons use GrayText text and border
+- Location: office-ux-floor.spec.ts:282:3
+
+# Error details
+
+```
+Error: reload: text
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: "rgb(96, 0, 0)"
+Received: "rgb(0, 0, 0)"
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvak5mha, WS ux-floor-mvak5mha: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvak5mha" [ref=f1e14]
+              - generic "WS ux-floor-mvak5mha" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvak5mha, ux-floor-mvak5mha-1792130379032@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvak5mha" [ref=f1e113]
+              - generic "ux-floor-mvak5mha-1792130379032@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref
+===== e2e/test-results-ux2/office-ux-floor-live-regio-4ec2b-es-from-load-before-any-bar/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> live regions (Floor › Vùng live) >> the frame has its two fixed live nodes from load, before any bar
+- Location: office-ux-floor.spec.ts:222:3
+
+# Error details
+
+```
+Error: one polite window node from load
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 1
+Received: 0
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvak5mha, WS ux-floor-mvak5mha: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvak5mha" [ref=f1e14]
+              - generic "WS ux-floor-mvak5mha" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvak5mha, ux-floor-mvak5mha-1792130379032@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvak5mha" [ref=f1e113]
+              - generic "ux-floor-mvak5mha-1792130379032@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+     
+===== e2e/test-results-ux2/office-ux-floor-S5-order-f-7bfbc-Xem-khác-biệt-before-Reload/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> Docs shows 'Xem khác biệt' before Reload
+- Location: office-ux-floor.spec.ts:198:3
+
+# Error details
+
+```
+Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvak5mha, WS ux-floor-mvak5mha: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvak5mha" [ref=f1e14]
+              - generic "WS ux-floor-mvak5mha" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvak5mha, ux-floor-mvak5mha-1792130379032@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvak5mha" [ref=f1e113]
+              - generic "ux-floor-mvak5mha-1792130379032@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+ 
+===== e2e/test-results-ux2/office-ux-floor-S5-order-f-99d84-inert-tree-while-S5-is-open/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> the window live nodes stay outside the inert tree while S5 is open
+- Location: office-ux-floor.spec.ts:210:3
+
+# Error details
+
+```
+Error: expect(received).toEqual(expected) // deep equality
+
+- Expected  - 1
++ Received  + 6
+
+- Array []
++ Array [
++   Object {
++     "inert": true,
++     "role": "status",
++   },
++ ]
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvak5mha, WS ux-floor-mvak5mha: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvak5mha" [ref=f1e14]
+              - generic "WS ux-floor-mvak5mha" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvak5mha, ux-floor-mvak5mha-1792130379032@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvak5mha" [ref=f1e113]
+              - generic "ux-floor-mvak5mha-1792130379032@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - but
+===== e2e/test-results-ux2/office-ux-floor-S5-order-f-a1727--Overwrite-with-edit-access/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> Save copy sits between Reload and Overwrite with edit access
+- Location: office-ux-floor.spec.ts:187:3
+
+# Error details
+
+```
+Error: save-copy, reload and overwrite present
+
+expect(received).toEqual(expected) // deep equality
+
+Expected: ArrayContaining ["reload", "save-copy", "overwrite"]
+Received: ["reload", "overwrite", "cancel"]
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvak5mha, WS ux-floor-mvak5mha: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvak5mha" [ref=f1e14]
+              - generic "WS ux-floor-mvak5mha" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvak5mha, ux-floor-mvak5mha-1792130379032@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvak5mha" [ref=f1e113]
+              - generic "ux-floor-mvak5mha-1792130379032@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=poi
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — dark vi
+- Location: office-ux-floor.spec.ts:404:7
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "Tệp"
+- button "Lưu (Ctrl+S)" [disabled]
+- button "Hoàn tác" [disabled]
+- button "Làm lại" [disabled]
+- button "Trang đầu"
+- button "Chèn"
+- button "Vẽ"
+- button "Thiết kế"
+- button "Bố trí"
+- button "Tham khảo"
+- button "Xem lại"
+- button "Xem"
+- button "AI"
+- button "AI Tóm tắt"
+- button "AI Trau chuốt"
+- button "AI Định dạng"
+- button "Dán"
+- button "Dán"
+- button "Cắt (Ctrl+X)"
+- button "Sao chép (Ctrl+C)"
+- 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng"'
+- textbox "Phông chữ": Calibri
+- button "Phông chữ"
+- textbox "Cỡ chữ": "16"
+- button "Cỡ chữ"
+- button "Tăng cỡ chữ"
+- button "Giảm cỡ chữ"
+- button
+- button "Xóa toàn bộ định dạng"
+- button "In đậm (Ctrl+B)": B
+- button "In nghiêng (Ctrl+I)": I
+- button "Gạch chân (Ctrl+U)": U
+- button "Gạch ngang": ab
+- button
+- button
+- button "Màu tô sáng văn bản"
+- button
+- button
+- button
+- button "Dấu đầu dòng"
+- button "Dấu đầu dòng"
+- button "Đánh số"
+- button "Đánh số"
+- 'button "Danh sách đa cấp: chọn hoặc định nghĩa định dạng đánh số đa cấp"'
+- button "Giảm thụt lề"
+- button "Tăng thụt lề"
+- button "Hiện/ẩn ký hiệu định dạng"
+- button "Căn trái (Ctrl+L)"
+- button "Căn giữa (Ctrl+E)"
+- button "Căn phải (Ctrl+R)"
+- button "Căn đều (Ctrl+J)"
+- button "Khoảng cách dòng"
+- button "Tô màu nền đoạn văn"
+- button "Viền đoạn văn"
+- button "AaBb Tiêu đề 1"
+- button "AaBb Tiêu đề 2"
+- button "Aa Hyperlink"
+- button "AaBb Đoạn danh sách"
+- button "AaBb Bình thường"
+- button "Thêm kiểu"
+- button "Ngăn kiểu"
+- button "Tìm"
+- button "Thay thế"
+- button "Chọn tất cả"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Di chuyển bảng AI sang phải"
+  - button "Thu gọn bảng điều khiển"
+  - text: Để AI giúp bạn viết và chỉnh sửa Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi; khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+  - button "Tóm tắt các ý chính của tài liệu này"
+  - button "Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn"
+  - button "Viết tiếp từ nội dung hiện tại của tài liệu"
+  - button "Tìm và điền vào các vị trí giữ chỗ trong tài liệu này"
+  - textbox "Mô tả tác vụ chỉnh sửa hoặc viết, hoặc đặt câu hỏi"
+  - status:
+    - button "Chọn mô hình để gửi"
+  - 'button "Mô hình: Chọn mô hình" [expanded]': Chọn mô hình
+  - listbox "Mô hình":
+    - button "Quản lý mô hình…"
+  - button "Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)"
+  - button "Theo dõi thay đổi"
+  - button "Gửi" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Trang 1 / 1"
+  - button "10 từ"
+  - 'button "Theo dõi thay đổi: T�
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-28ad1-against-accent-soft-—-light/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 the selected option's focus ring is >= 3:1 against accent-soft — light
+- Location: office-ux-floor.spec.ts:422:5
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "Tệp"
+- button "Lưu (Ctrl+S)" [disabled]
+- button "Hoàn tác" [disabled]
+- button "Làm lại" [disabled]
+- button "Trang đầu"
+- button "Chèn"
+- button "Vẽ"
+- button "Thiết kế"
+- button "Bố trí"
+- button "Tham khảo"
+- button "Xem lại"
+- button "Xem"
+- button "AI"
+- button "AI Tóm tắt"
+- button "AI Trau chuốt"
+- button "AI Định dạng"
+- button "Dán"
+- button "Dán"
+- button "Cắt (Ctrl+X)"
+- button "Sao chép (Ctrl+C)"
+- 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng"'
+- textbox "Phông chữ": Calibri
+- button "Phông chữ"
+- textbox "Cỡ chữ": "16"
+- button "Cỡ chữ"
+- button "Tăng cỡ chữ"
+- button "Giảm cỡ chữ"
+- button
+- button "Xóa toàn bộ định dạng"
+- button "In đậm (Ctrl+B)": B
+- button "In nghiêng (Ctrl+I)": I
+- button "Gạch chân (Ctrl+U)": U
+- button "Gạch ngang": ab
+- button
+- button
+- button "Màu tô sáng văn bản"
+- button
+- button
+- button
+- button "Dấu đầu dòng"
+- button "Dấu đầu dòng"
+- button "Đánh số"
+- button "Đánh số"
+- 'button "Danh sách đa cấp: chọn hoặc định nghĩa định dạng đánh số đa cấp"'
+- button "Giảm thụt lề"
+- button "Tăng thụt lề"
+- button "Hiện/ẩn ký hiệu định dạng"
+- button "Căn trái (Ctrl+L)"
+- button "Căn giữa (Ctrl+E)"
+- button "Căn phải (Ctrl+R)"
+- button "Căn đều (Ctrl+J)"
+- button "Khoảng cách dòng"
+- button "Tô màu nền đoạn văn"
+- button "Viền đoạn văn"
+- button "AaBb Tiêu đề 1"
+- button "AaBb Tiêu đề 2"
+- button "Aa Hyperlink"
+- button "AaBb Đoạn danh sách"
+- button "AaBb Bình thường"
+- button "Thêm kiểu"
+- button "Ngăn kiểu"
+- button "Tìm"
+- button "Thay thế"
+- button "Chọn tất cả"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Di chuyển bảng AI sang phải"
+  - button "Thu gọn bảng điều khiển"
+  - text: Để AI giúp bạn viết và chỉnh sửa Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi; khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+  - button "Tóm tắt các ý chính của tài liệu này"
+  - button "Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn"
+  - button "Viết tiếp từ nội dung hiện tại của tài liệu"
+  - button "Tìm và điền vào các vị trí giữ chỗ trong tài liệu này"
+  - textbox "Mô tả tác vụ chỉnh sửa hoặc viết, hoặc đặt câu hỏi"
+  - status:
+    - button "Chọn mô hình để gửi"
+  - 'button "Mô hình: Chọn mô hình" [expanded]': Chọn mô hình
+  - listbox "Mô hình":
+    - button "Quản lý mô hình…"
+  - button "Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)"
+  - button "Theo dõi thay đổi"
+  - button "Gửi" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Trang 1 / 1"
+  - button "10 từ"
+  - 'button "Theo dõi 
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-304b1-ight-border-not-only-a-fill/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 the selected picker option has a 2px Highlight border, not only a fill
+- Location: office-ux-floor.spec.ts:448:3
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "Tệp"
+- button "Lưu (Ctrl+S)" [disabled]
+- button "Hoàn tác" [disabled]
+- button "Làm lại" [disabled]
+- button "Trang đầu"
+- button "Chèn"
+- button "Vẽ"
+- button "Thiết kế"
+- button "Bố trí"
+- button "Tham khảo"
+- button "Xem lại"
+- button "Xem"
+- button "AI"
+- button "AI Tóm tắt"
+- button "AI Trau chuốt"
+- button "AI Định dạng"
+- button "Dán"
+- button "Dán"
+- button "Cắt (Ctrl+X)"
+- button "Sao chép (Ctrl+C)"
+- 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng"'
+- textbox "Phông chữ": Calibri
+- button "Phông chữ"
+- textbox "Cỡ chữ": "16"
+- button "Cỡ chữ"
+- button "Tăng cỡ chữ"
+- button "Giảm cỡ chữ"
+- button
+- button "Xóa toàn bộ định dạng"
+- button "In đậm (Ctrl+B)": B
+- button "In nghiêng (Ctrl+I)": I
+- button "Gạch chân (Ctrl+U)": U
+- button "Gạch ngang": ab
+- button
+- button
+- button "Màu tô sáng văn bản"
+- button
+- button
+- button
+- button "Dấu đầu dòng"
+- button "Dấu đầu dòng"
+- button "Đánh số"
+- button "Đánh số"
+- 'button "Danh sách đa cấp: chọn hoặc định nghĩa định dạng đánh số đa cấp"'
+- button "Giảm thụt lề"
+- button "Tăng thụt lề"
+- button "Hiện/ẩn ký hiệu định dạng"
+- button "Căn trái (Ctrl+L)"
+- button "Căn giữa (Ctrl+E)"
+- button "Căn phải (Ctrl+R)"
+- button "Căn đều (Ctrl+J)"
+- button "Khoảng cách dòng"
+- button "Tô màu nền đoạn văn"
+- button "Viền đoạn văn"
+- button "AaBb Tiêu đề 1"
+- button "AaBb Tiêu đề 2"
+- button "Aa Hyperlink"
+- button "AaBb Đoạn danh sách"
+- button "AaBb Bình thường"
+- button "Thêm kiểu"
+- button "Ngăn kiểu"
+- button "Tìm"
+- button "Thay thế"
+- button "Chọn tất cả"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Di chuyển bảng AI sang phải"
+  - button "Thu gọn bảng điều khiển"
+  - text: Để AI giúp bạn viết và chỉnh sửa Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi; khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+  - button "Tóm tắt các ý chính của tài liệu này"
+  - button "Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn"
+  - button "Viết tiếp từ nội dung hiện tại của tài liệu"
+  - button "Tìm và điền vào các vị trí giữ chỗ trong tài liệu này"
+  - textbox "Mô tả tác vụ chỉnh sửa hoặc viết, hoặc đặt câu hỏi"
+  - status:
+    - button "Chọn mô hình để gửi"
+  - 'button "Mô hình: Chọn mô hình" [expanded]': Chọn mô hình
+  - listbox "Mô hình":
+    - button "Quản lý mô hình…"
+  - button "Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)"
+  - button "Theo dõi thay đổi"
+  - button "Gửi" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Trang 1 / 1"
+  - button "10 từ"
+  - 'button "Theo dõi th
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-7c82f-ooter-are-siblings-after-it/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 listbox sits on the list, Manage and the footer are siblings after it
+- Location: office-ux-floor.spec.ts:470:3
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "Tệp"
+- button "Lưu (Ctrl+S)" [disabled]
+- button "Hoàn tác" [disabled]
+- button "Làm lại" [disabled]
+- button "Trang đầu"
+- button "Chèn"
+- button "Vẽ"
+- button "Thiết kế"
+- button "Bố trí"
+- button "Tham khảo"
+- button "Xem lại"
+- button "Xem"
+- button "AI"
+- button "AI Tóm tắt"
+- button "AI Trau chuốt"
+- button "AI Định dạng"
+- button "Dán"
+- button "Dán"
+- button "Cắt (Ctrl+X)"
+- button "Sao chép (Ctrl+C)"
+- 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng"'
+- textbox "Phông chữ": Calibri
+- button "Phông chữ"
+- textbox "Cỡ chữ": "16"
+- button "Cỡ chữ"
+- button "Tăng cỡ chữ"
+- button "Giảm cỡ chữ"
+- button
+- button "Xóa toàn bộ định dạng"
+- button "In đậm (Ctrl+B)": B
+- button "In nghiêng (Ctrl+I)": I
+- button "Gạch chân (Ctrl+U)": U
+- button "Gạch ngang": ab
+- button
+- button
+- button "Màu tô sáng văn bản"
+- button
+- button
+- button
+- button "Dấu đầu dòng"
+- button "Dấu đầu dòng"
+- button "Đánh số"
+- button "Đánh số"
+- 'button "Danh sách đa cấp: chọn hoặc định nghĩa định dạng đánh số đa cấp"'
+- button "Giảm thụt lề"
+- button "Tăng thụt lề"
+- button "Hiện/ẩn ký hiệu định dạng"
+- button "Căn trái (Ctrl+L)"
+- button "Căn giữa (Ctrl+E)"
+- button "Căn phải (Ctrl+R)"
+- button "Căn đều (Ctrl+J)"
+- button "Khoảng cách dòng"
+- button "Tô màu nền đoạn văn"
+- button "Viền đoạn văn"
+- button "AaBb Tiêu đề 1"
+- button "AaBb Tiêu đề 2"
+- button "Aa Hyperlink"
+- button "AaBb Đoạn danh sách"
+- button "AaBb Bình thường"
+- button "Thêm kiểu"
+- button "Ngăn kiểu"
+- button "Tìm"
+- button "Thay thế"
+- button "Chọn tất cả"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Di chuyển bảng AI sang phải"
+  - button "Thu gọn bảng điều khiển"
+  - text: Để AI giúp bạn viết và chỉnh sửa Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi; khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+  - button "Tóm tắt các ý chính của tài liệu này"
+  - button "Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn"
+  - button "Viết tiếp từ nội dung hiện tại của tài liệu"
+  - button "Tìm và điền vào các vị trí giữ chỗ trong tài liệu này"
+  - textbox "Mô tả tác vụ chỉnh sửa hoặc viết, hoặc đặt câu hỏi"
+  - status:
+    - button "Chọn mô hình để gửi"
+  - 'button "Mô hình: Chọn mô hình" [expanded]': Chọn mô hình
+  - listbox "Mô hình":
+    - button "Quản lý mô hình…"
+  - button "Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)"
+  - button "Theo dõi thay đổi"
+  - button "Gửi" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Trang 1 / 1"
+  - button "10 từ"
+  - 'button "Theo dõi tha
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — dark en
+- Location: office-ux-floor.spec.ts:404:7
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "File"
+- button "Save (Ctrl+S)" [disabled]
+- button "Undo" [disabled]
+- button "Redo" [disabled]
+- button "Home"
+- button "Insert"
+- button "Draw"
+- button "Design"
+- button "Layout"
+- button "References"
+- button "Review"
+- button "View"
+- button "AI"
+- button "AI Summarize"
+- button "AI Polish"
+- button "AI Format"
+- button "Paste"
+- button "Paste"
+- button "Cut (Ctrl+X)"
+- button "Copy (Ctrl+C)"
+- 'button "Format Painter: click to apply the copied formatting once, double-click to keep it on until Esc"'
+- textbox "Font": Calibri
+- button "Font"
+- textbox "Font Size": "16"
+- button "Font Size"
+- button "Increase Font Size"
+- button "Decrease Font Size"
+- button
+- button "Clear All Formatting"
+- button "Bold (Ctrl+B)": B
+- button "Italic (Ctrl+I)": I
+- button "Underline (Ctrl+U)": U
+- button "Strikethrough": ab
+- button
+- button
+- button "Text Highlight Color"
+- button
+- button
+- button
+- button "Bullets"
+- button "Bullets"
+- button "Numbering"
+- button "Numbering"
+- 'button "Multilevel list: choose or define a multilevel numbering format"'
+- button "Decrease Indent"
+- button "Increase Indent"
+- button "Show/hide formatting marks"
+- button "Align Left (Ctrl+L)"
+- button "Center (Ctrl+E)"
+- button "Align Right (Ctrl+R)"
+- button "Justify (Ctrl+J)"
+- button "Line Spacing"
+- button "Paragraph Shading"
+- button "Paragraph Borders"
+- button "AaBb Heading 1"
+- button "AaBb Heading 2"
+- button "Aa Hyperlink"
+- button "AaBb List Paragraph"
+- button "AaBb Normal"
+- button "More styles"
+- button "Styles Pane"
+- button "Find"
+- button "Replace"
+- button "Select All"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Move AI panel to the right"
+  - button "Collapse panel"
+  - text: Let AI help you write and edit Give an instruction or just ask a question; with text selected, rewrite commands apply to the selection.
+  - button "Summarize the key points of this document"
+  - button "Polish the whole document for a more professional tone"
+  - button "Continue writing from where the document leaves off"
+  - button "Find and fill in the placeholders in this document"
+  - textbox "Describe an edit or writing task, or ask a question"
+  - status:
+    - button "Choose a model to send"
+  - 'button "Model: Choose model" [expanded]': Choose model
+  - listbox "Model":
+    - button "Manage models…"
+  - button "Attach local files (or drag them onto the panel)"
+  - button "Track changes"
+  - button "Send" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Page 1 of 1"
+  - button "10 words"
+  - 'button "Track Changes: Off"'
+  - status: All changes saved
+  - text: — Opened docs-web.docx
+  - group:
+    - button "Print Layout"
+    - button "Web Layout"
+    - button "Outline"
+    - button "Read Mode"
+  - button "−"
+  - slider: "70"
+  - button "+"
+  - button "74%"
+```
+
+# Test source
+
+```ts
+  44  | 
+  45  | /** The pinned frame version, for the evidence annotations. */
+  46  | export function pinnedVersion(): string {
+  47  |   return readPinnedFrame().version;
+  48  | }
+  49  | 
+  5
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — light vi
+- Location: office-ux-floor.spec.ts:404:7
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "Tệp"
+- button "Lưu (Ctrl+S)" [disabled]
+- button "Hoàn tác" [disabled]
+- button "Làm lại" [disabled]
+- button "Trang đầu"
+- button "Chèn"
+- button "Vẽ"
+- button "Thiết kế"
+- button "Bố trí"
+- button "Tham khảo"
+- button "Xem lại"
+- button "Xem"
+- button "AI"
+- button "AI Tóm tắt"
+- button "AI Trau chuốt"
+- button "AI Định dạng"
+- button "Dán"
+- button "Dán"
+- button "Cắt (Ctrl+X)"
+- button "Sao chép (Ctrl+C)"
+- 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng"'
+- textbox "Phông chữ": Calibri
+- button "Phông chữ"
+- textbox "Cỡ chữ": "16"
+- button "Cỡ chữ"
+- button "Tăng cỡ chữ"
+- button "Giảm cỡ chữ"
+- button
+- button "Xóa toàn bộ định dạng"
+- button "In đậm (Ctrl+B)": B
+- button "In nghiêng (Ctrl+I)": I
+- button "Gạch chân (Ctrl+U)": U
+- button "Gạch ngang": ab
+- button
+- button
+- button "Màu tô sáng văn bản"
+- button
+- button
+- button
+- button "Dấu đầu dòng"
+- button "Dấu đầu dòng"
+- button "Đánh số"
+- button "Đánh số"
+- 'button "Danh sách đa cấp: chọn hoặc định nghĩa định dạng đánh số đa cấp"'
+- button "Giảm thụt lề"
+- button "Tăng thụt lề"
+- button "Hiện/ẩn ký hiệu định dạng"
+- button "Căn trái (Ctrl+L)"
+- button "Căn giữa (Ctrl+E)"
+- button "Căn phải (Ctrl+R)"
+- button "Căn đều (Ctrl+J)"
+- button "Khoảng cách dòng"
+- button "Tô màu nền đoạn văn"
+- button "Viền đoạn văn"
+- button "AaBb Tiêu đề 1"
+- button "AaBb Tiêu đề 2"
+- button "Aa Hyperlink"
+- button "AaBb Đoạn danh sách"
+- button "AaBb Bình thường"
+- button "Thêm kiểu"
+- button "Ngăn kiểu"
+- button "Tìm"
+- button "Thay thế"
+- button "Chọn tất cả"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Di chuyển bảng AI sang phải"
+  - button "Thu gọn bảng điều khiển"
+  - text: Để AI giúp bạn viết và chỉnh sửa Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi; khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+  - button "Tóm tắt các ý chính của tài liệu này"
+  - button "Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn"
+  - button "Viết tiếp từ nội dung hiện tại của tài liệu"
+  - button "Tìm và điền vào các vị trí giữ chỗ trong tài liệu này"
+  - textbox "Mô tả tác vụ chỉnh sửa hoặc viết, hoặc đặt câu hỏi"
+  - status:
+    - button "Chọn mô hình để gửi"
+  - 'button "Mô hình: Chọn mô hình" [expanded]': Chọn mô hình
+  - listbox "Mô hình":
+    - button "Quản lý mô hình…"
+  - button "Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)"
+  - button "Theo dõi thay đổi"
+  - button "Gửi" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Trang 1 / 1"
+  - button "10 từ"
+  - 'button "Theo dõi thay đổi: T
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — light en
+- Location: office-ux-floor.spec.ts:404:7
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "File"
+- button "Save (Ctrl+S)" [disabled]
+- button "Undo" [disabled]
+- button "Redo" [disabled]
+- button "Home"
+- button "Insert"
+- button "Draw"
+- button "Design"
+- button "Layout"
+- button "References"
+- button "Review"
+- button "View"
+- button "AI"
+- button "AI Summarize"
+- button "AI Polish"
+- button "AI Format"
+- button "Paste"
+- button "Paste"
+- button "Cut (Ctrl+X)"
+- button "Copy (Ctrl+C)"
+- 'button "Format Painter: click to apply the copied formatting once, double-click to keep it on until Esc"'
+- textbox "Font": Calibri
+- button "Font"
+- textbox "Font Size": "16"
+- button "Font Size"
+- button "Increase Font Size"
+- button "Decrease Font Size"
+- button
+- button "Clear All Formatting"
+- button "Bold (Ctrl+B)": B
+- button "Italic (Ctrl+I)": I
+- button "Underline (Ctrl+U)": U
+- button "Strikethrough": ab
+- button
+- button
+- button "Text Highlight Color"
+- button
+- button
+- button
+- button "Bullets"
+- button "Bullets"
+- button "Numbering"
+- button "Numbering"
+- 'button "Multilevel list: choose or define a multilevel numbering format"'
+- button "Decrease Indent"
+- button "Increase Indent"
+- button "Show/hide formatting marks"
+- button "Align Left (Ctrl+L)"
+- button "Center (Ctrl+E)"
+- button "Align Right (Ctrl+R)"
+- button "Justify (Ctrl+J)"
+- button "Line Spacing"
+- button "Paragraph Shading"
+- button "Paragraph Borders"
+- button "AaBb Heading 1"
+- button "AaBb Heading 2"
+- button "Aa Hyperlink"
+- button "AaBb List Paragraph"
+- button "AaBb Normal"
+- button "More styles"
+- button "Styles Pane"
+- button "Find"
+- button "Replace"
+- button "Select All"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Move AI panel to the right"
+  - button "Collapse panel"
+  - text: Let AI help you write and edit Give an instruction or just ask a question; with text selected, rewrite commands apply to the selection.
+  - button "Summarize the key points of this document"
+  - button "Polish the whole document for a more professional tone"
+  - button "Continue writing from where the document leaves off"
+  - button "Find and fill in the placeholders in this document"
+  - textbox "Describe an edit or writing task, or ask a question"
+  - status:
+    - button "Choose a model to send"
+  - 'button "Model: Choose model" [expanded]': Choose model
+  - listbox "Model":
+    - button "Manage models…"
+  - button "Attach local files (or drag them onto the panel)"
+  - button "Track changes"
+  - button "Send" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Page 1 of 1"
+  - button "10 words"
+  - 'button "Track Changes: Off"'
+  - status: All changes saved
+  - text: — Opened docs-web.docx
+  - group:
+    - button "Print Layout"
+    - button "Web Layout"
+    - button "Outline"
+    - button "Read Mode"
+  - button "−"
+  - slider: "70"
+  - button "+"
+  - button "74%"
+```
+
+# Test source
+
+```ts
+  44  | 
+  45  | /** The pinned frame version, for the evidence annotations. */
+  46  | export function pinnedVersion(): string {
+  47  |   return readPinnedFrame().version;
+  48  | }
+  49  | 
+  
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-b3e64-Work-AI-turn-and-gates-Send/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S8 disclosure region shows on the first UniWork AI turn and gates Send
+- Location: office-ux-floor.spec.ts:484:3
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "Tệp"
+- button "Lưu (Ctrl+S)" [disabled]
+- button "Hoàn tác" [disabled]
+- button "Làm lại" [disabled]
+- button "Trang đầu"
+- button "Chèn"
+- button "Vẽ"
+- button "Thiết kế"
+- button "Bố trí"
+- button "Tham khảo"
+- button "Xem lại"
+- button "Xem"
+- button "AI"
+- button "AI Tóm tắt"
+- button "AI Trau chuốt"
+- button "AI Định dạng"
+- button "Dán"
+- button "Dán"
+- button "Cắt (Ctrl+X)"
+- button "Sao chép (Ctrl+C)"
+- 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng"'
+- textbox "Phông chữ": Calibri
+- button "Phông chữ"
+- textbox "Cỡ chữ": "16"
+- button "Cỡ chữ"
+- button "Tăng cỡ chữ"
+- button "Giảm cỡ chữ"
+- button
+- button "Xóa toàn bộ định dạng"
+- button "In đậm (Ctrl+B)": B
+- button "In nghiêng (Ctrl+I)": I
+- button "Gạch chân (Ctrl+U)": U
+- button "Gạch ngang": ab
+- button
+- button
+- button "Màu tô sáng văn bản"
+- button
+- button
+- button
+- button "Dấu đầu dòng"
+- button "Dấu đầu dòng"
+- button "Đánh số"
+- button "Đánh số"
+- 'button "Danh sách đa cấp: chọn hoặc định nghĩa định dạng đánh số đa cấp"'
+- button "Giảm thụt lề"
+- button "Tăng thụt lề"
+- button "Hiện/ẩn ký hiệu định dạng"
+- button "Căn trái (Ctrl+L)"
+- button "Căn giữa (Ctrl+E)"
+- button "Căn phải (Ctrl+R)"
+- button "Căn đều (Ctrl+J)"
+- button "Khoảng cách dòng"
+- button "Tô màu nền đoạn văn"
+- button "Viền đoạn văn"
+- button "AaBb Tiêu đề 1"
+- button "AaBb Tiêu đề 2"
+- button "Aa Hyperlink"
+- button "AaBb Đoạn danh sách"
+- button "AaBb Bình thường"
+- button "Thêm kiểu"
+- button "Ngăn kiểu"
+- button "Tìm"
+- button "Thay thế"
+- button "Chọn tất cả"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Di chuyển bảng AI sang phải"
+  - button "Thu gọn bảng điều khiển"
+  - text: Để AI giúp bạn viết và chỉnh sửa Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi; khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+  - button "Tóm tắt các ý chính của tài liệu này"
+  - button "Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn"
+  - button "Viết tiếp từ nội dung hiện tại của tài liệu"
+  - button "Tìm và điền vào các vị trí giữ chỗ trong tài liệu này"
+  - textbox "Mô tả tác vụ chỉnh sửa hoặc viết, hoặc đặt câu hỏi"
+  - status:
+    - button "Chọn mô hình để gửi"
+  - 'button "Mô hình: Chọn mô hình" [expanded]': Chọn mô hình
+  - listbox "Mô hình":
+    - button "Quản lý mô hình…"
+  - button "Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)"
+  - button "Theo dõi thay đổi"
+  - button "Gửi" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Trang 1 / 1"
+  - button "10 từ"
+  - 'button "Theo dõi thay 
+===== e2e/test-results-ux2/office-ux-floor-UniWork-AI-e6195--against-accent-soft-—-dark/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 the selected option's focus ring is >= 3:1 against accent-soft — dark
+- Location: office-ux-floor.spec.ts:422:5
+
+# Error details
+
+```
+Error: S7: no UniWork AI option (grant uniwork_ai off?)
+
+expect(locator).toBeVisible() failed
+
+Locator: locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - S7: no UniWork AI option (grant uniwork_ai off?) with timeout 15000ms
+  - waiting for locator('.ai-model-pop [role="option"]').filter({ hasText: 'UniWork AI' }).first()
+
+```
+
+```yaml
+- button "Tệp"
+- button "Lưu (Ctrl+S)" [disabled]
+- button "Hoàn tác" [disabled]
+- button "Làm lại" [disabled]
+- button "Trang đầu"
+- button "Chèn"
+- button "Vẽ"
+- button "Thiết kế"
+- button "Bố trí"
+- button "Tham khảo"
+- button "Xem lại"
+- button "Xem"
+- button "AI"
+- button "AI Tóm tắt"
+- button "AI Trau chuốt"
+- button "AI Định dạng"
+- button "Dán"
+- button "Dán"
+- button "Cắt (Ctrl+X)"
+- button "Sao chép (Ctrl+C)"
+- 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng"'
+- textbox "Phông chữ": Calibri
+- button "Phông chữ"
+- textbox "Cỡ chữ": "16"
+- button "Cỡ chữ"
+- button "Tăng cỡ chữ"
+- button "Giảm cỡ chữ"
+- button
+- button "Xóa toàn bộ định dạng"
+- button "In đậm (Ctrl+B)": B
+- button "In nghiêng (Ctrl+I)": I
+- button "Gạch chân (Ctrl+U)": U
+- button "Gạch ngang": ab
+- button
+- button
+- button "Màu tô sáng văn bản"
+- button
+- button
+- button
+- button "Dấu đầu dòng"
+- button "Dấu đầu dòng"
+- button "Đánh số"
+- button "Đánh số"
+- 'button "Danh sách đa cấp: chọn hoặc định nghĩa định dạng đánh số đa cấp"'
+- button "Giảm thụt lề"
+- button "Tăng thụt lề"
+- button "Hiện/ẩn ký hiệu định dạng"
+- button "Căn trái (Ctrl+L)"
+- button "Căn giữa (Ctrl+E)"
+- button "Căn phải (Ctrl+R)"
+- button "Căn đều (Ctrl+J)"
+- button "Khoảng cách dòng"
+- button "Tô màu nền đoạn văn"
+- button "Viền đoạn văn"
+- button "AaBb Tiêu đề 1"
+- button "AaBb Tiêu đề 2"
+- button "Aa Hyperlink"
+- button "AaBb Đoạn danh sách"
+- button "AaBb Bình thường"
+- button "Thêm kiểu"
+- button "Ngăn kiểu"
+- button "Tìm"
+- button "Thay thế"
+- button "Chọn tất cả"
+- complementary:
+  - separator "UniAI"
+  - text: UniAI
+  - button "Di chuyển bảng AI sang phải"
+  - button "Thu gọn bảng điều khiển"
+  - text: Để AI giúp bạn viết và chỉnh sửa Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi; khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+  - button "Tóm tắt các ý chính của tài liệu này"
+  - button "Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn"
+  - button "Viết tiếp từ nội dung hiện tại của tài liệu"
+  - button "Tìm và điền vào các vị trí giữ chỗ trong tài liệu này"
+  - textbox "Mô tả tác vụ chỉnh sửa hoặc viết, hoặc đặt câu hỏi"
+  - status:
+    - button "Chọn mô hình để gửi"
+  - 'button "Mô hình: Chọn mô hình" [expanded]': Chọn mô hình
+  - listbox "Mô hình":
+    - button "Quản lý mô hình…"
+  - button "Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)"
+  - button "Theo dõi thay đổi"
+  - button "Gửi" [disabled]
+- main:
+  - heading "标题" [level=1]
+  - paragraph: 第一段。
+  - paragraph: 第二段。
+- contentinfo:
+  - button "Trang 1 / 1"
+  - button "10 từ"
+  - 'button "Theo dõi t
+===== e2e/test-results-ux2/office-ux-floor-zoom-narro-09d97-6px-margins-buttons-stacked/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> zoom, narrow frames and motion (Floor, Responsive & Platform) >> narrow web frame 600px: S5 full width minus 16px margins, buttons stacked
+- Location: office-ux-floor.spec.ts:351:5
+
+# Error details
+
+```
+Error: 16px left margin
+
+expect(received).toBeLessThanOrEqual(expected)
+
+Expected: <= 1
+Received:    60
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvak5mha, WS ux-floor-mvak5mha: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvak5mha" [ref=f1e14]
+              - generic "WS ux-floor-mvak5mha" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792130379032/rec-ws-1792130379032/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792130379032/rec-ws-1792130379032/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvak5mha, ux-floor-mvak5mha-1792130379032@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvak5mha" [ref=f1e113]
+              - generic "ux-floor-mvak5mha-1792130379032@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic 
+  9 failed
+  19 passed (6.4m)
+
+E2E_UX_FLOOR_EXIT=1
