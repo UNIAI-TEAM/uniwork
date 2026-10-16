@@ -1,6 +1,6 @@
 "use client";
 import { Bell, CalendarDays, ChevronDown, CircleQuestionMark, Globe, Grid2x2, House, Maximize2, Palette, PanelLeftClose, Plus, Search, Settings, ShieldCheck, Sparkles, Sun, X } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@uniwork/ui/brand";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -9,6 +9,7 @@ import { DEMO_FEATURES as PRODUCT_FEATURES, PRODUCT_GROUPS, type ProductFeature 
 import { LovableAssistant } from "./lovable-overviews";
 import { LovableMeetings } from "./lovable-secondary";
 import { MobileFeatureStory, useCompactPreview } from "./mobile-feature-story";
+import { EmbeddedProductDemo } from "./product-demo-context";
 
 export function usePreviewLabels() {
   const { t } = useTranslation();
@@ -20,8 +21,14 @@ export function LovableFrame({ feature, children, label, completed = false, play
   const [expanded, setExpanded] = useState(false);
   const [meetingList, setMeetingList] = useState(false);
   const compact = useCompactPreview();
+  const embedded = useContext(EmbeddedProductDemo);
   const copy = usePreviewLabels();
-  const content = <FittedViewport feature={feature} label={meetingList ? copy("meetingList") : label} expanded={expanded} completed={completed}>{meetingList ? <LovableMeetings /> : children}</FittedViewport>;
+  const content = <FittedViewport feature={feature} label={meetingList ? copy("meetingList") : label} expanded={expanded} completed={completed} embedded={embedded}>{meetingList ? <LovableMeetings /> : children}</FittedViewport>;
+  if (embedded) return <div className="lovable-preview product-demo-reference">
+    {playback && <div className="product-demo-playback-control">{playback.control}</div>}
+    {feature === "meetings" && <div className="lovable-meeting-view-switch">{[true, false].map(list => <Button key={String(list)} size="sm" variant={meetingList === list ? "secondary" : "ghost"} aria-pressed={meetingList === list} onClick={() => { setMeetingList(list); onSceneVisibilityChange?.(!list); }}>{copy(list ? "meetingList" : "meetingRoom")}</Button>)}</div>}
+    {content}
+  </div>;
   return <div className="lovable-preview">
     <div className="lovable-preview-tools"><span>{copy("reference")}<small>{copy("sample")}</small></span><div className="lovable-preview-actions">{toolbarActions}{!compact && !expanded && !meetingList && playback?.control}<Button size="sm" variant="ghost" data-action="expand-preview" onClick={() => setExpanded(true)}><Maximize2 aria-hidden />{copy("expand")}</Button></div></div>
     {feature === "meetings" && <div className="lovable-meeting-view-switch">{[true, false].map(list => <Button key={String(list)} size="sm" variant={meetingList === list ? "secondary" : "ghost"} aria-pressed={meetingList === list} onClick={() => { setMeetingList(list); onSceneVisibilityChange?.(!list); }}>{copy(list ? "meetingList" : "meetingRoom")}</Button>)}</div>}
@@ -35,16 +42,11 @@ export function LovableFrame({ feature, children, label, completed = false, play
   </div>;
 }
 
-/** A static marketing illustration shares the app geometry without playback or dialogs. */
-export function LovablePoster({ feature, children, label, completed = false }: { feature: ProductFeature; children: ReactNode; label: string; completed?: boolean }) {
-  return <FittedViewport feature={feature} label={label} expanded={false} completed={completed} focused={false}>{children}</FittedViewport>;
-}
-
-function FittedViewport({ feature, children, label, expanded, completed, focused = true }: { feature: ProductFeature; children: ReactNode; label: string; expanded: boolean; completed: boolean; focused?: boolean }) {
+function FittedViewport({ feature, children, label, expanded, completed, embedded = false }: { feature: ProductFeature; children: ReactNode; label: string; expanded: boolean; completed: boolean; embedded?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [detail, setDetail] = useState(false);
-  const compact = useCompactPreview() && focused;
+  const compact = useCompactPreview();
   const copy = usePreviewLabels();
   useEffect(() => {
     const node = host.current;
@@ -54,18 +56,17 @@ function FittedViewport({ feature, children, label, expanded, completed, focused
     observer.observe(node);
     return () => observer.disconnect();
   }, [compact]);
-  const scale = Math.min(1, (detail ? Math.max(width, 1200) : width) / 1760);
+  const scale = Math.min(1, (detail ? Math.max(width, 1200) : width) / (embedded ? 1500 : 1760));
   if (compact) return <MobileFeatureStory key={feature} feature={feature} />;
   return <>
     {expanded && <Button className="lovable-detail-toggle" size="sm" variant="outline" aria-pressed={detail} onClick={() => setDetail(value => !value)}>{copy(detail ? "fit" : "detail")}</Button>}
-    <div ref={host} className="lovable-viewport" data-detail={detail} style={{ "--preview-scale": scale || .55 } as CSSProperties}>
-      <div className="lovable-viewport-spacer"><div className="lovable-canvas" role="img" aria-label={label} data-lovable-screen={feature}>
+    <div ref={host} className="lovable-viewport" data-detail={detail} style={{ "--preview-scale": scale || .55, ...(embedded ? { "--preview-canvas-width": "1500px", "--preview-canvas-height": "928px" } : {}) } as CSSProperties}>
+      <div className="lovable-viewport-spacer"><div className="lovable-canvas" role="img" aria-label={label} data-lovable-screen={feature} data-embedded={embedded}>
         <div className="lovable-application" inert aria-hidden="true">
-        <LovableSidebar feature={feature} />
-        <LovableToolbar />
-        <div className="lovable-screen-body" data-assistant={["dashboard", "tasks", "email", "documents"].includes(feature)}>
+        {!embedded && <><LovableSidebar feature={feature} /><LovableToolbar /></>}
+        <div className="lovable-screen-body" data-assistant={!embedded && ["dashboard", "tasks", "email", "documents"].includes(feature)}>
           <div className="lovable-screen-content">{children}</div>
-          {["dashboard", "tasks", "email", "documents"].includes(feature) && <LovableAssistant feature={feature} completed={completed} />}
+          {!embedded && ["dashboard", "tasks", "email", "documents"].includes(feature) && <LovableAssistant feature={feature} completed={completed} />}
         </div>
         </div>
       </div></div>
@@ -106,7 +107,7 @@ function LovableSidebar({ feature }: { feature: ProductFeature }) {
 function LovableToolbar() {
   const { i18n } = useTranslation();
   const copy = usePreviewLabels();
-  return <div className="lovable-toolbar"><PanelLeftClose /><div className="lovable-global-search"><Search /><span>{copy("search")}</span><kbd>⌘K</kbd></div><span className="lovable-primary"><Plus />{copy("new")}</span><span className="lovable-ai-button"><Sparkles />AI</span><CircleQuestionMark /><span className="lovable-language"><Globe />{i18n.language.startsWith("vi") ? "VI" : "EN"}</span><Palette /><Sun /><ShieldCheck /><Settings /><Bell /><CalendarDays /><div className="lovable-profile"><span>ML<i /></span><div><strong>Minh Linh</strong><small>{copy("member")}</small></div><ChevronDown /></div></div>;
+  return <div className="lovable-toolbar"><PanelLeftClose /><div className="lovable-global-search"><Search /><span>{copy("search")}</span><kbd>⌘K</kbd></div><span className="lovable-primary"><Plus />{copy("new")}</span><span className="lovable-ai-button"><Sparkles />AI</span><CircleQuestionMark /><span className="lovable-language"><Globe />{i18n.language.startsWith("vi") ? "VI" : "EN"}</span><Palette /><Sun /><ShieldCheck /><Settings /><Bell /><CalendarDays /><div className="lovable-profile"><span>AN<i /></span><div><strong>An Nhiên</strong><small>{copy("member")}</small></div><ChevronDown /></div></div>;
 }
 
 export function LovablePageHeading({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {

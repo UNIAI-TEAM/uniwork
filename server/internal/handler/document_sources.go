@@ -66,7 +66,9 @@ func (h *handlers) listDocumentSources(w http.ResponseWriter, r *http.Request) {
 func documentSourceDTO(it service.DocumentSourceItem) sdo.DocumentSourceDTO {
 	dto := sdo.DocumentSourceDTO{
 		ID: it.ID, Source: it.Source,
-		Parent:   sdo.DocumentSourceParentDTO{Kind: it.Parent.Kind, ID: it.Parent.ID, Title: it.Parent.Title, MessageID: it.Parent.MessageID},
+		Parent: sdo.DocumentSourceParentDTO{
+			Kind: it.Parent.Kind, ID: it.Parent.ID, Title: it.Parent.Title, MessageID: it.Parent.MessageID,
+		},
 		Name:     it.Name,
 		MimeType: it.MimeType, Extension: it.Extension, SizeBytes: it.SizeBytes,
 		UpdatedAt:    it.UpdatedAt.UTC().Format(time.RFC3339),

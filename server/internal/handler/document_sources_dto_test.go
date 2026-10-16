@@ -9,19 +9,19 @@ import (
 )
 
 // UNI-1814 review R1-1: the list handler's DTO emits the parent key
-// "message_id" on the wire for every row - the message id for a chat file,
-// and "" for the other sources, since the SDO tag has no omitempty and a
-// client reads the key without a fallback.
-func TestDocumentSourceDTOAlwaysCarriesTheMessageIDKey(t *testing.T) {
+// "message_id" on the wire for a chat file and omits it when empty
+// (`json:"message_id,omitempty"`).
+func TestDocumentSourceDTOMessageIDOnTheWire(t *testing.T) {
 	const messageID = "01J8X4MSG0N1P2Q3R4S5T6U7V8"
 	cases := []struct {
 		name      string
 		source    string
 		messageID string
+		wantKey   bool
 		want      string
 	}{
-		{"chat file", service.DocumentSourceChat, messageID, messageID},
-		{"task file", service.DocumentSourceTask, "", ""},
+		{"chat file", service.DocumentSourceChat, messageID, true, messageID},
+		{"task file", service.DocumentSourceTask, "", false, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -46,10 +46,10 @@ func TestDocumentSourceDTOAlwaysCarriesTheMessageIDKey(t *testing.T) {
 				t.Fatalf("parent = %#v in %s", wire["parent"], raw)
 			}
 			got, ok := parent["message_id"]
-			if !ok {
-				t.Fatalf("parent has no message_id key: %s", raw)
+			if ok != c.wantKey {
+				t.Fatalf("parent message_id present = %v, want %v in %s", ok, c.wantKey, raw)
 			}
-			if got != c.want {
+			if c.wantKey && got != c.want {
 				t.Fatalf("parent.message_id = %#v, want %q in %s", got, c.want, raw)
 			}
 		})

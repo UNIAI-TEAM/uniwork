@@ -21,7 +21,7 @@ export function sourceParentPath(ws: WorkspacePaths, parent: DocumentSourceFile[
       return ws.meeting(parent.id);
     case "chat_channel":
     case "chat_dm":
-      return ws.chat({ room: parent.id, message: parent.message_id });
+      return ws.chatConversation(parent.id, parent.message_id || undefined);
     case "email_thread":
       return ws.email();
     default:

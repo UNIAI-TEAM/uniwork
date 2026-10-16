@@ -100,7 +100,18 @@ describe("documents-sources endpoints", () => {
       can_save: false,
       mime_type: "",
       extension: "",
+      parent: { message_id: "" },
     });
+  });
+
+  it("parses chat parent message_id for deep links", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        items: [item({ parent: { kind: "chat_channel", id: "c1", title: "general", message_id: "m1" } })],
+      }),
+    );
+    const out = await listDocumentSources("w1");
+    expect(out.items[0]?.parent.message_id).toBe("m1");
   });
 
   it("carries the chat message a file was sent in on its parent", async () => {

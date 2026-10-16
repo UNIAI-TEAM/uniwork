@@ -16,6 +16,9 @@ describe("sourceParentPath", () => {
 
   it("opens the channel room at the message the file was sent in", () => {
     expect(sourceParentPath(ws, parent("chat_channel", "room1", "msg1"))).toBe("/acme/eng/chat?room=room1&message=msg1");
+    expect(sourceParentPath(ws, { kind: "chat_channel", id: "room2", title: "", message_id: "msg9" })).toBe(
+      ws.chatConversation("room2", "msg9"),
+    );
   });
 
   it("opens the DM room at the message the file was sent in", () => {
@@ -23,11 +26,12 @@ describe("sourceParentPath", () => {
   });
 
   it("opens a group room the same way (the server sends it as chat_dm with the group's room id)", () => {
-    expect(sourceParentPath(ws, parent("chat_dm", "group1", "msg3"))).toBe(ws.chat({ room: "group1", message: "msg3" }));
+    expect(sourceParentPath(ws, parent("chat_dm", "group1", "msg3"))).toBe(ws.chatConversation("group1", "msg3"));
   });
 
   it("opens the room alone when the server named no message", () => {
     expect(sourceParentPath(ws, parent("chat_channel", "room1"))).toBe("/acme/eng/chat?room=room1");
+    expect(sourceParentPath(ws, { kind: "chat_dm", id: "room1", title: "" })).toBe(ws.chatConversation("room1"));
   });
 
   it("opens the Email Hub for an email thread, which has no thread route", () => {
@@ -41,9 +45,10 @@ describe("sourceParentPath", () => {
 });
 
 describe("sourceLinkLabelKey", () => {
-  it("says View where attached for chat now that it reaches the message", () => {
+  it("says View where attached for chat now that it reaches the room and message", () => {
     expect(sourceLinkLabelKey(parent("chat_channel", "c", "m"))).toBe("documents.home.row.go_to_source");
     expect(sourceLinkLabelKey(parent("chat_dm", "c", "m"))).toBe("documents.home.row.go_to_source");
+    expect(sourceLinkLabelKey({ kind: "chat_channel", id: "c", title: "" })).toBe("documents.home.row.go_to_source");
   });
 
   it("keeps the email label, since email opens the hub only", () => {

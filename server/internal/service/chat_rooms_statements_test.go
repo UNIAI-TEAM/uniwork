@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -56,5 +58,36 @@ func TestListChatRoomsStatementCount(t *testing.T) {
 	t.Logf("GET /chat/rooms with %d rooms: %d statements", len(rooms), n)
 	if n > maxStatements {
 		t.Fatalf("GET /chat/rooms with %d rooms ran %d statements, bound is %d", len(rooms), n, maxStatements)
+	}
+}
+
+// TestSendRoomMessageStatementCount bounds how many DB round-trips one text
+// send with @mention and priority costs (UNI-1746).
+func TestSendRoomMessageStatementCount(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	// A group needs two members besides its creator (CreateGroup).
+	uc := registerVerified(t, q, NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil), "chat-c@example.com", "C")
+	for _, u := range []db.User{ub, uc} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "send-perf", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs, counter := countingChatService(t, s)
+	body := mentionOf(ub) + "xem giúp"
+	if _, err := cs.SendRoomMessage(ctx, ua.ID, w.ID, group.ID, SendChatMessageInput{
+		Body: body, Priority: chatMessagePriorityUrgent,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	n := int(counter.n.Load())
+	t.Logf("SendRoomMessage with @mention and priority: %d statements", n)
+	// One fewer GetActiveChatRoomMember and two metadata UPDATEs removed (UNI-1746).
+	const maxStatements = 18
+	if n > maxStatements {
+		t.Fatalf("send ran %d statements, want ≤ %d", n, maxStatements)
 	}
 }

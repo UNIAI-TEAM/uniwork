@@ -56,7 +56,7 @@ const src = (over: Partial<DocumentSourceFile> = {}) =>
   sourceRow({
     id: "chat:1",
     source: "chat",
-    parent: { kind: "chat_channel", id: "c", title: "C", message_id: "" },
+    parent: { kind: "chat_channel", id: "c", title: "C" },
     name: "a.pdf",
     mime_type: "application/pdf",
     extension: "pdf",
@@ -101,6 +101,22 @@ describe("library rows", () => {
     ]);
     expect(groupRows(rows, "source", index).map((g) => g.key)).toEqual(["origin:documents", "origin:chat"]);
     expect(groupRows(rows, "none", index)).toHaveLength(1);
+  });
+
+  it("puts root folder rows in their own first group under group-by-folder, keeps nested folders in their parent group, keeps empty root folders visible, and leaves only root documents in unfiled", () => {
+    const rootDoc = documentRow(doc({ id: "root-doc", kind: "page", title: "Root page" }));
+    const childDoc = documentRow(doc({ id: "child-doc", kind: "file", title: "Spec.docx", parent_id: "f1" }));
+    const nonEmptyFolder = documentRow(doc({ id: "f1", kind: "folder", title: "F1" }));
+    const emptyRootFolder = documentRow(doc({ id: "f-empty", kind: "folder", title: "Empty" }));
+    const nestedFolder = documentRow(doc({ id: "f2", kind: "folder", title: "F2", parent_id: "p1" }));
+    const rows = [rootDoc, childDoc, nonEmptyFolder, emptyRootFolder, nestedFolder];
+
+    const groups = groupRows(rows, "folder", index);
+    expect(groups.map((g) => [g.key, g.title, g.rows.map((r) => r.id)])).toEqual([
+      ["folders", "", ["f1", "f-empty"]],
+      ["unfiled", "", ["root-doc"]],
+      ["folder:f1", "F1", ["child-doc", "f2"]],
+    ]);
   });
 
   it("tells uploads from created documents and sizes only files", () => {

@@ -155,6 +155,43 @@
           "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4": "The admin plan screen now rejects a mistyped price or quota before saving: amounts must be whole numbers, and a bad value disables Save instead of turning 499.000 into 499 or text into an unlimited quota. When the server refuses the write, the form stays on screen with an error.",
           "c5d891540b40d0b14088aca2f202b66dfeef08ee1": "A payment is now applied only once: two concurrent applies of the same payment each used to write an invoice, so an organization saw two invoices for one payment. The payment intent is now locked and completed before the subscription change, so the second writer stops."
         }
+      },
+      "v1_5_0": {
+        "title": "AI assistants that work with tasks, projects, meetings and documents, a step-by-step connection guide and a large batch of chat fixes",
+        "summary": "AI assistants connected over MCP, such as Claude, ChatGPT or Gemini, can now read and write tasks, projects, meetings and documents on behalf of the person who allowed it, and Settings › AI apps has a step-by-step guide for connecting Claude or ChatGPT. A cancelled meeting can be brought back with the Restore button. Chat gets a large batch of fixes to permissions, realtime sync, notifications, threads, search, sending and calls. Alongside are fixes for Email Hub and Documents, and the demos on the marketing site now follow the product's current screens.",
+        "note": "An AI assistant can only write when the connection was granted write access, the organization has switched on AI write access and the feature is enabled; the assistant acts on behalf of the person who allowed it, with that person's permissions. Document actions through an assistant follow whether Documents is switched on for the organization; for a page that is too long or has content that cannot round-trip through Markdown, the assistant can only append, not replace the whole page. The step-by-step guide covers Claude and ChatGPT; on a Claude Team or Enterprise plan, the Claude organization owner has to add the connector first.",
+        "features": {
+          "cee5763d0eba8a1097ad8cce142b06b1f2c59795d": "AI assistants connected to UniWork over MCP can now work with tasks, projects, meetings and documents on behalf of the person who allowed it: see members and tasks, create and edit tasks and add comments; view, create and edit projects; view, schedule, edit, invite people to, cancel and restore meetings; search, read, create and edit documents and comment on them. The assistant has no delete action, every write says how to undo it, and an edit is refused if the item changed since the assistant last read it. The consent page and the AI access switch now name projects and documents as well.",
+          "c055cc969f60bf8f56d5575ab9107fbc60495e67b": "A cancelled meeting can now be brought back with the Restore button on its page; the button waits for the request to finish before it can be pressed again.",
+          "cb8db488814c8f81523fae678d92bf08f62087d6a": "Settings › AI apps has a Connection guide button that opens a step-by-step dialog for Claude or ChatGPT: pick the assistant, copy the UniWork address, open the assistant's page in a new tab, add UniWork, then sign in and allow access; each step has a drawing that circles exactly what to click. While the dialog is open, UniWork notices the new connection by itself and suggests a first question, with a Check again button if it is not seen yet. Claude, ChatGPT and Gemini logos appear beside the connection sections of AI apps and AI access; on a connected app's row, the logo only shows when that app is verified."
+        },
+        "improvements": {
+          "cfde652d9c629769761cea53dd8c62c816bb5438d": "When an AI assistant reads a task, it now also gets the 50 most recent comments with their id, author and time, so it can reply to any comment rather than only the ones it wrote itself. Authors are shown by display name, never by email.",
+          "c0ec00567d931c302d0f8cb9ad80d9e788ed44dfa": "The interactive demos on the marketing site are now built from the product's current screens — tasks, projects, chat, Email Hub, meetings, calendar, documents, people and Ask UNI — with sample data, and they play their action sequences automatically again."
+        },
+        "fixes": {
+          "c00ede2f34a81c4247c10125bc13b53f2963e02cc": "The scope tabs (All, Recent, Shared, Archived) and the file type chips on the Documents home no longer show stray scrollbars, and still scroll sideways on narrow screens.",
+          "cd12a4989a99624ed944cf68d8baa10dce67e56a7": "When Documents is switched off for an organization, the Documents area of the app is now closed for that organization's members too, in line with public links and AI assistants; other organizations are not affected.",
+          "cb59d1c98dba066ccdad3658a5f8f1c5f2bfdfad8": "Sending and calling in chat: message, note, post and reminder lengths are counted in characters, so Vietnamese text is no longer called too long early; polls, notes, posts and reminders are no longer duplicated on a flaky network, and sending one in a DM notifies the recipient; the composer clears as soon as you send; @mentions point to the right person even when two people share a name, and @ suggestions in a channel only list its members. A queued message the server refuses for good is dropped with a notice, a retried voice clip no longer arrives twice, GIFs and stickers only load from allowed sources, a new group's name is capped at 80 characters, reminders stop in archived rooms and reminder cards have a delete button. Pressing Call twice rings only once, answering or declining in one tab stops the other tabs ringing, an ongoing call can no longer be taken over by someone else, and a call summary is posted only once.",
+          "c60ce04b243311f6f337b7ccbcdd003e73aeea914": "Chat permissions now hold on every action: a person blocked in a DM or barred from sending can no longer post polls, notes, posts or reminders, edit messages, react, pin, vote, call, record or link a thread to a task. A member removed from a group can no longer get back in by creating a new group with the same members; only room moderators can rename a channel and the rename is recorded; a demoted workspace admin also loses admin rights in the default channel; the last admin cannot leave a room that still has members; and room moderation buttons only show where the server allows them. A poll that hides results no longer leaks vote counts before you vote, rejoining a public channel you left no longer fails, a colleague from another workspace can join DM and group calls, and opening a DM with a deactivated colleague no longer locks your own screen.",
+          "c7458c4c4acf123f2d4392446cadadca8c5b24a7c": "Chat threads and search: a long thread now shows its older replies too; opening a thread no longer follows it, and the thread bar has a Follow / Unfollow button; deleting a reply updates the root's reply count; a reply sent while offline stays in its thread; jumping to a message no longer mixes thread replies into the main timeline, and Back to newest returns to the end of the room and marks it read; Summarize in a thread covers its unread replies. Searching without Vietnamese marks still finds messages (hop finds Họp), and the channel directory filters correctly even when you type _ or %. Editing or deleting a message in a thread linked to a task carries over to the task comment and the other way round, and deleting a task removes its chat links.",
+          "c3b5dbfd16c9e9698479dc08ae75fea87678df71a": "Chat realtime sync and notifications are steadier: the sidebar reloads at a bounded rate and channels send a member count instead of the whole member list, so a busy channel no longer slows everyone down; a channel switched to private stops reaching outsiders; renamed, archived or new channels and members removed from a room update the sidebar straight away; and after a connection drop the open room, task links and recording state are loaded again. Reading a chat closes its notification so DM pushes resume, a merged notification row opens the newest message, muting a room applies on every device, and the sidebar preview and unread counts stay right when an older message changes or a thread reply lands in the default channel. Closing one of your tabs no longer shows you as offline to others.",
+          "c6764d566d5eb554969fc4b987ae3e8e3a66708af": "Email Hub: the Starred folder now pulls the mail you starred in your mailbox (Gmail included), Spam syncs in the background, Trash and Spam sync as soon as you open them, and moving mail to another folder syncs the target folder first. When writing, a long draft scrolls and pasted images become attachments; the empty Scheduled and Snoozed folders explain that they only hold mail scheduled or snoozed in UniWork.",
+          "cd363ca48e750a9dfe29aa3efbef9a9c4045c48de": "Email Hub opens mail faster and more reliably: it shows the snippet while the body loads, retries a failed body load by itself, preloads the neighbouring messages, and only marks mail read once the body has loaded.",
+          "c13087a29b3cb2ad63dc7a132870cbb4b3018c836": "In Documents, going to the source of a file that came from chat now opens the right room and highlights the message that carries the file, instead of just opening Chat.",
+          "c8d3b953959e51a40d91645de8e49a89fa4e7a9a2": "Chat notifications are more reliable: editing a message to add an @mention notifies the newly mentioned people, a missed call in a DM notifies the recipient, followers of a thread in a public channel get its replies even before joining the channel, and notifications are retried after a temporary failure instead of being lost. Editing a message keeps its priority and other message data, and resending a message that was deleted now gets a clear error instead of a server error."
+        }
+      },
+      "v1_5_1": {
+        "title": "Product menu opens each feature page, and demos use new sample data",
+        "summary": "A patch for the marketing site: each entry in the Product menu opens that feature's own page, the Watch demo button on a feature page opens the demo right there, and the demos use a new sample workspace. The Calendar demo follows the current Calendar screen.",
+        "note": "This patch only changes the marketing site; the UniWork app itself is unchanged.",
+        "improvements": {
+          "c31a87b6e474f69e33cd44093e483d24dfe1a4f39": "The demos on the marketing site use a new sample workspace, members and tasks in both Vietnamese and English. The Calendar demo has the same search box as the current Calendar screen and opens at 08:00."
+        },
+        "fixes": {
+          "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d": "On the marketing site, each entry in the Product menu now opens that feature's own page, and the Watch demo button on a feature page opens the demo right there. The illustration at the end of the home page uses the product's current interface."
+        }
       }
     }
   },
@@ -5865,6 +5902,124 @@
     }
   },
   "landing": {
+    "productDemo": {
+      "officeHome": "Open UniWork Office",
+      "taskOwnerAnswer": "{{name}} is responsible for “{{task}}”.",
+      "email": {
+        "localOnly": "Sample mailbox. Changes stay in this demo; no email is sent.",
+        "draftSaved": "Draft saved in this demo.",
+        "sentLocally": "Message saved to this demo’s outbox. No email was sent.",
+        "sampleAttachment": "Sample attachment shown for the demo.",
+        "messages": {
+          "0": {
+            "subject": "Product launch brief",
+            "snippet": "The launch brief is ready. Please review the scope before Friday."
+          },
+          "1": {
+            "subject": "Design review — feedback and next steps",
+            "snippet": "The updated onboarding screens are ready for a final review."
+          },
+          "2": {
+            "subject": "Your weekly workspace update",
+            "snippet": "A summary of tasks, meetings and decisions from this week."
+          },
+          "3": {
+            "subject": "Project sync — meeting notes",
+            "snippet": "Here are the decisions and action items from our project sync."
+          },
+          "4": {
+            "subject": "Updated implementation plan",
+            "snippet": "The revised plan and delivery milestones are attached."
+          },
+          "5": {
+            "subject": "New interface assets for review",
+            "snippet": "Please take a look at the latest icons and product illustrations."
+          },
+          "6": {
+            "subject": "Release checklist for next week",
+            "snippet": "Owners and deadlines have been added to the release checklist."
+          },
+          "7": {
+            "subject": "Workspace onboarding schedule",
+            "snippet": "A short introduction to the workspace for the new team members."
+          },
+          "8": {
+            "subject": "Launch timeline and responsibilities",
+            "snippet": "Let’s confirm the owners for each milestone before we publish."
+          },
+          "9": {
+            "subject": "Customer feedback — onboarding",
+            "snippet": "A few observations from this week’s onboarding sessions."
+          },
+          "10": {
+            "subject": "Follow-up: scope and priorities",
+            "snippet": "Thanks for the discussion. Here is the agreed scope for this sprint."
+          },
+          "11": {
+            "subject": "Ready for the next product demo",
+            "snippet": "The presentation is ready and the demo workspace has been prepared."
+          },
+          "12": {
+            "subject": "Welcome to your connected workspace",
+            "snippet": "Keep your work, conversations and decisions together in UniWork."
+          }
+        }
+      },
+      "deviceDefault": "Default device",
+      "title": "Explore UniWork",
+      "search": "Search the product…",
+      "saved": "Saved in this demo",
+      "board": {
+        "all": "All",
+        "filter": "Filter",
+        "display": "Display",
+        "tasks": {
+          "brief": "Prepare the sample product brief",
+          "research": "Research needs for the sample app",
+          "wireframes": "Sketch the landing page layout",
+          "prototype": "Prepare an interactive prototype",
+          "simulation": "Write onboarding test scenarios",
+          "design": "Design the onboarding experience",
+          "review": "Summarize prototype feedback",
+          "launch": "Agree on the trial release scope",
+          "handoff": "Hand over the sample team guide",
+          "integration": "Check the sandbox connection",
+          "followup": "Update onboarding from the team discussion"
+        }
+      },
+      "concepts": {
+        "skills": [
+          "Summarize a sample brief",
+          "Draft an onboarding checklist",
+          "Prepare review questions"
+        ],
+        "work-catalog": [
+          "Sample product update",
+          "Demo onboarding review",
+          "Trial release checklist"
+        ],
+        "decision-history": [
+          "Agree on the trial release scope",
+          "Approve the prototype layout",
+          "Adjust the sample review schedule"
+        ],
+        "ai-market": [
+          "Demo writing assistant",
+          "Demo review assistant",
+          "Demo meeting notes assistant"
+        ],
+        "reports": [
+          "Sample sprint summary",
+          "Sample workload overview",
+          "Trial release report"
+        ]
+      },
+      "projects": {
+        "website": "Demo website",
+        "onboarding": "Sample team onboarding",
+        "campaign": "Trial campaign"
+      }
+    },
     "businessOs": {
       "title": "UniWork Business OS",
       "subtitle": "37 capabilities. One shared context.",
@@ -6521,7 +6676,7 @@
       "meetingList": "Meeting list",
       "meetingRoom": "In-meeting preview",
       "reference": "UniWork product preview",
-      "sample": "Illustrative sample data · No real changes",
+      "sample": "Fictional demo data · No customer records",
       "expand": "Expand preview",
       "close": "Close preview",
       "fit": "Fit whole interface",
@@ -6589,7 +6744,7 @@
       "priority": "Priority",
       "mailPriority": "Launch brief is waiting for your review.",
       "mailStatistics": "Email statistics",
-      "greeting": "Hello Minh Linh,",
+      "greeting": "Hello An Nhiên,",
       "assistantSub": "A summary of your workspace today.",
       "docAlert": "0 documents need updating",
       "taskAlert": "27 tasks are overdue",
@@ -6778,11 +6933,11 @@
       "selectThread": "Select a message to read it.",
       "readOnly": "Read-only, within your permissions",
       "answerPending": "Looking in your workspace…",
-      "ownerAnswer": "Hoàng Anh owns the onboarding design. Its status is in_progress.",
+      "ownerAnswer": "Khánh Vy owns the onboarding design. Its status is in_progress.",
       "pointer": {
         "task-row": "Open task",
         "assignee": "Assign a teammate",
-        "member": "Select Hoàng Anh",
+        "member": "Select Khánh Vy",
         "task-close": "Back to board",
         "task-status": "Change status",
         "task-done": "Move to done",
@@ -6800,11 +6955,11 @@
       "steps": {
         "tasks0": "Open the task that needs an assignee.",
         "tasks1": "Open the assignee field in task details.",
-        "tasks2": "Choose Hoàng Anh from the member list.",
-        "tasks3": "Hoàng Anh is assigned. Status remains in_progress.",
+        "tasks2": "Choose Khánh Vy from the member list.",
+        "tasks3": "Khánh Vy is assigned. Status remains in_progress.",
         "tasks4": "Return to the board and open the task's status menu.",
-        "tasks5": "Minh Linh chooses done to mark the work complete.",
-        "tasks6": "The card moves into done. Hoàng Anh remains the assignee.",
+        "tasks5": "An Nhiên chooses done to mark the work complete.",
+        "tasks6": "The card moves into done. Khánh Vy remains the assignee.",
         "meetings0": "In the More menu, choose screen sharing.",
         "meetings1": "Choose the window to share with the meeting.",
         "meetings2": "Confirm sharing the selected window.",
@@ -6849,10 +7004,10 @@
       "contextTitle": "Context stays with the work",
       "contextNote": "Meeting feedback and design decisions are linked to the task.",
       "question": "Who owns onboarding, and where is the source?",
-      "answer": "Hoàng Anh owns the onboarding experience. Check the task and its source below.",
+      "answer": "Khánh Vy owns the onboarding experience. Check the task and its source below.",
       "chatBrief": "Let's finalize onboarding for this launch. I've added the pilot team's feedback.",
       "chatReply": "I'll take this on. Let's link the discussion to the task so the whole team can follow.",
-      "taskLinked": "Minh Linh links the task",
+      "taskLinked": "An Nhiên links the task",
       "typing": "Previewing the conversation…",
       "contextReady": "Everyone shares the same context",
       "meetingTitle": "Product sync",
@@ -6874,7 +7029,7 @@
       "deliverables": "Deliverables",
       "linked": "Linked",
       "reviewed": "Reviewed · illustrated decision",
-      "reviewNote": "Minh Linh · Keep references with the document.",
+      "reviewNote": "An Nhiên · Keep references with the document.",
       "week": "Work week · Sep 21–25",
       "days": {
         "0": "Monday",
@@ -6895,7 +7050,7 @@
       "permissionNote": "Access is scoped to organizations and workspaces. These members are illustrative.",
       "steps": {
         "work0": "Choose the task that needs the team's focus.",
-        "work1": "Minh Linh assigns onboarding to Hoàng Anh.",
+        "work1": "An Nhiên assigns onboarding to Khánh Vy.",
         "work2": "Link the discussion to the task.",
         "work3": "One task done. A clearer picture of progress.",
         "meeting0": "Bring the team into the same meeting.",
@@ -7120,7 +7275,7 @@
     "meeting": {
       "online": "Online meetings",
       "roomTitle": "Product planning session",
-      "sharedBy": "Minh Linh is sharing · Demo",
+      "sharedBy": "An Nhiên is sharing · Demo",
       "planTitle": "Agree on what comes next.",
       "planDescription": "A clear scope. An owner for every task.",
       "mic": "Mic",
@@ -7263,7 +7418,7 @@
       "send": "Send message",
       "you": "You",
       "ownerQuestion": "Who owns the work?",
-      "ownerAnswer": "Hoàng Anh owns the onboarding design. Minh Linh owns the product brief, UNI gathers feedback, and Thanh Ngân owns the launch scope.",
+      "ownerAnswer": "Khánh Vy owns the onboarding design. An Nhiên owns the product brief, UNI gathers feedback, and Gia Minh owns the launch scope.",
       "completedCount_one": "{{count}} of 4 example tasks is complete.",
       "completedCount_other": "{{count}} of 4 example tasks are complete."
     },
@@ -7298,7 +7453,7 @@
       "notice1": "You were mentioned in a conversation",
       "notice2": "A task was assigned to you",
       "notice3": "The launch scope was updated",
-      "noticeContext1": "Minh Linh · Product channel",
+      "noticeContext1": "An Nhiên · Product channel",
       "noticeContext2": "Design the onboarding experience",
       "noticeContext3": "Product launch project",
       "organization": "Organization",
@@ -7372,7 +7527,7 @@
       "askQuestion": "How is our product launch coming along?",
       "askAnswer": "Based on the workspace tasks you have permission to read:",
       "askPoint1": "The launch scope has been agreed.",
-      "askPoint2": "Hoàng Anh is working on the onboarding design.",
+      "askPoint2": "Khánh Vy is working on the onboarding design.",
       "sourceLabel": "Source",
       "askGuardrail": "Ask UNI only reads permitted data. This is an illustrative answer.",
       "workflowTitle": "Less switching.\nMore moving forward.",

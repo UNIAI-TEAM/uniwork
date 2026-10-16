@@ -8,15 +8,16 @@ import { cn } from "@uniwork/ui/lib/utils"
 function Tabs({
   className,
   orientation = "horizontal",
+  unstyled = false,
   ...props
-}: TabsPrimitive.Root.Props) {
+}: TabsPrimitive.Root.Props & { unstyled?: boolean }) {
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
       orientation={orientation}
       data-orientation={orientation}
       className={cn(
-        "group/tabs flex gap-2 data-horizontal:flex-col",
+        !unstyled && "group/tabs flex gap-2 data-horizontal:flex-col",
         className
       )}
       {...props}

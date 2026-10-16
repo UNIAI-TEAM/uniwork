@@ -27,10 +27,7 @@ export const DocumentSourceFileSchema = z.object({
     kind: z.string(),
     id: z.string(),
     title: z.string(),
-    // The chat message the file was sent in (chat_channel / chat_dm), empty for
-    // every other parent. A bad value degrades to empty: the link then opens
-    // the room without the jump.
-    message_id: z.string().catch(""),
+    message_id: z.string().optional().default("").catch(""),
   }),
   name: z.string(),
   mime_type: z.string().optional().default(""),
@@ -50,7 +47,7 @@ export const DocumentSourceFileSchema = z.object({
 });
 export type DocumentSourceFile = Omit<z.infer<typeof DocumentSourceFileSchema>, "source" | "parent"> & {
   source: DocumentSourceKind;
-  parent: { kind: DocumentSourceParentKind; id: string; title: string; message_id: string };
+  parent: { kind: DocumentSourceParentKind; id: string; title: string; message_id?: string };
 };
 
 export const DocumentSourceListSchema = z.object({

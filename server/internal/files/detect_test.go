@@ -11,9 +11,83 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/files/filescontract"
 )
 
+// detectBody types body the way an upload does: the head first, then the
+// whole body for a zip the head leaves untyped.
+func detectBody(body []byte, filename string) string {
+	head := body[:min(len(body), files.DetectHeadBytes)]
+	return files.DetectBodyContentType(head, filename, bytes.NewReader(body), int64(len(body)))
+}
+
+// mediaFirstPackage is an OOXML package whose first entry is a stored media
+// part of mediaLen bytes, so [Content_Types].xml and the main parts start past
+// the detector's head.
+func mediaFirstPackage(t *testing.T, mediaLen int, parts ...string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	add := func(name string, method uint16, body []byte) {
+		f, err := w.CreateHeader(&zip.FileHeader{Name: name, Method: method})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Incompressible filler: a stored part, as Word writes images.
+	media := make([]byte, mediaLen)
+	for i := range media {
+		media[i] = byte(i*131 + i>>8)
+	}
+	add("media/image1.png", zip.Store, media)
+	for _, name := range append([]string{"[Content_Types].xml", "_rels/.rels"}, parts...) {
+		add(name, zip.Deflate, []byte("<x/>"))
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func TestDetectBodyContentTypeLargeFirstEntry(t *testing.T) {
+	const big = files.DetectHeadBytes + 4096
+	cases := []struct {
+		name  string
+		body  []byte
+		file  string
+		model string
+	}{
+		{"docx", mediaFirstPackage(t, big, "word/document.xml"), "a.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+		{"xlsx", mediaFirstPackage(t, big, "xl/workbook.xml"), "a.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+		{"pptx", mediaFirstPackage(t, big, "ppt/presentation.xml"), "a.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+		{"docx_named_zip", mediaFirstPackage(t, big, "word/document.xml"), "a.zip", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+		{"macro_package", mediaFirstPackage(t, big, "word/document.xml", "word/vbaProject.bin"), "a.docx", "application/zip"},
+		{"two_main_folders", mediaFirstPackage(t, big, "word/document.xml", "xl/workbook.xml"), "a.docx", "application/zip"},
+		{"no_content_types", zipOf(t, "media/a.png", "word/document.xml"), "a.docx", "application/zip"},
+	}
+	for _, c := range cases {
+		if got := detectBody(c.body, c.file); got != c.model {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.model)
+		}
+	}
+	// The head alone cannot tell, which is the bug this path closes.
+	if got := files.DetectContentType(cases[0].body, "a.docx"); got != "application/zip" {
+		t.Errorf("head-only detection typed a media-first DOCX as %q; the fixture no longer pushes the parts past the head", got)
+	}
+	// A zip of unrelated files stays a zip.
+	if got := detectBody(mediaFirstPackage(t, big, "notes/readme.txt"), "a.docx"); got != "application/zip" {
+		t.Errorf("zip of random files: got %q", got)
+	}
+	// A body that is not a readable zip keeps the head's answer.
+	broken := mediaFirstPackage(t, big, "word/document.xml")
+	if got := detectBody(broken[:len(broken)-10], "a.docx"); got != "application/zip" {
+		t.Errorf("truncated archive: got %q", got)
+	}
+}
+
 func TestDetectContentTypeSamples(t *testing.T) {
 	for _, s := range filescontract.Samples() {
-		if got := files.DetectContentType(s.Body, s.Filename); got != s.ContentType {
+		if got := detectBody(s.Body, s.Filename); got != s.ContentType {
 			t.Errorf("%s (%s): got %q, want %q", s.Name, s.Filename, got, s.ContentType)
 		}
 	}
@@ -21,7 +95,7 @@ func TestDetectContentTypeSamples(t *testing.T) {
 
 func TestDetectContentTypeMisnamed(t *testing.T) {
 	for _, s := range filescontract.MisnamedSamples() {
-		if got := files.DetectContentType(s.Body, s.Filename); got != s.ContentType {
+		if got := detectBody(s.Body, s.Filename); got != s.ContentType {
 			t.Errorf("%s (%s): got %q, want %q", s.Name, s.Filename, got, s.ContentType)
 		}
 	}
