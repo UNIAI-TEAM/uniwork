@@ -200,7 +200,6 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
   test("Docs shows 'Xem khác biệt' before Reload", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    finding("UXF-03", "State Patterns › S5: Docs/DOCX has 'Xem khác biệt' after the comparison table, before Reload (OQ-UX9) (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const before = await frame.locator(S5_CARD).evaluate((card) => {
       const reload = card.querySelector('[data-choice="reload"]');
       const diff = [...card.querySelectorAll("button, a")].find((b) => /Xem khác biệt|View differences/i.test(b.textContent ?? ""));
@@ -215,7 +214,6 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
     const live = await frame.evaluate(() => [...document.querySelectorAll(".uw-live")].map((el) => ({ role: el.getAttribute("role"), inert: !!el.closest("[inert]") })));
     test.info().annotations.push({ type: "measured", description: JSON.stringify(live) });
     expect(live.length, "the frame has a window live node once a bar was announced").toBeGreaterThanOrEqual(1);
-    finding("UXF-04", "Floor › Vùng live: the window's live nodes are siblings of the inert part, never inside it (pin: frame-dialog inertSiblings inerts every body child, .uw-live included; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     expect(live.filter((l) => l.inert)).toEqual([]);
   });
 });
@@ -224,7 +222,6 @@ test.describe("live regions (Floor › Vùng live)", () => {
   test("the frame has its two fixed live nodes from load, before any bar", async ({ page }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await openDocs(page, seeded);
-    finding("UXF-10", "Floor › Vùng live: the window's polite and assertive nodes exist from load (pin: remote-bar.ts liveNode() creates each on its first announce; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const nodes = await frame.evaluate(() => ({
       status: document.querySelectorAll('.uw-live[role="status"]').length,
       alert: document.querySelectorAll('.uw-live[role="alert"]').length,
@@ -298,7 +295,6 @@ test.describe("forced colors (DESIGN.md › Colors › Forced colors)", () => {
       });
       test.info().annotations.push({ type: "measured", description: JSON.stringify(got) });
       expect(got.length).toBeGreaterThan(0);
-      finding("UXF-05", "DESIGN › Forced colors: [aria-disabled=true] buttons use GrayText for text and border (pin: frame-dialog.css has no forced-colors rule, opacity only; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
       for (const b of got) {
         expect(b.color, `${b.id}: text`).toBe(b.gray);
         expect(b.border, `${b.id}: border`).toBe(b.gray);
@@ -364,7 +360,6 @@ test.describe("zoom, narrow frames and motion (Floor, Responsive & Platform)", (
       expect(new Set(box.xs).size, "buttons share one column").toBe(1);
       expect(new Set(box.ys.map(Math.round)).size, "stacked: every button on its own row").toBe(box.ys.length);
       expect([...box.ys].sort((a, b) => a - b), "stacked top-to-bottom = DOM order").toEqual(box.ys);
-      if (width > 448 + 32) finding("UXF-07", "Responsive › Web hẹp (< 768px): S5 takes the full width minus 16px margins (pin: .ow-dlg max-width 448px; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
       expect(Math.abs(box.left - 16), "16px left margin").toBeLessThanOrEqual(1);
       expect(Math.abs(box.width - (box.inner - 32)), "full width minus 2x16px").toBeLessThanOrEqual(1);
     });
@@ -463,7 +458,6 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
     });
     test.info().annotations.push({ type: "measured", description: JSON.stringify(sel) });
     await shot(frame, "s7-forced-colors");
-    finding("UXF-06", "DESIGN › Forced colors: .ai-model-item.selected has a 2px Highlight border (pin: background only; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     expect(sel.width).toBeGreaterThanOrEqual(2);
     expect(sel.color).toBe(sel.hl);
   });
