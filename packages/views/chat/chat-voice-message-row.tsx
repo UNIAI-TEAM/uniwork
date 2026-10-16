@@ -114,6 +114,7 @@ function ChatVoiceMessageRowImpl({
   onCreateTask,
   onLinkTask,
   onFollowUp,
+  highlighted = false,
 }: {
   workspaceId: string;
   roomId: string;
@@ -134,6 +135,8 @@ function ChatVoiceMessageRowImpl({
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
+  /** A deep link jumped here: ring the row like the text row does. */
+  highlighted?: boolean;
 }) {
   const reveal = useMessageActionsReveal();
 
@@ -143,9 +146,10 @@ function ChatVoiceMessageRowImpl({
       aria-labelledby={chatMessageLabelId(message.id)}
       tabIndex={-1}
       className={cn(
-        "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
+        "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
         compactTop ? "mt-2" : "mt-4",
         isOwn ? "justify-end" : "justify-start gap-2",
+        highlighted && "bg-brand-subtle ring-2 ring-brand",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />

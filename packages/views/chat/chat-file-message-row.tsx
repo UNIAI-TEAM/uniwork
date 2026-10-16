@@ -36,6 +36,7 @@ function ChatFileMessageRowImpl({
   onCreateTask,
   onLinkTask,
   onFollowUp,
+  highlighted = false,
 }: {
   workspaceId: string;
   roomId: string;
@@ -58,6 +59,8 @@ function ChatFileMessageRowImpl({
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
+  /** A deep link jumped here: ring the row like the text row does. */
+  highlighted?: boolean;
 }) {
   const reveal = useMessageActionsReveal();
   const edgeToEdge = chatFileIsEdgeToEdge(message.file);
@@ -68,9 +71,10 @@ function ChatFileMessageRowImpl({
       aria-labelledby={chatMessageLabelId(message.id)}
       tabIndex={-1}
       className={cn(
-        "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
+        "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-2" : "mt-4",
+        highlighted && "bg-brand-subtle ring-2 ring-brand",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
