@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1809-fd-11-app-folder-tree; git log --oneline -3
+80a97c761daeb296becbc794fbb565c925a91f17
+80a97c761daeb296becbc794fbb565c925a91f17
+80a97c76 merge: FD-11 fix round 4 BE (fd11-fix-be4 9706f1980..e4a98e21d) into the FD-11 branch
+e4a98e21 test(shell): pin identity-change suppression and deterministic org-switch drain
+9706f198 fix(shell): keep last known org on transient org-less status push
