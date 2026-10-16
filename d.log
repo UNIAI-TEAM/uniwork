@@ -1,0 +1,43 @@
+$ pnpm typecheck 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "TYPECHECK_EXIT=$rc"
+@uniwork/core:typecheck: 
+@uniwork/ui:typecheck: 
+@uniwork/ui:typecheck: > @uniwork/ui@0.0.0 typecheck /workspace/packages/ui
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-contracts:typecheck: > @uniwork/office-contracts@0.0.0 typecheck /workspace/packages/office-contracts
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-engine:typecheck: cache miss, executing 17050cc63096535d
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine-app:typecheck: cache miss, executing c75b7941a65ac357
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-engine-app:typecheck: > @uniwork/office-engine-app@0.0.0 typecheck /workspace/apps/office-engine
+@uniwork/office-engine-app:typecheck: > tsc --noEmit
+@uniwork/office-engine-app:typecheck: 
+@uniwork/views:typecheck: cache miss, executing 8e40c8d8fed35cab
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/web:typecheck: cache miss, executing 01e75648bc61a290
+@uniwork/web:typecheck: 
+@uniwork/web:typecheck: > @uniwork/web@0.0.0 typecheck /workspace/apps/web
+@uniwork/web:typecheck: > tsc --noEmit
+@uniwork/web:typecheck: 
+@uniwork/web:typecheck: features/landing/product-documents-preview.tsx(68,1650): error TS2739: Type '{ scope: "home" | "archived" | "recent" | "shared" | null; count: { value: number; more: false; }; onScope: (kind: "home" | "archived" | "recent" | "shared") => void; chip: "page" | "all" | ... 5 more ... | "md"; onChip: Dispatch<...>; groupBy: "type" | ... 2 more ... | "folder"; onGroupBy: Dispatch<...>; }' is missing the following properties from type 'LibraryToolbarProps': access, onAccess
+@uniwork/web:typecheck:  ELIFECYCLE  Command failed with exit code 2.
+@uniwork/web#typecheck:  ERROR  command (/workspace/apps/web) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run typecheck exited (2)
+
+ Tasks:    6 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    1m17.504s 
+Failed:    @uniwork/web#typecheck
+
+ ERROR  run failed: command  exited (2)
+ ELIFECYCLE  Command failed with exit code 2.
+
+TYPECHECK_EXIT=2

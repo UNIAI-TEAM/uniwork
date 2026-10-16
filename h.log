@@ -1,0 +1,43 @@
+$ pnpm --filter @uniwork/views exec vitest run notifications office/frame documents 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "VIEWS_TEST_EXIT=$rc"
+                [33mstroke-width[39m=[32m"14"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</span>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"min-w-0 flex-1"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"flex items-center gap-2"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"truncate text-body text-foreground"[39m
+              [36m>[39m
+                [0mBáo cáo quản lý[0m
+              [36m</span>[39m
+            [36m</span>[39m
+            [36m<span...
+ ❯ waitForWrapper ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ rowOf documents/documents-page-view.test.tsx:1433:36
+    1431| async function rowOf(title: string) {
+    1432|   const table = await screen.findByRole("table");
+    1433|   const name = await within(table).findByText(title);
+       |                                    ^
+    1434|   const row = name.closest("tr");
+    1435|   if (!row) throw new Error(`no row for ${title}`);
+ ❯ menuItems documents/documents-page-view.test.tsx:704:19
+ ❯ documents/documents-page-view.test.tsx:714:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 75 passed (76)
+      Tests  1 failed | 1197 passed (1198)
+   Start at  12:34:32
+   Duration  72.80s (transform 5.94s, setup 14.89s, import 39.70s, tests 133.81s, environment 21.36s)
+
+undefined
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run notifications office/frame documents
+
+VIEWS_TEST_EXIT=1

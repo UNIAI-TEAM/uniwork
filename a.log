@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+4d41829f0c102cad8a71388ed496eed30d691e31
+94801c4ac37fc7f7b3b733a71380af99c9361950
+4d41829f0 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1780-sh-s1-workspace-level
+2ff8d4405 fix(views): keep disabled share actions in tab order, mark caller in picker, translate unverifiable link error and unknown workspace (VIS-SHS1-11, VIS-SHS1-13, VIS-SHS1-16, VIS-SHS1-17)
+74297e06e fix(views): omit my_level line in share dialog when caller has no document level (VIS-SHS1-06)
+c25a31c10 fix(views): use Chỉ xem and Chỉnh sửa for document access levels and drop redundant owner level (VIS-SHS1-05)
+27825b58f feat(views): order share dialog body sections as add, access, requests, visibility, links (VIS-SHS1-02)
+91f79f1d6 feat(views): render document title and stored workspace in share dialog header (VIS-SHS1-01)
+94801c4ac chore: merge G7-04 round 1 (UNI-1386, b5d0c4703) into the G5-G7 root
+1c60e6894 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1780-sh-s1-workspace-level
