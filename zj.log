@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+f645dc37ff392302203786544d99ae27c406a378
+f645dc37f fix(documents): keep version author names through a failed members refetch
+f5661ddfa chore(merge): G5-G7 root 6c383974b into VERHIST-01
+eb7c19b49 fix(documents): hold the version author line until members load, fix its markup
+a3f3bc07f chore(merge): G5-G7 root 4e483f6b4 into VERHIST-01

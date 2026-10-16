@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+f645dc37ff392302203786544d99ae27c406a378
+6c383974bd467c252c142d2bfdb7cdc63f8f4e36
+f645dc37f fix(documents): keep version author names through a failed members refetch
+f5661ddfa chore(merge): G5-G7 root 6c383974b into VERHIST-01
+eb7c19b49 fix(documents): hold the version author line until members load, fix its markup
+a3f3bc07f chore(merge): G5-G7 root 4e483f6b4 into VERHIST-01
+6c383974b chore: merge G7-12 residual tests (UNI-1384, e680b548a) into the G5-G7 root
+d9bc39aa5 chore: merge FU-G6-03a-BOUND (UNI-1367, 9b93240bf) into the G5-G7 root
+4e483f6b4 chore: merge SH-S1 (UNI-1780, 2e3eb42c9) into the G5-G7 root
+16cd58951 feat(documents): show who made each version in the history sheet
+fb8dcf05f chore: merge GROUPBY-01 (UNI-1848, f9ed37caf) into the G5-G7 root
+fcf9651df chore(merge): develop f6df189ed into the G5-G7 root (UNI-923)
