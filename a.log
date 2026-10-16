@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; (redis-cli -u redis://localhost:6379/1 ping || docker ps --format '{{.Names}}' | grep -i redis); echo "REDIS_PROBE_DONE"
+9b93240bf3d07abe0a8835780e4034319288d59e
+9b93240bf fix(ai): hide document-creating tools on bound UniWork AI turns
+2b7173b80 test(ai): add red tests for bound-document tool hiding
+94801c4ac chore: merge G7-04 round 1 (UNI-1386, b5d0c4703) into the G5-G7 root
+b5d0c4703 chore(merge): G5-G7 root 13e32d974 (develop 2829996db sync) into G7-04 (UNI-1386)
+0ab6d24b9 chore: merge DOCX-SNIFF-01 (UNI-1855, 9089f6b7f) into the G5-G7 root
+9089f6b7f fix(files): type a large OOXML upload from its central directory
+13e32d974 chore: merge develop 2829996db sync (integrator pr2 c780ed152) into the G5-G7 root
+c780ed152 fix(notification): return the break-glass rule's drafts with their error
+PONG
+REDIS_PROBE_DONE
