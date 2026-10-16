@@ -4,6 +4,7 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -999,13 +1000,16 @@ describe('runner faults and failures', () => {
     assert.deepEqual([...fixtureEmails([])], [], 'a case set without an address exempts nothing');
   });
 
-  it('reports an address-shaped secret under its hard kind, so it still voids a run (G712-71)', async () => {
+  it('reports an address-shaped secret under its hard kind, so it still voids a run (G712-71, G712-80)', async () => {
     // The soft address rule (G712-62) runs last: a value that is also a key, a credential assignment or a private host
     // keeps the hard kind, and with it the flag that keeps the run out of a pass.
     assert.deepEqual(redactSecrets('key sk-abcdefgh1234@example.com').hits, [{ kind: 'key', count: 1 }], 'an address-shaped key is a key');
     assert.deepEqual(redactSecrets('api_key=abc12345def67890@example.com').hits, [{ kind: 'credential', count: 1 }], 'an address-shaped credential assignment is a credential');
     assert.deepEqual(redactSecrets('mail user@gw.corp.example:8443').hits, [{ kind: 'private_host', count: 1 }], 'a private host carrying an address is a private host');
-    assert.deepEqual(redactSecrets('ops@example.com').hits, [{ kind: 'email', count: 1 }], 'a bare address stays the soft kind');
+    for (const addr of ['ops@acme.corp', 'ops@server.internal', 'ops@printer.local']) {
+      assert.deepEqual(redactSecrets(`contact ${addr} today`).hits, [{ kind: 'private_host', count: 1 }], `${addr}: a portless private-zone address is still hard (G712-80)`);
+    }
+    assert.deepEqual(redactSecrets('ops@example.com').hits, [{ kind: 'email', count: 1 }], 'a bare address stays the soft kind that never voids a run');
     assert.deepEqual(redactSecrets('write to ops@example.com today', { exemptEmails: new Set(['ops@example.com']) }), { text: 'write to ops@example.com today', hits: [] }, 'the exact-address exemption still holds');
     // Through the runner: the run file lists the hard kind, which the report turns into "a flagged run cannot count as a pass".
     const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'write to sk-abcdefgh1234@example.com\nUNIWORK_ANSWER') } : r));
@@ -1415,6 +1419,89 @@ describe('sessions, manifest and tool surface', () => {
     }
   });
 
+  // G712-81: the other four session-setup throw sites (postJson for org/ws, renewSession, upload, mint) each redact the
+  // server body before throwing so an address echoed by any setup route never reaches stderr.
+  const withSetupStageServer = async (failStage, email, run) => {
+    const send = (res, status, body) => {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+    const fail = (res, status, stage) => send(res, status, { error: { code: 'denied', message: `${stage} refused for ${email}` } });
+    const server = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        const url = req.url ?? '';
+        if (url === '/api/v1/auth/register') return send(res, 200, { access_token: 'stub-access-1', user: { id: 'stub-user' } });
+        if (url === '/api/v1/orgs') return failStage === 'orgs' ? fail(res, 400, 'orgs') : send(res, 200, { organization: { id: 'stub-org' } });
+        if (url === '/api/v1/orgs/stub-org/workspaces') return failStage === 'workspaces' ? fail(res, 400, 'workspaces') : send(res, 200, { workspace: { id: 'stub-ws' } });
+        if (url === '/api/v1/auth/login' || url === '/api/v1/auth/refresh') return failStage === 'renewal' ? fail(res, 401, 'renewal') : send(res, 200, { access_token: 'stub-access-2' });
+        if (url === '/api/v1/workspaces/stub-ws/documents/files') return failStage === 'upload' ? fail(res, 500, 'upload') : send(res, 200, { document: { id: 'stub-doc-1' } });
+        if (url === '/api/v1/documents/stub-doc-1/office/frame-token') return failStage === 'mint' ? fail(res, 500, 'mint') : send(res, 200, { token: 'stub-frame-1' });
+        return send(res, 404, { error: 'not found' });
+      });
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const url = ['http', '://', '127.0.0.1', ':', String(server.address().port)].join('');
+    try {
+      await run(url);
+    } finally {
+      await new Promise((resolve) => { server.close(resolve); server.closeAllConnections?.(); });
+    }
+  };
+
+  it('redacts the test user\'s address when org or workspace creation fails in postJson (G712-81)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    for (const [stage, prefix] of [['orgs', /^\/api\/v1\/orgs failed: 400 /], ['workspaces', /^\/api\/v1\/orgs\/stub-org\/workspaces failed: 400 /]]) {
+      await withSetupStageServer(stage, email, async (serverUrl) => {
+        await assert.rejects(createServerSession({ serverUrl, email }), (err) => {
+          assert.match(err.message, prefix);
+          assert.equal(err.message.includes(email), false, `the thrown text carries the address (${stage}): ${err.message}`);
+          assert.match(err.message, /\[redacted:email\]/);
+          return true;
+        });
+      });
+    }
+  });
+
+  it('redacts the test user\'s address when session renewal fails in renewSession (G712-81)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    await withSetupStageServer('renewal', email, async (serverUrl) => {
+      const session = await createServerSession({ serverUrl, email, sessionRenewAfterMs: 0 });
+      await assert.rejects(session.mount(cases[0].fixtures[0].id), (err) => {
+        assert.match(err.message, /^session renewal via login failed: 401 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
+    });
+  });
+
+  it('redacts the test user\'s address when fixture upload fails in upload (G712-81)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    await withSetupStageServer('upload', email, async (serverUrl) => {
+      const session = await createServerSession({ serverUrl, email });
+      await assert.rejects(session.mount(cases[0].fixtures[0].id), (err) => {
+        assert.match(err.message, /^upload file .* failed: 500 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
+    });
+  });
+
+  it('redacts the test user\'s address when frame-token minting fails in mint (G712-81)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    await withSetupStageServer('mint', email, async (serverUrl) => {
+      const session = await createServerSession({ serverUrl, email });
+      await assert.rejects(session.mount(cases[0].fixtures[0].id), (err) => {
+        assert.match(err.message, /^mint frame token for .* failed: 500 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
+    });
+  });
+
   it('hashes the case set, not its content: a different set gives a different hash', async () => {
     const a = await runWith({ onlyIds: null, subset: cases.slice(0, 2), threads: 1 }, 'hash-a');
     const b = await runWith({ onlyIds: null, subset: cases.slice(0, 3), threads: 1 }, 'hash-b');
@@ -1486,7 +1573,8 @@ describe('usage rows and arguments', () => {
     assert.equal(args.runs, 3);
     assert.equal(args.threads, 2);
     assert.equal(args.out, DEFAULT_OUT_DIR);
-    assert.ok(path.relative(repoRoot, DEFAULT_OUT_DIR).startsWith('..'));
+    const rel = path.relative(repoRoot, DEFAULT_OUT_DIR);
+    assert.ok(rel.startsWith('..') || path.isAbsolute(rel));
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--threads', '3']), /--threads must be 1 or 2/);
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--runs', '0']), /--runs/);
     assert.throws(() => parseArgs(['--runs', '3']), /--server-url is required/);
