@@ -44,8 +44,8 @@ only to an origin listed in `OFFICE_ENGINE_OUTPUT_ORIGINS`. The service never fe
 | `OFFICE_ENGINE_MAX_JOB_MS` | `120000` | Wall-clock ceiling per job (contract max 600000) |
 | `OFFICE_ENGINE_CPU_MS` | `60000` | CPU time per job tree |
 | `OFFICE_ENGINE_MEMORY_MB` | `512` | RSS per job tree; the handler's V8 heap is capped at 75 % of it |
-| `OFFICE_ENGINE_TEMP_MB` | `256` | Bytes a job may leave in its temp dir |
-| `OFFICE_ENGINE_MAX_INPUT_BYTES` / `_MAX_OUTPUT_BYTES` | 50 MiB / 50 MiB | Byte bounds (DocumentFile caps a version at 50 MiB) |
+| `OFFICE_ENGINE_TEMP_MB` | `512`, never below input + output + 64 MiB (boot fails otherwise) | Bytes a job may leave in its temp dir |
+| `OFFICE_ENGINE_MAX_INPUT_BYTES` / `_MAX_OUTPUT_BYTES` | `DOCUMENT_MAX_BYTES`, else 200 MiB / 200 MiB | Byte bounds; unset, they follow the document cap the server enforces (contract ceiling 2 GiB) |
 | `OFFICE_ENGINE_TEMP_DIR` | `$TMPDIR/uniwork-office-engine` | Root of per-job temp dirs |
 | `OFFICE_ENGINE_SAMPLE_MS` | `100` | Usage / temp sampling period |
 | `OFFICE_ENGINE_RETENTION_MS` / `_MAX_RETAINED_JOBS` | 15 min / 1024 | How long a settled job answers status |
