@@ -1,0 +1,12 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root web/docs/protocol; rc=$?; echo; echo "PROTOCOL_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/protocol
+
+
+ Test Files  4 passed (4)
+      Tests  189 passed (189)
+   Start at  22:01:34
+   Duration  357ms (transform 376ms, setup 0ms, import 446ms, tests 146ms, environment 0ms)
+
+
+PROTOCOL_EXIT=0
