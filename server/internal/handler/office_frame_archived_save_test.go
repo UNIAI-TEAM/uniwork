@@ -51,6 +51,10 @@ func TestOfficeFrameSaveRoutesOnArchivedDocument(t *testing.T) {
 	viewer, viewerID := w.officeJoinWorkspace(t, "office-frame-archived-viewer@example.com")
 
 	docID := w.createDocx(t, "archived.docx", frameDocx(t, "a"))
+	// The non-owner member below saves the document (edit), which the
+	// workspace-visible create no longer grants by default: U-SH2/Q-S3 leaves
+	// the home row at view, so the fixture raises it the way an owner does.
+	homeRowEdit(t, w.srv, w.token, w.wsID, docID)
 	otherID := w.createDocx(t, "other.docx", frameDocx(t, "b"))
 	viewOnlyID, _ := w.restrictedDocxSharedWith(t, viewerID, "view")
 

@@ -208,13 +208,17 @@ func TestDocumentPage(t *testing.T) {
 
 	t.Run("get logs a view and hides the id from non-readers", func(t *testing.T) {
 		// Explicitly workspace-visible: this case is about the member reading
-		// and the access log, not about the create default.
+		// and the access log, not about the create default. The home row is
+		// re-levelled to the edit the member read the document with before
+		// SH-S1 - a root create that asks for the workspace toggle now lands
+		// on the row's view default (U-SH2/Q-S3).
 		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{
 			Title: "Đọc", Content: pageJSON("một"), Visibility: documentVisibilityWorkspace,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
+		v.Document = setWorkspaceLevel(t, f, v.Document, string(DocumentLevelEdit))
 		got, err := f.svc.GetDocument(f.ctx, member, v.Document.ID)
 		if err != nil {
 			t.Fatal(err)
@@ -254,6 +258,10 @@ func TestDocumentPage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// The member below edits the row, which U-SH2/Q-S3's create default
+		// (view) no longer grants: re-level it to the pre-SH-S1 meaning of a
+		// workspace-visible document.
+		v.Document = setWorkspaceLevel(t, f, v.Document, string(DocumentLevelEdit))
 		id := v.Document.ID
 
 		got, err := f.svc.UpdateDocument(f.ctx, member, id, UpdateDocumentInput{
@@ -364,13 +372,16 @@ func TestDocumentPage(t *testing.T) {
 
 	t.Run("the trash is read-only", func(t *testing.T) {
 		// Workspace-visible on purpose: the member below is an editor on the
-		// row, which is what the trash answer is about.
+		// row, which is what the trash answer is about. U-SH2/Q-S3 leaves the
+		// create on the row's view default, so the edit the case means is set
+		// here (a view member would answer not_found for a different reason).
 		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{
 			Title: "Rác", Visibility: documentVisibilityWorkspace,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
+		v.Document = setWorkspaceLevel(t, f, v.Document, string(DocumentLevelEdit))
 		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = now() WHERE id = $1`, v.Document.ID); err != nil {
 			t.Fatal(err)
 		}
