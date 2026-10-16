@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { DocumentEditLockState, DocumentEditRequest } from "@uniwork/core/api/endpoints/documents-edit-lock";
 import { initI18n } from "@uniwork/core/i18n";
@@ -238,6 +238,31 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
       const malformedPrompt = screen.getByRole("region", { name: "Bình muốn sửa tài liệu này" });
       expect(malformedPrompt).not.toHaveTextContent("tự hết hạn");
       expect(malformedPrompt).not.toHaveTextContent("NaN");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("incoming request (holder): the caption ages on the minute tick while the prompt stays open (R7-1)", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-16T10:00:00Z"));
+      render(
+        <EditRequestPrompt
+          requesterName="Bình"
+          createdAt="2026-10-16T10:00:00Z"
+          expiresAt="2026-10-16T10:15:00Z"
+          onAccept={vi.fn()}
+          onDecline={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      const prompt = screen.getByRole("region", { name: "Bình muốn sửa tài liệu này" });
+      expect(prompt).toHaveTextContent("Vừa xong · tự hết hạn sau 15 phút");
+      act(() => {
+        vi.advanceTimersByTime(2 * 60_000 + 100);
+      });
+      expect(prompt).toHaveTextContent("2 phút trước · tự hết hạn sau 13 phút");
     } finally {
       vi.useRealTimers();
     }

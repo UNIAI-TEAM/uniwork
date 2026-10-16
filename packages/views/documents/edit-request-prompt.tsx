@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { relativeTime } from "../notifications/relative-time";
+import { useNow } from "../meetings/use-now";
 
 export interface EditRequestPromptProps {
   requesterName: string;
@@ -26,16 +27,18 @@ export interface EditRequestPromptProps {
 const MINUTE_MS = 60_000;
 const FALLBACK_SPAN_MS = 15 * MINUTE_MS;
 
+type CaptionTranslate = ReturnType<typeof useTranslation>["t"];
+
 function requestCaption(
   createdAt: string | null | undefined,
   expiresAt: string | null | undefined,
+  nowMs: number,
   locale: string,
-  t: ReturnType<typeof useTranslation>["t"],
+  t: CaptionTranslate,
 ): string | null {
   if (!expiresAt) return null;
   const expiresMs = Date.parse(expiresAt);
   if (!Number.isFinite(expiresMs)) return null;
-  const nowMs = Date.now();
   const minutes = Math.max(1, Math.ceil((expiresMs - nowMs) / MINUTE_MS));
   const parsedCreated = createdAt ? Date.parse(createdAt) : Number.NaN;
   const originMs = Number.isFinite(parsedCreated) ? parsedCreated : expiresMs - FALLBACK_SPAN_MS;
@@ -66,8 +69,12 @@ export function EditRequestPrompt({
   useEffect(() => {
     if (focusOnMount) ref.current?.focus();
   }, [focusOnMount]);
+  // The shared minute clock re-renders the prompt while it stays open, so the
+  // caption's age and remaining minutes keep moving (R7-1); it stops when the
+  // prompt unmounts.
+  const nowMs = useNow();
   const title = t("documents.editLock.incomingTitle", { name: requesterName || t("documents.editLock.lostSomeone") });
-  const caption = requestCaption(createdAt, expiresAt, i18n.language, t);
+  const caption = requestCaption(createdAt, expiresAt, nowMs, i18n.language, t);
   // A live region mounted together with its text is not reliably announced: the region exists first,
   // the sentence goes in on the next commit. The buttons stay outside it (a status region is re-read whole).
   const [announced, setAnnounced] = useState("");
