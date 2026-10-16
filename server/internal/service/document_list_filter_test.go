@@ -94,17 +94,17 @@ func (f *docPermFixture) listFilterSetLevel(t *testing.T, id, level string) {
 	}
 }
 
-// listFilterPages walks one filtered list to its last page, returning the rows
-// of every page in order.
-func listFilterPages(t *testing.T, f *docPermFixture, actor Actor, ws string, in ListDocumentsInput) []DocumentListItem {
+// listFilterWalk pages one document list to its end: the flat list, the
+// trash and shared_by_me (ListDocuments) or recent (ListRecentDocuments).
+func listFilterWalk(t *testing.T, list func(ListDocumentsInput) (DocumentListPage, error), in ListDocumentsInput) []DocumentListItem {
 	t.Helper()
 	var out []DocumentListItem
 	cursor := ""
 	for range 25 {
 		in.Cursor = cursor
-		page, err := f.svc.ListDocuments(f.ctx, actor, ws, in)
+		page, err := list(in)
 		if err != nil {
-			t.Fatalf("ListDocuments(%+v): %v", in, err)
+			t.Fatalf("list(%+v): %v", in, err)
 		}
 		out = append(out, page.Items...)
 		if page.NextCursor == "" {
@@ -112,8 +112,15 @@ func listFilterPages(t *testing.T, f *docPermFixture, actor Actor, ws string, in
 		}
 		cursor = page.NextCursor
 	}
-	t.Fatalf("ListDocuments(%+v) did not end after 25 pages", in)
+	t.Fatalf("list(%+v) did not end after 25 pages", in)
 	return nil
+}
+
+func listFilterPages(t *testing.T, f *docPermFixture, actor Actor, ws string, in ListDocumentsInput) []DocumentListItem {
+	t.Helper()
+	return listFilterWalk(t, func(in ListDocumentsInput) (DocumentListPage, error) {
+		return f.svc.ListDocuments(f.ctx, actor, ws, in)
+	}, in)
 }
 
 func listFilterIDs(items []DocumentListItem) []string {
@@ -492,32 +499,102 @@ func TestDocumentListFiltersOnEveryList(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "lf4")
 	member := Human(tn.member.ID)
+	owner := Human(tn.owner.ID)
 
-	// Recent: the member last edited both. Neither is one the member owns, so
-	// the shared-by-me list below stays its own two rows.
+	// BE-LF-2: on every sibling list the filtered answer is derived from the
+	// unfiltered rows' own my_level + visibility - the rule LF-2 proves on
+	// the flat list - so a leg that is wrong on one query alone cannot pass.
+	checkAccess := func(what string, unfiltered []DocumentListItem, filtered func(string) []DocumentListItem, filters ...string) {
+		t.Helper()
+		for _, filter := range filters {
+			var want []string
+			for _, it := range unfiltered {
+				if accessMatchesFilter(it.Access.Level, it.Document.Visibility, filter) {
+					want = append(want, it.Document.ID)
+				}
+			}
+			got := filtered(filter)
+			listFilterSameSet(t, what+" access="+filter, listFilterIDs(got), want)
+			for _, it := range got {
+				if !accessMatchesFilter(it.Access.Level, it.Document.Visibility, filter) {
+					t.Fatalf("%s access=%s returned %s with my_level %q visibility %q",
+						what, filter, it.Document.ID, it.Access.Level, it.Document.Visibility)
+				}
+			}
+		}
+	}
+	sharedItems := func(items []SharedDocument) []DocumentListItem {
+		out := make([]DocumentListItem, 0, len(items))
+		for _, it := range items {
+			out = append(out, DocumentListItem{Document: it.Document, Access: it.Access, Facts: it.Facts})
+		}
+		return out
+	}
+	sharedAll := func(in SharedWithMeQuery) []SharedDocument {
+		t.Helper()
+		var out []SharedDocument
+		for range 25 {
+			page, err := f.svc.ListSharedWithMe(f.ctx, tn.member.ID, tn.orgID, in)
+			if err != nil {
+				t.Fatalf("ListSharedWithMe(%+v): %v", in, err)
+			}
+			out = append(out, page.Items...)
+			if page.NextID == "" {
+				return out
+			}
+			in.AfterCreatedAt, in.AfterID = page.NextCreatedAt, page.NextID
+		}
+		t.Fatalf("ListSharedWithMe(%+v) did not end after 25 pages", in)
+		return nil
+	}
+
+	// Recent: rows the member last edited, one per leg the list resolves on
+	// its own access - the home row at edit and at view, a row the member is
+	// the ACL owner of, a restricted row shared at manage, one at comment.
 	recentPDF := f.listFilterFile(t, tn, tn.wsA, "bien-ban.pdf", listFilterMimes["pdf"])
 	recentPage := f.treeDoc(t, tn, treeDocSpec{
 		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "ghi-chu-gan-day",
 	})
-	for _, id := range []string{recentPDF.ID, recentPage.ID} {
+	recentView := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "chi-doc",
+	})
+	f.listFilterSetLevel(t, recentView.ID, "view")
+	recentMine := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.aclOwner.ID, title: "cua-toi-gan-day",
+	})
+	recentManagedShare := f.listFilterRestrict(t, f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "chia-se-quan-tri",
+	}).ID)
+	f.share(t, recentManagedShare, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
+	recentCommented := f.listFilterRestrict(t, f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "chia-se-binh-luan",
+	}).ID)
+	f.share(t, recentCommented, DocumentPrincipalUser, tn.member.ID, DocumentLevelComment, tn.aclOwner.ID)
+	for _, id := range []string{recentPDF.ID, recentPage.ID, recentView.ID, recentMine.ID, recentManagedShare.ID, recentCommented.ID} {
 		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET updated_by = $1 WHERE id = $2`, tn.member.ID, id); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	// Shared by me: the member owns both and shared them.
+	// Shared by me: rows the member is the ACL owner of, workspace-visible or
+	// shared - a file, a page, and a restricted one that only a share admits.
 	byMePDF := f.listFilterFile(t, tn, tn.wsA, "cua-toi.pdf", listFilterMimes["pdf"])
 	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET acl_owner_id = $1 WHERE id = $2`, tn.member.ID, byMePDF.ID); err != nil {
 		t.Fatal(err)
 	}
 	f.share(t, byMePDF, DocumentPrincipalUser, tn.outsider.ID, DocumentLevelView, tn.member.ID)
 	// Updated by someone else, so it never enters the member's recent list.
-	byMePage := f.treeDoc(t, tn, treeDocSpec{
+	f.treeDoc(t, tn, treeDocSpec{
 		ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.aclOwner.ID, title: "cua-toi-page",
 	})
+	byMeRestricted := f.listFilterRestrict(t, f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.aclOwner.ID, title: "cua-toi-rieng",
+	}).ID)
+	f.share(t, byMeRestricted, DocumentPrincipalUser, tn.outsider.ID, DocumentLevelView, tn.member.ID)
 
-	// Shared with me: restricted rows of another workspace reaching the member
-	// through a share (a workspace-visible row of the member's own workspace
+	// Shared with me: rows reaching the member through a share, at each level
+	// the filter distinguishes - manage, edit, comment - plus the restricted
+	// pair above (a workspace-visible row of the member's own workspace
 	// answers via=member and never enters this list).
 	sharedMD := f.listFilterRestrict(t, f.listFilterFile(t, tn, tn.wsB, "chia-se.md", listFilterMimes["md"]).ID)
 	f.share(t, sharedMD, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.owner.ID)
@@ -525,84 +602,80 @@ func TestDocumentListFiltersOnEveryList(t *testing.T) {
 		ws: tn.wsB, visibility: "restricted", aclOwner: tn.owner.ID, createdBy: tn.owner.ID, title: "chia-se-page",
 	})
 	f.share(t, sharedPage, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.owner.ID)
+	sharedManage := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsB, visibility: "workspace", aclOwner: tn.owner.ID, createdBy: tn.owner.ID, title: "chia-se-quan-tri-doc",
+	})
+	f.share(t, sharedManage, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.owner.ID)
+	sharedComment := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsB, visibility: "restricted", aclOwner: tn.owner.ID, createdBy: tn.owner.ID, title: "chia-se-binh-luan-doc",
+	})
+	f.share(t, sharedComment, DocumentPrincipalUser, tn.member.ID, DocumentLevelComment, tn.owner.ID)
 
-	recent, err := f.svc.ListRecentDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{Format: "pdf", Limit: 50})
+	// A restricted row is already in the trash; it never enters the live lists.
+	f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "rac-han-che", archived: true,
+	})
+
+	recentList := func(in ListDocumentsInput) (DocumentListPage, error) {
+		return f.svc.ListRecentDocuments(f.ctx, member, tn.wsA, in)
+	}
+	recent, err := recentList(ListDocumentsInput{Format: "pdf", Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
 	listFilterSameSet(t, "recent format=pdf", listIDs(recent), []string{recentPDF.ID})
-	recent, err = f.svc.ListRecentDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{Access: "restricted", Limit: 50})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(recent.Items) != 0 {
-		t.Fatalf("recent access=restricted = %v, want none", listIDs(recent))
-	}
-	recent, err = f.svc.ListRecentDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{Access: "edit", Limit: 50})
-	if err != nil {
-		t.Fatal(err)
-	}
-	listFilterSameSet(t, "recent access=edit", listIDs(recent), []string{recentPDF.ID, recentPage.ID})
+	checkAccess("recent", listFilterWalk(t, recentList, ListDocumentsInput{Limit: 100}),
+		func(filter string) []DocumentListItem {
+			return listFilterWalk(t, recentList, ListDocumentsInput{Access: filter, Limit: 100})
+		}, "manage", "edit", "restricted")
 
-	byMe, err := f.svc.ListDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{SharedByMe: true, Format: "pdf", Limit: 50})
+	byMeList := func(in ListDocumentsInput) (DocumentListPage, error) {
+		return f.svc.ListDocuments(f.ctx, member, tn.wsA, in)
+	}
+	byMe, err := byMeList(ListDocumentsInput{SharedByMe: true, Format: "pdf", Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
 	listFilterSameSet(t, "shared_by_me format=pdf", listIDs(byMe), []string{byMePDF.ID})
-	byMe, err = f.svc.ListDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{SharedByMe: true, Access: "manage", Limit: 50})
-	if err != nil {
-		t.Fatal(err)
-	}
-	listFilterSameSet(t, "shared_by_me access=manage", listIDs(byMe), []string{byMePDF.ID, byMePage.ID})
-	byMe, err = f.svc.ListDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{SharedByMe: true, Access: "restricted", Limit: 50})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(byMe.Items) != 0 {
-		t.Fatalf("shared_by_me access=restricted = %v, want none", listIDs(byMe))
-	}
+	checkAccess("shared_by_me", listFilterWalk(t, byMeList, ListDocumentsInput{SharedByMe: true, Limit: 100}),
+		func(filter string) []DocumentListItem {
+			return listFilterWalk(t, byMeList, ListDocumentsInput{SharedByMe: true, Access: filter, Limit: 100})
+		}, "manage", "edit", "restricted")
 
 	shared := func(in SharedWithMeQuery) []string {
 		t.Helper()
-		page, err := f.svc.ListSharedWithMe(f.ctx, tn.member.ID, tn.orgID, in)
-		if err != nil {
-			t.Fatalf("ListSharedWithMe(%+v): %v", in, err)
-		}
-		ids := make([]string, 0, len(page.Items))
-		for _, it := range page.Items {
-			ids = append(ids, it.Document.ID)
-		}
-		return ids
+		return listFilterIDs(sharedItems(sharedAll(in)))
 	}
 	listFilterSameSet(t, "shared-with-me format=md", shared(SharedWithMeQuery{Format: "md", Limit: 50}), []string{sharedMD.ID})
-	listFilterSameSet(t, "shared-with-me access=edit", shared(SharedWithMeQuery{Access: "edit", Limit: 50}), []string{sharedMD.ID})
-	listFilterSameSet(t, "shared-with-me access=restricted", shared(SharedWithMeQuery{Access: "restricted", Limit: 50}),
-		[]string{sharedMD.ID, sharedPage.ID})
+	checkAccess("shared-with-me", sharedItems(sharedAll(SharedWithMeQuery{Limit: 100})),
+		func(filter string) []DocumentListItem {
+			return sharedItems(sharedAll(SharedWithMeQuery{Access: filter, Limit: 100}))
+		}, "manage", "edit", "restricted")
 
 	// Trash: archived rows are manage-only, so it takes format and
-	// access=restricted only.
+	// access=restricted only; recentPDF joins trashRestricted there.
 	if _, err := f.pool.Exec(f.ctx,
 		`UPDATE documents SET archived_at = now(), purge_after = now() + interval '30 days' WHERE id = $1`, recentPDF.ID); err != nil {
 		t.Fatal(err)
 	}
-	owner := Human(tn.owner.ID)
-	trash, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, Format: "pdf", Limit: 50})
+	trashList := func(in ListDocumentsInput) (DocumentListPage, error) {
+		return f.svc.ListDocuments(f.ctx, owner, tn.wsA, in)
+	}
+	trash, err := trashList(ListDocumentsInput{Archived: true, Format: "pdf", Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
 	listFilterSameSet(t, "trash format=pdf", listIDs(trash), []string{recentPDF.ID})
-	trash, err = f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, Access: "restricted", Limit: 50})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(trash.Items) != 0 {
-		t.Fatalf("trash access=restricted = %v, want none", listIDs(trash))
-	}
-	trash, err = f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, Format: "md", Limit: 50})
+	trash, err = trashList(ListDocumentsInput{Archived: true, Format: "md", Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(trash.Items) != 0 {
 		t.Fatalf("trash format=md = %v, want none", listIDs(trash))
 	}
+	checkAccess("trash", listFilterWalk(t, trashList, ListDocumentsInput{Archived: true, Limit: 100}),
+		func(filter string) []DocumentListItem {
+			return listFilterWalk(t, trashList, ListDocumentsInput{Archived: true, Access: filter, Limit: 100})
+		}, "restricted")
 }
