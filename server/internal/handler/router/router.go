@@ -91,10 +91,27 @@ func New(d Deps, h Routes) http.Handler {
 		// grants, so an MCP access token falls back to the client address, and
 		// every team behind one AI vendor's egress address would share 300 a
 		// minute. /mcp has its own per-token budget (registerMCP).
+		// Native refresh skips it for the same reason: phones behind one
+		// carrier address would share 300 a minute; it has its own
+		// per-device budget under an address ceiling (refreshLimit).
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
-		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
+		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
+	// Native refresh: per (address, device) under a ceiling per address; the
+	// ceiling runs first so a request it refuses opens no device counter. The
+	// address is part of the key because a device id is not a secret: keyed by
+	// id alone, anyone who learned one could spend that device's budget from
+	// elsewhere. Phones behind one carrier address still get a budget each.
+	refreshCeiling := mw.RateLimitByIdentityBucket(d.Redis, "desktop-refresh-ip", 600, time.Minute, proxies, nil)
+	refreshPerDevice := mw.RateLimitByIdentityBucket(d.Redis, "desktop-refresh", 60, time.Minute, proxies, func(r *http.Request) string {
+		id := desktopDevice(r)
+		if id == "" {
+			return ""
+		}
+		return mw.ClientIP(r, proxies) + ":" + id
+	})
+	refreshLimit := func(next http.Handler) http.Handler { return refreshCeiling(refreshPerDevice(next)) }
 	// In-room limiters budget per verified person, not per address: a formal
 	// meeting often sits behind one office NAT. They run after OptionalAuth.
 	inRoom := meetingCaller([]byte(d.Cfg.JWTSecret))
@@ -111,6 +128,9 @@ func New(d Deps, h Routes) http.Handler {
 			"Content-Type",
 			"Idempotency-Key",
 			"If-Match",
+			// Native refresh budget key (registerAuth); a browser-origin caller
+			// that sends it must pass preflight too.
+			"X-UniWork-Device",
 			mw.CorrelationHeader,
 			telemetry.DebugTraceHeader,
 			meetings.GuestSessionHeader,
@@ -169,7 +189,7 @@ func New(d Deps, h Routes) http.Handler {
 			mw.RateLimitByIdentityBucket(d.Redis, "mcp", 120, time.Minute, proxies, mcpBearer)))
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
-		registerAuth(v1, h, credentialLimit)
+		registerAuth(v1, h, credentialLimit, refreshLimit)
 		registerDemoRequests(v1, h, mw.RateLimit(d.Redis, 5, time.Hour, proxies))
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)

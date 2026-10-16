@@ -8,7 +8,10 @@ vi.mock("@uniwork/core/auth", () => ({ useSession: () => ({ status: state.status
 vi.mock("@uniwork/core", () => ({ api: { auth: { desktopConsent: (...args: unknown[]) => state.read(...args), desktopConsentCommand: vi.fn() } } }));
 vi.mock("@uniwork/views/navigation", () => ({ useNavigation: () => ({ searchParams: new URLSearchParams("attempt_id=attempt-1"), replace: state.replace }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-vi.mock("@uniwork/views/auth/desktop-consent", () => ({ DesktopConsentView: ({ state }: { state: string }) => <div data-testid="consent-state">{state}</div> }));
+vi.mock("@uniwork/views/auth/desktop-consent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/views/auth/desktop-consent")>()),
+  DesktopConsentView: ({ state, callbackUrl }: { state: string; callbackUrl?: string }) => <div data-testid="consent-state" data-callback={callbackUrl ?? ""}>{state}</div>,
+}));
 
 let root: Root;
 let container: HTMLDivElement;
@@ -47,4 +50,16 @@ it("reports malformed consent as an error rather than an expired request", async
   state.status = "authed"; state.read.mockResolvedValue(null);
   await renderPage();
   expect(container.querySelector('[data-testid="consent-state"]')?.textContent).toBe("error");
+});
+
+it.each([
+  ["uniworkchat://auth/callback", "uniworkchat://auth/callback?code=c&state=s", "uniworkchat://auth/callback?code=c&state=s"],
+  ["uniworkchat://auth/callback", "evil://auth/callback?code=c&state=s", ""],
+  ["uniworkchat://auth/callback", "uniwork-office://auth/callback?code=c&state=s", ""],
+])("reopens the app only on the attempt's own scheme (%s, saved %s)", async (redirectUri, saved, expected) => {
+  state.status = "authed";
+  state.read.mockResolvedValue({ status: "approved", redirect_uri: redirectUri });
+  sessionStorage.setItem("desktop-callback:attempt-1", saved);
+  await renderPage();
+  expect(container.querySelector('[data-testid="consent-state"]')?.getAttribute("data-callback")).toBe(expected);
 });

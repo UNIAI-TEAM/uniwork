@@ -61,3 +61,16 @@ export function DesktopConsentView({ consent, state = "pending", callbackUrl, on
     </main>
   );
 }
+
+// The approved callback is the attempt's redirect_uri (allowlisted by the
+// server at Start) plus ?code=&state=, so only its scheme, host and path count.
+export function isDesktopCallbackUrl(value: string, redirectUri: string | undefined): boolean {
+  if (!redirectUri) return false;
+  try {
+    const url = new URL(value);
+    const redirect = new URL(redirectUri);
+    return url.protocol === redirect.protocol && url.hostname === redirect.hostname && url.pathname === redirect.pathname;
+  } catch {
+    return false;
+  }
+}
