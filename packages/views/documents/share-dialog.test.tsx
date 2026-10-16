@@ -814,7 +814,7 @@ describe("ShareDialog requests section (DOC7-W02)", () => {
 
   it("is there for a pure admin (admin_scope without a level)", async () => {
     serveRequests();
-    renderDialog({ ...documentFixture({ my_level: "view" }), my_level: "", admin_scope: true } as never);
+    renderDialog(documentFixture({ my_level: "", admin_scope: true }));
     expect(await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 1 }) })).toBeInTheDocument();
   });
 

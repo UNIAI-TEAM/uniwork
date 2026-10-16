@@ -101,6 +101,7 @@ export const DocumentAdminSummarySchema = z.object({
     .transform((v) => v ?? null),
   my_level: z.string().optional().default(""),
   via: z.string().optional().default(""),
+  admin_scope: z.boolean().optional().catch(undefined),
   my_grant: DocumentBreakGlassGrantSchema.nullable()
     .optional()
     .catch(null)

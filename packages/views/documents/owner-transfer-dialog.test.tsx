@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
+import { DocumentSchema } from "@uniwork/core/types/document";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ShareDialog } from "./share-dialog";
@@ -35,17 +36,30 @@ const workspace: Workspace = {
   organization_name: "Acme",
 };
 
+// Built through DocumentSchema, as a real read is: a field the schema strips
+// (admin_scope once was) can no longer reach a test that depends on it.
 function target(over: Partial<ShareDialogTarget> = {}): ShareDialogTarget {
-  return {
+  const parsed = DocumentSchema.parse({
     id: "d1",
-    title: "Kế hoạch Q4",
+    workspace_id: WS,
     organization_id: ORG,
+    kind: "page",
+    title: "Kế hoạch Q4",
     visibility: "workspace",
     revision: "7",
-    owner_kind: undefined,
-    archived_at: undefined,
     my_level: "manage",
     ...over,
+  });
+  return {
+    id: parsed.id,
+    title: parsed.title,
+    organization_id: parsed.organization_id,
+    visibility: parsed.visibility as ShareDialogTarget["visibility"],
+    revision: parsed.revision,
+    owner_kind: (parsed.owner_kind ?? undefined) as ShareDialogTarget["owner_kind"],
+    archived_at: parsed.archived_at ?? undefined,
+    my_level: parsed.my_level as ShareDialogTarget["my_level"],
+    admin_scope: parsed.admin_scope,
   };
 }
 

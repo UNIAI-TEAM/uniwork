@@ -438,6 +438,15 @@ describe("documents endpoints", () => {
     }
   });
 
+  it("getDocument keeps admin_scope: true and degrades a non-boolean admin_scope to undefined", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ my_level: "view", via: "break_glass", admin_scope: true }) }));
+    expect((await getDocument("d1"))?.admin_scope).toBe(true);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ admin_scope: "yes" }) }));
+    const degraded = await getDocument("d1");
+    expect(degraded?.title).toBe("Kế hoạch Q4");
+    expect(degraded?.admin_scope).toBeUndefined();
+  });
+
   it("getDocumentAdminSummary reads metadata, acl_owner, and my_grant", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
@@ -470,6 +479,7 @@ describe("documents endpoints", () => {
     expect(summary?.my_level).toBe("view");
     expect(summary?.via).toBe("break_glass");
     expect(summary?.my_grant?.id).toBe("bg1");
+    expect(summary?.admin_scope).toBe(true);
   });
 
   it("getDocumentAdminSummary tolerates malformed my_grant/acl_owner and rejects missing document", async () => {
@@ -488,6 +498,7 @@ describe("documents endpoints", () => {
       }),
     );
     const degraded = await getDocumentAdminSummary("d1");
+    expect(degraded?.admin_scope).toBeUndefined();
     expect(degraded?.document.id).toBe("d1");
     expect(degraded?.acl_owner).toBeNull();
     expect(degraded?.my_level).toBe("");
@@ -497,6 +508,14 @@ describe("documents endpoints", () => {
       vi.mocked(fetch).mockResolvedValueOnce(json(body));
       await expect(getDocumentAdminSummary("d1")).resolves.toBeNull();
     }
+  });
+
+  it("getDocumentAdminSummary degrades a non-boolean admin_scope to undefined", async () => {
+    const document = { id: "d1", workspace_id: "w1", kind: "page", title: "Tài liệu hạn chế", visibility: "restricted" };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document, my_level: "", admin_scope: "yes" }));
+    const degraded = await getDocumentAdminSummary("d1");
+    expect(degraded?.document.id).toBe("d1");
+    expect(degraded?.admin_scope).toBeUndefined();
   });
 
   it("getDocumentAdminSummary reads owner_kind and revision when sent and degrades them when malformed (waits S-DOC06)", async () => {

@@ -108,6 +108,9 @@ export const DocumentSchema = z.object({
   position: z.number().optional().default(0),
   my_level: z.string().optional(),
   via: z.string().optional(),
+  // True for a workspace admin on a restricted document they do not own (DOC-05);
+  // a drifted value reads as absent.
+  admin_scope: z.boolean().optional().catch(undefined),
   break_glass_expires_at: z.string().nullable().optional(),
   file: DocumentFileSchema.nullable().optional(),
   breadcrumbs: z.array(DocumentBreadcrumbSchema).optional().default([]),
@@ -129,8 +132,6 @@ export type Document = Omit<
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel;
   via?: DocumentAccessVia;
-  /** True for a workspace admin on a restricted document they do not own (DOC-05). */
-  admin_scope?: boolean;
   owner_kind?: DocumentOwnerKind | null;
 };
 
@@ -269,6 +270,7 @@ export const DocumentSummarySchema = z.object({
   // value reads as absent, which the views treat as view-only.
   my_level: z.string().nullable().optional().catch(undefined),
   via: z.string().nullable().optional(),
+  admin_scope: z.boolean().optional().catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional(),
@@ -314,8 +316,6 @@ export type DocumentSummary = Omit<
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel | null;
   via?: DocumentAccessVia | null;
-  /** True for a workspace admin on a restricted row they do not own (DOC-05); no my_level = locked row. */
-  admin_scope?: boolean;
   owner_kind?: DocumentOwnerKind | null;
 };
 
