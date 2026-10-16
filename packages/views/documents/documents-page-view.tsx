@@ -28,7 +28,7 @@ import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library
 import { FolderBreadcrumb, LibraryToolbar, type ScopeTab } from "./documents-library-toolbar";
 import { DocumentsSidebar, DocumentsSidebarSheet, SOURCE_KINDS, type LibraryView } from "./documents-sidebar";
 import { DocumentUploadDialog } from "./document-upload-dialog";
-import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
+import { groupRows, type AccessFilter, type GroupBy, type TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
 import { documentErrorMessage } from "./document-error-message";
@@ -39,6 +39,9 @@ import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchBox } from "./documents-search-box";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
+
+/** The access options the trash's server filter accepts (UNI-1868): manage/edit are refused there. */
+const ARCHIVED_ACCESS_OPTIONS: readonly AccessFilter[] = ["all", "restricted"];
 
 function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
   if (searchParams.get("folder")) return { kind: "home" };
@@ -249,7 +252,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const groups = groupRows(library.state.rows, view.kind === "home" && folderId ? "none" : groupBy, library.folderIndex);
   const scope: ScopeTab | null = view.kind === "home" || view.kind === "recent" || view.kind === "shared" || view.kind === "archived" ? view.kind : null;
   const accessFiltered = library.access !== "all";
-  const filtered = (chip !== "all" || accessFiltered) && library.unfilteredCount > 0;
+  const filteredBy = chip !== "all" || accessFiltered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   const listLoading = state.loading || (Boolean(folderId) && folder.isPending);
   // The header and the active tab count the same thing: the rows this list
@@ -399,6 +402,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   onChip={setChip}
                   access={library.access}
                   onAccess={library.setAccess}
+                  accessOptions={view.kind === "archived" ? ARCHIVED_ACCESS_OPTIONS : undefined}
                   groupBy={groupBy}
                   onGroupBy={setGroupBy}
                   sort={view.kind === "home" && folderId ? library.sort : null}
@@ -408,7 +412,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   groups={groups}
                   loading={listLoading}
                   failure={state.failure}
-                  filtered={filtered}
+                  filteredBy={filteredBy}
                   accessFiltered={accessFiltered}
                   typeFiltered={chip !== "all"}
                   cardsShown={canCreate && view.kind === "home"}
