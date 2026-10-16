@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -54,6 +55,9 @@ func errHomeRowLevelNotAllowed() error {
 func requireDocumentACLChange(doc db.Document, access DocumentAccess) error {
 	if doc.OwnerKind.Valid {
 		return errDocumentOwned()
+	}
+	if isMyFolder(doc) {
+		return errMyFolderLocked()
 	}
 	if !access.canAdminister() {
 		return ErrForbidden
@@ -458,6 +462,10 @@ type SharedWithMeQuery struct {
 	Limit          int
 	AfterCreatedAt time.Time
 	AfterID        string
+	// Format and Access are the same library filters the other lists take
+	// (UNI-1868); an unknown value is 400 invalid_filter.
+	Format string
+	Access string
 }
 
 // SharedWithMePage is one page of shared documents plus the keyset of the
@@ -526,6 +534,10 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 		}
 	}
 	limit := EffectiveSharedWithMeLimit(in.Limit)
+	filters, err := resolveListFilters(in.Format, in.Access, "", false)
+	if err != nil {
+		return SharedWithMePage{}, err
+	}
 	afterAt, afterID := in.AfterCreatedAt, in.AfterID
 	if afterAt.IsZero() || afterID == "" {
 		afterAt, afterID = time.Time{}, ""
@@ -535,6 +547,12 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 		params := db.ListDocumentShareCandidatesParams{
 			OrganizationID: organizationID, UserID: userID, WorkspaceIds: workspaceIDs,
 			MaxRows: int32(sharedWithMeCandidatePage),
+			// The candidate walk asks SQL for the filters too, so a page of
+			// candidates is already the filtered set; the effective-level
+			// filter below stays the authority for who is a recipient.
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(),
+			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
 		}
 		if !afterAt.IsZero() {
 			params.AfterCreatedAt = pgtype.Timestamptz{Time: afterAt, Valid: true}

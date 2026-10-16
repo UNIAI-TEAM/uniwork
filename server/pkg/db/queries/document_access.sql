@@ -77,8 +77,36 @@ JOIN documents d
   ON d.organization_id = sqlc.arg(organization_id)
  AND d.workspace_id = c.workspace_id
  AND d.id = c.document_id
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
+ AND cv.id = d.file_version_id
 WHERE d.archived_at IS NULL
   AND d.owner_id IS NULL
+  AND (sqlc.narg(format)::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = sqlc.narg(format_mime)::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
+                    AND length(d.title) > length(sqlc.narg(format)::text) + 1
+                    AND right(lower(d.title), length(sqlc.narg(format)::text) + 1) = '.' || sqlc.narg(format)::text))))
+  -- UNI-1868 access filter. Every row this walk keeps reaches the caller
+  -- through a share, so the level the filter compares is the share level; a
+  -- member leg that outranks it makes the row's via member (the service drops
+  -- those), and never a false negative here. 'restricted' is the visibility.
+  AND (sqlc.narg(access)::text IS NULL
+       OR (sqlc.narg(access)::text = 'restricted' AND d.visibility = 'restricted')
+       OR (sqlc.narg(access)::text <> 'restricted' AND EXISTS (
+            SELECT 1 FROM document_shares a
+            WHERE a.organization_id = d.organization_id
+              AND a.workspace_id = d.workspace_id
+              AND a.document_id = d.id
+              AND a.revoked_at IS NULL
+              AND a.level = ANY(sqlc.arg(access_levels)::text[])
+              AND ((a.principal_type = 'user' AND a.principal_id = sqlc.arg(user_id))
+                   OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                   OR (a.principal_type = 'workspace' AND a.principal_id = ANY(sqlc.arg(workspace_ids)::text[]))))))
   AND (
     sqlc.narg(after_created_at)::timestamptz IS NULL
     OR c.created_at < sqlc.narg(after_created_at)::timestamptz

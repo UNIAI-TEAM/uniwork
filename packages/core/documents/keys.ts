@@ -39,8 +39,22 @@ export const documentKeys = {
     [...documentKeys.sourcesRoot(wsId), filterKey] as const,
   // Prefix of every filtered sources entry (realtime invalidates this one).
   sourcesRoot: (wsId: string) => [...documentKeys.workspace(wsId), "sources"] as const,
-  recent: (wsId: string) => [...documentKeys.workspace(wsId), "recent"] as const,
-  sharedWithMe: (wsId: string) => [...documentKeys.workspace(wsId), "shared"] as const,
+  // UNI-1868: the format/access chips are part of the key when they are set,
+  // so each filter combination caches separately and switching a chip starts
+  // from page 1. An unfiltered list keeps the key it had - every `document.*`
+  // invalidation hangs off the workspace root either way.
+  recent: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "recent", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "recent"] as const),
+  sharedWithMe: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "shared", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "shared"] as const),
+  sharedByMe: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "shared-by-me", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "shared-by-me"] as const),
   // The folders-only tree appends a segment, so the full tree's key stays
   // its prefix and one tree invalidation refreshes both.
   tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>

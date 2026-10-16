@@ -22,6 +22,7 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   // FD-02). The server stamps the class, so this entry only fires when the
   // stamp is missing; it keeps the mirror true to errorClassByCode.
   folder_name_taken: "conflict",
+  my_folder_locked: "conflict",
   document_deleted: "gone",
   quota_exceeded: "quota",
   forbidden: "permission",

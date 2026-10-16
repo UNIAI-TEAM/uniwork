@@ -18,6 +18,7 @@ type DocumentDTO struct {
 	WorkspaceID         string                  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	ParentID            *string                 `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Kind                string                  `json:"kind" description:"page, file hoặc folder" example:"page"`
+	SystemKind          *string                 `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Title               string                  `json:"title" example:"Kế hoạch Q4"`
 	Icon                *string                 `json:"icon,omitempty" example:"📄"`
 	Visibility          string                  `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
@@ -180,6 +181,7 @@ type DocumentSummaryDTO struct {
 	WorkspaceID    string  `json:"workspace_id" description:"Workspace chứa tài liệu; có thể khác workspace gọi shared-with-me" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	ParentID       *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Kind           string  `json:"kind" description:"page, file hoặc folder" example:"page"`
+	SystemKind     *string `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Title          string  `json:"title" example:"Kế hoạch Q4"`
 	Icon           *string `json:"icon,omitempty" example:"📄"`
 	Visibility     string  `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
@@ -187,6 +189,7 @@ type DocumentSummaryDTO struct {
 	CurrentVersion int32   `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
 	Position       float64 `json:"position" description:"Thứ tự trong cây" example:"0"`
 	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
+	Format         *string `json:"format,omitempty" description:"Định dạng của tệp theo phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html (MIME đã xác minh, nếu không có thì theo phần mở rộng của tiêu đề); vắng mặt với trang, thư mục và tệp không xác định được định dạng" example:"docx"`
 	Origin         string  `json:"origin" description:"upload (file tải lên) hoặc created (trang, thư mục, file trống, bản chuyển đổi)" example:"upload"`
 	Snippet        *string `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
 	MyLevel        *string `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view, trừ khi admin_scope (dòng bị khóa)" example:"view"`
@@ -221,13 +224,14 @@ type DocumentListSDO struct {
 // levels, children in sibling order. A node below an unreadable ancestor is
 // absent with it.
 type DocumentTreeNodeDTO struct {
-	ID       string                `json:"id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	ParentID *string               `json:"parent_id,omitempty" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
-	Title    string                `json:"title" example:"Tài liệu nội bộ"`
-	Icon     *string               `json:"icon,omitempty" example:"📁"`
-	Kind     string                `json:"kind" description:"page, file hoặc folder" example:"page"`
-	Position float64               `json:"position" description:"Thứ tự giữa các sibling" example:"0"`
-	Children []DocumentTreeNodeDTO `json:"children" description:"Con đã sắp theo position; rỗng khi hết cấp 5"`
+	ID         string                `json:"id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	ParentID   *string               `json:"parent_id,omitempty" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Title      string                `json:"title" example:"Tài liệu nội bộ"`
+	Icon       *string               `json:"icon,omitempty" example:"📁"`
+	Kind       string                `json:"kind" description:"page, file hoặc folder" example:"page"`
+	SystemKind *string               `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
+	Position   float64               `json:"position" description:"Thứ tự giữa các sibling" example:"0"`
+	Children   []DocumentTreeNodeDTO `json:"children" description:"Con đã sắp theo position; rỗng khi hết cấp 5"`
 	// EditLock is who is editing this node's document right now (UNI-1645
 	// §3.2); absent when nobody holds the lock. Never carries lock_id.
 	EditLock *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`

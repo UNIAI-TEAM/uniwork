@@ -74,6 +74,9 @@ func (s *DocumentService) GrantDocumentBreakGlass(ctx context.Context, actor Act
 		if doc.OwnerKind.Valid {
 			return errDocumentOwned()
 		}
+		if isMyFolder(doc) {
+			return errMyFolderLocked()
+		}
 		if actor.Kind != audit.KindHuman || !access.AdminScope {
 			return ErrForbidden
 		}

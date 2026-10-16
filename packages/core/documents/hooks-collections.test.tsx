@@ -10,7 +10,10 @@ import {
   useDocumentArchiveImpact,
   useDocumentList,
   useDocumentTree,
+  useEnsureMyFolder,
   useMoveDocument,
+  useRecentDocuments,
+  useSharedByMe,
   useSharedWithMe,
 } from "./hooks-collections";
 import { documentKeys } from "./keys";
@@ -286,4 +289,120 @@ describe("documents collection hooks", () => {
     renderHook(() => useDocumentArchiveImpact("w1", "", { enabled: true }), { wrapper });
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): useEnsureMyFolder ---------------------------
+
+  it("useEnsureMyFolder caches the detail entry and invalidates the workspace root only", async () => {
+    const myFolder = summary("mf1", {
+      kind: "folder",
+      system_kind: "my_folder",
+      title: "My Folder",
+      visibility: "restricted",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: myFolder }));
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.list("w1", ""), listBody([]));
+    qc.setQueryData(documentKeys.tree("w1", ""), { documents: [] });
+    qc.setQueryData(documentKeys.list("w2", ""), listBody([]));
+
+    const { result } = renderHook(() => useEnsureMyFolder("w1"), { wrapper });
+    let ensured: unknown;
+    await act(async () => {
+      ensured = await result.current.mutateAsync();
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/w1/documents/my-folder");
+    expect(init?.method).toBe("POST");
+    expect(ensured).toMatchObject({ id: "mf1", kind: "folder", system_kind: "my_folder" });
+    expect(qc.getQueryData(documentKeys.detail("w1", "mf1"))).toMatchObject({
+      id: "mf1",
+      system_kind: "my_folder",
+    });
+    expect(qc.getQueryState(documentKeys.list("w1", ""))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.tree("w1", ""))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.list("w2", ""))?.isInvalidated).toBe(false);
+  });
+
+  it("useEnsureMyFolder rejects a malformed response as not verifiable", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: { id: "mf1" } }));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useEnsureMyFolder("w1"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() => result.current.mutateAsync());
+    });
+  });
+
+  // ---- SHAREDBYME-01 (UNI-1851): useSharedByMe -----------------------------
+
+  it("useSharedByMe queries shared_by_me=true under documentKeys.sharedByMe(wsId) and follows next_cursor", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("d1", { visibility: "workspace" })], "n1")))
+      .mockResolvedValueOnce(json(listBody([summary("d2", { visibility: "restricted" })])));
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useSharedByMe("w1"), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages.length).toBe(2));
+    expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&limit=50",
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=n1&limit=50",
+    );
+    expect(qc.getQueryData(documentKeys.sharedByMe("w1"))).toBeDefined();
+  });
+
+  // ---- UNI-1868 (LISTFILTER-01): the type/access chips on every list -------
+
+  it("useRecentDocuments sends the chip filters and keys the combination", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody([summary("d1", { kind: "file", format: "pdf" })])),
+    );
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useRecentDocuments("w1", { format: "pdf", access: "edit" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.pathname).toBe("/api/v1/workspaces/w1/documents/recent");
+    expect(url.searchParams.get("format")).toBe("pdf");
+    expect(url.searchParams.get("access")).toBe("edit");
+    expect(url.searchParams.get("limit")).toBe("50");
+    expect(result.current.data?.pages[0]?.documents[0]?.format).toBe("pdf");
+    // The chip combination is its own cache entry, so switching a chip starts
+    // from page 1 instead of reusing the unfiltered pages.
+    const filtered = documentKeys.recent("w1", documentFilterKey({ format: "pdf", access: "edit" }));
+    expect(qc.getQueryData(filtered)).toBeDefined();
+    expect(filtered).not.toEqual(documentKeys.recent("w1"));
+    expect(qc.getQueryData(documentKeys.recent("w1"))).toBeUndefined();
+  });
+
+  it("useSharedWithMe and useSharedByMe take the same chips", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("s1", { my_level: "edit", via: "share" })])))
+      .mockResolvedValueOnce(json(listBody([summary("s2")])));
+    const { qc, wrapper } = setup();
+    const shared = renderHook(() => useSharedWithMe("w1", { access: "edit" }), { wrapper });
+    await waitFor(() => expect(shared.result.current.isSuccess).toBe(true));
+    const byMe = renderHook(() => useSharedByMe("w1", { format: "docx" }), { wrapper });
+    await waitFor(() => expect(byMe.result.current.isSuccess).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?access=edit&limit=50",
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&format=docx&limit=50",
+    );
+    expect(
+      qc.getQueryData(documentKeys.sharedWithMe("w1", documentFilterKey({ access: "edit" }))),
+    ).toBeDefined();
+    expect(
+      qc.getQueryData(documentKeys.sharedByMe("w1", documentFilterKey({ format: "docx" }))),
+    ).toBeDefined();
+  });
 });
+

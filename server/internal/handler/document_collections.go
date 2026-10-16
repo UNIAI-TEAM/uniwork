@@ -30,11 +30,14 @@ import (
 func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocumentsInput, bool) {
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
-		Query:     strings.TrimSpace(q.Get("q")),
-		Match:     strings.TrimSpace(q.Get("match")),
-		Kind:      strings.TrimSpace(q.Get("kind")),
-		UpdatedBy: strings.TrimSpace(q.Get("updated_by")),
-		Cursor:    strings.TrimSpace(q.Get("cursor")),
+		Query:      strings.TrimSpace(q.Get("q")),
+		Match:      strings.TrimSpace(q.Get("match")),
+		Kind:       strings.TrimSpace(q.Get("kind")),
+		Format:     strings.TrimSpace(q.Get("format")),
+		Access:     strings.TrimSpace(q.Get("access")),
+		UpdatedBy:  strings.TrimSpace(q.Get("updated_by")),
+		SharedByMe: strings.TrimSpace(q.Get("shared_by_me")) == "true",
+		Cursor:     strings.TrimSpace(q.Get("cursor")),
 	}
 	if q.Has("parent_id") {
 		parent := strings.TrimSpace(q.Get("parent_id"))
@@ -131,7 +134,10 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	in := service.SharedWithMeQuery{}
+	in := service.SharedWithMeQuery{
+		Format: strings.TrimSpace(r.URL.Query().Get("format")),
+		Access: strings.TrimSpace(r.URL.Query().Get("access")),
+	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
 		at, id, ok := decodeSharedWithMeCursor(raw)
 		if !ok {
@@ -319,8 +325,17 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 	if doc.ParentID.Valid {
 		out.ParentID = &doc.ParentID.String
 	}
+	if doc.SystemKind.Valid && doc.SystemKind.String != "" {
+		out.SystemKind = &doc.SystemKind.String
+	}
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		out.Icon = &doc.Icon.String
+	}
+	// The library format of a file row (UNI-1868): absent for a page, a folder
+	// and a file neither a verified MIME nor the title names.
+	if facts.Format != "" {
+		format := facts.Format
+		out.Format = &format
 	}
 	if snippet != "" {
 		out.Snippet = &snippet
@@ -366,6 +381,10 @@ func documentTreeDTOs(nodes []service.DocumentTreeNode) []sdo.DocumentTreeNodeDT
 		if n.ParentID != "" {
 			parent := n.ParentID
 			dto.ParentID = &parent
+		}
+		if n.SystemKind != "" {
+			sys := n.SystemKind
+			dto.SystemKind = &sys
 		}
 		if n.Icon != "" {
 			icon := n.Icon
