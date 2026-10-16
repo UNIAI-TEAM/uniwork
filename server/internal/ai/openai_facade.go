@@ -698,8 +698,8 @@ type uniworkModuleTools struct {
 // and an unknown or missing module (the org route without `module`, a name no
 // table knows) yields no tools at all. Names and the read/write split come
 // from docs/office/g5g6g7/genoffice-tools.md §3, the mechanical block
-// generated at fork rev cb76dde5928f8ea9cf66af938d3f83bd1278f78c (extract
-// sha256 d0ef92a89cf178086768295c885448087af0ba05463748197fc9785428982fac):
+// generated at fork rev 3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b (extract
+// sha256 235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95):
 // every editor_write=yes row, plus the four group-B rows the document lists
 // as writing files or creating versions (create_document in docs, sheets and
 // pdf, save_style_template in slides), minus the five slides rows G6-09a
@@ -723,7 +723,7 @@ type uniworkModuleTools struct {
 var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 	"docs": {
 		Read: []string{
-			"analyze_media", "ask_clarification", "get_document_context", "image_search", "list_styles",
+			"analyze_media", "ask_clarification", "generate_mindmap", "get_document_context", "image_search", "list_styles",
 			"read_attachment", "read_blocks", "read_comments", "read_notes", "read_revisions", "web_search",
 		},
 		Write: []string{
@@ -739,7 +739,7 @@ var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 		Write: []string{"apply_ops", "plan_page", "write_document"},
 	},
 	"markdown": {
-		Read:  []string{"ask_clarification", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
+		Read:  []string{"ask_clarification", "generate_mindmap", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
 		Write: []string{"apply_ops", "generate_image", "insert_image", "write_document"},
 	},
 	"pdf": {
