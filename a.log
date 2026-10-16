@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1809-fd-11-app-folder-tree; git log --oneline -3
+39871cf44e6e8208d4333958f932fec7034faa84
+39871cf44e6e8208d4333958f932fec7034faa84
+39871cf4 merge: FD-11 fix round 4 FE (fd11-fix-fe4 ab2dc842d) into the FD-11 branch
+ab2dc842 fix(shell): raise .uwf-path selector specificity and cover system-dark contrast
+dd44532c merge: FD-11 W5 fix2 e2e (fd11-fix-e2e2 d4a04ab9a) into the FD-11 branch
