@@ -142,6 +142,8 @@ export async function auditText(page: Surface, rootSelector = "body") {
 
     const fails: string[] = [];
     let checked = 0;
+    /** The lowest ratio measured and its node, so a report can quote the margin, not only "0 below AA". */
+    let min: { ratio: number; need: number; text: string } | null = null;
     for (const el of Array.from(document.querySelectorAll<HTMLElement>(`${rootSelector} *`))) {
       const own = Array.from(el.childNodes)
         .filter((n) => n.nodeType === Node.TEXT_NODE)
@@ -166,10 +168,11 @@ export async function auditText(page: Surface, rootSelector = "body") {
       // màu chữ có alpha thì cũng gộp; trên gradient lấy điểm màu tệ nhất
       const got = Math.min(...grounds.map((back) => ratio(flatten([...back, cs.color]), flatten(back))));
       checked++;
+      if (!min || got < min.ratio) min = { ratio: Math.round(got * 100) / 100, need, text: own.slice(0, 26) };
       if (got < need) {
         fails.push(`"${own.slice(0, 26)}" ${got.toFixed(2)}:1 < ${need} (${Math.round(size)}px/${weight})`);
       }
     }
-    return { fails, checked, colorLevel4 };
+    return { fails, checked, colorLevel4, min };
   }, rootSelector);
 }

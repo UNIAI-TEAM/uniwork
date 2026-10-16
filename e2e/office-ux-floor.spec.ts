@@ -3,10 +3,10 @@ import { e2eBaseUrl } from "./api-url";
 import { auditText } from "./contrast";
 import { seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
-  EDITOR, FRAME_SELECTOR, PICKER_POP, S5_CARD, S5_MASK, S6_BAR, aiFlagsBeforeAll, clippedLabels, commitElsewhere, contrastIn, docsFrameInstalled,
+  COMPOSER, EDITOR, FRAME_SELECTOR, PICKER_POP, S5_CARD, S5_MASK, S6_BAR, aiFlagsBeforeAll, clippedLabels, commitElsewhere, contrastIn, docsFrameInstalled,
   expectFocus, finding, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
   reachConflict, recordLiveWrites, recordMotion, s5Choices, selectUniworkAi, sizeFrame, smallTargets, surfaceIsMode, visualOrder,
-  waitForBar, type Locale, type Mode,
+  uniworkOption, waitForBar, type Locale, type Mode,
 } from "./office-ux-floor-fixtures";
 
 /**
@@ -22,7 +22,8 @@ import {
  * AI_PROVIDER=fake on the server and office_ai_uniwork + office_ai_uniwork_docx on
  * for the organization (the frame token's `uniwork_ai` grant), set in that group's
  * own beforeAll so an AI setup failure never takes the S5/S6 tests with it.
- * The Docs frame's own dialog marker is `data-docs-web` (S5_MASK), not `data-office-web`.
+ * The Docs frame's own dialog marker is `data-docs-web`; S5_MASK accepts it and `data-office-web`, so a re-pin
+ * (REPIN-1) runs this file unchanged: the pin is read from docs.pin.json, never written here.
  *
  * A rule the pinned frame is known to break is a BLOCKING finding: the test
  * reaches the state, then `finding()` marks the rest expected-to-fail with the
@@ -63,7 +64,8 @@ async function audit(frame: Frame, root: string, label: string, mode: Mode): Pro
   expect(result.colorLevel4, "canvas without CSS Color 4: the measurement would be silently wrong").toBe(true);
   expect(result.checked, `${label}: no text node measured — the selector slipped`).toBeGreaterThan(0);
   expect(result.fails, `${label} (${mode}): ${result.fails.join(" | ")}`).toEqual([]);
-  test.info().annotations.push({ type: "contrast", description: `${label} ${mode}: ${result.checked} nodes, 0 below AA` });
+  const min = result.min ? `min ${result.min.ratio}:1 (needs ${result.min.need}) at "${result.min.text}"` : "no min";
+  test.info().annotations.push({ type: "contrast", description: `${label} ${mode}: ${result.checked} nodes, 0 below AA, ${min}` });
 }
 
 async function shot(frame: Frame, name: string): Promise<void> {
@@ -187,7 +189,7 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
   test("Save copy sits between Reload and Overwrite with edit access", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    finding("UXF-02", "State Patterns › S5: 'Lưu thành bản sao…' (uwConflictSaveCopy, OQ-UX6) between Reload and Overwrite when the user can edit (pin: absent; owner: card G5-12)");
+    finding("UXF-02", "State Patterns › S5: 'Lưu thành bản sao…' (uwConflictSaveCopy, OQ-UX6) between Reload and Overwrite when the user can edit (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const { ids } = await s5Choices(frame);
     expect(ids, "save-copy, reload and overwrite present").toEqual(expect.arrayContaining(["reload", "save-copy", "overwrite"]));
     // Relative order only: UXF-03 (diff first) is its own test, so fixing it must not change this verdict.
@@ -198,7 +200,7 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
   test("Docs shows 'Xem khác biệt' before Reload", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    finding("UXF-03", "State Patterns › S5: Docs/DOCX has 'Xem khác biệt' after the comparison table, before Reload (OQ-UX9) (pin: absent; owner: Advisor, fork)");
+    finding("UXF-03", "State Patterns › S5: Docs/DOCX has 'Xem khác biệt' after the comparison table, before Reload (OQ-UX9) (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const before = await frame.locator(S5_CARD).evaluate((card) => {
       const reload = card.querySelector('[data-choice="reload"]');
       const diff = [...card.querySelectorAll("button, a")].find((b) => /Xem khác biệt|View differences/i.test(b.textContent ?? ""));
@@ -213,7 +215,7 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
     const live = await frame.evaluate(() => [...document.querySelectorAll(".uw-live")].map((el) => ({ role: el.getAttribute("role"), inert: !!el.closest("[inert]") })));
     test.info().annotations.push({ type: "measured", description: JSON.stringify(live) });
     expect(live.length, "the frame has a window live node once a bar was announced").toBeGreaterThanOrEqual(1);
-    finding("UXF-04", "Floor › Vùng live: the window's live nodes are siblings of the inert part, never inside it (pin: frame-dialog inertSiblings inerts every body child, .uw-live included; owner: Advisor, fork)");
+    finding("UXF-04", "Floor › Vùng live: the window's live nodes are siblings of the inert part, never inside it (pin: frame-dialog inertSiblings inerts every body child, .uw-live included; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     expect(live.filter((l) => l.inert)).toEqual([]);
   });
 });
@@ -222,7 +224,7 @@ test.describe("live regions (Floor › Vùng live)", () => {
   test("the frame has its two fixed live nodes from load, before any bar", async ({ page }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await openDocs(page, seeded);
-    finding("UXF-10", "Floor › Vùng live: the window's polite and assertive nodes exist from load (pin: remote-bar.ts liveNode() creates each on its first announce; owner: Advisor, fork)");
+    finding("UXF-10", "Floor › Vùng live: the window's polite and assertive nodes exist from load (pin: remote-bar.ts liveNode() creates each on its first announce; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const nodes = await frame.evaluate(() => ({
       status: document.querySelectorAll('.uw-live[role="status"]').length,
       alert: document.querySelectorAll('.uw-live[role="alert"]').length,
@@ -296,7 +298,7 @@ test.describe("forced colors (DESIGN.md › Colors › Forced colors)", () => {
       });
       test.info().annotations.push({ type: "measured", description: JSON.stringify(got) });
       expect(got.length).toBeGreaterThan(0);
-      finding("UXF-05", "DESIGN › Forced colors: [aria-disabled=true] buttons use GrayText for text and border (pin: frame-dialog.css has no forced-colors rule, opacity only; owner: Advisor, fork)");
+      finding("UXF-05", "DESIGN › Forced colors: [aria-disabled=true] buttons use GrayText for text and border (pin: frame-dialog.css has no forced-colors rule, opacity only; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
       for (const b of got) {
         expect(b.color, `${b.id}: text`).toBe(b.gray);
         expect(b.border, `${b.id}: border`).toBe(b.gray);
@@ -362,7 +364,7 @@ test.describe("zoom, narrow frames and motion (Floor, Responsive & Platform)", (
       expect(new Set(box.xs).size, "buttons share one column").toBe(1);
       expect(new Set(box.ys.map(Math.round)).size, "stacked: every button on its own row").toBe(box.ys.length);
       expect([...box.ys].sort((a, b) => a - b), "stacked top-to-bottom = DOM order").toEqual(box.ys);
-      if (width > 448 + 32) finding("UXF-07", "Responsive › Web hẹp (< 768px): S5 takes the full width minus 16px margins (pin: .ow-dlg max-width 448px; owner: Advisor, fork)");
+      if (width > 448 + 32) finding("UXF-07", "Responsive › Web hẹp (< 768px): S5 takes the full width minus 16px margins (pin: .ow-dlg max-width 448px; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
       expect(Math.abs(box.left - 16), "16px left margin").toBeLessThanOrEqual(1);
       expect(Math.abs(box.width - (box.inner - 32)), "full width minus 2x16px").toBeLessThanOrEqual(1);
     });
@@ -398,7 +400,7 @@ test.describe("zoom, narrow frames and motion (Floor, Responsive & Platform)", (
 });
 
 test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags)", () => {
-  aiFlagsBeforeAll(() => seeded.organizationId);
+  aiFlagsBeforeAll(() => seeded);
   for (const mode of MODES) {
     for (const locale of LOCALES) {
       test(`S7 picker with UniWork AI and the S9 result line — ${mode} ${locale}`, async ({ page }) => {
@@ -407,9 +409,9 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
         await openPicker(frame);
         await audit(frame, PICKER_POP, "S7 picker", mode);
         await shot(frame, `s7-picker-${mode}-${locale}`);
-        await frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first().click();
+        await uniworkOption(frame).click();
         // S9: one UniWork AI turn against the fake provider; the answer (or its error line) is measured.
-        const composer = frame.locator(".ai-composer textarea, .ai-composer [contenteditable='true']").first();
+        const composer = frame.locator(COMPOSER).first();
         await composer.click();
         await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
         await page.keyboard.press("Enter");
@@ -438,7 +440,7 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
       });
       test.info().annotations.push({ type: "measured", description: JSON.stringify(ring) });
       expect(ring.focusVisible, "the selected option is not :focus-visible").toBe(true);
-      finding("UXF-01", "Floor › Focus ring: .ai-model-item.selected:focus-visible has outline 2px var(--accent) at >= 3:1 against accent-soft (pin: outline none; fixed on fork main 99e5a5253, waits for the D re-pin)");
+      finding("UXF-01", "Floor › Focus ring: .ai-model-item.selected:focus-visible has outline 2px var(--accent) at >= 3:1 against accent-soft (pin: outline none; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
       expect(ring.style).not.toBe("none");
       expect(ring.width).toBeGreaterThanOrEqual(2);
       expect(await contrastIn(frame, ring.color, ring.bg)).toBeGreaterThanOrEqual(3);
@@ -462,7 +464,7 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
     });
     test.info().annotations.push({ type: "measured", description: JSON.stringify(sel) });
     await shot(frame, "s7-forced-colors");
-    finding("UXF-06", "DESIGN › Forced colors: .ai-model-item.selected has a 2px Highlight border (pin: background only; owner: Advisor, fork)");
+    finding("UXF-06", "DESIGN › Forced colors: .ai-model-item.selected has a 2px Highlight border (pin: background only; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     expect(sel.width).toBeGreaterThanOrEqual(2);
     expect(sel.color).toBe(sel.hl);
   });
@@ -477,7 +479,7 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
       manageInList: !!pop.querySelector('[role="listbox"] .ai-model-manage'),
     }));
     test.info().annotations.push({ type: "measured", description: JSON.stringify(roles) });
-    finding("UXF-08", "Floor › S7: role=listbox on .ai-model-pop-list, .ai-model-pop is a labelled group, Manage outside the listbox (pin: listbox on .ai-model-pop with Manage inside; fixed on fork main 99e5a5253, waits for the D re-pin)");
+    finding("UXF-08", "Floor › S7: role=listbox on .ai-model-pop-list, .ai-model-pop is a labelled group, Manage outside the listbox (pin: listbox on .ai-model-pop with Manage inside; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
     expect(roles).toEqual({ pop: "group", list: "listbox", manageInList: false });
   });
 
@@ -487,14 +489,19 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
     await selectUniworkAi(frame);
     const send = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
     await expect(send, "S8: the composer has its Send button").toBeVisible({ timeout: 15_000 });
-    finding("UXF-09", "Floor › S8 / IA S8: a region labelled aiUniworkDisclosureLabel with 'Đã hiểu' before the first UniWork AI turn, and Send aria-disabled + aria-describedby until then (pin: strings only, no component renders it; fixed on fork main 99e5a5253, waits for the D re-pin)");
-    const region = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|sent to UniWork AI/i });
+    // RFE-202: a non-empty composer, so an empty-composer `disabled` can never pass for the disclosure gate.
+    await frame.locator(COMPOSER).first().click();
+    await page.keyboard.type("Tóm tắt tài liệu này.");
+    finding("UXF-09", "Floor › S8 / IA S8: a region labelled aiUniworkDisclosureLabel with 'Đã hiểu' before the first UniWork AI turn, and Send aria-disabled + aria-describedby until then (pin: strings only, no component renders it; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
+    const region = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|What UniWork AI receives/i });
     await expect(region).toBeVisible({ timeout: 10_000 });
     await expect(send, "Send is aria-disabled before the acknowledgement").toHaveAttribute("aria-disabled", "true");
-    const reason = await send.evaluate((b) => b.getAttribute("aria-describedby")?.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? "").join("") ?? "");
-    expect(reason, "Send's aria-describedby names the reason").not.toBe("");
+    const reason = await send.evaluate((b) => b.getAttribute("aria-describedby")?.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? "").join(" ") ?? "");
+    // aiUniworkSendNeedsAck (vi/en) — the disclosure is the reason, not an empty composer.
+    expect(reason, "Send's aria-describedby names the disclosure reason").toMatch(/xác nhận lời công bố|confirm the notice/i);
     await audit(frame, ".ai-composer", "S8 disclosure", "light");
     await frame.getByRole("button", { name: /Đã hiểu|Got it/i }).first().click();
     await expect(send, "Send is enabled after 'Đã hiểu'").not.toHaveAttribute("aria-disabled", "true");
+    await expect(send, "Send is enabled after 'Đã hiểu' (the composer is not empty)").toBeEnabled();
   });
 });
