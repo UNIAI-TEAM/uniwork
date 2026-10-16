@@ -13,6 +13,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -663,26 +664,32 @@ func TestAskFindsDocuments(t *testing.T) {
 	}
 }
 
+// Every real workspace holds the welcome task, whose body has "giao cho",
+// "nhận", "việc"... A follow-up whose words hit only that body still keeps
+// the previous question's topic.
 func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 	s, _, ua, _, w := askFixture(t)
 	ctx := context.Background()
+	onboarding := NewOnboardingService(s.q, s.ws, mail.Renderer{}, &fakeOutbox{})
+	if _, _, err := onboarding.SeedWelcomeTask(ctx, ua.ID, w.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Banner Tết"}); err != nil {
 		t.Fatal(err)
 	}
-	first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "Ai đang nhận cái đó?", Locale: "vi"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, c := range res.Citations {
-		if c.Title == "Banner Tết" {
-			return
+	for _, q := range []string{"Ai đang nhận cái đó?", "Cái đó giao cho ai?", "Việc đó của người nào?"} {
+		first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: q, Locale: "vi"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !citesTitle(res.Citations, "Banner Tết") {
+			t.Errorf("%q did not cite the previous question's task: %+v / notice %q", q, res.Citations, res.Message.Notice.String)
 		}
 	}
-	t.Fatalf("follow-up did not cite the previous question's task: %+v / notice %q", res.Citations, res.Message.Notice.String)
 }
 
 // A follow-up that names its own subject is about that subject: the previous
@@ -690,20 +697,30 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 func TestAskFollowUpWithItsOwnSubjectKeepsToIt(t *testing.T) {
 	s, _, ua, _, w := askFixture(t)
 	ctx := context.Background()
+	wsRow, err := s.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ref string
 	for _, title := range []string{"Banner Tết", "Kịch bản video"} {
-		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: title}); err != nil {
+		task, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: title})
+		if err != nil {
 			t.Fatal(err)
 		}
+		ref = fmt.Sprintf("%s-%d", wsRow.TaskPrefix, task.Number)
 	}
-	first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "Kịch bản video thì sao?", Locale: "vi"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !citesTitle(res.Citations, "Kịch bản video") || citesTitle(res.Citations, "Banner Tết") {
-		t.Fatalf("follow-up with its own task must cite it alone: %+v", res.Citations)
+	// By title, and by the PREFIX-N reference alone (no title word in it).
+	for _, q := range []string{"Kịch bản video thì sao?", ref + " thì sao?"} {
+		first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: q, Locale: "vi"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !citesTitle(res.Citations, "Kịch bản video") || citesTitle(res.Citations, "Banner Tết") {
+			t.Errorf("%q names its own task and must cite it alone: %+v", q, res.Citations)
+		}
 	}
 }

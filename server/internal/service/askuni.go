@@ -190,7 +190,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	if err != nil {
 		return AskResult{}, err
 	}
-	if !hasOwnSubject(sources) {
+	if !hasOwnSubject(question, in.Focus, sources) {
 		if sources, err = s.withPreviousQuestion(ctx, previousQuestion(rows), userID, w.OrganizationID, workspaceID, question, sources); err != nil {
 			return AskResult{}, err
 		}
@@ -257,12 +257,17 @@ func (s *AskUNIService) ownConversation(ctx context.Context, userID, id, workspa
 	return conv, err
 }
 
-// hasOwnSubject reports whether the question found something of its own: a
-// task (a PREFIX-N one too), meeting, document or focused object. Members and
-// chat lines alone do not make it a new topic.
-func hasOwnSubject(sources []ai.Source) bool {
+// hasOwnSubject reports whether the question names something of its own: a
+// focused object, a PREFIX-N reference, or a task, meeting or document whose
+// title holds one of its terms. A body match is not enough ("giao cho" is in
+// every welcome task), and members and chat lines never are.
+func hasOwnSubject(question string, focus *ai.Focus, sources []ai.Source) bool {
+	if focus != nil || taskIdentifierRe.MatchString(question) {
+		return true
+	}
+	ts := searchTerms(question)
 	for _, src := range sources {
-		if src.Kind != "members" && src.Kind != "chat" {
+		if src.Kind != "members" && src.Kind != "chat" && score(src.Title, ts) > 0 {
 			return true
 		}
 	}
