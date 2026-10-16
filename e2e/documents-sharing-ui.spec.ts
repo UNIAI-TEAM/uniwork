@@ -23,7 +23,8 @@ const shot = shooter(
 );
 
 function shareDialog(page: Page) {
-  return page.getByRole("dialog", { name: /Chia sẻ tài liệu|Share document/ });
+  // SH-S1 names the dialog after the document ("Chia sẻ “<title>”"); untitled ones keep the generic title.
+  return page.getByRole("dialog", { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ });
 }
 
 test("share, public link, anonymous read, access log and revoke", async ({ page, browser }) => {
