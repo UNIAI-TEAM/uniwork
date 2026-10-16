@@ -503,7 +503,7 @@ func TestDocumentSourceItemNamesTheMessageOnlyForChat(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			item := documentSourceItem(c.src, c.row)
+			item := documentSourceItem(c.src, c.row, documentFilePolicyFor(nil))
 			if item.Source != c.src || item.ID != c.src+":"+c.row.RowID {
 				t.Fatalf("item = %s (%s), want source %s and id %s", item.ID, item.Source, c.src, c.src+":"+c.row.RowID)
 			}
