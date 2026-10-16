@@ -36,12 +36,17 @@ import {
   FEED_NUDGE_LIMIT,
   FIXTURE_IDS,
   FIXTURE_KIND,
+  FRAME_READ_NO_BUDGET,
   REAL_AI_BLOCKER,
   ROW_IDS,
   ROW_REQUIRED_STEPS,
   announceGuardVerdict,
+  appIntentRecordName,
   decideCrossHostOutcome,
   dependentSteps,
+  driveAppConflictReloadFlow,
+  driveFrameReloadFlow,
+  evaluateReloadWindow,
   exitCodeFor,
   frameRemoteState,
   freshOpensAfter,
@@ -51,7 +56,8 @@ import {
   newerBarReport,
   parseCrossHostArgs,
   readFrameMessages,
-  readFrameMessagesBounded,
+  readFrameReports,
+  readFrameRemoteSurface,
   readRemoteNewerSurface,
   remoteNewerMissReason,
   revisionOfFile,
@@ -98,6 +104,8 @@ const sha256Hex = (buf) => createHash("sha256").update(buf).digest("hex");
 
 const USER_ID = "01JUSER0000000000000000001";
 const DOC_ID = "01JDOC00000000000000000001";
+/** Another document of the same user: its `.rec` must never satisfy THIS row's offline Save (BE-704-404). */
+const OTHER_DOC_ID = "01JDOC00000000000000000002";
 const ORG_ID = "01JORG00000000000000000001";
 const WS_ID = "01JWS000000000000000000001";
 
@@ -426,6 +434,17 @@ const bindingOf = ({ mock, documentId, kind, filename, versionId, version, revis
 function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "sheets", knobs = {} }) {
   const docsDir = join(runDir, "userdata", "uniwork-documents", "default", userId, documentId);
   const intentsDir = join(runDir, "userdata", "uniwork-sync", "store", "default", userId, "intents");
+  // The fork names one intent record after its KEY: `recordFileName(key) = sha256(key).rec`
+  // (`uniwork-sync/store/paths.ts`) and the intent key is the working-copy folder segment, which is
+  // the document id (`uniwork-docs/service.ts` `dirFor(deploymentId, accountId, documentId)`,
+  // `save-coordinator.ts` `intents.put(doc.key, …)`). The fake writes the same names the fork
+  // writes, so a row that accepts another document's record is caught (BE-704-404).
+  const ownIntentName = appIntentRecordName(documentId);
+  const otherDocIntentName = appIntentRecordName(OTHER_DOC_ID);
+  const writeIntent = (name) => {
+    mkdirSync(intentsDir, { recursive: true });
+    writeFileSync(join(intentsDir, name), "sealed-intent");
+  };
   const filename = kind === "sheets" ? "fx-xlsx-revenue-xyz.xlsx" : "fx-docx-report-vi.docx";
   const workingCopyPath = join(docsDir, filename);
   const app = {
@@ -547,6 +566,14 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
           confirmReason: 'the reload confirm "Reload" stayed disabled (the dialog waits for the keep choice)',
         };
       }
+      // the working copy reaches the web Save's bytes ANYWAY (a stray reload, another sync path)
+      // while the click the driver made was never confirmed with the discard choice: the row must
+      // not accept the final state on that alone (BE-704-403)
+      if (knobs.reloadUnconfirmedButSettles) {
+        app.dirty = false;
+        app.reloadTo(mock.head());
+        return { clicked: true, confirmed: false, choseDiscard: true, confirmReason: "the reload confirm never became usable" };
+      }
       app.dirty = false;
       app.reloadTo(mock.head());
       return { clicked: true, confirmed: true, confirmText: "Reload", choseDiscard: true };
@@ -601,15 +628,20 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       if (offline === true) {
         const edited = bytes ?? standInBytes ?? editedBytes(mock.head().bytes, knobs.offlineMarker ?? "desktop-offline-edit");
         const hold = () => {
-          mkdirSync(intentsDir, { recursive: true });
+          writeIntent(ownIntentName);
+          mkdirSync(docsDir, { recursive: true });
           writeFileSync(workingCopyPath, edited);
-          writeFileSync(join(intentsDir, "01JINTENT00000000000000001.rec"), "encrypted-intent");
           writeFileSync(
             join(docsDir, "binding.json"),
             JSON.stringify({ ...binding, baseVersion: Number(binding.baseVersion) + (knobs.offlineBaseMoves ? 1 : 0), state: "offline", error: "network" }),
           );
         };
         // an app that never writes its receipt: no intent, no offline state
+        if (knobs.otherDocIntentAfterReads > 0) {
+          // another open document of the same user writes ITS OWN new `.rec` while THIS document's
+          // Save is held: the row must not read that as its own receipt (BE-704-404)
+          app.deferSettle(knobs.otherDocIntentAfterReads, () => writeIntent(otherDocIntentName));
+        }
         if (knobs.offlineNeverHolds) return { saved: false, held: false, binding };
         app.deferSettle(knobs.offlineIntentAfterReads, hold);
         return { saved: false, held: true, binding };
@@ -624,7 +656,7 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
           idempotencyKey: idempotencyKey ?? `app-cross-host-${documentId}-${mock.state.versions.length}`,
         });
         if (res.status !== 200) return { saved: false, reason: `commit answered ${res.status}` };
-        rmSync(join(intentsDir, "01JINTENT00000000000000001.rec"), { force: true });
+        rmSync(join(intentsDir, ownIntentName), { force: true });
         const v = mock.head();
         app.reloadTo(v);
         return { saved: true, binding: app.workingCopy().binding };
@@ -651,11 +683,10 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
   };
   // A previous row's parked work: `confirmed` sign-out parks unsent work rather
   // than dropping it (the pinned fork parks/locks it), so the user-level intents
-  // dir can already hold a `.rec` before THIS row's Save (BE-704-302).
-  if (knobs.staleIntent) {
-    mkdirSync(intentsDir, { recursive: true });
-    writeFileSync(join(intentsDir, "01JSTALEPRIORROW0000000000001.rec"), "encrypted-intent");
-  }
+  // dir can already hold a `.rec` before THIS row's Save (BE-704-302). It belongs
+  // to ANOTHER document's key, which is why it can never be this row's receipt
+  // (BE-704-404).
+  if (knobs.staleIntent) writeIntent(otherDocIntentName);
   return app;
 }
 
@@ -663,10 +694,20 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
  * The fake web host controller: the page "sees" every commit the mock recorded
  * (`announcements`) and reloads the head after one, unless a knob disables it.
  */
-function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
+function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} } = {}) {
+  // the documents of the page: one real (message-reading) frame, or N renderers that never answer
+  // so a row's frame reads are what the test measures (BE-704-405)
+  const frames = Array.from({ length: Math.max(1, Number(knobs.hungFrames) || 1) }, (_, index) => ({
+    url: () => `http://localhost:36009/office-frame/${index === 0 ? "docs" : `frame${index}`}/index.html`,
+    evaluate: () => (knobs.hungFrames ? new Promise(() => {}) : Promise.resolve([])),
+  }));
   const web = {
     calls: [],
     reloadWindow: null,
+    /** The frame's own `office-frame` GETs, recorded the way the real controller records them. */
+    opens: [],
+    /** When the announce the fake delivered last landed, so an open can be timed against it. */
+    announceAt: 0,
     async open() {
       web.calls.push("open");
       return knobs.frameFailed
@@ -690,9 +731,20 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
       const head = mock.frameHead();
       return { ...head, sha256: knobs.divergentWebContent ? sha256Hex(Buffer.from("divergent-web-bytes")) : head.sha256 };
     },
-    async announcements({ sinceMs = 0 } = {}) {
+    async announcements({ sinceMs = 0, deadlineMs = null } = {}) {
+      web.calls.push("announcements");
+      if (knobs.hungFrames) {
+        // the REAL reader over hung renderers (BE-704-405): what the row must bound is the reads
+        // the poll itself makes, so this path uses the driver's own implementation, not a canned answer
+        const reports = await readFrameReports({
+          frames,
+          deadlineMs: Number.isFinite(deadlineMs) ? deadlineMs : Date.now() + (Number(knobs.hungFrameBudgetMs) || 250),
+          perReadTimeoutMs: Number(knobs.hungFramePerReadMs) || 10_000,
+        });
+        return summarizeFrameRecordings(reports, sinceMs).announcements;
+      }
       if (knobs.webSees === false) return [];
-      return mock.state.commits
+      const list = mock.state.commits
         .filter((c) => c.at >= sinceMs && c.source !== "web")
         .map((c) => ({
           kind: "event",
@@ -717,32 +769,81 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
           at: c.at,
           ...(knobs.announce ?? {}),
         }));
+      if (list.length > 0) web.announceAt = list[list.length - 1].at;
+      return list;
     },
     /**
-     * The reload action INSIDE the frame (D4-01): the real one is a click on the
-     * frame's own control, not on the top page, and the driver drives it before
-     * it waits for the fresh `api.open`.
+     * The reload action INSIDE the frame (D4-01/BE-704-402): the real one is a click on the
+     * frame's own control, and the driver drives it before it waits for the fresh `api.open`.
+     * A CLEAN frame reloads the moment the announce lands, so its GET is recorded HERE — before
+     * this call returns (BE-704-401). It carries the announced version id, never a `download`
+     * choice (BE-704-402).
      */
     async clickReload({ versionId = null } = {}) {
       web.calls.push(`clickReload:${versionId ?? "any"}`);
-      if (knobs.reloadClickUnavailable) return { clicked: false, reason: "the frame carries no reload action" };
-      return { clicked: true, versionId, frame: "docs", label: "Reload latest…" };
+      const head = mock.frameHead();
+      const announced = mock.state.commits.filter((c) => c.source !== "web").at(-1);
+      if (announced) web.announceAt = announced.at;
+      if (knobs.reloadClickUnavailable) return { clicked: false, bar: false, reason: "the frame carries no reload action" };
+      if (knobs.reloadNoDiscardChoice) {
+        // the pinned reload step pushes `download` FIRST when the host can download
+        // (`conflict-dialog.ts:424-446`): a driver that clicks the first `[data-choice]` would
+        // click it and never reload — so NO fresh GET is recorded here (BE-704-402)
+        return {
+          clicked: true,
+          bar: true,
+          choseDiscard: false,
+          frame: "docs",
+          label: "Reload latest…",
+          choices: ["download", "back"],
+          reason: 'the reload step offers no "discard" choice (it offers: download, back)',
+        };
+      }
+      // the reload HAPPENS from here: its GET is recorded, for a CLEAN frame the moment the
+      // announce lands — i.e. before this call returns (BE-704-401)
+      if (!knobs.webReloadFails) {
+        web.opens.push({
+          at: knobs.autoOpenBeforeAnnounce ? web.announceAt - 60 : web.announceAt + 5,
+          pathname: `/api/v1/office-frame/documents/${documentId}`,
+          answered: true,
+          failed: false,
+          versionId: head.versionId,
+          version: head.version,
+          revision: String(head.version),
+          checksum: head.checksum_sha256,
+        });
+      }
+      return { clicked: true, bar: true, choseDiscard: true, frame: "docs", label: "Reload latest…" };
     },
+    /**
+     * The fresh `office-frame` GET poll: the driver's OWN window logic (`evaluateReloadWindow`)
+     * over the opens recorded by the click, so the announce anchor is what decides here
+     * (BE-704-401) instead of a canned answer.
+     */
     async waitForReload({ versionId, sinceMs = null, timeoutMs = 1000 }) {
       web.calls.push("waitForReload");
       web.reloadWindow = sinceMs;
+      const verdict = evaluateReloadWindow(web.opens, { versionId, sinceMs });
       if (knobs.webSees === false || knobs.webReloadFails) {
-        return { reloaded: false, elapsedMs: timeoutMs, reason: "the frame never reloaded the announced version" };
+        return { reloaded: false, elapsedMs: timeoutMs, opensSeen: verdict.opensSeen, opensBefore: verdict.opensBefore, reason: verdict.reason };
       }
-      const head = mock.frameHead();
-      if (head.versionId !== versionId) {
-        return { reloaded: false, elapsedMs: 0, reason: `the frame reloaded ${head.versionId}, not ${versionId}` };
+      if (!verdict.reloaded) {
+        return { reloaded: false, elapsedMs: 0, opensSeen: verdict.opensSeen, opensBefore: verdict.opensBefore, reason: verdict.reason };
       }
-      return { reloaded: true, versionId: head.versionId, version: head.version, checksum: head.checksum, revision: head.revision, elapsedMs: 10 };
+      const hit = verdict.hit;
+      return { reloaded: true, versionId: hit.versionId, version: hit.version, checksum: hit.checksum, revision: hit.revision, elapsedMs: 10 };
     },
-    /** What a frame audit read: the recorder counts, and any per-read failure (BE-704-304). */
-    async frameAudit() {
+    /** What a frame audit read: the recorder counts, and any per-read failure (BE-704-304/405). */
+    async frameAudit({ deadlineMs = null } = {}) {
       web.calls.push("frameAudit");
+      if (knobs.hungFrames) {
+        const reports = await readFrameReports({
+          frames,
+          deadlineMs: Number.isFinite(deadlineMs) ? deadlineMs : Date.now() + (Number(knobs.hungFrameBudgetMs) || 250),
+          perReadTimeoutMs: Number(knobs.hungFramePerReadMs) || 10_000,
+        });
+        return summarizeFrameRecordings(reports, 0);
+      }
       const failed = Number(knobs.frameReadErrors) || 0;
       return {
         announcements: [],
@@ -1294,6 +1395,7 @@ describe("G7-04 cross-host D2-01: the app's own Save is read asynchronously (rou
       assert.equal(step.status, "PASS");
       assert.equal(step.intentFiles, 2, "both the stale intent and this Save's own are on disk");
       assert.equal(step.newIntentFiles, 1, "only this Save's intent is new");
+      assert.equal(step.documentIntentFiles, 1, "and only ONE of them belongs to this document (BE-704-404)");
       assert.equal(app.calls.filter((call) => call === "saveOffline").length, 1);
     } finally {
       delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
@@ -1648,23 +1750,23 @@ describe("G7-04 cross-host BE-704-304: every frame read has its own timeout", ()
   it("bounds a hung frame read and reports the expiry instead of waiting forever", async () => {
     const hung = { url: () => "http://localhost:36009/office-frame/docs/index.html", evaluate: () => new Promise(() => {}) };
     const started = Date.now();
-    const report = await readFrameMessagesBounded(hung, { timeoutMs: 60 });
+    const [report] = await readFrameReports({ frames: [hung], deadlineMs: Date.now() + 60, perReadTimeoutMs: 60 });
     assert.equal(report.messages, null, "a read that never answered reports no messages");
-    assert.match(report.error, /timed out after 60 ms/);
+    assert.match(report.readError, /timed out after \d\d ms/);
     assert.ok(Date.now() - started >= 55, `the read must hold its bound before answering (answered after ${Date.now() - started} ms)`);
   });
 
   it("keeps a read's own failure, so a broken frame reads as a measured miss too", async () => {
     const broken = { url: () => "about:blank", evaluate: () => Promise.reject(new Error("frame detached")) };
-    const report = await readFrameMessagesBounded(broken, { timeoutMs: 60 });
+    const [report] = await readFrameReports({ frames: [broken], deadlineMs: Date.now() + 5_000 });
     assert.equal(report.messages, null);
-    assert.match(report.error, /frame detached/);
+    assert.match(report.readError, /frame detached/);
   });
 
   it("an answered frame still yields its recorded envelopes", async () => {
     const frame = { url: () => "about:blank", evaluate: async () => [{ kind: "event", type: "doc.remoteVersion", versionId: "v3", at: 1 }] };
-    const report = await readFrameMessagesBounded(frame, { timeoutMs: 60 });
-    assert.equal(report.error, "");
+    const [report] = await readFrameReports({ frames: [frame], deadlineMs: Date.now() + 5_000 });
+    assert.equal(report.readError, "");
     assert.deepEqual(report.messages.map((m) => m.versionId), ["v3"]);
   });
 
@@ -1994,12 +2096,16 @@ describe("G7-04 cross-host D4-02: the app's S6 reload is confirmed with the keep
       );
       assert.equal(result.record.details.appReload.confirmed, true);
       assert.equal(result.record.details.appReload.choseDiscard, true);
+      // the dirty checksum just BEFORE the click is on the record (BE-704-403), so the discard is
+      // a measured before/after transition
+      assert.equal(result.record.details.appReload.dirtyShaBeforeClick, result.record.details.dirtyEditSha);
+      assert.ok(result.record.details.appReload.dirtyShaBeforeClick.length > 0);
     } finally {
       scratch.cleanup();
     }
   });
 
-  it("FAILs with the measured confirm outcome when the fork's confirm never becomes usable (D4-02)", async () => {
+  it("FAILs with the measured confirm reason when the fork's confirm never becomes usable (D4-02/BE-704-403)", async () => {
     const scratch = makeScratchRunDir();
     const mock = createMockDServer();
     try {
@@ -2014,13 +2120,533 @@ describe("G7-04 cross-host D4-02: the app's S6 reload is confirmed with the keep
       assert.equal(result.status, "FAIL");
       const step = result.record.steps["app-reload"];
       assert.equal(step.status, "FAIL");
-      assert.match(step.reason, /did not settle on v3 after the reload/);
-      // "the fork did not reload" and "the driver never confirmed" must not read the same
-      assert.match(step.reason, /reload click: the reload confirm "Reload" stayed disabled/);
+      // the reload is only accepted with the discard confirmation (BE-704-403), so this fails at
+      // the click's own outcome instead of waiting out the settle bound and reporting a delay
+      assert.match(step.reason, /was not confirmed with the discard choice/);
+      assert.match(step.reason, /confirmed=false, choseDiscard=false/);
+      assert.match(step.reason, /reload confirm "Reload" stayed disabled/);
       assert.ok(!/working copy <redacted>/.test(step.reason), `the measured bytes must survive the redactor: ${step.reason}`);
+      assert.equal(result.record.details.appReload, undefined, "an unconfirmed reload records no appReload outcome");
     } finally {
       scratch.cleanup();
     }
+  });
+
+  it("FAILs although the working copy settles when the click was never confirmed (BE-704-403)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      // the bytes reach the web Save's checksum anyway: accepting the final state on that alone
+      // would PASS a row whose discard flow the fork never confirmed
+      const { result } = await runChain({
+        row: "G5-A03",
+        fixture: "fx-xlsx-revenue-xyz",
+        mock,
+        scratch,
+        knobs: { app: { reloadUnconfirmedButSettles: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["app-reload"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /was not confirmed with the discard choice/);
+      assert.match(step.reason, /confirmed=false, choseDiscard=true/);
+      assert.match(step.reason, /the reload confirm never became usable/);
+      // the settle poll was never reached: the chain stopped at the click's own outcome
+      assert.equal(result.record.versionCounts.afterReconnect, undefined);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host BE-704-401: the reload window is anchored at the announce, not at the click", () => {
+  it("accepts the clean frame's own auto-open even though it landed before the click returned", () => {
+    const announceAt = 50_000;
+    // the click took 900 ms and the announce-caused GET landed inside it
+    const clickReturnedAt = announceAt + 900;
+    const opens = [
+      { at: announceAt - 5_000, pathname: "/api/v1/office-frame/documents/x", answered: true, versionId: "v-seeded" },
+      { at: announceAt + 30, pathname: "/api/v1/office-frame/documents/x", answered: true, versionId: "v3", version: 3, revision: "3", checksum: "c3" },
+    ];
+    // the window round 5 used (the instant the driver started waiting) filters exactly this GET out
+    assert.equal(evaluateReloadWindow(opens, { versionId: "v3", sinceMs: clickReturnedAt, now: clickReturnedAt }).reloaded, false);
+    // the announce's own timestamp keeps it: the reload HAPPENED, the driver only noticed later
+    const verdict = evaluateReloadWindow(opens, { versionId: "v3", sinceMs: announceAt - ANNOUNCE_OPEN_TOLERANCE_MS, now: clickReturnedAt });
+    assert.equal(verdict.reloaded, true);
+    assert.equal(verdict.hit.versionId, "v3");
+    assert.equal(verdict.opensSeen, 1);
+    assert.equal(verdict.opensBefore, 1, "the seeded GET before the announce stays excluded");
+    // and an open before the announce is never taken for the reload, even when its version matches
+    const stale = evaluateReloadWindow(
+      [{ at: announceAt - 60, pathname: "/api/v1/office-frame/documents/x", answered: true, versionId: "v3" }],
+      { versionId: "v3", sinceMs: announceAt - ANNOUNCE_OPEN_TOLERANCE_MS, now: clickReturnedAt },
+    );
+    assert.equal(stale.reloaded, false);
+    assert.equal(stale.opensBefore, 1);
+    assert.match(stale.reason, /landed before the announce/);
+  });
+
+  it("PASSes web-sees when the frame recorded its open inside the reload click (BE-704-401)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const { result, web } = await runChain({ row: "G7-A01", fixture: "fx-docx-report-vi", mock, scratch });
+      assert.equal(result.status, "PASS", result.reason);
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "PASS");
+      const reconnectVersionId = result.record.versionIds[`v${result.record.versionCounts.afterReconnect}`];
+      // the open the frame made for the announced version was recorded by the click itself…
+      assert.equal(web.opens.length, 1);
+      assert.equal(web.opens[0].versionId, reconnectVersionId);
+      assert.ok(
+        web.opens[0].at - web.announceAt <= ANNOUNCE_OPEN_TOLERANCE_MS,
+        "the auto-open lands on the announce's own hop, so a click-anchored window would have filtered it out",
+      );
+      // …and the step still required the fresh open of the announced version id to claim the reload
+      assert.equal(result.record.details.webSees.reload.versionId, reconnectVersionId);
+      assert.equal(result.record.details.webSees.confirmed, true);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("FAILs when the only matching GET landed before the announce: that is a stale open, not the reload (BE-704-401)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const { result, web } = await runChain({
+        row: "G7-A01",
+        fixture: "fx-docx-report-vi",
+        mock,
+        scratch,
+        knobs: { web: { autoOpenBeforeAnnounce: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /did not reload the announced version/);
+      assert.match(step.reason, /landed before the announce/);
+      assert.equal(result.record.details.webSeesMiss.opens.beforeTheAnnounce, 1);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+});
+
+/**
+ * The page-style DOM harness (BE-704-406): the driver's serialized page functions run against a
+ * fake document the way Playwright runs them (`new Function("return (" + String(fn) + ")")()`),
+ * with only the selectors and element behaviours the PINNED markup needs — `data-choice` order,
+ * `aria-disabled`, a radio that only becomes checked when clicked.
+ */
+const parseSelAttr = (text) => {
+  const eq = text.indexOf("=");
+  if (eq < 0) return { name: text.trim(), value: null };
+  const raw = text.slice(eq + 1).trim();
+  return { name: text.slice(0, eq).trim(), value: /^["'].*["']$/.test(raw) ? raw.slice(1, -1) : raw };
+};
+const parseCompound = (text) => {
+  const m = /^([a-zA-Z0-9-]*)((?:\.[\w-]+|\[[^\]]+\])*)$/.exec(text.trim());
+  if (!m) throw new Error(`the fake DOM does not support the selector "${text}"`);
+  const classes = [];
+  const attrs = [];
+  for (const part of m[2].match(/\.([\w-]+)|\[([^\]]+)\]/g) ?? []) {
+    if (part.startsWith(".")) classes.push(part.slice(1));
+    else attrs.push(parseSelAttr(part.slice(1, -1)));
+  }
+  return { tag: m[1] ? m[1].toLowerCase() : null, classes, attrs };
+};
+const matchCompound = (el, selector) => {
+  const { tag, classes, attrs } = parseCompound(selector);
+  if (tag && el.tag !== tag) return false;
+  if (classes.some((name) => !(el.attributes.class ?? "").split(/\s+/).includes(name))) return false;
+  return attrs.every(({ name, value }) => (value === null ? el.hasAttribute(name) : el.getAttribute(name) === value));
+};
+const matchSelector = (el, selector) =>
+  selector.split(",").some((part) => {
+    const compounds = part.trim().split(/\s+/).filter(Boolean);
+    if (!matchCompound(el, compounds[compounds.length - 1])) return false;
+    let node = el.parent;
+    for (let index = compounds.length - 2; index >= 0; index -= 1) {
+      let found = false;
+      while (node) {
+        if (matchCompound(node, compounds[index])) {
+          found = true;
+          node = node.parent;
+          break;
+        }
+        node = node.parent;
+      }
+      if (!found) return false;
+    }
+    return true;
+  });
+const fakeDescendants = (el) => el.children.flatMap((child) => [child, ...fakeDescendants(child)]);
+function makeFakeEl(tag, attrs = {}, children = [], text = "") {
+  const el = {
+    tag: String(tag).toLowerCase(),
+    attributes: { ...attrs },
+    children: [],
+    parent: null,
+    textContent: text,
+    clicks: 0,
+    listeners: {},
+    onClick: null,
+    get className() {
+      return el.attributes.class ?? "";
+    },
+    set className(value) {
+      el.attributes.class = value;
+    },
+    getAttribute: (name) => (name in el.attributes ? el.attributes[name] : null),
+    setAttribute: (name, value) => {
+      el.attributes[name] = String(value);
+    },
+    removeAttribute: (name) => {
+      delete el.attributes[name];
+    },
+    hasAttribute: (name) => name in el.attributes,
+    addEventListener: (name, fn) => {
+      (el.listeners[name] ??= []).push(fn);
+    },
+    append: (...nodes) => {
+      for (const node of nodes) {
+        node.parent = el;
+        el.children.push(node);
+      }
+    },
+    click: () => {
+      el.clicks += 1;
+      el.onClick?.(el);
+      for (const fn of el.listeners.click ?? []) fn();
+    },
+    closest: (selector) => {
+      let node = el;
+      while (node) {
+        if (matchSelector(node, selector)) return node;
+        node = node.parent;
+      }
+      return null;
+    },
+    querySelector: (selector) => fakeDescendants(el).find((node) => matchSelector(node, selector)) ?? null,
+    querySelectorAll: (selector) => fakeDescendants(el).filter((node) => matchSelector(node, selector)),
+  };
+  el.append(...children);
+  return el;
+}
+function makeFakeDocument(children = []) {
+  return makeFakeEl("body", {}, children);
+}
+/** Run `fn` with `document` bound to the fake, the way the page function sees it. */
+const withDom = async (document, run) => {
+  const saved = globalThis.document;
+  globalThis.document = document;
+  try {
+    return await run();
+  } finally {
+    if (saved === undefined) delete globalThis.document;
+    else globalThis.document = saved;
+  }
+};
+const asPageSeesIt = (fn) => new Function("return (" + String(fn) + ")")();
+
+describe("G7-04 cross-host BE-704-402: only the discard choice reloads the frame, and only a fresh open confirms it", () => {
+  /** The pinned reload step (`web/modules/shared/conflict-dialog.ts:424-446`): download FIRST. */
+  const webReloadDom = ({ choices = ["download", "discard", "back"] } = {}) => {
+    const buttons = new Map();
+    const card = makeFakeEl("div", { role: "alertdialog" });
+    for (const id of choices) {
+      const button = makeFakeEl("button", { "data-choice": id, type: "button" }, [], id === "discard" ? "Discard changes and reload" : id);
+      buttons.set(id, button);
+      card.append(button);
+    }
+    const mask = makeFakeEl("div", { "data-office-web": "conflict" }, [card]);
+    const barAction = makeFakeEl("button", { class: "uw-remote-link", "data-action": "reload", type: "button" }, [], "Reload latest…");
+    const bar = makeFakeEl("section", { class: "uw-remote-bar uw-remote-bar--warn" }, [barAction]);
+    const root = makeFakeDocument([bar]);
+    // the bar's action asks the main process for the reload, which shows the dialog in place
+    barAction.onClick = () => root.append(mask);
+    for (const [id, button] of buttons) {
+      button.onClick = () => {
+        if (id === "discard") root.children = root.children.filter((child) => child !== mask);
+      };
+    }
+    return {
+      document: { body: root, querySelector: (s) => root.querySelector(s), querySelectorAll: (s) => root.querySelectorAll(s) },
+      root,
+      barAction,
+      mask,
+      buttons,
+    };
+  };
+
+  it("clicks the discard choice and never download, with both present in the pinned order (BE-704-402/406)", async () => {
+    const dom = webReloadDom();
+    const flow = await withDom(dom.document, () => asPageSeesIt(driveFrameReloadFlow)({ boundMs: 400, pollMs: 10 }));
+    assert.equal(flow.clicked, true);
+    assert.equal(flow.choseDiscard, true);
+    assert.deepEqual(flow.choices, ["download", "discard", "back"], "the step offered them in the pin's own order");
+    assert.equal(dom.buttons.get("discard").clicks, 1, "the discard choice is the one that reloads");
+    assert.equal(dom.buttons.get("download").clicks, 0, "download starts a delivery and never reloads");
+    assert.equal(dom.barAction.clicks, 1);
+    assert.equal(flow.confirmText, "Discard changes and reload");
+  });
+
+  it("never takes a download-only dialog for a reload, and names the choices it saw (BE-704-402)", async () => {
+    const dom = webReloadDom({ choices: ["download", "back"] });
+    const flow = await withDom(dom.document, () => asPageSeesIt(driveFrameReloadFlow)({ boundMs: 300, pollMs: 10 }));
+    assert.equal(flow.clicked, true);
+    assert.equal(flow.choseDiscard, false);
+    assert.equal(dom.buttons.get("download").clicks, 0, "no download branch is ever an accepted reload");
+    assert.deepEqual(flow.choices, ["download", "back"]);
+    assert.match(flow.reason, /offers no "discard" choice/);
+  });
+
+  it("answers `no bar` when a clean frame has already reloaded itself, so the caller just waits (D4-01)", async () => {
+    const dom = webReloadDom();
+    dom.root.children = dom.root.children.filter((child) => child !== dom.root.querySelector("section.uw-remote-bar"));
+    const flow = await withDom(dom.document, () => asPageSeesIt(driveFrameReloadFlow)({ boundMs: 200, pollMs: 10 }));
+    assert.equal(flow.clicked, false);
+    assert.equal(flow.bar, false);
+    assert.match(flow.reason, /a clean document reloads itself on the announce/);
+  });
+
+  it("claims the confirmation from the fresh open of the announced version, never from the click (BE-704-402)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const { result } = await runChain({ row: "G7-A01", fixture: "fx-docx-report-vi", mock, scratch });
+      assert.equal(result.status, "PASS", result.reason);
+      const sees = result.record.details.webSees;
+      assert.equal(sees.reloadClick.choseDiscard, true);
+      assert.equal(sees.reloadClick.confirmed, undefined, "the click itself never claims the confirmation");
+      assert.equal(sees.confirmed, true);
+      assert.equal(sees.reload.versionId, sees.announced.versionId);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("FAILs with the click's own outcome when the reload step never offers the discard choice (BE-704-402)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const { result } = await runChain({
+        row: "G7-A01",
+        fixture: "fx-docx-report-vi",
+        mock,
+        scratch,
+        knobs: { web: { reloadNoDiscardChoice: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /did not reload the announced version/);
+      assert.match(step.reason, /never made the discard choice/);
+      assert.equal(result.record.details.webSeesMiss.reloadClick.choseDiscard, false);
+      assert.deepEqual(result.record.details.webSeesMiss.reloadClick.choices, ["download", "back"]);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host BE-704-404: the offline receipt belongs to THIS document", () => {
+  it("names one intent record the fork's own key hash gives this document (BE-704-404)", () => {
+    const name = appIntentRecordName(DOC_ID);
+    assert.equal(name, `${createHash("sha256").update(DOC_ID, "utf8").digest("hex")}.rec`);
+    assert.match(name, /^[0-9a-f]{64}\.rec$/);
+    assert.notEqual(appIntentRecordName(DOC_ID), appIntentRecordName(OTHER_DOC_ID));
+    assert.equal(appIntentRecordName(""), "");
+  });
+
+  it("FAILs after its bound when only ANOTHER document writes a new .rec (BE-704-404)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      // a second open document of the same user writes its own record while THIS document's Save
+      // is never held: the user-level count moves, this document's does not
+      const { result } = await runChain({
+        row: "G7-A01",
+        fixture: "fx-docx-report-vi",
+        mock,
+        scratch,
+        knobs: { app: { otherDocIntentAfterReads: 2, offlineNeverHolds: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      assert.equal(result.exitCode, 1);
+      const step = result.record.steps["app-offline-save"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /no NEW save intent and no offline state for document/);
+      assert.match(step.reason, /intents=1\b/);
+      assert.match(step.reason, /documentIntents=0\b/, "the other document's record is not this document's");
+      assert.match(step.reason, /newIntents=0\b/);
+      assert.match(step.reason, /binding state "ready"/);
+      assert.ok(step.elapsedMs >= 300, `the step must wait its whole bound before failing (waited ${step.elapsedMs} ms)`);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host BE-704-405: frame reads share the step's budget", () => {
+  const hungFrame = (name) => ({ url: () => `http://localhost:36009/office-frame/${name}/index.html`, evaluate: () => new Promise(() => {}) });
+
+  it("reads the frames concurrently: N hung renderers cost ONE per-read bound, not N of them (BE-704-405)", async () => {
+    const hung = [hungFrame("a"), hungFrame("b"), hungFrame("c")];
+    const began = Date.now();
+    const reports = await readFrameReports({ frames: hung, deadlineMs: Date.now() + 150, perReadTimeoutMs: 10_000 });
+    const elapsed = Date.now() - began;
+    assert.equal(reports.length, 3);
+    for (const report of reports) assert.match(report.readError, /timed out after 1\d\d ms/);
+    assert.ok(elapsed < 400, `one concurrent wave must not cost 3 x 10 s (elapsed ${elapsed} ms)`);
+  });
+
+  it("never starts a read once the budget is gone, and says so per frame (BE-704-405)", async () => {
+    let started = 0;
+    const frames = [1, 2].map((index) => ({
+      url: () => `http://localhost:36009/office-frame/${index}/index.html`,
+      evaluate: () => {
+        started += 1;
+        return Promise.resolve([]);
+      },
+    }));
+    const reports = await readFrameReports({ frames, deadlineMs: Date.now() - 1, perReadTimeoutMs: 10_000 });
+    assert.equal(started, 0, "no read is started when no budget remains");
+    assert.equal(reports.length, 2, "every frame is still accounted for");
+    for (const report of reports) {
+      assert.equal(report.messages, null);
+      assert.equal(report.readError, FRAME_READ_NO_BUDGET);
+    }
+  });
+
+  it("keeps a non-list frame read (the surface probe), so a miss still says what the frame showed (BE-704-405/406)", async () => {
+    const frame = {
+      url: () => "http://localhost:36009/office-frame/docs/index.html",
+      evaluate: async () => ({ bar: "A newer version is on UniWork (version 3)", actions: [{ action: "reload" }], dialog: true, choices: ["download", "discard"] }),
+    };
+    const [report] = await readFrameReports({ frames: [frame], read: readFrameRemoteSurface, deadlineMs: Date.now() + 1_000 });
+    assert.equal(report.readError, "");
+    assert.equal(report.messages, null, "a surface answer is not an envelope list");
+    assert.deepEqual(report.value.choices, ["download", "discard"]);
+    assert.match(report.value.bar, /A newer version is on UniWork/);
+  });
+
+  it("bounds web-sees by its own step budget when several renderers hang, and names every expired read (BE-704-405)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const began = Date.now();
+      const { result } = await runChain({
+        row: "G7-A01",
+        fixture: "fx-docx-report-vi",
+        mock,
+        scratch,
+        knobs: { web: { hungFrames: 3, hungFrameBudgetMs: 300 } },
+        stepTimeoutMs: 300,
+      });
+      const elapsed = Date.now() - began;
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /announced no doc\.remoteVersion/);
+      assert.match(step.reason, /3 frame read\(s\) failed/);
+      // 3 hung frames per read wave must never cost 3 x 10 s, and the step's own bound is the cap
+      assert.ok(elapsed < 3 * 300 + 600, `the row must stay near its step bound (took ${elapsed} ms for 4 steps)`);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host BE-704-406: the page-side reload flows run against the pinned markup", () => {
+  /** The pinned app dialog (`UniworkConflictDialog.tsx` at e99471fe2): radio choice, then the confirm. */
+  const appReloadDom = ({ confirmDisabled = false } = {}) => {
+    const go = makeFakeEl("button", { class: "uw-conflict-btn", "data-conflict-action": "reload-go", "aria-disabled": "true" }, [], "Reload");
+    const radio = makeFakeEl("input", { type: "radio", name: "keep", value: "discard" });
+    const step1 = makeFakeEl("button", { class: "uw-conflict-btn", "data-conflict-action": "reload" }, [], "Reload latest");
+    const back = makeFakeEl("button", { class: "uw-conflict-btn", "data-conflict-action": "back" }, [], "Back");
+    const dialog = makeFakeEl("div", { role: "alertdialog" }, [step1, radio, go, back]);
+    const barAction = makeFakeEl("button", { class: "uw-remote-action", "data-action": "reload" }, [], "Reload latest…");
+    const bar = makeFakeEl("div", { class: "uw-remote-bar" }, [barAction]);
+    const root = makeFakeDocument([bar]);
+    radio.checked = false;
+    // `canSubmit = selectedKeep === 'discard' || …` (uniwork-conflict-model.ts:326): the choice is
+    // what enables the confirm, and the confirm is what the flow must click
+    radio.onClick = () => {
+      radio.checked = true;
+      if (!confirmDisabled) go.removeAttribute("aria-disabled");
+    };
+    barAction.onClick = () => root.append(dialog);
+    return {
+      document: { body: root, querySelector: (s) => root.querySelector(s), querySelectorAll: (s) => root.querySelectorAll(s) },
+      root,
+      bar: barAction,
+      dialog,
+      step1,
+      radio,
+      go,
+    };
+  };
+
+  it("drives the app flow in the pin's order: bar action, Reload latest, the discard radio, then the confirm (BE-704-406)", async () => {
+    const dom = appReloadDom();
+    const flow = await withDom(dom.document, () => asPageSeesIt(driveAppConflictReloadFlow)(400));
+    assert.deepEqual(flow, {
+      bar: true,
+      step1: true,
+      choseDiscard: true,
+      disabled: "",
+      clicked: true,
+      confirmed: true,
+      confirmText: "Reload",
+    });
+    assert.equal(dom.bar.clicks, 1);
+    assert.equal(dom.step1.clicks, 1);
+    assert.equal(dom.radio.checked, true, "the keep choice is the discard radio the pin renders");
+    assert.equal(dom.go.clicks, 1, "the confirm is only clicked once it is usable");
+  });
+
+  it("stops at the pin's disabled confirm and reports WHY, without clicking it (BE-704-406)", async () => {
+    const dom = appReloadDom({ confirmDisabled: true });
+    const flow = await withDom(dom.document, () => asPageSeesIt(driveAppConflictReloadFlow)(400));
+    assert.equal(flow.clicked, true);
+    assert.equal(flow.choseDiscard, true);
+    assert.equal(flow.confirmed, false);
+    assert.equal(flow.confirmText, undefined);
+    assert.equal(dom.go.clicks, 0, "an aria-disabled confirm is never clicked");
+    assert.match(flow.reason, /reload confirm "Reload" stayed disabled after the keep choice/);
+  });
+
+  it("answers `no bar` when the app page carries no S6 reload action", async () => {
+    const dom = appReloadDom();
+    dom.root.children = dom.root.children.filter((child) => child !== dom.root.querySelector("div.uw-remote-bar"));
+    const flow = await withDom(dom.document, () => asPageSeesIt(driveAppConflictReloadFlow)(300));
+    assert.equal(flow.clicked, false);
+    assert.equal(flow.confirmed, false);
+    assert.match(flow.reason, /reload action was never found/);
   });
 });
 
