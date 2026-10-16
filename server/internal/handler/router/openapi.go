@@ -435,6 +435,10 @@ func pathParamSDI(path string) any {
 			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			SourceFileID string `path:"sourceFileID" description:"Id tệp nguồn <source>:<ULID dòng gốc> (chat, task, meeting, email)" example:"chat:01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "sourceFileID":
+		return struct {
+			SourceFileID string `path:"sourceFileID" description:"Id tệp nguồn <source>:<ULID dòng gốc> (chat, task, meeting, email)" example:"chat:01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "documentID":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`

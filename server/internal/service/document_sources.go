@@ -242,6 +242,24 @@ func (s *DocumentSourceService) Open(ctx context.Context, actor Actor, workspace
 	return s.openItem(ctx, actor, workspaceID, item)
 }
 
+// ViewSource is the metadata half of Open, for the Office frame's mint and
+// open answer (UNI-1869): the same gate and lookup, without reading a byte.
+// Email's Open fetches over IMAP, so the mint must not pay for bytes it will
+// not use; the token grants nothing, and every frame read runs Open again.
+// A refusal is not_found, exactly as on the download path, so a member never
+// learns whether a file they cannot read exists.
+func (s *DocumentSourceService) ViewSource(ctx context.Context, actor Actor, workspaceID, sourceFileID string) (db.Workspace, DocumentSourceItem, error) {
+	ws, err := s.gate(ctx, actor, workspaceID)
+	if err != nil {
+		return db.Workspace{}, DocumentSourceItem{}, hideSourceRefusal(err)
+	}
+	item, err := s.lookup(ctx, actor, ws, sourceFileID)
+	if err != nil {
+		return db.Workspace{}, DocumentSourceItem{}, hideSourceRefusal(err)
+	}
+	return ws, item, nil
+}
+
 // openItem opens the bytes of a row the list gate already admitted.
 func (s *DocumentSourceService) openItem(ctx context.Context, actor Actor, workspaceID string, item DocumentSourceItem) (DocumentSourceFile, error) {
 	body, size, err := s.openBytes(ctx, actor, workspaceID, item)

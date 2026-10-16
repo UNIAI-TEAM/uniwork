@@ -33,6 +33,8 @@ import (
 //	POST   /api/v1/office-frame/documents/{documentID}/assets/resolve    (md/html: relative paths -> signed URLs)
 //	GET    /api/v1/office-frame/documents/{documentID}/assets/{assetID} (bytes; HEAD)
 //	GET    /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID} (bytes; HEAD)
+//	GET    /api/v1/office-frame/sources/{sourceFileID}                  (source frame; UNI-1869)
+//	GET    /api/v1/office-frame/sources/{sourceFileID}/content          (bytes; HEAD)
 func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 	// The module flags are not middleware here: they are organization-scoped
 	// and only the document names its organization and format, so
@@ -125,6 +127,28 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 	f.cat.add(http.MethodHead, joinRoute(f.prefix, "/office-frame/documents/{documentID}/linked/{linkedDocumentID}"), apiOp{
 		summary:     "Headers of a file next to the frame's document",
 		description: "Như GET nhưng không có body.",
+		tags:        []string{"documents"},
+	})
+	// The source frame (UNI-1869): a view-only frame over a file that lives in
+	// Chat, Tasks, Meetings or Email Hub — the same modules, the same token
+	// machinery, a "source" principal instead of a document.
+	f.Get("/office-frame/sources/{sourceFileID}", h.OpenOfficeFrameSource, apiOp{
+		summary: "Open a source file in the Office web frame",
+		description: "Chỉ token nguồn (ofs1.): tên tệp, revision (luôn \"0\"), module, nơi chứa và download_url, kèm can_edit=false và readonly=true. " +
+			"Mỗi request chạy lại cổng đọc của nơi chứa theo người dùng của token; tệp đổi định dạng hoặc mất quyền đọc trả 404 như tệp không tồn tại. " +
+			"Token tài liệu (oft1.), token phiên và ?sig= đều bị từ chối 401.",
+		tags: []string{"documents"}, sdo: sdo.OfficeFrameSourceSDO{}, auth: true,
+	})
+	f.Get("/office-frame/sources/{sourceFileID}/content", h.GetOfficeFrameSourceContent, apiOp{
+		summary: "Stream the source file bytes to the frame",
+		description: "Chỉ token nguồn: bytes của tệp nguồn sau khi chạy lại cổng đọc. Content-Type theo MIME của nguồn, nosniff, " +
+			"Cache-Control: private, no-store, Content-Security-Policy: sandbox; default-src 'none'. Content-Length chỉ đặt khi biết độ dài giải mã (email: độ dài đã mã hoá nên bỏ trống). Không hỗ trợ Range.",
+		tags: []string{"documents"}, produces: "application/octet-stream", auth: true,
+	})
+	f.r.Head("/office-frame/sources/{sourceFileID}/content", h.GetOfficeFrameSourceContent)
+	f.cat.add(http.MethodHead, joinRoute(f.prefix, "/office-frame/sources/{sourceFileID}/content"), apiOp{
+		summary:     "Headers of the source file bytes",
+		description: "Như GET nhưng không có body. Chỉ chạy phần tra cứu (không đọc byte): Content-Length vắng khi độ dài giải mã không biết (email).",
 		tags:        []string{"documents"},
 	})
 }
