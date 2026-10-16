@@ -10,11 +10,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components
 import { cn } from "@uniwork/ui/lib/utils";
 import { PRODUCT_FEATURES, PRODUCT_GROUPS } from "./showcase";
 import { type FeaturePageKey } from "./feature-page-catalog";
-import { hasPlayback, ProductPlayback } from "./product-playback";
-import { LovableReference } from "./lovable-reference";
+import { ProductPreview } from "./product-preview";
 import { MarketingShell } from "./marketing-shell";
 import { FeatureIllustration } from "./feature-illustration";
 import { ChapterHero, ChapterScene } from "./marketing-chapters";
+import "./product-demo.css";
+import "./product-task-board.css";
+import "./product-meeting.css";
+import "./product-email.css";
+import "./product-current-screens.css";
 
 export function FeaturePage({ featureKey }: { featureKey: FeaturePageKey }) {
   const { t } = useTranslation();
@@ -36,7 +40,7 @@ export function FeaturePage({ featureKey }: { featureKey: FeaturePageKey }) {
       <div className="feature-page-art"><FeatureIllustration featureKey={featureKey} /><div className="feature-art-caption"><feature.icon aria-hidden /><strong>{t(feature.label)}</strong><span>{t("landing.featureVisuals.sample")}</span></div></div>
     </section>
     <FeatureExamples key={featureKey} featureKey={featureKey} />
-    <section id="feature-preview" className="feature-demo" aria-labelledby="feature-demo-title"><div className="feature-demo-heading"><h2 id="feature-demo-title">{t("landing.featureVisuals.preview", { feature: t(feature.label) })}</h2><p>{t(feature.availability)}</p></div><div className="feature-page-visual">{hasPlayback(featureKey) ? <ProductPlayback featureKey={featureKey} /> : <LovableReference feature={featureKey} />}</div></section>
+    <section id="feature-preview" className="feature-demo" aria-labelledby="feature-demo-title"><div className="feature-demo-heading"><h2 id="feature-demo-title">{t("landing.featureVisuals.preview", { feature: t(feature.label) })}</h2><p>{t(feature.availability)}</p></div><div className="feature-page-visual"><ProductPreview key={featureKey} initialFeature={featureKey} /></div></section>
     <section className="feature-page-related" aria-labelledby="feature-related-title">
       <div className="feature-related-heading"><h2 id="feature-related-title">{t("landing.productPages.connected")}</h2><p>{t("landing.featureVisuals.sample")}</p></div>
       <div className="feature-related-grid">{companions.map(item => <Link key={item.key} href={paths.feature(item.key)}>

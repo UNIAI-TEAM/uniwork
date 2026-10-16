@@ -5769,6 +5769,90 @@
     }
   },
   "landing": {
+    "productDemo": {
+      "officeHome": "Open UniWork Office",
+      "taskOwnerAnswer": "{{name}} is responsible for “{{task}}”.",
+      "email": {
+        "localOnly": "Sample mailbox. Changes stay in this demo; no email is sent.",
+        "draftSaved": "Draft saved in this demo.",
+        "sentLocally": "Message saved to this demo’s outbox. No email was sent.",
+        "sampleAttachment": "Sample attachment shown for the demo.",
+        "messages": {
+          "0": {
+            "subject": "Product launch brief",
+            "snippet": "The launch brief is ready. Please review the scope before Friday."
+          },
+          "1": {
+            "subject": "Design review — feedback and next steps",
+            "snippet": "The updated onboarding screens are ready for a final review."
+          },
+          "2": {
+            "subject": "Your weekly workspace update",
+            "snippet": "A summary of tasks, meetings and decisions from this week."
+          },
+          "3": {
+            "subject": "Project sync — meeting notes",
+            "snippet": "Here are the decisions and action items from our project sync."
+          },
+          "4": {
+            "subject": "Updated implementation plan",
+            "snippet": "The revised plan and delivery milestones are attached."
+          },
+          "5": {
+            "subject": "New interface assets for review",
+            "snippet": "Please take a look at the latest icons and product illustrations."
+          },
+          "6": {
+            "subject": "Release checklist for next week",
+            "snippet": "Owners and deadlines have been added to the release checklist."
+          },
+          "7": {
+            "subject": "Workspace onboarding schedule",
+            "snippet": "A short introduction to the workspace for the new team members."
+          },
+          "8": {
+            "subject": "Launch timeline and responsibilities",
+            "snippet": "Let’s confirm the owners for each milestone before we publish."
+          },
+          "9": {
+            "subject": "Customer feedback — onboarding",
+            "snippet": "A few observations from this week’s onboarding sessions."
+          },
+          "10": {
+            "subject": "Follow-up: scope and priorities",
+            "snippet": "Thanks for the discussion. Here is the agreed scope for this sprint."
+          },
+          "11": {
+            "subject": "Ready for the next product demo",
+            "snippet": "The presentation is ready and the demo workspace has been prepared."
+          },
+          "12": {
+            "subject": "Welcome to your connected workspace",
+            "snippet": "Keep your work, conversations and decisions together in UniWork."
+          }
+        }
+      },
+      "deviceDefault": "Default device",
+      "title": "Explore UniWork",
+      "search": "Search the product…",
+      "saved": "Saved in this demo",
+      "board": {
+        "all": "All",
+        "filter": "Filter",
+        "display": "Display",
+        "tasks": {
+          "brief": "Họp với PA Việt Nam về hợp tác làm đại lý tên miền, hosting",
+          "uranus": "Triển khai uniwork cho Uranus",
+          "mytel": "Triển khai uniwork cho Mytel",
+          "viconnect": "Triển khai Uniwork cho Viconnect",
+          "simulation": "Triển khai Demo giải pháp Mô phỏng diễn tập",
+          "design": "Triển khai Uniwork cho Unicom",
+          "review": "Triển khai uniwork cho Athena",
+          "launch": "Làm lại dự toán theo quy mô, phạm vi của Quảng Ngãi",
+          "followup": "Update onboarding from the team discussion"
+        }
+      }
+    },
     "businessOs": {
       "title": "UniWork Business OS",
       "subtitle": "37 capabilities. One shared context.",

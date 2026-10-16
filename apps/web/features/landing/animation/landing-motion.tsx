@@ -36,6 +36,8 @@ export function LandingMotion() {
 
       const arrivals: { surface: HTMLElement; focus: () => void }[] = [];
       root.querySelectorAll<HTMLElement>("#landing-main section:not(.landing-hero)").forEach((section) => {
+        // Demo panels hydrate independently; page reveals must not mutate their DOM.
+        if (section.closest("#product-preview")) return;
         const surface = section.classList.contains("ai-section")
           ? section.querySelector<HTMLElement>(".ai-intro")
           : section.firstElementChild;
