@@ -1,0 +1,410 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test landing-scroll.spec.ts --reporter=list > /tmp/r4b-LANDING_SCROLL.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/r4b-LANDING_SCROLL.log | tail -n 60; for x in e2e/test-results/*/error-context.md; do [ -f "$x" ] && { echo "===== $x"; head -c 2500 "$x"; }; done; echo; echo "E2E_LANDING_SCROLL_EXIT=$rc"
+    Resources
+    Import
+    Export
+    Integrations
+    G
+    Gh
+    Fi
+    No
+    +3
+    
+    The digital workplace where people and AI teammates produce results together.
+    
+    Product
+    Features
+    Meetings
+    AI teammates
+    Office
+    Solutions
+    Product teams
+    Operations teams
+    Enterprise
+    All solutions
+    Resources
+    Learn
+    Why UniWork
+    Changelog
+    Roadmap
+    Pricing
+    Company
+    Contact
+    Sign in
+    
+    © 2026 Unicom JSC UniWork   UniWork   Main navigation   Theme   Language   Open menu   Product families   Work & projects   Dashboard   Tasks   Projects   Today   Calendar   Workflows   UniWork   landing.demo.reset   Preview app navigation   Dashboard — Illustrative sample data · No real changes   Illustrative members   Preview layout   Completed tasks   Participants   Demo meeting controls   Mic   Camera   Share screen   Participants   landing.demo.messageHistory   landing.demo.messageLabel landing.demo.messagePlaceholder  landing.demo.send   Email Hub   Star message   Highlight layers   Preview Projects   Preview Word   Preview Ask UNI   Preview Chat   Pause motion   One platform.
+    Your team’s way of working.   Leaders & team leads · Explore connected work   Product teams · Read more   Operations teams · Read more   Illustrative workspace: Product teams   UNI horse mascot      Runs on the model you choose   Runs on the model you choose   Work Products & Work Graph: Documents, reports, analysis. Every outcome comes with the story and context behind it.   UniWork   All tasks — Illustrative sample data · No real changes   UniWork   UniWork   Product   Solutions   Resources   Company   Notifications alt+T  "
+
+      13 |       const text = await page.locator("body").innerText();
+      14 |       const labels = await page.locator("[aria-label], [placeholder], img[alt]").evaluateAll((elements) => elements.map((element) => [element.getAttribute("aria-label"), element.getAttribute("placeholder"), element.getAttribute("alt")].join(" ")).join(" "));
+    > 15 |       expect(`${text} ${labels}`).not.toMatch(/\b(?:landing|common)\.[a-zA-Z][\w.]+/);
+         |                                       ^
+      16 |     };
+      17 |     for (const key of Object.values(workspaceGroups).flat()) {
+      18 |       await selectWorkspaceFeature(page, key);
+
+    Error Context: test-results/landing-scroll-all-explore-06306-anslated-text-and-labels-en/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-scroll-all-explore-06306-anslated-text-and-labels-en/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-scroll-all-explore-06306-anslated-text-and-labels-en/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    landing-scroll.spec.ts:6:3 › all explorer states and disclosures have translated text and labels: vi 
+    landing-scroll.spec.ts:6:3 › all explorer states and disclosures have translated text and labels: en 
+  5 passed (15.4s)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test landing-scroll.spec.ts --reporter=list
+===== e2e/test-results/landing-scroll-all-explore-06306-anslated-text-and-labels-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scroll.spec.ts >> all explorer states and disclosures have translated text and labels: en
+- Location: landing-scroll.spec.ts:6:3
+
+# Error details
+
+```
+Error: expect(received).not.toMatch(expected)
+
+Expected pattern: not /\b(?:landing|common)\.[a-zA-Z][\w.]+/
+Received string:      "Skip to content
+Product
+Solutions
+Office
+Learn
+Pricing
+Sign in
+Get started
+Every piece of work.
+One platform.
+
+Tasks, conversations, meetings and AI in one workspace.
+
+Get started
+Request a demo
+Connected tools. One focused team.
+Work & projects
+Dashboard
+Illustration
+Tasks
+Interactive
+Projects
+Illustration
+Today
+Illustration
+Calendar
+Illustration
+Workflows
+Illustration
+Communication
+Results
+Knowledge
+AI & automation
+Organization
+
+An overview of work, meetings and organization activity before you dive into a workspace.
+
+Product illustration
+Home
+Work
+Connect
+Docs
+AI
+Team
+UniWork product previewIllustrative sample data · No real changes
+Expand preview
+Home
+My Space
+Calendar
+WORK & PROJECTS
+Workspaces
+Projects
+Tasks
+Workflows
+COMMUNICATION
+Online meetings
+Live
+Chat
+Email Hub
+RESULTS
+Work outputs
+Documents
+Output approvals
+Decision review
+Decision history
+KNOWLEDGE
+AI & AUTOMATION
+ORGANIZATION
+Settings
+Help
+Collapse menu
+Search documents, knowledge, people… (Ctrl + K)
+⌘K
+New
+AI
+EN
+ML
+Minh Linh
+Member
+Dashboard
+
+Overview of your organization's activity
+
+Last 7 days
+Every 5 minutes
+Customize
+Total users
+14
+Last 7 days
+Active users
+4
+Last 7 days
+Workspaces
+1
+0% vs. previous period
+Tasks
+64
+-41.7% vs. previous period
+Meetings
+53
++60% vs. previous period
+Activity overview
+Last 7 days
+0
+2
+4
+6
+8
+17/09
+18/09
+19/09
+20/09
+21/09
+22/09
+23/09
+24/09
+Tasks created
+7
++100%
+Meetings
+27
+-41.2%
+Tasks completed
+0
+0%
+Documents updated
+0
+0%
+Task distribution
+64
+Total tasks
+Completed
+3 (5%)
+In progress
+9 (14%)
+Pending
+43 (67%)
+Blocked
+9 (14%)
+Cancelled
+0 (0%)
+Featured projects
+View all
+UniWork product launch
+
+General · 64
+
+Recent activity
+View all
+Updated project brief
+
+Minh Linh · 09:24
+
+Today's meetings
+View all
+Weekly project sync
+
+09:30 – 10:00
+
+AI Assistant
+Beta
+Hello Minh Linh,
+
+A summary of your workspace today.
+
+0 documents need updating
+View details →
+27 tasks are overdue
+View details →
+1 meeting today
+View details →
+0 workflows pending approval
+View details →
+Ask AI anything…
+Impor===== e2e/test-results/landing-scroll-all-explore-61539-anslated-text-and-labels-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-scroll.spec.ts >> all explorer states and disclosures have translated text and labels: vi
+- Location: landing-scroll.spec.ts:6:3
+
+# Error details
+
+```
+Error: expect(received).not.toMatch(expected)
+
+Expected pattern: not /\b(?:landing|common)\.[a-zA-Z][\w.]+/
+Received string:      "Chuyển đến nội dung
+Sản phẩm
+Giải pháp
+Office
+Tìm hiểu
+Bảng giá
+Đăng nhập
+Bắt đầu ngay
+Mọi công việc.
+Một nền tảng duy nhất.
+
+Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+
+Bắt đầu ngay
+Yêu cầu demo
+Công cụ liền mạch. Cả đội cùng nhịp.
+Công việc & dự án
+Bảng điều khiển
+Minh họa
+Công việc
+Tương tác
+Dự án
+Minh họa
+Hôm nay
+Minh họa
+Lịch
+Minh họa
+Quy trình
+Minh họa
+Trao đổi
+Kết quả
+Tri thức
+AI & tự động hóa
+Tổ chức
+
+Một góc nhìn về công việc, cuộc họp và hoạt động của tổ chức, trước khi đi sâu vào từng workspace.
+
+Bản minh họa
+Hôm nay
+Công việc
+Trao đổi
+Tài liệu
+AI
+Tổ chức
+Giao diện sản phẩm UniWorkDữ liệu mẫu minh họa · Không thay đổi dữ liệu thật
+Mở rộng
+Trang chủ
+Không gian của tôi
+Lịch
+CÔNG VIỆC & DỰ ÁN
+Workspace
+Dự án
+Công việc
+Quy trình
+TRAO ĐỔI
+Họp trực tuyến
+Trực tiếp
+Trao đổi
+Email Hub
+KẾT QUẢ
+Kết quả công việc
+Tài liệu
+Phê duyệt kết quả
+Duyệt quyết định
+Lịch sử quyết định
+TRI THỨC
+AI & TỰ ĐỘNG HÓA
+TỔ CHỨC
+Cài đặt
+Trợ giúp
+Thu gọn menu
+Tìm tài liệu, tri thức, người dùng… (Ctrl + K)
+⌘K
+Mới
+AI
+VI
+ML
+Minh Linh
+Thành viên
+Dashboard
+
+Tổng quan hoạt động của tổ chức
+
+7 ngày qua
+Mỗi 5 phút
+Tùy chỉnh
+Tổng người dùng
+14
+7 ngày qua
+Người dùng hoạt động
+4
+7 ngày qua
+Workspace
+1
+0% so với kỳ trước
+Công việc
+64
+-41.7% so với kỳ trước
+Cuộc họp
+53
++60% so với kỳ trước
+Hoạt động tổng quan
+7 ngày qua
+0
+2
+4
+6
+8
+17/09
+18/09
+19/09
+20/09
+21/09
+22/09
+23/09
+24/09
+Việc tạo mới
+7
++100%
+Cuộc họp
+27
+-41.2%
+Việc hoàn thành
+0
+0%
+Tài liệu cập nhật
+0
+0%
+Phân bổ công việc
+64
+Tổng số việc
+Hoàn thành
+3 (5%)
+Đang thực hiện
+9 (14%)
+Chờ xử lý
+43 (67%)
+Bị
+E2E_LANDING_SCROLL_EXIT=1

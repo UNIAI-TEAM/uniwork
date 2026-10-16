@@ -1,0 +1,255 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test landing-trust.spec.ts --reporter=list > /tmp/r4b-LANDING_TRUST.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/r4b-LANDING_TRUST.log | tail -n 60; for x in e2e/test-results/*/error-context.md; do [ -f "$x" ] && { echo "===== $x"; head -c 2500 "$x"; }; done; echo; echo "E2E_LANDING_TRUST_EXIT=$rc"
+      29 |     const chapter = page.locator(".landing-trust-story");
+    > 30 |     await expect(chapter).toBeVisible();
+         |                           ^
+      31 |     await page.evaluate(() => document.fonts.ready);
+      32 |     await chapter.scrollIntoViewIfNeeded();
+      33 |     const copy = chapter.locator(".security-copy");
+
+    Error Context: test-results/landing-trust-trust-chapte-fd836-pact-and-usable-390-en-dark/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-trust-trust-chapte-fd836-pact-and-usable-390-en-dark/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-trust-trust-chapte-fd836-pact-and-usable-390-en-dark/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark ──────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.landing-trust-story')
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+        1) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('div').filter({ hasText: 'Rõ quyền truy cập. Rõ từng' }).nth(1)
+        2) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-trust-story')
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('.landing-trust-story')
+        - locator resolved to <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div>
+        - unexpected value "hidden"
+
+
+      28 |     }
+      29 |     const chapter = page.locator(".landing-trust-story");
+    > 30 |     await expect(chapter).toBeVisible();
+         |                           ^
+      31 |     await page.evaluate(() => document.fonts.ready);
+      32 |     await chapter.scrollIntoViewIfNeeded();
+      33 |     const copy = chapter.locator(".security-copy");
+
+    Error Context: test-results/landing-trust-trust-chapte-84881-pact-and-usable-320-vi-dark/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-trust-trust-chapte-84881-pact-and-usable-320-vi-dark/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-trust-trust-chapte-84881-pact-and-usable-320-vi-dark/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ─────────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark ───────────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark ───────────────
+  3 passed (12.4s)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test landing-trust.spec.ts --reporter=list
+===== e2e/test-results/landing-trust-trust-chapte-48b2a-ct-and-usable-1536-en-light/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-trust.spec.ts >> trust chapter stays compact and usable: 1536 en light
+- Location: landing-trust.spec.ts:16:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.landing-trust-story')
+Expected: visible
+Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+    1) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('div').filter({ hasText: 'Clear access. Traceable work.' }).nth(1)
+    2) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-trust-story')
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('.landing-trust-story')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "UniWork" [ref=e6]
+        - navigation "Main navigation" [ref=e17]:
+          - button "Product" [ref=e19] [cursor=pointer]
+          - button "Solutions" [ref=e23] [cursor=pointer]
+          - button "Office" [ref=e27] [cursor=pointer]
+          - button "Learn" [ref=e31] [cursor=pointer]
+          - link "Pricing" [ref=e34] [cursor=pointer]:
+            - /url: /pricing
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - button "Theme" [ref=e37] [cursor=pointer]
+            - button "Language" [ref=e38] [cursor=pointer]
+          - link "Sign in" [ref=e39] [cursor=pointer]:
+            - /url: /login
+          - link "Get started" [ref=e40] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e41]:
+      - region [ref=e42]:
+        - generic [ref=e45]:
+          - heading "Every piece of work. One platform." [level=1] [ref=e46]:
+            - generic [ref=e47]: Every piece of work.
+            - generic [ref=e48]: One platform.
+          - paragraph [ref=e49]: Tasks, conversations, meetings and AI in one workspace.
+          - generic [ref=e50]:
+            - link "Get started" [ref=e51] [cursor=pointer]:
+===== e2e/test-results/landing-trust-trust-chapte-84881-pact-and-usable-320-vi-dark/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-trust.spec.ts >> trust chapter stays compact and usable: 320 vi dark
+- Location: landing-trust.spec.ts:16:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.landing-trust-story')
+Expected: visible
+Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+    1) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('div').filter({ hasText: 'Rõ quyền truy cập. Rõ từng' }).nth(1)
+    2) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-trust-story')
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('.landing-trust-story')
+    - locator resolved to <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div>
+    - unexpected value "hidden"
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "UniWork" [ref=e6]
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - button "Giao diện" [ref=e19] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e20] [cursor=pointer]
+          - button "Mở menu" [ref=e21] [cursor=pointer]
+    - main [ref=e22]:
+      - region [ref=e23]:
+        - generic [ref=e26]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e27]:
+            - generic [ref=e28]: Mọi công việc.
+            - generic [ref=e29]: Một nền tảng duy nhất.
+          - paragraph [ref=e30]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e31]:
+            - link "Bắt đầu ngay" [ref=e32] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e33] [cursor=pointer]:
+              - /url: /request-demo
+      - generic [ref=e34]:
+        - region [ref=e35]:
+          - generic [ref=e36]:
+  ===== e2e/test-results/landing-trust-trust-chapte-fd836-pact-and-usable-390-en-dark/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-trust.spec.ts >> trust chapter stays compact and usable: 390 en dark
+- Location: landing-trust.spec.ts:16:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.landing-trust-story')
+Expected: visible
+Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+    1) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('div').filter({ hasText: 'Clear access. Traceable work.' }).nth(1)
+    2) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-trust-story')
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('.landing-trust-story')
+    - locator resolved to <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div>
+    - unexpected value "hidden"
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "UniWork" [ref=e6]
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - button "Theme" [ref=e19] [cursor=pointer]
+            - button "Language" [ref=e20] [cursor=pointer]
+          - button "Open menu" [ref=e21] [cursor=pointer]
+    - main [ref=e22]:
+      - region [ref=e23]:
+        - generic [ref=e26]:
+          - heading "Every piece of work. One platform." [level=1] [ref=e27]:
+            - generic [ref=e28]: Every piece of work.
+            - generic [ref=e29]: One platform.
+          - paragraph [ref=e30]: Tasks, conversations, meetings and AI in one workspace.
+          - generic [ref=e31]:
+            - link "Get started" [ref=e32] [cursor=pointer]:
+              - /url: /register
+            - link "Request a demo" [ref=e33] [cursor=pointer]:
+              - /url: /request-demo
+      - generic [ref=e34]:
+        - region [ref=e35]:
+          - generic [ref=e36]:
+            - heading "Connected tools. One focused team." [level=2] [ref=e37]
+            - g
+E2E_LANDING_TRUST_EXIT=1

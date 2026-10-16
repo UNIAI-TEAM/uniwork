@@ -1,0 +1,129 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test landing.spec.ts --reporter=list > /tmp/r4b-LANDING.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/r4b-LANDING.log | tail -n 60; for x in e2e/test-results/*/error-context.md; do [ -f "$x" ] && { echo "===== $x"; head -c 2500 "$x"; }; done; echo; echo "E2E_LANDING_EXIT=$rc"
+
+Running 5 tests using 1 worker
+
+(node:26009) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26009) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 landing.spec.ts:47:3 › landing › dải tin cậy, FAQ và hai trang giải pháp (13.7s)
+(node:26083) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26083) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 landing.spec.ts:133:3 › landing › đổi ngôn ngữ và chế độ sáng tối ngay trên header (3.8s)
+  ✓  3 landing.spec.ts:166:3 › landing › mỗi request nhận đúng ngôn ngữ của chính nó (517ms)
+  ✓  4 landing.spec.ts:189:5 › landing › tương phản chữ đạt WCAG AA — light (5.0s)
+  ✓  5 landing.spec.ts:189:5 › landing › tương phản chữ đạt WCAG AA — dark (4.7s)
+
+
+  1) landing.spec.ts:47:3 › landing › dải tin cậy, FAQ và hai trang giải pháp ──────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Từ cuộc họp tới việc đã giao, không mất gì ở giữa' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: 'Từ cuộc họp tới việc đã giao, không mất gì ở giữa' })
+
+
+       98 |     await expect(
+       99 |       page.getByRole("heading", { name: "Từ cuộc họp tới việc đã giao, không mất gì ở giữa" }),
+    > 100 |     ).toBeVisible();
+          |       ^
+      101 |
+      102 |     await page.goto("/solutions/operations");
+      103 |     await expect(
+
+    Error Context: test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    landing.spec.ts:47:3 › landing › dải tin cậy, FAQ và hai trang giải pháp ───────────────────────
+  4 passed (29.6s)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test landing.spec.ts --reporter=list
+===== e2e/test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing.spec.ts >> landing >> dải tin cậy, FAQ và hai trang giải pháp
+- Location: landing.spec.ts:47:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('heading', { name: 'Từ cuộc họp tới việc đã giao, không mất gì ở giữa' })
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for getByRole('heading', { name: 'Từ cuộc họp tới việc đã giao, không mất gì ở giữa' })
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#marketing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Giải pháp"
+    - button "Office"
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /pricing
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+- main:
+  - region "Từ cuộc họp đến công việc. Giữ ngữ cảnh để đi tiếp.":
+    - img "UniWork"
+    - heading "Từ cuộc họp đến công việc. Giữ ngữ cảnh để đi tiếp." [level=1]
+    - paragraph: "Nhóm sản phẩm sống bằng ngữ cảnh: vì sao làm việc này, ai đã quyết, và quyết lúc nào. UniWork giữ cả ba nằm cạnh chính công việc đó."
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Xem tình huống":
+      - /url: "#solution-scenarios"
+    - link "Tất cả giải pháp":
+      - /url: /solutions
+    - figure "Dự án Dữ liệu minh họa":
+      - 'img "Dữ liệu minh họa: Tổng quan dự án"'
+      - strong: Dự án
+      - text: Dữ liệu minh họa
+  - heading "Ba việc đội bạn làm mỗi tuần" [level=2]
+  - paragraph: Ba tình huống từ cuộc họp đến công việc cụ thể và tìm lại nguồn thông tin.
+  - article:
+    - heading "Họp review sprint" [level=2]
+    - paragraph: Phòng họp nằm trong workspace, nên cuộc họp có chủ sở hữu và ở lại cùng bảng việc thay vì trôi vào một đường link.
+    - link "Tìm hiểu giải pháp":
+      - /url: /features/meetings
+    - figure "Họp trực tuyến Dữ li�
+E2E_LANDING_EXIT=1

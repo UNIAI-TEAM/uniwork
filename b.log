@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -3; go version
+1dcb78457c1cb755dda703248e936799e82637d3
+1dcb78457 chore: merge G6-03a run409 + G7-12 cap-aware harness (f2dd093c5) into the G5-G7 root
+f2dd093c5 docs(office): say which asks the holdout cap count covers
+fea62d1b5 chore(office): comment the final-at-cap boundary in the holdout runner
+go version go1.27.0 linux/amd64

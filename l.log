@@ -1,0 +1,113 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test files-avatar.spec.ts --reporter=list > /tmp/r4b-FILES_AVATAR.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/r4b-FILES_AVATAR.log | tail -n 60; for x in e2e/test-results/*/error-context.md; do [ -f "$x" ] && { echo "===== $x"; head -c 2500 "$x"; }; done; echo; echo "E2E_FILES_AVATAR_EXIT=$rc"
+
+Running 3 tests using 1 worker
+
+(node:20598) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20598) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 files-avatar.spec.ts:92:1 › @files-smoke avatar: đổi ảnh, thấy ở header (2.6s)
+  ✘  2 files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai (2.8s)
+(node:20685) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20685) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 files-avatar.spec.ts:162:1 › ảnh sai loại bị từ chối (2.2s)
+
+
+  1) files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai ──────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 409
+
+      131 |     data: { name: `Avatar Second ${stamp}`, slug: orgSlug },
+      132 |   });
+    > 133 |   expect(orgRes.status()).toBe(201);
+          |                           ^
+      134 |   const orgId = ((await orgRes.json()) as { organization: { id: string } }).organization.id;
+      135 |
+      136 |   const wsRes = await page.request.post(`${auth.api}/api/v1/orgs/${orgId}/workspaces`, {
+
+    Error Context: test-results/files-avatar-thay-avatar-lần-hai-hiện-ở-tổ-chức-thứ-hai/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/files-avatar-thay-avatar-lần-hai-hiện-ở-tổ-chức-thứ-hai/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/files-avatar-thay-avatar-lần-hai-hiện-ở-tổ-chức-thứ-hai/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai ───────────────────────
+  2 passed (40.0s)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test files-avatar.spec.ts --reporter=list
+===== e2e/test-results/files-avatar-thay-avatar-lần-hai-hiện-ở-tổ-chức-thứ-hai/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: files-avatar.spec.ts >> thay avatar lần hai, hiện ở tổ chức thứ hai
+- Location: files-avatar.spec.ts:106:1
+
+# Error details
+
+```
+Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 201
+Received: 409
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - link "Tới nội dung chính" [ref=f2e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f2e6]:
+      - list [ref=f2e8]:
+        - listitem [ref=f2e9]:
+          - 'button "Avatar replace 1792136411766, Team replace 1792136411766: chuyển workspace" [ref=f2e10]':
+            - generic [ref=f2e11]: T
+            - generic [ref=f2e13]:
+              - generic "Avatar replace 1792136411766" [ref=f2e14]
+              - generic "Team replace 1792136411766" [ref=f2e15]
+      - navigation "Điều hướng workspace" [ref=f2e19]:
+        - list [ref=f2e22]:
+          - listitem [ref=f2e23]:
+            - link "Trang chủ" [ref=f2e24] [cursor=pointer]:
+              - /url: /avatar-replace-1792136411766/team-replace-1792136411766
+          - listitem [ref=f2e30]:
+            - link "Hộp việc" [ref=f2e31] [cursor=pointer]:
+              - /url: /avatar-replace-1792136411766/team-replace-1792136411766/inbox
+        - generic [ref=f2e37]:
+          - generic [ref=f2e38]: Làm việc
+          - list "Làm việc" [ref=f2e40]:
+            - listitem [ref=f2e41]:
+              - link "Công việc" [ref=f2e42] [cursor=pointer]:
+                - /url: /avatar-replace-1792136411766/team-replace-1792136411766/tasks
+            - listitem [ref=f2e48]:
+              - link "Việc của tôi" [ref=f2e49] [cursor=pointer]:
+                - /url: /avatar-replace-1792136411766/team-replace-1792136411766/my-tasks
+            - listitem [ref=f2e55]:
+              - link "Dự án" [ref=f2e56] [cursor=pointer]:
+                - /url: /avatar-replace-1792136411766/team-replace-1792136411766/projects
+            - listitem [ref=f2e61]:
+              - link "Lịch" [ref=f2e62] [cursor=pointer]:
+                - /url: /avatar-replace-1792136411766/team-replace-1792136411766/calendar
+        - generic [ref=f2e67]:
+          - generic [ref=f2e68]: Trao đổi
+          - list "Trao đổi" [ref=f2e70]:
+            - listitem [ref=f2e71]:
+              
+E2E_FILES_AVATAR_EXIT=1

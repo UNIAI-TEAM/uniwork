@@ -1,0 +1,542 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test landing-opening.spec.ts --reporter=list > /tmp/r4b-LANDING_OPENING.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/r4b-LANDING_OPENING.log | tail -n 60; for x in e2e/test-results/*/error-context.md; do [ -f "$x" ] && { echo "===== $x"; head -c 2500 "$x"; }; done; echo; echo "E2E_LANDING_OPENING_EXIT=$rc"
+      90 |       await expect(page.locator('#landing-mobile-menu a[href="/office#office-business"]')).toBeVisible();
+    > 91 |       await expect(page.locator('#landing-mobile-menu a[href="/office#office-personal"]')).toContainText("Đang phát triển");
+         |                                                                                            ^
+      92 |       await page.locator('#landing-mobile-menu summary').filter({ hasText: "Tìm hiểu" }).click();
+      93 |       await expect(page.locator('#landing-mobile-menu a[href="/changelog"]')).toBeVisible();
+      94 |       await page.keyboard.press("Escape");
+
+    Error Context: test-results/landing-opening-opening-st-6ffe5-working-navigation-at-768px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-opening-opening-st-6ffe5-working-navigation-at-768px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-opening-opening-st-6ffe5-working-navigation-at-768px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) landing-opening.spec.ts:33:3 › opening stays readable with working navigation at 390px ────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('#landing-mobile-menu a[href="/office#office-personal"]')
+    Expected substring: "Đang phát triển"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for locator('#landing-mobile-menu a[href="/office#office-personal"]')
+
+
+      89 |       await page.locator('#landing-mobile-menu summary').filter({ hasText: /^Office$/ }).click();
+      90 |       await expect(page.locator('#landing-mobile-menu a[href="/office#office-business"]')).toBeVisible();
+    > 91 |       await expect(page.locator('#landing-mobile-menu a[href="/office#office-personal"]')).toContainText("Đang phát triển");
+         |                                                                                            ^
+      92 |       await page.locator('#landing-mobile-menu summary').filter({ hasText: "Tìm hiểu" }).click();
+      93 |       await expect(page.locator('#landing-mobile-menu a[href="/changelog"]')).toBeVisible();
+      94 |       await page.keyboard.press("Escape");
+
+    Error Context: test-results/landing-opening-opening-st-e3687-working-navigation-at-390px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-opening-opening-st-e3687-working-navigation-at-390px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-opening-opening-st-e3687-working-navigation-at-390px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6 failed
+    landing-opening.spec.ts:33:3 › opening stays readable with working navigation at 1440px ────────
+    landing-opening.spec.ts:33:3 › opening stays readable with working navigation at 1280px ────────
+    landing-opening.spec.ts:33:3 › opening stays readable with working navigation at 1100px ────────
+    landing-opening.spec.ts:33:3 › opening stays readable with working navigation at 1099px ────────
+    landing-opening.spec.ts:33:3 › opening stays readable with working navigation at 768px ─────────
+    landing-opening.spec.ts:33:3 › opening stays readable with working navigation at 390px ─────────
+  3 passed (50.4s)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test landing-opening.spec.ts --reporter=list
+===== e2e/test-results/landing-opening-opening-st-3d71f-orking-navigation-at-1440px/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-opening.spec.ts >> opening stays readable with working navigation at 1440px
+- Location: landing-opening.spec.ts:33:3
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('#header-directory-office a[href="/office#office-personal"]')
+Expected substring: "Đang phát triển"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('#header-directory-office a[href="/office#office-personal"]')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Giải pháp"
+    - button "Office" [expanded]
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /pricing
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+  - link "Office for Enterprise Tài liệu và AI cùng workspace của nhóm.":
+    - /url: /office#office-business
+    - strong: Office for Enterprise
+    - text: Tài liệu và AI cùng workspace của nhóm.
+  - strong: Office for Personal
+  - text: Đang phát triển
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - button "Công việc & dự án" [expanded]
+    - tablist "Công việc & dự án":
+      - tab "Bảng điều khiển": Bảng điều khiển Minh họa
+      - tab "Công việc" [selected]: Công việc Tương tác
+      - tab "Dự án": Dự án Minh họa
+      - tab "Hôm nay": Hôm nay Minh họa
+      - tab "Lịch": Lịch Minh họa
+      - tab "Quy trình": Quy trình Minh họa
+    - button "Trao đổi"
+    - button "Kết quả"
+    - button "Tri thức"
+    - button "AI & tự động h�===== e2e/test-results/landing-opening-opening-st-51736-orking-navigation-at-1100px/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-opening.spec.ts >> opening stays readable with working navigation at 1100px
+- Location: landing-opening.spec.ts:33:3
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('#header-directory-office a[href="/office#office-personal"]')
+Expected substring: "Đang phát triển"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('#header-directory-office a[href="/office#office-personal"]')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Giải pháp"
+    - button "Office" [expanded]
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /pricing
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+  - link "Office for Enterprise Tài liệu và AI cùng workspace của nhóm.":
+    - /url: /office#office-business
+    - strong: Office for Enterprise
+    - text: Tài liệu và AI cùng workspace của nhóm.
+  - strong: Office for Personal
+  - text: Đang phát triển
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - button "Công việc & dự án" [expanded]
+    - tablist "Công việc & dự án":
+      - tab "Bảng điều khiển": Bảng điều khiển Minh họa
+      - tab "Công việc" [selected]: Công việc Tương tác
+      - tab "Dự án": Dự án Minh họa
+      - tab "Hôm nay": Hôm nay Minh họa
+      - tab "Lịch": Lịch Minh họa
+      - tab "Quy trình": Quy trình Minh họa
+    - button "Trao đổi"
+    - button "Kết quả"
+    - button "Tri thức"
+    - button "AI & tự động h�===== e2e/test-results/landing-opening-opening-st-6ffe5-working-navigation-at-768px/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-opening.spec.ts >> opening stays readable with working navigation at 768px
+- Location: landing-opening.spec.ts:33:3
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('#landing-mobile-menu a[href="/office#office-personal"]')
+Expected substring: "Đang phát triển"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('#landing-mobile-menu a[href="/office#office-personal"]')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+  - button "Đóng menu" [expanded]
+  - navigation "Điều hướng chính":
+    - group:
+      - text: Sản phẩm
+      - heading "Công việc & dự án" [level=2]
+      - link "Bảng điều khiển":
+        - /url: /features/dashboard
+      - link "Công việc":
+        - /url: /features/tasks
+      - link "Dự án":
+        - /url: /features/projects
+      - link "Hôm nay":
+        - /url: /features/today
+      - link "Lịch":
+        - /url: /features/calendar
+      - link "Quy trình":
+        - /url: /features/workflows
+      - heading "Trao đổi" [level=2]
+      - link "Họp trực tuyến":
+        - /url: /features/meetings
+      - link "Trao đổi":
+        - /url: /features/chat
+      - link "Email Hub":
+        - /url: /features/email
+      - heading "Kết quả" [level=2]
+      - link "Kết quả công việc":
+        - /url: /features/outputs
+      - link "Tài liệu":
+        - /url: /features/documents
+      - link "Phê duyệt kết quả":
+        - /url: /features/approvals
+      - heading "Tri thức" [level=2]
+      - link "Kho tri thức":
+        - /url: /features/knowledge
+      - heading "AI & tự động hóa" [level=2]
+      - link "Hỏi UNI":
+        - /url: /features/ask
+      - link "Nhân sự AI":
+        - /url: /features/agents
+      - link "Tự động hóa":
+        - /url: /features/automation
+      - heading "Tổ chức" [level=2]
+      - link "Thành viên & quyền":
+        - /url: /features/organization
+      - link "Nhật ký ===== e2e/test-results/landing-opening-opening-st-b2cd3-orking-navigation-at-1280px/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-opening.spec.ts >> opening stays readable with working navigation at 1280px
+- Location: landing-opening.spec.ts:33:3
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('#header-directory-office a[href="/office#office-personal"]')
+Expected substring: "Đang phát triển"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('#header-directory-office a[href="/office#office-personal"]')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Giải pháp"
+    - button "Office" [expanded]
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /pricing
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+  - link "Office for Enterprise Tài liệu và AI cùng workspace của nhóm.":
+    - /url: /office#office-business
+    - strong: Office for Enterprise
+    - text: Tài liệu và AI cùng workspace của nhóm.
+  - strong: Office for Personal
+  - text: Đang phát triển
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - button "Công việc & dự án" [expanded]
+    - tablist "Công việc & dự án":
+      - tab "Bảng điều khiển": Bảng điều khiển Minh họa
+      - tab "Công việc" [selected]: Công việc Tương tác
+      - tab "Dự án": Dự án Minh họa
+      - tab "Hôm nay": Hôm nay Minh họa
+      - tab "Lịch": Lịch Minh họa
+      - tab "Quy trình": Quy trình Minh họa
+    - button "Trao đổi"
+    - button "Kết quả"
+    - button "Tri thức"
+    - button "AI & tự động h�===== e2e/test-results/landing-opening-opening-st-bdf53-orking-navigation-at-1099px/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-opening.spec.ts >> opening stays readable with working navigation at 1099px
+- Location: landing-opening.spec.ts:33:3
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('#landing-mobile-menu a[href="/office#office-personal"]')
+Expected substring: "Đang phát triển"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('#landing-mobile-menu a[href="/office#office-personal"]')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+  - button "Đóng menu" [expanded]
+  - navigation "Điều hướng chính":
+    - group:
+      - text: Sản phẩm
+      - heading "Công việc & dự án" [level=2]
+      - link "Bảng điều khiển":
+        - /url: /features/dashboard
+      - link "Công việc":
+        - /url: /features/tasks
+      - link "Dự án":
+        - /url: /features/projects
+      - link "Hôm nay":
+        - /url: /features/today
+      - link "Lịch":
+        - /url: /features/calendar
+      - link "Quy trình":
+        - /url: /features/workflows
+      - heading "Trao đổi" [level=2]
+      - link "Họp trực tuyến":
+        - /url: /features/meetings
+      - link "Trao đổi":
+        - /url: /features/chat
+      - link "Email Hub":
+        - /url: /features/email
+      - heading "Kết quả" [level=2]
+      - link "Kết quả công việc":
+        - /url: /features/outputs
+      - link "Tài liệu":
+        - /url: /features/documents
+      - link "Phê duyệt kết quả":
+        - /url: /features/approvals
+      - heading "Tri thức" [level=2]
+      - link "Kho tri thức":
+        - /url: /features/knowledge
+      - heading "AI & tự động hóa" [level=2]
+      - link "Hỏi UNI":
+        - /url: /features/ask
+      - link "Nhân sự AI":
+        - /url: /features/agents
+      - link "Tự động hóa":
+        - /url: /features/automation
+      - heading "Tổ chức" [level=2]
+      - link "Thành viên & quyền":
+        - /url: /features/organization
+      - link "Nhật ký===== e2e/test-results/landing-opening-opening-st-e3687-working-navigation-at-390px/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-opening.spec.ts >> opening stays readable with working navigation at 390px
+- Location: landing-opening.spec.ts:33:3
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('#landing-mobile-menu a[href="/office#office-personal"]')
+Expected substring: "Đang phát triển"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('#landing-mobile-menu a[href="/office#office-personal"]')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Đóng menu" [expanded]
+  - navigation "Điều hướng chính":
+    - group:
+      - text: Sản phẩm
+      - heading "Công việc & dự án" [level=2]
+      - link "Bảng điều khiển":
+        - /url: /features/dashboard
+      - link "Công việc":
+        - /url: /features/tasks
+      - link "Dự án":
+        - /url: /features/projects
+      - link "Hôm nay":
+        - /url: /features/today
+      - link "Lịch":
+        - /url: /features/calendar
+      - link "Quy trình":
+        - /url: /features/workflows
+      - heading "Trao đổi" [level=2]
+      - link "Họp trực tuyến":
+        - /url: /features/meetings
+      - link "Trao đổi":
+        - /url: /features/chat
+      - link "Email Hub":
+        - /url: /features/email
+      - heading "Kết quả" [level=2]
+      - link "Kết quả công việc":
+        - /url: /features/outputs
+      - link "Tài liệu":
+        - /url: /features/documents
+      - link "Phê duyệt kết quả":
+        - /url: /features/approvals
+      - heading "Tri thức" [level=2]
+      - link "Kho tri thức":
+        - /url: /features/knowledge
+      - heading "AI & tự động hóa" [level=2]
+      - link "Hỏi UNI":
+        - /url: /features/ask
+      - link "Nhân sự AI":
+        - /url: /features/agents
+      - link "Tự động hóa":
+        - /url: /features/automation
+      - heading "Tổ chức" [level=2]
+      - link "Thành viên & quyền":
+        - /url: /features/organization
+      - link "Nhật ký hoạt động":
+        - /url: /features/audit
+      - link "UniWork Business OS":
+        - /u
+E2E_LANDING_OPENING_EXIT=1

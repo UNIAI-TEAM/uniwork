@@ -1,0 +1,2 @@
+$ git fetch -q origin feature/UNI-923-office-g5-g6-g7; git checkout -q --detach 1dcb78457 && echo "ROOT_DETACHED=1dcb78457"
+ROOT_DETACHED=1dcb78457
