@@ -64,4 +64,11 @@ describe("shareErrorMessage", () => {
     const err = new ApiError("nope", "break_glass_required", 403, undefined, undefined, "permission");
     expect(shareErrorMessage(err, t)).toBe(t("documents.breakGlass.selfShareError"));
   });
+
+  it("maps level_not_allowed with a valid ceiling to the localized ceiling sentence", () => {
+    const err = new ApiError("raw", "level_not_allowed", 422, undefined, { max: "edit" });
+    expect(shareErrorMessage(err, t)).toBe(
+      t("documents.errors.level_not_allowed", { max: t("documents.share.level_edit") }),
+    );
+  });
 });

@@ -62,7 +62,9 @@ export type DocumentBreakGlassGrantEnvelope = {
 export const DocumentAdminSummaryDocumentSchema = z.object({
   id: z.string().min(1),
   organization_id: z.string().optional().default(""),
-  workspace_id: z.string().min(1),
+  // The document's own workspace (the server's DocumentAdminSummaryDocumentDTO
+  // sends it); empty when absent, and an empty id never matches a merged share.
+  workspace_id: z.string().catch("").default(""),
   parent_id: z.string().nullable().optional(),
   kind: z.string().min(1),
   title: z.string(),

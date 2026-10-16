@@ -539,6 +539,15 @@ describe("documents endpoints", () => {
     expect(absent?.document.revision).toBeUndefined();
   });
 
+  it("getDocumentAdminSummary reads a missing or malformed workspace_id as empty instead of failing the summary", async () => {
+    const base = { id: "d1", kind: "page", title: "Tài liệu hạn chế", visibility: "restricted" };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ document: base, my_level: "" }))
+      .mockResolvedValueOnce(json({ document: { ...base, workspace_id: 7 }, my_level: "" }));
+    expect((await getDocumentAdminSummary("d1"))?.document).toMatchObject({ id: "d1", workspace_id: "" });
+    expect((await getDocumentAdminSummary("d1"))?.document).toMatchObject({ id: "d1", workspace_id: "" });
+  });
+
   it("DocumentSchema parses break_glass_expires_at and DocumentAccessSchema tolerates malformed break_glass items", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({

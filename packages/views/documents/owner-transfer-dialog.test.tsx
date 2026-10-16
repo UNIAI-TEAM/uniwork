@@ -54,6 +54,7 @@ function target(over: Partial<ShareDialogTarget> = {}): ShareDialogTarget {
     id: parsed.id,
     title: parsed.title,
     organization_id: parsed.organization_id,
+    workspace_id: parsed.workspace_id,
     visibility: parsed.visibility as ShareDialogTarget["visibility"],
     revision: parsed.revision,
     owner_kind: (parsed.owner_kind ?? undefined) as ShareDialogTarget["owner_kind"],

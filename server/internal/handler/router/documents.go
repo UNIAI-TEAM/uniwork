@@ -76,6 +76,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
 		summary: "Create a page or folder document",
 		description: "Tạo trang hoặc thư mục trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page|folder, parent_id (trang/thư mục; thư mục chỉ nằm ở gốc hoặc trong thư mục, sai -> 422 document_parent_kind), thư mục không nhận content (-> 422 folder_not_supported), icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
+			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha thì kế thừa cha (cả mức), ở gốc = restricted; giá trị khác -> 400 invalid_request. " +
 			"Idempotency-Key ràng create với fingerprint payload: replay trả lại trang đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentSDI{},
@@ -86,6 +87,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/workspaces/{workspaceID}/documents/files", h.CreateDocumentFile, apiOp{
 		summary: "Create a file document",
 		description: "Tạo document kiểu file bằng một request multipart: phần file stream vào FileService (purpose document_file, ≤ 50 MiB, MIME allowlist + magic bytes), parent_id/title là form field tùy chọn. " +
+			"Form field visibility (phải đứng trước phần file): workspace|restricted; tài liệu mới ở gốc mặc định riêng tư, gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem, bỏ trống dưới cha thì kế thừa cha (cả mức), giá trị khác -> 400 invalid_request. " +
 			"Idempotency-Key cho retry an toàn. Bytes đến nguyên vẹn; kích thước/checksum do server đo, client không tự khai.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentFileSDI{},
@@ -294,7 +296,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/workspaces/{workspaceID}/documents/files/blank", h.CreateBlankDocumentFile, apiOp{
 		summary: "Create a blank file document",
 		description: "Tạo tài liệu mới với bytes do engine sinh: server chọn seed, engine serialize, FileService xác minh, rồi đường create G1 tạo document + version 1. " +
-			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. Idempotency-Key replay trả tài liệu đã tạo.",
+			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. " +
+			"visibility workspace|restricted: tài liệu mới ở gốc mặc định riêng tư, gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem, bỏ trống dưới cha thì kế thừa cha (cả mức), giá trị khác -> 400 invalid_request. Idempotency-Key replay trả tài liệu đã tạo.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateBlankDocumentFileSDI{},
 		sdo:    sdo.DocumentSDO{},
@@ -531,13 +534,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/shares", h.CreateDocumentShare, apiOp{
-		summary:     "Share a document",
-		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409.",
-		tags:        []string{"documents"},
-		sdi:         sdi.ShareDocumentSDI{},
-		sdo:         sdo.DocumentShareSDO{},
-		status:      http.StatusCreated,
-		auth:        true,
+		summary: "Share a document",
+		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409. " +
+			"Share cho chính workspace chứa tài liệu không tạo dòng document_shares: nó ghi vào dòng Workspace gốc (visibility=workspace, workspace_level=level) và câu trả lời mô tả dòng đó (id và created_at rỗng); manage -> 422 level_not_allowed (dòng gốc tối đa edit), và mở một tài liệu riêng tư khi người gọi chỉ có admin_scope -> 403 break_glass_required.",
+		tags:   []string{"documents"},
+		sdi:    sdi.ShareDocumentSDI{},
+		sdo:    sdo.DocumentShareSDO{},
+		status: http.StatusCreated,
+		auth:   true,
 	})
 	d.Post("/documents/{documentID}/shares/batch", h.CreateDocumentShareBatch, apiOp{
 		summary: "Share a document with a batch of users",
