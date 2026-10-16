@@ -1,7 +1,29 @@
-import type { paths } from "@uniwork/core/paths";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 
-type WorkspacePaths = ReturnType<typeof paths.workspace>;
+/** The workspace paths a source link needs; `paths.workspace(orgSlug, wsSlug)` satisfies it. */
+export interface SourceLinkPaths {
+  task: (id: string) => string;
+  meeting: (id: string) => string;
+  chatConversation: (roomId: string, messageId?: string) => string;
+  email: () => string;
+}
+
+/** Image extensions the browser draws in the preview when the mime type does not say so. */
+const IMAGE_EXTENSIONS: Record<string, true> = { png: true, jpg: true, jpeg: true, gif: true, webp: true, avif: true, bmp: true };
+
+/**
+ * What the primary click of a "Từ nơi khác" row does with the file (U-SRC1):
+ * an image opens view-only (the blob of the download route, read never
+ * written); every other kind downloads. U-SRC1 wants Office formats
+ * (docx/xlsx/pptx/pdf/md/html) in the Office viewer — the office-frame API is
+ * bound to a saved document's id, so a source file has no view-only frame
+ * route yet (UNI-1815 server gap); they download until one lands.
+ */
+export function sourceOpenAction(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension">): "image" | "download" {
+  if (source.mime_type.toLowerCase().startsWith("image/")) return "image";
+  const ext = source.extension.toLowerCase() || source.name.split(".").pop()?.toLowerCase() || "";
+  return IMAGE_EXTENSIONS[ext] === true ? "image" : "download";
+}
 
 /**
  * Where "View where attached" leads for a file from another module, built with
@@ -12,7 +34,7 @@ type WorkspacePaths = ReturnType<typeof paths.workspace>;
  * message; meeting opens by id; email opens the Email Hub, which has no thread
  * route. An unknown parent kind has no link.
  */
-export function sourceParentPath(ws: WorkspacePaths, parent: DocumentSourceFile["parent"]): string | null {
+export function sourceParentPath(ws: SourceLinkPaths, parent: DocumentSourceFile["parent"]): string | null {
   switch (parent.kind) {
     case "task":
     case "task_comment":

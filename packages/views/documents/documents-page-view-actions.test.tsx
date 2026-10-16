@@ -156,6 +156,20 @@ beforeEach(() => {
 });
 
 describe("file from another module", () => {
+  const sourceNameButton = (row: HTMLElement) => row.querySelector("td:first-child button")! as HTMLElement;
+
+  /** Stubs the object-URL API and the click that saves the blob; returns the clicks. */
+  const stubDownload = () => {
+    const createUrl = vi.fn().mockReturnValue("blob:budget");
+    const revokeUrl = vi.fn();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: createUrl, revokeObjectURL: revokeUrl }));
+    const clicked: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(`${this.download}|${this.href}`);
+    });
+    return { createUrl, revokeUrl, clicked, restore: () => { click.mockRestore(); vi.unstubAllGlobals(); } };
+  };
+
   it("downloads the blob through a temporary link named after the file", async () => {
     route({ sources: () => [source()] });
     downloadBlob.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
@@ -169,7 +183,7 @@ describe("file from another module", () => {
     });
     try {
       const row = await rowOf("Đề xuất ngân sách.pdf");
-      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+      await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.download"));
       await waitFor(() => expect(clicked).toHaveLength(1));
       expect(clicked[0]).toBe("Đề xuất ngân sách.pdf|blob:budget");
       expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Am1/download`);
@@ -183,12 +197,77 @@ describe("file from another module", () => {
     }
   });
 
+  it("downloads the file on the primary click for a kind with no view-only open yet", async () => {
+    // U-SRC1 wants Office formats in the Office viewer; until a source view-only
+    // frame route exists (UNI-1815 server gap) a docx source downloads.
+    route({ sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })] });
+    downloadBlob.mockResolvedValue(new Blob(["docx"]));
+    const adapter = renderView();
+    const { clicked, restore } = stubDownload();
+    try {
+      const row = await rowOf("Kế hoạch.docx");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(clicked[0]).toBe("Kế hoạch.docx|blob:budget");
+      expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Ad9/download`);
+      expect(adapter.push).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it("downloads a zip on the primary click instead of navigating", async () => {
+    route({ sources: () => [source({ id: "chat:z1", name: "Mã nguồn.zip", mime_type: "application/zip", extension: "zip" })] });
+    downloadBlob.mockResolvedValue(new Blob(["zip"]));
+    const adapter = renderView();
+    const { clicked, restore } = stubDownload();
+    try {
+      const row = await rowOf("Mã nguồn.zip");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Az1/download`);
+      expect(adapter.push).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it("previews an image in a dialog on the primary click and revokes the blob on close", async () => {
+    route({ sources: () => [source({ id: "chat:i1", name: "Chụp màn hình.png", mime_type: "image/png", extension: "png" })] });
+    downloadBlob.mockResolvedValue(new Blob(["png"], { type: "image/png" }));
+    const adapter = renderView();
+    const { createUrl, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Chụp màn hình.png");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Ai1/download`));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByRole("img", { name: "Chụp màn hình.png" })).toHaveAttribute("src", "blob:budget");
+      // A preview never navigates or saves the file.
+      expect(adapter.push).not.toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.row.preview_close") }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(revokeUrl).toHaveBeenCalledWith("blob:budget");
+    } finally {
+      restore();
+    }
+  });
+
+  it("says why when an image preview cannot load", async () => {
+    route({ sources: () => [source({ id: "chat:i2", name: "Ảnh.png", mime_type: "image/png", extension: "png" })] });
+    downloadBlob.mockRejectedValue(new ApiError("Tệp đã bị xoá", "not_found", 404));
+    renderView();
+    const row = await rowOf("Ảnh.png");
+    fireEvent.click(sourceNameButton(row));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Tệp đã bị xoá"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("says why when the download is refused", async () => {
     route({ sources: () => [source()] });
     downloadBlob.mockRejectedValue(new ApiError("Tệp đã bị xoá", "not_found", 404));
     renderView();
-    const row = await rowOf("Đề xuất ngân sách.pdf");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+      await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.download"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Tệp đã bị xoá"));
   });
 
@@ -196,8 +275,7 @@ describe("file from another module", () => {
     route({ sources: () => [source()] });
     downloadBlob.mockRejectedValue("offline");
     renderView();
-    const row = await rowOf("Đề xuất ngân sách.pdf");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+      await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.download"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.download_failed")));
   });
 
@@ -206,6 +284,14 @@ describe("file from another module", () => {
     const adapter = renderView();
     // The literal copy is pinned on purpose (U-SRC3): one label for every origin but email.
     await pickFromMenu("Đề xuất ngân sách.pdf", "Xem nơi đính kèm");
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
+  });
+
+  it("opens the room and message from the row's secondary button too", async () => {
+    route({ sources: () => [source()] });
+    const adapter = renderView();
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) }));
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
   });
 
@@ -235,6 +321,10 @@ describe("file from another module", () => {
     const adapter = renderView();
     await pickFromMenu("Hóa đơn.pdf", "Mở Email");
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/email");
+    // The row's own button says it too.
+    const row = await rowOf("Hóa đơn.pdf");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Hóa đơn.pdf" }) }));
+    expect(adapter.push).toHaveBeenCalledTimes(2);
   });
 
   it("opens the task a comment attachment belongs to", async () => {
@@ -251,12 +341,42 @@ describe("file from another module", () => {
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/meetings/mt3");
   });
 
-  it("goes nowhere for a parent the web app has no page for", async () => {
+  it("downloads on the primary click of an unknown parent; its go-to-source still goes nowhere", async () => {
     route({ sources: () => [source({ parent: { kind: "unknown", id: "x", title: "?" } })] });
+    downloadBlob.mockResolvedValue(new Blob(["pdf"]));
     const adapter = renderView();
-    const row = await rowOf("Đề xuất ngân sách.pdf");
-    fireEvent.click(within(row).getAllByRole("button", { name: /Đề xuất ngân sách.pdf/ })[0]!);
-    expect(adapter.push).not.toHaveBeenCalled();
+    const { clicked, restore } = stubDownload();
+    try {
+      const row = await rowOf("Đề xuất ngân sách.pdf");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) }));
+      expect(adapter.push).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it("opens the file on Enter and keeps View where attached its own named tab stop", async () => {
+    route({ sources: () => [source({ id: "chat:k1", name: "Báo cáo.png", mime_type: "image/png", extension: "png" })] });
+    downloadBlob.mockResolvedValue(new Blob(["png"], { type: "image/png" }));
+    const adapter = renderView();
+    const { restore } = stubDownload();
+    try {
+      const row = await rowOf("Báo cáo.png");
+      sourceNameButton(row).focus();
+      await userEvent.keyboard("{Enter}");
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      await userEvent.keyboard("{Escape}");
+
+      // The secondary action is reachable by keyboard on its own, with a name.
+      const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Báo cáo.png" }) });
+      secondary.focus();
+      await userEvent.keyboard("{Enter}");
+      expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
+    } finally {
+      restore();
+    }
   });
 });
 

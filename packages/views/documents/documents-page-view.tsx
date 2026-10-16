@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert, FolderPlus, FolderTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ import { paths } from "@uniwork/core/paths";
 import { canEditDocument } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@uniwork/ui/components/ui/dialog";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
@@ -114,6 +116,16 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const [navOpen, setNavOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // A source file previewed from its download blob (U-SRC1, view-only): the
+  // object URL lives exactly as long as the dialog and is revoked on close.
+  const [preview, setPreview] = useState<{ name: string; url: string | null } | null>(null);
+  const previewSeq = useRef(0);
+  useEffect(() => {
+    const url = preview?.url ?? null;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [preview?.url]);
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
@@ -210,6 +222,22 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       const target = context ? sourceParentPath(paths.workspace(context.workspace.organization_slug, context.workspace.slug), row.source.parent) : null;
       if (target) push(target);
     },
+    onPreviewSource: (sourceId, name) => {
+      const seq = ++previewSeq.current;
+      setPreview({ name, url: null });
+      void downloadSource.mutateAsync({ sourceId }).then(
+        (blob) => {
+          if (previewSeq.current === seq) setPreview({ name, url: URL.createObjectURL(blob) });
+        },
+        (error: unknown) => {
+          if (previewSeq.current === seq) {
+            setPreview(null);
+            toast.error(apiErrorMessage(error) ?? t("documents.home.row.preview_failed"));
+          }
+        },
+      );
+    },
+
     onDownloadSource: (sourceId) => {
       void downloadSource.mutateAsync({ sourceId }).then(
         (blob) => {
@@ -451,6 +479,32 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         error={uploadError}
         onSubmit={(file) => void uploadFile(file)}
       />
+
+      <Dialog
+        open={preview !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            previewSeq.current += 1;
+            setPreview(null);
+          }
+        }}
+      >
+        <DialogContent
+          closeLabel={t("documents.home.row.preview_close")}
+          overlayClassName="bg-black/70"
+          className="max-w-[calc(100%-2rem)] bg-surface p-3 sm:max-w-4xl"
+        >
+          <DialogTitle className="sr-only">{preview?.name ?? ""}</DialogTitle>
+          {preview?.url ? (
+            <img src={preview.url} alt={preview.name} className="mx-auto max-h-[80vh] w-full object-contain" />
+          ) : (
+            <div role="status" className="flex h-64 items-center justify-center">
+              <span className="sr-only">{t("documents.home.row.preview_loading")}</span>
+              <Spinner />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {rowDialogs.dialogs}
     </div>

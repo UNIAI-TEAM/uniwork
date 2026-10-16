@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { paths } from "@uniwork/core/paths";
-import { sourceLinkLabelKey, sourceParentPath } from "./source-links";
+import { sourceLinkLabelKey, sourceOpenAction, sourceParentPath } from "./source-links";
 
 const ws = paths.workspace("acme", "eng");
 
@@ -59,5 +59,34 @@ describe("sourceLinkLabelKey", () => {
     expect(sourceLinkLabelKey(parent("task", "t"))).toBe("documents.home.row.go_to_source");
     expect(sourceLinkLabelKey(parent("task_comment", "t"))).toBe("documents.home.row.go_to_source");
     expect(sourceLinkLabelKey(parent("meeting", "m"))).toBe("documents.home.row.go_to_source");
+  });
+});
+
+describe("sourceOpenAction", () => {
+  const file = (over: Partial<Pick<DocumentSourceFile, "mime_type" | "extension" | "name">> = {}) =>
+    ({ name: "f", mime_type: "", extension: "", ...over }) as DocumentSourceFile;
+
+  it("previews an image by its mime type or extension", () => {
+    expect(sourceOpenAction(file({ mime_type: "image/png" }))).toBe("image");
+    expect(sourceOpenAction(file({ mime_type: "image/jpeg" }))).toBe("image");
+    expect(sourceOpenAction(file({ extension: "webp" }))).toBe("image");
+    expect(sourceOpenAction(file({ name: "ảnh.PNG" }))).toBe("image");
+  });
+
+  it("downloads everything else until a view-only source frame route exists", () => {
+    // U-SRC1 wants Office formats in the Office viewer; the office-frame API is
+    // document-bound, so a source file downloads until the server gap closes.
+    for (const f of [
+      file({ mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+      file({ extension: "docx" }),
+      file({ extension: "xlsx" }),
+      file({ mime_type: "application/pdf" }),
+      file({ extension: "md" }),
+      file({ extension: "html" }),
+      file({ extension: "zip" }),
+      file(),
+    ]) {
+      expect(sourceOpenAction(f)).toBe("download");
+    }
   });
 });

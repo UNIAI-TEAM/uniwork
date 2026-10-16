@@ -24,7 +24,7 @@ import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-op
 import { DocumentTypeIcon } from "./document-type-icon";
 import { libraryCell, type LibraryLadder } from "./library-columns";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
-import { sourceLinkLabelKey } from "./source-links";
+import { sourceLinkLabelKey, sourceOpenAction } from "./source-links";
 import {
   formatBytes,
   isFolderRow,
@@ -49,6 +49,8 @@ export interface LibraryRowHandlers {
   onOpen: (documentId: string) => void;
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
+  /** Image sources only: fetches the bytes and opens them view-only. */
+  onPreviewSource?: (sourceId: string, name: string) => void;
   onDownloadSource: (sourceId: string) => void;
   onSaveSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Absent outside an organization (no favorites there). */
@@ -144,7 +146,13 @@ export function LibraryRowView({
       if (canRestore) handlers.onRestore?.(doc);
     } else if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
-    else if (row.type === "source") handlers.onGoToSource(row);
+    else if (row.type === "source") {
+      // U-SRC1: the primary click opens the file view-only where the row can
+      // (images today), else downloads it; "Xem nơi đính kèm" is a secondary.
+      const open = sourceOpenAction(row.source);
+      if (open === "image" && handlers.onPreviewSource) handlers.onPreviewSource(row.source.id, row.source.name);
+      else handlers.onDownloadSource(row.source.id);
+    }
   };
 
   const actions: RowAction[] = [];
@@ -192,7 +200,7 @@ export function LibraryRowView({
   }
   if (row.type === "source") {
     actions.push(
-      { id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: ExternalLink, run: primary },
+      { id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: ExternalLink, run: () => handlers.onGoToSource(row) },
       { id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) },
     );
     // Only a file the server marks as copyable offers the save.
@@ -210,9 +218,15 @@ export function LibraryRowView({
       requestRef={appRequest}
     />
   ) : source ? (
-    <Button type="button" variant="outline" size="xs" onClick={() => handlers.onDownloadSource(source.id)}>
-      <Download aria-hidden />
-      {t("documents.home.row.download")}
+    <Button
+      type="button"
+      variant="outline"
+      size="xs"
+      aria-label={t("documents.home.row.go_to_source_named", { title })}
+      onClick={() => handlers.onGoToSource(row)}
+    >
+      <ExternalLink aria-hidden />
+      {t(sourceLinkLabelKey(source.parent))}
     </Button>
   ) : null;
 
