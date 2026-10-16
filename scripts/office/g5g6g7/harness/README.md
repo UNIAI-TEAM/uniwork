@@ -515,7 +515,40 @@ reload"). It then waits for a fresh `office-frame` GET of the announced version 
 Every GET of that document's own route counts, whatever its path (the exact-path
 matcher turned a reload through another route into "no open at all"), and a miss
 reports the GETs it saw and what the frame SHOWED — its bar text and actions, the
-dialog's choices, the docs host's dirty flag. By the same rule the APP's S6 reload is driven through the fork's whole flow
+dialog's choices, the docs host's dirty flag.
+
+The reload window opens at the ANNOUNCE's own timestamp (D5-01), never at the instant
+the driver starts waiting — with `ANNOUNCE_OPEN_TOLERANCE_MS` (50 ms) of slack for the
+postMessage -> host -> `api.open` hop between the announce's own `at` and the GET it
+causes. A clean frame reloads as soon as the announce lands, and the
+announce poll can notice it afterwards — round 5's window (a clock that started after
+the reload had already been recorded) counted a reload that HAPPENED as
+"0 office-frame GET(s) after the announce", so a miss now also says how many of the
+document's GETs landed BEFORE it, with their offsets. The reply's fields are read with
+the pinned wire's own names (`file.fileId`, `file.versionId`, `file.revision`,
+`file.etag`; the frame protocol's `FileMeta` is camelCase,
+`web/docs/protocol/types.ts:326-346` at the frame pin), where round 5 read
+`file.version_id` and could therefore never match the announced version, and a GET is
+recorded when it is ISSUED — one that never answers is the measured "a GET with no
+answer yet" / "the GET failed", not the absence of a GET.
+
+A miss names the guard that dropped the announce FROM MEASURED VALUES (D5-01), never
+from a guess. The recorder keeps the announce's own `document_id` / `revision` /
+`version_id` / `saved_at` with the JS `typeof` each arrived as, the realm that recorded
+it (the top page, or the frame), whether the parent window sent it, and the last `file`
+the frame's realm received (a host `open` push, or an `api.open` / `api.save` reply) —
+the frame's held copy, which `revisionOf` (`web/modules/shared/conflict-dialog.ts:135-140`)
+turns into the `revision` the pin's guards compare against. The verdict follows the pin's
+own order — the endpoint's origin/source checks
+(`web/docs/protocol/endpoint.ts:264-275`), `parseEnvelope`'s ns and version
+(`web/docs/protocol/types.ts:1758-1760`, l.1801), then
+`web/modules/shared/remote-version.ts:443` (`!isDecimalRevision(p.revision)`), `:445`
+(`cur.fileId !== p.document_id`) and `:448` (`rev <= open`, over the pin's `revisionOf`)
+— and says so when NO guard explains the drop, which is a delivery/handler finding
+rather than a guess. The same fields are recorded on the artifact as
+`details.webSeesMiss` (`announced`, `announceRealm`, `announceTypes`, `held`, `verdict`,
+`documents`, `opens`); round 5's "the frame's own guard needs a DECIMAL revision"
+asserted a type nobody had read and is gone. By the same rule the APP's S6 reload is driven through the fork's whole flow
 (D4-02), not one text-matched click: the bar's own action
 (`div.uw-remote-bar button.uw-remote-action[data-action="reload"]`) asks the main
 process for the reload, which opens the conflict dialog for the stored notice;
