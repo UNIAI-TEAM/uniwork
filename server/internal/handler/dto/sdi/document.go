@@ -241,7 +241,21 @@ type MoveDocumentSDI struct {
 type ShareDocumentSDI struct {
 	PrincipalType string `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
 	PrincipalID   string `json:"principal_id" description:"ULID người/workspace, hoặc ULID tổ chức khi principal_type=organization" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level         string `json:"level" description:"view, edit hoặc manage" example:"view"`
+	Level         string `json:"level" description:"view, comment, edit hoặc manage" example:"view"`
+}
+
+// BreakGlassSDI is POST /api/v1/documents/{documentID}/break-glass: a workspace
+// admin opens 24-hour view-only access to a restricted document they do not
+// own (DOC-05; UNI-1628). The reason is trimmed, then 10-500 characters.
+type BreakGlassSDI struct {
+	Reason string `json:"reason" description:"Lý do mở truy cập khẩn cấp, 10–500 ký tự sau khi cắt khoảng trắng hai đầu" example:"Kiểm tra hợp đồng theo yêu cầu của kiểm toán"`
+}
+
+// ShareDocumentBatchSDI is POST /api/v1/documents/{documentID}/shares/batch:
+// users only (workspace/organization stay single-select on POST /shares).
+type ShareDocumentBatchSDI struct {
+	PrincipalIDs []string `json:"principal_ids" description:"ULID người dùng cùng tổ chức với tài liệu; tối đa 50 id phân biệt sau khi cắt khoảng trắng và gộp trùng lặp" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\",\"01J8X4K2M0N1P2Q3R4S5T6U7V9\"]"`
+	Level        string   `json:"level" description:"Cấp quyền, cùng tập giá trị với POST /shares" example:"view"`
 }
 
 // CreateDocumentLinkSDI is POST /api/v1/documents/{documentID}/links:
@@ -275,4 +289,6 @@ type SetDocumentSettingsSDI struct {
 type ListMentionCandidatesSDI struct {
 	Query *string `query:"q" description:"Từ khóa tìm theo tên hiển thị và email (gấp dấu); bỏ trống = mọi người đọc được" example:"nguyen"`
 	Limit *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 50; ngoài khoảng bị kẹp" example:"20"`
+	// Include is honoured only for a caller who may list the workspace's members.
+	Include *string `query:"include" description:"no_access = thêm cả người chưa xem được tài liệu, mỗi dòng có can_view (G8-18); chỉ có hiệu lực khi người gọi xem được danh sách thành viên workspace, ngược lại bị bỏ qua" example:"no_access"`
 }

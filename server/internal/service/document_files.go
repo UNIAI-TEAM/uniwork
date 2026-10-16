@@ -37,6 +37,11 @@ type documentStore struct {
 	// after ClaimInTx, so a test can fail the transaction after the bytes
 	// are stored and the file is claimed. nil in production.
 	afterClaim func() error
+	// beforeSaveLock is a test seam: it runs after the preflight (and, for a
+	// commit, the intent claim) and right before the save transaction opens
+	// its row lock, so a test can change the row in that window. nil in
+	// production.
+	beforeSaveLock func()
 }
 
 var errDocumentStoreMissing = errors.New("documents: FileService is not wired")
@@ -116,21 +121,21 @@ func fileUploadKey(command, target, key string) string {
 // UploadDocumentFile stages bytes for a later versions/commit (C-01 §14.4):
 // edit on the document now, bytes into FileService, format check, and the
 // staged file_id back as upload_id. The permission is checked again at
-// commit - this one only stops a stranger from filling storage.
+// commit - this one only stops a stranger from filling storage. It answers
+// as the commit does (preflightDocument, then decideFileSave), so an
+// AdminScope caller with no read level on a live restricted file gets
+// document_restricted here as on the asset upload route (DOC-05 §4).
 func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, documentID string, in DocumentUploadInput) (DocumentUpload, error) {
 	fs, err := s.fileService()
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
+	doc, access, err := s.preflightDocument(ctx, actor, documentID)
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	if err := refuseFolder(doc); err != nil {
+	if err := decideFileSave(doc, access); err != nil {
 		return DocumentUpload{}, err
-	}
-	if doc.Kind != DocumentKindFile {
-		return DocumentUpload{}, Invalid("chỉ tài liệu file nhận phiên bản tải lên")
 	}
 	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, documentScope(doc.OrganizationID, doc.WorkspaceID),
 		fileUploadKey("documents.upload", doc.ID, in.IdempotencyKey), in)

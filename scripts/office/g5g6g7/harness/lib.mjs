@@ -78,6 +78,16 @@ export function loopbackOriginsIn(body) {
 }
 
 /**
+ * The AES key the harness server seals saved AI provider keys with
+ * (`AI_CREDENTIAL_KEY`, base64 of 32 bytes; server/internal/util/secretbox). TEST-ONLY:
+ * a fixed public value that guards nothing — the harness database holds no provider
+ * key, and the run never reaches the dev upstream. Since G6-05k a server without a
+ * credential key answers `ai_credentials_unavailable`, the web frame token then carries
+ * `ai:false`, and the web capture shows no AI chrome (RFE5-201, DOC-05 re-pin).
+ */
+export const HARNESS_AI_CREDENTIAL_KEY = Buffer.from("uniwork-harness-test-only-key-32").toString("base64");
+
+/**
  * The environment the D server is started with, on the command line. Everything
  * is derived from the run's ports, so a run can never talk to a stale server on
  * the default :8080. `apiOrigin` is also the value the web build inlines
@@ -122,6 +132,9 @@ export function buildServerEnv({
     DEV_VERIFICATION_CODE: verificationCode,
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
+    // The run's own test-only key (HARNESS_AI_CREDENTIAL_KEY), never the VM's: a key in the VM's .env
+    // is dropped from the server's .env copy because the run owns this name (serverDotEnv).
+    AI_CREDENTIAL_KEY: HARNESS_AI_CREDENTIAL_KEY,
     DESKTOP_AUTH_DEPLOYMENT_IDS: deploymentId,
     // The fork's dev channel registers `uniwork-office-dev` and the D server
     // addresses its launch links with that client id, so the dev client must be

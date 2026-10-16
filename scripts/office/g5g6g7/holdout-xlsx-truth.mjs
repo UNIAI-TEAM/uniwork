@@ -21,7 +21,7 @@ const ORACLE = 'docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.oracle.json';
 const MANIFEST = 'docs/office/g5g6g7/fixtures/manifest.json';
 const CASES = 'docs/office/g5g6g7/holdout/cases/xlsx.json';
 
-function unzip(buf) {
+export function unzip(buf) {
   let eocd = buf.length - 22;
   while (eocd >= 0 && buf.readUInt32LE(eocd) !== 0x06054b50) eocd -= 1;
   if (eocd < 0) throw new Error('not a zip file');
@@ -73,12 +73,39 @@ export function readWorkbook(file = path.join(repoRoot, FIXTURE)) {
         const v = /<v>(.*?)<\/v>/s.exec(c[3] ?? '')?.[1];
         let value = null;
         if (v !== undefined) value = t === 's' ? shared[Number(v)] : t === 'n' ? Number(v) : unesc(v);
-        cells[c[1]] = { v: value, f: f === undefined ? null : unesc(f), t };
+        const style = /\ss="(\d+)"/.exec(c[2])?.[1];
+        cells[c[1]] = { v: value, f: f === undefined ? null : unesc(f), t, s: style === undefined ? 0 : Number(style) };
       }
     }
     sheets[unesc(m[1])] = { cells, hiddenRows };
   }
   return sheets;
+}
+
+// Built-in number formats (ECMA-376 18.8.30) grouped into the kinds the holdout cases name (the #numberFormat probe).
+const BUILTIN_FORMAT_KIND = { 0: 'number', 49: 'text' };
+for (const id of [1, 2, 3, 4, 37, 38, 39, 40]) BUILTIN_FORMAT_KIND[id] = 'number';
+for (const id of [5, 6, 7, 8, 41, 42, 43, 44]) BUILTIN_FORMAT_KIND[id] = 'currency';
+for (const id of [9, 10]) BUILTIN_FORMAT_KIND[id] = 'percent';
+for (let id = 14; id <= 22; id += 1) BUILTIN_FORMAT_KIND[id] = 'date';
+const formatCodeKind = (code) => {
+  const c = code.replace(/"[^"]*"|\\.|\[[^\]]*\]/g, '');
+  if (/%/.test(c)) return 'percent';
+  if (/@/.test(c)) return 'text';
+  if (/[ymdhs]/i.test(c)) return 'date';
+  if (/[$€₫đ]|vn[dđ]/i.test(code)) return 'currency';
+  return 'number';
+};
+
+/** Number-format kind (percent|number|text|currency|date) of every cell style (xf) of a workbook, by style index. */
+export function readStyleFormatKinds(file) {
+  const zip = unzip(fs.readFileSync(file));
+  const styles = zip.get('xl/styles.xml')?.toString('utf8') ?? '';
+  const custom = Object.fromEntries(
+    [...styles.matchAll(/<numFmt\s+numFmtId="(\d+)"\s+formatCode="([^"]*)"/g)].map((m) => [Number(m[1]), formatCodeKind(unesc(m[2]))]),
+  );
+  const xfs = /<cellXfs[^>]*>(.*?)<\/cellXfs>/s.exec(styles)?.[1] ?? '';
+  return [...xfs.matchAll(/<xf\s[^>]*?numFmtId="(\d+)"/g)].map((m) => custom[Number(m[1])] ?? BUILTIN_FORMAT_KIND[Number(m[1])] ?? 'number');
 }
 
 const discount = (z) => (z === null || z === undefined ? 0 : z > 1 ? z / 100 : z);

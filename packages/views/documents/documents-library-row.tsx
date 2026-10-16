@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -22,16 +22,19 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
+import { libraryCell, type LibraryLadder } from "./library-columns";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkLabelKey } from "./source-links";
 import {
   formatBytes,
   isFolderRow,
   rowFormat,
+  rowAccessLabelKey,
   rowOrigin,
   rowSizeBytes,
   rowTitle,
   rowUpdatedAt,
+  rowVisibilityLabelKey,
   type DocumentSummaryRow,
   type LibraryRow,
 } from "./library-rows";
@@ -88,11 +91,14 @@ export function LibraryRowView({
   row,
   handlers,
   archived,
+  ladder,
   typeCell,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
   archived: boolean;
+  /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
+  ladder: LibraryLadder;
   typeCell?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
@@ -122,6 +128,10 @@ export function LibraryRowView({
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
+  const accessKey = rowAccessLabelKey(row);
+  const visibilityKey = rowVisibilityLabelKey(row);
+  const restricted = doc?.visibility === "restricted";
+  const metaLine = [editor, updated, size].filter(Boolean).join(" · ");
 
   // A trashed folder is not browsable: its primary action is Restore when the
   // viewer may restore it, and without that the name is plain text, not a link.
@@ -216,9 +226,23 @@ export function LibraryRowView({
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
         </span>
-        <span className="block truncate text-caption text-muted-foreground md:hidden">
-          {[editor, updated, size].filter(Boolean).join(" · ")}
-        </span>
+        {/* The editor · date · size part rides on this line until its columns join the table; the level and the restricted mark until My access / Visibility do (library-columns.ts). Only the meta part truncates: the mark keeps its width inside the Name cell. */}
+        {metaLine || accessKey || restricted ? (
+          <span data-library-access-line className={cn("flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-muted-foreground", ladder.accessLineHides)}>
+            {metaLine ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{metaLine}</span> : null}
+            {metaLine && (accessKey || restricted) ? (
+              <span aria-hidden className={cn("shrink-0", ladder.metaHides)}>·</span>
+            ) : null}
+            {accessKey ? <span className="shrink-0">{t(accessKey)}</span> : null}
+            {accessKey && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
+            {restricted && visibilityKey ? (
+              <span className="flex shrink-0 items-center gap-1">
+                <Lock aria-hidden className="size-3 shrink-0" />
+                {t(visibilityKey)}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
       </span>
     </>
   );
@@ -240,18 +264,18 @@ export function LibraryRowView({
           )}
         </td>
         {typeCell !== undefined ? (
-          <td className="hidden px-3 py-2 text-caption text-muted-foreground md:table-cell">{typeCell}</td>
+          <td className={cn("truncate px-3 py-2 text-caption text-muted-foreground", libraryCell(ladder, "type"))}>{typeCell}</td>
         ) : null}
-        <td className="hidden px-3 py-2 md:table-cell">
+        <td className={cn("px-3 py-2", libraryCell(ladder, "source"))}>
           <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-            <span aria-hidden className={cn("size-1.5 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
-            {t(`documents.home.origin.${origin}`)}
+            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
+            <span className="truncate">{t(`documents.home.origin.${origin}`)}</span>
           </span>
         </td>
-        <td className="hidden px-3 py-2 md:table-cell">
+        <td className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
           {editor ? (
             <span className="flex items-center gap-2 text-body text-foreground">
-              <span aria-hidden className="flex size-5 items-center justify-center rounded-full bg-muted text-caption text-muted-foreground">
+              <span aria-hidden className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-caption text-muted-foreground">
                 {initial(editor)}
               </span>
               <span className="truncate">{editor}</span>
@@ -260,13 +284,31 @@ export function LibraryRowView({
             <span className="text-muted-foreground">—</span>
           )}
         </td>
-        <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{updated || "—"}</td>
-        <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{size || "—"}</td>
+        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>{updated || "—"}</td>
+        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>{size || "—"}</td>
+        {/* My access / Visibility exist only where the ladder has room for them; until then the secondary line carries them. */}
+        {libraryCell(ladder, "access") ? (
+          <td className={cn("px-3 py-2 text-caption text-foreground", libraryCell(ladder, "access"))}>
+            {accessKey ? <span className="block truncate">{t(accessKey)}</span> : <span className="text-muted-foreground">—</span>}
+          </td>
+        ) : null}
+        {libraryCell(ladder, "visibility") ? (
+          <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "visibility"))}>
+            {visibilityKey ? (
+              <span className="flex items-center gap-1.5 text-foreground">
+                {restricted ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+                <span className="truncate">{t(visibilityKey)}</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </td>
+        ) : null}
         <td className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (
-              // Below `md` the app command lives in the ⋯ menu so the name keeps the row.
-              <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 max-md:hidden">
+              // Until the actions column widens (first ladder rung) the app command lives in the ⋯ menu so the name keeps the row.
+              <div className={cn("opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100", ladder.quick)}>
                 {quick}
               </div>
             ) : null}

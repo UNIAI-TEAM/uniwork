@@ -130,6 +130,24 @@ describe("NotificationsTab", () => {
     );
   });
 
+  // A kind the server did not send reads as the server's own DefaultPrefs: the
+  // emergency-access kind (and the discussion mention) push by default.
+  it("fills a kind the server omitted with the server's push defaults", async () => {
+    mockApi(true);
+    registerPushAdapter({
+      permission: () => "default",
+      requestPermission: () => Promise.resolve("granted"),
+      current: () => Promise.resolve(null),
+      subscribe: () => Promise.reject(new Error("unreachable")),
+      unsubscribe: () => Promise.resolve(null),
+    });
+    render(wrap(<NotificationsTab />));
+    const push = (kind: string) => screen.findByRole("switch", { name: `${kind} · Đẩy` });
+    expect(await push("Truy cập khẩn cấp vào tài liệu")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Được nhắc đến trong thảo luận")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Phản hồi bình luận")).toHaveAttribute("aria-checked", "false");
+  });
+
   it("shows a load error with retry instead of a guessed matrix, and writes nothing", async () => {
     let fail = true;
     requestMock.mockImplementation((path: string) => {

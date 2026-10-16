@@ -35,9 +35,13 @@ var errorClassByCode = map[string]string{
 	// (email_unverified, mfa_required) and billing gates (entitlement_required,
 	// subscription_inactive, checkout_required) are deliberately absent -
 	// they are not permission denials.
-	"forbidden":                  "permission",
-	"member_deactivated":         "permission",
-	"organization_suspended":     "permission",
+	"forbidden":              "permission",
+	"member_deactivated":     "permission",
+	"organization_suspended": "permission",
+	// The caller may edit a document through a share but holds no seat in its
+	// workspace, so the copy cannot be created there (BE-12-201): the client asks
+	// for a seat instead of telling a member they are not one.
+	"workspace_seat_required":    "permission",
 	"not_meeting_host":           "permission",
 	"ai_context_forbidden":       "permission",
 	"ai_tool_not_allowed":        "permission",
@@ -46,6 +50,12 @@ var errorClassByCode = map[string]string{
 	// signature no longer verifies (G5-D1 row 15): the app drops its
 	// committed copy and keeps the locked drafts.
 	"offline_lease_revoked": "permission",
+	// DOC-05 (UNI-1628): an admin who administers a restricted document but
+	// holds no read level asked for its content (document_restricted, with
+	// fields.can_break_glass), or tried to grant themselves read access
+	// outside the audited break-glass path (break_glass_required).
+	"document_restricted":  "permission",
+	"break_glass_required": "permission",
 
 	// missing: unknown, or not visible to this actor.
 	"not_found": "missing",
@@ -98,9 +108,10 @@ var errorClassByCode = map[string]string{
 //     same person reads the document online.
 //   offline_lease_limit_reached   (409, fields.limit) the device holds the
 //     most leases it may (G5-D1 row 11); the user unpins something.
-//   document_archived             (403) a renewal on a document in the
-//     trash (G5-D1 row 14): the app keeps its copy to the lease's expiry,
-//     so it must not read as permission (drop the copy) or gone.
+//   document_archived             (403) a lease renewal or file version
+//     upload/commit/restore on a document in the trash (G5-D1 row 14,
+//     G5-07 F6): the app keeps its copy/draft and blocks the save as
+//     archived, so it must not read as permission (drop the copy) or gone.
 //   offline_lease_expired is an app-side reason only: the server never
 //     emits it (G5-D1 row 15), an online renewal re-checks live access.
 //   comment_deleted        (409) the target comment is a tombstone (G8-03).
@@ -111,6 +122,15 @@ var errorClassByCode = map[string]string{
 //     every case, so the route never confirms a version exists elsewhere;
 //     the editor treats its anchor as stale and retries at the next save
 //     receipt.
+//   share_batch_too_large  (422, fields.max) a batch share named more than 50
+//     distinct users (UNI-1641). A count limit like offline_lease_limit_reached
+//     and document_link_limit, which stay unclassified: "quota" would read as a
+//     usage meter and "conflict" as a reload-and-retry; the picker keeps its
+//     selection and shows the cap from fields.max instead.
+//   access_report_too_large (422, fields.max_rows) an access report export
+//     over 10,000 rows or folder nodes (UNI-1643), refused before any byte.
+//     The same count-limit reasoning as share_batch_too_large: the page asks
+//     to narrow the folder or add a filter.
 //   commit_intent_unknown  (410, fields.outcome="unknown", plan G5-07) the
 //     server holds no commit intent for the key any more (swept after the
 //     resume window) or never did. "gone" would teach the client to leave;

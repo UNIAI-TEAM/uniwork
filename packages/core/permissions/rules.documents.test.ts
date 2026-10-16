@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { canEditDocument, canManageDocument, canViewDocument } from "./rules";
+import {
+  canAdministerDocument,
+  canCommentDocument,
+  canEditDocument,
+  canManageDocument,
+  canViewDocument,
+  documentLevelRank,
+} from "./rules";
 import type { PermissionContext } from "./types";
 
 // Mirror of DocumentService.effectiveLevel + decideDocumentAccess
@@ -16,13 +23,24 @@ const ctx = (over: Partial<PermissionContext> = {}): PermissionContext => ({
 
 const rules = [
   ["view", canViewDocument, 1],
-  ["edit", canEditDocument, 2],
-  ["manage", canManageDocument, 3],
+  ["comment", canCommentDocument, 2],
+  ["edit", canEditDocument, 3],
+  ["manage", canManageDocument, 4],
 ] as const;
 
-const levels = ["view", "edit", "manage"] as const;
+const levels = ["view", "comment", "edit", "manage"] as const;
 
 describe("document rules — mirror effectiveLevel (document_permissions.go)", () => {
+  it("ranks view < comment < edit < manage and treats unknown levels as rank 0 deny (DOC5-W04)", () => {
+    expect(documentLevelRank("view")).toBe(1);
+    expect(documentLevelRank("comment")).toBe(2);
+    expect(documentLevelRank("edit")).toBe(3);
+    expect(documentLevelRank("manage")).toBe(4);
+    for (const unknown of [undefined, null, "", "none", "owner", "admin", "break_glass", "COMMENT"]) {
+      expect(documentLevelRank(unknown)).toBe(0);
+    }
+  });
+
   for (const [name, rule, required] of rules) {
     it(`${name}: allowed exactly from its level upward`, () => {
       levels.forEach((level, i) => {
@@ -32,8 +50,16 @@ describe("document rules — mirror effectiveLevel (document_permissions.go)", (
       });
     });
 
-    it(`${name}: no level is not found, never a hint`, () => {
-      for (const doc of [null, {}, { my_level: null }, { my_level: "" }, { my_level: "owner" }]) {
+    it(`${name}: no level or unknown level is not found, never a hint (DOC5-W04)`, () => {
+      for (const doc of [
+        null,
+        {},
+        { my_level: null },
+        { my_level: "" },
+        { my_level: "owner" },
+        { my_level: "admin" },
+        { my_level: "super_edit" },
+      ]) {
         const d = rule(doc, ctx());
         expect(d.allowed).toBe(false);
         expect(d.reason).toBe("unknown");
@@ -50,11 +76,57 @@ describe("document rules — mirror effectiveLevel (document_permissions.go)", (
     });
   }
 
-  it("workspace role alone grants nothing: the server level decides (owned documents)", () => {
-    // An org owner on a work-product-owned document without delegation has
-    // my_level none on the server; the client must not upgrade it.
+  it("comment level allows viewing and commenting but denies editing and managing", () => {
+    const member = ctx();
+    expect(canViewDocument({ my_level: "comment" }, member).allowed).toBe(true);
+    expect(canCommentDocument({ my_level: "comment" }, member).allowed).toBe(true);
+    expect(canEditDocument({ my_level: "comment" }, member)).toMatchObject({
+      allowed: false,
+      reason: "insufficient_level",
+    });
+    expect(canManageDocument({ my_level: "comment" }, member)).toMatchObject({
+      allowed: false,
+      reason: "insufficient_level",
+    });
+  });
+
+  it("workspace role alone grants nothing: the server level decides (owned/restricted documents)", () => {
+    // An org owner on a work-product-owned or restricted document without read access has
+    // my_level none/empty on the server; the client must not upgrade it.
     const admin = ctx({ orgRole: "owner", wsRole: "admin" });
     expect(canViewDocument({ my_level: null }, admin).allowed).toBe(false);
+    expect(canViewDocument({ my_level: "" }, admin).allowed).toBe(false);
+    expect(canCommentDocument({ my_level: "view" }, admin).allowed).toBe(false);
     expect(canManageDocument({ my_level: "view" }, admin).allowed).toBe(false);
+  });
+});
+
+// Mirror of DOC-05 access.canAdminister() = Level >= manage OR AdminScope,
+// reached through withDocumentAdministerMutation (access addendum §2.1, §2.5).
+describe("canAdministerDocument — mirror canAdminister() (DOC-05)", () => {
+  it("manage administers; edit, comment and view without admin_scope do not", () => {
+    expect(canAdministerDocument({ my_level: "manage" }, ctx()).allowed).toBe(true);
+    for (const level of ["view", "comment", "edit"]) {
+      const d = canAdministerDocument({ my_level: level }, ctx());
+      expect(d).toMatchObject({ allowed: false, reason: "insufficient_level" });
+    }
+  });
+
+  it("admin_scope administers with no level (pure admin) and with break-glass view", () => {
+    expect(canAdministerDocument({ my_level: "", admin_scope: true }, ctx()).allowed).toBe(true);
+    expect(canAdministerDocument({ my_level: "view", admin_scope: true }, ctx()).allowed).toBe(true);
+    expect(canAdministerDocument({ admin_scope: true }, ctx()).allowed).toBe(true);
+  });
+
+  it("no level and no admin_scope is not found", () => {
+    for (const doc of [null, {}, { my_level: "" }, { my_level: "", admin_scope: false }]) {
+      expect(canAdministerDocument(doc, ctx()).reason).toBe("unknown");
+    }
+  });
+
+  it("deactivated and signed-out callers are refused before admin_scope", () => {
+    const doc = { my_level: "manage", admin_scope: true };
+    expect(canAdministerDocument(doc, ctx({ orgMemberStatus: "deactivated" })).reason).toBe("member_deactivated");
+    expect(canAdministerDocument(doc, ctx({ userId: null })).reason).toBe("not_authenticated");
   });
 });

@@ -373,12 +373,16 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/active": {query: "?call_id={callID}"},
 	"GET /api/v1/workspaces/{workspaceID}/chat/users/lookup":                          {query: "?email={peerEmail}"},
 	// The organization rides in the query; the installer profile is configured in the world, so the owner is served.
-	"GET /api/v1/office/desktop/download":                                        {query: "?organization_id={orgID}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/labels":                      {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends":             {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/sidebar-counts":              {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/threads":                     {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/projects/search":                       {query: "?q=Project"},
+	"GET /api/v1/office/desktop/download":                            {query: "?organization_id={orgID}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/labels":          {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends": {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/sidebar-counts":  {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/threads":         {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/projects/search":           {query: "?q=Project"},
+	// The access report (UNI-1643) over the tenant's folder: the mixed pass
+	// sends B's workspace with A's folder.
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":               {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":        {query: "?folder_id={folderID}&format=csv"},
 	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                 {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
@@ -437,8 +441,11 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/ai/uniwork/chat/completions":              {body: isoJSON(isoUniworkTurnBody)},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions": {body: isoJSON(isoUniworkTurnBody)},
 	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
-	"POST /api/v1/documents/{documentID}/uploads":                                  {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
-	"POST /api/v1/documents/{documentID}/versions/commit":                          {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
+	// DOC-05: a valid reason, so the cross-tenant refusal is the gate and never the 422.
+	"POST /api/v1/documents/{documentID}/break-glass":     {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
+	"POST /api/v1/documents/{documentID}/uploads":         {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
+	"POST /api/v1/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
 	// G5-07: the lookup sends the key isolation_world_test.go seeds and leaves not_committed, so the
 	// owner's control reads its own intent (200 not_committed) and the other tenant is refused on the
 	// document before any intent is read.

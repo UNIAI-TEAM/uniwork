@@ -257,6 +257,8 @@ var catalogue = []EventDef{
 	// delivery-time filtering goes through DocumentReaderResolver.
 	{Topic: "document.shared", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.share_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.break_glass_granted", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.break_glass_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_created", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// Pages (UNI-678): title, icon or visibility changed; ids only, no

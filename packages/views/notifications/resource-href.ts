@@ -34,8 +34,13 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       // The page reveals the comment (use-document-comment-deep-link); an
       // unknown or deleted comment is ignored there, so the id always rides.
       // A discussion post adds its kind: the tab to open when it is gone.
+      // A break-glass notification opens the owner access panel directly on the
+      // active emergency access section.
       const target = documentWorkspace(n, workspace, workspaces);
       const href = paths.workspace(target.organization_slug, target.slug).document(n.resource_id);
+      // A manager's request row lands on the share dialog's requests section (DOC-07).
+      if (n.kind === "document_access_requested") return `${href}?access=requests`;
+      if (n.kind === "document_break_glass") return `${href}?access=break_glass`;
       const commentId = n.params.comment_id;
       if (!commentId) return href;
       const query = new URLSearchParams({ comment: commentId });

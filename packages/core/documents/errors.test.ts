@@ -24,6 +24,15 @@ describe("classifyDocumentError", () => {
     expect(classifyDocumentError(err)).toEqual({ cls: "conflict", code: "folder_name_taken", fields: undefined });
   });
 
+  it("classifies workspace_seat_required as a permission from the code alone", () => {
+    // BE-12-302: a copy into a workspace the person holds no seat in answers
+    // 403 workspace_seat_required. The status here is one the fallback does not
+    // classify (422), so only the code entry can place it, pinning the mirror
+    // of errorClassByCode rather than the 403 status.
+    const err = new ApiError("bạn cần là thành viên của không gian làm việc này để tạo bản sao ở đó", "workspace_seat_required", 422);
+    expect(classifyDocumentError(err)).toEqual({ cls: "permission", code: "workspace_seat_required", fields: undefined });
+  });
+
   it("prefers the server's declared class over the code", () => {
     // The mirror never overrides a stamp: a code whose class the server
     // changed must follow the server, not this table.

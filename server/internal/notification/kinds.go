@@ -38,11 +38,20 @@ const (
 	KindDocumentDiscussionMentioned = "document_discussion_mentioned"
 	KindDocumentDiscussionReplied   = "document_discussion_replied"
 	KindDocumentCommentResolved     = "document_comment_resolved"
+	// A workspace admin opened emergency view access to a restricted
+	// document (DOC-05; UNI-1628). Sent to the document's ACL owner; the
+	// params carry ids only.
+	KindDocumentBreakGlass = "document_break_glass"
 	// Chat (H1): one row per room or thread while unread, so a burst of
 	// messages is one notification and one push.
 	KindChatMentioned     = "chat_mentioned"
 	KindChatDM            = "chat_dm"
 	KindChatThreadReplied = "chat_thread_replied"
+	// Document access requests (W-DOC07): registered so the inbox, titles and
+	// preference matrix know them; the producers land with S-DOC07.
+	KindDocumentAccessRequested = "document_access_requested"
+	KindDocumentAccessApproved  = "document_access_approved"
+	KindDocumentAccessDeclined  = "document_access_declined"
 )
 
 // Kinds is the list in display order.
@@ -52,7 +61,9 @@ var Kinds = []string{
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
+	KindDocumentBreakGlass,
 	KindChatMentioned, KindChatDM, KindChatThreadReplied,
+	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 }
 
 var kindSet = func() map[string]bool {

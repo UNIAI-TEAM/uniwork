@@ -1,8 +1,10 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@uniwork/core/api/http";
 import { useAuthStore } from "@uniwork/core/auth";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import {
   createFrameComment,
   deleteFrameComment,
@@ -25,8 +27,9 @@ import {
   type InitAck,
   type InitPayload,
 } from "@uniwork/core/office/docs-frame-protocol";
+import { shareDocument } from "@uniwork/core/api/endpoints/documents-sharing";
 import { useOptionalWS } from "@uniwork/core/realtime";
-import { commentsChangedDocument, frameCommentsLevel } from "./frame-comments-events";
+import { commentsChangedDocument, frameCanShareView, frameCommentsLevel } from "./frame-comments-events";
 
 // Frame comments (G8-08, contract-collab §7, §9, §10): the host half of the editor's
 // `comments.*` protocol, kept out of use-docs-frame-session.ts so that seam stays small. The
@@ -95,7 +98,14 @@ interface Held {
 function toFrameError(error: unknown): DocsProtocolError {
   if (error instanceof DocsProtocolError) return error;
   if (error instanceof ApiError) {
-    return commentsErrorFromHttp(error.status, { error: { code: error.code, message: error.message } });
+    const mapped = commentsErrorFromHttp(error.status, { error: { code: error.code, message: error.message } });
+    // The table maps every 403 (`forbidden`, `break_glass_required`, `document_restricted`) to `forbidden`
+    // without the server's code; keep it as `details.code` so the frame can tell a restricted document
+    // (panel goes to its no-access state) from a write it may not do.
+    if (error.status === 403 && error.code && mapped.details === undefined) {
+      return new DocsProtocolError({ code: mapped.code, message: mapped.message, status: 403, retryable: false, details: { code: error.code } });
+    }
+    return mapped;
   }
   return toProtocolError(error);
 }
@@ -110,12 +120,16 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
   const [attached, setAttached] = useState<Attached | null>(null);
   const [held, setHeld] = useState<Held | null>(null);
   const userId = useAuthStore((s) => s.user?.id ?? "");
-  const latest = useRef({ options, attached, userId });
-  latest.current = { options, attached, userId };
+  const queryClient = useQueryClient();
+  const latest = useRef({ options, attached, userId, queryClient });
+  latest.current = { options, attached, userId, queryClient };
   // One Idempotency-Key per Send, kept across the retries of that Send: the same payload that
   // has not succeeded yet reuses its key, so a create the server already stored is not stored twice.
   // Keyed by payload so two Sends in flight (two threads sent quickly) each keep their own.
   const pendingCreates = useRef<Map<string, string>>(new Map());
+  // Whether the last `init` advertised `commentsShareView`; the handler refuses without it (a frame
+  // that skips the capability check gets `forbidden`, not a share).
+  const shareViewGranted = useRef(false);
 
   const binding = useMemo<FrameCommentsBinding>(() => {
     const scope = (): string => {
@@ -164,6 +178,18 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
         call("comments.revisions", async (doc) => (await listFrameCommentRevisions(doc, id, signal)) as FrameRequests["comments.revisions"]["result"] | null),
       "comments.anchors": (payload, { signal }) =>
         call("comments.anchors", async (doc) => (await putFrameCommentAnchors(doc, payload, signal)) as FrameRequests["comments.anchors"]["result"] | null),
+      // G8-18: grants `view` and nothing else, to a user the frame names; the level is fixed here so a
+      // frame can never ask for more. Errors (403 / break_glass_required, 422, 409) take the shared table.
+      "comments.shareView": ({ user_id: userId }, { signal }) =>
+        call("comments.shareView", async (doc) => {
+          if (!shareViewGranted.current) throw new DocsProtocolError({ code: "forbidden", message: "comments.shareView was not granted", retryable: false });
+          const shared = await shareDocument(doc, { principal_type: "user", principal_id: userId, level: "view" }, signal);
+          if (!shared) return null;
+          // A share dialog open in this tab reads the shares query: refresh it for the document the frame edits.
+          const { options: current, queryClient: qc } = latest.current;
+          void qc.invalidateQueries({ queryKey: documentKeys.shares(current.wsId, doc) });
+          return { ok: true as const };
+        }),
       "mentions.search": (payload, { signal }) =>
         call("mentions.search", async (doc) => (await searchFrameMentionCandidates(doc, payload, signal)) as FrameRequests["mentions.search"]["result"] | null),
     };
@@ -171,6 +197,8 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
       augmentInit(init, { canEdit, readonly }) {
         const level: CommentsLevel = frameCommentsLevel({ myLevel: latest.current.options.myLevel, readonly, canEdit });
         const capabilities: Capabilities = { ...init.capabilities, comments: true };
+        shareViewGranted.current = frameCanShareView(level, readonly);
+        if (shareViewGranted.current) capabilities.commentsShareView = true;
         // `id` is for "my comments" in the frame, never an authorization; the display name is the session's.
         const id = latest.current.userId;
         return {

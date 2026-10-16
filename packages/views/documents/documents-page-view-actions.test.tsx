@@ -551,3 +551,13 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     expect(viLocale.documents.actions.restore).toBe("Khôi phục");
   });
 });
+
+describe("workspace access report entry (UNI-1643)", () => {
+  it("the header overflow opens the workspace access report for any member", async () => {
+    route({});
+    const adapter = renderView();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.actions.menu_label") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.accessReport.menu_workspace") }));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/documents/access-report");
+  });
+});

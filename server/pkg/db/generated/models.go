@@ -614,6 +614,21 @@ type DocumentAsset struct {
 	OrphanedAt     pgtype.Timestamptz `json:"orphaned_at"`
 }
 
+type DocumentBreakGlassGrant struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	ActorID        string             `json:"actor_id"`
+	ActorKind      string             `json:"actor_kind"`
+	Level          string             `json:"level"`
+	Reason         string             `json:"reason"`
+	GrantedAt      pgtype.Timestamptz `json:"granted_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
+}
+
 type DocumentChangeSnapshot struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

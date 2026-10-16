@@ -132,6 +132,9 @@ func New(d Deps, h Routes) http.Handler {
 			// G6-05 reads both off the response: the conversation to continue
 			// and, from G6-03b on, the run id.
 			ai.UniworkConversationHeader, ai.UniworkRunHeader,
+			// The access report export (UNI-1643): the file name and the
+			// counts the web shows after the download.
+			"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At",
 		},
 		AllowCredentials: true,
 	}))

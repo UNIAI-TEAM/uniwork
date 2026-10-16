@@ -8,6 +8,7 @@ import { DocumentsPageView } from "./documents-page-view";
 import { DocumentsGreeting } from "./documents-home-create";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
+import { libraryLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
 // Visual r1 fixes for the Documents home (UNI-1305): the phone row keeps its
@@ -76,7 +77,7 @@ describe("phone row layout (finding 1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(file("f1", "Báo giá tháng 10.docx"))} handlers={handlers} archived={false} />
+          <LibraryRowView row={documentRow(file("f1", "Báo giá tháng 10.docx"))} handlers={handlers} archived={false} ladder={libraryLadder(false)} />
         </tbody>
       </table>,
     );
@@ -86,19 +87,25 @@ describe("phone row layout (finding 1)", () => {
     const button = name.closest("button");
     expect(button).toHaveClass("w-full", "min-w-0");
     expect(button?.querySelector("span.min-w-0")).toHaveClass("flex-1");
-    // The icon-only app button does not take width from the name on a phone.
+    // The icon-only app button does not take width from the name until the actions column widens (container, not viewport).
     const quick = document.querySelector("[data-office-desktop-action]");
-    expect(quick?.parentElement).toHaveClass("max-md:hidden");
+    expect(quick?.parentElement).toHaveClass("hidden", "@min-[45rem]/library:block");
   });
 
-  it("spans the group header over the two phone columns, then the rest from md", () => {
+  it("spans the group header over the two phone columns, then one spanner per ladder rung", () => {
     renderList();
     const group = document.querySelector("[data-library-group]");
     expect(group).toHaveAttribute("colspan", "2");
-    expect(group?.nextElementSibling).toHaveAttribute("colspan", "4");
-    expect(group?.nextElementSibling).toHaveClass("hidden", "md:table-cell");
+    // Source (1) joins first, then Editor + Updated + Size (3), then My access + Visibility (2): DOM order, not rung order.
+    const spanners = Array.from(group!.parentElement!.children).slice(1);
+    expect(spanners.map((el) => el.getAttribute("colspan"))).toEqual(["1", "3", "2"]);
+    expect(spanners.map((el) => Array.from(el.classList).find((c) => c.startsWith("@min-"))?.split(":")[0])).toEqual([
+      "@min-[52rem]/library",
+      "@min-[45rem]/library",
+      "@min-[68rem]/library",
+    ]);
     // One header and the rows share one column template.
-    expect(document.querySelectorAll("colgroup col")).toHaveLength(6);
+    expect(document.querySelectorAll("colgroup col")).toHaveLength(8);
   });
 });
 

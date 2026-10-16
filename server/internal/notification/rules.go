@@ -102,14 +102,17 @@ var rules = map[string]rule{
 	// table (contract-collab section 8.3, G8-05).
 	"document.comment_updated":  ruleDocumentCommentUpdated,
 	"document.comment_resolved": ruleDocumentCommentResolved,
-	"participant.invited":       ruleParticipantInvited,
-	"member.joined":             ruleMemberJoined,
-	"member.role_changed":       ruleRoleChanged,
-	"audit.exported":            ruleAuditExported,
-	"chat.follow_up.created":    ruleChatFollowUpCreated,
-	"chat.reminder.due":         ruleChatReminderDue,
-	"email_hub.new_mail":        ruleEmailHubNewMail,
-	"meeting.ended":             ruleMeetingEnded,
+	// DOC-05 (UNI-1628): an admin opened emergency view access to a
+	// restricted document; the owner must hear about it.
+	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
+	"participant.invited":          ruleParticipantInvited,
+	"member.joined":                ruleMemberJoined,
+	"member.role_changed":          ruleRoleChanged,
+	"audit.exported":               ruleAuditExported,
+	"chat.follow_up.created":       ruleChatFollowUpCreated,
+	"chat.reminder.due":            ruleChatReminderDue,
+	"email_hub.new_mail":           ruleEmailHubNewMail,
+	"meeting.ended":                ruleMeetingEnded,
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
@@ -576,6 +579,50 @@ func ruleDocumentCommentResolved(ctx context.Context, e env, ev outbox.Row, p ma
 			"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
 		},
 	}}, nil
+}
+
+// ruleDocumentBreakGlassGranted tells the document's ACL owner that an admin
+// opened emergency view access to it; with no ACL owner who is still in the
+// workspace, the workspace owners (never the admin who opened it) hear
+// instead. The params carry ids plus the two names the title renders, never
+// the reason.
+func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if p["document_id"] == "" || p["grant_id"] == "" {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// The id came from the event payload: only trust a document that lives
+	// in the event's own tenant pair.
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	r := newRecipients(ctx, e, ev, doc.WorkspaceID)
+	if doc.AclOwnerID.Valid && !doc.OwnerKind.Valid {
+		r.add(doc.AclOwnerID.String)
+	}
+	if len(r.order) == 0 {
+		members, err := e.q.ListWorkspaceMembers(ctx, doc.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range members {
+			if m.Role == "owner" {
+				r.add(m.UserID)
+			}
+		}
+	}
+	params := map[string]string{
+		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+		"document_id": doc.ID, "grant_id": p["grant_id"],
+	}
+	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params)
 }
 
 func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {

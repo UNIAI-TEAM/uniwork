@@ -33,7 +33,11 @@ import (
 //	POST   /api/v1/documents/{documentID}/restore                 (G1-05b)
 //	GET    /api/v1/documents/{documentID}/shares                  (G1-05b)
 //	POST   /api/v1/documents/{documentID}/shares                  (G1-05b)
+//	POST   /api/v1/documents/{documentID}/shares/batch            (UNI-1641)
 //	DELETE /api/v1/documents/{documentID}/shares/{shareID}        (G1-05b)
+//	POST   /api/v1/documents/{documentID}/break-glass             (DOC-05)
+//	DELETE /api/v1/documents/{documentID}/break-glass/{grantID}   (DOC-05)
+//	GET    /api/v1/documents/{documentID}/admin-summary           (DOC-05)
 //	POST   /api/v1/documents/{documentID}/links                   (G1-05b)
 //	DELETE /api/v1/documents/{documentID}/links/{linkID}          (G1-05b)
 //	GET    /api/v1/documents/{documentID}/access-logs             (G1-05b)
@@ -129,7 +133,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/uploads", h.UploadDocumentFile, apiOp{
 		summary: "Stage bytes for a file version",
 		description: "Multipart (một phần file, ≤ 50 MiB): giai đoạn bytes của candidate version. Trả upload_id (= file_id), checksum_sha256 server đo, size_bytes, claim_expires_at (~24h). " +
-			"Commit bằng POST /documents/{id}/versions/commit với {upload_id, base_revision}. Idempotency-Key dẫn xuất key FileService: retry tìm lại cùng upload, không lưu bytes hai lần.",
+			"Commit bằng POST /documents/{id}/versions/commit với {upload_id, base_revision}; tài liệu đã lưu trữ -> 403 document_archived chỉ cho người có quyền sửa trở lên (dưới quyền sửa hoặc không xem được -> 404 not_found). Thứ tự từ chối: không xem được -> 404; đã lưu trữ -> 403 document_archived / 404; folder -> 422 folder_not_supported; không phải file -> 400 invalid_request; chỉ có quyền xem -> 403 forbidden. Idempotency-Key dẫn xuất key FileService: retry tìm lại cùng upload, không lưu bytes hai lần.",
 		tags:   []string{"documents"},
 		sdi:    sdi.UploadDocumentFileSDI{},
 		sdo:    sdo.DocumentUploadSDO{},
@@ -139,7 +143,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/versions/commit", h.CommitDocumentVersion, apiOp{
 		summary: "Commit a staged file version",
 		description: "Hình thức save duy nhất của file document (C-01 §14): {upload_id, base_revision} + Idempotency-Key. Server kiểm quyền, claim upload, quota, rồi append version mới (restored_from/engine được service gán). " +
-			"Office engine (G2-02) dùng cùng endpoint với file_id từ RegisterProviderOutput. Replay cùng key trả kết quả đã lưu; base_revision cũ -> 409 document_version_conflict.",
+			"Office engine (G2-02) dùng cùng endpoint với file_id từ RegisterProviderOutput. Replay cùng key trả kết quả đã lưu; tài liệu đã lưu trữ -> 403 document_archived chỉ cho người có quyền sửa trở lên (dưới quyền sửa hoặc không xem được -> 404 not_found); base_revision cũ -> 409 document_version_conflict.",
 		tags: []string{"documents"},
 		sdi:  sdi.CommitDocumentVersionSDI{},
 		sdo:  sdo.DocumentVersionResultSDO{},
@@ -179,7 +183,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/versions/{versionNo}/restore", h.RestoreDocumentVersion, apiOp{
 		summary: "Restore a document version",
-		description: "Append một version restore trỏ tới version cũ và cập nhật working copy. Body tùy chọn {base_revision}: page restore bỏ trống (ghi đè revision hiện tại); file restore bắt buộc base_revision client thấy, cũ -> 409 document_version_conflict. " +
+		description: "Append một version restore trỏ tới version cũ và cập nhật working copy. Body tùy chọn {base_revision}: page restore bỏ trống (ghi đè revision hiện tại); file restore bắt buộc base_revision client thấy, cũ -> 409 document_version_conflict, tài liệu file đã lưu trữ -> 403 document_archived cho người có quyền sửa trở lên (dưới quyền sửa -> 404 not_found). " +
 			"Idempotency-Key replay trả kết quả đã lưu.",
 		tags: []string{"documents"},
 		sdi:  sdi.RestoreDocumentVersionSDI{},
@@ -301,6 +305,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		summary: "Copy a document",
 		description: "Bản sao standalone: consent phải là \"copy\" (thiếu -> 409 copy_consent_required). Cần quyền sửa nguồn. Bản sao giữ acl_owner_id/visibility/share của nguồn " +
 			"và ghi provenance (source_document_id/version/revision/checksum/format); bytes dùng lại đúng file_id nên không tính dung lượng lần hai. Tài liệu thuộc sở hữu C-14 -> 409 owner_requires_copy. " +
+			"Bản sao là một lần tạo trong workspace của nguồn nên cần chỗ thành viên ở đó: người chỉ sửa được nguồn qua chia sẻ/liên kết -> 403 workspace_seat_required (kể cả khi chấp nhận job); không sửa được thư mục cha -> 403 forbidden; tổ chức tạm ngưng/thành viên bị vô hiệu hóa giữ organization_suspended/member_deactivated. " +
 			"Có job_id: chấp nhận job convert đã completed (chỉ người tạo job) - bản sao là output OOXML, provenance ghi checksum nguồn + engine; job huỷ/đã chấp nhận -> 409 conversion_not_accepted; nguồn và lịch sử không đổi.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CopyDocumentSDI{},
@@ -463,6 +468,22 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report", h.DocumentAccessReport, apiOp{
+		summary:     "Read the document access report",
+		description: "Báo cáo quyền truy cập (UNI-1643) trên cả workspace hoặc một thư mục (folder_id, gồm thư mục con). Mỗi dòng là một đường cấp quyền: chủ sở hữu ACL, thành viên workspace, chia sẻ sống; kèm effective_level, người cấp, ngày cấp, số liên kết công khai sống. Chỉ liệt kê tài liệu người gọi quản lý; tài liệu đọc được nhưng không quản lý đếm vào summary.skipped. Không phải thành viên workspace hoặc agent -> 403; folder_id không dùng được -> 404. Chỉ tên, không email. Cursor keyset theo id.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportSDI{},
+		sdo:         sdo.DocumentAccessReportSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report/export", h.ExportDocumentAccessReport, apiOp{
+		summary:     "Export the document access report",
+		description: "Cùng báo cáo quyền truy cập, toàn bộ trong một snapshot, thành tệp CSV (UTF-8 BOM) hoặc XLSX; tệp ghi bộ lọc đang áp dụng và thời điểm tạo. Quá 10.000 dòng -> 422 access_report_too_large trước khi ghi byte nào. Ghi một dòng audit documents.access_report_exported (chỉ id, bộ lọc, số đếm).",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportExportSDI{},
+		produces:    "text/csv; charset=utf-8",
+		auth:        true,
+	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
 		summary:     "Read the document tree",
 		description: "Cây sidebar tối đa 20 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh, folders_only=1 chỉ trả thư mục. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được (hoặc không phải thư mục khi folders_only) -> 404.",
@@ -504,25 +525,59 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Get("/documents/{documentID}/shares", h.ListDocumentShares, apiOp{
 		summary:     "List document access",
-		description: "Người gọi luôn thấy my_level/via của mình; chỉ manage thấy acl_owner, danh sách grant sống (kèm effective_level) và liên kết công khai sống. Grant đã thu hồi không xuất hiện.",
+		description: "Người gọi luôn thấy my_level/via của mình (rỗng khi admin_scope và chưa có quyền đọc); chỉ người quản trị (manage hoặc admin_scope) thấy acl_owner, danh sách grant sống (kèm effective_level), liên kết công khai sống và break_glass[] (truy cập khẩn cấp còn hiệu lực, mới nhất trước). Grant đã thu hồi không xuất hiện.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentAccessSDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/shares", h.CreateDocumentShare, apiOp{
 		summary:     "Share a document",
-		description: "Cấp view/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409.",
+		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ShareDocumentSDI{},
 		sdo:         sdo.DocumentShareSDO{},
 		status:      http.StatusCreated,
 		auth:        true,
 	})
+	d.Post("/documents/{documentID}/shares/batch", h.CreateDocumentShareBatch, apiOp{
+		summary: "Share a document with a batch of users",
+		description: "Cấp view/edit/manage cho 1–50 người dùng cùng tổ chức trong một transaction (all-or-nothing); trùng lặp được gộp và giữ thứ tự xuất hiện đầu. " +
+			"Danh sách rỗng, có phần tử rỗng hoặc level sai -> 400 invalid_request; không đọc được -> 404; dưới manage -> 403; tài liệu thuộc Work Product -> 409 document_owned_by_work_product; " +
+			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids).",
+		tags:   []string{"documents"},
+		sdi:    sdi.ShareDocumentBatchSDI{},
+		sdo:    sdo.DocumentShareBatchSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
 	d.Delete("/documents/{documentID}/shares/{shareID}", h.RevokeDocumentShare, apiOp{
 		summary:     "Revoke a document share",
 		description: "Thu hồi một grant đang sống (ghi revoked_at, giữ lịch sử). Chỉ manage; share không thuộc tài liệu -> 404.",
 		tags:        []string{"documents"},
 		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/break-glass", h.CreateDocumentBreakGlass, apiOp{
+		summary:     "Open emergency access to a restricted document",
+		description: "Chủ/quản trị workspace (không phải ACL owner) mở quyền xem khẩn cấp 24 giờ trên tài liệu restricted: chỉ xem, cần lý do 10–500 ký tự sau khi cắt khoảng trắng (sai -> 422 break_glass_reason_invalid kèm fields min/max/length), ghi nhật ký và báo cho chủ tài liệu. 201 khi tạo grant mới; 200 cùng nội dung khi người gọi đã có grant còn hiệu lực (không ghi thêm nhật ký/thông báo). Người đọc không phải quản trị -> 403 forbidden; tài liệu thuộc Work Product -> 409.",
+		tags:        []string{"documents"},
+		sdi:         sdi.BreakGlassSDI{},
+		sdo:         sdo.DocumentBreakGlassSDO{},
+		status:      http.StatusCreated,
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/break-glass/{grantID}", h.RevokeDocumentBreakGlass, apiOp{
+		summary:     "End emergency access",
+		description: "Người giữ grant (Kết thúc truy cập) hoặc người quản trị tài liệu (ACL owner, manage, quản trị workspace) thu hồi grant ngay. Grant đã thu hồi hoặc hết hạn -> 200 (idempotent, không ghi thêm); grant không thuộc tài liệu -> 404.",
+		tags:        []string{"documents"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Get("/documents/{documentID}/admin-summary", h.GetDocumentAdminSummary, apiOp{
+		summary:     "Read the admin summary of a document",
+		description: "Metadata của tài liệu, ACL owner, quyền của người gọi và grant khẩn cấp còn hiệu lực của chính họ; không bao giờ có nội dung. Chỉ người quản trị tài liệu (ACL owner, manage, quản trị workspace); người đọc thấp hơn -> 403 forbidden.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentAdminSummarySDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/links", h.CreateDocumentLink, apiOp{

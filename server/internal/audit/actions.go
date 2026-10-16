@@ -147,11 +147,18 @@ const (
 
 	// Document access (UNI-676): shares and public links on one document,
 	// and the organization's public-link switch.
-	ActionDocumentShared          = "document.shared"
-	ActionDocumentShareRevoked    = "document.share_revoked"
-	ActionDocumentLinkCreated     = "document.link_created"
-	ActionDocumentLinkRevoked     = "document.link_revoked"
-	ActionDocumentSettingsChanged = "document.settings_changed"
+	ActionDocumentShared       = "document.shared"
+	ActionDocumentShareRevoked = "document.share_revoked"
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	ActionDocumentBreakGlassGranted = "document.break_glass_granted"
+	ActionDocumentBreakGlassRevoked = "document.break_glass_revoked"
+	ActionDocumentLinkCreated       = "document.link_created"
+	ActionDocumentLinkRevoked       = "document.link_revoked"
+	ActionDocumentSettingsChanged   = "document.settings_changed"
+	// ActionDocumentsAccessReportExported is one access report export
+	// (UNI-1643): ids, the filter and counts, never a name.
+	ActionDocumentsAccessReportExported = "documents.access_report_exported"
 
 	// Document comments + favorites (UNI-681): the document half of the
 	// shared comment core. The reaction actions stay document-scoped so

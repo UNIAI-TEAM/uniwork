@@ -26,6 +26,7 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   quota_exceeded: "quota",
   forbidden: "permission",
   member_deactivated: "permission",
+  workspace_seat_required: "permission",
   organization_suspended: "permission",
   not_meeting_host: "permission",
   ai_context_forbidden: "permission",
@@ -100,4 +101,17 @@ export function classifyDocumentError(err: unknown): ClassifiedDocumentError {
  *  a silently newer base (plan G1-05 save-state contract). */
 export function isConflictClass(cls: DocumentErrorClass | "unknown"): boolean {
   return cls === "conflict";
+}
+
+/**
+ * The people a batch share refused (UNI-1641): a 422
+ * `principal_not_in_organization` carries the offending ids, in request
+ * order, in `fields.principal_ids`. Null for any other failure, so the caller
+ * falls back to the generic message; non-string entries are dropped.
+ */
+export function sharePrincipalsNotInOrganization(err: unknown): string[] | null {
+  if (errorCode(err) !== "principal_not_in_organization") return null;
+  const ids = errorFields(err)?.principal_ids;
+  if (!Array.isArray(ids)) return null;
+  return ids.filter((id): id is string => typeof id === "string" && id !== "");
 }

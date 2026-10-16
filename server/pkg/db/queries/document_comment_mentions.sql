@@ -42,16 +42,18 @@ INSERT INTO document_comment_mentions (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- name: ReactivateDocumentCommentMention :exec
--- A dropped mention that returns in the body: active again, notified_at kept,
--- so the same row never notifies twice (contract-collab section 8.1).
+-- A dropped mention that returns in the body: the service re-checks read
+-- access like for a new mention, so the row comes back active for a reader and
+-- no_access for a non-reader (G8-18). notified_at is kept either way, so the
+-- same row never notifies twice (contract-collab section 8.1).
 UPDATE document_comment_mentions
-SET state = 'active',
+SET state = sqlc.arg(state)::text,
     updated_at = now()
-WHERE comment_id = $1
-  AND user_id = $2
-  AND document_id = $3
-  AND organization_id = $4
-  AND workspace_id = $5
+WHERE comment_id = sqlc.arg(comment_id)
+  AND user_id = sqlc.arg(user_id)
+  AND document_id = sqlc.arg(document_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
   AND state = 'removed';
 
 -- name: RemoveDocumentCommentMentions :exec
@@ -88,3 +90,28 @@ SET notified_at = now(),
 WHERE id = $1
   AND organization_id = $2
   AND notified_at IS NULL;
+
+-- name: ListNoAccessDocumentCommentMentions :many
+-- The people one comment named who could not read the document when it was
+-- saved (G8-18, UNI-1413): the no_access rows the create/edit transaction
+-- wrote, answered to the author as mentions_without_access. display_name is
+-- read only for a person who belongs to the organization (a stray id outside
+-- it carries no name), and active_member tells the service whether a share
+-- could ever be offered (a deactivated member keeps their name but cannot be
+-- shared with). The row itself never changes: a later grant does not turn it
+-- active, so it never notifies retroactively.
+SELECT
+  m.user_id,
+  COALESCE(u.display_name, '')::text AS display_name,
+  (om.user_id IS NOT NULL AND om.deactivated_at IS NULL)::boolean AS active_member
+FROM document_comment_mentions m
+LEFT JOIN organization_members om
+  ON om.user_id = m.user_id
+ AND om.organization_id = m.organization_id
+LEFT JOIN users u ON u.id = om.user_id
+WHERE m.comment_id = $1
+  AND m.document_id = $2
+  AND m.organization_id = $3
+  AND m.workspace_id = $4
+  AND m.state = 'no_access'
+ORDER BY m.user_id;

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { UploadFileFn } from "@uniwork/core/hooks/use-file-upload";
 import { TASK_COMMENT_ATTACHMENT_PURPOSE } from "@uniwork/core/constants/upload";
 import type { Attachment } from "@uniwork/core/types";
-import { useEditorUpload } from "../../../editor";
+import { EditorLinkProvider, useEditorUpload } from "../../../editor";
 import { CommentEditor } from "../../../comments/comment-editor";
 
 /**
@@ -24,20 +24,22 @@ export function TaskCommentEditor({ taskId, body, attachments, uploadFile, onSav
   const editorUpload = useEditorUpload(uploadFile);
 
   return (
-    <CommentEditor
-      testId="task-comment-editor"
-      body={body}
-      placeholder={t("tasks.detail.comment_edit_placeholder")}
-      onSave={onSave}
-      onCancel={onCancel}
-      attachments={attachments}
-      upload={{
-        onFile: (file) =>
-          editorUpload.upload(file, { taskId, purpose: TASK_COMMENT_ATTACHMENT_PURPOSE }),
-        uploading: editorUpload.uploading,
-      }}
-      disableMentions
-      currentTaskId={taskId}
-    />
+    <EditorLinkProvider value={{ kind: "task", id: taskId }}>
+      <CommentEditor
+        testId="task-comment-editor"
+        body={body}
+        placeholder={t("tasks.detail.comment_edit_placeholder")}
+        onSave={onSave}
+        onCancel={onCancel}
+        attachments={attachments}
+        upload={{
+          onFile: (file) =>
+            editorUpload.upload(file, { taskId, purpose: TASK_COMMENT_ATTACHMENT_PURPOSE }),
+          uploading: editorUpload.uploading,
+        }}
+        disableMentions
+        currentTaskId={taskId}
+      />
+    </EditorLinkProvider>
   );
 }

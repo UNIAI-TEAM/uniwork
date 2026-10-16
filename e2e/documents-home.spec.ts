@@ -71,14 +71,14 @@ test("create card, folder, move and the other-modules section on the owner's hom
   // module's own text, so the check is the frame element, not what it renders.
   await expect(page.locator('iframe[src*="/office-frame/"]').first()).toBeAttached({ timeout: 60_000 });
 
-  // 2. A folder: named in the folder-name dialog (the default name kept), then opened,
+  // 2. A folder: named in the FD-07/08 name dialog (as documents-folders.spec.ts does), opened,
   // listed in the sidebar tree and named in the breadcrumb.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await sidebar(page).getByRole("button", { name: "Tạo thư mục" }).click();
   const nameDialog = page.getByRole("dialog", { name: "Thư mục mới ở Tài liệu (gốc)" });
-  await expect(nameDialog.getByLabel("Tên thư mục")).toHaveValue(FOLDER_TITLE);
-  await nameDialog.getByRole("button", { name: "Tạo", exact: true }).click();
+  await nameDialog.getByLabel("Tên thư mục").fill(FOLDER_TITLE);
+  await nameDialog.getByRole("button", { name: "Tạo" }).click();
   await expect(nameDialog).toBeHidden({ timeout: 30_000 });
   await expect(sidebar(page).getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) })).toBeVisible({ timeout: 30_000 });
   const crumbs = page.getByRole("navigation", { name: "Đường dẫn thư mục" });
@@ -86,17 +86,16 @@ test("create card, folder, move and the other-modules section on the owner's hom
   await expect(crumbs.getByText(FOLDER_TITLE, { exact: true })).toHaveAttribute("aria-current", "page");
   await crumbs.getByRole("button", { name: "Tài liệu" }).click();
 
-  // 3. Move the docx into the folder from its row menu (tree picker), then find it inside.
+  // 3. Move the docx into the folder from its row menu, then find it inside.
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
-  await page.getByRole("menuitem", { name: "Di chuyển" }).click();
-  const dialog = page.getByRole("dialog");
-  const folderOption = dialog
-    .getByRole("tree", { name: "Chọn thư mục đích" })
-    .getByRole("treeitem", { name: FOLDER_TITLE, exact: true });
-  await folderOption.click();
-  await expect(folderOption).toHaveAttribute("aria-selected", "true");
-  await dialog.getByRole("button", { name: "Di chuyển", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  // FD-09: the Move-to picker is a tree (as documents-folders.spec.ts drives it); the pick is confirmed with "Di chuyển".
+  const moveDialog = page.getByRole("dialog", { name: "Di chuyển tới" });
+  await expect(moveDialog).toBeVisible();
+  await moveDialog.getByRole("treeitem", { name: FOLDER_TITLE, exact: true }).click();
+  await moveDialog.getByRole("button", { name: "Di chuyển", exact: true }).click();
+  await expect(moveDialog).toBeHidden();
   await expect(page.getByText(`Đã chuyển tới ${FOLDER_TITLE}`)).toBeVisible({ timeout: 30_000 });
   await sidebar(page).getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) }).click();
   await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(FOLDER_TITLE, { exact: true })).toBeVisible();

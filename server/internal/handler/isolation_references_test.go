@@ -192,6 +192,8 @@ var isoReferences = []isoReference{
 		"title": isoUnique("ref folder"), "kind": "folder", "parent_id": isoRef("folder")}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "user principal", body: map[string]any{
 		"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentSDI.principal_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares/batch", what: "user principals", body: map[string]any{
+		"principal_ids": []any{isoRef("peer")}, "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentBatchSDI.principal_ids"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "workspace principal", body: map[string]any{
 		"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "organization principal", body: map[string]any{

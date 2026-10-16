@@ -4,9 +4,12 @@ import {
   Bell,
   Bookmark,
   CircleCheck,
+  CircleX,
   FileDown,
+  KeyRound,
   MessageSquare,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   UserPlus,
@@ -36,9 +39,13 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_discussion_mentioned: AtSign,
   document_discussion_replied: MessageSquare,
   document_comment_resolved: CircleCheck,
+  document_break_glass: ShieldAlert,
   chat_mentioned: AtSign,
   chat_dm: MODULE_ICONS.chat,
   chat_thread_replied: MessageSquare,
+  document_access_requested: KeyRound,
+  document_access_approved: CircleCheck,
+  document_access_declined: CircleX,
 };
 
 /** One glyph per kind; an unknown kind from a newer server gets the bell. */

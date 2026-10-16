@@ -1064,6 +1064,31 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
+			// ShareDocumentBatch (UNI-1641) writes its own row per user: the
+			// organization share above plus this one make two.
+			f.addMember(t)
+			if _, err := svc.ShareDocumentBatch(f.ctx, Human(f.owner.ID), docID, []string{f.member.ID}, DocumentLevelView); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionDocumentShared, docID,
+			).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 2 {
+				t.Fatalf("document.shared rows after ShareDocument + ShareDocumentBatch = %d, want 2", n)
+			}
+		},
+		audit.ActionDocumentsAccessReportExported: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ExportDocumentAccessReport(f.ctx, Human(f.owner.ID), d.WorkspaceID, DocumentAccessReportQuery{}, AccessReportFormatCSV, io.Discard); err != nil {
+				t.Fatal(err)
+			}
 		},
 		audit.ActionDocumentShareRevoked: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
@@ -1074,6 +1099,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := svc.RevokeDocumentShare(f.ctx, Human(f.owner.ID), docID, sh.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentBreakGlassGranted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.breakGlassDocument(t)
+			if _, _, err := svc.GrantDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, "kiểm tra theo yêu cầu kiểm toán"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentBreakGlassRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.breakGlassDocument(t)
+			grant, _, err := svc.GrantDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, "kiểm tra theo yêu cầu kiểm toán")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, grant.Grant.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1570,6 +1611,8 @@ func auditActions() []string {
 		audit.ActionOfficeOfflinePolicyBumped,
 		audit.ActionDocumentShared,
 		audit.ActionDocumentShareRevoked,
+		audit.ActionDocumentBreakGlassGranted,
+		audit.ActionDocumentBreakGlassRevoked,
 		audit.ActionDocumentLinkCreated,
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,
@@ -1854,6 +1897,20 @@ func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
 	return svc, id
 }
 
+// breakGlassDocument is document() made restricted with another member as its
+// ACL owner, so the organization owner (an implicit workspace admin) holds
+// AdminScope on it and may open break-glass access (DOC-05).
+func (f *auditFixture) breakGlassDocument(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	svc, id := f.document(t)
+	f.addMember(t)
+	if _, err := f.pool.Exec(f.ctx,
+		"UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1", id, f.member.ID); err != nil {
+		t.Fatalf("make audit document restricted: %v", err)
+	}
+	return svc, id
+}
+
 // fileDocument adapts the shared ACL fixture for commands whose contract is
 // restricted to file documents (the Office launch bridge never mints a ticket
 // for a page). It keeps the document ACL setup identical to document(), while
@@ -1908,9 +1965,10 @@ func seedAnchorVersion(t *testing.T, f *auditFixture, documentID string, ordinal
 	return versionID
 }
 
-// Two commands write document.created without owning the action: CreateFolder
-// (a folder is a document of kind folder) and SaveSourceFile (a file copied out
-// of chat, a task, a meeting or a mailbox). TestEveryAuditedCommandWritesItsRow
+// Three commands write document.created without owning the action: CreateFolder
+// (a folder is a document of kind folder), SaveSourceFile (a file copied out
+// of chat, a task, a meeting or a mailbox) and CopyDocument (a standalone copy
+// of a file document). TestEveryAuditedCommandWritesItsRow
 // is keyed by action, so a dropped audit write on either would hide behind the
 // other document.created writers. These cases are keyed by command: each runs
 // it and demands an audit row and an outbox row for the document it created.
@@ -1934,6 +1992,17 @@ func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
 			store.objects["workspaces/"+env.tn.wsA+"/attachments/"+attID+"/audit.pdf"] = pdfBody("audit-save")
 			res, err := svc.Save(context.Background(), human(env.tn.member), env.tn.wsA, "task:"+attID,
 				SaveSourceFileInput{IdempotencyKey: "audit-save"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, res.Document.ID
+		},
+		"CopyDocument": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			member := human(env.tn.member)
+			src := env.createFile(t, member, "audit-copy.md", []byte("# Audit copy\n"))
+			res, err := env.svc.CopyDocument(context.Background(), member, src.Document.ID,
+				CopyDocumentInput{Consent: documentCopyConsent, IdempotencyKey: "audit-copy"})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -182,6 +182,14 @@ func documentResourceURL(ctx context.Context, q *db.Queries, origin string, n db
 			link += "&kind=discussion"
 		}
 	}
+	// The owner lands on the access panel, where the live grant can be revoked.
+	if n.Kind == KindDocumentBreakGlass {
+		sep := "?"
+		if strings.Contains(link, "?") {
+			sep = "&"
+		}
+		link += sep + "access=break_glass"
+	}
 	return link, nil
 }
 
