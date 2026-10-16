@@ -1,0 +1,23 @@
+$ npx eslint $(git diff --name-only --diff-filter=AM 5a72c1313 HEAD | grep -E '\.(ts|tsx)$' | tr '\n' ' '); rc=$?; echo; echo "ESLINT_EXIT=$rc"
+
+/home/ubuntu/work/uniwork-office/apps/docs/src/renderer/App.tsx
+  5202:6  warning  React Hook useEffect has missing dependencies: 'colMode', 'hasVertical', and 'watermarkDirty'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/pdf/src/renderer/App.tsx
+  2341:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+  2375:6  warning  React Hook useEffect has a missing dependency: 'resolveDocFont'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  3716:6  warning  React Hook useEffect has a missing dependency: 't'. Either include it or remove the dependency array               react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/App.tsx
+  3543:77  warning  The ref value 'visualInstallTimerRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'visualInstallTimerRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+  3544:43  warning  The ref value 'visualDisposablesRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'visualDisposablesRef.current' to a variable inside the effect, and use that variable in the cleanup function    react-hooks/exhaustive-deps
+  3555:6   warning  React Hook useEffect has missing dependencies: 'handleInspectWorkbook', 'installPageBreakLayers', 'queueChartDataSync', 'recomputeSheetContent', 'visualContext', and 'visualSyncContext'. Either include them or remove the dependency array                                              react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/slides/src/renderer/App.tsx
+  1001:5  warning  React Hook useCallback has an unnecessary dependency: 'fitZoom'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 8 problems (0 errors, 8 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+
+
+ESLINT_EXIT=0

@@ -1,0 +1,29 @@
+$ NODE_ENV=test AI_PROVIDER=fake npm run test -w @genoffice/shell; rc=$?; echo; echo "SHELL_SUITE_EXIT=$rc"
+
+> @genoffice/shell@1.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+(node:10074) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10143) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Socket]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10143) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Socket]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:10813) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11568) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11787) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12026) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  284 passed | 3 skipped (287)
+      Tests  5195 passed | 23 skipped (5218)
+   Start at  23:23:28
+   Duration  62.53s (transform 18.40s, setup 0ms, import 50.92s, tests 88.04s, environment 19.82s)
+
+
+SHELL_SUITE_EXIT=0
