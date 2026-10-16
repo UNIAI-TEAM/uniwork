@@ -109,11 +109,14 @@ type DocumentSourceFilter struct {
 
 // DocumentSourceParent is where a source file lives. Ref is internal: the
 // task id of a comment attachment, the mailbox of an email attachment.
+// MessageID is the chat message holding the file (the chat source id's row
+// id); empty for the other sources.
 type DocumentSourceParent struct {
-	Kind  string
-	ID    string
-	Title string
-	Ref   string
+	Kind      string
+	ID        string
+	Title     string
+	Ref       string
+	MessageID string
 }
 
 // DocumentSourceOwner is who put the file there; nil for email.
@@ -417,6 +420,11 @@ func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow) Documen
 		CanSave: documentSourceSaveable(ext, r.MimeType, r.SizeBytes),
 		Parent:  DocumentSourceParent{Kind: documentSourceParentKind(r.ParentKind), ID: r.ParentID, Title: r.ParentTitle, Ref: r.ParentRef},
 		rowID:   r.RowID,
+	}
+	// A chat file names the message it lives in, so "go to source" can open
+	// the room at it; the other sources have no such id.
+	if src == DocumentSourceChat {
+		item.Parent.MessageID = r.RowID
 	}
 	// A task comment's file links to its task: the comment is read there.
 	if item.Parent.Kind == "task_comment" && r.ParentRef != "" {
