@@ -1,0 +1,260 @@
+$ RID=$(cat /tmp/g704-rid); R=/tmp/$RID-run; for f in $R/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 80 "$f" | grep -v -i -E "secret|password|token|authorization"; }; done; true
+=== /tmp/g704-r2-1792116065449007675-run/logs/app.log
+[24411:1016/020625.288621:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[24411:1016/020625.871439:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[24411:1016/020625.871516:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+
+DevTools listening on ws://127.0.0.1:45609/devtools/browser/a5eb690c-c6eb-4fcc-a6e7-6a9ba687a74a
+[24714:24742:1016/020650.270316:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[24714:24742:1016/020650.677928:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[24714:24742:1016/020650.677965:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[24714:24742:1016/020651.484960:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[24714:24742:1016/020651.485010:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[24714:24714:1016/020651.520546:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type: 
+[24860:7:1016/020651.522689:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.
+[24714:24745:1016/020654.843830:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+[24714:24745:1016/020654.934359:ERROR:google_apis/gcm/engine/mcs_client.cc:704] Failed to log in to GCM, resetting connection.
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Created TensorFlow Lite XNNPACK delegate for CPU.
+Created TensorFlow Lite XNNPACK delegate for CPU.
+Opening in existing browser session.
+[24714:24745:1016/020723.950376:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+Opening in existing browser session.
+[24714:24745:1016/020823.190345:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+[24714:24745:1016/020957.023244:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+=== /tmp/g704-r2-1792116065449007675-run/logs/app-proxy.log
+=== /tmp/g704-r2-1792116065449007675-run/logs/fork-build.log
+grep: (standard input): binary file matches
+=== /tmp/g704-r2-1792116065449007675-run/logs/fork-clone.log
+=== /tmp/g704-r2-1792116065449007675-run/logs/fork-install.log
+npm warn deprecated rimraf@2.6.3: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated boolean@3.2.0: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated crypto-js@4.2.0: Active development of CryptoJS has been discontinued. This library is no longer maintained.
+
+added 1082 packages, and audited 1114 packages in 17s
+
+240 packages are looking for funding
+  run `npm fund` for details
+
+19 vulnerabilities (2 low, 8 moderate, 7 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+=== /tmp/g704-r2-1792116065449007675-run/logs/g7-04-revoke-deactivate-fx-docx-report-vi.log
+case deactivate (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke POST /api/v1/orgs/o-g704-mvabz88o-h8e8/members/01M517KP065TZRW0JAA7GV5WQ0/deactivate -> 200
+  AI turn 2 session 403 member_deactivated error_class=permission/frame 401 unauthorized error_class=session; Save upload 403 member_deactivated/commit 403 member_deactivated
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict PASS
+  expected aiTurn2.frame 401 unauthorized error_class=session — handler/ai_mount.go:101-106 rewrites the member_deactivated CodedError (service/organization.go:155-156, service/errors.go:53-57) as 401 unauthorized; error_class session per handler/dto/sdo/error_class.go:64; the session route passes the same refusal through as 403 member_deactivated
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+=== /tmp/g704-r2-1792116065449007675-run/logs/g7-04-revoke-deactivate-fx-xlsx-revenue-xyz.log
+case deactivate (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 403/frame 403
+  revoke POST /api/v1/orgs/o-g704-mvabz8go-ujot/members/01M517KP96E1TXCCT0NKPR0R00/deactivate -> 200
+  AI turn 2 session 403 member_deactivated error_class=permission/frame 401 unauthorized error_class=session; Save upload 403 member_deactivated/commit 403 member_deactivated
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict PASS
+  expected aiTurn2.frame 401 unauthorized error_class=session — handler/ai_mount.go:101-106 rewrites the member_deactivated CodedError (service/organization.go:155-156, service/errors.go:53-57) as 401 unauthorized; error_class session per handler/dto/sdo/error_class.go:64; the session route passes the same refusal through as 403 member_deactivated
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+=== /tmp/g704-r2-1792116065449007675-run/logs/g7-04-revoke-downgrade-fx-docx-report-vi.log
+case downgrade (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke PATCH /api/v1/documents/01M517KPJW33762SZR8XSG0YHW visibility=restricted + share level=view -> 200
+  AI turn 2 session 200/frame 200; Save upload 403 forbidden/commit 404 not_found
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict PASS
+  expected aiTurn2.session 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  expected aiTurn2.frame 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  expected saveCommit 404 not_found — resolveUpload runs before the edit gate (service/document_commit.go:277 vs :296) and the refused upload left no resolvable id; the edit-revoked proof of this case is the upload's 403 forbidden (service/document_files.go:132-134)
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+=== /tmp/g704-r2-1792116065449007675-run/logs/g7-04-revoke-downgrade-fx-xlsx-revenue-xyz.log
+case downgrade (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 403/frame 403
+  revoke PATCH /api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F visibility=restricted + share level=view -> 200
+  AI turn 2 session 403 office_capability_off/frame 403 office_capability_off; Save upload 403 forbidden/commit 404 not_found
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict FAIL
+  expected aiTurn2.session 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  expected aiTurn2.frame 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  expected saveCommit 404 not_found — resolveUpload runs before the edit gate (service/document_commit.go:277 vs :296) and the refused upload left no resolvable id; the edit-revoked proof of this case is the upload's 403 forbidden (service/document_files.go:132-134)
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+=== /tmp/g704-r2-1792116065449007675-run/logs/g7-04-revoke-remove-fx-docx-report-vi.log
+case remove (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke DELETE /api/v1/workspaces/01M517KQ32P45HDP077SDDGMC6/members/01M517KQ2Q5GCJQBQG45930CDE -> 204
+  AI turn 2 session 404 not_found error_class=missing/frame 404 not_found error_class=missing; Save upload 404 not_found/commit 404 not_found
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict PASS
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+=== /tmp/g704-r2-1792116065449007675-run/logs/g7-04-revoke-remove-fx-xlsx-revenue-xyz.log
+case remove (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 403/frame 403
+  revoke DELETE /api/v1/workspaces/01M517KQBBNZCMP2PFCBV8MSWG/members/01M517KQB1EFJ4VYFCK9R3JJEX -> 204
+  AI turn 2 session 404 not_found error_class=missing/frame 404 not_found error_class=missing; Save upload 404 not_found/commit 404 not_found
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict PASS
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+=== /tmp/g704-r2-1792116065449007675-run/logs/lib.log
+=== /tmp/g704-r2-1792116065449007675-run/logs/migrate.log
+02:03:19.070 INF migrate done component=server dir=up
+=== /tmp/g704-r2-1792116065449007675-run/logs/server-build.log
+=== /tmp/g704-r2-1792116065449007675-run/logs/server.log
+02:10:44.715 INF onboarding completed component=server user=01M517KPTG91H1RMSHE1M3MPQF path=invite_accept workspace=01M517KPTVRMFTE891BY68Y6DJ
+02:10:44.715 INF http request method=POST path=/api/v1/me/onboarding/complete status=200 duration=809µs request_id=cursor/JUcyRFPSg8-000718 correlation_id=441c346e6a5aa824f390a3967d5496f6 trace_id=441c346e6a5aa824f390a3967d5496f6 span_id=8e8210cd8723a5e4 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPTG91H1RMSHE1M3MPQF actor_kind=human
+02:10:44.725 INF http request method=POST path=/api/v1/workspaces/01M517KPTVRMFTE891BY68Y6DJ/documents/files status=201 duration=7.809ms request_id=cursor/JUcyRFPSg8-000719 correlation_id=54a594bed33e850c8212f152abf5b8a6 trace_id=54a594bed33e850c8212f152abf5b8a6 span_id=815def6ed6cef154 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPRFZKX6Y2WB6D6GDVNA actor_kind=human
+02:10:44.726 INF http request method=GET path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F/versions status=200 duration=491µs request_id=cursor/JUcyRFPSg8-000720 correlation_id=e2a0c3f366b6d4136a62fb69e6b8b2b2 trace_id=e2a0c3f366b6d4136a62fb69e6b8b2b2 span_id=4ce570bebe9997f1 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPRFZKX6Y2WB6D6GDVNA actor_kind=human
+02:10:44.730 WRN http request method=POST path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F/ai/uniwork/chat/completions status=403 duration=770µs request_id=cursor/JUcyRFPSg8-000722 correlation_id=014075467b7229d35abd58d9f2cf39f5 trace_id=014075467b7229d35abd58d9f2cf39f5 span_id=2ae145bae6033595 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPTG91H1RMSHE1M3MPQF actor_kind=human
+02:10:44.732 WRN http request method=POST path=/api/v1/office-frame/documents/01M517KPVM7M0S2KM0MDE5C87F/ai/uniwork/chat/completions status=403 duration=1.221ms request_id=cursor/JUcyRFPSg8-000723 correlation_id=c004f7b116f73ab5da1c13950ecc11dc trace_id=c004f7b116f73ab5da1c13950ecc11dc span_id=464a66148ee14b7d organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPTG91H1RMSHE1M3MPQF actor_kind=human
+02:10:44.735 INF http request method=PATCH path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F status=200 duration=1.888ms request_id=cursor/JUcyRFPSg8-000724 correlation_id=d74a9b0b31cccf3ba541f23cdcefcfb5 trace_id=d74a9b0b31cccf3ba541f23cdcefcfb5 span_id=a54fa40c1ddb39f2 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPRFZKX6Y2WB6D6GDVNA actor_kind=human
+02:10:44.737 INF http request method=POST path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F/shares status=201 duration=1.137ms request_id=cursor/JUcyRFPSg8-000725 correlation_id=a299fc93e1c391e1bc093838b55e9e4b trace_id=a299fc93e1c391e1bc093838b55e9e4b span_id=bdd3e437fef4b0e4 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPRFZKX6Y2WB6D6GDVNA actor_kind=human
+02:10:44.739 WRN http request method=POST path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F/ai/uniwork/chat/completions status=403 duration=787µs request_id=cursor/JUcyRFPSg8-000726 correlation_id=cdd7b19f702014da3d60073b15e90351 trace_id=cdd7b19f702014da3d60073b15e90351 span_id=979d5345b0f00da1 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPTG91H1RMSHE1M3MPQF actor_kind=human
+02:10:44.740 WRN http request method=POST path=/api/v1/office-frame/documents/01M517KPVM7M0S2KM0MDE5C87F/ai/uniwork/chat/completions status=403 duration=856µs request_id=cursor/JUcyRFPSg8-000727 correlation_id=ae6003a87a804c116f22170a125dfb8d trace_id=ae6003a87a804c116f22170a125dfb8d span_id=66fe407ce45c8c29 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPTG91H1RMSHE1M3MPQF actor_kind=human
+02:10:44.742 WRN http request method=POST path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F/uploads status=403 duration=440µs request_id=cursor/JUcyRFPSg8-000728 correlation_id=f19280077498b8100945f450e115be4d trace_id=f19280077498b8100945f450e115be4d span_id=2902ce86b8273fba organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPTG91H1RMSHE1M3MPQF actor_kind=human
+02:10:44.743 WRN http request method=POST path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F/versions/commit status=404 duration=355µs request_id=cursor/JUcyRFPSg8-000729 correlation_id=5737300db5f5c3e5c1b4ee274a5e0dfd trace_id=5737300db5f5c3e5c1b4ee274a5e0dfd span_id=e2d02e331893f7a5 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPTG91H1RMSHE1M3MPQF actor_kind=human
+02:10:44.744 INF http request method=GET path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F/versions status=200 duration=579µs request_id=cursor/JUcyRFPSg8-000730 correlation_id=6b8cedc70674d594da9fb51975e0b543 trace_id=6b8cedc70674d594da9fb51975e0b543 span_id=96e80481e1d6f1ab organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPRFZKX6Y2WB6D6GDVNA actor_kind=human
+02:10:44.745 WRN http request method=GET path=/api/v1/documents/01M517KPVM7M0S2KM0MDE5C87F/versions/commit status=410 duration=438µs request_id=cursor/JUcyRFPSg8-000731 correlation_id=c70119b820f5eeeded91996c3a7a9bc1 trace_id=c70119b820f5eeeded91996c3a7a9bc1 span_id=e0641abab36472c6 organization_id=01M517KPTR6C116B892ET64BV8 workspace_id=01M517KPTVRMFTE891BY68Y6DJ actor_id=01M517KPRFZKX6Y2WB6D6GDVNA actor_kind=human
+02:10:44.748 INF http request method=POST path=/api/v1/orgs/01M517KPTR6C116B892ET64BV8/privacy/deletion status=202 duration=938µs request_id=cursor/JUcyRFPSg8-000732 correlation_id=fbbc8d3602af1b0d367cce4daedd75de trace_id=fbbc8d3602af1b0d367cce4daedd75de span_id=5bf1d815306e4702 actor_id=01M517KPRFZKX6Y2WB6D6GDVNA actor_kind=human
+02:10:44.890 INF mail not configured, printing message component=server kind=verification_code to=g7-04-owner-mvabz93f-vtnw@example.com subject="020518 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    020518\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+02:10:44.890 INF http request method=POST path=/api/v1/auth/register status=200 duration=56.24ms request_id=cursor/JUcyRFPSg8-000733 correlation_id=607704843768b2bdad36aee75677867a trace_id=607704843768b2bdad36aee75677867a span_id=b1aadd78ce54f4f7
+02:10:44.897 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=1.582ms request_id=cursor/JUcyRFPSg8-000734 correlation_id=ae8d5675a6b70a92694c449d805c8208 trace_id=ae8d5675a6b70a92694c449d805c8208 span_id=bd931e67a23e855a actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:44.953 INF mail not configured, printing message component=server kind=verification_code to=g7-04-member-mvabz93f-vtnw@example.com subject="829260 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    829260\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+02:10:44.954 INF http request method=POST path=/api/v1/auth/register status=200 duration=54.902ms request_id=cursor/JUcyRFPSg8-000735 correlation_id=97d85a8fc5e6b659cd34d267e93ce649 trace_id=97d85a8fc5e6b659cd34d267e93ce649 span_id=156b1d4d6092c2d6
+02:10:44.957 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=2.335ms request_id=cursor/JUcyRFPSg8-000736 correlation_id=d174ca2f98af1029abb85f321d6090ff trace_id=d174ca2f98af1029abb85f321d6090ff span_id=9fd7d00e98c63d3a actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:44.960 INF http request method=POST path=/api/v1/orgs status=201 duration=1.734ms request_id=cursor/JUcyRFPSg8-000737 correlation_id=41f695c5d60131db00ab432f692ea6c1 trace_id=41f695c5d60131db00ab432f692ea6c1 span_id=18c276a3f8fb35d7 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:44.964 INF http request method=POST path=/api/v1/orgs/01M517KQ2Z9DET7VA9QRNPE17D/workspaces status=201 duration=2.337ms request_id=cursor/JUcyRFPSg8-000738 correlation_id=988fcc04c6904509624d562bed38b51a trace_id=988fcc04c6904509624d562bed38b51a span_id=617db5ce1fe14738 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:44.966 INF onboarding completed component=server user=01M517KQ0QJQQ17TSGGB23XRRE path=full workspace=01M517KQ32P45HDP077SDDGMC6
+02:10:44.966 INF http request method=POST path=/api/v1/me/onboarding/complete status=200 duration=1.225ms request_id=cursor/JUcyRFPSg8-000739 correlation_id=2efa563aed9e0678f3af3c26e4e90d74 trace_id=2efa563aed9e0678f3af3c26e4e90d74 span_id=8eb56cd994ea36b2 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:44.967 INF mail not configured, printing message component=server kind=welcome to=g7-04-owner-mvabz93f-vtnw@example.com subject="Welcome to UniWork" text="Hi G7-04 owner, you're all set\n\nYour workspace G7-04 ws is ready. Three things to start with:\n\n1. Create your first task and assign it to someone.\n2. Invite teammates from the Members page.\n3. Schedule a meeting and take notes right in UniWork.\n\nOpen workspace:\n\n    http://localhost:45491/o-g704-mvabz93f-vtnw/w-g704-mvabz93f-vtnw\n"
+02:10:44.969 INF http request method=POST path=/api/v1/workspaces/01M517KQ32P45HDP077SDDGMC6/invitations status=200 duration=1.278ms request_id=cursor/JUcyRFPSg8-000740 correlation_id=4b66866a5144d1d75d0c3f0cd728014b trace_id=4b66866a5144d1d75d0c3f0cd728014b span_id=5df346793ef20943 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:44.969 INF mail not configured, printing message component=server kind=workspace_invite to=g7-04-member-mvabz93f-vtnw@example.com subject="G7-04 owner invited you to G7-04 ws on UniWork" text="You're invited to G7-04 ws\n\nG7-04 owner invited you to collaborate in the G7-04 ws workspace on UniWork. Open the link below to accept:\n\n    http://localhost:45491/invite/01M517KQ38MH7S039DHCC1GSNG01M517KQ38MH7S039DHCVETNHJ\n\nThe invitation expires in 7 days. Sign in or create an account with this email address to join.\n\nDon't know the sender? You can ignore this email — nothing will change.\n"
+02:10:44.971 INF http request method=GET path=/api/v1/me/invitations status=200 duration=709µs request_id=cursor/JUcyRFPSg8-000741 correlation_id=405985cd130a66fef03b302aac8d2c22 trace_id=405985cd130a66fef03b302aac8d2c22 span_id=e0812475e63493d4 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:44.975 INF http request method=POST path=/api/v1/invitations/01M517KQ38MH7S039DHCC1GSNG01M517KQ38MH7S039DHCVETNHJ/accept status=200 duration=2.704ms request_id=cursor/JUcyRFPSg8-000742 correlation_id=57b70f36fcb600e61d7bb54bcff7fe43 trace_id=57b70f36fcb600e61d7bb54bcff7fe43 span_id=c571944ca2bede0b organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:44.977 INF onboarding completed component=server user=01M517KQ2Q5GCJQBQG45930CDE path=invite_accept workspace=01M517KQ32P45HDP077SDDGMC6
+02:10:44.977 INF http request method=POST path=/api/v1/me/onboarding/complete status=200 duration=728µs request_id=cursor/JUcyRFPSg8-000743 correlation_id=baeac53a08fa6d571ac0560bbefb1c8c trace_id=baeac53a08fa6d571ac0560bbefb1c8c span_id=809038e8917e1cf6 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:44.984 INF http request method=POST path=/api/v1/workspaces/01M517KQ32P45HDP077SDDGMC6/documents/files status=201 duration=5.368ms request_id=cursor/JUcyRFPSg8-000744 correlation_id=5def05af1dab9d2217901e48b4850fad trace_id=5def05af1dab9d2217901e48b4850fad span_id=a07bf223241bd80d organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:44.985 INF http request method=GET path=/api/v1/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/versions status=200 duration=587µs request_id=cursor/JUcyRFPSg8-000745 correlation_id=9bcef4947fa734e815e1005e394c3fe5 trace_id=9bcef4947fa734e815e1005e394c3fe5 span_id=ba6beb78c239ca2c organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:44.992 INF ai: call usage_event_id=01M517KQ3ZX4FYJRW7MHMC1JX3 capability=office_uniwork_ai latency_ms=0
+02:10:44.993 INF http request method=POST path=/api/v1/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/ai/uniwork/chat/completions status=200 duration=4.18ms request_id=cursor/JUcyRFPSg8-000747 correlation_id=447126e9a7a89d9792c5317adc779d4a trace_id=447126e9a7a89d9792c5317adc779d4a span_id=268d7d657b451879 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:44.996 INF ai: call usage_event_id=01M517KQ44075G6P60VVEJASH4 capability=office_uniwork_ai latency_ms=0
+02:10:44.997 INF http request method=POST path=/api/v1/office-frame/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/ai/uniwork/chat/completions status=200 duration=3.434ms request_id=cursor/JUcyRFPSg8-000748 correlation_id=75c954d793320fe44ddd9a112397e002 trace_id=75c954d793320fe44ddd9a112397e002 span_id=16b345718c09f8fd organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:45.000 INF http request method=DELETE path=/api/v1/workspaces/01M517KQ32P45HDP077SDDGMC6/members/01M517KQ2Q5GCJQBQG45930CDE status=204 duration=1.676ms request_id=cursor/JUcyRFPSg8-000749 correlation_id=c665380b27bbaf8ca8d2ac5460710f20 trace_id=c665380b27bbaf8ca8d2ac5460710f20 span_id=a970c37da265645b organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:45.001 WRN http request method=POST path=/api/v1/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/ai/uniwork/chat/completions status=404 duration=887µs request_id=cursor/JUcyRFPSg8-000750 correlation_id=435d8629e5a4f3f5acf665569d8f073f trace_id=435d8629e5a4f3f5acf665569d8f073f span_id=c9d34b5fe23a36a6 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:45.003 WRN http request method=POST path=/api/v1/office-frame/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/ai/uniwork/chat/completions status=404 duration=585µs request_id=cursor/JUcyRFPSg8-000751 correlation_id=56cef53e88fc301723b21471d16a3b20 trace_id=56cef53e88fc301723b21471d16a3b20 span_id=0a1935a63f79aa31 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:45.004 WRN http request method=POST path=/api/v1/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/uploads status=404 duration=318µs request_id=cursor/JUcyRFPSg8-000752 correlation_id=9c5023be11e2a46b065fec222d8bb8df trace_id=9c5023be11e2a46b065fec222d8bb8df span_id=fb2b82a63b566634 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:45.005 WRN http request method=POST path=/api/v1/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/versions/commit status=404 duration=396µs request_id=cursor/JUcyRFPSg8-000753 correlation_id=31949d094d80e15b537dfd25a4aa605b trace_id=31949d094d80e15b537dfd25a4aa605b span_id=67e41b13547bd503 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ2Q5GCJQBQG45930CDE actor_kind=human
+02:10:45.006 INF http request method=GET path=/api/v1/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/versions status=200 duration=394µs request_id=cursor/JUcyRFPSg8-000754 correlation_id=7ba550e9f55ebcd23d0e1f86ae87c442 trace_id=7ba550e9f55ebcd23d0e1f86ae87c442 span_id=3a354b5ede1e6d1f organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:45.007 WRN http request method=GET path=/api/v1/documents/01M517KQ3Q4K991YQYYZ8WFJ3A/versions/commit status=410 duration=474µs request_id=cursor/JUcyRFPSg8-000755 correlation_id=ee5167f75bf4a2a0561f257243bbc06e trace_id=ee5167f75bf4a2a0561f257243bbc06e span_id=e5bda624e1aa4298 organization_id=01M517KQ2Z9DET7VA9QRNPE17D workspace_id=01M517KQ32P45HDP077SDDGMC6 actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:45.010 INF http request method=POST path=/api/v1/orgs/01M517KQ2Z9DET7VA9QRNPE17D/privacy/deletion status=202 duration=881µs request_id=cursor/JUcyRFPSg8-000756 correlation_id=68f2c970278a18c5943773d40882b9c5 trace_id=68f2c970278a18c5943773d40882b9c5 span_id=b69f4a27c1e8c8ca actor_id=01M517KQ0QJQQ17TSGGB23XRRE actor_kind=human
+02:10:45.155 INF mail not configured, printing message component=server kind=verification_code to=g7-04-owner-mvabz9ar-82pc@example.com subject="777919 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    777919\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+02:10:45.156 INF http request method=POST path=/api/v1/auth/register status=200 duration=57.435ms request_id=cursor/JUcyRFPSg8-000757 correlation_id=739a37f2f1cfc8cb6dcdf61336c48a6a trace_id=739a37f2f1cfc8cb6dcdf61336c48a6a span_id=737a953d45b04f11
+02:10:45.163 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=1.194ms request_id=cursor/JUcyRFPSg8-000758 correlation_id=e118862942d329f94f371efe53d013eb trace_id=e118862942d329f94f371efe53d013eb span_id=53f8c1688c367c2c actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.218 INF http request method=POST path=/api/v1/auth/register status=200 duration=54.36ms request_id=cursor/JUcyRFPSg8-000759 correlation_id=0b68695a57be34c0fde6646481bcffb9 trace_id=0b68695a57be34c0fde6646481bcffb9 span_id=f3ecf6da549e897d
+02:10:45.219 INF mail not configured, printing message component=server kind=verification_code to=g7-04-member-mvabz9ar-82pc@example.com subject="834729 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    834729\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+02:10:45.221 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=1.146ms request_id=cursor/JUcyRFPSg8-000760 correlation_id=079bce51d5e7e7b424700a67b89be047 trace_id=079bce51d5e7e7b424700a67b89be047 span_id=743e0c8cefa5a618 actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.225 INF http request method=POST path=/api/v1/orgs status=201 duration=3.102ms request_id=cursor/JUcyRFPSg8-000761 correlation_id=028504cc0904cb0cf2f9ab1792609582 trace_id=028504cc0904cb0cf2f9ab1792609582 span_id=56699a37481f451c actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.230 INF http request method=POST path=/api/v1/orgs/01M517KQB7VCS5CSAT734RMX71/workspaces status=201 duration=3.508ms request_id=cursor/JUcyRFPSg8-000762 correlation_id=64705f4782a404d6b7973d47f849c1bf trace_id=64705f4782a404d6b7973d47f849c1bf span_id=035c27ed97e60aae organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.233 INF onboarding completed component=server user=01M517KQ918K7BC3QRK34J3RVG path=full workspace=01M517KQBBNZCMP2PFCBV8MSWG
+02:10:45.233 INF http request method=POST path=/api/v1/me/onboarding/complete status=200 duration=2.007ms request_id=cursor/JUcyRFPSg8-000763 correlation_id=3b9c5324149ecdcb6a4cf743260e4dfb trace_id=3b9c5324149ecdcb6a4cf743260e4dfb span_id=1a7b6837b8cb9a84 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.234 INF mail not configured, printing message component=server kind=welcome to=g7-04-owner-mvabz9ar-82pc@example.com subject="Welcome to UniWork" text="Hi G7-04 owner, you're all set\n\nYour workspace G7-04 ws is ready. Three things to start with:\n\n1. Create your first task and assign it to someone.\n2. Invite teammates from the Members page.\n3. Schedule a meeting and take notes right in UniWork.\n\nOpen workspace:\n\n    http://localhost:45491/o-g704-mvabz9ar-82pc/w-g704-mvabz9ar-82pc\n"
+02:10:45.237 INF http request method=POST path=/api/v1/workspaces/01M517KQBBNZCMP2PFCBV8MSWG/invitations status=200 duration=2.227ms request_id=cursor/JUcyRFPSg8-000764 correlation_id=806860b6eb663582da3291b86829b9b8 trace_id=806860b6eb663582da3291b86829b9b8 span_id=95c8a29898142635 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.238 INF mail not configured, printing message component=server kind=workspace_invite to=g7-04-member-mvabz9ar-82pc@example.com subject="G7-04 owner invited you to G7-04 ws on UniWork" text="You're invited to G7-04 ws\n\nG7-04 owner invited you to collaborate in the G7-04 ws workspace on UniWork. Open the link below to accept:\n\n    http://localhost:45491/invite/01M517KQBK6Q014FPA5EM4ZFMN01M517KQBK6Q014FPA5J1HCAW6\n\nThe invitation expires in 7 days. Sign in or create an account with this email address to join.\n\nDon't know the sender? You can ignore this email — nothing will change.\n"
+02:10:45.239 INF http request method=GET path=/api/v1/me/invitations status=200 duration=847µs request_id=cursor/JUcyRFPSg8-000765 correlation_id=174465088af2b17f73203a87d0d0ca44 trace_id=174465088af2b17f73203a87d0d0ca44 span_id=62b02ecdfecc8121 actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.246 INF http request method=POST path=/api/v1/invitations/01M517KQBK6Q014FPA5EM4ZFMN01M517KQBK6Q014FPA5J1HCAW6/accept status=200 duration=5.533ms request_id=cursor/JUcyRFPSg8-000766 correlation_id=c1f7f386fbf34a0e7418e974fdea066b trace_id=c1f7f386fbf34a0e7418e974fdea066b span_id=50584ddcdf52937a organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.247 INF onboarding completed component=server user=01M517KQB1EFJ4VYFCK9R3JJEX path=invite_accept workspace=01M517KQBBNZCMP2PFCBV8MSWG
+02:10:45.247 INF http request method=POST path=/api/v1/me/onboarding/complete status=200 duration=504µs request_id=cursor/JUcyRFPSg8-000767 correlation_id=21b08d7904390bb2c4b31e294f658c83 trace_id=21b08d7904390bb2c4b31e294f658c83 span_id=a031662618436a85 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.256 INF http request method=POST path=/api/v1/workspaces/01M517KQBBNZCMP2PFCBV8MSWG/documents/files status=201 duration=6.305ms request_id=cursor/JUcyRFPSg8-000768 correlation_id=ecf269edfafe51c3f4909f21eb85152b trace_id=ecf269edfafe51c3f4909f21eb85152b span_id=db08b93872322ce6 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.257 INF http request method=GET path=/api/v1/documents/01M517KQC6291P6NMK2WCDBRP9/versions status=200 duration=481µs request_id=cursor/JUcyRFPSg8-000769 correlation_id=1f345a9cde7123b19305d6c6ace0ec99 trace_id=1f345a9cde7123b19305d6c6ace0ec99 span_id=59cdf85c8743b184 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.261 WRN http request method=POST path=/api/v1/documents/01M517KQC6291P6NMK2WCDBRP9/ai/uniwork/chat/completions status=403 duration=893µs request_id=cursor/JUcyRFPSg8-000771 correlation_id=218086dfc0822185dbac6d922bfd969f trace_id=218086dfc0822185dbac6d922bfd969f span_id=35c87b291726ff6c organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.263 WRN http request method=POST path=/api/v1/office-frame/documents/01M517KQC6291P6NMK2WCDBRP9/ai/uniwork/chat/completions status=403 duration=1.139ms request_id=cursor/JUcyRFPSg8-000772 correlation_id=e1a4e778fe34b2408ff4d73eb99fa08a trace_id=e1a4e778fe34b2408ff4d73eb99fa08a span_id=d93ba867a065c7ed organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.266 INF http request method=DELETE path=/api/v1/workspaces/01M517KQBBNZCMP2PFCBV8MSWG/members/01M517KQB1EFJ4VYFCK9R3JJEX status=204 duration=1.611ms request_id=cursor/JUcyRFPSg8-000773 correlation_id=f0f54cf0d3c2f4db13cb0a20d5a820f0 trace_id=f0f54cf0d3c2f4db13cb0a20d5a820f0 span_id=22d31a54ea90aed7 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.267 WRN http request method=POST path=/api/v1/documents/01M517KQC6291P6NMK2WCDBRP9/ai/uniwork/chat/completions status=404 duration=650µs request_id=cursor/JUcyRFPSg8-000774 correlation_id=16fe19b8e4161029796aae90308dd497 trace_id=16fe19b8e4161029796aae90308dd497 span_id=10dc6eab29df8a09 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.268 WRN http request method=POST path=/api/v1/office-frame/documents/01M517KQC6291P6NMK2WCDBRP9/ai/uniwork/chat/completions status=404 duration=430µs request_id=cursor/JUcyRFPSg8-000775 correlation_id=45dfb9377eb4a3bcf7ec91a287c9be9c trace_id=45dfb9377eb4a3bcf7ec91a287c9be9c span_id=4c0796573b0187e4 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.270 WRN http request method=POST path=/api/v1/documents/01M517KQC6291P6NMK2WCDBRP9/uploads status=404 duration=560µs request_id=cursor/JUcyRFPSg8-000776 correlation_id=4c48aaef2fc02d2c7d4a66fae4d69b15 trace_id=4c48aaef2fc02d2c7d4a66fae4d69b15 span_id=54c6c302e989bfb2 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.272 WRN http request method=POST path=/api/v1/documents/01M517KQC6291P6NMK2WCDBRP9/versions/commit status=404 duration=573µs request_id=cursor/JUcyRFPSg8-000777 correlation_id=72b12e81aea17145f9fc2c5d1222754e trace_id=72b12e81aea17145f9fc2c5d1222754e span_id=0460bc3e4abe14a9 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQB1EFJ4VYFCK9R3JJEX actor_kind=human
+02:10:45.273 INF http request method=GET path=/api/v1/documents/01M517KQC6291P6NMK2WCDBRP9/versions status=200 duration=512µs request_id=cursor/JUcyRFPSg8-000778 correlation_id=18d75ebef1f21ede5789d73f09652940 trace_id=18d75ebef1f21ede5789d73f09652940 span_id=d7d55a2cdea8f6a9 organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.274 WRN http request method=GET path=/api/v1/documents/01M517KQC6291P6NMK2WCDBRP9/versions/commit status=410 duration=492µs request_id=cursor/JUcyRFPSg8-000779 correlation_id=d7f45e818fa8da86524ffa1f4e8fec6e trace_id=d7f45e818fa8da86524ffa1f4e8fec6e span_id=e293cd14250bc58d organization_id=01M517KQB7VCS5CSAT734RMX71 workspace_id=01M517KQBBNZCMP2PFCBV8MSWG actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.277 INF http request method=POST path=/api/v1/orgs/01M517KQB7VCS5CSAT734RMX71/privacy/deletion status=202 duration=902µs request_id=cursor/JUcyRFPSg8-000780 correlation_id=b550cd7d0e92fbd7d799f30f2c53cfe0 trace_id=b550cd7d0e92fbd7d799f30f2c53cfe0 span_id=f5c412465d3d791b actor_id=01M517KQ918K7BC3QRK34J3RVG actor_kind=human
+02:10:45.335 INF shutting down component=server signal=terminated
+02:10:45.347 INF stopped component=server
+=== /tmp/g704-r2-1792116065449007675-run/logs/web.log
+  [90m11601 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11598:13
+  [90m11596 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11597 |[0m }
+[33m[1m>[0m [90m11598 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11599 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11600 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11601 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+⚠ ./apps/web/app/globals.css:11598:13
+Warning: Parsing CSS source code failed
+  [90m11596 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11597 |[0m }
+[33m[1m>[0m [90m11598 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11599 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11600 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11601 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11598:13
+  [90m11596 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11597 |[0m }
+[33m[1m>[0m [90m11598 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11599 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11600 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11601 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+⚠ ./apps/web/app/globals.css:11598:13
+Warning: Parsing CSS source code failed
+  [90m11596 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11597 |[0m }
+[33m[1m>[0m [90m11598 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11599 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11600 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11601 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11598:13
+  [90m11596 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11597 |[0m }
+[33m[1m>[0m [90m11598 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11599 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11600 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11601 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 dev: `node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'`
+Command failed with signal "SIGTERM"
+[?25h
