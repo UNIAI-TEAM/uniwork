@@ -831,6 +831,15 @@ func (s *DocumentService) ArchiveOwnedDocumentsInTx(ctx context.Context, q *db.Q
 			return nil, err
 		}
 	}
+	if len(stamped) > 0 {
+		// The release counters are skipped: the seam cannot see the caller's
+		// commit; the release audit row and its lock_changed frame are written
+		// in the caller's transaction, like the archive rows above.
+		if _, err := s.releaseEditLocksOnArchive(ctx, q, actor,
+			db.Document{OrganizationID: organizationID, WorkspaceID: workspaceID}, stamped); err != nil {
+			return nil, err
+		}
+	}
 	return stamped, nil
 }
 
@@ -908,6 +917,13 @@ func (s *DocumentService) ArchiveOwnedDocumentInTx(ctx context.Context, q *db.Qu
 	}, audit.Event{Topic: "document.archived", Payload: map[string]string{
 		"document_id": stamped, "workspace_id": workspaceID, "archive_batch_id": batch,
 	}}); err != nil {
+		return false, err
+	}
+	// The release counters are skipped: the seam cannot see the caller's
+	// commit; the release audit row and its lock_changed frame are written in
+	// the caller's transaction, like the archive row above.
+	if _, err := s.releaseEditLocksOnArchive(ctx, q, actor,
+		db.Document{ID: stamped, OrganizationID: organizationID, WorkspaceID: workspaceID}, []string{stamped}); err != nil {
 		return false, err
 	}
 	return true, nil

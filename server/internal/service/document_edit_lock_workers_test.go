@@ -251,6 +251,70 @@ func TestArchiveReleasesEditLock(t *testing.T) {
 	wantNotFound(t, err)
 }
 
+// FA5b: the owner seams archive in the caller's transaction, so the edit
+// lock release they write is part of that transaction too: the tenure ends
+// with document_archived and carries the release audit row and the
+// lock_changed frame the public archive writes, as soon as the caller
+// commits. The release counters stay unflushed - the seam cannot see the
+// commit - so the seam's caller owns the metric, not the command.
+func TestOwnerSeamArchiveReleasesEditLock(t *testing.T) {
+	calls := map[string]func(w *lockWorld, q *db.Queries, owner Actor, d db.Document) error{
+		"ArchiveOwnedDocumentsInTx": func(w *lockWorld, q *db.Queries, owner Actor, d db.Document) error {
+			_, err := w.svc.ArchiveOwnedDocumentsInTx(w.ctx, q, owner, d.OrganizationID, d.WorkspaceID, d.OwnerID.String, "")
+			return err
+		},
+		"ArchiveOwnedDocumentInTx": func(w *lockWorld, q *db.Queries, owner Actor, d db.Document) error {
+			_, err := w.svc.ArchiveOwnedDocumentInTx(w.ctx, q, owner, d.OrganizationID, d.WorkspaceID, d.ID)
+			return err
+		},
+	}
+	for seam, call := range calls {
+		t.Run(seam, func(t *testing.T) {
+			w := newLockWorld(t)
+			m := &recordingDocMetrics{}
+			w.svc.SetMetrics(m)
+			// An owned document answers through the owner service: grant the
+			// holder edit there so it can take the tenure that must release.
+			w.svc.SetOwnerLevelResolver(mapOwnerResolver{w.tn.member.ID: DocumentLevelEdit})
+			defer w.svc.SetOwnerLevelResolver(nil)
+			owned := w.env.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "workspace", aclOwner: w.tn.aclOwner.ID, createdBy: w.tn.aclOwner.ID, ownerID: "wp-seam"})
+			held := w.acquire(t, w.tn.member, owned.ID, "e")
+
+			tx, err := w.env.f.pool.Begin(w.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback(w.ctx) }()
+			if err := call(w, w.env.f.q.WithTx(tx), human(w.tn.owner), owned); err != nil {
+				t.Fatal(err)
+			}
+			if err := tx.Commit(w.ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			w.wantEnded(t, held.Lock.ID, "document_archived")
+			if len(m.ops) != 1 || m.ops[0] != "acquire" {
+				t.Fatalf("ops %v, want [acquire] (the seam cannot flush the release counter)", m.ops)
+			}
+			if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, owned.ID); n != 1 {
+				t.Fatalf("released rows %d, want 1", n)
+			}
+			if meta := w.auditMeta(t, audit.ActionDocumentEditLockReleased, owned.ID); meta["reason"] != "document_archived" || meta["lock_id"] != held.Lock.ID {
+				t.Fatalf("release audit %v", meta)
+			}
+			if n := w.countAudit(t, audit.ActionDocumentArchived, owned.ID); n != 1 {
+				t.Fatalf("archived rows %d, want 1", n)
+			}
+			if n := w.countOutbox(t, topicDocumentLockChanged, owned.ID); n != 2 {
+				t.Fatalf("lock_changed rows %d, want 2 (acquire + the seam's release)", n)
+			}
+			if n := w.countOutbox(t, "document.archived", owned.ID); n != 1 {
+				t.Fatalf("document.archived rows %d, want 1", n)
+			}
+		})
+	}
+}
+
 // CBE-1c-1: the archive releases every node it stamps, not only the root's
 // tenure. A folder whose CHILD is being edited must end that child's tenure
 // (document_archived) with the child's own audit row and lock_changed frame,
