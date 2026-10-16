@@ -746,28 +746,32 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 					return err
 				}
 			}
-			// One row for the metadata half (title/icon and the content
-			// autosave); the home-row move below writes its own, so one
-			// command writes at most one row per fact.
+			// One row per write for the metadata half (title/icon moves and
+			// the content autosave); the home-row move below writes its own,
+			// so one command writes at most one row per fact. The frame still
+			// follows a metadata move only: an autosave audits metadata and
+			// does not fan out (C-01 §5.1).
+			var emit []audit.Event
 			if metaChanged {
-				if err := auditRecorder.Record(ctx, q, audit.Entry{
-					OrganizationID: updated.OrganizationID,
-					WorkspaceID:    updated.WorkspaceID,
-					Actor:          actor,
-					Action:         audit.ActionDocumentUpdated,
-					ResourceType:   "document",
-					ResourceID:     updated.ID,
-					Changes:        audit.Diff(before, after),
-					Metadata: map[string]any{
-						"revision":        strconv.FormatInt(updated.Revision, 10),
-						"content_changed": contentChanged,
-						"content_bytes":   updated.ContentBytes,
-					},
-				}, audit.Event{Topic: "document.updated", Payload: map[string]string{
+				emit = append(emit, audit.Event{Topic: "document.updated", Payload: map[string]string{
 					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
-				}}); err != nil {
-					return err
-				}
+				}})
+			}
+			if err := auditRecorder.Record(ctx, q, audit.Entry{
+				OrganizationID: updated.OrganizationID,
+				WorkspaceID:    updated.WorkspaceID,
+				Actor:          actor,
+				Action:         audit.ActionDocumentUpdated,
+				ResourceType:   "document",
+				ResourceID:     updated.ID,
+				Changes:        audit.Diff(before, after),
+				Metadata: map[string]any{
+					"revision":        strconv.FormatInt(updated.Revision, 10),
+					"content_changed": contentChanged,
+					"content_bytes":   updated.ContentBytes,
+				},
+			}, emit...); err != nil {
+				return err
 			}
 		}
 		if homeChanged {
