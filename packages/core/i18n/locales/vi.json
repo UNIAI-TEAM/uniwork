@@ -8854,7 +8854,7 @@
       "version_description": "Tệp mới trở thành bản làm việc; phiên bản đang mở vẫn nằm trong lịch sử.",
       "pick": "Chọn tệp",
       "selected": "Đã chọn {{name}}",
-      "size_hint": "Tối đa 50 MiB mỗi tệp.",
+      "size_hint": "Tối đa {{max}} mỗi tệp.",
       "too_large_named": "{{name}} nặng {{size}}, vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
       "unsupported_format": "Định dạng của {{name}} chưa được hỗ trợ.",
       "submit": "Tải lên",

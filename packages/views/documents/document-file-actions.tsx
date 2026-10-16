@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useDocumentDownload, useDocumentLimits, useUploadDocumentFile } from "@uniwork/core/documents/hooks";
 import { useCommitDocumentVersion } from "@uniwork/core/documents/hooks-versions";
+import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import type { Document } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -109,7 +110,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       }}
       title={t("documents.upload.version_title")}
       description={t("documents.upload.version_description")}
-      hint={t("documents.upload.size_hint")}
+      hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
       pending={pending}
       error={error}
       onSubmit={(picked) => void stageNewVersion(picked)}

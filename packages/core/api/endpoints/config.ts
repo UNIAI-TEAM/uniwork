@@ -13,13 +13,13 @@ import type { OfficeInstallerOption } from "../../office/desktop-platform";
  */
 
 export const DEFAULT_DOCUMENT_MAX_BYTES = 200 * 1024 * 1024;
-export const DEFAULT_DOCUMENT_SAVE_WARN_RATIO = 0.9;
+const DEFAULT_DOCUMENT_SAVE_WARN_RATIO = 0.9;
 
-export interface DocumentWebOpenLimit {
+interface DocumentWebOpenLimit {
   warn_bytes: number;
 }
 
-export interface DocumentWebOpenLimits {
+interface DocumentWebOpenLimits {
   docx: DocumentWebOpenLimit;
   pptx: DocumentWebOpenLimit;
   pdf: DocumentWebOpenLimit;
@@ -33,7 +33,7 @@ export interface DocumentLimits {
   chunked_upload_threshold_bytes?: number;
 }
 
-export const DEFAULT_DOCUMENT_WEB_OPEN_LIMITS: DocumentWebOpenLimits = {
+const DEFAULT_DOCUMENT_WEB_OPEN_LIMITS: DocumentWebOpenLimits = {
   docx: { warn_bytes: 31_457_280 },
   pptx: { warn_bytes: 26_214_400 },
   pdf: { warn_bytes: 52_428_800 },

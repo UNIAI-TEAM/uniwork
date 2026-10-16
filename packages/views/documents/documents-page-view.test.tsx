@@ -915,6 +915,8 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
 
     fireEvent.click(await cardButton("upload"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Tối đa 200 MB mỗi tệp.")).toBeInTheDocument();
     const input = await screen.findByLabelText(t("documents.upload.pick"));
     const huge = new File(["x"], "huge.pdf", { type: "application/pdf" });
     Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });

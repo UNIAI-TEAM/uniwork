@@ -429,6 +429,7 @@ describe("DocumentFileView", () => {
 
     renderView();
     fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    expect(await screen.findByText("Tối đa 200 MB mỗi tệp.")).toBeInTheDocument();
     const huge = new File(["new"], "báo-cáo.pdf", { type: "application/pdf" });
     Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });
     fireEvent.change(await screen.findByLabelText(t("documents.upload.pick")), {

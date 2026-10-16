@@ -9,7 +9,7 @@ import {
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
-export interface DocumentErrorMessageOptions {
+interface DocumentErrorMessageOptions {
   locale?: string;
   file?: { name: string; size: number };
   maxBytes?: number;

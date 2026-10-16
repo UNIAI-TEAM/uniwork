@@ -7,7 +7,6 @@ import { useFlag } from "@uniwork/core/feature-flags";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentLimits } from "@uniwork/core/documents/limits";
 import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
-import type { PublicConfig } from "@uniwork/core/api/endpoints/config";
 import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameApiBase, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
@@ -240,9 +239,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
           : null;
         const capabilities = officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true);
-        const downloadMaxBytes = frameDownloadMaxBytes(
-          queryClient.getQueryData<PublicConfig>(["public-config"])?.documents?.limits?.upload_max_bytes ?? latest.current.uploadMaxBytes,
-        );
+        const downloadMaxBytes = frameDownloadMaxBytes(latest.current.uploadMaxBytes);
         const init: Omit<InitPayload, "protocolVersion"> = {
           ...frameToken,
           documentId: doc, workspaceId: current.wsId,
@@ -316,9 +313,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           const { options: current, scopeId: doc, viewOnly: refused, uploadMaxBytes: uploadMax } = latest.current;
           const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
           if (refused || minted?.can_edit !== true) throw readOnly("api.download");
-          const ceiling = frameDownloadMaxBytes(
-            queryClient.getQueryData<PublicConfig>(["public-config"])?.documents?.limits?.upload_max_bytes ?? uploadMax,
-          );
+          const ceiling = frameDownloadMaxBytes(uploadMax);
           return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc, ceiling);
         },
         "app.open": async () => {

@@ -9,6 +9,7 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { useCreateDocumentFile, useDocument, useDocumentLimits, useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
 import { useDownloadDocumentSource } from "@uniwork/core/documents/hooks-library";
+import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { paths } from "@uniwork/core/paths";
 import { canEditDocument } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -450,7 +451,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         }}
         title={t("documents.upload.title")}
         description={t("documents.upload.description")}
-        hint={t("documents.upload.size_hint")}
+        hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
         pending={createFile.isPending}
         error={uploadError}
         onSubmit={(file) => void uploadFile(file)}

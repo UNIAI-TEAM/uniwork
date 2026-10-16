@@ -53,7 +53,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   return {
-    iframe, hook, onError, received, sent,
+    iframe, hook, onError, received, sent, client,
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     respond: (to: Envelope, payload: unknown) => post(envelope("response", to.type, payload, to.id)),
     request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
@@ -428,6 +428,8 @@ describe("useDocsFrameSession: api.download", () => {
     expect(frameDownloadMaxBytes(200 * 1024 * 1024)).toBe(264 * 1024 * 1024);
 
     const editor = setup({ uploadMaxBytes: 50 * 1024 * 1024 });
+    // The ceiling comes from useDocumentLimits, so the config must have landed before init goes out.
+    await waitFor(() => expect(editor.client.getQueryData(["public-config"])).toBeDefined());
     await editor.boot();
     const editorInit = editor.sent("init")[0]?.payload as { capabilities: { download: boolean }; downloadMaxBytes?: number };
     expect(editorInit.capabilities.download).toBe(true);

@@ -84,6 +84,11 @@ describe("useDocumentLimits and document size formatting", () => {
       reason: "too_large",
       maxBytes,
     });
+    expect(validateDocumentUploadFile({ name: "diagram.svg", size: 1024 }, maxBytes)).toEqual({ ok: true });
+    expect(validateDocumentUploadFile({ name: "table.csv", size: 1024 }, maxBytes)).toEqual({
+      ok: false,
+      reason: "unsupported_format",
+    });
     expect(validateDocumentUploadFile({ name: "installer.exe", size: 1024 }, maxBytes)).toEqual({
       ok: false,
       reason: "unsupported_format",

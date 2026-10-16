@@ -1,37 +1,27 @@
 import {
   DEFAULT_DOCUMENT_LIMITS,
   DEFAULT_DOCUMENT_MAX_BYTES,
-  DEFAULT_DOCUMENT_SAVE_WARN_RATIO,
-  DEFAULT_DOCUMENT_WEB_OPEN_LIMITS,
   type DocumentLimits,
-  type DocumentWebOpenLimit,
-  type DocumentWebOpenLimits,
 } from "../api/endpoints/config";
 import { usePublicConfig } from "../feature-flags/use-public-config";
 
-export {
-  DEFAULT_DOCUMENT_LIMITS,
-  DEFAULT_DOCUMENT_MAX_BYTES,
-  DEFAULT_DOCUMENT_SAVE_WARN_RATIO,
-  DEFAULT_DOCUMENT_WEB_OPEN_LIMITS,
-  type DocumentLimits,
-  type DocumentWebOpenLimit,
-  type DocumentWebOpenLimits,
-};
+export { DEFAULT_DOCUMENT_LIMITS, DEFAULT_DOCUMENT_MAX_BYTES };
 
 const MIB = 1024 * 1024;
 
 /**
- * Extensions the server accepts for a file document (`server/internal/document/mime.go`).
+ * Extensions the server accepts for a file document (`server/internal/files/registry.go`
+ * `documentMIMETypes` + `server/internal/document/file_validation.go` `document.ValidateFile`;
+ * `htm` and `markdown` sniff as `text/html` and `text/plain`).
  * Checked before uploading so an unsupported extension fails before any bytes leave the browser.
  */
-export const ALLOWED_DOCUMENT_FILE_EXTENSIONS = new Set([
+const ALLOWED_DOCUMENT_FILE_EXTENSIONS = new Set([
   "pdf",
-  "jpg",
-  "jpeg",
-  "png",
-  "gif",
-  "webp",
+  "txt",
+  "md",
+  "markdown",
+  "html",
+  "htm",
   "doc",
   "docx",
   "xls",
@@ -39,15 +29,14 @@ export const ALLOWED_DOCUMENT_FILE_EXTENSIONS = new Set([
   "ppt",
   "pptx",
   "odt",
-  "ods",
-  "odp",
-  "txt",
-  "md",
-  "markdown",
-  "csv",
-  "html",
-  "htm",
-  "zip",
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "svg",
+  "css",
+  "js",
 ]);
 
 export const DOCUMENT_UPLOAD_ACCEPT = Array.from(ALLOWED_DOCUMENT_FILE_EXTENSIONS, (ext) => `.${ext}`).join(",");
@@ -87,7 +76,7 @@ export function formatDocumentSizeMB(bytes: number, locale?: string, maxBytes?: 
   return `${formatted} MB`;
 }
 
-export type DocumentUploadValidationResult =
+type DocumentUploadValidationResult =
   | { ok: true }
   | { ok: false; reason: "too_large"; maxBytes: number }
   | { ok: false; reason: "unsupported_format" };
@@ -99,7 +88,7 @@ function fileExtensionOf(filename: string): string | null {
   return trimmed.slice(dot + 1).toLowerCase();
 }
 
-export function isAllowedDocumentFileName(filename: string): boolean {
+function isAllowedDocumentFileName(filename: string): boolean {
   const ext = fileExtensionOf(filename);
   if (!ext) return false;
   return ALLOWED_DOCUMENT_FILE_EXTENSIONS.has(ext);
