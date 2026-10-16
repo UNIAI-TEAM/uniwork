@@ -41,7 +41,7 @@ describe("sourceParentPath", () => {
 });
 
 describe("sourceLinkLabelKey", () => {
-  it("says go to the original for chat now that it reaches the message", () => {
+  it("says View where attached for chat now that it reaches the message", () => {
     expect(sourceLinkLabelKey(parent("chat_channel", "c", "m"))).toBe("documents.home.row.go_to_source");
     expect(sourceLinkLabelKey(parent("chat_dm", "c", "m"))).toBe("documents.home.row.go_to_source");
   });
@@ -50,7 +50,7 @@ describe("sourceLinkLabelKey", () => {
     expect(sourceLinkLabelKey(parent("email_thread", "e"))).toBe("documents.home.row.open_email");
   });
 
-  it("says go to the original for task, comment and meeting", () => {
+  it("says View where attached for task, comment and meeting", () => {
     expect(sourceLinkLabelKey(parent("task", "t"))).toBe("documents.home.row.go_to_source");
     expect(sourceLinkLabelKey(parent("task_comment", "t"))).toBe("documents.home.row.go_to_source");
     expect(sourceLinkLabelKey(parent("meeting", "m"))).toBe("documents.home.row.go_to_source");

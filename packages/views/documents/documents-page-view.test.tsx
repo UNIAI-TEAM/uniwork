@@ -751,7 +751,7 @@ describe("DocumentsPageView", () => {
     expect(postCall("POST")).toBeUndefined();
   });
 
-  it("says a chat file goes to the original, and offers no save for a file the server will not copy", async () => {
+  it("says a chat file says View where attached, and offers no save for a file the server will not copy", async () => {
     route({ list: () => [], sources: () => [source({ can_save: false })] });
     renderView(vi.fn());
     const row = await rowOf("Đề xuất ngân sách.pdf");
