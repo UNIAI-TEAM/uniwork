@@ -190,6 +190,64 @@ func TestChatEditNotifiesOnlyNewMentions(t *testing.T) {
 	}
 }
 
+func latestVoiceCallLogID(t *testing.T, s *ChatService, roomID string) string {
+	t.Helper()
+	var id string
+	err := s.pool.QueryRow(context.Background(),
+		`SELECT id FROM chat_messages WHERE room_id = $1 AND kind = 'voice_call_log' ORDER BY created_at DESC LIMIT 1`, roomID,
+	).Scan(&id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestMissedDMCallNotifiesThePeer(t *testing.T) {
+	s, _, q, ua, ub, w, _ := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "missed-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "missed-1"); err != nil {
+		t.Fatal(err)
+	}
+	msgID := latestVoiceCallLogID(t, s, dm.ID)
+	if got := chatNotifyRecipients(t, s, "chat.dm.received", msgID); !slices.Equal(got, []string{ub.ID}) {
+		t.Fatalf("missed call dm notify %v, want peer %s", got, ub.ID)
+	}
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "answered-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "answered-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "answered-1"); err != nil {
+		t.Fatal(err)
+	}
+	answeredID := latestVoiceCallLogID(t, s, dm.ID)
+	if got := chatNotifyRecipients(t, s, "chat.dm.received", answeredID); len(got) != 0 {
+		t.Fatalf("completed call should not dm-notify: %v", got)
+	}
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "declined-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "declined-1"); err != nil {
+		t.Fatal(err)
+	}
+	declinedID := latestVoiceCallLogID(t, s, dm.ID)
+	if got := chatNotifyRecipients(t, s, "chat.dm.received", declinedID); len(got) != 0 {
+		t.Fatalf("declined call should not dm-notify: %v", got)
+	}
+}
+
 // sendEveryKind sends a poll, a note, a post and a reminder into roomID, each
 // keyed by clientMsgID plus its kind, and returns them in that order.
 func sendEveryKind(t *testing.T, s *ChatService, userID, workspaceID, roomID, clientMsgID string) []ChatMessageRow {
