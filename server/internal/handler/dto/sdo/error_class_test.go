@@ -110,6 +110,10 @@ func TestErrorClassTable(t *testing.T) {
 		"edit_lock_free", "edit_lock_held_by_me", "edit_hold_device_required",
 		"edit_hold_cap_reached", "edit_request_to_self", "edit_request_closed",
 		"edit_request_expired", "edit_request_rate_limited",
+		// A share for the document's own workspace at manage (Q-S1, SH-S1):
+		// the home row tops out at edit, so the dialog lowers the level to
+		// fields.max instead of running lost-access or reload recovery.
+		"level_not_allowed",
 		// The access report export's row cap (UNI-1643, 422 fields.max_rows):
 		// the same kind of count limit, the web asks to narrow the filter.
 		"access_report_too_large",
@@ -164,7 +168,7 @@ func TestErrorClassTable(t *testing.T) {
 	// fails here even with the file listed.
 	for _, code := range []string{
 		"document_restricted", "break_glass_required", "document_owned_by_work_product",
-		"access_report_too_large", "unsupported_media_type", "storage_unavailable",
+		"level_not_allowed", "access_report_too_large", "unsupported_media_type", "storage_unavailable",
 	} {
 		if !found[code] {
 			t.Errorf("scan did not find %q: the emission pattern changed, update permissionFileCodes", code)

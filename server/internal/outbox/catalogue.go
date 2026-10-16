@@ -259,6 +259,10 @@ var catalogue = []EventDef{
 	{Topic: "document.share_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.break_glass_granted", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.break_glass_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// SH-S1 (UNI-1780): the workspace home row turned on, off or changed
+	// level. Workspace scope, ids only; the client invalidates the document
+	// keys exactly as a document.updated visibility change does.
+	{Topic: "document.workspace_access_changed", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_created", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// Pages (UNI-678): title, icon or visibility changed; ids only, no

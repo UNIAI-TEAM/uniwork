@@ -49,7 +49,11 @@ func frameDocx(t *testing.T, marker string) []byte {
 
 func (w *officeWorld) createDocx(t *testing.T, name string, body []byte) string {
 	t.Helper()
-	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token, nil, name, body, nil)
+	// Explicitly workspace-visible: the frame cases have members who are not
+	// the ACL owner open these documents, and U-SH2's private default is not
+	// what they test.
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"visibility": "workspace"}, name, body, nil)
 	if res.StatusCode != 201 {
 		t.Fatalf("create docx: %d %s", res.StatusCode, raw)
 	}

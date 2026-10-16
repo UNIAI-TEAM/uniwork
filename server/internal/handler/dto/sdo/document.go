@@ -364,7 +364,10 @@ type DocumentAdminSummarySDO struct {
 	MyGrant    *DocumentBreakGlassGrantDTO     `json:"my_grant" description:"Grant truy cập khẩn cấp còn hiệu lực của chính người gọi; null khi không có"`
 }
 
-// DocumentShareSDO wraps one grant (share create).
+// DocumentShareSDO wraps one grant (share create). A share for the
+// document's own workspace answers the home-row grant it merged into (SH-S1):
+// same principal and level, but no share id and no created_at - there is no
+// document_shares row behind it.
 type DocumentShareSDO struct {
 	Share DocumentShareDTO `json:"share"`
 }

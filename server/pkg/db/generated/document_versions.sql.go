@@ -461,7 +461,7 @@ WHERE id = $2
   AND organization_id = $3
   AND workspace_id = $4
   AND current_version = $5
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
 `
 
 type MarkDocumentVersionedParams struct {
@@ -526,6 +526,7 @@ func (q *Queries) MarkDocumentVersioned(ctx context.Context, arg MarkDocumentVer
 		&i.UpdatedAt,
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
+		&i.WorkspaceLevel,
 	)
 	return i, err
 }
@@ -549,7 +550,7 @@ WHERE id = $8
   AND workspace_id = $10
   AND kind = 'page'
   AND revision = $11
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
 `
 
 type RestoreDocumentPageParams struct {
@@ -626,6 +627,7 @@ func (q *Queries) RestoreDocumentPage(ctx context.Context, arg RestoreDocumentPa
 		&i.UpdatedAt,
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
+		&i.WorkspaceLevel,
 	)
 	return i, err
 }

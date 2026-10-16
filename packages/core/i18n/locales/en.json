@@ -8974,6 +8974,8 @@
     },
     "share": {
       "title": "Share document",
+      "title_named": "Share “{{title}}”",
+      "stored_in": "Stored in: {{workspace}}",
       "description": "Grant access to people, workspaces or the organization. The list below is the access that actually exists.",
       "manage_only": "You need manage access to share this document.",
       "loading": "Loading access…",
@@ -9025,6 +9027,7 @@
       "people_empty": "No matching members.",
       "people_loading": "Loading members…",
       "person_unknown": "Unknown member",
+      "workspace_unknown": "Another workspace",
       "members_error_first": "Could not load the members.",
       "members_error_partial": "Not every member loaded, so some people may be missing.",
       "members_error_limit": "Only part of a very large member list is shown.",
@@ -9692,7 +9695,8 @@
       "folder_not_supported": "A folder has no content to open or edit.",
       "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
-      "folder_name_taken": "A folder with this name already exists here. Choose another name."
+      "folder_name_taken": "A folder with this name already exists here. Choose another name.",
+      "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level."
     }
   },
   "squads": {

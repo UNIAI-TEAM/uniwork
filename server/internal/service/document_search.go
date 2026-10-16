@@ -496,6 +496,7 @@ func (s *DocumentService) attachListPathsQ(ctx context.Context, q *db.Queries, s
 				OrganizationID: scope.organizationID,
 				WorkspaceID:    workspaceID,
 				Visibility:     anc.Visibility,
+				WorkspaceLevel: anc.WorkspaceLevel,
 				AclOwnerID:     anc.AclOwnerID,
 				ArchivedAt:     anc.ArchivedAt,
 			}
@@ -565,8 +566,9 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	rows, err := s.q.ListRecentDocumentsPage(ctx, db.ListRecentDocumentsPageParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ActorID: actor.ID,
 		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
-		AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
-		CursorAt: cursorAt, CursorID: nullText(cursor.ID), PageLimit: int32(limit + 1),
+		AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
+		ShareWorkspaces: scope.shareWorkspaces,
+		CursorAt:        cursorAt, CursorID: nullText(cursor.ID), PageLimit: int32(limit + 1),
 	})
 	if err != nil {
 		return DocumentListPage{}, err
@@ -587,7 +589,8 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 	return db.Document{
 		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
-		Kind: r.Kind, Title: r.Title, Icon: r.Icon, Visibility: r.Visibility, Content: r.Content,
+		Kind: r.Kind, Title: r.Title, Icon: r.Icon, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		Content:     r.Content,
 		ContentText: r.ContentText, SearchText: r.SearchText, ContentBytes: r.ContentBytes,
 		CurrentVersion: r.CurrentVersion, FileVersionID: r.FileVersionID, Revision: r.Revision,
 		Position: r.Position, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID, AclOwnerID: r.AclOwnerID,

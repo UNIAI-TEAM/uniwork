@@ -365,7 +365,8 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
 		AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
-		AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
+		AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
+		ShareWorkspaces: scope.shareWorkspaces,
 	})
 	if err != nil {
 		return nil, err

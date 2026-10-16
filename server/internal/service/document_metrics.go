@@ -25,7 +25,10 @@ const (
 )
 
 // Outcome vocabulary. A conflict is a lost base race; the quota, invalid,
-// gone and unavailable buckets each name one client-visible answer.
+// gone, archived and unavailable buckets each name one client-visible answer.
+// forbidden is every permission refusal, the DOC-05 document_restricted gate
+// for an admin without a read level included; archived is the trash, which is
+// not lost access and stays its own operator signal.
 const (
 	documentOutcomeOK          = "ok"
 	documentOutcomeConflict    = "conflict"
@@ -33,6 +36,7 @@ const (
 	documentOutcomeForbidden   = "forbidden"
 	documentOutcomeNotFound    = "not_found"
 	documentOutcomeGone        = "gone"
+	documentOutcomeArchived    = "archived"
 	documentOutcomeInvalid     = "invalid"
 	documentOutcomeUnavailable = "unavailable"
 	documentOutcomeError       = "error"
@@ -122,7 +126,9 @@ func documentSaveResult(err error) (outcome, conflictCode string) {
 	switch {
 	case errors.Is(err, ErrQuotaExceeded):
 		return documentOutcomeQuota, ""
-	case errors.Is(err, ErrMemberDeactivated), errors.Is(err, ErrOrganizationSuspended), errors.Is(err, ErrOrganizationDeletionScheduled), errors.Is(err, ErrDocumentArchived), errors.Is(err, ErrForbidden):
+	case errors.Is(err, ErrDocumentArchived):
+		return documentOutcomeArchived, ""
+	case errors.Is(err, ErrMemberDeactivated), errors.Is(err, ErrOrganizationSuspended), errors.Is(err, ErrOrganizationDeletionScheduled), errors.Is(err, ErrForbidden), errors.Is(err, ErrDocumentRestricted):
 		return documentOutcomeForbidden, ""
 	case errors.Is(err, ErrNotFound):
 		return documentOutcomeNotFound, ""
