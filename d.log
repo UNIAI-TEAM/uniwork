@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+b65535f35b0323882aabfed168974cb95299b5a0
+b65535f35 chore: merge REPIN-1 (UNI-1825, 712c8e467) into the G5-G7 root
+9863ca89b chore: merge SRC-02a (UNI-1815, 54a24d6c6) into the G5-G7 root
+91ede2c4e test(e2e): match the named share dialog title from SH-S1
+54a24d6c6 test(e2e): keep the library row lookup off the go-to-source button
