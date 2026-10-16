@@ -112,16 +112,16 @@ của D: `0.1.0-05fd209`.
 
 | Mã | Hàng | Tóm tắt | Owner / trạng thái |
 | --- | --- | --- | --- |
-| UXF-01 | F-02 | Ring focus của tùy chọn đang chọn trong picker không có (`outline: none`) | đã sửa ở fork main 99e5a5253, chờ D re-pin (pin hiện 0.1.0-05fd209) |
-| UXF-02 | S5-03 | S5 không có "Lưu thành bản sao…" | card G5-12 (Lưu thành bản sao) |
-| UXF-03 | S5-04 | S5 Docs không có "Xem khác biệt" | chờ Advisor phân công (fork) |
-| UXF-04 | L-05 | Nút live của frame bị `inert` khi S5 mở | chờ Advisor phân công (fork) |
-| UXF-05 | FC-02 | Forced colors: nút `aria-disabled` không dùng `GrayText` | chờ Advisor phân công (fork) |
-| UXF-06 | FC-03 | Forced colors: tùy chọn đang chọn không có viền `Highlight` | chờ Advisor phân công (fork) |
-| UXF-07 | S5-12 | Frame hẹp 480–767 px: S5 giữ `max-width: 448px`, không rộng toàn phần trừ 16 px | chờ Advisor phân công (fork) |
-| UXF-08 | S7-01 | Picker: `listbox` ở `.ai-model-pop`, "Quản lý" nằm trong listbox | đã sửa ở fork main 99e5a5253, chờ D re-pin (pin hiện 0.1.0-05fd209) |
-| UXF-09 | S8-01 | S8 không được render (chỉ có chuỗi) | đã sửa ở fork main 99e5a5253, chờ D re-pin (pin hiện 0.1.0-05fd209) |
-| UXF-10 | L-01 | Hai nút live của cửa sổ chỉ được tạo ở lần announce đầu (`remote-bar.ts` `liveNode()`), không có từ lúc tải | chờ Advisor phân công (fork) |
+| UXF-01 | F-02 | Ring focus của tùy chọn đang chọn trong picker không có (`outline: none`) | đã sửa ở fork main 99e5a5253; chờ D re-pin do lane g6-fork_ui làm sau khi G6-09 READY (pin hiện 0.1.0-05fd209) |
+| UXF-02 | S5-03 | S5 không có "Lưu thành bản sao…" | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
+| UXF-03 | S5-04 | S5 Docs không có "Xem khác biệt" | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
+| UXF-04 | L-05 | Nút live của frame bị `inert` khi S5 mở | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
+| UXF-05 | FC-02 | Forced colors: nút `aria-disabled` không dùng `GrayText` | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
+| UXF-06 | FC-03 | Forced colors: tùy chọn đang chọn không có viền `Highlight` | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
+| UXF-07 | S5-12 | Frame hẹp 480–767 px: S5 giữ `max-width: 448px`, không rộng toàn phần trừ 16 px | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
+| UXF-08 | S7-01 | Picker: `listbox` ở `.ai-model-pop`, "Quản lý" nằm trong listbox | đã sửa ở fork main 99e5a5253; chờ D re-pin do lane g6-fork_ui làm sau khi G6-09 READY (pin hiện 0.1.0-05fd209) |
+| UXF-09 | S8-01 | S8 không được render (chỉ có chuỗi) | đã sửa ở fork main 99e5a5253; chờ D re-pin do lane g6-fork_ui làm sau khi G6-09 READY (pin hiện 0.1.0-05fd209) |
+| UXF-10 | L-01 | Hai nút live của cửa sổ chỉ được tạo ở lần announce đầu (`remote-bar.ts` `liveNode()`), không có từ lúc tải | đề xuất card fork UXF-FIX (UNI-1824); chờ Advisor xác nhận |
 
 ## Ký nghiệm thu
 
