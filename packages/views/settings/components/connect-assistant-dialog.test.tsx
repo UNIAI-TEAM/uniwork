@@ -57,7 +57,6 @@ describe("ConnectAssistantDialog", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: new RegExp(g("claude")) }));
 
     expect(within(dialog).getByText(g("copyTitle"))).toBeInTheDocument();
-    expect(within(dialog).queryByText(g("chatgptWarning"))).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: t("settings.connectedApps.copy") }));
     await waitFor(() => expect(copyText).toHaveBeenCalledWith(MCP_URL));
 
@@ -82,18 +81,17 @@ describe("ConnectAssistantDialog", () => {
     expect(within(dialog).getByText(g("addClaude"))).toBeInTheDocument();
   });
 
-  it("tells a ChatGPT user about the paid plan and shows ChatGPT's own steps", async () => {
+  it("walks a ChatGPT user through the Plugins page", async () => {
     const dialog = await openGuide();
-    expect(within(dialog).getByText(g("chatgptHint"))).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: new RegExp(g("chatgpt")) }));
-    expect(within(dialog).getByText(g("chatgptWarning"))).toBeInTheDocument();
+    expect(within(dialog).getByText(g("copyTitle"))).toBeInTheDocument();
 
     next(dialog);
     expect(within(dialog).getByText(g("openChatgpt"))).toBeInTheDocument();
     expect(within(dialog).getByRole("img", { name: g("artOpenChatgpt") })).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: g("openButton", { client: "ChatGPT" }) })).toHaveAttribute(
       "href",
-      "https://chatgpt.com/",
+      "https://chatgpt.com/plugins",
     );
 
     next(dialog);

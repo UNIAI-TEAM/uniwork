@@ -28,15 +28,13 @@ const UI = {
   name: "Name",
   url: "URL",
   add: "Add",
-  settings: "Settings",
-  apps: "Apps",
-  advanced: "Advanced settings",
-  devMode: "Developer mode",
-  createApp: "Create app",
-  serverUrl: "MCP server URL",
+  plugins: "Plugins",
+  plus: "+",
+  addMcp: "Add custom MCP server",
+  connection: "Connection",
   auth: "Authentication",
   oauth: "OAuth",
-  create: "Create",
+  createPlugin: "Create as a plugin",
   uniwork: "UniWork",
 } as const;
 
@@ -148,26 +146,25 @@ function OpenClaude() {
 function OpenChatgpt() {
   return (
     <Window host={UI.chatgptHost}>
-      <Label x={20} y={50} strong>
-        {UI.settings}
+      <Label x={24} y={56} strong>
+        {UI.plugins}
       </Label>
-      <Bar x={20} y={64} w={56} />
-      <Ring x={18} y={76} w={72} h={18} />
-      <Label x={22} y={89}>
-        {UI.apps}
+      <Ring x={W - 52} y={42} w={26} h={20} />
+      <Pill x={W - 52} y={42} w={26}>
+        {UI.plus}
+      </Pill>
+      <rect x={W - 186} y={70} width={160} height={52} rx={6} className="fill-background stroke-border" />
+      <Ring x={W - 180} y={76} w={148} h={18} />
+      <Label x={W - 174} y={89}>
+        {UI.addMcp}
       </Label>
-      <Bar x={20} y={106} w={50} />
-      <path d={`M100 30 V${H - 6}`} className="stroke-border" />
-      <Label x={116} y={52} strong>
-        {UI.advanced}
-      </Label>
-      <Bar x={116} y={66} w={150} />
-      <Ring x={116} y={82} w={W - 140} h={22} />
-      <Label x={122} y={97}>
-        {UI.devMode}
-      </Label>
-      <rect x={W - 58} y={86} width={28} height={14} rx={7} className="fill-primary" />
-      <circle cx={W - 37} cy={93} r={5} className="fill-primary-foreground" />
+      <Bar x={W - 174} y={106} w={90} />
+      {[70, 94, 118, 142].map((y) => (
+        <g key={y}>
+          <rect x={24} y={y} width={W - 230} height={18} rx={4} className="fill-muted/50" />
+          <Bar x={32} y={y + 6} w={70} />
+        </g>
+      ))}
     </Window>
   );
 }
@@ -189,12 +186,12 @@ function AddClaude({ url }: { url: string }) {
 function AddChatgpt({ url }: { url: string }) {
   return (
     <Window host={UI.chatgptHost}>
-      <Sheet title={UI.createApp}>
+      <Sheet title={UI.addMcp}>
         <Field x={82} y={70} w={196} label={UI.name} value={UI.uniwork} />
-        <Field x={82} y={106} w={196} label={UI.serverUrl} value={url} ring />
-        <Field x={82} y={145} w={92} label={UI.auth} value={UI.oauth} />
-        <Pill x={222} y={160} w={56} primary>
-          {UI.create}
+        <Field x={82} y={106} w={196} label={UI.connection} value={url} ring />
+        <Field x={82} y={145} w={80} label={UI.auth} value={UI.oauth} />
+        <Pill x={182} y={160} w={96} primary>
+          {UI.createPlugin}
         </Pill>
       </Sheet>
     </Window>

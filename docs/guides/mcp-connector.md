@@ -28,7 +28,7 @@ Hoặc tự làm: ở **Cài đặt › Ứng dụng AI**, bấm **Sao chép đ�
 | Trợ lý | Cách thêm |
 | --- | --- |
 | Claude (web, desktop) | Settings › Connectors › Add custom connector, dán địa chỉ |
-| ChatGPT | Settings › Apps & Connectors › Advanced, bật Developer mode, tạo connector mới với địa chỉ trên, xác thực OAuth |
+| ChatGPT (mọi gói, kể cả miễn phí) | Mở `chatgpt.com/plugins`, bấm **+**, chọn **Add custom MCP server**, dán địa chỉ ở mục **Connection**, xác thực OAuth, bấm **I understand and want to continue** rồi **Create as a plugin** và cài plugin. Trong cuộc trò chuyện, gõ `@` rồi chọn UniWork |
 | Claude Code | `claude mcp add --transport http uniwork <địa chỉ>`, rồi gõ `/mcp` và chọn `uniwork` để đăng nhập |
 | Gemini CLI | Thêm `"mcpServers": {"uniwork": {"httpUrl": "<địa chỉ>"}}` vào `~/.gemini/settings.json`, rồi chạy `/mcp auth uniwork` |
 

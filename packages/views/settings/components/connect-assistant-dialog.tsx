@@ -18,7 +18,7 @@ type Assistant = "claude" | "chatgpt";
 /** Where each assistant keeps its connections, and which words describe it. */
 const ASSISTANTS: Record<
   Assistant,
-  { href: string; open: string; add: string; artOpen: ArtKind; artAdd: ArtKind; use: string; mobile: string }
+  { href: string; open: string; add: string; artOpen: ArtKind; artAdd: ArtKind; use: string; mobile?: string }
 > = {
   claude: {
     href: "https://claude.ai/customize/connectors",
@@ -29,15 +29,14 @@ const ASSISTANTS: Record<
     use: "useClaude",
     mobile: "mobileClaude",
   },
-  // ChatGPT moves its settings often; the home page is the one address that stays.
+  // Custom MCP servers are added as plugins (renamed from apps in 2026-07).
   chatgpt: {
-    href: "https://chatgpt.com/",
+    href: "https://chatgpt.com/plugins",
     open: "openChatgpt",
     add: "addChatgpt",
     artOpen: "openChatgpt",
     artAdd: "addChatgpt",
     use: "useChatgpt",
-    mobile: "mobileChatgpt",
   },
 };
 
@@ -109,7 +108,7 @@ function Steps({ mcpUrl, knownIds, onClose }: { mcpUrl: string; knownIds: readon
           {a ? (
             <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
               <li>{t(a.use)}</li>
-              <li>{t(a.mobile)}</li>
+              {a.mobile ? <li>{t(a.mobile)}</li> : null}
             </ul>
           ) : null}
         </FormDialogBody>
@@ -167,11 +166,6 @@ function Steps({ mcpUrl, knownIds, onClose }: { mcpUrl: string; knownIds: readon
   } else if (step === 2) {
     body = (
       <>
-        {assistant === "chatgpt" ? (
-          <Alert variant="warning">
-            <AlertDescription>{t("chatgptWarning")}</AlertDescription>
-          </Alert>
-        ) : null}
         <StepTitle>{t("copyTitle")}</StepTitle>
         <p>{t("copyBody", { client })}</p>
         <div className="rounded-lg border border-border">
