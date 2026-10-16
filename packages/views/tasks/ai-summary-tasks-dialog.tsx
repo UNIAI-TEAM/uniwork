@@ -166,9 +166,9 @@ function TaskEditorCard({
 }
 
 /**
- * The form inside the open dialog. Mounted on open (the dialog unmounts its
- * content when closed), so each opening starts from the seeds, and a seed
- * that changes while it is open does not overwrite what the person typed.
+ * The form inside the dialog. Keyed per opening, so each opening starts from
+ * the seeds, and a seed that changes while it is open does not overwrite what
+ * the person typed.
  */
 function AiSummaryTasksForm({
   wsId,
@@ -248,6 +248,11 @@ function AiSummaryTasksForm({
  * Review AI action items before they become tasks: who, when, how urgent and
  * in which project, per item. Shared by Email Hub and meetings; each screen
  * supplies its seeds (its own suggestions) and its words.
+ *
+ * The popup fades out after `open` turns false, and a caller usually clears
+ * its selection in the same update, so the form keeps the seeds and words it
+ * last showed open until the popup is gone instead of fading out empty. Each
+ * opening remounts the form, starting it from the current seeds.
  */
 export function AiSummaryTasksDialog({
   open,
@@ -271,21 +276,32 @@ export function AiSummaryTasksDialog({
   pending: boolean;
   onConfirm: (input: { projectId?: string; drafts: Record<number, AiSummaryTaskDraft> }) => void;
 }) {
+  const [opening, setOpening] = useState(0);
+  const [wasOpen, setWasOpen] = useState(open);
+  const [shown, setShown] = useState({ seeds, copy });
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setOpening((n) => n + 1);
+  }
+  if (open && (shown.seeds !== seeds || shown.copy !== copy)) {
+    setShown({ seeds, copy });
+  }
+  const view = open ? { seeds, copy } : shown;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <FormDialogContent size="lg" className="sm:max-w-xl">
-        {open ? (
-          <AiSummaryTasksForm
-            wsId={wsId}
-            idPrefix={idPrefix}
-            seeds={seeds}
-            initialProjectId={initialProjectId}
-            copy={copy}
-            pending={pending}
-            onCancel={() => onOpenChange(false)}
-            onConfirm={onConfirm}
-          />
-        ) : null}
+        <AiSummaryTasksForm
+          key={opening}
+          wsId={wsId}
+          idPrefix={idPrefix}
+          seeds={view.seeds}
+          initialProjectId={initialProjectId}
+          copy={view.copy}
+          pending={pending}
+          onCancel={() => onOpenChange(false)}
+          onConfirm={onConfirm}
+        />
       </FormDialogContent>
     </Dialog>
   );
