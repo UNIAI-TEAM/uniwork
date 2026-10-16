@@ -32,6 +32,9 @@ var titles = map[string]map[string]string{
 		KindChatMentioned:               "{{actor}} đã nhắc đến bạn trong {{room}}",
 		KindChatDM:                      "{{actor}} đã nhắn tin cho bạn",
 		KindChatThreadReplied:           "{{actor}} đã trả lời thread trong {{room}}",
+		KindDocumentAccessRequested:     "{{actor}} xin quyền truy cập tài liệu “{{document}}”.",
+		KindDocumentAccessApproved:      "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",
+		KindDocumentAccessDeclined:      "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
 	},
 	"en": {
 		KindTaskAssigned:                "{{actor}} assigned you “{{task}}”",
@@ -57,6 +60,9 @@ var titles = map[string]map[string]string{
 		KindChatMentioned:               "{{actor}} mentioned you in {{room}}",
 		KindChatDM:                      "{{actor}} sent you a message",
 		KindChatThreadReplied:           "{{actor}} replied to a thread in {{room}}",
+		KindDocumentAccessRequested:     "{{actor}} requested access to “{{document}}”.",
+		KindDocumentAccessApproved:      "{{actor}} gave you access to “{{document}}”.",
+		KindDocumentAccessDeclined:      "Your request to access a document was declined.",
 	},
 }
 
@@ -74,6 +80,9 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentDiscussionReplied:   "Có phản hồi thảo luận mới",
 		KindDocumentCommentResolved:     "Bình luận đã được giải quyết",
 		KindDocumentBreakGlass:          "Truy cập khẩn cấp vào tài liệu",
+		KindDocumentAccessRequested:     "Yêu cầu truy cập tài liệu",
+		KindDocumentAccessApproved:      "Đã được cấp quyền",
+		KindDocumentAccessDeclined:      "Yêu cầu bị từ chối",
 	},
 	"en": {
 		KindDocumentMentioned:           "You were mentioned in a comment",
@@ -82,6 +91,9 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentDiscussionReplied:   "New reply in a discussion",
 		KindDocumentCommentResolved:     "Comment resolved",
 		KindDocumentBreakGlass:          "Emergency access to document",
+		KindDocumentAccessRequested:     "Document access request",
+		KindDocumentAccessApproved:      "Access granted",
+		KindDocumentAccessDeclined:      "Request declined",
 	},
 }
 
