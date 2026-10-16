@@ -5888,16 +5888,50 @@
         "filter": "Bộ lọc",
         "display": "Hiển thị",
         "tasks": {
-          "brief": "Họp với PA Việt Nam về hợp tác làm đại lý tên miền, hosting",
-          "uranus": "Triển khai uniwork cho Uranus",
-          "mytel": "Triển khai uniwork cho Mytel",
-          "viconnect": "Triển khai Uniwork cho Viconnect",
-          "simulation": "Triển khai Demo giải pháp Mô phỏng diễn tập",
-          "design": "Triển khai Uniwork cho Unicom",
-          "review": "Triển khai uniwork cho Athena",
-          "launch": "Làm lại dự toán theo quy mô, phạm vi của Quảng Ngãi",
+          "brief": "Hoàn thiện bản mô tả sản phẩm mẫu",
+          "research": "Khảo sát nhu cầu cho ứng dụng mẫu",
+          "wireframes": "Phác thảo bố cục trang giới thiệu",
+          "prototype": "Chuẩn bị bản mẫu tương tác",
+          "simulation": "Viết kịch bản kiểm thử onboarding",
+          "design": "Thiết kế trải nghiệm onboarding",
+          "review": "Tổng hợp phản hồi cho bản mẫu",
+          "launch": "Thống nhất phạm vi bản phát hành thử",
+          "handoff": "Bàn giao bộ hướng dẫn mẫu",
+          "integration": "Kiểm tra kết nối môi trường thử nghiệm",
           "followup": "Cập nhật onboarding từ trao đổi của nhóm"
         }
+      },
+      "concepts": {
+        "skills": [
+          "Tóm tắt bản mô tả mẫu",
+          "Soạn checklist onboarding",
+          "Chuẩn bị câu hỏi rà soát"
+        ],
+        "work-catalog": [
+          "Bản tin sản phẩm mẫu",
+          "Rà soát onboarding mẫu",
+          "Checklist phát hành thử"
+        ],
+        "decision-history": [
+          "Chốt phạm vi bản phát hành thử",
+          "Duyệt bố cục bản mẫu",
+          "Điều chỉnh lịch rà soát"
+        ],
+        "ai-market": [
+          "Trợ lý soạn thảo mẫu",
+          "Trợ lý rà soát mẫu",
+          "Trợ lý biên bản mẫu"
+        ],
+        "reports": [
+          "Tổng kết sprint mẫu",
+          "Phân bổ công việc mẫu",
+          "Báo cáo bản phát hành thử"
+        ]
+      },
+      "projects": {
+        "website": "Website minh họa",
+        "onboarding": "Onboarding đội mẫu",
+        "campaign": "Chiến dịch thử nghiệm"
       }
     },
     "businessOs": {
@@ -6556,7 +6590,7 @@
       "meetingList": "Danh sách cuộc họp",
       "meetingRoom": "Giao diện phòng họp",
       "reference": "Giao diện sản phẩm UniWork",
-      "sample": "Dữ liệu mẫu minh họa · Không thay đổi dữ liệu thật",
+      "sample": "Dữ liệu hư cấu minh họa · Không sử dụng dữ liệu khách hàng",
       "expand": "Mở rộng",
       "close": "Đóng bản xem trước",
       "fit": "Xem toàn bộ giao diện",
@@ -6624,7 +6658,7 @@
       "priority": "Ưu tiên xử lý",
       "mailPriority": "Bản mô tả ra mắt sản phẩm đang chờ bạn xem.",
       "mailStatistics": "Thống kê email",
-      "greeting": "Chào Minh Linh,",
+      "greeting": "Chào An Nhiên,",
       "assistantSub": "Tổng hợp thông tin trong workspace hôm nay.",
       "docAlert": "0 tài liệu cần cập nhật",
       "taskAlert": "27 việc đang quá hạn",
@@ -6813,11 +6847,11 @@
       "selectThread": "Chọn một thư để xem nội dung.",
       "readOnly": "Chỉ đọc, theo quyền truy cập",
       "answerPending": "Đang tìm trong workspace…",
-      "ownerAnswer": "Hoàng Anh phụ trách thiết kế onboarding. Công việc đang ở trạng thái in_progress.",
+      "ownerAnswer": "Khánh Vy phụ trách thiết kế onboarding. Công việc đang ở trạng thái in_progress.",
       "pointer": {
         "task-row": "Mở công việc",
         "assignee": "Giao người phụ trách",
-        "member": "Chọn Hoàng Anh",
+        "member": "Chọn Khánh Vy",
         "task-close": "Quay lại bảng",
         "task-status": "Đổi trạng thái",
         "task-done": "Chuyển sang done",
@@ -6835,11 +6869,11 @@
       "steps": {
         "tasks0": "Mở công việc cần giao người phụ trách.",
         "tasks1": "Mở trường người phụ trách trong chi tiết công việc.",
-        "tasks2": "Chọn Hoàng Anh trong danh sách thành viên.",
-        "tasks3": "Hoàng Anh nhận việc. Trạng thái vẫn là in_progress.",
+        "tasks2": "Chọn Khánh Vy trong danh sách thành viên.",
+        "tasks3": "Khánh Vy nhận việc. Trạng thái vẫn là in_progress.",
         "tasks4": "Trở lại bảng và mở menu trạng thái của công việc.",
-        "tasks5": "Minh Linh chọn done để đánh dấu công việc hoàn thành.",
-        "tasks6": "Thẻ chuyển sang cột done. Người phụ trách vẫn là Hoàng Anh.",
+        "tasks5": "An Nhiên chọn done để đánh dấu công việc hoàn thành.",
+        "tasks6": "Thẻ chuyển sang cột done. Người phụ trách vẫn là Khánh Vy.",
         "meetings0": "Trong menu Thêm, chọn chia sẻ màn hình.",
         "meetings1": "Chọn cửa sổ muốn chia sẻ với cuộc họp.",
         "meetings2": "Xác nhận chia sẻ cửa sổ đã chọn.",
@@ -6884,10 +6918,10 @@
       "contextTitle": "Ngữ cảnh được giữ cùng công việc",
       "contextNote": "Phản hồi từ cuộc họp và quyết định thiết kế đã được liên kết.",
       "question": "Ai đang phụ trách onboarding? Nguồn ở đâu?",
-      "answer": "Hoàng Anh phụ trách trải nghiệm onboarding. Bạn có thể kiểm tra tại công việc và nguồn bên dưới.",
+      "answer": "Khánh Vy phụ trách trải nghiệm onboarding. Bạn có thể kiểm tra tại công việc và nguồn bên dưới.",
       "chatBrief": "Nhóm mình chốt luồng onboarding trong bản ra mắt này nhé. Mình đã bổ sung phản hồi của nhóm dùng thử.",
       "chatReply": "Mình nhận phần này. Gắn luôn cuộc trao đổi vào công việc để cả đội cùng theo dõi.",
-      "taskLinked": "Minh Linh liên kết công việc",
+      "taskLinked": "An Nhiên liên kết công việc",
       "typing": "Đang minh họa cuộc trao đổi…",
       "contextReady": "Mọi người cùng một ngữ cảnh",
       "meetingTitle": "Đồng bộ sản phẩm",
@@ -6909,7 +6943,7 @@
       "deliverables": "Nội dung bàn giao",
       "linked": "Đã liên kết",
       "reviewed": "Đã xem xét · quyết định minh họa",
-      "reviewNote": "Minh Linh · Giữ nguồn tham chiếu cùng tài liệu.",
+      "reviewNote": "An Nhiên · Giữ nguồn tham chiếu cùng tài liệu.",
       "week": "Tuần làm việc · 21–25/09",
       "days": {
         "0": "Thứ hai",
@@ -6930,7 +6964,7 @@
       "permissionNote": "Quyền truy cập gắn với tổ chức và workspace. Đây là danh sách minh họa.",
       "steps": {
         "work0": "Chọn công việc cần cả đội tập trung.",
-        "work1": "Minh Linh giao phần onboarding cho Hoàng Anh.",
+        "work1": "An Nhiên giao phần onboarding cho Khánh Vy.",
         "work2": "Gắn cuộc trao đổi vào cùng công việc.",
         "work3": "Hoàn thành một việc. Tiến độ cả đội rõ hơn.",
         "meeting0": "Cả đội bước vào cùng một cuộc họp.",
@@ -7155,7 +7189,7 @@
     "meeting": {
       "online": "Họp trực tuyến",
       "roomTitle": "Họp kế hoạch sản phẩm",
-      "sharedBy": "Minh Linh đang chia sẻ · Minh họa",
+      "sharedBy": "An Nhiên đang chia sẻ · Minh họa",
       "planTitle": "Cùng chốt bước tiếp theo.",
       "planDescription": "Phạm vi rõ ràng. Mỗi việc có một người phụ trách.",
       "mic": "Mic",
@@ -7298,7 +7332,7 @@
       "send": "Gửi tin nhắn",
       "you": "Bạn",
       "ownerQuestion": "Ai đang phụ trách?",
-      "ownerAnswer": "Hoàng Anh phụ trách thiết kế onboarding. Minh Linh giữ brief sản phẩm, UNI tổng hợp phản hồi và Thanh Ngân phụ trách phạm vi ra mắt.",
+      "ownerAnswer": "Khánh Vy phụ trách thiết kế onboarding. An Nhiên giữ brief sản phẩm, UNI tổng hợp phản hồi và Gia Minh phụ trách phạm vi ra mắt.",
       "completedCount_one": "{{count}} trong 4 công việc minh họa đã hoàn thành.",
       "completedCount_other": "{{count}} trong 4 công việc minh họa đã hoàn thành."
     },
@@ -7333,7 +7367,7 @@
       "notice1": "Bạn được nhắc trong trao đổi",
       "notice2": "Một công việc được giao cho bạn",
       "notice3": "Phạm vi ra mắt đã được cập nhật",
-      "noticeContext1": "Minh Linh · Kênh sản phẩm",
+      "noticeContext1": "An Nhiên · Kênh sản phẩm",
       "noticeContext2": "Thiết kế trải nghiệm onboarding",
       "noticeContext3": "Dự án ra mắt sản phẩm",
       "organization": "Tổ chức",
@@ -7406,7 +7440,7 @@
       "askQuestion": "Dự án ra mắt đang tiến triển thế nào?",
       "askAnswer": "Dựa trên các công việc bạn có quyền xem trong workspace:",
       "askPoint1": "Phạm vi ra mắt đã thống nhất.",
-      "askPoint2": "Thiết kế onboarding đang được Hoàng Anh phụ trách.",
+      "askPoint2": "Thiết kế onboarding đang được Khánh Vy phụ trách.",
       "sourceLabel": "Nguồn",
       "askGuardrail": "Hỏi UNI chỉ đọc dữ liệu được cấp quyền. Đây là câu trả lời minh họa.",
       "workflowTitle": "Ít chuyển qua lại hơn.\nNhiều việc đi đến đích hơn.",

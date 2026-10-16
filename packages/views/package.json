@@ -46,6 +46,7 @@
     "./navigation": "./navigation/index.ts",
     "./editor": "./editor/index.ts",
     "./common/*": "./common/*.tsx",
+    "./calendar/calendar-view-mode": "./calendar/calendar-view-mode.ts",
     "./calendar/*": "./calendar/*.tsx"
   },
   "dependencies": {

@@ -5892,16 +5892,50 @@
         "filter": "Filter",
         "display": "Display",
         "tasks": {
-          "brief": "Họp với PA Việt Nam về hợp tác làm đại lý tên miền, hosting",
-          "uranus": "Triển khai uniwork cho Uranus",
-          "mytel": "Triển khai uniwork cho Mytel",
-          "viconnect": "Triển khai Uniwork cho Viconnect",
-          "simulation": "Triển khai Demo giải pháp Mô phỏng diễn tập",
-          "design": "Triển khai Uniwork cho Unicom",
-          "review": "Triển khai uniwork cho Athena",
-          "launch": "Làm lại dự toán theo quy mô, phạm vi của Quảng Ngãi",
+          "brief": "Prepare the sample product brief",
+          "research": "Research needs for the sample app",
+          "wireframes": "Sketch the landing page layout",
+          "prototype": "Prepare an interactive prototype",
+          "simulation": "Write onboarding test scenarios",
+          "design": "Design the onboarding experience",
+          "review": "Summarize prototype feedback",
+          "launch": "Agree on the trial release scope",
+          "handoff": "Hand over the sample team guide",
+          "integration": "Check the sandbox connection",
           "followup": "Update onboarding from the team discussion"
         }
+      },
+      "concepts": {
+        "skills": [
+          "Summarize a sample brief",
+          "Draft an onboarding checklist",
+          "Prepare review questions"
+        ],
+        "work-catalog": [
+          "Sample product update",
+          "Demo onboarding review",
+          "Trial release checklist"
+        ],
+        "decision-history": [
+          "Agree on the trial release scope",
+          "Approve the prototype layout",
+          "Adjust the sample review schedule"
+        ],
+        "ai-market": [
+          "Demo writing assistant",
+          "Demo review assistant",
+          "Demo meeting notes assistant"
+        ],
+        "reports": [
+          "Sample sprint summary",
+          "Sample workload overview",
+          "Trial release report"
+        ]
+      },
+      "projects": {
+        "website": "Demo website",
+        "onboarding": "Sample team onboarding",
+        "campaign": "Trial campaign"
       }
     },
     "businessOs": {
@@ -6560,7 +6594,7 @@
       "meetingList": "Meeting list",
       "meetingRoom": "In-meeting preview",
       "reference": "UniWork product preview",
-      "sample": "Illustrative sample data · No real changes",
+      "sample": "Fictional demo data · No customer records",
       "expand": "Expand preview",
       "close": "Close preview",
       "fit": "Fit whole interface",
@@ -6628,7 +6662,7 @@
       "priority": "Priority",
       "mailPriority": "Launch brief is waiting for your review.",
       "mailStatistics": "Email statistics",
-      "greeting": "Hello Minh Linh,",
+      "greeting": "Hello An Nhiên,",
       "assistantSub": "A summary of your workspace today.",
       "docAlert": "0 documents need updating",
       "taskAlert": "27 tasks are overdue",
@@ -6817,11 +6851,11 @@
       "selectThread": "Select a message to read it.",
       "readOnly": "Read-only, within your permissions",
       "answerPending": "Looking in your workspace…",
-      "ownerAnswer": "Hoàng Anh owns the onboarding design. Its status is in_progress.",
+      "ownerAnswer": "Khánh Vy owns the onboarding design. Its status is in_progress.",
       "pointer": {
         "task-row": "Open task",
         "assignee": "Assign a teammate",
-        "member": "Select Hoàng Anh",
+        "member": "Select Khánh Vy",
         "task-close": "Back to board",
         "task-status": "Change status",
         "task-done": "Move to done",
@@ -6839,11 +6873,11 @@
       "steps": {
         "tasks0": "Open the task that needs an assignee.",
         "tasks1": "Open the assignee field in task details.",
-        "tasks2": "Choose Hoàng Anh from the member list.",
-        "tasks3": "Hoàng Anh is assigned. Status remains in_progress.",
+        "tasks2": "Choose Khánh Vy from the member list.",
+        "tasks3": "Khánh Vy is assigned. Status remains in_progress.",
         "tasks4": "Return to the board and open the task's status menu.",
-        "tasks5": "Minh Linh chooses done to mark the work complete.",
-        "tasks6": "The card moves into done. Hoàng Anh remains the assignee.",
+        "tasks5": "An Nhiên chooses done to mark the work complete.",
+        "tasks6": "The card moves into done. Khánh Vy remains the assignee.",
         "meetings0": "In the More menu, choose screen sharing.",
         "meetings1": "Choose the window to share with the meeting.",
         "meetings2": "Confirm sharing the selected window.",
@@ -6888,10 +6922,10 @@
       "contextTitle": "Context stays with the work",
       "contextNote": "Meeting feedback and design decisions are linked to the task.",
       "question": "Who owns onboarding, and where is the source?",
-      "answer": "Hoàng Anh owns the onboarding experience. Check the task and its source below.",
+      "answer": "Khánh Vy owns the onboarding experience. Check the task and its source below.",
       "chatBrief": "Let's finalize onboarding for this launch. I've added the pilot team's feedback.",
       "chatReply": "I'll take this on. Let's link the discussion to the task so the whole team can follow.",
-      "taskLinked": "Minh Linh links the task",
+      "taskLinked": "An Nhiên links the task",
       "typing": "Previewing the conversation…",
       "contextReady": "Everyone shares the same context",
       "meetingTitle": "Product sync",
@@ -6913,7 +6947,7 @@
       "deliverables": "Deliverables",
       "linked": "Linked",
       "reviewed": "Reviewed · illustrated decision",
-      "reviewNote": "Minh Linh · Keep references with the document.",
+      "reviewNote": "An Nhiên · Keep references with the document.",
       "week": "Work week · Sep 21–25",
       "days": {
         "0": "Monday",
@@ -6934,7 +6968,7 @@
       "permissionNote": "Access is scoped to organizations and workspaces. These members are illustrative.",
       "steps": {
         "work0": "Choose the task that needs the team's focus.",
-        "work1": "Minh Linh assigns onboarding to Hoàng Anh.",
+        "work1": "An Nhiên assigns onboarding to Khánh Vy.",
         "work2": "Link the discussion to the task.",
         "work3": "One task done. A clearer picture of progress.",
         "meeting0": "Bring the team into the same meeting.",
@@ -7159,7 +7193,7 @@
     "meeting": {
       "online": "Online meetings",
       "roomTitle": "Product planning session",
-      "sharedBy": "Minh Linh is sharing · Demo",
+      "sharedBy": "An Nhiên is sharing · Demo",
       "planTitle": "Agree on what comes next.",
       "planDescription": "A clear scope. An owner for every task.",
       "mic": "Mic",
@@ -7302,7 +7336,7 @@
       "send": "Send message",
       "you": "You",
       "ownerQuestion": "Who owns the work?",
-      "ownerAnswer": "Hoàng Anh owns the onboarding design. Minh Linh owns the product brief, UNI gathers feedback, and Thanh Ngân owns the launch scope.",
+      "ownerAnswer": "Khánh Vy owns the onboarding design. An Nhiên owns the product brief, UNI gathers feedback, and Gia Minh owns the launch scope.",
       "completedCount_one": "{{count}} of 4 example tasks is complete.",
       "completedCount_other": "{{count}} of 4 example tasks are complete."
     },
@@ -7337,7 +7371,7 @@
       "notice1": "You were mentioned in a conversation",
       "notice2": "A task was assigned to you",
       "notice3": "The launch scope was updated",
-      "noticeContext1": "Minh Linh · Product channel",
+      "noticeContext1": "An Nhiên · Product channel",
       "noticeContext2": "Design the onboarding experience",
       "noticeContext3": "Product launch project",
       "organization": "Organization",
@@ -7411,7 +7445,7 @@
       "askQuestion": "How is our product launch coming along?",
       "askAnswer": "Based on the workspace tasks you have permission to read:",
       "askPoint1": "The launch scope has been agreed.",
-      "askPoint2": "Hoàng Anh is working on the onboarding design.",
+      "askPoint2": "Khánh Vy is working on the onboarding design.",
       "sourceLabel": "Source",
       "askGuardrail": "Ask UNI only reads permitted data. This is an illustrative answer.",
       "workflowTitle": "Less switching.\nMore moving forward.",

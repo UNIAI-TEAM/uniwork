@@ -107,7 +107,7 @@ function LovableSidebar({ feature }: { feature: ProductFeature }) {
 function LovableToolbar() {
   const { i18n } = useTranslation();
   const copy = usePreviewLabels();
-  return <div className="lovable-toolbar"><PanelLeftClose /><div className="lovable-global-search"><Search /><span>{copy("search")}</span><kbd>⌘K</kbd></div><span className="lovable-primary"><Plus />{copy("new")}</span><span className="lovable-ai-button"><Sparkles />AI</span><CircleQuestionMark /><span className="lovable-language"><Globe />{i18n.language.startsWith("vi") ? "VI" : "EN"}</span><Palette /><Sun /><ShieldCheck /><Settings /><Bell /><CalendarDays /><div className="lovable-profile"><span>ML<i /></span><div><strong>Minh Linh</strong><small>{copy("member")}</small></div><ChevronDown /></div></div>;
+  return <div className="lovable-toolbar"><PanelLeftClose /><div className="lovable-global-search"><Search /><span>{copy("search")}</span><kbd>⌘K</kbd></div><span className="lovable-primary"><Plus />{copy("new")}</span><span className="lovable-ai-button"><Sparkles />AI</span><CircleQuestionMark /><span className="lovable-language"><Globe />{i18n.language.startsWith("vi") ? "VI" : "EN"}</span><Palette /><Sun /><ShieldCheck /><Settings /><Bell /><CalendarDays /><div className="lovable-profile"><span>AN<i /></span><div><strong>An Nhiên</strong><small>{copy("member")}</small></div><ChevronDown /></div></div>;
 }
 
 export function LovablePageHeading({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {
