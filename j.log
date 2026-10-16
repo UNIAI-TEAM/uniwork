@@ -1,0 +1,4 @@
+$ node scripts/office/build-upstream.mjs; rc=$?; echo; echo "CI_XLSX_GATEWAY_EXIT=$rc"
+{"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+
+CI_XLSX_GATEWAY_EXIT=0

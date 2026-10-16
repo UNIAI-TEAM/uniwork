@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+c16236ae8bea85e79d2ab547b52fca64ac4de6a6
+549906774db93914c61f59c17d0d1d1eefdedc5a
+c16236ae8 chore(merge): G5-G7 root 549906774 into VERHIST-01
+549906774 fix(documents): unescape the source file id in its routes
+1a69b0647 chore: merge SRC-01 (UNI-1814, da241952b) into the G5-G7 root
+da241952b Merge commit '7d27601f7' into feature/UNI-1814-src-01-chat-source-room
+7d27601f7 fix(core): clear the email-hub hooks lint from the develop sync
+75ef05d0d Merge commit 'b4bc3089e' into feature/UNI-1814-src-01-chat-source-room
+2930028ec fix(chat): clear the jump highlight when the message never shows
+b4bc3089e chore: merge STAR-01 (UNI-1796, a52aa8bc7) into the G5-G7 root
+f645dc37f fix(documents): keep version author names through a failed members refetch
+f5661ddfa chore(merge): G5-G7 root 6c383974b into VERHIST-01
