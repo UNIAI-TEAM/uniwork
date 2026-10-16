@@ -640,7 +640,7 @@ func (s *ChatService) roomSummary(
 		}
 	}
 	sort.Strings(memberIDs)
-	mentionUnread, err := s.roomMentionUnread(ctx, userID, roomID, anchorWorkspaceID)
+	mentionUnread, err := s.roomMentionUnread(ctx, userID, roomID)
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}

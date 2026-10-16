@@ -41,6 +41,32 @@ UPDATE chat_room_members
 SET last_read_at = GREATEST(last_read_at, $3), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
+-- name: CountChatMentionUnreadForMember :one
+-- Same capped badge as ListChatRoomsForMember / ListChatChannelsMine.
+-- tenant: parent room_id
+SELECT COUNT(*)::int AS mention_unread_count
+FROM (
+  SELECT 1
+  FROM chat_messages m
+  INNER JOIN chat_rooms r ON r.id = sqlc.arg(room_id)
+  INNER JOIN chat_room_members mem
+    ON mem.room_id = r.id
+   AND mem.user_id = sqlc.arg(user_id)
+   AND mem.status IN ('invited', 'active')
+  WHERE m.room_id = r.id
+    AND m.workspace_id = r.workspace_id
+    AND m.deleted_at IS NULL
+    AND m.thread_root_id IS NULL
+    AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
+    AND m.sender_id != sqlc.arg(user_id)
+    AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
+    AND (
+      m.metadata -> 'mentioned_user_ids' ? sqlc.arg(user_id)::text
+      OR m.metadata @> '{"mentions_all": true}'
+    )
+  LIMIT 100
+) mentioned;
+
 -- name: SetChatRoomMemberNotificationsMuted :execrows
 -- tenant: parent room_id
 UPDATE chat_room_members SET notifications_muted = $3, updated_at = now()
