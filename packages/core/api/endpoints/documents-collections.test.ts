@@ -12,6 +12,7 @@ import {
   listSharedByMe,
   listSharedWithMe,
   moveDocument,
+  purgeDocument,
   restoreDocument,
 } from "./documents-collections";
 
@@ -242,6 +243,19 @@ describe("documents-collections endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/restore");
   });
 
+  it("purgeDocument posts to /purge with the idempotency header and resolves on 204", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(purgeDocument("d/1", { idempotencyKey: "pg-1" })).resolves.toBeUndefined();
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/purge");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("pg-1");
+
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(purgeDocument("d1")).resolves.toBeUndefined();
+    expect(new Headers(vi.mocked(fetch).mock.calls[1]![1]?.headers).get("Idempotency-Key")).toBeNull();
+  });
+
   // ---- malformed responses: one per endpoint -----------------------------
   // A list that cannot degrade safely throws so its query lands in the error
   // state; a mutation that cannot prove the write resolves null.
@@ -321,6 +335,11 @@ describe("documents-collections endpoints", () => {
   it.each(malformedBodies)("restoreDocument degrades %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(restoreDocument("d1")).resolves.toBeNull();
+  });
+
+  it.each(malformedBodies)("purgeDocument degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(purgeDocument("d1")).resolves.toBeUndefined();
   });
 
   it("a document without revision is not a verifiable move", async () => {

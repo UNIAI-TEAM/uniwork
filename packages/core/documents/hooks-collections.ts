@@ -9,6 +9,7 @@ import {
   listSharedByMe,
   listSharedWithMe,
   moveDocument,
+  purgeDocument,
   restoreDocument,
   type ListDocumentsBaseOpts,
   type ListDocumentsOpts,
@@ -207,7 +208,8 @@ export function useArchiveDocument(wsId: string) {
   });
 }
 
-/** Restore exactly the nodes one archive batch moved (manage). */
+/** Restore the target trashed item and the trashed descendants in its batch
+ *  that the caller manages (RESTORE-01). */
 export function useRestoreDocument(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -219,5 +221,23 @@ export function useRestoreDocument(wsId: string) {
       qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
       return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
     },
+  });
+}
+
+export type PurgeDocumentInput = string | { documentId: string; idempotencyKey?: string };
+
+/** Permanently delete a trashed item and the trashed descendants in its batch
+ *  that the caller manages (RESTORE-01). Awaits the server (no optimistic
+ *  update) and invalidates the workspace document root (trash list, folder
+ *  lists, tree and details). */
+export function usePurgeDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PurgeDocumentInput) => {
+      const { documentId, idempotencyKey } =
+        typeof input === "string" ? { documentId: input, idempotencyKey: undefined } : input;
+      await purgeDocument(documentId, { idempotencyKey });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) }),
   });
 }
