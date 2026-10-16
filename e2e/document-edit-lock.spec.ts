@@ -82,14 +82,24 @@ test.afterEach(async () => {
   for (const ctx of opened.splice(0)) await ctx.close().catch(() => undefined);
 });
 
-/** A workspace-visible page every member may edit; returns its id and app path. */
+/** A workspace-visible page with a workspace edit share (SH-S1); returns its id and app path. */
 async function createLockPage(page: Page, title: string, text: string): Promise<{ id: string; path: string }> {
   const created = await page.request.post(`${api}/api/v1/workspaces/${owner.wsId}/documents`, {
     headers: authHeader(owner.token),
     data: { kind: "page", title, visibility: "workspace", content: pageContent(text) },
   });
   expect(created.ok(), `create page: HTTP ${created.status()} ${await created.text()}`).toBeTruthy();
-  const id = ((await created.json()) as { document: { id: string } }).document.id;
+  const createdBody = (await created.json()) as { document: { id: string } };
+  const id = createdBody.document.id;
+  // SH-S1 (1cd4497d9): a workspace-visible create opens at view for members
+  // (Q-S3), so a member tab never reaches the lock gate. An edit share on the
+  // document's own workspace restores member edit; it also bumps the
+  // document revision by one, so tests read the revision back, never a literal.
+  const shared = await page.request.post(`${api}/api/v1/documents/${id}/shares`, {
+    headers: authHeader(owner.token),
+    data: { principal_type: "workspace", principal_id: owner.wsId, level: "edit" },
+  });
+  expect(shared.status(), `share edit to workspace: HTTP ${shared.status()} ${await shared.text()}`).toBe(201);
   return { id, path: `/${owner.orgSlug}/${owner.wsSlug}/documents/${id}` };
 }
 
@@ -160,7 +170,8 @@ test("A edits: B reads only with A's name and time, and B's API save answers 423
   // B's own write over the API, at the right base and without a lock id: refused before the revision check.
   const current = await b.page.request.get(`${api}/api/v1/documents/${doc.id}`, { headers: authHeader(memberB.token) });
   expect(current.ok(), `read page: HTTP ${current.status()}`).toBeTruthy();
-  const revision = ((await current.json()) as { document: { revision: string } }).document.revision;
+  const currentBody = (await current.json()) as { document: { revision: string } };
+  const revision = currentBody.document.revision;
   const refused = await b.page.request.patch(`${api}/api/v1/documents/${doc.id}`, {
     headers: authHeader(memberB.token),
     data: { revision, content: pageContent("B ghi đè") },
