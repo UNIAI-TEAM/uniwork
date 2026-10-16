@@ -3,12 +3,14 @@ package notification
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -292,5 +294,82 @@ func TestChatPushCarriesBodyAndSkipsDeleted(t *testing.T) {
 	}
 	if n, _ := f.q.GetNotification(f.ctx, p["notification_id"]); n.ResourceID != gone.ID || !n.PushedAt.Valid {
 		t.Fatalf("deleted-message notification not marked pushed: %+v", n)
+	}
+}
+
+type fakePresence struct {
+	at  time.Time
+	ok  bool
+	err error
+}
+
+func (p fakePresence) LastPresenceBeat(context.Context, string) (time.Time, bool, error) {
+	return p.at, p.ok, p.err
+}
+
+type countingMetrics struct{ suppressed, sent map[string]int }
+
+func (m *countingMetrics) IncNotificationCreated(string) {}
+func (m *countingMetrics) IncNotificationMerged()        {}
+func (m *countingMetrics) IncPushSent(r string)          { m.sent[r]++ }
+func (m *countingMetrics) IncDigestSent()                {}
+func (m *countingMetrics) IncPushSuppressed(k string)    { m.suppressed[k]++ }
+
+// Spec N2 §3.5: a recipient with a presence beat inside two minutes is at a
+// keyboard already; the push is dropped and counted, the row marked pushed.
+func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	now := time.Now()
+	send := func() outbox.Row {
+		f.readAll(t, f.member.ID) // the next DM opens a fresh row
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		f.handleLast(t, "chat.dm.received")
+		return f.lastEvent(t, TopicPush)
+	}
+	run := func(p PresenceChecker) (*spySender, *countingMetrics, outbox.Row) {
+		spy, m := &spySender{}, &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+		pc := NewPushConsumer(f.q, spy, "http://app.test")
+		pc.SetMetrics(m)
+		pc.now = func() time.Time { return now }
+		if p != nil {
+			pc.SetPresence(p)
+		}
+		ev := send()
+		if err := pc.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+		return spy, m, ev
+	}
+
+	spy, m, ev := run(fakePresence{at: now.Add(-30 * time.Second), ok: true})
+	if len(spy.sent) != 0 || m.suppressed[KindChatDM] != 1 {
+		t.Fatalf("active 30s ago: sent=%d suppressed=%v", len(spy.sent), m.suppressed)
+	}
+	var p map[string]string
+	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := f.q.GetNotification(f.ctx, p["notification_id"]); err != nil || !n.PushedAt.Valid {
+		t.Fatalf("suppressed row not marked pushed: %+v err=%v", n, err)
+	}
+	if spy, m, _ := run(fakePresence{at: now.Add(-5 * time.Minute), ok: true}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
+		t.Fatal("active 5 minutes ago must still be pushed")
+	}
+	if spy, _, _ := run(fakePresence{ok: false}); len(spy.sent) != 1 {
+		t.Fatal("never online must be pushed")
+	}
+	if spy, _, _ := run(fakePresence{err: errors.New("redis down")}); len(spy.sent) != 1 {
+		t.Fatal("presence error must fail open")
+	}
+	if spy, _, _ := run(nil); len(spy.sent) != 1 {
+		t.Fatal("no presence wired must push")
 	}
 }

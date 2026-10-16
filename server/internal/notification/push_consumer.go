@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,17 +19,33 @@ import (
 // recipient registered. It is its own consumer so a push service outage
 // retries the push, never the creation of the notification.
 type PushConsumer struct {
-	q       *db.Queries
-	sender  PushSender
-	origin  string // FRONTEND_ORIGIN, the root of every deep link
-	metrics Metrics
+	q        *db.Queries
+	sender   PushSender
+	origin   string // FRONTEND_ORIGIN, the root of every deep link
+	metrics  Metrics
+	presence PresenceChecker
+	now      func() time.Time
 }
+
+// PresenceChecker says when a user last had a chat presence heartbeat
+// (ChatService in production).
+type PresenceChecker interface {
+	LastPresenceBeat(ctx context.Context, userID string) (time.Time, bool, error)
+}
+
+// pushActiveWindow: a recipient who beat this recently is at a keyboard and
+// sees the message in the app, so the chat push is dropped (spec N2 §3.5).
+const pushActiveWindow = 120 * time.Second
 
 // NewPushConsumer wires the consumer; a nil sender means push is off and
 // rows are acknowledged without sending.
 func NewPushConsumer(q *db.Queries, sender PushSender, frontendOrigin string) *PushConsumer {
-	return &PushConsumer{q: q, sender: sender, origin: strings.TrimRight(frontendOrigin, "/")}
+	return &PushConsumer{q: q, sender: sender, origin: strings.TrimRight(frontendOrigin, "/"), now: time.Now}
 }
+
+// SetPresence lets chat pushes skip a recipient who is active right now.
+// Without it, or when it errors, every push goes out.
+func (c *PushConsumer) SetPresence(p PresenceChecker) { c.presence = p }
 
 // SetMetrics attaches counters.
 func (c *PushConsumer) SetMetrics(m Metrics) { c.metrics = m }
@@ -65,6 +82,15 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	}
 	if len(subs) == 0 {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
+	}
+	if c.presence != nil && isChatPushKind(n.Kind) {
+		t, ok, err := c.presence.LastPresenceBeat(ctx, n.UserID)
+		if err == nil && ok && c.now().Sub(t) <= pushActiveWindow {
+			if m := c.metrics; m != nil {
+				m.IncPushSuppressed(n.Kind)
+			}
+			return c.q.MarkNotificationPushed(ctx, n.ID)
+		}
 	}
 	user, err := c.q.GetUserByID(ctx, n.UserID)
 	if err != nil {

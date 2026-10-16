@@ -9,6 +9,8 @@ type Notifications struct {
 	Merged  prometheus.Counter
 	Push    *prometheus.CounterVec
 	Digest  prometheus.Counter
+	// PushSuppressed counts chat pushes dropped because the recipient was active.
+	PushSuppressed *prometheus.CounterVec
 }
 
 func NewNotifications() *Notifications {
@@ -29,11 +31,15 @@ func NewNotifications() *Notifications {
 			Name: "uniwork_digest_sent_total",
 			Help: "Daily notification digests queued to the mail outbox.",
 		}),
+		PushSuppressed: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_push_suppressed_total",
+			Help: "Chat pushes dropped because the recipient had a presence beat within two minutes, by kind.",
+		}, []string{"kind"}),
 	}
 }
 
 func (n *Notifications) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{n.Created, n.Merged, n.Push, n.Digest}
+	return []prometheus.Collector{n.Created, n.Merged, n.Push, n.Digest, n.PushSuppressed}
 }
 
 func (n *Notifications) IncNotificationCreated(kind string) { n.Created.WithLabelValues(kind).Inc() }
@@ -43,3 +49,5 @@ func (n *Notifications) IncNotificationMerged() { n.Merged.Inc() }
 func (n *Notifications) IncPushSent(result string) { n.Push.WithLabelValues(result).Inc() }
 
 func (n *Notifications) IncDigestSent() { n.Digest.Inc() }
+
+func (n *Notifications) IncPushSuppressed(kind string) { n.PushSuppressed.WithLabelValues(kind).Inc() }

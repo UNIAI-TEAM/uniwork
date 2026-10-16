@@ -419,6 +419,10 @@ func (failingPresenceStore) expire(context.Context, time.Time) ([]presenceEntry,
 	return nil, errPresenceDown
 }
 
+func (failingPresenceStore) lastBeat(context.Context, string) (time.Time, bool, error) {
+	return time.Time{}, false, errPresenceDown
+}
+
 // Through the service: only a workspace member may beat, the beat answers
 // with the members online, and the leave publishes nothing: the sweep
 // announces the offline once the leave grace runs out.
@@ -459,4 +463,46 @@ func TestSignalPresenceRequiresMembershipAndReturnsSnapshot(t *testing.T) {
 		t.Fatalf("leave = %v, %v; want nil snapshot", gone, err)
 	}
 	wantFrames(t, pub.take(), onlineFrame(w.ID, ua.ID), onlineFrame(w.ID, ub.ID))
+}
+
+// The push consumer asks when a person last beat anywhere: the latest beat
+// wins across workspaces, and one person's beat is never another's.
+func TestPresenceLastBeatIsPerUserAcrossWorkspaces(t *testing.T) {
+	build := map[string]func(t *testing.T) presenceStore{
+		"memory": func(*testing.T) presenceStore { return newMemoryPresenceStore() },
+		"redis": func(t *testing.T) presenceStore {
+			rdb := presenceRedis(t)
+			prefix := "test:presence:" + util.NewID() + ":"
+			t.Cleanup(func() {
+				keys, err := rdb.Keys(context.Background(), prefix+"*").Result()
+				if err == nil && len(keys) > 0 {
+					_ = rdb.Del(context.Background(), keys...).Err()
+				}
+			})
+			return newRedisPresenceStore(rdb, prefix)
+		},
+	}
+	for _, name := range []string{"memory", "redis"} {
+		t.Run(name, func(t *testing.T) {
+			store := build[name](t)
+			ctx := context.Background()
+			if _, ok, err := store.lastBeat(ctx, "u1"); err != nil || ok {
+				t.Fatalf("never beat: ok=%v err=%v", ok, err)
+			}
+			t0 := time.Now().Truncate(time.Millisecond)
+			if _, err := store.beat(ctx, "ws-a", "u1", t0); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.beat(ctx, "ws-b", "u1", t0.Add(5*time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err := store.lastBeat(ctx, "u1")
+			if err != nil || !ok || !got.Equal(t0.Add(5*time.Second)) {
+				t.Fatalf("lastBeat = %v ok=%v err=%v", got, ok, err)
+			}
+			if _, ok, _ := store.lastBeat(ctx, "u2"); ok {
+				t.Fatal("another user must not inherit the beat")
+			}
+		})
+	}
 }

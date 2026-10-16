@@ -59,6 +59,9 @@ type presenceStore interface {
 	online(ctx context.Context, workspaceID string, now time.Time) ([]string, error)
 	// expire removes and returns the entries that lapsed by now.
 	expire(ctx context.Context, now time.Time) ([]presenceEntry, error)
+	// lastBeat is the user's latest beat in any workspace; false when they
+	// never beat (or, in Redis, not within presenceLastBeatTTL).
+	lastBeat(ctx context.Context, userID string) (time.Time, bool, error)
 }
 
 type presenceTracker struct {
@@ -81,6 +84,12 @@ func (s *ChatService) SetPresenceStore(rdb *redis.Client) {
 		store = newRedisPresenceStore(rdb, redisPresencePrefix)
 	}
 	s.presenceTracker.Store(newPresenceTracker(store, s.pub))
+}
+
+// LastPresenceBeat is when the user last beat in any workspace; the push
+// consumer skips a chat push to someone who is at a keyboard already.
+func (s *ChatService) LastPresenceBeat(ctx context.Context, userID string) (time.Time, bool, error) {
+	return s.presence().store.lastBeat(ctx, userID)
 }
 
 // presence returns the tracker SetPresenceStore installed, or an in-process
@@ -166,10 +175,11 @@ func (t *presenceTracker) publish(ctx context.Context, topic string, e presenceE
 type memoryPresenceStore struct {
 	mu      sync.Mutex
 	entries map[presenceEntry]time.Time // → expires
+	beats   map[string]time.Time        // user → last beat, any workspace
 }
 
 func newMemoryPresenceStore() *memoryPresenceStore {
-	return &memoryPresenceStore{entries: map[presenceEntry]time.Time{}}
+	return &memoryPresenceStore{entries: map[presenceEntry]time.Time{}, beats: map[string]time.Time{}}
 }
 
 func (m *memoryPresenceStore) beat(_ context.Context, workspaceID, userID string, now time.Time) (bool, error) {
@@ -178,7 +188,15 @@ func (m *memoryPresenceStore) beat(_ context.Context, workspaceID, userID string
 	key := presenceEntry{workspaceID: workspaceID, userID: userID}
 	prev, ok := m.entries[key]
 	m.entries[key] = now.Add(presenceTTL)
+	m.beats[userID] = now
 	return !ok || !prev.After(now), nil
+}
+
+func (m *memoryPresenceStore) lastBeat(_ context.Context, userID string) (time.Time, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	t, ok := m.beats[userID]
+	return t, ok, nil
 }
 
 func (m *memoryPresenceStore) leave(_ context.Context, workspaceID, userID string, until time.Time) error {
