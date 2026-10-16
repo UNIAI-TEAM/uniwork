@@ -5035,6 +5035,10 @@
     "you": "Bạn",
     "uni": "UNI",
     "usage_tokens": "{{in}} vào · {{out}} ra",
+    "notice": {
+      "no_sources": "Chưa có dữ liệu nào bạn được xem khớp với câu hỏi này.",
+      "unavailable": "UNI chưa trả lời được câu này."
+    },
     "errors": {
       "ai_quota_exceeded": "Tổ chức đã hết hạn mức token AI của tháng.",
       "ai_rate_limited": "Bạn hỏi quá nhanh, thử lại sau một phút.",

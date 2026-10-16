@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
@@ -10,7 +10,7 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import { AskUniButton } from "./ask-uni-button";
 import { AskUniPanel } from "./ask-uni-panel";
 
-initI18n();
+const i18n = initI18n();
 configureShortcutPlatform("macos");
 
 const user: User = {
@@ -57,6 +57,10 @@ function mount() {
     ),
   );
 }
+
+afterEach(async () => {
+  await i18n.changeLanguage("vi");
+});
 
 beforeEach(() => {
   requestMock.mockReset();
@@ -118,5 +122,35 @@ describe("AskUniPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Xóa hẳn" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/conversations/c1", expect.objectContaining({ method: "DELETE" })));
     await waitFor(() => expect(useAiPanelStore.getState().conversationId).toBeNull());
+  });
+  describe("notice", () => {
+    function openWith(message: Record<string, unknown>) {
+      mockApi();
+      const base = requestMock.getMockImplementation()!;
+      requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+        path === "/api/v1/ai/conversations/c1/messages"
+          ? Promise.resolve({ messages: [{ id: "m2", role: "assistant", citations: [], ...message }] })
+          : base(path, init),
+      );
+      useAiPanelStore.setState({ open: true, conversationId: "c1" });
+      mount();
+    }
+
+    it("renders the translated notice for an answer with no sources", async () => {
+      await i18n.changeLanguage("en");
+      openWith({ content: "", notice: "no_sources" });
+      expect(await screen.findByText("Nothing you can see in this workspace matches this question yet.")).toBeInTheDocument();
+    });
+
+    it("renders a generic line for a notice code it does not know", async () => {
+      await i18n.changeLanguage("en");
+      openWith({ content: "", notice: "quota_soon" });
+      expect(await screen.findByText("UNI couldn't answer this one.")).toBeInTheDocument();
+    });
+
+    it("renders old answers without notice as plain text", async () => {
+      openWith({ content: "Chưa đủ dữ liệu trong workspace để trả lời." });
+      expect(await screen.findByText("Chưa đủ dữ liệu trong workspace để trả lời.")).toBeInTheDocument();
+    });
   });
 });

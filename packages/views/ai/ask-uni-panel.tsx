@@ -73,9 +73,17 @@ function Citations({ citations }: { citations: AiCitation[] }) {
   );
 }
 
-function Turn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" | "citations"> }) {
+function Turn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" | "notice" | "citations"> }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const mine = message.role === "user";
+  const noticeText = (code: string) => {
+    switch (code) {
+      case "no_sources":
+        return t("notice.no_sources");
+      default:
+        return t("notice.unavailable");
+    }
+  };
   return (
     <li className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
       <span className="px-1 text-caption font-medium text-muted-foreground">{mine ? t("you") : t("uni")}</span>
@@ -85,7 +93,7 @@ function Turn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" 
           mine ? "bg-surface-selected text-surface-selected-foreground" : "border border-border bg-surface text-foreground",
         )}
       >
-        {message.content}
+        {message.content === "" && message.notice !== "" ? noticeText(message.notice) : message.content}
         {mine ? null : <Citations citations={message.citations} />}
       </div>
     </li>
@@ -147,8 +155,8 @@ export function AskUniPanel() {
       submit();
     }
   };
-  const turns: Pick<AiMessage, "id" | "role" | "content" | "citations">[] = [...(messages.data ?? [])];
-  if (pendingQuestion) turns.push({ id: "pending", role: "user", content: pendingQuestion, citations: [] });
+  const turns: Pick<AiMessage, "id" | "role" | "content" | "notice" | "citations">[] = [...(messages.data ?? [])];
+  if (pendingQuestion) turns.push({ id: "pending", role: "user", content: pendingQuestion, notice: "", citations: [] });
   const showHome = !conversationId && !pendingQuestion;
   const recent = conversations.data ?? [];
 

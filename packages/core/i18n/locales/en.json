@@ -5039,6 +5039,10 @@
     "you": "You",
     "uni": "UNI",
     "usage_tokens": "{{in}} in · {{out}} out",
+    "notice": {
+      "no_sources": "Nothing you can see in this workspace matches this question yet.",
+      "unavailable": "UNI couldn't answer this one."
+    },
     "errors": {
       "ai_quota_exceeded": "The organization has used its AI token quota for this month.",
       "ai_rate_limited": "You are asking too fast; try again in a minute.",

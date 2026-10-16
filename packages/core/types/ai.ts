@@ -28,6 +28,8 @@ export const AiMessageSchema = z.object({
   id: z.string(),
   role: z.string(),
   content: z.string(),
+  // Machine code for an answer with no text (e.g. "no_sources"); the client renders it in the reader's language.
+  notice: z.string().catch(""),
   citations: z.array(AiCitationSchema).optional().default([]),
   created_at: z.string().optional().default(""),
 });
