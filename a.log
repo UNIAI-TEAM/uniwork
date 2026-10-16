@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+f60cb04b13412f6379fd8a182b51d64d246fb332
+6c383974bd467c252c142d2bfdb7cdc63f8f4e36
+f60cb04b1 chore: merge G5-G7 root 6c383974b (SH-S1, GROUPBY-01, FU-G6-03a-BOUND, G7-12 residual tests) into the REPIN-1 branch (UNI-1825)
+1aa7ec906 test(e2e): S9 waits for the finished-reply toolbar on frame pin 0.1.0-5a72c13
+6c383974b chore: merge G7-12 residual tests (UNI-1384, e680b548a) into the G5-G7 root
+d9bc39aa5 chore: merge FU-G6-03a-BOUND (UNI-1367, 9b93240bf) into the G5-G7 root
+4e483f6b4 chore: merge SH-S1 (UNI-1780, 2e3eb42c9) into the G5-G7 root
+40d18bed6 chore: merge G5-G7 root fcf9651df (develop f6df189ed, landing typecheck + G7-04 knip fixes) into the REPIN-1 branch (UNI-1825)
+
+SYNCED_EXIT=0
