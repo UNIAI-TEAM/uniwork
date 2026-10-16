@@ -833,7 +833,7 @@ qua loopback — xem §12.3.
 
 ### 12.1 Bảng ca bắt buộc (oracle viết thẳng trong script)
 
-33 ca bên dưới là **oracle viết thẳng trong script**: mỗi dòng ở đây phải khớp `expect` trong
+36 ca bên dưới là **oracle viết thẳng trong script**: mỗi dòng ở đây phải khớp `expect` trong
 `FAULT_CASES`, và test khẳng định danh sách ca **không co lại, không trùng**. Các dòng đánh dấu
 **(sửa r2a)** là những dòng mà bản trước của tài liệu mô tả sai hành vi thật.
 
@@ -844,6 +844,9 @@ qua loopback — xem §12.3.
 | Malformed | `malformed-float-length` | `ContractViolation` tại `envelope.payload.input_length`, 0 job |
 | Malformed | `malformed-negative-deadline` | `ContractViolation` tại `envelope.deadline_ms`, 0 job |
 | Malformed | `malformed-oversize-input` | **(sửa r4)** `upload_bounds` 413, `error_class: quota`, không retryable, 0 job — quyết định size-cap:005 (UNI-1859): input vượt trần engine là lỗi byte có kiểu, không phải `ContractViolation`; kiểm ngay khi đọc `input_length`, trước decode |
+| Malformed | `malformed-exact-ceiling-input` | **(thêm r5)** `upload_checksum_mismatch` 409, `error_class: conflict`, không retryable, 0 job — `input_length` đúng bằng trần KHÔNG phải `upload_bounds` (so sánh chặt `>`), payload ngắn tới kiểm checksum/length |
+| Malformed | `malformed-negative-input` | **(thêm r5)** `ContractViolation` tại `envelope.payload.input_length`, 0 job — `input_length` âm là lỗi dây, không phải lỗi byte |
+| Malformed | `malformed-unsafe-input` | **(thêm r5)** `ContractViolation` tại `envelope.payload.input_length`, 0 job — `input_length` không safe-integer (`MAX_SAFE_INTEGER + 1`) là lỗi dây, không phải `upload_bounds` |
 | Malformed | `malformed-bad-checksum-hex` | `ContractViolation` tại `envelope.payload.input_checksum` |
 | Version | `contract-version-mismatch` | **(sửa r2a)** `ContractViolation` tại `envelope.contract_version` — **không** phải `contract_mismatch` |
 | Version | `protocol-version-mismatch` | **(sửa r2a)** `ContractViolation` tại `envelope.protocol_version` — **không** phải `protocol_mismatch` |
@@ -997,7 +1000,7 @@ case ids are: `adapter-unreachable-host-maps-to-engine-crashed`, `adapter-method
 This is real DOC-003 engine-host behavior over loopback: DOCX edit/persist,
 PDF text read, PPTX open/close, plus transport, containment, and typed-input
 cases. It is not a UniWork production service or a browser product flow. The
-model table in section 12.1 remains a separate 33-case modeled contract; its
+model table in section 12.1 remains a separate 36-case modeled contract; its
 rows do not count as engine runs. The six canonical faults
 (`type-version-mismatch`, `checksum-mismatch`, `timeout`,
 `cancel-complete-race`, `crash-restart`, `metadata-access-engine-down`)

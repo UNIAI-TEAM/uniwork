@@ -1576,6 +1576,27 @@ export const FAULT_CASES = [
     run: (b) => { const env = baseEnvelope(); env.payload.input_length = LIMITS.max_input_bytes + 1; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
   },
   {
+    id: "malformed-exact-ceiling-input",
+    requirement:
+      "a DECLARED input_length at exactly the engine byte ceiling is NOT upload_bounds: the boundary is strict, so a short real payload fails as upload_checksum_mismatch before a job exists",
+    expect: { code: "upload_checksum_mismatch", status: 409, error_class: "conflict", retryable: false, jobs: 0, revision_delta: 0 },
+    run: (b) => { const env = baseEnvelope(); env.payload.input_length = LIMITS.max_input_bytes; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
+  },
+  {
+    id: "malformed-negative-input",
+    requirement:
+      "a negative DECLARED input_length is a ContractViolation, never a boundary error: the non-negative check survives the ceiling leaving the schema",
+    expect: { kind: "contract_violation", field_path: "envelope.payload.input_length", revision_delta: 0, jobs: 0 },
+    run: (b) => { const env = baseEnvelope(); env.payload.input_length = -1; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
+  },
+  {
+    id: "malformed-unsafe-input",
+    requirement:
+      "an unsafe DECLARED input_length (Number.MAX_SAFE_INTEGER + 1) is a ContractViolation, never upload_bounds: safe-integer validation answers first",
+    expect: { kind: "contract_violation", field_path: "envelope.payload.input_length", revision_delta: 0, jobs: 0 },
+    run: (b) => { const env = baseEnvelope(); env.payload.input_length = Number.MAX_SAFE_INTEGER + 1; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
+  },
+  {
     id: "malformed-bad-checksum-hex",
     requirement: "a checksum that is not 64 lowercase hex is rejected",
     expect: { kind: "contract_violation", field_path: "envelope.payload.input_checksum", revision_delta: 0, jobs: 0 },
@@ -2124,6 +2145,9 @@ export const REQUIRED_CASE_IDS = [
   "malformed-float-length",
   "malformed-negative-deadline",
   "malformed-oversize-input",
+  "malformed-exact-ceiling-input",
+  "malformed-negative-input",
+  "malformed-unsafe-input",
   "malformed-bad-checksum-hex",
   "contract-version-mismatch",
   "protocol-version-mismatch",

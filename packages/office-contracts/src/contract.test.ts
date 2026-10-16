@@ -175,6 +175,51 @@ describe("validateEnvelope", () => {
     });
   });
 
+  it("lets a declared input_length at exactly the ceiling reach the checksum/length check, never upload_bounds", async () => {
+    // R4-1 pin (size-cap:005): the boundary is strict - declared == ceiling
+    // is NOT over, so a short real payload fails as upload_checksum_mismatch
+    // instead of the typed 413.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = ENGINE_LIMITS.max_input_bytes;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "upload_checksum_mismatch",
+    });
+  });
+
+  it("rejects a negative declared input_length as a contract violation, not a boundary error", async () => {
+    // R4-1 pin: min:0 stayed on requireSafeInt after the ceiling moved out of
+    // the schema, so -1 is a wire violation, never an upload_bounds.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = -1;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.payload.input_length",
+      rule: "below_min",
+    });
+  });
+
+  it("rejects an unsafe declared input_length as a contract violation, not a boundary error", async () => {
+    // R4-1 pin: Number.MAX_SAFE_INTEGER + 1 would otherwise read as an
+    // over-ceiling declared length; the safe-integer check answers first.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = Number.MAX_SAFE_INTEGER + 1;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.payload.input_length",
+      rule: "safe_integer_required",
+    });
+  });
+
 });
 
 describe("canonicalJson + base64", () => {
