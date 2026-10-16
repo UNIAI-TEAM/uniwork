@@ -153,8 +153,12 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := h.Meetings.SummaryViewOf(r.Context(), userID, s)
 	if err != nil {
-		h.mapServiceError(w, err)
-		return
+		// The summary is stored and billed: answer it without the server's
+		// suggestions rather than a failure that invites a second paid run.
+		if h.Log != nil {
+			h.Log.Warn("meetings: describe new summary", "meeting_id", s.MeetingID, "summary_id", s.ID, "err", err)
+		}
+		v = service.StoredSummaryView(s)
 	}
 	dto := toSummaryDTO(v)
 	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: &dto})

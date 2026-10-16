@@ -42,6 +42,9 @@ const (
 	// live run always stores (or fails) and gives its lease back before the
 	// lease expires: a second run never starts while the first can still pay.
 	summaryRunBudget = summaryRunLease - time.Minute
+	// summaryStoreTimeout bounds storing a summary the model already answered
+	// (and was billed for); the store runs detached from the request.
+	summaryStoreTimeout = 15 * time.Second
 	// summaryReleaseTimeout bounds giving the lease back; past it the lease
 	// is left to expire.
 	summaryReleaseTimeout = 5 * time.Second

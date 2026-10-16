@@ -349,7 +349,11 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if summaryIsEmpty(res) {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonEmpty, err: errSummaryEmptyOutput})
 	}
-	row, err := s.storeSummary(ctx, m, userID, res, resp)
+	// The answer is billed: store it even if the request has gone away, the
+	// way the gateway still settles its usage row.
+	storeCtx, cancelStore := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
+	defer cancelStore()
+	row, err := s.storeSummary(storeCtx, m, userID, res, resp)
 	if err != nil {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
 	}

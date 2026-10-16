@@ -75,10 +75,22 @@ func (s *MeetingService) SummaryViewOf(ctx context.Context, userID string, sum d
 	return s.describeSummary(ctx, m, sum)
 }
 
-func (s *MeetingService) describeSummary(ctx context.Context, m db.Meeting, sum db.MeetingSummary) (MeetingSummaryView, error) {
+// StoredSummaryView lists a summary's stored items with what the model said
+// and nothing the server works out (no suggested assignee, due date or task):
+// the answer for a summary just stored when describing it fails, so a stored
+// and billed summary is never reported as a failure.
+func StoredSummaryView(sum db.MeetingSummary) MeetingSummaryView {
 	stored := summaryActionItems(sum)
 	view := MeetingSummaryView{Summary: sum, Items: make([]SummaryActionItemView, 0, len(stored))}
-	if len(stored) == 0 {
+	for i, it := range stored {
+		view.Items = append(view.Items, SummaryActionItemView{Index: i, Title: it.Title, Owner: it.Owner, Due: it.Due})
+	}
+	return view
+}
+
+func (s *MeetingService) describeSummary(ctx context.Context, m db.Meeting, sum db.MeetingSummary) (MeetingSummaryView, error) {
+	view := StoredSummaryView(sum)
+	if len(view.Items) == 0 {
 		return view, nil
 	}
 	candidates, err := s.loadAssigneeCandidates(ctx, m.ID, m.WorkspaceID)
@@ -90,18 +102,17 @@ func (s *MeetingService) describeSummary(ctx context.Context, m db.Meeting, sum 
 		return MeetingSummaryView{}, err
 	}
 	anchor := meetingDueAnchor(m)
-	for i, it := range stored {
-		item := SummaryActionItemView{Index: i, Title: it.Title, Owner: it.Owner, Due: it.Due}
-		if strings.TrimSpace(it.Owner) != "" {
-			item.SuggestedAssigneeID = candidates.resolve(it.Owner)
+	for i := range view.Items {
+		item := &view.Items[i]
+		if strings.TrimSpace(item.Owner) != "" {
+			item.SuggestedAssigneeID = candidates.resolve(item.Owner)
 		}
-		if strings.TrimSpace(it.Due) != "" {
-			item.DueDate = parseMeetingDueSpoken(it.Due, anchor)
+		if strings.TrimSpace(item.Due) != "" {
+			item.DueDate = parseMeetingDueSpoken(item.Due, anchor)
 		}
 		if taskID, ok := links[i]; ok {
 			item.TaskID = &taskID
 		}
-		view.Items = append(view.Items, item)
 	}
 	return view, nil
 }
