@@ -60,14 +60,16 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("DocumentWorkspace edit lock", () => {
   it("while R2 is in flight: content shows, input waits, and nothing says read-only", async () => {
+    let settleAcquire: (value: unknown) => void = () => undefined;
     editLockRoute.mockImplementation((path: string, opts: RouteOpts) =>
-      opts?.method === "POST" && path.endsWith("/edit-lock") ? new Promise(() => undefined) : defaultEditLockRoute(path, opts));
+      opts?.method === "POST" && path.endsWith("/edit-lock") ? new Promise((resolve) => { settleAcquire = resolve; }) : defaultEditLockRoute(path, opts));
     renderPage();
     const editor = await findEditor();
     expect(editor).toHaveTextContent("Nội dung A");
     expect(editor).toHaveAttribute("contenteditable", "false");
     expect(screen.queryByText(t("documents.save.readonly"))).toBeNull();
     expect(screen.getByTestId("edit-lock-banner-status")).toBeEmptyDOMElement();
+    settleAcquire(null);
   });
 
   it("holding the lock: editable, and autosave sends edit_lock_id", async () => {
@@ -180,13 +182,36 @@ describe("DocumentWorkspace edit lock", () => {
     expect(editor).toHaveTextContent("Nội dung A");
     fireEvent.click(screen.getByRole("button", { name: "Lấy quyền sửa" }));
     const confirm = await screen.findByRole("alertdialog", { name: "Lấy quyền sửa từ An?" });
-    fireEvent.click(within(confirm).getByRole("button", { name: "Vẫn lấy quyền sửa" }));
+    fireEvent.click(within(confirm).getByRole("button", { name: "Lấy quyền sửa" }));
     await waitFor(() => expect(refetch).toHaveBeenCalled());
     // Held, but not editable on the stale body while the reread is in flight.
     expect(editor).toHaveAttribute("contenteditable", "false");
     answer({ data: pageDocument({ revision: "5", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "A trước khi nhường" }] }] } }) });
     await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "true"));
     expect(editor).toHaveTextContent("A trước khi nhường");
+  });
+
+  it("same user in another window (state 4 selfElsewhere): shows the holder chip for the same user in the header (V3-9)", async () => {
+    const selfHolder = { ...holder, holder_id: "me", holder_name: "Minh", held_by_me: true };
+    let resolveR1: (value: ReturnType<typeof lockState>) => void = () => undefined;
+    editLockRoute.mockImplementation((path: string, opts: RouteOpts) => {
+      if (opts?.method === "POST" && path.endsWith("/edit-lock")) {
+        return Promise.reject(new ApiError("locked", "document_locked", 423, undefined, { ...selfHolder, current_revision: "3" }));
+      }
+      if ((opts?.method ?? "GET") === "GET") {
+        return new Promise((resolve) => {
+          resolveR1 = resolve;
+        });
+      }
+      return defaultEditLockRoute(path, opts);
+    });
+    renderPage();
+    const banner = screen.getByTestId("edit-lock-banner");
+    await waitFor(() => expect(banner).toHaveTextContent("Bạn đang sửa tài liệu này ở cửa sổ khác."));
+    // Header shows the holder chip for the same user even before R1 settles, and keeps it once R1 settles.
+    expect(screen.getByRole("img", { name: "Minh đang sửa" })).toHaveClass("bg-info-soft");
+    resolveR1(lockState({ lock: selfHolder }));
+    await waitFor(() => expect(screen.getByRole("img", { name: "Minh đang sửa" })).toBeTruthy());
   });
 
   it("?edit_request=<id> opens the holder's prompt; Decline answers with the held lock id", async () => {

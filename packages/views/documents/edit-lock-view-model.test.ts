@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentEditLockState } from "@uniwork/core/api/endpoints/documents-edit-lock";
-import { editLockBannerView } from "./edit-lock-view-model";
+import { editLockBannerView, editLockHeaderHolder } from "./edit-lock-view-model";
 
 // CFE-1-15: "not released" is only for a request that was declined or ran out.
 
@@ -31,5 +31,39 @@ describe("editLockBannerView: the request this user sent", () => {
   });
   it("the hook's own declined/expired signal still shows the note without a request row", () => {
     expect(requestOf(view(null, true))).toEqual({ state: "notReleased" });
+  });
+});
+
+describe("editLockHeaderHolder (V3-9)", () => {
+  const sessionHolder = {
+    id: "me",
+    name: "Minh",
+    since: "2026-10-15T03:12:00Z",
+    expiresAt: "2026-10-15T03:14:00Z",
+    offlineHoldUntil: null,
+    heldByMe: true,
+    currentRevision: "3",
+  };
+
+  it("shows the holder for state 4 (self elsewhere) both before R1 settles and once R1 settles", () => {
+    const beforeR1 = editLockHeaderHolder(
+      { phase: "other", holder: sessionHolder, lostReason: null, lostBy: null },
+      undefined,
+    );
+    expect(beforeR1).toEqual({ holder_name: "Minh", holder_avatar_url: null });
+
+    const afterR1 = editLockHeaderHolder(
+      { phase: "other", holder: sessionHolder, lostReason: null, lostBy: null },
+      { ...state(null), lock: { ...(holder as object), holder_id: "me", holder_name: "Minh", held_by_me: true } as never },
+    );
+    expect(afterR1).toEqual({ holder_name: "Minh", holder_avatar_url: undefined });
+  });
+
+  it("hides the holder when this editor holds the lock, while acquiring, or when a handover is reserved for this user", () => {
+    const selfLock = { ...state(null), lock: { ...(holder as object), holder_id: "me", holder_name: "Minh", held_by_me: true } as never };
+    expect(editLockHeaderHolder({ phase: "mine", holder: null, lostReason: null, lostBy: null }, selfLock)).toBeNull();
+    expect(editLockHeaderHolder({ phase: "acquiring", holder: null, lostReason: null, lostBy: null }, selfLock)).toBeNull();
+    const reservedLock = { ...state(null), lock: { ...(holder as object), holder_id: "me", holder_name: "Minh", held_by_me: true, reserved: true } as never };
+    expect(editLockHeaderHolder({ phase: "other", holder: sessionHolder, lostReason: null, lostBy: null }, reservedLock)).toBeNull();
   });
 });

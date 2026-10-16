@@ -16,7 +16,7 @@ import type { DocumentEditorHandle } from "./document-editor";
 import { downloadPageCopy } from "./edit-lock-copy";
 import { useExpiryTick } from "./use-expiry-tick";
 import { onWriteRefused } from "./edit-lock-refusal";
-import { editLockBannerView } from "./edit-lock-view-model";
+import { editLockBannerView, editLockHeaderHolder } from "./edit-lock-view-model";
 
 /**
  * The lost-lock reason a 423 on a write implies (addendum §11.1, rule 2):
@@ -339,8 +339,8 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
     /** Only the holder may type; acquiring and the catch-up reread block input without saying "read-only" (§9 FE-8). */
     editable: canEdit && phase === "mine" && !catchingUp,
     acquiringSlow: phase === "acquiring" && lock.state.slow,
-    /** Someone else holds it: the header names them. */
-    holder: r1?.lock && !(phase === "mine" && r1.lock.held_by_me) ? r1.lock : null,
+    /** Someone else (or this user in another window, state 4) holds it: the header names them. */
+    holder: editLockHeaderHolder(lock.state, r1),
     banner: {
       view: editLockBannerView({ session: lock.state, lockState: r1, showLost: !page, notReleased, rateLimitedMinutes }),
       pending: busy,

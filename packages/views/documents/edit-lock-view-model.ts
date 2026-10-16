@@ -103,3 +103,29 @@ export function editLockBannerView(input: EditLockViewInput): EditLockBannerView
     rateLimitedMinutes: input.rateLimitedMinutes,
   });
 }
+
+export interface EditLockHeaderHolder {
+  holder_name: string;
+  holder_avatar_url?: string | null;
+}
+
+/**
+ * Who the document header's holder chip names (addendum §11.3, V3-9): someone
+ * else holding the lock, or this same user holding it in another window (state
+ * 4 `selfElsewhere`), from R1 once read or the 423 response until R1 settles.
+ * Never shown while this editor holds the lock, while acquiring, or when a
+ * handover is reserved for this user.
+ */
+export function editLockHeaderHolder(
+  session: EditLockViewInput["session"],
+  lockState: EditLockViewInput["lockState"],
+): EditLockHeaderHolder | null {
+  if (session.phase !== "other" && session.phase !== "lost") return null;
+  if (session.phase === "lost" && session.lostReason === "session_revoked") return null;
+  if (!lockState) {
+    return session.holder ? { holder_name: session.holder.name, holder_avatar_url: null } : null;
+  }
+  const lock = lockState.lock;
+  if (!lock || (lock.reserved && lock.held_by_me)) return null;
+  return { holder_name: lock.holder_name || session.holder?.name || "", holder_avatar_url: lock.holder_avatar_url };
+}
