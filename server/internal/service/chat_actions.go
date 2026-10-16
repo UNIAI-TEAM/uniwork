@@ -32,7 +32,13 @@ func (s *ChatService) EditChatMessage(
 		return ChatMessageRow{}, err
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
-	updated, err := s.q.UpdateChatMessageBody(ctx, db.UpdateChatMessageBodyParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	updated, err := q.UpdateChatMessageBody(ctx, db.UpdateChatMessageBodyParams{
 		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, Body: body, SenderID: userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -41,18 +47,44 @@ func (s *ChatService) EditChatMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	// Always rewritten, under the row lock: an edit that drops every mention
-	// must clear the old flags without losing a concurrent reaction.
-	updated, err = s.mutateChatMessageMetadata(ctx, updated.ID, roomID, anchorWS, func(msg db.ChatMessage) ([]byte, error) {
-		return encodeMentionsMetadata(msg.Metadata, mentions)
+	msg, err := q.GetChatMessageInRoomForUpdate(ctx, db.GetChatMessageInRoomForUpdateParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ChatMessageRow{}, ErrNotFound
+	}
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	before := decodeChatMessageMetadata(msg.Metadata)
+	meta, err := encodeMentionsMetadata(msg.Metadata, mentions)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	added := newMentionNotifyIDs(before, mentions)
+	updated, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, Metadata: meta,
 	})
 	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := emitChatMentionsAdded(ctx, q, room, userID, updated, added); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return ChatMessageRow{}, err
 	}
 	if err := s.updateCopiedComment(ctx, userID, updated); err != nil {
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
+	if len(added) > 0 {
+		threadRoot := ""
+		if updated.ThreadRootID.Valid {
+			threadRoot = updated.ThreadRootID.String
+		}
+		s.publishMentionNotifications(ctx, room, userID, updated.ID, threadRoot, added)
+	}
 	u, err := s.q.GetUserByID(ctx, updated.SenderID)
 	if err != nil {
 		return ChatMessageRow{}, err
