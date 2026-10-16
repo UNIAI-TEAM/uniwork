@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+613a786300e38f8e9bcb4bd041cf70892a8a8e76
+1a09e6b0fdd6a33cd12a5b32f468e1c92aac70d8
+613a78630 Merge commit '1a09e6b0f' into feature/UNI-1780-sh-s1-workspace-level
+40c84bb8f Merge branch 'feature/UNI-1780-sh-s1-fix' into feature/UNI-1780-sh-s1-workspace-level
+0d449b989 fix(documents): bump the revision once per PATCH
+7b5cb04b9 fix(documents): keep a content autosave's audit row
+ade0a4660 test(documents): give fixtures the workspace access they assumed before private-by-default
+f7a0b05c0 fix(documents): accept the merged home-row share answer
+f71c4b7ba fix(documents): a merged share counts as a grant on the change feed
+d7f2aadd0 fix(documents): the access report reads the home row's stored level
