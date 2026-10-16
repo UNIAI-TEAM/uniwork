@@ -25,17 +25,22 @@ import { dirname, join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { EDIT_DRIVERS } from "../g8-19/anchors.mjs";
 import { TRACER_API_CALLS } from "../g7-10/tracer.mjs";
 import {
   BLOCKED_EXIT,
   CROSS_HOST_API_CALLS,
   DEFAULT_STEP_TIMEOUT_MS,
+  DIRTY_EDIT_PLANS,
   FIXTURE_IDS,
   FIXTURE_KIND,
   REAL_AI_BLOCKER,
   ROW_IDS,
+  ROW_REQUIRED_STEPS,
   decideCrossHostOutcome,
+  dependentSteps,
   exitCodeFor,
+  makeAppDirty,
   parseCrossHostArgs,
   runCrossHostRow,
 } from "./cross-host.mjs";
@@ -770,6 +775,31 @@ describe("G7-04 cross-host outcome decisions (pure)", () => {
     assert.match(out.reason, /app-dirty/);
   });
 
+  it("FAILs a BLOCKED step with no named blocker (BE-704-10): it cannot be attributed, so it is not a BLOCKED", () => {
+    const steps = { ...chainRecord().steps, "app-dirty": step({ source: "app-ui", status: "BLOCKED", blocker: "   " }) };
+    const out = decideCrossHostOutcome(chainRecord({ row: "G5-A03", steps }));
+    assert.equal(out.status, "FAIL");
+    assert.equal(out.exitCode, 1);
+    assert.match(out.reason, /app-dirty/);
+    assert.match(out.reason, /blocker/i);
+    // a BLOCKED step that DOES name its blocker keeps the row BLOCKED (77)
+    const named = { ...chainRecord().steps, "app-dirty": step({ source: "app-ui", status: "BLOCKED", blocker: "the editor refused the plan", owner: "g7-qa" }) };
+    assert.equal(decideCrossHostOutcome(chainRecord({ row: "G5-A03", steps: named })).status, "BLOCKED");
+  });
+
+  it("D1-04: a BLOCKED step skips exactly the steps that consume its result, and G7-A01 runs no dirty-editor step", () => {
+    // the G5-A03 dirty cluster: web-save-2/dirty-kept/app-reload read the dirty
+    // edit; the desktop half and final-shas read nothing it produced
+    assert.deepEqual(dependentSteps("G5-A03", "app-dirty"), ["web-save-2", "dirty-kept", "app-reload"]);
+    assert.deepEqual(dependentSteps("G5-A03", "app-reconnect"), ["web-sees", "final-shas"]);
+    assert.deepEqual(dependentSteps("G5-A03", "app-dirty").includes("app-offline-save"), false);
+    // a BLOCKED AI turn stops nothing (the Save after it still runs, D1-04/l.87)
+    assert.deepEqual(dependentSteps("G7-A01", "ai-turn"), []);
+    // the dirty-editor step belongs to G5-A03.3 only
+    assert.deepEqual([...ROW_REQUIRED_STEPS["G7-A01"]].filter((name) => ["app-dirty", "web-save-2", "dirty-kept", "app-reload"].includes(name)), []);
+    assert.deepEqual([...ROW_REQUIRED_STEPS["G5-A03"]].filter((name) => ["app-dirty", "web-save-2", "dirty-kept", "app-reload"].includes(name)), ["app-dirty", "web-save-2", "dirty-kept", "app-reload"]);
+  });
+
   it("FAIL wins over BLOCKED", () => {
     const steps = {
       ...chainRecord().steps,
@@ -806,7 +836,33 @@ describe("G7-04 cross-host chain with fakes (rows G7-A01 / G5-A03)", () => {
     }
   });
 
-  it("G7-A01 on fx-docx-report-vi with a real-labelled AI turn: PASS with one version per Save and zero per AI turn", async () => {
+  it("records per edit step whether the run drove it through the editor UI (uiEdits: real|standin, BE-704-08), in the record and the artifact", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      const { result } = await runChain({ row: "G5-A03", fixture: "fx-xlsx-revenue-xyz", mock, scratch });
+      // the fake editor page drives both edits (the dirty one and the offline one)
+      assert.deepEqual(result.record.uiEdits, { dirty: "real", offlineSave: "real", aiSave: "standin" });
+      const artifact = JSON.parse(readFileSync(result.artifactPath, "utf8"));
+      assert.deepEqual(artifact.uiEdits, result.record.uiEdits);
+      // a stand-in offline edit stays allowed, and stays visible at row level
+      const standIn = await runChain({
+        row: "G5-A03",
+        fixture: "fx-xlsx-revenue-xyz",
+        mock: createMockDServer(),
+        scratch,
+        knobs: { app: { dirtyBlocked: true, dirtyReason: "the editor page exposes no working control surface on this fork" } },
+      });
+      assert.equal(standIn.result.record.steps["app-offline-save"].status, "PASS");
+      assert.equal(standIn.result.record.uiEdits.offlineSave, "standin");
+      assert.equal(standIn.result.record.uiEdits.dirty, "standin", "a step that never ran drove no UI edit");
+      assert.match(standIn.result.record.notes.join(" "), /stand-in/i);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("G7-A01 on fx-docx-report-vi with a real-labelled AI turn: PASS, one version per Save, zero per AI turn, no dirty-edit step (D1-04)", async () => {
     const scratch = makeScratchRunDir();
     const mock = createMockDServer({ aiMode: "real-xyz" });
     mock.state.kind = "docs";
@@ -816,9 +872,14 @@ describe("G7-04 cross-host chain with fakes (rows G7-A01 / G5-A03)", () => {
       assert.equal(result.status, "PASS", result.reason);
       assert.equal(result.record.versionCounts.afterAiTurn, result.record.versionCounts.afterReconnect);
       assert.equal(result.record.versionCounts.afterAiSave, result.record.versionCounts.afterReconnect + 1);
-      assert.equal(result.record.versionCounts.final, 5);
+      // seed v1 + web-save-1 + reconnect + ai-save: the dirty-editor web Save is G5-A03's
+      assert.equal(result.record.versionCounts.final, 4);
       assert.equal(result.record.aiTurns[0].versionsAfter - result.record.aiTurns[0].versionsBefore, 0);
       assert.equal(result.record.steps["ai-turn"].status, "PASS");
+      // an editor control that never becomes ready cannot block G7-A01: it drives no dirty step
+      for (const name of ["app-dirty", "web-save-2", "dirty-kept", "app-reload"]) {
+        assert.equal(result.record.steps[name], undefined, `${name} must not run in the G7-A01 chain`);
+      }
     } finally {
       delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
       scratch.cleanup();
@@ -900,7 +961,7 @@ describe("G7-04 cross-host chain with fakes (rows G7-A01 / G5-A03)", () => {
     }
   });
 
-  it("BLOCKS (77) the row with a named reason when the app cannot be made dirty through CDP", async () => {
+  it("BLOCKS (77) the row with a named reason when the app cannot be made dirty through CDP, and the desktop half still runs (D1-04)", async () => {
     const scratch = makeScratchRunDir();
     const mock = createMockDServer();
     try {
@@ -915,6 +976,16 @@ describe("G7-04 cross-host chain with fakes (rows G7-A01 / G5-A03)", () => {
       assert.equal(result.exitCode, BLOCKED_EXIT);
       assert.match(result.blocker, /control surface/i);
       assert.notEqual(result.status, "PASS");
+      assert.equal(result.record.steps["app-dirty"].status, "BLOCKED");
+      // the steps that read the dirty edit are skipped, not failed
+      for (const name of ["web-save-2", "dirty-kept", "app-reload"]) {
+        assert.equal(result.record.steps[name].status, "SKIPPED", `${name} consumes the dirty edit's result`);
+        assert.match(result.record.steps[name].reason, /BLOCKED/);
+      }
+      // ... and the steps that read nothing the dirty step produced still ran (G5-A03.2)
+      for (const name of ["app-offline-save", "app-reconnect", "web-sees", "final-shas"]) {
+        assert.equal(result.record.steps[name].status, "PASS", `${name} must still run after a BLOCKED dirty step`);
+      }
     } finally {
       scratch.cleanup();
     }
@@ -998,6 +1069,124 @@ describe("G7-04 cross-host start gate and dry run", () => {
     } finally {
       scratch.cleanup();
     }
+  });
+});
+
+describe("G7-04 cross-host dirty-edit plans and the awaited page action (BE-704-05/07)", () => {
+  /** The editor ctrl surface the CDP controller hands to `makeAppDirty`. */
+  const fakeCtrl = (page, seen) => ({
+    editorPage: async (kind, opts) => {
+      seen.push({ kind, opts });
+      return page;
+    },
+    evalBounded: (pg, fn, arg) => fn(arg),
+  });
+
+  it("drives the imported G8-19 plans and page action, not copies (BE-704-05)", () => {
+    // the identity, not a deep copy: a fork UI change is applied in one place
+    assert.equal(DIRTY_EDIT_PLANS.sheets.actions, EDIT_DRIVERS.xlsx.shift);
+    assert.equal(DIRTY_EDIT_PLANS.docs.actions, EDIT_DRIVERS.docx.shift);
+    assert.equal(DIRTY_EDIT_PLANS.sheets.name, "insert-row");
+    assert.equal(DIRTY_EDIT_PLANS.docs.name, "split-block");
+  });
+
+  it("waits out an editor whose control boots late (BE-704-07: the 250 ms retries are awaited, never dropped)", async () => {
+    const bootMs = 400;
+    const began = Date.now();
+    let probes = 0;
+    const clicks = [];
+    const el = (label) => ({
+      getAttribute: (name) => (name === "aria-label" ? label : null),
+      textContent: label,
+      classList: { contains: () => false },
+      disabled: false,
+      click: () => {
+        clicks.push(label);
+      },
+    });
+    globalThis.window = {
+      __genofficeControl: async () => {
+        probes += 1;
+        return Date.now() - began < bootMs ? { status: "not_ready" } : { status: "ok", result: { cmd: "goto" } };
+      },
+    };
+    // the sheets plan: the Home ribbon tab, the goto control, the Insert row button
+    globalThis.document = {
+      querySelectorAll: (selector) => {
+        if (selector === ".ribbon-tab") return [el("Home")];
+        if (selector === "button[aria-label]") return [el("Chèn hàng")];
+        return [];
+      },
+    };
+    try {
+      const seen = [];
+      const res = await makeAppDirty({ ctrl: fakeCtrl({}, seen), kind: "sheets", path: "/run/fx-xlsx-revenue-xyz.xlsx", documentId: DOC_ID });
+      assert.deepEqual(res, { edited: true, source: "app-ui", plan: "insert-row" });
+      assert.ok(probes > 1, `the control must be retried while it is not_ready (probed ${probes} time(s))`);
+      assert.deepEqual(clicks, ["Home", "Chèn hàng"], "the plan's own product commands run after the control is ready");
+      assert.ok(
+        Date.now() - began >= bootMs,
+        "the retry budget must be real elapsed time: a dropped await spins the 40 retries in one microtask turn and reports not_ready",
+      );
+      assert.deepEqual(seen, [{ kind: "sheets", opts: { path: "/run/fx-xlsx-revenue-xyz.xlsx", documentId: DOC_ID } }]);
+    } finally {
+      delete globalThis.window;
+      delete globalThis.document;
+    }
+  });
+
+  it("a plan the editor refuses is never a UI edit: the reason names the editor and the plan", async () => {
+    globalThis.window = { __genofficeControl: async () => ({ status: "error", error: { code: "block_not_found" } }) };
+    globalThis.document = { querySelectorAll: () => [] };
+    try {
+      const res = await makeAppDirty({ ctrl: fakeCtrl({}, []), kind: "docs", path: null, documentId: DOC_ID });
+      assert.equal(res.edited, false);
+      assert.equal(res.source, "none");
+      assert.match(res.reason, /docs editor refused the split-block plan/);
+      assert.doesNotMatch(res.reason, /app-ui/);
+    } finally {
+      delete globalThis.window;
+      delete globalThis.document;
+    }
+  });
+
+  it("no editor page for the working copy is a missing page, not a UI edit", async () => {
+    const ctrl = {
+      editorPage: async () => {
+        throw new Error("no sheets editor page shows /run/fx-xlsx-revenue-xyz.xlsx");
+      },
+      evalBounded: () => {
+        throw new Error("no page action may run");
+      },
+    };
+    const res = await makeAppDirty({ ctrl, kind: "sheets", path: "/run/fx-xlsx-revenue-xyz.xlsx", documentId: DOC_ID });
+    assert.equal(res.edited, false);
+    assert.equal(res.source, "none");
+    assert.match(res.reason, /no sheets editor page for the working copy/);
+  });
+});
+
+describe("G7-04 harness README (cross-host section)", () => {
+  const README = readFileSync(join(REPO_ROOT, "scripts/office/g5g6g7/harness/README.md"), "utf8");
+  const SECTION = README.slice(README.indexOf("## G7-04 cross-host loop"), README.indexOf("## G7-04 revoke"));
+
+  it("states which steps a run drove through the editor UI, and what a stand-in edit is (BE-704-08)", () => {
+    assert.notEqual(SECTION, "", "the G7-04 cross-host section is missing");
+    assert.match(SECTION, /`uiEdits`/, "the section names the row-level uiEdits field");
+    assert.match(SECTION, /`real`/, "the section says what real means");
+    assert.match(SECTION, /`standin`/, "the section says what standin means");
+    for (const step of ["dirty", "offlineSave", "aiSave"]) {
+      assert.match(SECTION, new RegExp(step), `uiEdits must cover the ${step} step`);
+    }
+  });
+
+  it("says the dirty editor is G5-A03.3's and the G8-19 plans are imported, not copied (D1-04, BE-704-05)", () => {
+    assert.match(SECTION, /G5-A03\.3 only/, "the dirty editor belongs to G5-A03.3 only");
+    assert.match(SECTION, /G7-A01[^.]*runs no dirty-edit step|runs no dirty-edit step[^.]*G7-A01/, "G7-A01 runs no dirty step");
+    assert.match(SECTION, /g8-19\/anchors\.mjs/, "the section names the imported G8-19 module");
+    assert.match(SECTION, /EDIT_DRIVERS/, "the section names the imported plans");
+    assert.doesNotMatch(SECTION, /nothing is copied/, "the reuse claim must be accurate");
+    assert.match(SECTION, /SKIPPED/, "the section states that a BLOCKED step skips only its consumers");
   });
 });
 

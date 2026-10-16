@@ -429,13 +429,21 @@ also runs the fork's real credential module against a fake `safeStorage`.
 `g7-04/cross-host.mjs` chains the whole cross-host loop on ONE seeded document
 per fixture and records the rows `G7-A01` and `G5-A03` (`acceptance.md` l.87 /
 l.61): a web edit + Save in the web frame, opening the app from web (deep link),
-a dirty app kept when a web Save lands, a desktop offline edit + Save under the
-harness proxy cut, the reconnect the web frame observes (the D host's own
-`doc.remoteVersion` notice and the frame's reload), an AI turn (zero versions)
-plus its Save (one version), the three-way sha256 at the end, and the running
-version tally (one per user Save, zero per AI turn). It reuses
-`harness/app.mjs` (CDP), `harness/web.mjs` (Playwright) and the
-`g7-10/tracer.mjs` fixture/seed/HTTP helpers by import — nothing is copied.
+a desktop offline edit + Save under the harness proxy cut, the reconnect the web
+frame observes (the D host's own `doc.remoteVersion` notice and the frame's
+reload), an AI turn (zero versions) plus its Save (one version), the three-way
+sha256 at the end, and the running version tally (one per user Save, zero per AI
+turn). The dirty editor belongs to G5-A03.3 only (D1-04): that chain drives the
+app's own editor (CDP) to make the document dirty, lands a web Save on top of it
+and requires the app to keep its local bytes; G7-A01 runs no dirty-edit step at
+all, so a fork whose editor control never becomes ready cannot block it.
+
+Reuse, not copies (BE-704-05): the driver imports `harness/app.mjs` (CDP),
+`harness/web.mjs` (Playwright), the `g7-10/tracer.mjs` fixture/seed/HTTP helpers,
+the G8-19 desktop editor action and its plans (`g8-19/anchors.mjs` `runEditPlan` +
+`EDIT_DRIVERS`) and its only redactor is `redactSignInError`
+(`harness/app-steps.mjs`). What stays local is the plan NAMES the record prints
+(`DIRTY_EDIT_PLANS`: insert-row / split-block) and the driver's own record fields.
 Exit codes are the harness's everywhere: `0` PASS, `1` FAIL, `77` BLOCKED.
 
 One invocation writes one evidence line, so run one (row, fixture) per command:
@@ -471,16 +479,29 @@ intent with zero server versions; `G7-A01.5` the AI turn creates zero versions a
 the Save after it exactly one; `G7-A01.6` the three checksums agree and the
 tally is one version per user Save.
 
+Which edits a run really drove through the editor UI is on the row: `uiEdits`
+(record and artifact) carries `dirty`, `offlineSave` and `aiSave`, each `real`
+(the app's own editor made that edit) or `standin` (the harness wrote the
+format's deterministic bytes into the working copy — a working-copy write, never
+claimed as a UI edit — or the step did not run, which drives no UI edit either).
+A stand-in offline edit stays allowed and stays visible: the artifact also says so
+in `steps["app-offline-save"].editSource` and in `notes`. The AI turn is the
+document-route protocol call (`contract-p0.md` A10) and the Save after it stores
+the format's deterministic stand-in bytes for the AI edit, so `uiEdits.aiSave` is
+`standin` — this harness does not drive the fork's AI panel.
+
 Steps that cannot run are BLOCKED with a named blocker, never folded into a PASS:
-the app's editor cannot be driven (the dirty-edit plans of
-`DIRTY_EDIT_PLANS`), the S6 reload action cannot be driven, the web frame never
-reaches `data-state="ready"` (owner `lead-f`; the pinned bundle must be installed
-in the web build), or the app cannot sign in (no OS keyring). The offline Save
-may fall back to the tracer's working-copy write when no editor edit can be
-driven — the artifact says so in `steps["app-offline-save"].editSource` and in
-`notes`, and never claims a UI edit. The AI turn is the document-route protocol
-call (`contract-p0.md` A10) and the Save after it stores the format's
-deterministic stand-in bytes for the AI edit (recorded in `notes`). Artifacts:
+the app's editor cannot be driven (the dirty-edit plans of `DIRTY_EDIT_PLANS`,
+whose actions are `EDIT_DRIVERS`), the S6 reload action cannot be driven, the web
+frame never reaches `data-state="ready"` (owner `lead-f`; the pinned bundle must
+be installed in the web build), or the app cannot sign in (no OS keyring). A
+BLOCKED step stops only the later steps that consume its result — they are
+recorded `SKIPPED`, not failed — and a BLOCKED step with no named blocker is a
+FAIL. In the `G5-A03` chain a BLOCKED dirty step therefore skips
+`web-save-2`/`dirty-kept`/`app-reload` while the independent desktop half
+(`app-offline-save` → `app-reconnect` → `web-sees`) and `final-shas` still run,
+and the row ends BLOCKED (77) with that blocker; a FAIL always stops the chain and
+wins over BLOCKED. Artifacts:
 `<runDir>/reports/g7-qa/<row lower-case>/<fixture>.json`; version ids, counts and
 the three checksums are in the record the command prints (the evidence artifact
 log) and in that JSON.
