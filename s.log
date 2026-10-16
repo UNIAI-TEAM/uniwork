@@ -1,0 +1,2 @@
+$ grep -E 'panic|ERROR|messages/around' /tmp/t1-server.log | tail -n 120; tail -n 30 /tmp/t1-web.log; for p in 18551 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18551/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18551 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+tail: cannot open '/tmp/t1-web.log' for reading: No such file or directory
