@@ -46,6 +46,7 @@ import {
   newerBarReport,
   parseCrossHostArgs,
   readFrameMessages,
+  readFrameMessagesBounded,
   readRemoteNewerSurface,
   remoteNewerMissReason,
   runCrossHostRow,
@@ -515,6 +516,11 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       const told = app.remoteCommits.some((c) => c.versionId && c.version === version);
       const newer = told && binding && Number(binding.baseVersion) < version;
       if (knobs.barMissing) return { visible: false, reason: "no new-version bar on any app page" };
+      // a bar that names another version: the step must not accept it as this
+      // version's bar (BE-704-303)
+      if (knobs.barVersion !== undefined && knobs.barVersion !== version) {
+        return { visible: true, version: knobs.barVersion, text: `Có phiên bản mới hơn trên UniWork (phiên bản ${knobs.barVersion})`, where: "editor" };
+      }
       // the bar only after the app's own feed pass: the nth nudge brings it (D2-04)
       if (knobs.barAfterNudges && app.nudges < knobs.barAfterNudges) {
         return { visible: false, reason: `the feed has not told the app yet (nudges=${app.nudges})` };
@@ -522,12 +528,22 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       if (!app.dirty || !newer) return { visible: false, reason: `dirty=${app.dirty} newer=${newer}` };
       return { visible: true, version, text: `Có phiên bản mới hơn trên UniWork (phiên bản ${version})`, where: knobs.barWhere ?? "editor" };
     },
-    async clickReload() {
-      app.calls.push("clickReload");
+    async clickReload({ version = null } = {}) {
+      app.calls.push(`clickReload:${version ?? "any"}`);
       if (knobs.reloadUnavailable) return { clicked: false, reason: "no reload action matched" };
+      // the fork's confirm refuses while the keep choice is unmade (D4-02):
+      // `canSubmit = selectedKeep === 'discard' || …` (uniwork-conflict-model.ts:326)
+      if (knobs.reloadConfirmStaysDisabled) {
+        return {
+          clicked: true,
+          confirmed: false,
+          choseDiscard: false,
+          confirmReason: 'the reload confirm "Reload" stayed disabled (the dialog waits for the keep choice)',
+        };
+      }
       app.dirty = false;
       app.reloadTo(mock.head());
-      return { clicked: true };
+      return { clicked: true, confirmed: true, confirmText: "Reload", choseDiscard: true };
     },
     /** The app hears a remote commit (its sync runtime) and records it. */
     noteRemoteCommit(entry) {
@@ -610,6 +626,13 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       // the stand-in Save is the one after the AI turn; knobs delay or drop its
       // commit + binding the way the real one lands after the IPC call returns
       if (standInBytes && knobs.standInSaveNeverSettles) return { saved: false, held: false, binding };
+      // the commit lands and the binding names it, but the local bytes are not the
+      // committed ones: the `ai-save` poll's checksum half is what fails (BE-704-305)
+      if (standInBytes && knobs.standInSaveLocalBytesMismatch) {
+        const res = commit();
+        if (res.saved) writeFileSync(workingCopyPath, editedBytes(mock.head().bytes, "local-mismatch"));
+        return res;
+      }
       if (standInBytes && Number(knobs.standInSaveSettleAfterReads) > 0) {
         app.deferSettle(knobs.standInSaveSettleAfterReads, commit);
         return { saved: false, held: false, binding };
@@ -620,6 +643,13 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       app.calls.push("close");
     },
   };
+  // A previous row's parked work: `confirmed` sign-out parks unsent work rather
+  // than dropping it (the pinned fork parks/locks it), so the user-level intents
+  // dir can already hold a `.rec` before THIS row's Save (BE-704-302).
+  if (knobs.staleIntent) {
+    mkdirSync(intentsDir, { recursive: true });
+    writeFileSync(join(intentsDir, "01JSTALEPRIORROW0000000000001.rec"), "encrypted-intent");
+  }
   return app;
 }
 
@@ -628,13 +658,16 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
  * (`announcements`) and reloads the head after one, unless a knob disables it.
  */
 function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
-  return {
+  const web = {
+    calls: [],
     async open() {
+      web.calls.push("open");
       return knobs.frameFailed
         ? { opened: false, status: "blocked", reason: "the web sheets frame did not reach data-state=ready", failureKind: "missing" }
         : { opened: true, status: "ready" };
     },
     async editAndSave({ marker }) {
+      web.calls.push("editAndSave");
       if (knobs.webEditFails) return { saved: false, reason: knobs.webEditReason ?? "the frame was not dirty" };
       const head = mock.head();
       const res = mock.commit({
@@ -656,7 +689,18 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
         .filter((c) => c.at >= sinceMs && c.source !== "web")
         .map((c) => ({ versionId: c.versionId, version: c.version, revision: c.revision, at: c.at }));
     },
+    /**
+     * The reload action INSIDE the frame (D4-01): the real one is a click on the
+     * frame's own control, not on the top page, and the driver drives it before
+     * it waits for the fresh `api.open`.
+     */
+    async clickReload({ versionId = null } = {}) {
+      web.calls.push(`clickReload:${versionId ?? "any"}`);
+      if (knobs.reloadClickUnavailable) return { clicked: false, reason: "the frame carries no reload action" };
+      return { clicked: true, versionId, frame: "docs", label: "Reload latest…" };
+    },
     async waitForReload({ versionId, timeoutMs = 1000 }) {
+      web.calls.push("waitForReload");
       if (knobs.webSees === false || knobs.webReloadFails) {
         return { reloaded: false, elapsedMs: timeoutMs, reason: "the frame never reloaded the announced version" };
       }
@@ -666,8 +710,41 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
       }
       return { reloaded: true, versionId: head.versionId, version: head.version, checksum: head.checksum, revision: head.revision, elapsedMs: 10 };
     },
+    /** What a frame audit read: the recorder counts, and any per-read failure (BE-704-304). */
+    async frameAudit() {
+      web.calls.push("frameAudit");
+      const failed = Number(knobs.frameReadErrors) || 0;
+      return {
+        announcements: [],
+        frames: failed > 0 ? failed : 1,
+        recorders: 0,
+        events: 0,
+        types: [],
+        readErrors: failed,
+        readErrorReasons: failed > 0 ? [`the frame read timed out after ${Number(knobs.frameReadTimeoutMs) || 5000} ms`] : [],
+      };
+    },
+    /** What each document showed when the reload did not happen (D4-01). */
+    async frameSurface() {
+      web.calls.push("frameSurface");
+      return [
+        {
+          url: `http://localhost:36009/acme/ws/documents/${documentId}`,
+          host: knobs.frameHost ?? { state: "ready", dirty: true, saveState: "idle" },
+          surface: null,
+          error: "",
+        },
+        {
+          url: "http://localhost:36009/office-frame/docs/index.html",
+          host: null,
+          surface: knobs.frameBar ?? null,
+          error: knobs.frameSurfaceError ?? "",
+        },
+      ];
+    },
     async close() {},
   };
+  return web;
 }
 
 /** Run the chain with fakes; the shared wiring a test needs. */
@@ -1101,7 +1178,7 @@ describe("G7-04 cross-host D2-01: the app's own Save is read asynchronously (rou
       assert.equal(result.exitCode, 1);
       const step = result.record.steps["app-offline-save"];
       assert.equal(step.status, "FAIL");
-      assert.match(step.reason, /no save intent and no offline state/i);
+      assert.match(step.reason, /no NEW save intent and no offline state/i);
       assert.match(step.reason, /intents=0/);
       assert.match(step.reason, /binding state "ready"/);
       assert.match(step.reason, /baseVersion=2/);
@@ -1121,6 +1198,48 @@ describe("G7-04 cross-host D2-01: the app's own Save is read asynchronously (rou
       assert.equal(result.status, "FAIL");
       assert.match(result.record.steps["app-offline-save"].reason, /moved the app base/);
       assert.match(result.record.steps["app-offline-save"].reason, /want v2/);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("app-offline-save FAILs on a STALE prior-row intent: this row's Save must be NEW (BE-704-302)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      // the user-level dir already holds a `.rec` from an earlier parked row, and
+      // THIS row's offline Save never writes one and never parks the binding
+      const { result } = await runG7A01(mock, scratch, { app: { staleIntent: true, offlineNeverHolds: true } }, 300);
+      assert.equal(result.status, "FAIL");
+      assert.equal(result.exitCode, 1);
+      const step = result.record.steps["app-offline-save"];
+      assert.equal(step.status, "FAIL");
+      // the measured values: the stale count is visible, the NEW count is what failed
+      assert.match(step.reason, /intents=1\b/);
+      assert.match(step.reason, /newIntents=0\b/);
+      assert.match(step.reason, /binding state "ready"/);
+      assert.match(step.reason, /baseVersion=2/);
+      assert.ok(step.elapsedMs >= 300, `the step must wait its whole bound before failing (waited ${step.elapsedMs} ms)`);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("app-offline-save PASSes on the current Save's own new intent beside a stale one (BE-704-302)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      const { result, app } = await runG7A01(mock, scratch, { app: { staleIntent: true, offlineIntentAfterReads: 2 } });
+      assert.equal(result.status, "PASS", result.reason);
+      const step = result.record.steps["app-offline-save"];
+      assert.equal(step.status, "PASS");
+      assert.equal(step.intentFiles, 2, "both the stale intent and this Save's own are on disk");
+      assert.equal(step.newIntentFiles, 1, "only this Save's intent is new");
+      assert.equal(app.calls.filter((call) => call === "saveOffline").length, 1);
     } finally {
       delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
       scratch.cleanup();
@@ -1159,6 +1278,37 @@ describe("G7-04 cross-host D2-01: the app's own Save is read asynchronously (rou
       assert.match(step.reason, new RegExp(`server v${result.record.versionCounts.afterReconnect}\\b`));
       assert.match(step.reason, new RegExp(`want v${result.record.versionCounts.afterReconnect + 1}`));
       assert.ok(step.elapsedMs >= 300, `the step must wait its whole bound before failing (waited ${step.elapsedMs} ms)`);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("ai-save's timeout names the measured checksums when the working copy is not the committed bytes (BE-704-305)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      // the Save commits vN and the binding names it, but the local bytes differ:
+      // the poll's checksum half is what never settles, and a reason that printed
+      // only the versions would hide it (the D2-01 test above cannot catch that)
+      const { result } = await runG7A01(mock, scratch, { app: { standInSaveLocalBytesMismatch: true } }, 300);
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["ai-save"];
+      assert.equal(step.status, "FAIL");
+      assert.ok(step.elapsedMs >= 300, `the step must wait its whole bound before failing (waited ${step.elapsedMs} ms)`);
+      const want = result.record.versionCounts.afterReconnect + 1;
+      assert.match(step.reason, new RegExp(`server v${want}\\b`));
+      assert.match(step.reason, new RegExp(`app v${want}\\b`));
+      assert.match(step.reason, new RegExp(`want v${want}\\b`));
+      assert.ok(!/Checksum=<redacted>/.test(step.reason), `the measured checksums must survive the artifact's redactor: ${step.reason}`);
+      // the reason groups each digest with a `.` every 8 chars so `redactSignInError` leaves it
+      // alone; the grouped value is the full measured checksum
+      const serverChecksum = /serverChecksum=([0-9a-f.]{16,})/.exec(step.reason)?.[1]?.replace(/\./g, "");
+      const appChecksum = /appChecksum=([0-9a-f.]{16,})/.exec(step.reason)?.[1]?.replace(/\./g, "");
+      assert.match(serverChecksum ?? "", /^[0-9a-f]{64}$/, `the reason must name the server head's measured checksum: ${step.reason}`);
+      assert.match(appChecksum ?? "", /^[0-9a-f]{64}$/, `the reason must name the app working copy's measured checksum: ${step.reason}`);
+      assert.notEqual(appChecksum, serverChecksum, "the mismatch is the point: the two measured checksums must differ");
     } finally {
       delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
       scratch.cleanup();
@@ -1245,6 +1395,23 @@ describe("G7-04 cross-host D2-04: the S6 new-version bar is read from the fork's
     });
   });
 
+  it("never treats another version's bar as the requested one (BE-704-303)", () => {
+    // the page shows a valid bar for version 3 while the step asks for version 4
+    const v3 = "A newer version is on UniWork (version 3). You have unsaved changes, so the document didn’t reload.";
+    const probe = withPage([textEl(v3)], [reloadEl("Reload latest…")], () => readRemoteNewerSurface({ version: 4 }));
+    assert.equal(probe.visible, false, "a bar for another version is not this step's bar");
+    assert.equal(probe.version, null, "no bar names version 4, so no version is reported for it");
+    assert.equal(probe.actionFound, true, "the page still carries the reload action");
+    // the same guard at the caller's verdict, so a page pair can never smuggle it through
+    const page = { url: () => "genoffice-app://docs/index.html?mode=tab" };
+    assert.deepEqual(newerBarReport({ page, probe: { version: 3, text: v3 }, probeErrors: [] }, 4), {
+      visible: false,
+      reason: "no new-version bar naming version 4 on any app page",
+    });
+    // with no version asked for, any bar is still an answer (clickReload's own search)
+    assert.equal(withPage([textEl(v3)], [reloadEl("Reload latest…")], () => readRemoteNewerSurface({ version: null })).visible, true);
+  });
+
   it("re-runs the feed nudge while the bar is missing: a bar that only lands on the 2nd nudge still PASSes dirty-kept", async () => {
     assert.ok(FEED_NUDGE_LIMIT >= 2, "the step must be allowed more than one nudge");
     const scratch = makeScratchRunDir();
@@ -1263,6 +1430,27 @@ describe("G7-04 cross-host D2-04: the S6 new-version bar is read from the fork's
       assert.ok(app.nudges >= 2, `the app must have been nudged twice, got ${app.nudges}`);
       // then the bar's reload is driven on the same surface
       assert.equal(result.record.steps["app-reload"].status, "PASS");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("dirty-kept FAILs when the only bar names another version (BE-704-303)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      // the page carries a bar for v2 while the web just saved v3
+      const { result } = await runChain({
+        row: "G5-A03",
+        fixture: "fx-xlsx-revenue-xyz",
+        mock,
+        scratch,
+        knobs: { app: { barVersion: 2 } },
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["dirty-kept"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /names version 2, not 3/);
     } finally {
       scratch.cleanup();
     }
@@ -1330,17 +1518,213 @@ describe("G7-04 cross-host D3-01: the web announce is read from every document's
   });
 });
 
+describe("G7-04 cross-host BE-704-304: every frame read has its own timeout", () => {
+  it("bounds a hung frame read and reports the expiry instead of waiting forever", async () => {
+    const hung = { url: () => "http://localhost:36009/office-frame/docs/index.html", evaluate: () => new Promise(() => {}) };
+    const started = Date.now();
+    const report = await readFrameMessagesBounded(hung, { timeoutMs: 60 });
+    assert.equal(report.messages, null, "a read that never answered reports no messages");
+    assert.match(report.error, /timed out after 60 ms/);
+    assert.ok(Date.now() - started >= 55, `the read must hold its bound before answering (answered after ${Date.now() - started} ms)`);
+  });
+
+  it("keeps a read's own failure, so a broken frame reads as a measured miss too", async () => {
+    const broken = { url: () => "about:blank", evaluate: () => Promise.reject(new Error("frame detached")) };
+    const report = await readFrameMessagesBounded(broken, { timeoutMs: 60 });
+    assert.equal(report.messages, null);
+    assert.match(report.error, /frame detached/);
+  });
+
+  it("an answered frame still yields its recorded envelopes", async () => {
+    const frame = { url: () => "about:blank", evaluate: async () => [{ kind: "event", type: "doc.remoteVersion", versionId: "v3", at: 1 }] };
+    const report = await readFrameMessagesBounded(frame, { timeoutMs: 60 });
+    assert.equal(report.error, "");
+    assert.deepEqual(report.messages.map((m) => m.versionId), ["v3"]);
+  });
+
+  it("counts the failed reads in the merge the miss reason reports", () => {
+    const summary = summarizeFrameRecordings(
+      [
+        { url: "http://localhost/doc", messages: [{ kind: "event", type: "theme", at: 1 }], readError: "" },
+        { url: "http://localhost/frame", messages: null, readError: "the frame read timed out after 60 ms" },
+      ],
+      0,
+    );
+    assert.equal(summary.frames, 2);
+    assert.equal(summary.recorders, 1, "a read that failed is not a document that carried the recorder");
+    assert.equal(summary.readErrors, 1);
+    assert.deepEqual(summary.readErrorReasons, ["the frame read timed out after 60 ms"]);
+  });
+
+  it("reports the failed read in the web-sees miss, measured, instead of hiding it", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const { result } = await runChain({
+        row: "G7-A01",
+        fixture: "fx-docx-report-vi",
+        mock,
+        scratch,
+        knobs: { web: { webSees: false, frameReadErrors: 1, frameReadTimeoutMs: 9000 } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /announced no doc\.remoteVersion/);
+      assert.match(step.reason, /1 frame read\(s\) failed: the frame read timed out after 9000 ms/);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host D4-01: the frame's own S6 reload is driven and measured", () => {
+  const runG7A01 = (mock, scratch, knobs, stepTimeoutMs) => {
+    process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+    return runChain({ row: "G7-A01", fixture: "fx-docx-report-vi", mock, scratch, knobs, stepTimeoutMs });
+  };
+
+  it("drives the frame's reload control after the announce, then requires the fresh open", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      const { result, web } = await runG7A01(mock, scratch, {});
+      assert.equal(result.status, "PASS", result.reason);
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "PASS");
+      const reconnectVersionId = result.record.versionIds[`v${result.record.versionCounts.afterReconnect}`];
+      assert.ok(
+        web.calls.includes(`clickReload:${reconnectVersionId}`),
+        `the frame's own reload must be driven for the announced version: ${web.calls.join(", ")}`,
+      );
+      assert.ok(web.calls.includes("waitForReload"), "the fresh open is still required after the click");
+      // the step records what the click did, so a record says whether a bar had to be clicked
+      assert.equal(result.record.details.webSees.reloadClick.clicked, true);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("FAILs with the measured frame surface and the click outcome when the reload never happens (D4-01)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      const { result } = await runG7A01(
+        mock,
+        scratch,
+        {
+          web: {
+            webReloadFails: true,
+            frameBar: {
+              bar: "A newer version is on UniWork (version 3). You have unsaved changes, so the document didn’t reload.",
+              actions: [{ action: "reload", label: "Reload latest…" }],
+              dialog: false,
+              choices: [],
+              dirty: true,
+            },
+          },
+        },
+        300,
+      );
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /did not reload the announced version/);
+      // the click outcome and what the frame showed are both in the reason (never "no reload" alone)
+      assert.match(step.reason, /announced version_id \S+ revision \S+/);
+      assert.match(step.reason, /clicked "Reload latest…" in the docs frame/);
+      assert.match(step.reason, /host\(state "ready", dirty=true\)/);
+      assert.match(step.reason, /frame surface: /);
+      assert.match(step.reason, /bar="A newer version is on UniWork/);
+      assert.match(step.reason, /"action":"reload"/);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host D4-02: the app's S6 reload is confirmed with the keep choice", () => {
+  it("drives the bar's reload for the saved version and records the confirm it made", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      const { result, app } = await runChain({ row: "G5-A03", fixture: "fx-xlsx-revenue-xyz", mock, scratch });
+      assert.equal(result.status, "PASS", result.reason);
+      assert.equal(result.record.steps["app-reload"].status, "PASS");
+      // the bar is clicked for the version the web just saved (BE-704-303), and the confirm the
+      // step made is on the record (D4-02)
+      assert.ok(
+        app.calls.includes(`clickReload:${result.record.versionCounts.afterWebSave2}`),
+        `the reload must target the saved version: ${app.calls.join(", ")}`,
+      );
+      assert.equal(result.record.details.appReload.confirmed, true);
+      assert.equal(result.record.details.appReload.choseDiscard, true);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("FAILs with the measured confirm outcome when the fork's confirm never becomes usable (D4-02)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      const { result } = await runChain({
+        row: "G5-A03",
+        fixture: "fx-xlsx-revenue-xyz",
+        mock,
+        scratch,
+        knobs: { app: { reloadConfirmStaysDisabled: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["app-reload"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /did not settle on v3 after the reload/);
+      // "the fork did not reload" and "the driver never confirmed" must not read the same
+      assert.match(step.reason, /reload click: the reload confirm "Reload" stayed disabled/);
+      assert.ok(!/working copy <redacted>/.test(step.reason), `the measured bytes must survive the redactor: ${step.reason}`);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+});
+
 describe("G7-04 cross-host D2-05: the previous row's session is signed out with the product's confirmation", () => {
-  it("answers the fork's sign-out gate with `{ confirmed: true }` before the harness's own logout", async () => {
+  it("answers the fork's sign-out gate with `{ confirmed: true }`, not an array, before the harness's own logout (BE-704-301)", async () => {
     const calls = [];
-    const signedIn = await signOutPreviousSession(async (name, args) => {
-      calls.push({ name, args });
-      return name === "accountStatus" ? { state: "signed-in" } : undefined;
-    });
-    assert.deepEqual(signedIn, { signedOut: true, state: "signed-in" });
+    // The pinned fork's own gate: `accountLogout` reads `options.confirmed`
+    // (apps/shell/src/main/uniwork-auth/index.ts:652-658) and the account
+    // boundary then waits for the renderer prompt whenever it is false
+    // (account-boundary.ts:198-210). A bare call and an ARRAY call (what
+    // `aiOffice("accountLogout", [{ confirmed: true }])` put on the wire, because
+    // the bridge spreads its rest args) both never settle: this fake does the
+    // same, so the test hangs — and the race below turns that hang into a FAIL
+    // — exactly how the 4th cloud row hung (D2-05/D3-03).
+    const gate = async (name, options) => {
+      calls.push({ name, args: options });
+      if (name === "accountStatus") return { state: "signed-in" };
+      if (name === "accountLogout" && options?.confirmed === true) return { state: "signed-out" };
+      if (name === "accountLogout") return new Promise(() => {});
+      return undefined;
+    };
+    const HUNG = Symbol("hung");
+    const answered = await Promise.race([
+      signOutPreviousSession(gate),
+      new Promise((resolve) => setTimeout(() => resolve(HUNG), 250)),
+    ]);
+    assert.notEqual(answered, HUNG, "the logout must answer the fork's gate: a bare or array call leaves it waiting (BE-704-301)");
+    assert.deepEqual(answered, { signedOut: true, state: "signed-in" });
     assert.deepEqual(calls, [
       { name: "accountStatus", args: undefined },
-      { name: "accountLogout", args: [{ confirmed: true }] },
+      { name: "accountLogout", args: { confirmed: true } },
     ]);
   });
 

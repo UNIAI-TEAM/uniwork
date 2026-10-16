@@ -125,6 +125,16 @@ export const DEFAULT_POLL_MS = 250;
  */
 export const FEED_NUDGE_LIMIT = 4;
 
+/**
+ * How long ONE document's frame-message read may take before it is a measured
+ * miss (BE-704-304). `pollUntil` only checks its elapsed bound AFTER the polled
+ * function resolves, so an unbounded `frame.evaluate(readFrameMessages)` could
+ * pin the row past its step bound; every read is bounded by the smaller of this
+ * and the remaining step budget, and a read that expires is counted in the audit
+ * the miss reason prints (`summarizeFrameRecordings` `readErrors`).
+ */
+export const FRAME_READ_TIMEOUT_MS = 10_000;
+
 export const ROW_EXIT = Object.freeze({ PASS: 0, FAIL: 1, BLOCKED: BLOCKED_EXIT });
 
 /** Every route this driver calls, pinned against the Go router by tracer.test.mjs. */
@@ -162,6 +172,20 @@ const REASON_MAX_CHARS = 2000;
  * (BE-704-05).
  */
 const safe = (text) => redactSignInError(text, { maxChars: REASON_MAX_CHARS });
+
+/**
+ * A long digest in a form the artifact's redactor leaves alone (BE-704-305): an unbroken 32+ char
+ * run of `[A-Za-z0-9_-]` is a credential-shaped token to `redactSignInError`
+ * (`SIGN_IN_ERROR_OPAQUE`), so a raw sha256 printed in a reason is recorded as `<redacted>` and
+ * the measurement the reader needs is lost (cloud D4's `working copy <redacted>`). Grouped with a
+ * `.` every 8 characters, every run stays short enough to survive, and the value is still the
+ * full measured checksum (strip the dots to compare).
+ */
+function digestForReason(hex) {
+  const text = String(hex ?? "");
+  if (!text) return "none";
+  return text.length > 8 ? text.match(/.{1,8}/g).join(".") : text;
+}
 
 function assertKnownRow(row) {
   if (!ROW_IDS.includes(row)) throw new Error(`--row must be one of ${ROW_IDS.join(" | ")}, got "${row}"`);
@@ -492,9 +516,12 @@ export function readRemoteNewerSurface({ version = null } = {}) {
   const actions = [...document.querySelectorAll("button,a,[role='button']")].filter((el) =>
     newerReload.test((el.textContent ?? "").trim()),
   );
-  const best = seen.find((s) => (version === null ? true : s.version === version)) ?? seen[0] ?? null;
+  // BE-704-303: when a version is asked for, ONLY a bar naming that version is this
+  // step's bar. The old `?? seen[0]` fallback accepted any other page's bar for an
+  // older version and reported the requested version as observed.
+  const best = version === null ? seen[0] ?? null : seen.find((s) => s.version === version) ?? null;
   return {
-    visible: seen.length > 0 && actions.length > 0,
+    visible: best !== null && actions.length > 0,
     text: best?.text ?? "",
     version: best?.version ?? null,
     actionFound: actions.length > 0,
@@ -520,6 +547,12 @@ export function remoteNewerMissReason(version, probeErrors = []) {
 export function newerBarReport(found, version) {
   const { page, probe, probeErrors } = found ?? {};
   if (!page) return { visible: false, reason: remoteNewerMissReason(version, probeErrors) };
+  // BE-704-303: the page's bar must name the version this step asked for. The probe
+  // above already refuses a mismatched bar; this keeps the caller honest too, so a
+  // page pair can never smuggle another version's bar through.
+  if (version !== null && probe?.version !== version) {
+    return { visible: false, reason: remoteNewerMissReason(version, probeErrors) };
+  }
   return { visible: true, version: probe.version, text: probe.text, where: editorKindOfUrl(page.url()) ?? "shell" };
 }
 
@@ -567,11 +600,17 @@ export const OFFLINE_SAVE_STATES = Object.freeze(["offline", "paused_offline"]);
  * the Save can therefore still be empty — exactly how D2-01 failed all four
  * rows in 986-1521 ms — so a step polls this instead.
  */
-export function readAppSaveReceipt(app) {
+export function readAppSaveReceipt(app, baseline = null) {
   const workingCopy = app.workingCopy();
+  const intentFiles = app.intents();
+  const names = Array.isArray(intentFiles) ? intentFiles : [];
+  // The set the step captured before it fired the Save: an intent this row must not
+  // mistake for its own is one that was already there (BE-704-302).
+  const previous = baseline === null || baseline === undefined ? null : new Set(Array.isArray(baseline) ? baseline : baseline.names ?? []);
   return {
     workingCopy,
-    intentFiles: app.intents().length,
+    intentFiles: names.length,
+    newIntentFiles: previous === null ? names.length : names.filter((name) => !previous.has(name)).length,
     state: String(workingCopy?.binding?.state ?? workingCopy?.bindingState ?? "none"),
     baseVersion: Number(workingCopy?.binding?.baseVersion ?? 0),
   };
@@ -579,7 +618,15 @@ export function readAppSaveReceipt(app) {
 
 // ---- the real web host controller (D web page + the pinned frame) ---------------------------
 
-const FRAME_OPEN_PATH = /^\/api\/v1\/office-frame\/documents\/[^/]+$/;
+/**
+ * A GET under one document's office-frame route. The 90 s reload poll used to insist on the
+ * EXACT open path (`/documents/{id}` with nothing after it, `FRAME_OPEN_PATH`), so a frame that
+ * reloaded through another route of the same document (`/versions?…` first, a
+ * `versionChanged` retry, a content read) was recorded as "no open at all" — a driver miss that
+ * reads as a product miss (D4-01). Every GET of the document's route is recorded with its
+ * pathname now, and the poll still requires the ANNOUNCED version id for a hit.
+ */
+const FRAME_DOC_GET_PATH = /\/api\/v1\/office-frame\/documents\/[^/]+/;
 
 /**
  * The frame-message recorder, installed by `addInitScript` in EVERY document of
@@ -632,6 +679,87 @@ export function readFrameMessages(target = window) {
 }
 
 /**
+ * One page function off ONE frame, bounded (BE-704-304). Playwright's `frame.evaluate` has no
+ * driver-level timeout here (`harness/web.mjs` sets none on the context), so every frame read
+ * the driver makes goes through this: a renderer that is busy or gone costs at most `timeoutMs`
+ * and answers a measured `{ ok: false, error }` instead of pinning the step past its bound.
+ */
+export async function evalFrameBounded(frame, fn, { timeoutMs = FRAME_READ_TIMEOUT_MS } = {}) {
+  const boundMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : FRAME_READ_TIMEOUT_MS;
+  const expired = { readExpired: true };
+  let timer = null;
+  const bound = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(expired), boundMs);
+  });
+  try {
+    const value = await Promise.race([
+      frame.evaluate(fn).catch((err) => ({ readError: err?.message ?? String(err) })),
+      bound,
+    ]);
+    if (value === expired) return { ok: false, error: `the frame read timed out after ${boundMs} ms`, value: null };
+    if (value && value.readError) return { ok: false, error: `the frame read failed: ${value.readError}`, value: null };
+    return { ok: true, error: "", value: value ?? null };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * `readFrameMessages` off ONE frame, bounded (BE-704-304): a renderer that is busy
+ * or gone must report a measured miss inside the step bound instead of pinning the
+ * poll forever. Playwright's `frame.evaluate` has no driver-level timeout here
+ * (`harness/web.mjs` sets none on the context), so the bound is explicit and the
+ * outcome is `{ messages: null, error }` — never a rejection the caller could read
+ * as "no announce was ever captured".
+ */
+export async function readFrameMessagesBounded(frame, { timeoutMs = FRAME_READ_TIMEOUT_MS } = {}) {
+  const read = await evalFrameBounded(frame, readFrameMessages, { timeoutMs });
+  return {
+    messages: read.ok && Array.isArray(read.value) ? read.value : null,
+    error: read.ok ? "" : read.error,
+  };
+}
+
+/**
+ * The web frame's own S6 surface, read from INSIDE the frame (D4-01): the warn bar's text and its
+ * action buttons, whether the conflict dialog is up and which choices it offers. This function is
+ * serialized into the frame, so it stays self-contained (no module scope). The docs host's own
+ * `data-dirty` / `data-state` live on the TOP page's host element, not here (`harness/web.mjs`
+ * `webFrameSelectors`), so they are read by {@link readFrameHostState} instead. A reload miss then
+ * says what the FRAME showed — a bar nobody clicked, a dialog waiting, no bar at all.
+ */
+export function readFrameRemoteSurface() {
+  const bar = document.querySelector("section.uw-remote-bar");
+  const actions = [...document.querySelectorAll("section.uw-remote-bar button.uw-remote-link")].map((el) => ({
+    action: el.getAttribute("data-action"),
+    label: (el.textContent ?? "").trim(),
+  }));
+  const dialog = document.querySelector('[data-office-web="conflict"]');
+  const choices = dialog
+    ? [...dialog.querySelectorAll("button[data-choice]")].map((el) => ({
+        choice: el.getAttribute("data-choice"),
+        label: (el.textContent ?? "").trim(),
+      }))
+    : [];
+  return {
+    bar: bar ? (bar.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 300) : "",
+    actions,
+    dialog: Boolean(dialog),
+    choices,
+  };
+}
+
+/** The web host element's own state, read from the TOP page (the frame cannot see its host). */
+export function readFrameHostState() {
+  const host = document.querySelector("[data-office-docs-frame]");
+  return {
+    state: host ? host.getAttribute("data-state") : null,
+    dirty: host ? host.hasAttribute("data-dirty") : null,
+    saveState: host ? host.getAttribute("data-save-state") : null,
+  };
+}
+
+/**
  * The web host's own announcements, merged from every document's recorder, plus
  * the shape of what was read: how many documents the page had, how many carried
  * the recorder, and which protocol envelopes appeared at all (D3-01). Reading
@@ -641,11 +769,15 @@ export function readFrameMessages(target = window) {
 export function summarizeFrameRecordings(reports = [], sinceMs = 0) {
   const announcements = [];
   const types = new Map();
+  const readErrorReasons = [];
   let recorders = 0;
   let events = 0;
   for (const report of reports ?? []) {
     const messages = Array.isArray(report?.messages) ? report.messages : null;
     if (messages) recorders += 1;
+    // a read that expired or threw is a measured miss, counted and named rather
+    // than silently read as "this document carried no recorder" (BE-704-304)
+    if (typeof report?.readError === "string" && report.readError) readErrorReasons.push(report.readError);
     for (const message of messages ?? []) {
       if (!message || typeof message !== "object") continue;
       const key = `${message.kind ?? "?"}:${message.type ?? "?"}`;
@@ -669,6 +801,8 @@ export function summarizeFrameRecordings(reports = [], sinceMs = 0) {
     frames: (reports ?? []).length,
     recorders,
     events,
+    readErrors: readErrorReasons.length,
+    readErrorReasons,
     types: [...types.entries()].map(([key, count]) => `${key} x${count}`),
   };
 }
@@ -744,14 +878,16 @@ async function createPlaywrightWebCtrl({
     web.page.on("response", (response) => {
       try {
         const url = new URL(response.url());
-        if (response.request().method() !== "GET" || !FRAME_OPEN_PATH.test(url.pathname)) return;
+        if (response.request().method() !== "GET" || !FRAME_DOC_GET_PATH.test(url.pathname)) return;
         if (!url.pathname.includes(documentId)) return;
         const at = Date.now();
+        const pathname = url.pathname;
         response
           .json()
           .then((body) => {
             opens.push({
               at,
+              pathname,
               versionId: body?.file?.version_id ?? null,
               version: body?.file?.version ?? null,
               checksum: body?.file?.checksum_sha256 ?? null,
@@ -759,7 +895,7 @@ async function createPlaywrightWebCtrl({
             });
           })
           .catch(() => {
-            opens.push({ at, versionId: null, version: null, checksum: null, revision: null });
+            opens.push({ at, pathname, versionId: null, version: null, checksum: null, revision: null });
           });
       } catch {
         // a malformed URL is not a frame open
@@ -799,10 +935,10 @@ async function createPlaywrightWebCtrl({
     const frameReports = async () => {
       const reports = [];
       for (const frame of web.page.frames()) {
-        reports.push({
-          url: frame.url(),
-          messages: await frame.evaluate(readFrameMessages).catch(() => null),
-        });
+        // every read is bounded on its own (BE-704-304), so a hung renderer costs
+        // at most one read bound and then counts against the poll's step bound
+        const read = await evalFrameBounded(frame, readFrameMessages, { timeoutMs: Math.min(stepTimeoutMs, FRAME_READ_TIMEOUT_MS) });
+        reports.push({ url: frame.url(), messages: read.ok && Array.isArray(read.value) ? read.value : null, readError: read.ok ? "" : read.error });
       }
       return reports;
     };
@@ -880,15 +1016,78 @@ async function createPlaywrightWebCtrl({
           (list) => list.some((o) => o.versionId === versionId),
           { boundMs: timeoutMs, intervalMs: pollMs },
         );
-        const hit = (settled.value ?? []).find((o) => o.versionId === versionId) ?? null;
+        const fresh = settled.value ?? [];
+        const hit = fresh.find((o) => o.versionId === versionId) ?? null;
         if (!hit) {
+          // What the frame actually fetched, measured (D4-01): the old reason said only
+          // "no fresh open", which read the same whether the frame never fetched, fetched
+          // another route, or fetched another version.
+          const seen = fresh
+            .slice(0, 4)
+            .map((o) => `${o.versionId ?? "no version id"}${o.pathname ? ` @${o.pathname}` : ""}`)
+            .join(", ");
           return {
             reloaded: false,
             elapsedMs: settled.elapsedMs,
-            reason: `the web frame made no fresh office-frame open for ${versionId} within ${timeoutMs} ms`,
+            opensSeen: fresh.length,
+            reason: `the web frame made no fresh office-frame open for ${versionId} within ${timeoutMs} ms (${fresh.length} office-frame GET(s) of this document after the announce: ${seen || "none"})`,
           };
         }
         return { reloaded: true, versionId: hit.versionId, version: hit.version, checksum: hit.checksum, revision: hit.revision, elapsedMs: settled.elapsedMs };
+      },
+      /**
+       * The frame's OWN S6 reload action (D4-01). At the fork pin a CLEAN frame reloads
+       * itself on the announce (`web/modules/shared/remote-version.ts:364-379` `evaluate`
+       * -> `load` l.286-300), but a DIRTY frame (or one with an AI run live) only shows the
+       * warn bar; its "Reload latest…" ({@link ../remote-version.ts} l.210-228 -> `reloadFlow`
+       * l.400-430) opens the conflict dialog's Reload step, whose control is
+       * `button[data-choice="discard"]` ("Discard changes and reload",
+       * `conflict-dialog.ts:417-446`). The web frame is an IFRAME, so the click goes to the
+       * frame's own document — `page.click` on the top page never reaches it.
+       *
+       * Nothing to click (a clean frame that reloads itself) is not a failure: it answers
+       * `clicked: false` with that reason, and the caller waits for the open either way.
+       */
+      async clickReload({ versionId = null } = {}) {
+        // `versionId` is the announced version the caller is waiting for: the fork's bar names a
+        // REVISION, not a version id (`uwRemoteNewerDirty` `{n}`), so the control is found by its
+        // own action, and the argument is only carried into the record.
+        void versionId;
+        const barAction = 'section.uw-remote-bar button.uw-remote-link[data-action="reload"]';
+        const confirmChoice = '[data-office-web="conflict"] button[data-choice="discard"], [data-office-web="conflict"] button[data-choice="download"]';
+        const clickTimeout = Math.min(stepTimeoutMs, 5000);
+        for (const frame of web.page.frames()) {
+          if (frame === web.page.mainFrame()) continue;
+          const action = frame.locator(barAction);
+          const count = await action.count().catch(() => 0);
+          if (count === 0) continue;
+          let label = "";
+          try {
+            label = ((await action.first().textContent()) ?? "").trim();
+            await action.first().click({ timeout: clickTimeout });
+          } catch (err) {
+            return { clicked: false, frame: editorKindOfUrl(frame.url()) ?? "frame", reason: `the frame's S6 reload action could not be clicked: ${err.message}` };
+          }
+          // the bar's Reload confirm: the conflict dialog's own choice, bounded and best-effort
+          const confirm = frame.locator(confirmChoice);
+          if ((await confirm.count().catch(() => 0)) > 0) {
+            await confirm.first().click({ timeout: clickTimeout }).catch(() => {});
+          }
+          return { clicked: true, frame: editorKindOfUrl(frame.url()) ?? "frame", label };
+        }
+        return { clicked: false, reason: "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)" };
+      },
+      /** What each document showed when the reload did not happen (D4-01), read where it lives. */
+      async frameSurface() {
+        const reports = [];
+        // the docs host element is on the TOP page, the bar and the dialog are inside the frame
+        const host = await evalFrameBounded(web.page, readFrameHostState, { timeoutMs: Math.min(stepTimeoutMs, FRAME_READ_TIMEOUT_MS) });
+        reports.push({ url: web.page.url(), host: host.ok ? host.value : null, surface: null, error: host.ok ? "" : host.error });
+        for (const frame of web.page.frames()) {
+          const read = await evalFrameBounded(frame, readFrameRemoteSurface, { timeoutMs: Math.min(stepTimeoutMs, FRAME_READ_TIMEOUT_MS) });
+          reports.push({ url: frame.url(), host: null, surface: read.ok ? read.value : null, error: read.ok ? "" : read.error });
+        }
+        return reports;
       },
       async fetchHeadViaFrameRoute() {
         return readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token, withBytes: true });
@@ -928,7 +1127,14 @@ async function createPlaywrightWebCtrl({
 export async function signOutPreviousSession(aiOffice) {
   const status = await aiOffice("accountStatus").catch(() => null);
   if (status?.state !== "signed-in") return { signedOut: false, state: status?.state ?? null };
-  await aiOffice("accountLogout", [{ confirmed: true }]);
+  // `{ confirmed: true }`, exactly (BE-704-301): `aiOffice(name, ...args)` spreads its
+  // rest args into `window.aiOffice[name](...a)` (`harness/app.mjs:208-210`), so an array
+  // here reaches the preload as ONE array argument; the pinned fork reads
+  // `options.confirmed` (`uniwork-auth/index.ts:652-658`), finds none, and its sign-out
+  // gate then waits for a renderer prompt no headless run can answer — cloud D2/D3/D4's
+  // 4th-row 90 s `app-open` hang. The object form is what the product's own account UI
+  // sends (`account-model.ts:443`) and what `harness/app.mjs` sends for its own logout.
+  await aiOffice("accountLogout", { confirmed: true });
   return { signedOut: true, state: status.state };
 }
 
@@ -1125,45 +1331,114 @@ async function createCdpAppCtrl({
     async remoteNewerBar({ version }) {
       return newerBarReport(await findRemoteNewerPage(version), version);
     },
-    async clickReload() {
-      const { page, probe, probeErrors } = await findRemoteNewerPage(null);
-      if (!page) return { clicked: false, reason: remoteNewerMissReason(null, probeErrors) };
-      const clicked = await ctrl
+    async clickReload({ version = null } = {}) {
+      const { page, probe, probeErrors } = await findRemoteNewerPage(version);
+      if (!page) return { clicked: false, reason: remoteNewerMissReason(version, probeErrors) };
+      // The fork's S6 reload is a FLOW, not one click, and it is all in this page (D4-02):
+      //   1. the bar's own action — `div.uw-remote-bar button.uw-remote-action[data-action="reload"]`
+      //      (`UniworkChrome.tsx:1093-1113`, label `uwRemoteReload`) — calls
+      //      `aiOffice.uniworkRemoteAction(path, 'reload')` (`UniworkChrome.tsx:582`);
+      //   2. the main process opens the conflict dialog for the stored notice
+      //      (`service.ts:3860-3874`), whose step 1 offers "Reload latest"
+      //      (`button[data-conflict-action="reload"]`, `UniworkConflictDialog.tsx:572-577`);
+      //   3. its reload step asks what happens to the local edits — "Keep my version as a draft"
+      //      / "Discard my changes" (`input[type="radio"][value="discard"]`, l.519-535) — and the
+      //      confirm refuses while no choice is made (`canSubmit = selectedKeep === 'discard' ||
+      //      (selectedKeep === 'draft' && keepOk)`, `uniwork-conflict-model.ts:326`);
+      //   4. the confirm is `button[data-conflict-action="reload-go"]` (l.624-642).
+      // The old driver clicked one text-matched button and never made the choice, so the confirm
+      // stayed disabled and the app kept v2 (cloud D4's `app-reload` FAIL).
+      const boundMs = Math.min(stepTimeoutMs, 8000);
+      const flow = await ctrl
         .evalBounded(
           page,
-          () => {
-            const reload = [...document.querySelectorAll("button,a,[role='button']")].find((el) =>
-              /(Tải lại bản mới nhất|Reload latest)/i.test((el.textContent ?? "").trim()),
-            );
-            if (!reload) return { clicked: false, reason: "the bar carries no reload action" };
-            reload.click();
-            return { clicked: true };
+          async (bound) => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const dialog = () => document.querySelector('[role="alertdialog"]');
+            const steps = { bar: false, step1: false, choseDiscard: false, disabled: "" };
+            const deadline = Date.now() + bound;
+            for (;;) {
+              if (!steps.bar) {
+                const el =
+                  document.querySelector('div.uw-remote-bar button.uw-remote-action[data-action="reload"]') ??
+                  [...document.querySelectorAll("button,a,[role='button']")].find(
+                    (button) =>
+                      !button.closest('[role="alertdialog"]') &&
+                      /(Tải lại bản mới nhất|Reload latest)/i.test((button.textContent ?? "").trim()),
+                  );
+                if (el) {
+                  if (el.getAttribute("aria-disabled") === "true") {
+                    return { ...steps, clicked: false, reason: "the S6 bar's reload action is aria-disabled (the fork is still waiting on its own save)" };
+                  }
+                  el.click();
+                  steps.bar = true;
+                  await sleep(150);
+                  continue;
+                }
+              }
+              if (steps.bar && !steps.step1) {
+                const step1 = dialog()?.querySelector('button[data-conflict-action="reload"]');
+                if (step1) {
+                  if (step1.getAttribute("aria-disabled") === "true") {
+                    return { ...steps, clicked: true, reason: `the conflict dialog's "Reload latest" is aria-disabled (${(step1.textContent ?? "").trim()})` };
+                  }
+                  step1.click();
+                  steps.step1 = true;
+                  await sleep(150);
+                  continue;
+                }
+              }
+              if (steps.bar && !steps.choseDiscard) {
+                const radio = dialog()?.querySelector('input[type="radio"][value="discard"]');
+                if (radio) {
+                  if (!radio.checked) radio.click();
+                  steps.choseDiscard = Boolean(radio.checked);
+                  await sleep(100);
+                  continue;
+                }
+              }
+              if (steps.bar) {
+                const go = dialog()?.querySelector('button[data-conflict-action="reload-go"]');
+                if (go) {
+                  if (go.getAttribute("aria-disabled") === "true") {
+                    steps.disabled = (go.textContent ?? "").trim();
+                  } else {
+                    go.click();
+                    return { ...steps, clicked: true, confirmed: true, confirmText: (go.textContent ?? "").trim() };
+                  }
+                }
+              }
+              if (Date.now() >= deadline) {
+                return {
+                  ...steps,
+                  clicked: steps.bar,
+                  confirmed: false,
+                  reason: steps.disabled
+                    ? `the reload confirm "${steps.disabled}" stayed disabled after the keep choice`
+                    : steps.bar
+                      ? "the conflict dialog's reload step never appeared"
+                      : "the S6 bar's reload action was never found",
+                };
+              }
+              await sleep(200);
+            }
           },
-          undefined,
-          "click:remoteNewerReload",
+          boundMs,
+          "click:remoteNewerReloadFlow",
         )
         .catch((err) => {
           if (err?.isAppStepTimeout) throw err;
           return { clicked: false, reason: err.message };
         });
-      if (!clicked?.clicked) return { clicked: false, reason: clicked?.reason ?? "no reload action" };
-      // a dirty document may be confirmed first (the bar's own confirm, when it shows one)
-      await sleep(Math.min(pollMs * 2, 1000));
-      await ctrl
-        .evalBounded(
-          page,
-          () => {
-            const confirm = [...document.querySelectorAll("button,[role='button']")].find((el) =>
-              /^(Tải lại|Reload|Đồng ý|Xác nhận|Có|OK|Continue)$/i.test((el.textContent ?? "").trim()),
-            );
-            if (confirm && !confirm.getAttribute("aria-disabled")) confirm.click();
-            return true;
-          },
-          undefined,
-          "click:remoteNewerConfirm",
-        )
-        .catch(() => {});
-      return { clicked: true, text: probe?.text ?? "" };
+      if (!flow?.clicked) return { clicked: false, reason: flow?.reason ?? "no reload action" };
+      return {
+        clicked: true,
+        confirmed: flow.confirmed === true,
+        confirmText: flow.confirmText ?? "",
+        choseDiscard: flow.choseDiscard === true,
+        confirmReason: flow.confirmed === true ? "" : flow.reason ?? "no confirm answer",
+        text: probe?.text ?? "",
+      };
     },
     async cutLink() {
       setAppApiProxyOnline(runDir, false);
@@ -1617,6 +1892,10 @@ export async function runCrossHostRow({
           problems.push(
             `the S6 new-version bar was not visible: ${noticed.value?.reason ?? "no probe answer"} (feed nudges: ${nudges})`,
           );
+        } else if (noticed.value.version !== webSave2Version) {
+          // BE-704-303: the bar must name the version this step waited for, not
+          // whatever bar another page happened to carry
+          problems.push(`the S6 new-version bar names version ${noticed.value.version ?? "none"}, not ${webSave2Version}`);
         }
         if (problems.length > 0) return { status: "FAIL", reason: problems.join("; ") };
         record.details.remoteNewerBar = noticed.value;
@@ -1626,7 +1905,9 @@ export async function runCrossHostRow({
 
       // --- discard/reload the dirty edit to continue ------------------------
       const appReload = await runStep("app-reload", "app-ui", async () => {
-        const clicked = await app.clickReload();
+        // the bar must name the version the web just saved (BE-704-303); the click then drives
+        // the fork's own reload path, keep choice and confirm included (D4-02)
+        const clicked = await app.clickReload({ version: record.versionCounts.afterWebSave2 });
         if (!clicked?.clicked) {
           return { status: "BLOCKED", blocker: `the S6 reload action could not be driven: ${clicked?.reason ?? "unknown"}`, owner: BLOCKED_OWNER };
         }
@@ -1637,11 +1918,21 @@ export async function runCrossHostRow({
         );
         if (!settled.ok) {
           const wc = settled.value ?? {};
+          // the click's own outcome, measured: a confirm that never became usable is the
+          // difference between "the fork did not reload" and "the driver never confirmed"
           return {
             status: "FAIL",
-            reason: `the app did not settle on v${record.versionCounts.afterWebSave2} after the reload (binding v${wc.binding?.baseVersion ?? "none"}, working copy ${wc.sha256 ?? "none"})`,
+            reason: `the app did not settle on v${record.versionCounts.afterWebSave2} after the reload (binding v${wc.binding?.baseVersion ?? "none"}, working copy ${digestForReason(wc.sha256)}, reload click: ${
+              clicked.confirmed ? `confirmed "${clicked.confirmText ?? ""}"` : clicked.confirmReason ?? "not confirmed"
+            })`,
           };
         }
+        record.details.appReload = {
+          clicked: true,
+          confirmed: clicked.confirmed === true,
+          confirmText: clicked.confirmText ?? "",
+          choseDiscard: clicked.choseDiscard === true,
+        };
         return { versionId: settled.value.binding.baseVersionId, version: record.versionCounts.afterWebSave2 };
       });
       if (aborts("app-reload")) return;
@@ -1667,16 +1958,22 @@ export async function runCrossHostRow({
           `the offline Save's edit was written by the harness as the format's deterministic stand-in (a working-copy write), not typed in the editor: ${dirty?.reason ?? "the editor plan did not run"} — this is not a UI edit (uiEdits.offlineSave=standin)`,
         );
       }
+      // The intents this row must NOT count as its own (BE-704-302): a confirmed
+      // sign-out parks unsent work, so the user-level intents dir can already hold
+      // a `.rec` from an earlier parked row, and a poll that accepted "some intent
+      // exists" would PASS without proving THIS Save was held. Read the baseline
+      // right before the Save and require something NEW.
+      const intentBaseline = app.intents();
       const saved = await app.save({ path: record.details.appPath, offline: true, standInBytes: standIn });
       if (saved?.reason) return { status: "FAIL", reason: saved.reason };
       // The app writes its receipt for this Save asynchronously (the module's
       // own Save lands after `aiOffice.uniworkSave` resolved — see
-      // `readAppSaveReceipt`): poll until the intent file or the offline binding
-      // is there, THEN assert the split held. Reading once raced the app's own
-      // Save and failed all four rows of D2-01 in 986-1521 ms.
+      // `readAppSaveReceipt`): poll until a NEW intent file for this Save or the
+      // offline binding is there, THEN assert the split held. Reading once raced
+      // the app's own Save and failed all four rows of D2-01 in 986-1521 ms.
       const held = await pollUntil(
-        async () => readAppSaveReceipt(app),
-        (receipt) => receipt.intentFiles > 0 || OFFLINE_SAVE_STATES.includes(receipt.state),
+        async () => readAppSaveReceipt(app, intentBaseline),
+        (receipt) => receipt.newIntentFiles > 0 || OFFLINE_SAVE_STATES.includes(receipt.state),
         { boundMs: stepTimeout, intervalMs: pollMs },
       );
       const versions = await listVersions({ apiOrigin, fetchImpl, documentId, token });
@@ -1688,7 +1985,7 @@ export async function runCrossHostRow({
         // `redactSignInError`'s key/value rule, and the observed value is the
         // point of this message
         problems.push(
-          `the app held no save intent and no offline state for the offline Save within ${stepTimeout} ms (intents=${receipt.intentFiles}, binding state "${receipt.state}", baseVersion=${receipt.baseVersion})`,
+          `the app held no NEW save intent and no offline state for the offline Save within ${stepTimeout} ms (intents=${receipt.intentFiles}, newIntents=${receipt.newIntentFiles}, binding state "${receipt.state}", baseVersion=${receipt.baseVersion})`,
         );
       }
       if (versions !== baseVersion) problems.push(`the server created a version while the app was offline (${versions}, want ${baseVersion})`);
@@ -1696,7 +1993,7 @@ export async function runCrossHostRow({
       if (problems.length > 0) return { status: "FAIL", reason: problems.join("; ") };
       record.versionCounts.whileCut = versions;
       record.details.offlineEdit = { source: uiEdit ? "app-ui" : "harness-working-copy-write", plan: dirty?.plan ?? "" };
-      return { editSource: uiEdit ? "app-ui" : "harness-working-copy-write", intentFiles: receipt.intentFiles, versionsWhileCut: versions };
+      return { editSource: uiEdit ? "app-ui" : "harness-working-copy-write", intentFiles: receipt.intentFiles, newIntentFiles: receipt.newIntentFiles, versionsWhileCut: versions };
     });
     if (aborts("app-offline-save")) return;
 
@@ -1749,16 +2046,45 @@ export async function runCrossHostRow({
         // have carried these numbers instead.
         const audit = typeof web.frameAudit === "function" ? await web.frameAudit().catch(() => null) : null;
         const measured = audit
-          ? ` (${audit.frames} document(s) read, ${audit.recorders} carried the message recorder, ${audit.events} protocol event(s) received: ${audit.types.slice(0, 4).join(", ") || "none"})`
+          ? ` (${audit.frames} document(s) read, ${audit.recorders} carried the message recorder, ${audit.events} protocol event(s) received: ${audit.types.slice(0, 4).join(", ") || "none"}${audit.readErrors ? `, ${audit.readErrors} frame read(s) failed: ${audit.readErrorReasons?.[0] ?? "unknown"}` : ""})`
           : "";
         return {
           status: "FAIL",
           reason: `the web host announced no doc.remoteVersion for ${reconnectVersionId} within ${stepTimeout} ms${measured}`,
         };
       }
+      // D4-01: a CLEAN frame reloads itself on the announce, but a dirty one shows the S6 bar
+      // and reloads only when its own action (and that dialog's Reload confirm) is clicked, in
+      // the FRAME's document. Drive the click first when a bar is up, then wait for the open.
+      const reloadClick =
+        typeof web.clickReload === "function"
+          ? await web.clickReload({ versionId: reconnectVersionId }).catch((err) => ({ clicked: false, reason: err.message }))
+          : null;
       const reload = await web.waitForReload({ versionId: reconnectVersionId, timeoutMs: stepTimeout });
       if (!reload?.reloaded) {
-        return { status: "FAIL", reason: `the web frame did not reload the announced version: ${reload?.reason ?? "no reload"}` };
+        // what the frame SHOWED, measured: the bar it left un-clicked, the dialog waiting
+        const surface = typeof web.frameSurface === "function" ? await web.frameSurface().catch(() => null) : null;
+        const shown = (surface ?? [])
+          .filter((r) => !/^about:blank$/.test(r.url))
+          .slice(0, 3)
+          .map((r) => {
+            if (r.error) return `a document's surface could not be read (${r.error})`;
+            // the state in quotes: `state=<value>` is redacted as a credential by
+            // `redactSignInError`'s key/value rule (the offline-save reason quotes it too)
+            if (r.host) return `host(state "${r.host.state ?? "none"}", dirty=${r.host.dirty ?? "unknown"})`;
+            return `bar="${r.surface?.bar || "none"}" actions=${JSON.stringify(r.surface?.actions ?? [])} dialog=${
+              r.surface?.dialog ? JSON.stringify(r.surface.choices ?? []) : "none"
+            }`;
+          })
+          .join("; ");
+        return {
+          status: "FAIL",
+          reason: `the web frame did not reload the announced version: ${reload?.reason ?? "no reload"} (announced version_id ${match.versionId} revision ${
+            match.revision ?? "none"
+          } — the frame's own guard needs a DECIMAL revision; S6 reload click: ${
+            reloadClick?.clicked ? `clicked "${reloadClick.label ?? ""}" in the ${reloadClick.frame} frame` : reloadClick?.reason ?? "not attempted"
+          }${shown ? `; frame surface: ${shown}` : ""})`,
+        };
       }
       const head = await web.fetchHeadViaFrameRoute();
       if (head.sha256 !== record.checksums.desktopAfterReconnect || head.versionId !== reconnectVersionId) {
@@ -1768,7 +2094,12 @@ export async function runCrossHostRow({
         };
       }
       record.checksums.webContent = head.sha256;
-      record.details.webSees = { announced: match, reload: { versionId: reload.versionId, version: reload.version }, webContentSha256: head.sha256 };
+      record.details.webSees = {
+        announced: match,
+        reloadClick,
+        reload: { versionId: reload.versionId, version: reload.version },
+        webContentSha256: head.sha256,
+      };
       return { versionId: reload.versionId, announcedVersionId: match.versionId, webContentSha256: head.sha256 };
     });
     if (aborts("web-sees")) return;
@@ -1849,9 +2180,12 @@ export async function runCrossHostRow({
         );
         if (!settled.ok) {
           const seen = settled.value ?? {};
+          // the measured checksums are part of the reason (BE-704-305): with only
+          // the versions, a delayed commit and a working copy that is not the
+          // committed bytes read the same
           return {
             status: "FAIL",
-            reason: `the Save after the AI turn did not create exactly one version (server v${seen.head?.version ?? "none"}, app v${seen.wc?.binding?.baseVersion ?? "none"}, want v${want})`,
+            reason: `the Save after the AI turn did not create exactly one version (server v${seen.head?.version ?? "none"}, app v${seen.wc?.binding?.baseVersion ?? "none"}, want v${want}, serverChecksum=${digestForReason(seen.head?.checksum)}, appChecksum=${digestForReason(seen.wc?.sha256)})`,
           };
         }
         const head = settled.value.head;
