@@ -479,7 +479,7 @@ func main() {
 		log.Info("web push enabled", "subject", cfg.VAPIDSubject)
 	}
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
-	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
+	digest := notification.NewDigestScheduler(q, wsSvc, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	// The inbox list marks a document row's resource_access_lost /
 	// resource_deleted through the same DocumentService the routes use

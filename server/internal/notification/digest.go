@@ -25,6 +25,7 @@ const (
 // outbox: rendering here, delivery and retry there.
 type DigestScheduler struct {
 	q        *db.Queries
+	members  MemberChecker
 	renderer mail.Renderer
 	mail     mail.Enqueuer
 	metrics  Metrics
@@ -34,8 +35,8 @@ type DigestScheduler struct {
 }
 
 // NewDigestScheduler wires the job.
-func NewDigestScheduler(q *db.Queries, renderer mail.Renderer, m mail.Enqueuer) *DigestScheduler {
-	return &DigestScheduler{q: q, renderer: renderer, mail: m, now: time.Now, log: slog.Default()}
+func NewDigestScheduler(q *db.Queries, members MemberChecker, renderer mail.Renderer, m mail.Enqueuer) *DigestScheduler {
+	return &DigestScheduler{q: q, members: members, renderer: renderer, mail: m, now: time.Now, log: slog.Default()}
 }
 
 // SetDocumentReaders wires the same document read gate Service.List marks
@@ -121,7 +122,21 @@ func (s *DigestScheduler) sendTo(ctx context.Context, user db.User, since pgtype
 	if len(wanted) == 0 {
 		return false, nil
 	}
-	data, ids, err := s.build(ctx, user, wanted)
+	allIDs := make([]string, len(wanted))
+	for i, n := range wanted {
+		allIDs[i] = n.ID
+	}
+	accessible, err := s.filterDigestRows(ctx, user.ID, wanted)
+	if err != nil {
+		return false, err
+	}
+	if len(accessible) == 0 {
+		if err := s.q.MarkNotificationsDigested(ctx, allIDs); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+	data, _, err := s.build(ctx, user, accessible)
 	if err != nil {
 		return false, err
 	}
@@ -129,7 +144,7 @@ func (s *DigestScheduler) sendTo(ctx context.Context, user db.User, since pgtype
 		// Every row was hidden by the document gate (access_lost or gone):
 		// there is nothing to say, so send no mail, but consume the rows so
 		// the next window does not ask about them again.
-		if err := s.q.MarkNotificationsDigested(ctx, ids); err != nil {
+		if err := s.q.MarkNotificationsDigested(ctx, allIDs); err != nil {
 			return false, err
 		}
 		return false, nil
@@ -142,7 +157,7 @@ func (s *DigestScheduler) sendTo(ctx context.Context, user db.User, since pgtype
 		return false, err
 	}
 	s.mail.Kick()
-	if err := s.q.MarkNotificationsDigested(ctx, ids); err != nil {
+	if err := s.q.MarkNotificationsDigested(ctx, allIDs); err != nil {
 		return false, err
 	}
 	if s.metrics != nil {
