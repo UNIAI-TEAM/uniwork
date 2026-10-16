@@ -574,6 +574,35 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
         app.reloadTo(mock.head());
         return { clicked: true, confirmed: false, choseDiscard: true, confirmReason: "the reload confirm never became usable" };
       }
+      // the fork CONFIRMED the discard, but its working copy never reaches the web Save's
+      // version: the settle poll's own failure is the measured outcome (BE-704-504). The click
+      // answers exactly like the happy path, so only the predicate can tell the two apart.
+      if (knobs.reloadConfirmedNeverSettles) {
+        return { clicked: true, confirmed: true, confirmText: "Reload", choseDiscard: true };
+      }
+      // …and the copy reaches the announced VERSION but not its bytes: the second conjunct of the
+      // settle predicate (working copy sha256) is the one that must fail (BE-704-504)
+      if (knobs.reloadSettlesWrongBytes) {
+        const v = mock.head();
+        app.dirty = false;
+        app.reloadTo(v);
+        writeFileSync(workingCopyPath, editedBytes(v.bytes, "reload-bytes-mismatch"));
+        return { clicked: true, confirmed: true, confirmText: "Reload", choseDiscard: true };
+      }
+      // …and the copy holds the web Save's own BYTES while its binding still names the pre-reload
+      // version: the FIRST conjunct of the settle predicate (binding baseVersion) must fail, so a
+      // later step cannot derive what it should expect from the wrong base (BE-704-504)
+      if (knobs.reloadSettlesWrongVersion) {
+        const v = mock.head();
+        const before = app.workingCopy().binding;
+        app.dirty = false;
+        writeFileSync(workingCopyPath, v.bytes);
+        writeFileSync(
+          join(docsDir, "binding.json"),
+          JSON.stringify({ ...before, baseVersionId: v.id, baseRevision: v.revision, baseChecksum: v.checksum_sha256, state: "saved" }),
+        );
+        return { clicked: true, confirmed: true, confirmText: "Reload", choseDiscard: true };
+      }
       app.dirty = false;
       app.reloadTo(mock.head());
       return { clicked: true, confirmed: true, confirmText: "Reload", choseDiscard: true };
@@ -701,6 +730,21 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} } = {}) {
     url: () => `http://localhost:36009/office-frame/${index === 0 ? "docs" : `frame${index}`}/index.html`,
     evaluate: () => (knobs.hungFrames ? new Promise(() => {}) : Promise.resolve([])),
   }));
+  // The renderers a MISS reads afterwards (BE-704-502): the canned announce poll answers, then the
+  // diagnostic reads meet unresponsive renderers — the case where a per-read deadline that is not
+  // the step's own budget can pin the whole step.
+  const hungDiagnosticFrames = Array.from({ length: Math.max(1, Number(knobs.diagnosticFrames) || 2) }, (_, index) => ({
+    url: () => `http://localhost:36009/office-frame/${index === 0 ? "docs" : `diagnostic${index}`}/index.html`,
+    evaluate: () => new Promise(() => {}),
+  }));
+  /** One diagnostic read over the fake's frames, off the budget the caller handed down. */
+  const diagnosticRead = ({ deadlineMs = null, read = readFrameMessages } = {}) =>
+    readFrameReports({
+      frames: knobs.diagnosticHangs ? hungDiagnosticFrames : frames,
+      read,
+      deadlineMs: Number.isFinite(deadlineMs) ? deadlineMs : Date.now() + (Number(knobs.hungFrameBudgetMs) || 250),
+      perReadTimeoutMs: Number(knobs.hungFramePerReadMs) || 10_000,
+    });
   const web = {
     calls: [],
     reloadWindow: null,
@@ -802,8 +846,16 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} } = {}) {
       // the reload HAPPENS from here: its GET is recorded, for a CLEAN frame the moment the
       // announce lands — i.e. before this call returns (BE-704-401)
       if (!knobs.webReloadFails) {
+        // where the frame's own GET lands relative to the announce (BE-704-501): +5 ms by default
+        // (the auto-open recorded inside the click), or whatever offset a test names — `-1` and
+        // `-50` are the boundary cases the freshness floor must reject
+        const offsetMs = Number.isFinite(Number(knobs.autoOpenOffsetMs))
+          ? Number(knobs.autoOpenOffsetMs)
+          : knobs.autoOpenBeforeAnnounce
+            ? -60
+            : 5;
         web.opens.push({
-          at: knobs.autoOpenBeforeAnnounce ? web.announceAt - 60 : web.announceAt + 5,
+          at: web.announceAt + offsetMs,
           pathname: `/api/v1/office-frame/documents/${documentId}`,
           answered: true,
           failed: false,
@@ -836,13 +888,10 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} } = {}) {
     /** What a frame audit read: the recorder counts, and any per-read failure (BE-704-304/405). */
     async frameAudit({ deadlineMs = null } = {}) {
       web.calls.push("frameAudit");
-      if (knobs.hungFrames) {
-        const reports = await readFrameReports({
-          frames,
-          deadlineMs: Number.isFinite(deadlineMs) ? deadlineMs : Date.now() + (Number(knobs.hungFrameBudgetMs) || 250),
-          perReadTimeoutMs: Number(knobs.hungFramePerReadMs) || 10_000,
-        });
-        return summarizeFrameRecordings(reports, 0);
+      if (knobs.hungFrames || knobs.diagnosticHangs) {
+        // the REAL reader over hung renderers (BE-704-405/502): what the row must bound is the
+        // reads the poll itself makes, so this path uses the driver's own implementation
+        return summarizeFrameRecordings(await diagnosticRead({ deadlineMs }), 0);
       }
       const failed = Number(knobs.frameReadErrors) || 0;
       return {
@@ -856,8 +905,12 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} } = {}) {
       };
     },
     /** What each document showed when the reload did not happen (D4-01). */
-    async frameSurface() {
+    async frameSurface({ deadlineMs = null } = {}) {
       web.calls.push("frameSurface");
+      if (knobs.diagnosticHangs) {
+        const reports = await diagnosticRead({ deadlineMs, read: readFrameRemoteSurface });
+        return reports.map((r) => ({ url: r.url, host: null, surface: r.value, error: r.readError }));
+      }
       return [
         {
           url: `http://localhost:36009/acme/ws/documents/${documentId}`,
@@ -879,8 +932,12 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} } = {}) {
      * frames. The default realm is the editor frame holding the seeded version 1 and receiving
      * the announce the mock recorded.
      */
-    async frameEvidence({ versionId = null } = {}) {
+    async frameEvidence({ versionId = null, deadlineMs = null } = {}) {
       web.calls.push("frameEvidence");
+      if (knobs.diagnosticHangs) {
+        const state = frameRemoteState(await diagnosticRead({ deadlineMs }), { versionId });
+        return { ...state, verdict: announceGuardVerdict(state) };
+      }
       const announcements = await web.announcements({ sinceMs: 0 });
       const realm =
         typeof knobs.frameRealm === "function" ? knobs.frameRealm({ documentId, announcements, versionId }) : knobs.frameRealm;
@@ -2017,10 +2074,10 @@ describe("G7-04 cross-host D5-01: the drop is named from measured values, and th
       assert.equal(result.status, "FAIL");
       const step = result.record.steps["web-sees"];
       assert.equal(step.status, "FAIL");
-      // the window is the announce's own `at` (minus the postMessage->request hop's tolerance),
-      // not the instant the step started waiting
+      // the window is the announce's own `at` EXACTLY (BE-704-501) — no tolerance is subtracted,
+      // so only a GET at/after the announce can be the reload
       const announcedAt = result.record.details.webSeesMiss.announced.at;
-      assert.equal(web.reloadWindow, Math.max(0, announcedAt - ANNOUNCE_OPEN_TOLERANCE_MS));
+      assert.equal(web.reloadWindow, announcedAt);
       // and the miss carries the frame's own realm, measured
       const miss = result.record.details.webSeesMiss;
       assert.equal(miss.held.fileId, mock.state.docId);
@@ -2158,6 +2215,92 @@ describe("G7-04 cross-host D4-02: the app's S6 reload is confirmed with the keep
       scratch.cleanup();
     }
   });
+
+  it("FAILs with the measured settle reason when the confirmed discard never reaches the saved version (BE-704-504)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      // the fork confirms the discard exactly as in the happy path, but the working copy keeps the
+      // dirty edit: the settle predicate's version conjunct is the one that must fail, and the
+      // step must report what it measured instead of accepting the click's word for it
+      const { result } = await runChain({
+        row: "G5-A03",
+        fixture: "fx-xlsx-revenue-xyz",
+        mock,
+        scratch,
+        knobs: { app: { reloadConfirmedNeverSettles: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["app-reload"];
+      assert.equal(step.status, "FAIL");
+      const want = result.record.versionCounts.afterWebSave2;
+      assert.match(step.reason, new RegExp(`the app did not settle on v${want} after the reload`));
+      assert.match(step.reason, /working copy (?:[0-9a-f]{8}\.){7}[0-9a-f]{8}/, "the bytes it measured are on the reason");
+      assert.match(step.reason, /reload click: confirmed "Reload"/);
+      assert.equal(result.record.details.appReload, undefined, "an unsettled reload records no appReload outcome");
+      assert.equal(result.record.versionCounts.afterReconnect, undefined);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("FAILs when the copy reaches the announced VERSION with the wrong bytes (BE-704-504)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      // the right base version, the wrong bytes: the predicate's checksum conjunct is the one that
+      // must fail, so a regression that only keeps the version half cannot pass this row
+      const { result } = await runChain({
+        row: "G5-A03",
+        fixture: "fx-xlsx-revenue-xyz",
+        mock,
+        scratch,
+        knobs: { app: { reloadSettlesWrongBytes: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["app-reload"];
+      assert.equal(step.status, "FAIL");
+      const want = result.record.versionCounts.afterWebSave2;
+      assert.match(step.reason, new RegExp(`the app did not settle on v${want} after the reload \\(binding v${want},`), "the version half settled");
+      // the copy the poll read is NOT the web Save's bytes: the checksum conjunct is what failed
+      const settledSha = (result.record.checksums.webAfterWebSave2.match(/.{1,8}/g) ?? []).join(".");
+      assert.match(step.reason, /working copy (?:[0-9a-f]{8}\.){7}[0-9a-f]{8}/);
+      assert.doesNotMatch(step.reason, new RegExp(settledSha), "the reason keeps the web Save's own checksum out");
+      assert.equal(result.record.details.appReload, undefined);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("FAILs when the bytes are the web Save's but the binding still names the old version (BE-704-504)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      // the other conjunct, isolated: the checksum half of the predicate is satisfied and only the
+      // version half is stale, so a regression that drops `Number(baseVersion) === want` fails here
+      const { result } = await runChain({
+        row: "G5-A03",
+        fixture: "fx-xlsx-revenue-xyz",
+        mock,
+        scratch,
+        knobs: { app: { reloadSettlesWrongVersion: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["app-reload"];
+      assert.equal(step.status, "FAIL");
+      const want = result.record.versionCounts.afterWebSave2;
+      const settledSha = (result.record.checksums.webAfterWebSave2.match(/.{1,8}/g) ?? []).join(".");
+      assert.match(step.reason, new RegExp(`the app did not settle on v${want} after the reload`));
+      assert.match(step.reason, new RegExp(`binding v(?!${want}\\b)\\d+`), "the version half is what is stale");
+      assert.match(step.reason, new RegExp(settledSha), "the bytes ARE the web Save's, so only the version failed");
+      assert.equal(result.record.details.appReload, undefined);
+    } finally {
+      scratch.cleanup();
+    }
+  });
 });
 
 describe("G7-04 cross-host BE-704-401: the reload window is anchored at the announce, not at the click", () => {
@@ -2172,7 +2315,7 @@ describe("G7-04 cross-host BE-704-401: the reload window is anchored at the anno
     // the window round 5 used (the instant the driver started waiting) filters exactly this GET out
     assert.equal(evaluateReloadWindow(opens, { versionId: "v3", sinceMs: clickReturnedAt, now: clickReturnedAt }).reloaded, false);
     // the announce's own timestamp keeps it: the reload HAPPENED, the driver only noticed later
-    const verdict = evaluateReloadWindow(opens, { versionId: "v3", sinceMs: announceAt - ANNOUNCE_OPEN_TOLERANCE_MS, now: clickReturnedAt });
+    const verdict = evaluateReloadWindow(opens, { versionId: "v3", sinceMs: announceAt, now: clickReturnedAt });
     assert.equal(verdict.reloaded, true);
     assert.equal(verdict.hit.versionId, "v3");
     assert.equal(verdict.opensSeen, 1);
@@ -2180,11 +2323,75 @@ describe("G7-04 cross-host BE-704-401: the reload window is anchored at the anno
     // and an open before the announce is never taken for the reload, even when its version matches
     const stale = evaluateReloadWindow(
       [{ at: announceAt - 60, pathname: "/api/v1/office-frame/documents/x", answered: true, versionId: "v3" }],
-      { versionId: "v3", sinceMs: announceAt - ANNOUNCE_OPEN_TOLERANCE_MS, now: clickReturnedAt },
+      { versionId: "v3", sinceMs: announceAt, now: clickReturnedAt },
     );
     assert.equal(stale.reloaded, false);
     assert.equal(stale.opensBefore, 1);
     assert.match(stale.reason, /landed before the announce/);
+  });
+
+  it("keeps the freshness floor AT the announce: a matching GET 1 ms or 50 ms earlier is not the reload (BE-704-501)", () => {
+    const announceAt = 90_000;
+    const now = announceAt + 900;
+    // the tolerance the round-5 window subtracted on the wrong side of the anchor: a GET this
+    // close to the announce was accepted, so an unrelated refresh could pass for the reload
+    for (const before of [1, 50]) {
+      const opens = [{ at: announceAt - before, pathname: "/api/v1/office-frame/documents/x", answered: true, versionId: "v3" }];
+      const verdict = evaluateReloadWindow(opens, { versionId: "v3", sinceMs: announceAt, now });
+      assert.equal(verdict.reloaded, false, `a GET ${before} ms before the announce must not count`);
+      assert.equal(verdict.floor, announceAt, "the floor is the announce itself");
+      assert.equal(verdict.opensSeen, 0);
+      assert.equal(verdict.opensBefore, 1);
+      // and the same anchor keeps a GET that landed after the announce, inside the click
+      const inFlight = evaluateReloadWindow([...opens, { at: announceAt + 30, answered: true, versionId: "v3" }], {
+        versionId: "v3",
+        sinceMs: announceAt,
+        now,
+      });
+      assert.equal(inFlight.reloaded, true);
+      assert.equal(inFlight.hit.at, announceAt + 30);
+    }
+    // `freshOpensAfter` subtracts nothing either: the boundary belongs to the stale side
+    const opens = [{ at: announceAt - 1 }, { at: announceAt }, { at: announceAt + 1 }];
+    assert.deepEqual(freshOpensAfter(opens, announceAt).map((o) => o.at), [announceAt, announceAt + 1]);
+  });
+
+  it("PASSes web-sees for an in-flight GET at announceAt + 30 and FAILs for one at -1 or -50 (BE-704-501)", async () => {
+    for (const { offsetMs, expected } of [
+      { offsetMs: 30, expected: "PASS" },
+      { offsetMs: -1, expected: "FAIL" },
+      { offsetMs: -50, expected: "FAIL" },
+    ]) {
+      const scratch = makeScratchRunDir();
+      const mock = createMockDServer({ aiMode: "real-xyz" });
+      mock.state.kind = "docs";
+      try {
+        process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+        const { result, web } = await runChain({
+          row: "G7-A01",
+          fixture: "fx-docx-report-vi",
+          mock,
+          scratch,
+          knobs: { web: { autoOpenOffsetMs: offsetMs } },
+          stepTimeoutMs: 300,
+        });
+        assert.equal(result.status, expected, `offset ${offsetMs} ms: ${result.reason}`);
+        const step = result.record.steps["web-sees"];
+        assert.equal(step.status, expected);
+        assert.equal(web.reloadWindow, web.announceAt, `offset ${offsetMs} ms: the floor is the announce`);
+        assert.equal(web.opens[0].at, web.announceAt + offsetMs, "the fake recorded the open at the offset");
+        if (expected === "FAIL") {
+          assert.match(step.reason, /did not reload the announced version/);
+          assert.match(step.reason, /landed before the announce/);
+          assert.equal(result.record.details.webSeesMiss.opens.beforeTheAnnounce, 1);
+        } else {
+          assert.equal(result.record.details.webSees.confirmed, true);
+        }
+      } finally {
+        delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+        scratch.cleanup();
+      }
+    }
   });
 
   it("PASSes web-sees when the frame recorded its open inside the reload click (BE-704-401)", async () => {
@@ -2574,6 +2781,46 @@ describe("G7-04 cross-host BE-704-405: frame reads share the step's budget", () 
       assert.match(step.reason, /3 frame read\(s\) failed/);
       // 3 hung frames per read wave must never cost 3 x 10 s, and the step's own bound is the cap
       assert.ok(elapsed < 3 * 300 + 600, `the row must stay near its step bound (took ${elapsed} ms for 4 steps)`);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("spends ONE web-sees budget on a miss: a hung diagnostic never starts on a fresh clock (BE-704-502)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    const stepTimeoutMs = 300;
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const { result } = await runChain({
+        row: "G7-A01",
+        fixture: "fx-docx-report-vi",
+        mock,
+        scratch,
+        // the announce poll answers (canned announce), the reload never lands, and every
+        // diagnostic read meets an unresponsive renderer
+        knobs: { web: { webReloadFails: true, diagnosticHangs: true, diagnosticFrames: 3, hungFrameBudgetMs: stepTimeoutMs } },
+        stepTimeoutMs,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "FAIL");
+      // one bound, not one per read: the surface read is bounded by what is LEFT of the step's
+      // own deadline, and the evidence read is not started at all
+      assert.ok(step.elapsedMs < stepTimeoutMs + 200, `web-sees must spend ONE bound (took ${step.elapsedMs} ms)`);
+      const diagnostics = result.record.details.webSeesMiss.diagnostics;
+      assert.deepEqual(diagnostics.map((d) => d.read), ["frameSurface", "frameEvidence"]);
+      assert.equal(diagnostics[0].started, true);
+      assert.equal(diagnostics[0].frames, 3);
+      assert.equal(diagnostics[0].readErrors, 3, "every hung frame's read is counted as expired, never silently absent");
+      assert.match(diagnostics[0].readErrorReasons[0], /timed out after \d+ ms/);
+      assert.ok(diagnostics[0].budgetMs <= stepTimeoutMs, `the read drew on the step's own budget: ${diagnostics[0].budgetMs}`);
+      assert.equal(diagnostics[1].started, false);
+      assert.match(diagnostics[1].reason, /budget was spent/);
+      // and the miss reason names the read it never made
+      assert.match(step.reason, /diagnostics left unread: .*frameEvidence/);
     } finally {
       delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
       scratch.cleanup();

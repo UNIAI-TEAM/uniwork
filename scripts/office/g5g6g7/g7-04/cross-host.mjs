@@ -135,6 +135,16 @@ export const FEED_NUDGE_LIMIT = 4;
  */
 export const FRAME_READ_TIMEOUT_MS = 10_000;
 
+/**
+ * What the `web-sees` waits (the announce poll and the reload wait) hold back from their step
+ * budget so the miss diagnostics can still run (BE-704-502): a FAIL that cannot say what the frames
+ * held is not actionable, and round 5's per-read budgets made exactly that evidence cost a second
+ * and third step bound. The step keeps ONE deadline — the waits stop this much before it and the
+ * diagnostics (`frameAudit`, `frameSurface`, `frameEvidence`) read on what is left, inside it. One
+ * hung frame-read wave's worth, never more than half a short step bound.
+ */
+export const MISS_DIAGNOSTIC_RESERVE_MS = 10_000;
+
 export const ROW_EXIT = Object.freeze({ PASS: 0, FAIL: 1, BLOCKED: BLOCKED_EXIT });
 
 /** Every route this driver calls, pinned against the Go router by tracer.test.mjs. */
@@ -1101,34 +1111,36 @@ export function announceGuardVerdict({ announce = null, held = null, announceRea
 }
 
 /**
- * The slack between the announce a frame RECEIVED (its `at` is taken in the frame's own realm,
- * in the message listener) and the HTTP GET that announce causes (recorded in the driver's
- * process, once the frame's `load` has crossed postMessage -> host -> `api.open`): the reload
- * window opens this much before the announce so a same-hop round trip on a busy VM is not read
- * as "the frame never fetched" (D5-01). It is far too small for a stale open (the boot open is
- * minutes earlier) to sneak in.
+ * The slack the reload is allowed to take AFTER the announce before the step gives up on it. It is
+ * NEVER subtracted from the freshness floor (BE-704-501): the window's lower bound is the announce's
+ * own `at` exactly, so a matching GET recorded even 1 ms before the announce is a stale open and
+ * cannot stand in for the reload. The postMessage -> host -> `api.open` hop a busy VM may add only
+ * extends how long the step waits for the reload to COMPLETE.
  */
 export const ANNOUNCE_OPEN_TOLERANCE_MS = 50;
 
 /**
- * The recorded `office-frame` GETs at or after `sinceMs` (D5-01). The reload window is anchored at
- * the ANNOUNCE's own timestamp, not at the instant the driver starts waiting: the frame reloads
- * the moment the announce lands, and round 5's window began after the driver's poll noticed the
- * announce — so a reload that had already happened was counted as "0 GET(s) after the announce".
+ * The recorded `office-frame` GETs at or after `sinceMs` (D5-01/BE-704-501). The reload window is
+ * anchored at the ANNOUNCE's own timestamp, not at the instant the driver starts waiting: the frame
+ * reloads the moment the announce lands, and round 5's window began after the driver's poll noticed
+ * the announce — so a reload that had already happened was counted as "0 GET(s) after the announce".
+ * The floor is `sinceMs` EXACTLY (`Number(entry.at) >= sinceMs`): no slack is subtracted here or by
+ * the caller, because a GET from before the announce is a boot or stale open, not this row's reload.
  */
 export function freshOpensAfter(opens, sinceMs) {
-  const floor = Number.isFinite(sinceMs) && sinceMs > 0 ? sinceMs - 1 : 0;
+  const floor = Number.isFinite(sinceMs) && sinceMs > 0 ? sinceMs : 0;
   return (opens ?? []).filter((entry) => Number(entry?.at ?? 0) >= floor);
 }
 
 /**
  * Whether the frame's own `office-frame` GET for the announced version has landed yet (D4-01/
- * D5-01/BE-704-401). The window is anchored at `sinceMs` — the ANNOUNCE's own timestamp, with
- * `ANNOUNCE_OPEN_TOLERANCE_MS` of slack — never at the instant the driver started waiting or the
- * instant its click returned: a CLEAN frame reloads the moment the announce lands
+ * D5-01/BE-704-401/BE-704-501). The window is anchored at `sinceMs` — the ANNOUNCE's own timestamp,
+ * with NO slack subtracted — never at the instant the driver started waiting or the instant its
+ * click returned: a CLEAN frame reloads the moment the announce lands
  * (`web/modules/shared/remote-version.ts:364-379` -> `load` l.286-300), so its GET can be recorded
  * during the reload click and still be the reload. A GET recorded before the announce is a boot or
- * stale open and is reported as such (`opensBefore`), never taken for the reload.
+ * stale open and is reported as such (`opensBefore`), never taken for the reload — not even one
+ * recorded 1 ms earlier, which is what the round-5 tolerance on the wrong side of the anchor did.
  *
  * The verdict carries the whole miss — how many of this document's GETs landed at/after the
  * announce, what they answered, and how many landed before it and how long before — so a row can
@@ -1138,7 +1150,7 @@ export function evaluateReloadWindow(opens = [], { versionId = null, sinceMs = n
   const floor = Number.isFinite(sinceMs) && sinceMs > 0 ? Math.min(sinceMs, now) : now;
   const fresh = freshOpensAfter(opens, floor);
   const hit = versionId === null ? fresh[0] ?? null : fresh.find((entry) => entry?.versionId === versionId) ?? null;
-  if (hit) return { reloaded: true, floor, hit, opensSeen: fresh.length, opensBefore: (opens ?? []).filter((entry) => Number(entry?.at ?? 0) < floor - 1).length, reason: "" };
+  if (hit) return { reloaded: true, floor, hit, opensSeen: fresh.length, opensBefore: (opens ?? []).filter((entry) => Number(entry?.at ?? 0) < floor).length, reason: "" };
   const described = (entry) => {
     if (entry?.versionId) return entry.versionId;
     if (entry?.failed) return "the GET failed";
@@ -1149,7 +1161,7 @@ export function evaluateReloadWindow(opens = [], { versionId = null, sinceMs = n
     .slice(0, 4)
     .map((entry) => `${described(entry)}${entry?.pathname ? ` @${entry.pathname}` : ""}`)
     .join(", ");
-  const before = (opens ?? []).filter((entry) => Number(entry?.at ?? 0) < floor - 1);
+  const before = (opens ?? []).filter((entry) => Number(entry?.at ?? 0) < floor);
   const beforeSeen = before
     .slice(-4)
     .map((entry) => `${entry?.versionId ?? "no version id"} @${entry?.pathname ?? "no path"} (${Math.max(0, floor - Number(entry?.at ?? 0))} ms before the announce)`)
@@ -1458,10 +1470,11 @@ async function createPlaywrightWebCtrl({
       },
       /**
        * The fresh `office-frame` open of the announced version. The window is anchored at the
-       * ANNOUNCE's own timestamp (`sinceMs`, the recorder's `at` in the frame's realm), never at
-       * the instant this call starts (D5-01) nor at the instant the reload click returned
-       * (BE-704-401): a CLEAN frame reloads the moment the announce lands, so its GET can be
-       * recorded before the click returns and is still the reload.
+       * ANNOUNCE's own timestamp (`sinceMs`, the recorder's `at` in the frame's realm) EXACTLY
+       * (BE-704-501) — never at the instant this call starts (D5-01), never at the instant the
+       * reload click returned (BE-704-401), and never with slack subtracted from the floor: a CLEAN
+       * frame reloads the moment the announce lands, so its GET can be recorded before the click
+       * returns and is still the reload, while a GET from before the announce is a stale open.
        */
       async waitForReload({ versionId, sinceMs = null, timeoutMs = stepTimeoutMs }) {
         const settled = await pollUntil(
@@ -2540,25 +2553,72 @@ export async function runCrossHostRow({
     const webSees = await runStep("web-sees", "web", async () => {
       const reconnectVersionId = record.versionIds[`v${record.versionCounts.afterReconnect}`];
       const since = (record.details.webSaveAt ?? 0) - 1;
+      // ONE deadline for the whole step (BE-704-502): the announce poll, the reload wait and every
+      // miss-path diagnostic read draw on this budget. The reads that follow a spent poll used to
+      // each open a FRESH `stepTimeout`, so a busy or hung renderer could pin the step for the poll
+      // bound plus two more read budgets — and `step()` has no outer wall clock, so this is the bound.
+      const deadlineAt = Date.now() + stepTimeout;
+      const leftMs = () => Math.max(0, deadlineAt - Date.now());
+      // …and the WAITS stop short of it by the reserve the miss diagnostics need (BE-704-502), so a
+      // poll or reload wait that never finds what it wants cannot leave the miss unexplained
+      const diagnosticReserveMs = Math.min(MISS_DIAGNOSTIC_RESERVE_MS, Math.max(0, Math.floor(stepTimeout / 2)));
+      const waitBudgetMs = () => Math.max(0, leftMs() - diagnosticReserveMs);
+      const diagnostics = [];
+      /**
+       * One diagnostic read, only when the step's ONE budget still has time (BE-704-502). The read
+       * gets the step's own absolute deadline (so its per-document reads share what is left rather
+       * than opening a fresh bound each); a read that could not be started is recorded — with the
+       * reason — instead of silently shrinking the miss evidence.
+       */
+      const diagnosticRead = async (read, run) => {
+        const left = leftMs();
+        if (left <= 0) {
+          diagnostics.push({ read, started: false, budgetMs: 0, reason: `the ${read} read was not started: the web-sees step's ${stepTimeout} ms budget was spent` });
+          return null;
+        }
+        const value = await run(deadlineAt).catch(() => null);
+        // every per-document read that expired or failed is on the record too: the audit counts
+        // them, a surface report carries its own `error`, and the frame evidence its `readError`
+        const documents = Array.isArray(value) ? value : value?.documents ?? null;
+        const errors = documents ? documents.map((d) => d?.error ?? d?.readError).filter((e) => typeof e === "string" && e) : [];
+        diagnostics.push({
+          read,
+          started: true,
+          budgetMs: left,
+          frames: documents ? documents.length : value?.frames ?? 0,
+          readErrors: value?.readErrors ?? errors.length,
+          readErrorReasons: (value?.readErrorReasons ?? errors).slice(0, 3),
+        });
+        return value;
+      };
+      /** The reads this step never made, for the miss reason (BE-704-502). */
+      const unreadDiagnostics = () => {
+        const spent = diagnostics.filter((d) => !d.started).map((d) => d.reason);
+        return spent.length > 0 ? `; diagnostics left unread: ${spent.join("; ")}` : "";
+      };
       const announced = await pollUntil(
         // the poll passes its OWN remaining budget down to the frame reads (BE-704-405), so N
-        // frames read on one wave can never overrun this poll's bound
-        async (deadlineMs) => web.announcements({ sinceMs: Math.max(0, since), deadlineMs }),
+        // frames read on one wave can never overrun this poll's bound — and that bound is what is
+        // LEFT of this step's one deadline (BE-704-502)
+        async (pollDeadlineMs) => web.announcements({ sinceMs: Math.max(0, since), deadlineMs: pollDeadlineMs }),
         (list) => Array.isArray(list) && list.some((m) => m.versionId === reconnectVersionId),
-        { boundMs: stepTimeout, intervalMs: pollMs },
+        { boundMs: waitBudgetMs(), intervalMs: pollMs },
       );
       const match = (announced.value ?? []).find((m) => m.versionId === reconnectVersionId) ?? null;
       if (!match) {
         // What was read, measured (D3-01): the round-3 wording guessed at office_sync_feed,
         // whose server default is true and which was never read, where the artifact could
         // have carried these numbers instead.
-        const audit = typeof web.frameAudit === "function" ? await web.frameAudit().catch(() => null) : null;
+        const audit = await diagnosticRead("frameAudit", (deadlineMs) =>
+          typeof web.frameAudit === "function" ? web.frameAudit({ deadlineMs }) : null,
+        );
         const measured = audit
           ? ` (${audit.frames} document(s) read, ${audit.recorders} carried the message recorder, ${audit.events} protocol event(s) received: ${audit.types.slice(0, 4).join(", ") || "none"}${audit.readErrors ? `, ${audit.readErrors} frame read(s) failed: ${audit.readErrorReasons?.[0] ?? "unknown"}` : ""})`
           : "";
+        record.details.webSeesMiss = { announced: null, diagnostics };
         return {
           status: "FAIL",
-          reason: `the web host announced no doc.remoteVersion for ${reconnectVersionId} within ${stepTimeout} ms${measured}`,
+          reason: `the web host announced no doc.remoteVersion for ${reconnectVersionId} within ${stepTimeout} ms${measured}${unreadDiagnostics()}`,
         };
       }
       // D4-01: a CLEAN frame reloads itself on the announce, but a dirty one shows the S6 bar
@@ -2571,17 +2631,23 @@ export async function runCrossHostRow({
       // The window opens at the ANNOUNCE's own timestamp, not at this instant (D5-01) and not at
       // the instant the click returned (BE-704-401): a clean frame reloads as soon as the announce
       // lands, so its GET can be recorded while the click is still in flight and is still the reload.
+      // BE-704-501: the freshness floor is the announce ITSELF — no tolerance is subtracted from the
+      // anchor, so a matching GET recorded even 1 ms before it is a stale open. The postMessage ->
+      // host -> `api.open` hop is allowed on the COMPLETION deadline only, never on the floor; and
+      // what is left of this step's one budget is what the wait may still spend (BE-704-502).
       const reload = await web.waitForReload({
         versionId: reconnectVersionId,
-        sinceMs: Math.max(0, Number(match.at ?? 0) - ANNOUNCE_OPEN_TOLERANCE_MS),
-        timeoutMs: stepTimeout,
+        sinceMs: Number(match.at ?? 0),
+        timeoutMs: waitBudgetMs() + ANNOUNCE_OPEN_TOLERANCE_MS,
       });
       // BE-704-402: the fresh open of the ANNOUNCED version id is what confirms the reload — the
       // click itself never claims it (`clickReload` only drives the fork's own discard choice).
       const confirmed = reload?.reloaded === true && reload.versionId === reconnectVersionId;
       if (!reload?.reloaded) {
         // what the frame SHOWED, measured: the bar it left un-clicked, the dialog waiting
-        const surface = typeof web.frameSurface === "function" ? await web.frameSurface().catch(() => null) : null;
+        const surface = await diagnosticRead("frameSurface", (deadlineMs) =>
+          typeof web.frameSurface === "function" ? web.frameSurface({ deadlineMs }) : null,
+        );
         const shown = (surface ?? [])
           .filter((r) => !/^about:blank$/.test(r.url))
           .slice(0, 3)
@@ -2599,7 +2665,9 @@ export async function runCrossHostRow({
         // pin's guards those values fail. Round 5 asserted "the frame's own guard needs a
         // DECIMAL revision" without measuring anything; the announce's own JS type is recorded
         // now, so the reason names only what the values prove.
-        const evidence = typeof web.frameEvidence === "function" ? await web.frameEvidence({ versionId: reconnectVersionId }).catch(() => null) : null;
+        const evidence = await diagnosticRead("frameEvidence", (deadlineMs) =>
+          typeof web.frameEvidence === "function" ? web.frameEvidence({ versionId: reconnectVersionId, deadlineMs }) : null,
+        );
         const verdict = evidence?.verdict ?? null;
         const realm = evidence?.announceRealm
           ? `received in ${evidence.announceRealm.isTop ? "the TOP page" : "a frame"}`
@@ -2629,9 +2697,10 @@ export async function runCrossHostRow({
             verdict,
             documents: evidence.documents,
             opens: { seen: reload?.opensSeen ?? 0, beforeTheAnnounce: reload?.opensBefore ?? 0 },
+            diagnostics,
           };
         } else {
-          record.details.webSeesMiss = { announced: match, reloadClick, opens: { seen: reload?.opensSeen ?? 0, beforeTheAnnounce: reload?.opensBefore ?? 0 } };
+          record.details.webSeesMiss = { announced: match, reloadClick, opens: { seen: reload?.opensSeen ?? 0, beforeTheAnnounce: reload?.opensBefore ?? 0 }, diagnostics };
         }
         return {
           status: "FAIL",
@@ -2645,7 +2714,7 @@ export async function runCrossHostRow({
                     : ` but never made the discard choice (${reloadClick.reason ?? "no confirm"})`
                 }`
               : reloadClick?.reason ?? "not attempted"
-          }${shown ? `; frame surface: ${shown}` : ""})`,
+          }${shown ? `; frame surface: ${shown}` : ""}${unreadDiagnostics()})`,
         };
       }
       const head = await web.fetchHeadViaFrameRoute();
@@ -2658,7 +2727,7 @@ export async function runCrossHostRow({
       record.checksums.webContent = head.sha256;
       record.details.webSees = {
         announced: match,
-        reloadWindowFrom: Math.max(0, Number(match.at ?? 0) - ANNOUNCE_OPEN_TOLERANCE_MS),
+        reloadWindowFrom: Number(match.at ?? 0),
         reloadClick,
         reload: { versionId: reload.versionId, version: reload.version },
         // the confirmation is the fresh open of the ANNOUNCED version id (BE-704-402), never the click
