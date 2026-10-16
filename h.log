@@ -1,0 +1,16 @@
+$ NODE_ENV=test AI_PROVIDER=fake npm run test -w @genoffice/ui; rc=$?; echo; echo "UI_SUITE_EXIT=$rc"
+
+> @genoffice/ui@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+
+ Test Files  57 passed (57)
+      Tests  1134 passed (1134)
+   Start at  09:00:20
+   Duration  10.90s (transform 2.70s, setup 0ms, import 6.87s, tests 6.51s, environment 13.30s)
+
+
+UI_SUITE_EXIT=0

@@ -1,0 +1,708 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root web/modules shared --reporter=verbose; rc=$?; echo; echo "WEB_SHARED_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ✓ shared/conflict-dialog.test.ts > step 1 > DOM order = Tab order: table, Reload latest, Overwrite…, Cancel, X; first focus Cancel 59ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > two-column table from both heads: base revision vs the head revision, time and author 11ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > without a known author the server column says "a member" 9ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > the alert row is always in the tree (empty, not display:none) and the title can take focus 6ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > without edit access: no Overwrite…, the no-edit line, Reload latest + Cancel 8ms
+ ✓ shared/remote-version.test.ts > a clean frame with no AI turn > reloads through api.open asking for the event version, and shows the info bar 42ms
+ ✓ shared/remote-version.test.ts > a clean frame with no AI turn > shows the revision of the reply, never the one the event named (a commit slipped in between) 8ms
+ ✓ shared/remote-version.test.ts > a clean frame with no AI turn > an old host (no revision on the reply): the sentence without a number 7ms
+ ✓ shared/remote-version.test.ts > a clean frame with no AI turn > a reply that is not newer than the open copy replaces nothing and shows no bar 8ms
+ ✓ shared/remote-version.test.ts > a clean frame with no AI turn > compares revisions as numbers: 9 is older than 10, 11 newer than 10 16ms
+ ✓ shared/remote-version.test.ts > a clean frame with no AI turn > ignores another document, a revision at or below the open one, and a malformed revision 7ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > offline: Reload and Overwrite are aria-disabled with the reason, still in the Tab loop 9ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > offline: the one shared reason is shown once, both buttons described by it 5ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > goes offline and back online while open: Reload and Overwrite follow, with the reason line 19ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > stops listening to the network once the dialog has settled 5ms
+ ✓ shared/conflict-dialog.test.ts > step 1 > reports modal open while it shows and closed when it settles 4ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > opens the confirmation in the same card, focus Back; Back returns focus to Overwrite… 6ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > confirmed: a new version, answered ok with its versionId 6ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > a second 409: the table follows the new head, the head-moved line, back to step 1 on Cancel 15ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > 401: the session line in the dialog; closing answers unauthorized 6ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > 403: the revoked variant with Close and the title focused; answers forbidden 9ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > 403 organization suspended: the blocked sentence with its reason 7ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > 410: the deleted variant; answers not_found 6ms
+ ✓ shared/remote-version.test.ts > a clean frame with no AI turn > a version that is gone (not_found) is replaced by the head, asked without a version 16ms
+ ✓ shared/remote-version.test.ts > a clean frame with no AI turn > a head that is not found either is a deleted document: the deleted lock, not the Retry bar 18ms
+ ✓ shared/remote-version.test.ts > a dirty frame > never replaces the content: the warn bar with Reload latest… and Later 9ms
+ ✓ shared/remote-version.test.ts > a dirty frame > a newer revision updates the number in the same bar (no stacking) 10ms
+ ✓ shared/remote-version.test.ts > a dirty frame > Later hides the bar until a newer revision arrives 26ms
+ ✓ shared/remote-version.test.ts > a dirty frame > undoing every change offers the reload but does not load by itself; typing again goes back to the warning 16ms
+ ✓ shared/remote-version.test.ts > a dirty frame > an edit that lands while the version is loading drops the result and keeps the content 13ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > 413: the too-large line at step 1 and the download choice turns aria-disabled 14ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > 5xx: the overwrite-failed line, buttons still work; closing answers internal 6ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > a retry that meets another 409 forgets the earlier 401: Cancel answers cancelled 13ms
+ ✓ shared/conflict-dialog.test.ts > Overwrite… > a retry that meets 413 forgets an earlier 5xx: Cancel answers cancelled 15ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > without the download capability: discard-and-reload and Back only, focus Back 4ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > Back returns to step 1 with the focus on Reload latest 4ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > with download: sends the bytes, asks to check the file, never reloads on its own 10ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > a failed download stays on step 2 with the line and does not reload 5ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > opened from the new-version bar (start: reload) > opens the Reload confirm at once: no table, no Overwrite…; focus Back 3ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > opened from the new-version bar (start: reload) > Back (there is no step 1 to return to) ends it as cancelled 1ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > opened from the new-version bar (start: reload) > Escape ends it as cancelled 2ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > opened from the new-version bar (start: reload) > a failed reload keeps the dialog with the line 3ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > download cap (init.downloadMaxBytes, X-02 r2b) > my version over the cap: the download choice is aria-disabled with the too-large reason at open 5ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > download cap (init.downloadMaxBytes, X-02 r2b) > exactly the cap is allowed 4ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > download cap (init.downloadMaxBytes, X-02 r2b) > under the cap is allowed 6ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > download cap (init.downloadMaxBytes, X-02 r2b) > no cap from the host: as today, enabled until a 413 / too_large answer 6ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > download cap (init.downloadMaxBytes, X-02 r2b) > a cap without a known size changes nothing 4ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > download cap (init.downloadMaxBytes, X-02 r2b) > without the download capability there is still no download choice, cap or not 4ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > download cap (init.downloadMaxBytes, X-02 r2b) > an over-cap version still reaches Discard and reload 5ms
+ ✓ shared/remote-version.test.ts > an AI turn is running > no reload, the AI bar; the next idle loads the version 17ms
+ ✓ shared/remote-version.test.ts > an AI turn is running > after the turn went idle the next event reloads without a warning 6ms
+ ✓ shared/remote-version.test.ts > an AI turn is running > the frame unloads mid-turn: the reloaded clean frame loads the next version without a warning 13ms
+ ✓ shared/remote-version.test.ts > an AI turn is running > idle on a document that became dirty shows the dirty bar instead of loading 17ms
+ ✓ shared/remote-version.test.ts > an AI turn is running > a turn that starts while the version is loading drops the result: the AI bar, content kept 13ms
+ ✓ shared/remote-version.test.ts > an AI turn is running > Reload latest… with a turn running asks to stop it, stops it, then opens the Reload confirm 13ms
+ ✓ shared/remote-version.test.ts > an AI turn is running > declining the stop leaves the turn and the bar alone 12ms
+ ✓ shared/remote-version.test.ts > Reload latest… on a dirty frame > opens the Reload confirm; the user choosing Reload replaces the content (the user asked) 17ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > without edit access there is no download choice 4ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > a reload that fails keeps the dialog with the reload-failed line 9ms
+ ✓ shared/conflict-dialog.test.ts > Reload latest (web) > the X on a confirmation step cancels the whole dialog 4ms
+ ✓ shared/conflict-dialog.test.ts > Save as a copy… (S5-03) > sits between Reload latest and Overwrite… with edit access 3ms
+ ✓ shared/conflict-dialog.test.ts > Save as a copy… (S5-03) > is not offered without edit access or without a host path that makes the copy 5ms
+ ✓ shared/conflict-dialog.test.ts > Save as a copy… (S5-03) > offline: aria-disabled with its own reason, follows the network 6ms
+ ✓ shared/conflict-dialog.test.ts > Save as a copy… (S5-03) > opens its confirmation in the same card; Back returns to step 1 with the focus on it 7ms
+ ✓ shared/conflict-dialog.test.ts > Save as a copy… (S5-03) > Create copy: back to step 1 with the Done line, focus Cancel, no answer to the save 8ms
+ ✓ shared/conflict-dialog.test.ts > Save as a copy… (S5-03) > a failed copy stays on the confirmation with the failure line 4ms
+ ✓ shared/conflict-dialog.test.ts > View differences (S5-04) > is a button between the table and Reload latest, in DOM order, when the module has a compare view 4ms
+ ✓ shared/conflict-dialog.test.ts > View differences (S5-04) > other modules leave it out 4ms
+ ✓ shared/conflict-dialog.test.ts > View differences (S5-04) > opens the comparison as a step of the same card; Back returns to step 1 with the focus on the link 7ms
+ ✓ shared/conflict-dialog.test.ts > View differences (S5-04) > the X on the comparison cancels the whole dialog 4ms
+ ✓ shared/conflict-dialog.test.ts > View differences (S5-04) > a compare view that throws leaves the dialog on step 1 6ms
+ ✓ shared/conflict-dialog.test.ts > save answers and heads > maps every outcome to the save contract 1ms
+ ✓ shared/conflict-dialog.test.ts > save answers and heads > reads the head revision from `revision`, else a decimal etag, and the author from remoteVersion 0ms
+ ✓ shared/ai/ai.test.ts > routes > puts the frame-token AI mount on the frame origin, from either apiBase spelling 6ms
+ ✓ shared/ai/ai.test.ts > client > sends the frame token as Bearer, never cookies, and reads the contract shapes 4ms
+ ✓ shared/ai/ai.test.ts > client > refreshes the token once after a 401 and retries 1ms
+ ✓ shared/ai/ai.test.ts > client > a second 401 is the typed `unauthorized` state 2ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 402 credits_exhausted to credits_exhausted 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 403 entitlement_required to entitlement_required 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 404 credential_missing to credential_missing 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 424 provider_auth_failed to provider_auth_failed 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 502 provider_unreachable to provider_unreachable 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 503 cloud_unavailable to cloud_unavailable 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 400 base_url_refused to base_url_refused 0ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 400 provider_not_supported to provider_not_supported 0ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 400 invalid_request to bad_request 0ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 500 internal to unknown 0ms
+ ✓ shared/ai/ai.test.ts > client > maps 429 with retry-after (seconds or date) 1ms
+ ✓ shared/ai/ai.test.ts > client > credential PUT / DELETE: write-only key, masked hint back 1ms
+ ✓ shared/ai/ai.test.ts > client > refuses to send the token outside the AI mount 0ms
+ ✓ shared/ai/ai.test.ts > client > refuses path traversal, encoded slashes and other origins that still start with the mount string 1ms
+ ✓ shared/ai/ai.test.ts > client > reads a sparse cloud status leniently 0ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > keeps chat/completions, maps Anthropic /v1/messages, drops vendor keys and the user agent 1ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > wraps a Gemini call into /generate {model, stream, request} 1ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > refuses any vendor URL (the frame never calls a provider directly) 0ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > rethrows a malformed Gemini body as the parser error, not a typed refusal 0ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > passes a vendor 402 / 503 through; a UniWork-coded one is the typed state 2ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > a 503 without a JSON error body (gateway page, empty body) is the typed cloud_outage state 2ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > refuses a proxy URL that leaves the byok mount after normalisation 0ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > throws contract failures, passes a provider 404 / 400 through to ai-provider 1ms
+ ✓ shared/ai/ai.test.ts > streams > streams an openai-compatible turn through the proxy (native wire format, no key) 8ms
+ ✓ shared/ai/ai.test.ts > streams > a chat stream is a running turn until it ends: aiRun running, then one idle (X-02, S6) 1ms
+ ✓ shared/ai/ai.test.ts > streams > a stream that cannot start (no model) is not a running turn; a stopped one ends the run 3ms
+ ✓ shared/ai/ai.test.ts > streams > a provider with no model sends nothing and says to choose one (never the generic refusal) 1ms
+ ✓ shared/ai/ai.test.ts > streams > streams an Anthropic turn on /messages 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 402 ends the turn with the typed credits_exhausted state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 403 ends the turn with the typed entitlement_required state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 404 ends the turn with the typed credential_missing state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 424 ends the turn with the typed provider_auth_failed state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 429 ends the turn with the typed rate_limited state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 502 ends the turn with the typed provider_unreachable state 2ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 402 ends the turn with the typed credits_exhausted state 1ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 403 ends the turn with the typed entitlement_required state 1ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 404 ends the turn with the typed credential_missing state 1ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 424 ends the turn with the typed provider_auth_failed state 0ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 429 ends the turn with the typed rate_limited state 0ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 502 ends the turn with the typed provider_unreachable state 1ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 402 ends the turn with the typed credits_exhausted state 1ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 403 ends the turn with the typed entitlement_required state 0ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 404 ends the turn with the typed credential_missing state 0ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 424 ends the turn with the typed provider_auth_failed state 0ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 429 ends the turn with the typed rate_limited state 0ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 502 ends the turn with the typed provider_unreachable state 1ms
+ ✓ shared/ai/ai.test.ts > streams > a typed chat turn never raises the card; a typed one-shot aiChat does (no transcript to show it) 1ms
+ ✓ shared/ai/ai.test.ts > streams > reads the code and message from the wrapped and the flat error body 0ms
+ ✓ shared/ai/ai.test.ts > streams > maps a vendor adapter failure text to a typed state, never the raw payload 1ms
+ ✓ shared/ai/ai.test.ts > streams > a provider without a server route is credential_missing (no request sent) 0ms
+ ✓ shared/ai/ai.test.ts > streams > aiChat (one-shot) uses the same route without stream 1ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > aiHostGrants: tools need ai too; nothing without the ai grant 0ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > without the ai grant every member is the module stub and no request is made 1ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > a port without a frame token (headless) keeps AI off even with the grant 0ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > with the grant: settings from stored credentials (no key), cloud switches, search shapes 4ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > a cloud failure returns the module error shape with the typed text and shows the card 8ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > a typed stream failure reaches the panel once: one error chunk, no floating card 2ms
+ ✓ shared/remote-version.test.ts > Reload latest… on a dirty frame > cancelling the dialog keeps the content and the warning 13ms
+ ✓ shared/remote-version.test.ts > Reload latest… on a dirty frame > passes the module download choice to the dialog 13ms
+ ✓ shared/remote-version.test.ts > a reload that fails > keeps the open content, shows the error bar with Retry; Retry loads 16ms
+ ✓ shared/remote-version.test.ts > a reload that fails > a host that cannot apply it (the editor rejects) is the same error bar 7ms
+ ✓ shared/remote-version.test.ts > revoke and delete > api.open 403: the revoke bar, the frame is locked (inert editor, saves refused) 14ms
+ ✓ shared/remote-version.test.ts > revoke and delete > api.open 410: the deleted bar and the lock 7ms
+ ✓ shared/remote-version.test.ts > revoke and delete > a save answered 403 (not an organisation reason) locks like a revoke; 410 and not_found like a delete 2ms
+ ✓ shared/remote-version.test.ts > revoke and delete > reset (another document opens) lifts the lock and clears the bar 1ms
+ ✓ shared/remote-version.test.ts > web save failures > 403 organization_suspended: the organisation bar with its reason, no lock 1ms
+ ✓ shared/remote-version.test.ts > web save failures > 403 member_deactivated: the organisation bar with its reason, no lock 1ms
+ ✓ shared/remote-version.test.ts > web save failures > 403 document_archived: the organisation bar with its reason, no lock 1ms
+ ✓ shared/remote-version.test.ts > web save failures > 401: the sign-in-again sentence, no lock, dismissable 2ms
+ ✓ shared/remote-version.test.ts > web save failures > a conflict, a timeout and a 5xx are not this bar (the conflict dialog / the save line own them) 1ms
+ ✓ shared/remote-version.test.ts > web save failures > says whether the bar owns the failure, so the module raises no toast of its own on top 3ms
+ ✓ shared/remote-version.test.ts > a locked frame looks disabled, not only inert > revoke and delete: the dimmed-chrome class on the page and aria-disabled on the editor root 1ms
+ ✓ shared/remote-version.test.ts > a locked frame looks disabled, not only inert > doc.blocked locks the same way, and a delete after a revoke keeps it 1ms
+ ✓ shared/remote-version.test.ts > a locked frame looks disabled, not only inert > a bar that leaves the editor usable (organisation, 401) does not dim anything 1ms
+ ✓ shared/remote-version.test.ts > a locked frame looks disabled, not only inert > reset and dispose bring the chrome back 1ms
+ ✓ shared/remote-version.test.ts > a locked frame looks disabled, not only inert > an editor root that was inert before keeps its inert, but still lifts the dim 1ms
+ ✓ shared/remote-version.test.ts > a frame that restarts for the new version (reloaded) > apply gets the notice to carry across the restart: revision, author and time of the loaded head 8ms
+ ✓ shared/remote-version.test.ts > a frame that restarts for the new version (reloaded) > the next boot shows the same information bar from the notice 1ms
+ ✓ shared/remote-version.test.ts > a frame that restarts for the new version (reloaded) > without an author or a time it says the plain updated sentence 1ms
+ ✓ shared/remote-version.test.ts > a frame that restarts for the new version (reloaded) > a locked frame keeps its lock bar 1ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > permission_revoked on a clean frame: the revoke bar, the editor inert, saves refused 1ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > document_deleted on a dirty frame: the delete bar, the dirty content kept (nothing reloaded) 1ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > the organisation reason organization_suspended: the same bar and the same usable editor as the Save 403 2ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > the organisation reason member_deactivated: the same bar and the same usable editor as the Save 403 2ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > the organisation reason document_archived: the same bar and the same usable editor as the Save 403 1ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > an organisation block is lifted by nothing but a later revoke / delete, which still lock 1ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > a reason this frame does not know reads as revoked 1ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > another document changes nothing 1ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > once per reason; a delete after a revoke takes over, a revoke after a delete does not 1ms
+ ✓ shared/remote-version.test.ts > doc.blocked (the host pushes the block, no save needed) > a blocked frame ignores new versions; another document lifts the block 7ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > the model chip manage row opens the AI settings while AI is on (module stub when off) 53ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > reads data: URLs as media bytes only 0ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > one typed state card at a time; key states offer AI settings 3ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > the key-state copy names no vendor, so it cannot disagree with the model chip, in any locale 2ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > every error code has its own text 1ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > settings dialog: masked hint, write-only key, save + remove through the client 111ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > the settings dialog is the frame dialog: scrim, close X, filled primary, no gs-imgdlg chrome 56ms
+ ✓ shared/discussion/discussion.test.ts > frame claim per module (D4) > markdown + html + docs (G8-12) claim comments; sheets, slides, pdf do not (until G8-13..15) 3ms
+ ✓ shared/discussion/discussion.test.ts > frame claim per module (D4) > a module frame sends `comments` in ready only when its switch is on 1ms
+ ✓ shared/discussion/discussion.test.ts > frame claim per module (D4) > every frame entry sets its switch explicitly (docs included) 1ms
+ ✓ shared/discussion/discussion.test.ts > frame claim per module (D4) > G8-12: the Docs frame installs the comments API and keeps the Discussion panel silent on a miss 0ms
+ ✓ shared/discussion/discussion.test.ts > frame claim per module (D4) > R8: the claim stays on across a re-handshake of the same document 3ms
+ ✓ shared/discussion/discussion.test.ts > createFrameDiscussionSource > lists and creates with kind discussion, whatever the caller asks 1ms
+ ✓ shared/discussion/discussion.test.ts > createFrameDiscussionSource > forwards the id calls and mentions.search unchanged 1ms
+ ✓ shared/discussion/discussion.test.ts > createFrameDiscussionSource > maps protocol errors to the kit error (details.code first) 2ms
+ ✓ shared/discussion/discussion.test.ts > mountFrameDiscussion > no button, no panel, no request when the document is not bound (no comments capability) 6ms
+ ✓ shared/discussion/discussion.test.ts > mountFrameDiscussion > bound: the document bar toggle opens the Discussion panel; Esc closes it and focus returns 48ms
+ ✓ shared/discussion/discussion.test.ts > mountFrameDiscussion > comments.changed reloads the list (with the held token) 26ms
+ ✓ shared/comments/comments.test.ts > createFrameCommentsApi: the desktop shape over the frame protocol > maps every call to its frame request and resolves the envelope 4ms
+ ✓ shared/comments/comments.test.ts > createFrameCommentsApi: the desktop shape over the frame protocol > a failed request resolves to the error envelope, never rejects 1ms
+ ✓ shared/comments/comments.test.ts > createFrameCommentsApi: the desktop shape over the frame protocol > context() answers from init, then from every landed save; onSaved fires once per save 2ms
+ ✓ shared/comments/comments.test.ts > createFrameCommentsApi: the desktop shape over the frame protocol > context() leaves an unknown level and a missing user id out 1ms
+ ✓ shared/comments/comments.test.ts > installFrameComments: only with the effective comments capability > installs window.uniworkComments when init grants comments 1ms
+ ✓ shared/comments/comments.test.ts > installFrameComments: only with the effective comments capability > installs nothing and sends nothing without it 0ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > registers one port handler for the Discussion panel and the editor together 19ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > a discussion id goes to the Discussion panel; the editor is not asked 35ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor-owned id goes to the editor; the Discussion panel stays closed and silent 5ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an unknown id answers revealed:false once; the editor (asked once) owns the S15 line 3ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > without an editor owner the Discussion panel keeps the S15 line (markdown / html unchanged) 25ms
+stderr | shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > an editor-owned id revealed before addEditor waits for the editor, which answers true; Discussion shows no notice
+An update to FrameDiscussion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to FrameDiscussion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > no editor within the reveal budget throws the retryable not_ready, never revealed:false
+An update to FrameDiscussion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to FrameDiscussion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > no editor within the reveal budget throws the retryable not_ready, never revealed:false
+An update to FrameDiscussion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > the cancelled reveal stops waiting
+An update to FrameDiscussion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to FrameDiscussion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > a reveal is held until the first list, then answered once 3ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > an editor-owned id revealed before addEditor waits for the editor, which answers true; Discussion shows no notice 4ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > an editor that reports no server mode releases the wait: a non-discussion id answers revealed:false at once 8ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > a discussion id is still answered by Discussion at once, without waiting for the editor 12ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > no editor within the reveal budget throws the retryable not_ready, never revealed:false 6ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > an editor is expected (installFrameComments ran) but has not registered yet > the cancelled reveal stops waiting 3ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > the editor owner is told when it is the last one asked (note A) > the only editor owner gets last:true; with two the first gets false and the second true 1ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > the editor owner is told when it is the last one asked (note A) > onReveal hands the web handler { path, commentId, last } with last always set 0ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > one side panel at a time in the frame (note B) > uses the agreed event name and detail shape 0ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > one side panel at a time in the frame (note B) > the Docs renderer literal (it cannot import web/**) names the same event 0ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > one side panel at a time in the frame (note B) > onFrameSidePanel closes only for an open event of another owner 0ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > one side panel at a time in the frame (note B) > the Discussion panel announces its own open and close 7ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > one side panel at a time in the frame (note B) > without an editor event the Discussion panel stays as it is 6ms
+ ✓ shared/comments/comments.test.ts > the frame reveal router (one handler, exactly one panel reacts) > the router unregisters from the port when its last owner leaves 0ms
+ ✓ shared/ai/ai.test.ts > installModuleBridge wiring > AI members only on globals that have them; the ai grant turns the keys on 569ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > the settings the chip reads carry the viewer provider with a masked key and no UniAI 1ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > no stored key: no provider carries a key, so the chip has nothing to name 1ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > a key added after the frame booted is picked up after the TTL, without a dialog save 1ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > a key removed in UniWork stops being offered on the next read after the TTL 1ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > window focus re-fetches at once and tells the chips (onAiSettingsChanged) about a change 83ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > choosing a model notifies the chips and a failed refresh keeps the last answer 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > reads model and model_updated_at leniently: an older server omits both 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a model-only PUT sends exactly {"model"} and reads the model back 0ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > no choice in this browser: the server default (latest model_updated_at) is the provider and model 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a tie on model_updated_at goes to the provider id order 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a provider with a key but no saved model is not the default 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > this browser has a provider that no longer has a key: the server default is used 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > the local cache wins while its provider has a key 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > an older server (no model field): nothing changes, the provider default model runs 1ms
+ ✓ shared/discussion/discussion.test.ts > mountFrameDiscussion > reveal of a discussion post opens the panel and focuses its thread 16ms
+ ✓ shared/discussion/discussion.test.ts > mountFrameDiscussion > reveal of an id that is not a discussion post answers revealed:false (S15 notice in the panel) 11ms
+ ✓ shared/discussion/discussion.test.ts > mountFrameDiscussion > revealMissing 'silent': a miss keeps the panel closed 3ms
+ ✓ shared/discussion/discussion.test.ts > mountFrameDiscussion > view level: the panel shows no composer 7ms
+ ✓ shared/discussion/discussion.test.ts > mountFrameDiscussion > the dispose removes the bar and the panel 3ms
+ ✓ shared/discussion/discussion.test.ts > Esc follows the kit (F3) > Esc in the composer that the kit did not consume closes the panel and focuses the toggle 7ms
+ ✓ shared/discussion/discussion.test.ts > Esc follows the kit (F3) > Esc that the kit consumed (picker, composer cancel) keeps the panel open 7ms
+ ✓ shared/discussion/discussion.test.ts > narrow overlay shields the editor (visual F2) > below 640px the editor is inert + aria-hidden while the panel is open, restored on close 9ms
+ ✓ shared/discussion/discussion.test.ts > narrow overlay shields the editor (visual F2) > from 640px up the editor stays live (the panel sits beside it) 6ms
+ ✓ shared/discussion/discussion.test.ts > narrow overlay shields the editor (visual F2) > follows a viewport resize while open, and the dispose restores the editor 6ms
+ ✓ shared/discussion/discussion.test.ts > narrow overlay shields the editor (visual F2) > the stylesheet lifts the panel above the editor chrome below 640px (own stacking context) 0ms
+ ✓ shared/discussion/discussion.test.ts > toggle look matches the shell pill (visual F5) > has the chat icon (decorative) and a label span; the accessible name stays the label 2ms
+ ✓ shared/discussion/discussion.test.ts > toggle look matches the shell pill (visual F5) > css: pill with border, accent-soft when open with --text label (contrast >= 4.5), tokens only 1ms
+ ✓ shared/discussion/discussion.test.ts > the editor's panel opening closes Discussion without moving focus > Discussion closed: editor open:true leaves the focus alone and announces nothing 3ms
+ ✓ shared/discussion/discussion.test.ts > the editor's panel opening closes Discussion without moving focus > Discussion open: editor open:true closes it and does not take the focus 9ms
+ ✓ shared/discussion/discussion.test.ts > the editor's panel opening closes Discussion without moving focus > the close button still returns focus to the toggle 6ms
+ ✓ shared/discussion/discussion.test.ts > the editor's panel opening closes Discussion without moving focus > the toggle itself closes the open panel and keeps the focus on the toggle 6ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > choosing a model sends PUT {"model"} to that provider and updates the cache 62ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a failed PUT keeps the local choice, shows nothing and does not block chatting 52ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > two quick picks reach the server one at a time, the last pick wins and an old answer never overwrites it 106ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > picks that return to the model the server already holds send nothing more, and a failed first PUT still sends the last pick 154ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a key list that failed to load is not "no key": the settings say the keys are unknown, and a later read recovers 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > nothing is sent for a provider without a stored key, or for the model the server already holds 2ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a provider with a default model runs on it with nothing picked in this browser 1ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a model-less provider that lists exactly one model runs on it 51ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a model-less provider that lists several keeps the model empty (the panel asks for a pick) 3ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a pick made in this browser wins over the listing 1ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a failed listing is silent 1ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a send without a model answers with a tagged notice, the typed text intact 2ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a send with no key stored answers with a tagged notice too, a real failure stays an error 4ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > reads the model ids of the three wire formats 0ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > chip matches Settings > the Settings rows are the chosen models and the latest stamp is the default provider 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > chip matches Settings > a model changed in Settings after an older local pick wins over that pick 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > chip matches Settings > a Settings change on another provider after the pick moves the default provider too 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > chip matches Settings > a local pick newer than the server stamp wins (a save that did not reach the server) 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > chip matches Settings > a local entry without a time (an older build) loses to any server stamp 1ms
+stderr | shared/assets-a1b.test.ts > (b) fresh URLs before the open answer expires > a path the host no longer serves becomes missing; a failed refresh is retried in 5 minutes
+[office-web] api.assets.resolve failed, keeping the current URLs: Error: offline
+    at /home/ubuntu/work/uniwork-office/web/modules/shared/assets-a1b.test.ts:188:29
+    at Object.request (/home/ubuntu/work/uniwork-office/web/docs/bridge/testing/mock-port.ts:153:28)
+    at resolveRemote (/home/ubuntu/work/uniwork-office/web/modules/shared/assets.ts:245:30)
+    at refreshAll (/home/ubuntu/work/uniwork-office/web/modules/shared/assets.ts:303:25)
+    at /home/ubuntu/work/uniwork-office/web/modules/shared/assets.ts:329:75
+    at callTimer (file:///home/ubuntu/work/uniwork-office/node_modules/vitest/dist/chunks/test.DNmyFkvJ.js:1773:25)
+    at doTickInner (file:///home/ubuntu/work/uniwork-office/node_modules/vitest/dist/chunks/test.DNmyFkvJ.js:2444:30)
+    at doTick (file:///home/ubuntu/work/uniwork-office/node_modules/vitest/dist/chunks/test.DNmyFkvJ.js:2525:21)
+    at Immediate.<anonymous> (file:///home/ubuntu/work/uniwork-office/node_modules/vitest/dist/chunks/test.DNmyFkvJ.js:2546:34)
+    at processImmediate (node:internal/timers:484:21)
+
+stderr | shared/assets-a1b.test.ts > (c) a mapped URL refused mid-session > a URL that is not one of ours, an old host and a failing call keep everything as is
+[office-web] api.assets.resolve failed, keeping the current URLs: Error: offline
+    at /home/ubuntu/work/uniwork-office/web/modules/shared/assets-a1b.test.ts:271:62
+    at Object.request (/home/ubuntu/work/uniwork-office/web/docs/bridge/testing/mock-port.ts:153:28)
+    at resolveRemote (/home/ubuntu/work/uniwork-office/web/modules/shared/assets.ts:245:30)
+    at Object.imageFailed (/home/ubuntu/work/uniwork-office/web/modules/shared/assets.ts:395:29)
+    at /home/ubuntu/work/uniwork-office/web/modules/shared/assets-a1b.test.ts:272:5
+    at file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+
+ ✓ shared/assets-a1b.test.ts > (a) a path typed after the open > asks once the user has edited, after typing settles, and learns the answer 5ms
+ ✓ shared/assets-a1b.test.ts > (a) a path typed after the open > does not ask for paths met before the first edit (that is the open answer) nor ask twice 1ms
+ ✓ shared/assets-a1b.test.ts > (a) a path typed after the open > only asks for something a document can show: URLs, absolute paths and bare words stay local 1ms
+ ✓ shared/assets-a1b.test.ts > (a) a path typed after the open > sends at most 50 paths per request and keeps the rest for the next 1ms
+ ✓ shared/assets-a1b.test.ts > (a) a path typed after the open > a path the host cannot serve stays missing, and is not asked again 1ms
+ ✓ shared/assets-a1b.test.ts > (a) a path typed after the open > an old host answers unsupported: nothing is asked again this session, even for a new document 1ms
+ ✓ shared/assets-a1b.test.ts > (a) a path typed after the open > an answer for a document that was replaced meanwhile is dropped 1ms
+ ✓ shared/assets-a1b.test.ts > (b) fresh URLs before the open answer expires > asks for every mapped path (as written) at ~50 min, swaps the URLs and tells the renderer 1ms
+ ✓ shared/assets-a1b.test.ts > (b) fresh URLs before the open answer expires > a path the host no longer serves becomes missing; a failed refresh is retried in 5 minutes 7ms
+ ✓ shared/assets-a1b.test.ts > (b) fresh URLs before the open answer expires > chunks more than 50 paths and an old host leaves every URL alone 9ms
+ ✓ shared/assets-a1b.test.ts > (c) a mapped URL refused mid-session > 401/403: asks for a fresh URL once and swaps it 1ms
+ ✓ shared/assets-a1b.test.ts > (c) a mapped URL refused mid-session > the retry URL refused as well: the picture becomes missing (no second request) 1ms
+ ✓ shared/assets-a1b.test.ts > (c) a mapped URL refused mid-session > the host answers without the path: missing at once 0ms
+ ✓ shared/assets-a1b.test.ts > (c) a mapped URL refused mid-session > an image that failed for another reason (the HEAD says it is served) is left alone 1ms
+ ✓ shared/assets-a1b.test.ts > (c) a mapped URL refused mid-session > a URL that is not one of ours, an old host and a failing call keep everything as is 1ms
+ ✓ shared/assets-a1b.test.ts > (c) a mapped URL refused mid-session > matches an absolute URL against a relative mapped one (img.src is always absolute) 1ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > orders primary, neutral, destructive, then the way out, whatever the caller lists 24ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > first focus is Cancel when the caller names no primary: Enter never discards edits 4ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > a named safe primary keeps the first focus (leave and draft dialogs) 2ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > a dialog with no primary lifts its first neutral choice to the filled primary 3ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > an explicit primary is never replaced by the lifted one 2ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > every dialog has a close X (labelled) that answers like Escape 2ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > the close X joins the Tab loop after the choices, and a custom label wins 8ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > without a cancel button the primary takes the focus (draft prompt), danger never 2ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > Escape on the draft prompt answers the dismiss id too 3ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > a cancel that is also primary stays primary and focused 2ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > focusId overrides the first focus 5ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > Escape answers cancelId, Tab wraps inside, focus returns to where it was 6ms
+ ✓ shared/frame-dialog.test.ts > frameAsk > labels the dialog, carries the marker attribute and the extra lines 3ms
+ ✓ shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > the first focus never scrolls the card: the title and description stay in view 2ms
+ ✓ shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > every step starts scrolled to the top of the dialog 2ms
+ ✓ shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > two disabled choices with the same reason show it once, both described by it 2ms
+ ✓ shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > different reasons keep one line each 2ms
+ ✓ shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > setChoiceDisabled flips a choice live and keeps the reason lines in step 3ms
+ ✓ shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > focus that falls out of the dialog (backdrop click) returns to the last control 4ms
+ ✓ shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > a step change that replaces the focused button does not fight the new first focus 2ms
+ ✓ shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > once closed the dialog no longer pulls the focus back 3ms
+ ✓ shared/frame-dialog.test.ts > toneOf > danger beats primary beats cancel 0ms
+ ✓ shared/frame-dialog.test.ts > blocking notice > shows a buttonless dialog and removes it by marker 2ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > chip matches Settings > after a saved pick the local time is the server stamp, so a later Settings change wins despite a fast clock 51ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > chip matches Settings > a pick of UniWork AI loses to a later Settings change, and wins while the server has no stamp 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > no model fields: no chosen model, the catalog default runs, nothing is listed 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > a local pick still wins when the server has no stamp 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > a 502 on the listing: the catalog stays, the state says error, nothing throws 52ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > a 405 of an older server on the listing: the catalog stays, the state says error, nothing throws 52ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > a body that is not JSON on the listing: the catalog stays, the state says error, nothing throws 51ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > a network failure on the listing: the catalog stays, the state says error, nothing throws 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > an empty list is not an error and shows the catalog 7ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > no uniwork_model (an older server): no model for the UniWork AI row 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > uniwork_model names the model of the UniWork AI row 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > a server with missing fields never breaks the chip > readCloudStatus reads uniwork_model, a missing or non-text one is "" 0ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the live list > lists every provider with a key in the background and tells the chips 55ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the live list > one listing per provider and key stamp within 10 minutes, then again; a changed key lists again 52ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the live list > a refresh over a kept list leaves the state unset, and a failed refresh keeps the list without an error 55ms
+ ✓ shared/assets-a1f.test.ts > resolver: keys exactly as written > finds a path under the spelling the document uses, with or without ./, decoded, without ?query 2ms
+ ✓ shared/assets-a1f.test.ts > resolver: keys exactly as written > unresolve returns the spelling of the document, per URL 0ms
+ ✓ shared/assets-a1f.test.ts > WebP and SVG pictures > reads a mapped WebP and SVG with their own types 4ms
+ ✓ shared/assets-a1f.test.ts > WebP and SVG pictures > falls back to the file extension when the server sends a generic type 1ms
+ ✓ shared/assets-a1f.test.ts > WebP and SVG pictures > decodes WebP and SVG data: URIs locally (base64 and percent-encoded SVG) 1ms
+ ✓ shared/assets-a1f.test.ts > WebP and SVG pictures > uploads a WebP as a document asset; an SVG stays a data: URI and is never uploaded 1ms
+ ✓ shared/assets-a1f.test.ts > a mapped URL the host refuses counts as missing > drops 401, 403, 404 and 410 answers; keeps served, unreachable and unsupported-HEAD ones 1ms
+ ✓ shared/assets-a1f.test.ts > a mapped URL the host refuses counts as missing > stops waiting for a host that does not answer and keeps the map as it is 2ms
+ ✓ shared/assets-a1f.test.ts > a mapped URL the host refuses counts as missing > a refused picture is not read for export either 0ms
+ ✓ shared/assets-a1f.test.ts > sibling files for the HTML preview > reads the text of a mapped stylesheet or script, null when refused or too large 5ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the live list > a replaced key whose listing fails shows the error, not the old key's list 105ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the live list > a failed listing is not retried on every chip open, only after a pause 53ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the live list > a 404 credential_missing reloads the credentials, and the provider stops being listed 51ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the live list > the model-less discovery still runs on the same cache: one model runs, several keep the model empty 1ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the choice key per user > a pick is stored under the viewer, and a second viewer of the same storage does not inherit it 2ms
+ ✓ shared/ai/ai.test.ts > the model chip data on the web (G6-05m) > the choice key per user > a viewer without an id keeps the old key 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > Grant formula > aiHostGrants: uniworkAi alone opens the panel, no credentials, no cloud tools 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > Grant formula > the frame claims uniworkAi 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > client.uniworkChat > posts to the frame route with the frame token and returns the raw Response 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > client.uniworkChat > refreshes the token once after a 401 and retries the same turn 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > goes through the frame route, never the BYOK proxy, and reports the server run id 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > hands the adapter the frame scope, the loop history, the module tools and the cloud policy 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a summary request (not an agent turn) is refused with unsupported before any request 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a one-shot request (not an agent turn) is refused with unsupported before any request 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > passes the adapter notices and a turn reset on to the panel, in order 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a run_limit_reached failure (409) is one error chunk with the code, in the failure text 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a credits_exhausted failure (402) is one error chunk with the code, in the failure text 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a entitlement_required failure (403) is one error chunk with the code, in the failure text 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a ai_provider_error failure (502) is one error chunk with the code, in the failure text 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a rate_limited failure (429) is one error chunk with the code, in the failure text 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > UniWork AI off before any run: hides the entry, asks the panel for no error chip 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a frame without the UniWork scope answers as off, sends nothing 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork 503 then a BYOK turn completes (G6-A08) 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > done 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > error 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > 401 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > disconnect 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > 429 give-up 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > wait, then 429 give-up 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > session lost after a wait 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > session lost mid-stream (sign-out) 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > UniWork AI off before a run id (a note, then a quiet done) 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > Stop ends the run with one idle and a done 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > a Retry-After wait inside the adapter keeps the run running, one idle at the end 4ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > uniworkAi alone: active, no credential list read, an unlocked UniWork AI entry chosen by default 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > uniworkAi alone with no cloud-tool grant still shows the model the server names, and leaves the tools off 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > uniworkAi alone, the status read fails: the plain name, nothing breaks 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > neither grant: nothing is asked of the server 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > the grant sets the availability flag (the entry in AI_PROVIDERS); off clears it 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > a BYOK turn between two UniWork turns ends the UniWork conversation; a lost session clears them 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > with ai and uniworkAi both: BYOK stays the default, UniWork AI is chosen on request 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > without the uniworkAi grant there is no UniWork AI entry, and a stored choice of it stays selected (no silent switch to a BYOK provider) 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > the scope carries the document and the module of the session as the format token 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > office_capability_off before any run: the entry hides, the key goes off, no error chip, BYOK untouched 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > maps payload_too_large, mid-run office_capability_off, and unknown keys in uniworkFailureKey (G6-05u, C10, RF1-7) 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > exposes uniworkIdentity from session and GET cloud org_id / org_name, and falls back orgName to UniWork instead of raw documentId (RF1-17) 1ms
+ ✓ shared/text-modules.test.ts > text codec > keeps a BOM and CRLF line endings: decode -> encode is the identity 2ms
+ ✓ shared/text-modules.test.ts > text codec > flags bytes that are not UTF-8 (they cannot round-trip through a string) 0ms
+ ✓ shared/text-modules.test.ts > static HTML copy (P1 preview / print) > drops everything that runs, refreshes, rebases or embeds 3ms
+ ✓ shared/text-modules.test.ts > static HTML copy (P1 preview / print) > no URL leaves the frame: remote and unmapped loads are removed, assets are mapped 2ms
+ ✓ shared/text-modules.test.ts > static HTML copy (P1 preview / print) > links and forms cannot navigate or submit 2ms
+ ✓ shared/text-modules.test.ts > static HTML copy (P1 preview / print) > keeps the visible document 1ms
+ ✓ shared/text-modules.test.ts > static HTML copy (P1 preview / print) > staticCss blanks remote url() and @import, keeps data images 0ms
+ ✓ shared/text-modules.test.ts > asset store > maps OpenPayload.assets both ways and reads data: pictures locally 2ms
+ ✓ shared/text-modules.test.ts > asset store > uploads with the images grant and authors assets/<name>; embeds a data: URI without it 4ms
+ ✓ shared/text-modules.test.ts > asset store > falls back to embedding when the upload fails 1ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > draws one labelled region with the sentence and link actions, in front of the app root 16ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > the status variants use the document-status label 3ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > never stacks: a second show replaces the first; hide removes it and the layout class 6ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > reads the sentence once: polite for information, alert (cleared after a second) for the rest; the bar has no live attribute 3ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > the dirty / AI warning is announced politely too: only an error bar interrupts 2ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > an information bar hides itself after 8 s 1ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > does not hide while the pointer is over it, and hides 8 s after the pointer leaves 1ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > does not hide while a control in it has the focus 3ms
+ ✓ shared/remote-bar.test.ts > createRemoteBar > a warn or error bar never hides by itself 1ms
+ ✓ shared/remote-bar.test.ts > the window live nodes (UXF-10) > exist right after frame init with no announcement: one empty pair 4ms
+ ✓ shared/remote-bar.test.ts > the window live nodes (UXF-10) > stay one pair per frame: a second bar and every announcement reuse it 2ms
+ ✓ shared/reload-notice.test.ts > stash / take > hands the notice over once, for the same document 2ms
+ ✓ shared/reload-notice.test.ts > stash / take > drops a notice older than a minute, or from the future 0ms
+ ✓ shared/reload-notice.test.ts > stash / take > a head newer than the one the reload asked for shows its own number, not the old author 0ms
+ ✓ shared/reload-notice.test.ts > stash / take > an older head than the reload asked for (a stale boot) shows nothing 0ms
+ ✓ shared/reload-notice.test.ts > stash / take > a host without revisions still gets the notice 0ms
+ ✓ shared/reload-notice.test.ts > stash / take > missing, broken or throwing storage is no notice, never an error 1ms
+ ✓ shared/reload-notice.test.ts > scroll position > captures every scrolled element by its place in the page 13ms
+ ✓ shared/reload-notice.test.ts > scroll position > puts it back once the renderer has drawn enough content, retrying while the page is short 3ms
+ ✓ shared/reload-notice.test.ts > scroll position > gives up after the tries, and never after the user has taken over 4ms
+ ✓ shared/reload-notice.test.ts > scroll position > does nothing when there is nothing to restore 1ms
+ ✓ shared/reload-notice.test.ts > scroll position survives the bar the next boot adds to <body> > paths are relative to #root, so a bar prepended to <body> does not move them 2ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > unauthorized (status undefined) -> webSaveUnauthorized 1ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > forbidden (status 403) -> webSaveForbidden 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > not_found (status 404) -> webSaveNotFound 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > too_large (status 413) -> webSaveTooLarge 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > rate_limited (status 429) -> webSaveRateLimited 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > conflict (status undefined) -> webConflictNotSaved 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > conflict (status 409) -> webConflictNotSaved 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > internal (status 409) -> webConflictNotSaved 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > internal (status 412) -> webConflictNotSaved 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > internal (status 500) -> webSaveServer 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > internal (status 503) -> webSaveServer 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > internal (status 410) -> webSaveNotFound 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > internal (status undefined) -> webSaveFailedGeneric 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > internal (status 418) -> webSaveFailedGeneric 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > busy (status undefined) -> webSaveFailedGeneric 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > unsupported (status undefined) -> webSaveFailedGeneric 0ms
+ ✓ shared/save-failure.test.ts > saveFailureKey > maps every protocol code to a key that exists in every locale 0ms
+ ✓ shared/save-failure.test.ts > saveFailureText > keeps the module sentence for a timeout or a network failure 0ms
+ ✓ shared/save-failure.test.ts > saveFailureText > never shows the raw status text, in en or vi 0ms
+ ✓ shared/save-failure.test.ts > saveFailureText > a conflict says the document changed elsewhere, in the page language, with no retry hint 0ms
+ ✓ shared/save-failure.test.ts > saveFailureText > maps each status family to its own sentence in vi 0ms
+ ✓ shared/save-failure.test.ts > saveFailureDetail > is the localized sentence for a status failure and null for a transport failure 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > computes the WCAG ratio 1ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > light: primary text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > light: primary hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > light: danger text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > light: neutral text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > light: neutral hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > light: ghost on the footer band text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > light: ghost hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > light: body copy text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > dark: primary text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > dark: primary hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > dark: danger text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > dark: neutral text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > dark: neutral hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > dark: ghost on the footer band text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > dark: ghost hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > dark: body copy text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > system-dark: primary text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > system-dark: primary hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > system-dark: danger text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > system-dark: neutral text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > system-dark: neutral hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > system-dark: ghost on the footer band text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > system-dark: ghost hover text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > system-dark: body copy text is at least 4.5:1 0ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > the dark primary reads dark-on-light, never white-on-light-blue 1ms
+ ✓ shared/frame-dialog-contrast.test.ts > frame dialog contrast > all three theme blocks define the dialog tokens themselves (CLAUDE.md: a token gets all three) 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > covers every UI language 1ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale zh has exactly the zh key set, no empty values 1ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale en has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ja has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ko has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale fr has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale de has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale es has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale th has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale id has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ru has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ar has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale pt has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale it has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale pl has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale cs has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale nl has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ms has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale he has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale hi has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale zh-TW has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale vi has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale zh keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale en keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ja keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ko keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale fr keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale de keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale es keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale th keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale id keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ru keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ar keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale pt keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale it keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale pl keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale cs keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale nl keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ms keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale he keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale hi keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale zh-TW keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale vi keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale zh has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale en has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ja has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ko has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale fr has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale de has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale es has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale th has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale id has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ru has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ar has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale pt has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale it has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale pl has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale cs has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale nl has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale ms has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale he has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale hi has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale zh-TW has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > locale vi has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > uses one key per counted string: no plural-form keys and no ICU plural 1ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > says what the catalogue says in vi and en 0ms
+ ✓ shared/i18n/strings-web.test.ts > web string shards > fills the placeholders through webText 0ms
+ ✓ shared/status-capabilities.test.ts > host-announced states > module default: the renderer's own save-state label and view-only chip are off 1ms
+ ✓ shared/status-capabilities.test.ts > host-announced states > text modules (markdown, html): the renderer's own save-state label and view-only chip are off 0ms
+ ✓ shared/status-capabilities.test.ts > host-announced states > slides: the renderer's own save-state label and view-only chip are off 0ms
+ ✓ shared/status-capabilities.test.ts > host-announced states > sheets: the renderer's own save-state label and view-only chip are off 0ms
+ ✓ shared/status-capabilities.test.ts > host-announced states > sheets: the ribbon-row echo of the status bar and the AI run states are off too 0ms
+ ✓ shared/status-capabilities.test.ts > host-announced states > slides: the AI panel keeps no "Error:" label before its typed inline error 0ms
+ ✓ shared/status-capabilities.test.ts > host-announced states > no host grant switches them back on 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > covers every UI language 3ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale zh has exactly the zh key set, no empty values 1ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale en has exactly the zh key set, no empty values 1ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ja has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ko has exactly the zh key set, no empty values 1ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale fr has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale de has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale es has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale th has exactly the zh key set, no empty values 1ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale id has exactly the zh key set, no empty values 1ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ru has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ar has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale pt has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale it has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale pl has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale cs has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale nl has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ms has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale he has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale hi has exactly the zh key set, no empty values 1ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale zh-TW has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale vi has exactly the zh key set, no empty values 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale zh keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale en keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ja keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ko keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale fr keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale de keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale es keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale th keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale id keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ru keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ar keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale pt keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale it keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale pl keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale cs keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale nl keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ms keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale he keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale hi keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale zh-TW keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale vi keeps the zh placeholders 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale zh has no upstream brand or internal codes 1ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale en has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ja has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ko has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale fr has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale de has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale es has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale th has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale id has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ru has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ar has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale pt has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale it has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale pl has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale cs has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale nl has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale ms has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale he has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale hi has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale zh-TW has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > locale vi has no upstream brand or internal codes 0ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > uses one key per counted string: no plural-form keys and no ICU plural 1ms
+ ✓ shared/i18n/strings-ai-web.test.ts > ai-web string shards > says what the catalogue says in vi and en 0ms
+ ✓ shared/frame-live-nodes.test.ts > live nodes while a frame dialog is open (UXF-04) > stay outside the inert tree, and the rest of the frame is still inert 28ms
+ ✓ shared/ai-run.test.ts > web ai-run re-export > is the agent-core tracker, and the frame has one idle tracker of it 1ms
+ ✓ shared/ai-run.test.ts > web ai-run re-export > setRunId puts the server run id into the aiRun payloads of the frame tracker 1ms
+ ✓ shared/recovery-prompt.test.ts > shows the draft prompt over the page-sheet scrim, Restore first and focused 28ms
+
+ Test Files  19 passed (19)
+      Tests  596 passed (596)
+   Start at  09:00:05
+   Duration  5.21s (transform 1.88s, setup 0ms, import 2.81s, tests 3.53s, environment 6.75s)
+
+
+WEB_SHARED_EXIT=0
