@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+aa427200e059e546f711c8d5ccacc8cb32af4f55
+29409e305de28475da7132164e7c0e7850fa9e23
+aa427200e test(office): re-bless the G7-06 goldens at frame pin 0.1.0-bf4ff7b
+594bb5e6f chore(office): re-pin the six office frames to web-0.1.0-bf4ff7b
+271c82ba1 chore(office): re-vendor the frame protocol at fork bf4ff7b0
+c34d56fbc Merge the G5-G7 root (29409e305) into the DOC-05 lockstep branch
+ad21dd3b4 fix(documents): one predicate for Manage access and consume ?access=requests on the member card
+16d9a70f1 fix(documents): parse admin_scope on document reads, summaries and the admin summary
+29409e305 chore: merge G6-09 tool schemas (a5672986c) into the G5-G7 root
+0a62b0f63 chore: merge G6-09a server half (2be5d20a8) into the G5-G7 root
+cefd8846c chore: merge G7-12 harness round 2 (9702bdf16) into the G5-G7 root
+360d4c6a5 fix(notification): register the document access request kinds on the server
