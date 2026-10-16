@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+235e20a9da5718755df6e0db9a0f4bbc3d7b0052
+235e20a9d chore: merge G5-G7 root 5b07a1606 into the lane
+2eb8e1d75 chore: merge G5-G7 root 94801c4ac into the lane
+5b07a1606 fix(landing): pass the library access filter to the demo toolbar
+94801c4ac chore: merge G7-04 round 1 (UNI-1386, b5d0c4703) into the G5-G7 root
+b5d0c4703 chore(merge): G5-G7 root 13e32d974 (develop 2829996db sync) into G7-04 (UNI-1386)
+0ab6d24b9 chore: merge DOCX-SNIFF-01 (UNI-1855, 9089f6b7f) into the G5-G7 root
+9089f6b7f fix(files): type a large OOXML upload from its central directory
+13e32d974 chore: merge develop 2829996db sync (integrator pr2 c780ed152) into the G5-G7 root

@@ -1,0 +1,4 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; for p in 18558 3108; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18558/tcp 3108/tcp 2>/dev/null; sleep 1; for p in 18558 3108; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; busy=0; for p in 18558 3108; do lsof -ti tcp:$p >/dev/null 2>&1 && busy=1; done; echo; echo "PORTS_FREE_EXIT=$busy"
+235e20a9da5718755df6e0db9a0f4bbc3d7b0052
+
+PORTS_FREE_EXIT=0
