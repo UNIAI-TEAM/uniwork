@@ -20,6 +20,8 @@ export interface EditRequestPromptProps {
   focusOnMount?: boolean;
 }
 
+const REQUEST_TTL_MINUTES = 15;
+
 /**
  * Someone asks the holder for the document (addendum §9 "Nhận yêu cầu"): a
  * prompt inside the editor, never a modal over the holder's work.
@@ -47,6 +49,9 @@ export function EditRequestPrompt({ requesterName, onAccept, onDecline, onDismis
         <HandHelping aria-hidden className="mt-0.5 size-4 shrink-0" />
         <div className="min-w-0">
           <p className="text-body font-medium text-pretty">{title}</p>
+          <p className="text-caption text-muted-foreground">
+            {t("documents.editLock.incomingCaption", { minutes: REQUEST_TTL_MINUTES })}
+          </p>
           <p role="status" aria-live="polite" className="sr-only">
             {announced}
           </p>

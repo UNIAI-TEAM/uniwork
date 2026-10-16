@@ -1,10 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CircleAlert, Clock, Eye, PencilLine, TriangleAlert } from "lucide-react";
+import { AppWindow, CircleAlert, CircleCheck, Clock, CloudOff, Pencil, Send, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Notice } from "../common/notice";
+import { Notice, type NoticeTone } from "../common/notice";
 import { formatLockTime, lostCopyKey } from "./edit-lock-copy";
 import type { EditLockBannerView } from "./edit-lock-view-model";
 
@@ -42,8 +42,8 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
   // The sentences, each on its own line in the strip (V-6); the status region reads them joined.
   let lines: string[] = [];
   let actions: ReactNode[] = [];
-  let icon = Eye;
-  let tone: "info" | "warning" = "info";
+  let icon = Pencil;
+  let tone: NoticeTone = "info";
   switch (view.kind) {
     case "none":
       break;
@@ -53,33 +53,41 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
       body = t("documents.editLock.acquireFailed");
       break;
     case "unheld":
-      icon = PencilLine;
+      icon = CircleCheck;
+      tone = "success";
       body = t("documents.editLock.bannerFree");
       actions = [action(t("documents.editLock.editNow"), onEditNow, "default")];
       break;
     case "selfElsewhere":
+      icon = AppWindow;
       body = t("documents.editLock.bannerSelfElsewhere");
       actions = [action(t("documents.editLock.editHere"), onEditHere, "default")];
       break;
     case "other": {
       const name = view.holderName || t("documents.editLock.lostSomeone");
-      const sentences = [
-        view.offlineHoldUntil
-          ? t("documents.editLock.bannerOfflineHold", { name, time: time(view.offlineHoldUntil) })
-          : t("documents.editLock.bannerOther", { name, time: time(view.since) }),
-      ];
-      if (view.offlineHoldUntil) icon = Clock;
-      if (view.request?.state === "pending") {
-        sentences.push(t("documents.editLock.requestSent", { name, time: time(view.request.expiresAt) }));
+      let sentences: string[];
+      if (view.rateLimitedMinutes !== null) {
+        sentences = [t("documents.editLock.requestRateLimited", { minutes: view.rateLimitedMinutes })];
+        tone = "muted";
+        icon = Clock;
+      } else if (view.request?.state === "pending") {
+        sentences = [t("documents.editLock.requestSent", { name, time: time(view.request.expiresAt) })];
+        icon = Send;
         const requestId = view.request.requestId;
         actions.push(action(t("documents.editLock.requestCancel"), () => onCancelRequest(requestId)));
       } else if (view.request?.state === "notReleased") {
-        sentences.push(t("documents.editLock.requestNotReleased", { name }));
+        sentences = [t("documents.editLock.requestNotReleased", { name })];
+        tone = "muted";
+        icon = Clock;
+      } else {
+        sentences = [
+          view.offlineHoldUntil
+            ? t("documents.editLock.bannerOfflineHold", { name, time: time(view.offlineHoldUntil) })
+            : t("documents.editLock.bannerOther", { name, time: time(view.since) }),
+        ];
+        icon = view.offlineHoldUntil ? CloudOff : Pencil;
       }
-      if (view.rateLimitedMinutes !== null) {
-        sentences.push(t("documents.editLock.requestRateLimited", { minutes: view.rateLimitedMinutes }));
-      }
-      if (view.canTakeOver) actions.push(action(t("documents.editLock.takeOver"), onTakeOver));
+      if (view.canTakeOver) actions.push(action(t("documents.editLock.takeOver"), onTakeOver, "default"));
       else if (view.canRequest && view.request?.state !== "pending" && view.rateLimitedMinutes === null) {
         const label = view.request?.state === "notReleased" ? t("documents.editLock.requestAgain") : t("documents.editLock.request");
         actions.push(action(label, onRequest));

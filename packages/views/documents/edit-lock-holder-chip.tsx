@@ -27,7 +27,7 @@ export function EditLockHolderChip({
       aria-label={label}
       title={label}
       data-testid="edit-lock-holder"
-      className={cn("inline-flex shrink-0 items-center gap-1 text-caption text-muted-foreground", className)}
+      className={cn("inline-flex shrink-0 items-center gap-1 rounded-full bg-info-soft py-0.5 pr-2 pl-1 text-caption text-info-soft-foreground", className)}
     >
       <ActorAvatar name={name || "?"} initials={initials(name || "?")} avatarUrl={avatarUrl} size="xs" />
       <span aria-hidden className="hidden whitespace-nowrap sm:inline">{t("documents.editLock.rowEditing")}</span>

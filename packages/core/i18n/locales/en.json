@@ -8875,6 +8875,7 @@
       "requestRateLimited": "You’ve asked several times. Try again in {{minutes}} min.",
       "requestFailed": "Couldn’t send the request. Try again.",
       "incomingTitle": "{{name}} wants to edit this document",
+      "incomingCaption": "Just now · expires in {{minutes}} minutes",
       "incomingAccept": "Save and hand over",
       "incomingDecline": "Decline",
       "incomingSaveFailed": "Couldn’t save, so editing wasn’t handed over. Try again.",

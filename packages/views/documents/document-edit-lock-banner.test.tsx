@@ -4,6 +4,7 @@ import type { DocumentEditLockState, DocumentEditRequest } from "@uniwork/core/a
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentEditLockBanner } from "./document-edit-lock-banner";
 import { formatLockTime } from "./edit-lock-copy";
+import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { EditRequestPrompt } from "./edit-request-prompt";
 import { editLockBannerView, type EditLockViewInput } from "./edit-lock-view-model";
 
@@ -54,26 +55,33 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
   it("other (online), edit level: names the holder and since when, offers 'Request to edit'", () => {
     const { region, onRequest } = renderBanner({ session: session("other"), lockState: r1() });
     expect(region).toHaveTextContent(`An đang sửa từ ${hhmm(SINCE)}. Bạn đang xem ở chế độ chỉ đọc.`);
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".lucide-pencil")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Lấy quyền sửa" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Yêu cầu quyền sửa" }));
+    const btn = screen.getByRole("button", { name: "Yêu cầu quyền sửa" });
+    expect(btn).toHaveClass("border-input");
+    fireEvent.click(btn);
     expect(onRequest).toHaveBeenCalled();
   });
 
-  it("other (online), manage level: offers 'Take over editing' instead of a request", () => {
+  it("other (online), manage level: offers primary 'Take over editing' instead of a request", () => {
     const { onTakeOver } = renderBanner({ session: session("other"), lockState: r1({ can_take_over: true, can_request: true }) });
     expect(screen.queryByRole("button", { name: "Yêu cầu quyền sửa" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Lấy quyền sửa" }));
+    const btn = screen.getByRole("button", { name: "Lấy quyền sửa" });
+    expect(btn).toHaveClass("bg-primary");
+    fireEvent.click(btn);
     expect(onTakeOver).toHaveBeenCalled();
   });
 
-  it("other + offline hold: says until when the holder keeps editing offline", () => {
+  it("other + offline hold: says until when the holder keeps editing offline with CloudOff icon", () => {
     const { region } = renderBanner({ session: session("other"), lockState: r1({ lock: holderLock({ offline_hold_until: HOLD }) }) });
     expect(region).toHaveTextContent(`An giữ quyền sửa offline đến ${hhmm(HOLD)}.`);
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".lucide-cloud-off")).toBeTruthy();
   });
 
-  it("other, same user (another tab or device): 'You're editing in another window' + 'Edit here'", () => {
+  it("other, same user (another tab or device): 'You're editing in another window' + 'Edit here' with AppWindow icon", () => {
     const { region, onEditHere } = renderBanner({ session: session("other"), lockState: r1({ lock: holderLock({ holder_id: "me", held_by_me: true }) }) });
     expect(region).toHaveTextContent("Bạn đang sửa tài liệu này ở cửa sổ khác.");
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".lucide-app-window")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Sửa ở đây" }));
     expect(onEditHere).toHaveBeenCalled();
   });
@@ -84,9 +92,11 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
     expect(region).toHaveTextContent(`An đang sửa từ ${hhmm(SINCE)}.`);
   });
 
-  it("unheld (just released or expired): 'No one is editing' + 'Edit now'", () => {
+  it("unheld (just released or expired): 'No one is editing' + 'Edit now' in success tone with CircleCheck icon", () => {
     const { region, onEditNow } = renderBanner({ session: session("other"), lockState: r1({ lock: null }) });
     expect(region).toHaveTextContent("Không còn ai sửa tài liệu này.");
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".bg-success-soft")).toBeTruthy();
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".lucide-circle-check")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Sửa ngay" }));
     expect(onEditNow).toHaveBeenCalled();
   });
@@ -108,25 +118,36 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
     expect(region).toBeEmptyDOMElement();
   });
 
-  it("request pending (requester): 'Request sent… expires at' + 'Cancel request', no second request", () => {
+  it("request pending (requester): shows only 'Request sent… expires at' + 'Cancel request' with Send icon, no holder prefix", () => {
     const pending = request();
     const { region, onCancelRequest } = renderBanner({ session: session("other"), lockState: r1({ my_request: pending, can_request: false }) });
-    expect(region).toHaveTextContent(`Đã gửi yêu cầu tới An. Yêu cầu hết hạn lúc ${formatLockTime(pending.expires_at, "vi")}.`);
+    expect(region.textContent).toBe(`Đã gửi yêu cầu tới An. Yêu cầu hết hạn lúc ${formatLockTime(pending.expires_at, "vi")}.`);
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".lucide-send")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Yêu cầu quyền sửa" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Hủy yêu cầu" }));
     expect(onCancelRequest).toHaveBeenCalledWith("r1");
   });
 
-  it("request declined or expired: 'A is still editing' + 'Ask again'", () => {
+  it("request declined or expired: muted tone with Clock icon, only 'chưa nhả quyền sửa' + 'Ask again'", () => {
     const { region } = renderBanner({ session: session("other"), lockState: r1(), notReleased: true });
-    expect(region).toHaveTextContent("An vẫn đang sửa.");
+    expect(region.textContent).toBe("An chưa nhả quyền sửa.");
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".bg-muted")).toBeTruthy();
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".lucide-clock")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Yêu cầu lại" })).toBeTruthy();
   });
 
-  it("rate limited: says when to ask again and offers no request button", () => {
+  it("rate limited: muted tone with Clock icon, only the rate-limit sentence and no request button", () => {
     const { region } = renderBanner({ session: session("other"), lockState: r1(), rateLimitedMinutes: 3 });
-    expect(region).toHaveTextContent("Bạn đã yêu cầu nhiều lần. Thử lại sau 3 phút.");
+    expect(region.textContent).toBe("Bạn đã yêu cầu nhiều lần. Thử lại sau 3 phút.");
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".bg-muted")).toBeTruthy();
+    expect(screen.getByTestId("edit-lock-banner").querySelector(".lucide-clock")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Yêu cầu quyền sửa" })).toBeNull();
+  });
+
+  it("holder chip renders as an info-soft pill matching the board", () => {
+    render(<EditLockHolderChip name="An" />);
+    const chip = screen.getByTestId("edit-lock-holder");
+    expect(chip).toHaveClass("rounded-full", "bg-info-soft", "text-info-soft-foreground");
   });
 
   it("a handover reserved for this user: nothing (the editor claims it now)", () => {
@@ -139,13 +160,14 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
     expect(region).toHaveTextContent("Chưa lấy được quyền sửa. Thử lại sau ít phút.");
   });
 
-  it("incoming request (holder): the prompt offers save-and-hand-over, decline and close", () => {
+  it("incoming request (holder): the prompt shows the 15-min caption and offers save-and-hand-over, decline and close", () => {
     const onAccept = vi.fn();
     const onDecline = vi.fn();
     const onDismiss = vi.fn();
     render(<EditRequestPrompt requesterName="Bình" onAccept={onAccept} onDecline={onDecline} onDismiss={onDismiss} focusOnMount />);
     const prompt = screen.getByRole("region", { name: "Bình muốn sửa tài liệu này" });
     expect(prompt).toHaveFocus();
+    expect(prompt).toHaveTextContent("Vừa xong · tự hết hạn sau 15 phút");
     fireEvent.click(screen.getByRole("button", { name: "Lưu và nhường quyền" }));
     fireEvent.click(screen.getByRole("button", { name: "Từ chối" }));
     fireEvent.click(screen.getByRole("button", { name: t("common.close") }));
@@ -198,11 +220,11 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
     expect(onDecline).not.toHaveBeenCalled();
   });
 
-  it("rate limited: each sentence is its own line in the visible strip (V-6)", () => {
-    const { region } = renderBanner({ session: session("other"), lockState: r1(), rateLimitedMinutes: 3 });
+  it("lost + unsaved: each sentence is its own line in the visible strip (V-6)", () => {
+    const { region } = renderBanner({ session: session("lost", { lostReason: "taken_over", lostBy: { id: "u2", name: "An" } }), lockState: r1(), showLost: true });
     const wrapper = region.parentElement as HTMLElement;
     const lines = Array.from(wrapper.querySelectorAll("[aria-hidden='true'] > .block")).map((el) => el.textContent);
-    expect(lines).toEqual([`An đang sửa từ ${hhmm(SINCE)}. Bạn đang xem ở chế độ chỉ đọc.`, "Bạn đã yêu cầu nhiều lần. Thử lại sau 3 phút."]);
+    expect(lines).toEqual(["An đã lấy quyền sửa. Thay đổi chưa lưu của bạn vẫn ở đây.", `An đang sửa từ ${hhmm(SINCE)}. Bạn đang xem ở chế độ chỉ đọc.`]);
     // The status region still reads them as one sentence run.
     expect(region.textContent).toBe(lines.join(" "));
   });
