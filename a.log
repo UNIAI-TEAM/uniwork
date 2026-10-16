@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "INSTALL_EXIT=$rc"
+ae1c23e2e7541c95ea7b184d7014d0191d55414a
+ae1c23e2e test(office): skip the run test's symlink case without symlink rights (G712-73)
+c796ad64e fix(office): redact a session-setup failure before it reaches stderr (G712-72)
+ef5b6818b fix(office): record the wait an ask spends on another ask's mount (G712-70)
+b6155de63 fix(office): report a hard redaction kind before the soft address rule (G712-71)
+07352da99 Merge root feature/UNI-923-office-g5-g6-g7 @ 29409e305 into G7-12 grader branch
+29409e305 chore: merge G6-09 tool schemas (a5672986c) into the G5-G7 root
+
+INSTALL_EXIT=0
