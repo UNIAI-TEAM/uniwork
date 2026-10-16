@@ -2758,10 +2758,11 @@ describe("G7-04 cross-host BE-704-405: frame reads share the step's budget", () 
     assert.match(report.value.bar, /A newer version is on UniWork/);
   });
 
-  it("bounds web-sees by its own step budget when several renderers hang, and names every expired read (BE-704-405)", async () => {
+  it("bounds web-sees by its own step budget when several renderers hang, and names every expired read (BE-704-405, BE-704-601)", async () => {
     const scratch = makeScratchRunDir();
     const mock = createMockDServer({ aiMode: "real-xyz" });
     mock.state.kind = "docs";
+    const stepTimeoutMs = 300;
     try {
       process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
       const began = Date.now();
@@ -2770,8 +2771,10 @@ describe("G7-04 cross-host BE-704-405: frame reads share the step's budget", () 
         fixture: "fx-docx-report-vi",
         mock,
         scratch,
-        knobs: { web: { hungFrames: 3, hungFrameBudgetMs: 300 } },
-        stepTimeoutMs: 300,
+        // BE-704-601: a large fallback `hungFrameBudgetMs` proves `web.frameAudit` received the
+        // step's remaining `deadlineMs` instead of opening a fresh budget after the poll missed
+        knobs: { web: { webSees: false, hungFrames: 3, hungFrameBudgetMs: 1_500 } },
+        stepTimeoutMs,
       });
       const elapsed = Date.now() - began;
       assert.equal(result.status, "FAIL");
@@ -2779,8 +2782,16 @@ describe("G7-04 cross-host BE-704-405: frame reads share the step's budget", () 
       assert.equal(step.status, "FAIL");
       assert.match(step.reason, /announced no doc\.remoteVersion/);
       assert.match(step.reason, /3 frame read\(s\) failed/);
+      assert.ok(step.elapsedMs < stepTimeoutMs + 200, `web-sees must spend ONE bound on an announce miss (took ${step.elapsedMs} ms)`);
       // 3 hung frames per read wave must never cost 3 x 10 s, and the step's own bound is the cap
-      assert.ok(elapsed < 3 * 300 + 600, `the row must stay near its step bound (took ${elapsed} ms for 4 steps)`);
+      assert.ok(elapsed < 3 * stepTimeoutMs + 600, `the row must stay near its step bound (took ${elapsed} ms for 4 steps)`);
+      const diagnostics = result.record.details.webSeesMiss.diagnostics;
+      assert.deepEqual(diagnostics.map((d) => d.read), ["frameAudit"]);
+      assert.equal(diagnostics[0].started, true);
+      assert.equal(diagnostics[0].frames, 3);
+      assert.equal(diagnostics[0].readErrors, 3, "every hung frame's read is counted as expired on the announce-miss audit");
+      assert.match(diagnostics[0].readErrorReasons[0], /timed out after \d+ ms/);
+      assert.ok(diagnostics[0].budgetMs <= stepTimeoutMs, `frameAudit drew on the step's own budget: ${diagnostics[0].budgetMs}`);
     } finally {
       delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
       scratch.cleanup();
