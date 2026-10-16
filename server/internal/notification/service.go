@@ -362,8 +362,22 @@ func (s *Service) SetPreferences(ctx context.Context, userID string, prefs []Kin
 	return s.Preferences(ctx, userID)
 }
 
-// SubscribePush registers (or refreshes) a browser's push subscription.
-func (s *Service) SubscribePush(ctx context.Context, userID, endpoint, p256dh, auth, userAgent string) error {
+// SubscribePush registers (or refreshes) a browser's push subscription, or
+// the mobile app's Expo token, which needs neither VAPID nor keys.
+func (s *Service) SubscribePush(ctx context.Context, userID, endpoint, p256dh, auth, userAgent, platform string) error {
+	if strings.HasPrefix(endpoint, "Expo") {
+		if !isExpoPushToken(endpoint) {
+			return service.Invalid("token Expo không hợp lệ")
+		}
+		if platform != "ios" && platform != "android" {
+			return service.Invalid("platform không hợp lệ")
+		}
+		_, err := s.q.UpsertPushSubscription(ctx, db.UpsertPushSubscriptionParams{
+			ID: util.NewID(), UserID: userID, Endpoint: endpoint, P256dh: "", Auth: "",
+			UserAgent: optText("expo/" + platform),
+		})
+		return err
+	}
 	if !s.push.Enabled {
 		return service.ErrNotFound
 	}

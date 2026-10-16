@@ -20,7 +20,7 @@ type NotificationPreferencesSDI struct {
 	Preferences []NotificationPreferenceSDI `json:"preferences"`
 }
 
-// PushKeysSDI is the browser's PushSubscription.keys.
+// PushKeysSDI is the browser's PushSubscription.keys; left empty for an Expo token.
 type PushKeysSDI struct {
 	P256dh string `json:"p256dh" minLength:"1" example:"BNcRd…"`
 	Auth   string `json:"auth" minLength:"1" example:"tBHI…"`
@@ -28,8 +28,9 @@ type PushKeysSDI struct {
 
 // PushSubscribeSDI is POST /api/v1/me/push-subscriptions.
 type PushSubscribeSDI struct {
-	Endpoint string      `json:"endpoint" minLength:"1" description:"PushSubscription.endpoint (https)" example:"https://fcm.googleapis.com/fcm/send/abc"`
+	Endpoint string      `json:"endpoint" minLength:"1" description:"PushSubscription.endpoint (https) hoặc token Expo ExponentPushToken[...]" example:"https://fcm.googleapis.com/fcm/send/abc"`
 	Keys     PushKeysSDI `json:"keys"`
+	Platform string      `json:"platform,omitempty" description:"ios | android, bắt buộc khi endpoint là token Expo" example:"ios"`
 }
 
 // PushUnsubscribeSDI is DELETE /api/v1/me/push-subscriptions.
