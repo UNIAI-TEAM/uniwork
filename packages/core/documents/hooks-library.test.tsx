@@ -284,7 +284,34 @@ describe("documents library hooks", () => {
     };
     // @ts-expect-error destination and parentId are mutually exclusive
     const badFolderInput: CreateFolderInput = { title: "x", destination: "my_folder", parentId: "p1" };
-    expect([badDocInput, badFileInput, badBlankInput, badFolderInput]).toHaveLength(4);
+    // Cross-level: top-level destination + meta parent, and the reverse.
+    // @ts-expect-error a meta parent conflicts with a top-level destination
+    const crossA: CreateDocumentFileInput = {
+      file: new File(["x"], "a.docx"),
+      destination: "my_folder",
+      meta: { parentId: "p1" },
+    };
+    const crossB: CreateDocumentFileInput = {
+      file: new File(["x"], "a.docx"),
+      parentId: "p1",
+      // @ts-expect-error a meta destination conflicts with a top-level parent
+      meta: { destination: "my_folder" },
+    };
+    expect([badDocInput, badFileInput, badBlankInput, badFolderInput, crossA, crossB]).toHaveLength(6);
+  });
+
+  it("useCreateDocumentFile refuses a destination plus a parent before any request", async () => {
+    const { wrapper } = setup();
+    const hook = renderHook(() => useCreateDocumentFile("w1"), { wrapper });
+    const bad = {
+      file: new File(["x"], "a.docx"),
+      destination: "my_folder",
+      meta: { parentId: "p1" },
+    } as unknown as CreateDocumentFileInput;
+    await act(async () => {
+      await expect(hook.result.current.mutateAsync(bad)).rejects.toThrow(/mutually exclusive/);
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
