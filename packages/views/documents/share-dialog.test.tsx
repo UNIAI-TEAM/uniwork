@@ -246,6 +246,25 @@ describe("ShareDialog", () => {
     expect(screen.getByText(/3 lượt xem/)).toBeInTheDocument();
   });
 
+  it("labels a live comment grant, mine and a row's, as Comment and never as View", async () => {
+    const comment = {
+      ...accessPayload,
+      my_level: "comment",
+      shares: [{ ...accessPayload.shares[0], level: "comment", effective_level: "comment" }],
+    };
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1/shares") return Promise.resolve(comment);
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+
+    expect(await screen.findByText(t("documents.share.my_level", { level: t("documents.share.level_comment") }))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`^${t("documents.share.level_comment")}`))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.share.my_level", { level: t("documents.share.level_view") }))).toBeNull();
+  });
+
   it("keeps a failed read with a retry", async () => {
     let fail = true;
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
@@ -588,6 +607,96 @@ describe("ShareDialog", () => {
     await waitFor(() => expect(calls).toContain("/api/v1/documents/d1/links/l1"));
   });
 
+  it("offers the Comment level in the level picker and submits level='comment'", async () => {
+    const posts: any[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
+      if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
+        posts.push(opts.body);
+        return Promise.resolve({ shares: [] });
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickPerson("Bình");
+    await pickOption(t("documents.share.level_label"), t("documents.share.level_comment"));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
+
+    await waitFor(() => expect(posts.length).toBe(1));
+    expect(posts[0]).toEqual({ principal_ids: ["u2"], level: "comment" });
+  });
+
+  it("shows documents.breakGlass.selfShareError when share or visibility save fails with 403 break_glass_required", async () => {
+    const { ApiError } = await import("@uniwork/core/api");
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
+      if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
+        return Promise.reject(new ApiError("break glass required", "break_glass_required", 403));
+      }
+      if (path === "/api/v1/documents/d1" && opts?.method === "PATCH") {
+        return Promise.reject(new ApiError("break glass required", "break_glass_required", 403));
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickPerson("Bình");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(t("documents.breakGlass.selfShareError"));
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.share.visibility_restricted")) }));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.visibility_save") }));
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.some((el) => el.textContent === t("documents.breakGlass.selfShareError"))).toBe(true);
+  });
+
+  it("renders active emergency access grants under 'Truy cập khẩn cấp đang mở' and revokes them", async () => {
+    const deleted: string[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
+        return Promise.resolve({
+          ...accessPayload,
+          break_glass: [
+            {
+              id: "bg1",
+              document_id: "d1",
+              actor_id: "u9",
+              actor_name: "Trần Quản Trị",
+              level: "view",
+              reason: "Kiểm tra sự cố bảo mật định kỳ",
+              granted_at: "2026-10-14T08:00:00Z",
+              expires_at: "2026-10-15T08:00:00Z",
+            },
+          ],
+        });
+      }
+      if (opts?.method === "DELETE" && path.startsWith("/api/v1/documents/d1/break-glass/")) {
+        deleted.push(path);
+        return Promise.resolve({ status: "ok" });
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+
+    const section = await screen.findByTestId("share-break-glass-section");
+    expect(within(section).getByText(t("documents.breakGlass.accessPanelSection"))).toBeInTheDocument();
+    expect(within(section).getByText(/Trần Quản Trị/)).toBeInTheDocument();
+    expect(within(section).getByText(/Kiểm tra sự cố bảo mật định kỳ/)).toBeInTheDocument();
+
+    fireEvent.click(
+      within(section).getByRole("button", { name: `${t("documents.breakGlass.revokeButton")} Trần Quản Trị` }),
+    );
+    await waitFor(() => expect(deleted).toContain("/api/v1/documents/d1/break-glass/bg1"));
+  });
+
   /** Members split over two pages: page 2 holds Minh (u5) and the ACL owner (u9). */
   function servePagedMembers(onPost?: (body: any) => void) {
     const memberPaths: string[] = [];
@@ -705,7 +814,7 @@ describe("ShareDialog requests section (DOC7-W02)", () => {
 
   it("is there for a pure admin (admin_scope without a level)", async () => {
     serveRequests();
-    renderDialog({ ...documentFixture({ my_level: "view" }), my_level: "", admin_scope: true } as never);
+    renderDialog(documentFixture({ my_level: "", admin_scope: true }));
     expect(await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 1 }) })).toBeInTheDocument();
   });
 

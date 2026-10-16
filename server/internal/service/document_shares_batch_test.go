@@ -80,6 +80,25 @@ func TestShareDocumentBatch(t *testing.T) {
 		}
 	})
 
+	t.Run("grants at comment", func(t *testing.T) {
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		shares, err := f.svc.ShareDocumentBatch(f.ctx, mgr, doc.ID, []string{tn.outsider.ID, tn.bMember.ID}, DocumentLevelComment)
+		if err != nil || len(shares) != 2 {
+			t.Fatalf("ShareDocumentBatch at comment = %v, %v", shares, err)
+		}
+		for _, sh := range shares {
+			if sh.Level != string(DocumentLevelComment) {
+				t.Fatalf("share = %+v, want level comment", sh)
+			}
+			if got := level(t, f, H(sh.PrincipalID), doc); got != DocumentLevelComment {
+				t.Fatalf("effective level for %s = %q, want comment", sh.PrincipalID, got)
+			}
+		}
+		if n := countAudit(t, f, audit.ActionDocumentShared, doc.ID); n != 2 {
+			t.Fatalf("document.shared audit rows = %d, want 2", n)
+		}
+	})
+
 	t.Run("replaces different live level and treats same live level as no-op without audit", func(t *testing.T) {
 		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		shSame, err := f.svc.ShareDocument(f.ctx, mgr, doc.ID, DocumentShareInput{

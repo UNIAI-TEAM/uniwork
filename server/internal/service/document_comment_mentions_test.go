@@ -4,8 +4,9 @@ package service
 // (contract-collab section 8.1). The service reconciles them inside the same
 // transaction as the create/edit: added ids are active (readers) or no_access
 // (non-readers, G8-D3 provisional, no error), dropped ids become removed, and
-// a removed id that returns turns active again with its notified_at kept so
-// the person is never notified twice for one mention row.
+// a removed id that returns is read-checked like a new one - active for a
+// reader, no_access for a non-reader - with its notified_at kept so the person
+// is never notified twice for one mention row.
 
 import (
 	"context"
@@ -89,7 +90,8 @@ func TestDocumentMentionWriteOnCreate(t *testing.T) {
 
 // An edit diffs the body: a kept id is untouched, a dropped id becomes
 // removed (its old notification stays), a new id lands active, and a removed
-// id that returns turns active with its notified_at kept.
+// id that returns is read-checked again: a reader turns active, a non-reader
+// stays no_access (G8-18), notified_at kept either way.
 func TestDocumentMentionWriteOnEdit(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "medit")
@@ -123,13 +125,30 @@ func TestDocumentMentionWriteOnEdit(t *testing.T) {
 		t.Fatalf("dropped outsider row = %s/%v, want removed with the old notified_at kept", state, notified)
 	}
 
-	// Re-adding a removed id: active again, notified_at untouched.
+	// Re-adding a removed id re-checks read access like a new mention: the
+	// outsider cannot read the document, so the row comes back no_access (never
+	// active, so nothing is delivered), notified_at untouched.
 	body += " " + commentMentionToken(tn.outsider)
 	if _, err := f.svc.UpdateDocumentComment(f.ctx, acl, c.ID, UpdateCommentInput{Body: body}); err != nil {
 		t.Fatal(err)
 	}
-	if state, notified := mentionRowState(t, f, c.ID, tn.outsider.ID); state != "active" || !notified.Valid {
-		t.Fatalf("re-added outsider row = %s/%v, want active with notified_at kept", state, notified)
+	if state, notified := mentionRowState(t, f, c.ID, tn.outsider.ID); state != "no_access" || !notified.Valid {
+		t.Fatalf("re-added outsider row = %s/%v, want no_access with notified_at kept", state, notified)
+	}
+	// A reader who is dropped and re-added comes back active.
+	body = commentMentionToken(tn.member) + " " + commentMentionToken(tn.outsider)
+	if _, err := f.svc.UpdateDocumentComment(f.ctx, acl, c.ID, UpdateCommentInput{Body: body}); err != nil {
+		t.Fatal(err)
+	}
+	if state, _ := mentionRowState(t, f, c.ID, tn.wsAdmin.ID); state != "removed" {
+		t.Fatalf("dropped wsadmin row = %s, want removed", state)
+	}
+	body += " " + commentMentionToken(tn.wsAdmin)
+	if _, err := f.svc.UpdateDocumentComment(f.ctx, acl, c.ID, UpdateCommentInput{Body: body}); err != nil {
+		t.Fatal(err)
+	}
+	if state, _ := mentionRowState(t, f, c.ID, tn.wsAdmin.ID); state != "active" {
+		t.Fatalf("re-added wsadmin (a reader) row = %s, want active", state)
 	}
 	if n := mentionRowCount(t, f, c.ID); n != 3 {
 		t.Fatalf("mention rows = %d, want 3", n)

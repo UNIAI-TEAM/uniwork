@@ -111,6 +111,13 @@ func commentReactionDTO(row db.CommentReaction) sdo.CommentReactionDTO {
 // exactly like the task comment API: the client refetches the thread for
 // reactions, and an answer that never carries them is honest about it.
 func (h *handlers) respondDocumentComment(w http.ResponseWriter, r *http.Request, status int, c db.DocumentComment) {
+	h.respondDocumentCommentWith(w, r, status, c, nil)
+}
+
+// respondDocumentCommentWith is respondDocumentComment plus the
+// mentions_without_access of a create or an edit (G8-18); nil or empty leaves
+// the field out, so an answer with nobody to report keeps the old shape.
+func (h *handlers) respondDocumentCommentWith(w http.ResponseWriter, r *http.Request, status int, c db.DocumentComment, noAccess []service.MentionWithoutAccess) {
 	displayName, avatarURL := "", ""
 	ref := service.ActorRef{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}
 	actors, err := h.Actors.Resolve(r.Context(), []service.ActorRef{ref})
@@ -121,7 +128,13 @@ func (h *handlers) respondDocumentComment(w http.ResponseWriter, r *http.Request
 	if a, ok := actors[ref]; ok {
 		displayName, avatarURL = a.DisplayName, a.AvatarURL
 	}
-	respondJSON(w, status, sdo.DocumentCommentSDO{Comment: documentCommentDTO(c, displayName, avatarURL, nil)})
+	out := sdo.DocumentCommentSDO{Comment: documentCommentDTO(c, displayName, avatarURL, nil)}
+	for _, m := range noAccess {
+		out.MentionsWithoutAccess = append(out.MentionsWithoutAccess, sdo.MentionWithoutAccessDTO{
+			UserID: m.UserID, DisplayName: m.DisplayName, CanShare: m.CanShare,
+		})
+	}
+	respondJSON(w, status, out)
 }
 
 // requireDocumentComment binds the {commentID} in the URL to the {documentID}
@@ -219,8 +232,13 @@ func (h *handlers) createDocumentComment(w http.ResponseWriter, r *http.Request)
 		h.mapServiceError(w, err)
 		return
 	}
+	noAccess, err := h.Documents.CommentMentionsWithoutAccess(r.Context(), service.Human(middleware.UserID(r.Context())), c.DocumentID, c.ID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
 	// 201 for a create and for its replay alike (contract-collab 2.2).
-	h.respondDocumentComment(w, r, http.StatusCreated, c)
+	h.respondDocumentCommentWith(w, r, http.StatusCreated, c, noAccess)
 }
 
 // updateDocumentComment is PATCH /documents/{documentID}/comments/{commentID}:
@@ -243,7 +261,12 @@ func (h *handlers) updateDocumentComment(w http.ResponseWriter, r *http.Request)
 		h.mapServiceError(w, err)
 		return
 	}
-	h.respondDocumentComment(w, r, http.StatusOK, c)
+	noAccess, err := h.Documents.CommentMentionsWithoutAccess(r.Context(), service.Human(middleware.UserID(r.Context())), c.DocumentID, c.ID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	h.respondDocumentCommentWith(w, r, http.StatusOK, c, noAccess)
 }
 
 // deleteDocumentComment is DELETE /documents/{documentID}/comments/{commentID}:

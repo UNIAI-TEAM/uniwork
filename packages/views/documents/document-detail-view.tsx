@@ -1,24 +1,50 @@
 "use client";
 
 import { ShieldAlert, CircleX, RefreshCw } from "lucide-react";
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import {
+  canBreakGlassFromError,
+  isDocumentRestrictedError,
+} from "@uniwork/core/api/endpoints/documents";
+import {
+  useDocumentAdminSummary,
+  useGrantDocumentBreakGlass,
+  useRevokeDocumentBreakGlass,
+} from "@uniwork/core/documents/break-glass-queries";
 import { useDocument } from "@uniwork/core/documents/hooks";
+import { documentKeys } from "@uniwork/core/documents/keys";
+import { useOrgMembers } from "@uniwork/core/organizations";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { clearDocumentAccessRequestSent } from "@uniwork/core/documents/hooks-access-requests";
 import type { Document } from "@uniwork/core/types/document";
+import type { DocumentBreakGlassGrant } from "@uniwork/core/types/document-access";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
+import { AccessLogSheet } from "./access-log-sheet";
 import { DocumentActionsMenu } from "./document-actions-menu";
+import { adminRefFromSummary } from "./document-admin-ref";
 import { DocumentCommentsPanel } from "./document-comments-panel";
 import { DocumentCommentsProvider } from "./document-comments-context";
 import { DocumentInboxState } from "./document-inbox-state";
-import { DocumentLockedCard } from "./document-locked-card";
+import {
+  DocumentBreakGlassBanner,
+  DocumentLockedCard,
+  getBreakGlassExpiresAt,
+  hasAdminScope,
+} from "./document-locked-card";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { DocumentWorkspace } from "./document-workspace";
+import { ShareDialog } from "./share-dialog";
+import { useAccessRequestsDeepLink } from "./use-access-requests-deeplink";
 import { useRequestSourceFromUrl } from "./use-request-source-from-url";
+
+/** setTimeout stores a 32-bit delay; a longer wait re-arms itself. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
 
 export interface DocumentDetailViewProps {
   wsId: string;
@@ -65,15 +91,127 @@ export function DocumentDetailView({
   // error_class first, then the stable code, then the status: a 403 that
   // arrives without a stamp must still read as "no access", not as a crash.
   const errorClass = error ? classifyDocumentError(error).cls : undefined;
+  const nav = useOptionalNavigation();
   // A link that names a comment came from the Inbox (or its push): its refusals are the
   // S15 page messages with the way back to the Inbox (UNI-1389 rows 1-2).
-  const fromInbox = (useOptionalNavigation()?.searchParams.get("comment") ?? "") !== "";
+  const fromInbox = (nav?.searchParams.get("comment") ?? "") !== "";
+  const accessDeepLink = nav?.searchParams.get("access") === "break_glass";
   const requestSource = useRequestSourceFromUrl(documentId);
   const loaded = !!query.data;
   // An open document ends any request this device sent for it (F-08).
   useEffect(() => {
     if (loaded) clearDocumentAccessRequestSent(documentId);
   }, [loaded, documentId]);
+
+  const [activeGrant, setActiveGrant] = useState<DocumentBreakGlassGrant | null>(null);
+  const [hadBreakGlassSession, setHadBreakGlassSession] = useState(false);
+  // A grant was made but the document still answers "restricted": the card
+  // keeps its place and offers a retry; the workspace never renders on a guess.
+  const [grantPending, setGrantPending] = useState(false);
+  const [clock, setClock] = useState(0);
+  const [grantExpiredOrEnded, setGrantExpiredOrEnded] = useState(false);
+  const [endAccessError, setEndAccessError] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(accessDeepLink);
+  // `?access=requests` on the admin card opens Share at the requests section (DOC7-W02, §2.5).
+  const [focusRequests, setFocusRequests] = useState(false);
+  const [accessLogOpen, setAccessLogOpen] = useState(false);
+
+  useEffect(() => {
+    if (accessDeepLink) {
+      setShareOpen(true);
+    }
+  }, [accessDeepLink]);
+
+  const restrictedError = Boolean(error && isDocumentRestrictedError(error));
+  const adminScopeLocked = Boolean(
+    !error && query.data && hasAdminScope(query.data) && !query.data.my_level,
+  );
+  const isBreakGlassDoc = Boolean(
+    !restrictedError &&
+      !grantExpiredOrEnded &&
+      (query.data?.via === "break_glass" ||
+        activeGrant !== null ||
+        getBreakGlassExpiresAt(query.data) !== undefined),
+  );
+
+  useEffect(() => {
+    if (isBreakGlassDoc) {
+      setHadBreakGlassSession(true);
+    }
+  }, [isBreakGlassDoc]);
+
+  const adminSummary = useDocumentAdminSummary(
+    wsId,
+    documentId,
+    enabled && (restrictedError || adminScopeLocked || isBreakGlassDoc),
+  );
+  const qc = useQueryClient();
+  const grantBreakGlass = useGrantDocumentBreakGlass(wsId, documentId);
+  const revokeBreakGlass = useRevokeDocumentBreakGlass(wsId, documentId);
+
+  const expiresAt =
+    activeGrant?.expires_at ??
+    getBreakGlassExpiresAt(query.data) ??
+    adminSummary.data?.my_grant?.expires_at ??
+    null;
+
+  const isTimestampExpired = Boolean(
+    expiresAt && !Number.isNaN(new Date(expiresAt).getTime()) && new Date(expiresAt).getTime() <= Date.now(),
+  );
+  const showLockedAdmin =
+    restrictedError || adminScopeLocked || grantExpiredOrEnded || (isBreakGlassDoc && isTimestampExpired);
+
+  // One timer to the expiry (not polling): the banner flips to the expired
+  // card at the stated time and the detail refetches to learn the server's
+  // answer. A wait beyond the timer limit re-arms through `clock`.
+  useEffect(() => {
+    if (!isBreakGlassDoc || !expiresAt) return;
+    const at = new Date(expiresAt).getTime();
+    if (Number.isNaN(at)) return;
+    const wait = at - Date.now();
+    if (wait <= 0) return;
+    const timer = setTimeout(() => {
+      setClock((n) => n + 1);
+      if (wait <= MAX_TIMER_MS) {
+        void qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) });
+      }
+    }, Math.min(wait, MAX_TIMER_MS));
+    return () => clearTimeout(timer);
+  }, [isBreakGlassDoc, expiresAt, clock, qc, wsId, documentId]);
+
+  // The locked card names the ACL owner from the member list; an owner the
+  // list does not know reads as a neutral label, never as an id.
+  const workspaceCtx = useOptionalWorkspace();
+  const orgMembers = useOrgMembers(showLockedAdmin ? (workspaceCtx?.workspace.organization_slug ?? "") : "");
+  const memberRows = useMemo(
+    () => orgMembers.data?.pages.flatMap((page) => page.members) ?? [],
+    [orgMembers.data],
+  );
+  const knownGrantId = activeGrant?.id ?? adminSummary.data?.my_grant?.id;
+
+  const canBreakGlass = error && isDocumentRestrictedError(error) ? canBreakGlassFromError(error) : true;
+  // One predicate for the card's "Manage access" button and the deep link.
+  const canManageAccess = canBreakGlass && !!adminSummary.data;
+  // The member 404 card has no Share to open: it only consumes the parameter.
+  const memberLocked = !query.data && errorClass === "missing" && !fromInbox;
+
+  // The pure admin's entry for `?access=requests` (access addendum §2.5, N-02):
+  // once the summary answered, an unarchived, unowned document opens Share at
+  // the requests section when the card offers Manage access; a refusal or an
+  // archived one drops the parameter. The locked cards (admin and member)
+  // consume it: a readable document leaves it to the actions menu.
+  useAccessRequestsDeepLink({
+    allowed:
+      canManageAccess && !adminSummary.data?.document.archived_at && !adminSummary.data?.document.owner_kind,
+    ready:
+      gate === "on" &&
+      !query.isPending &&
+      ((showLockedAdmin && (adminSummary.isSuccess || adminSummary.isError)) || memberLocked),
+    onOpen: () => {
+      setFocusRequests(true);
+      setShareOpen(true);
+    },
+  });
 
   const backAction = (
     <Button type="button" variant="outline" size="sm" onClick={onBackToList}>
@@ -96,14 +234,123 @@ export function DocumentDetailView({
     );
   }
 
+  const refreshAfterGrant = async () => {
+    const refreshed = await query.refetch();
+    setGrantPending(Boolean(refreshed.error && isDocumentRestrictedError(refreshed.error)));
+  };
+
+  const handleGrantBreakGlass = async (reason: string) => {
+    const grant = await grantBreakGlass.mutateAsync(reason);
+    setActiveGrant(grant);
+    setHadBreakGlassSession(true);
+    setGrantExpiredOrEnded(false);
+    setEndAccessError(null);
+    await refreshAfterGrant();
+  };
+
+  const handleEndBreakGlass = async () => {
+    setEndAccessError(null);
+    // The real grant id only: the one just made, the caller's own grant from
+    // the admin summary, or the summary read again. A placeholder id is never
+    // sent (R21 H3).
+    let grantId = knownGrantId;
+    if (!grantId) {
+      const refreshed = await adminSummary.refetch();
+      grantId = refreshed.data?.my_grant?.id;
+    }
+    if (!grantId) {
+      setEndAccessError(t("documents.breakGlass.endAccessFailed"));
+      return;
+    }
+    try {
+      // The banner stays up (button busy) until the DELETE resolves; the
+      // expired card only appears once the grant is really gone (R22 N3).
+      await revokeBreakGlass.mutateAsync(grantId);
+    } catch {
+      setEndAccessError(t("documents.breakGlass.endAccessFailed"));
+      return;
+    }
+    setGrantExpiredOrEnded(true);
+    setActiveGrant(null);
+    setGrantPending(false);
+    await query.refetch();
+  };
+
+  // The share dialog and the access log take a narrow reference: the real
+  // document when it loaded, else the admin summary. Never a made-up Document.
+  const summaryDoc = adminSummary.data?.document;
+  const adminRef = query.data
+    ? query.data
+    : adminSummary.data
+      ? {
+          ...adminRefFromSummary(adminSummary.data),
+          organization_id:
+            adminSummary.data.document.organization_id || workspaceCtx?.workspace.organization_id || "",
+        }
+      : null;
+
+  if (showLockedAdmin) {
+    const ownerId = adminSummary.data?.acl_owner?.user_id;
+    const ownerName = ownerId
+      ? memberRows.find((m) => m.user_id === ownerId)?.display_name || t("documents.breakGlass.ownerFallback")
+      : null;
+    const lockedMetadata = {
+      title: summaryDoc?.title ?? query.data?.title ?? null,
+      ownerName,
+      visibility: summaryDoc?.visibility ?? query.data?.visibility ?? "restricted",
+      updatedAt: summaryDoc?.updated_at ?? query.data?.updated_at ?? null,
+      sizeBytes: summaryDoc?.size_bytes ?? null,
+    };
+
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 pt-6">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          {backAction}
+        </div>
+        <DocumentLockedCard
+          variant="admin"
+          metadata={lockedMetadata}
+          canBreakGlass={canBreakGlass}
+          expired={
+            !grantPending &&
+            (grantExpiredOrEnded || isTimestampExpired || (restrictedError && hadBreakGlassSession))
+          }
+          grantPending={grantPending}
+          onRetryOpen={() => void refreshAfterGrant()}
+          isSubmitting={grantBreakGlass.isPending}
+          onGrantBreakGlass={handleGrantBreakGlass}
+          onManageAccess={canManageAccess ? () => setShareOpen(true) : undefined}
+          onOpenAccessLog={canBreakGlass && adminRef ? () => setAccessLogOpen(true) : undefined}
+        />
+        {adminRef ? (
+          <>
+            <ShareDialog
+              open={shareOpen}
+              onOpenChange={(next) => {
+                setShareOpen(next);
+                if (!next) setFocusRequests(false);
+              }}
+              wsId={wsId}
+              doc={adminRef}
+              focusRequests={focusRequests}
+              initialSection={accessDeepLink ? "break_glass" : undefined}
+            />
+            <AccessLogSheet
+              open={accessLogOpen}
+              onOpenChange={setAccessLogOpen}
+              wsId={wsId}
+              doc={adminRef}
+            />
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   // Losing read access hides the copy already on screen — and a first load
   // that is refused reads the same way, never as a load error.
   if (error && errorClass === "permission") {
     if (fromInbox) return <DocumentInboxState reason="no_access" className="mx-auto w-full max-w-3xl" />;
-    // DOC-05: an admin is refused a restricted document's content, never its management.
-    if (classifyDocumentError(error).code === "document_restricted") {
-      return <DocumentLockedCard key={documentId} variant="admin" wsId={wsId} documentId={documentId} onBack={onBackToList} />;
-    }
     return (
       <CollectionPageState
         className="mx-auto w-full max-w-3xl"
@@ -117,7 +364,10 @@ export function DocumentDetailView({
     );
   }
 
-  if (!query.data) {
+  // The workspace renders only from a real GET answer.
+  const resolvedDoc = query.data ?? null;
+
+  if (!resolvedDoc) {
     if (fromInbox && (errorClass === "missing" || errorClass === "gone")) {
       return <DocumentInboxState reason="gone" className="mx-auto w-full max-w-3xl" />;
     }
@@ -159,32 +409,59 @@ export function DocumentDetailView({
     );
   }
 
+  const workspaceDoc: Document = isBreakGlassDoc
+    ? { ...resolvedDoc, my_level: "view", via: "break_glass" }
+    : resolvedDoc;
+
   return (
-    <DocumentCommentsProvider wsId={wsId} doc={query.data}>
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <DocumentWorkspace
-          // Keyed by document: the editor reads its content once at mount, and
-          // useDocumentSave owns one machine per document, so a host that reuses
-          // this view for another id must remount rather than re-point either.
-          key={query.data.id}
-          wsId={wsId}
-          doc={query.data}
-          libraryHref={libraryHref}
-          documentHref={documentHref}
-          ownerHref={ownerHref}
-          refetch={() => query.refetch()}
-          officeEditorHost={officeEditorHost}
-          headerActions={
-            <DocumentActionsMenu
-              wsId={wsId}
-              doc={query.data}
-              documentHrefFor={documentHref}
-              onArchived={onBackToList}
+    <DocumentCommentsProvider wsId={wsId} doc={workspaceDoc}>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {isBreakGlassDoc ? (
+          <div className="px-4 pt-3">
+            <DocumentBreakGlassBanner
+              expiresAt={expiresAt}
+              isEnding={revokeBreakGlass.isPending}
+              endDisabled={!knownGrantId && adminSummary.isPending}
+              error={endAccessError}
+              onEndAccess={handleEndBreakGlass}
             />
-          }
-        />
-        <DocumentCommentsPanel />
+          </div>
+        ) : null}
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <DocumentWorkspace
+            // Keyed by document: the editor reads its content once at mount, and
+            // useDocumentSave owns one machine per document, so a host that reuses
+            // this view for another id must remount rather than re-point either.
+            key={workspaceDoc.id}
+            wsId={wsId}
+            doc={workspaceDoc}
+            libraryHref={libraryHref}
+            documentHref={documentHref}
+            ownerHref={ownerHref}
+            refetch={() => query.refetch()}
+            officeEditorHost={officeEditorHost}
+            headerActions={
+              <DocumentActionsMenu
+                wsId={wsId}
+                doc={resolvedDoc}
+                documentHrefFor={documentHref}
+                onArchived={onBackToList}
+              />
+            }
+          />
+          <DocumentCommentsPanel />
+        </div>
+        {!resolvedDoc.owner_kind && shareOpen ? (
+          <ShareDialog
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+            wsId={wsId}
+            doc={resolvedDoc}
+            initialSection={accessDeepLink ? "break_glass" : undefined}
+          />
+        ) : null}
       </div>
     </DocumentCommentsProvider>
   );
 }
+

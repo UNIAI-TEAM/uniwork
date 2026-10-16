@@ -26,7 +26,7 @@ import { appPlaces, clip } from "./capture/scrub.mjs";
 import { collectRenderedText, frameBlock, joinBlocks, visibleChars } from "./capture/text.mjs";
 import { redactUrl, signIn } from "./capture/signin.mjs";
 import { loadPngjs } from "./job-lib.mjs";
-import { frameInstallState, captureOpenFrame, readFrameState } from "./capture/web.mjs";
+import { frameGrantFromToken, frameInstallState, captureOpenFrame, readFrameState, trackFrameGrants, withFrameGrant } from "./capture/web.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CAPTURE = join(HERE, "capture.mjs");
@@ -688,6 +688,53 @@ describe("web seeding", () => {
     } finally {
       api.server.close();
     }
+  });
+});
+
+describe("web frame AI grant (RFE5-202)", () => {
+  test("the grant is the token answer's ai.ai and ai.uniwork_ai; an absent or drifted field reads as off", () => {
+    assert.deepEqual(frameGrantFromToken({ token: "t", ai: { ai: true, web_search: false, uniwork_ai: false } }), { ai: true, uniworkAi: false });
+    assert.deepEqual(frameGrantFromToken({ ai: { ai: false, uniwork_ai: true } }), { ai: false, uniworkAi: true });
+    assert.deepEqual(frameGrantFromToken({ ai: { ai: "yes", uniwork_ai: 1 } }), { ai: false, uniworkAi: false });
+    assert.deepEqual(frameGrantFromToken({ token: "t" }), { ai: false, uniworkAi: false });
+    assert.deepEqual(frameGrantFromToken(null), { ai: false, uniworkAi: false });
+  });
+
+  test("withFrameGrant stamps an ok shot with the grant its document's token carried; others are left alone", () => {
+    const grants = new Map([["doc1", { ai: true, uniworkAi: false }]]);
+    assert.deepEqual(withFrameGrant(ok({ png: Buffer.alloc(1) }), grants, "doc1"), { ...ok({ png: Buffer.alloc(1) }), ai: true, uniworkAi: false });
+    // no token seen for the document: the shot proves no grant, so none is written (the job fails it)
+    const unseen = withFrameGrant(ok(), grants, "doc2");
+    assert.equal("ai" in unseen, false);
+    assert.equal("uniworkAi" in unseen, false);
+    assert.deepEqual(withFrameGrant(failed("x"), grants, "doc1"), failed("x"));
+    assert.deepEqual(withFrameGrant(blocked("x"), grants, "doc1"), blocked("x"));
+  });
+
+  test("trackFrameGrants reads only the frame-token mints, per document, the latest mint winning", async () => {
+    const handlers = [];
+    const page = { on: (event, handler) => handlers.push([event, handler]) };
+    const track = trackFrameGrants(page);
+    assert.deepEqual(handlers.map(([event]) => event), ["response"]);
+    const response = (url, method, body) => ({ url: () => url, request: () => ({ method: () => method }), json: async () => body });
+    const emit = (r) => handlers[0][1](r);
+    emit(response("http://localhost:1/api/v1/documents/DOC1/office/frame-token", "POST", { ai: { ai: false, uniwork_ai: false } }));
+    emit(response("http://localhost:1/api/v1/documents/DOC1/office/frame-token", "POST", { ai: { ai: true, uniwork_ai: false } }));
+    emit(response("http://localhost:1/api/v1/documents/DOC2/office/frame-token", "POST", { ai: { ai: false, uniwork_ai: true } }));
+    emit(response("http://localhost:1/api/v1/documents/DOC3/office/frame-token", "GET", { ai: { ai: true } }));
+    emit(response("http://localhost:1/api/v1/documents/DOC4/office/sessions", "POST", { ai: { ai: true } }));
+    emit({ url: () => "http://localhost:1/api/v1/documents/DOC5/office/frame-token", request: () => ({ method: () => "POST" }), json: async () => { throw new Error("body is gone"); } });
+    const grants = await track.settled();
+    assert.deepEqual([...grants].sort(), [["DOC1", { ai: true, uniworkAi: false }], ["DOC2", { ai: false, uniworkAi: true }]]);
+  });
+
+  test("meta records the grant of a shot that carries one, and nothing for a shot that does not", () => {
+    assert.deepEqual(metaEntry(ok({ png: Buffer.alloc(1), ai: true, uniworkAi: false })), { status: "ok", reason: "", size: undefined, canvasOnly: false, ai: true, uniworkAi: false });
+    assert.equal("ai" in metaEntry(ok({ png: Buffer.alloc(1) })), false);
+    const meta = buildMeta({ host: "web", forkSha: "x", pinVersion: "y", fixtures: { a: { status: "ok", reason: "", ai: false, uniworkAi: true }, b: { status: "ok", reason: "" }, c: { status: "failed", reason: "r" } } });
+    assert.deepEqual(meta.fixtures.a, { status: "ok", reason: "", ai: false, uniworkAi: true });
+    assert.deepEqual(meta.fixtures.b, { status: "ok", reason: "" });
+    assert.deepEqual(meta.fixtures.c, { status: "failed", reason: "r" });
   });
 });
 

@@ -21,6 +21,7 @@ export const NOTIFICATION_KINDS = [
   "document_discussion_mentioned",
   "document_discussion_replied",
   "document_comment_resolved",
+  "document_break_glass",
   "chat_mentioned",
   "chat_dm",
   "chat_thread_replied",
