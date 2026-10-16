@@ -407,7 +407,7 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 		Input:         &office.GrantInput{Checksum: checksum, Length: int64(len(seed))},
 		Output: &office.GrantOutput{
 			FileID: string(out.FileID), URL: out.WriteTarget.URL, Method: out.WriteTarget.Method,
-			Headers: out.WriteTarget.Headers, ExpiresAt: millis(out.WriteTarget.ExpiresAt), MaxBytes: documentFileMaxBytes(),
+			Headers: out.WriteTarget.Headers, ExpiresAt: millis(out.WriteTarget.ExpiresAt), MaxBytes: s.documentFileMaxBytes(),
 		},
 		DeadlineAt: millis(deadline), IssuedAt: millis(now), ExpiresAt: millis(window),
 	})
@@ -510,7 +510,7 @@ func (s *DocumentOfficeService) readVerifiedOutput(ctx context.Context, scope fi
 		return nil, documentFileError(err)
 	}
 	defer func() { _ = r.Close() }()
-	limit := documentFileMaxBytes()
+	limit := s.documentFileMaxBytes()
 	raw, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
 		return nil, err

@@ -25,18 +25,15 @@ function goModules() {
   const goFile = "server/internal/service/office_frame_module.go";
   const src = read(goFile);
   const names = Object.fromEntries([...src.matchAll(/\b(OfficeFrameModule\w+)\s*=\s*"(\w+)"/g)].map((m) => [m[1], m[2]]));
-  const consts = Object.fromEntries([...src.matchAll(/^const (\w+) = ([\d\s*]+)$/gm)].map((m) => [m[1], bytes(m[2], m[1])]));
   const formats = Object.fromEntries([...read("server/internal/office/contract.go").matchAll(/\b(Format\w+)\s+Format\s*=\s*"(\w+)"/g)].map((m) => [m[1], m[2]]));
-  const rows = [...src.matchAll(/\{(OfficeFrameModule\w+),\s*office\.(Format\w+),\s*"(\w+)",\s*(\w+)\}/g)];
+  const rows = [...src.matchAll(/\{(OfficeFrameModule\w+),\s*office\.(Format\w+),\s*"(\w+)"\}/g)];
   assert.ok(rows.length > 0, `no officeFrameModules rows found in ${goFile}`);
   const out = {};
-  for (const [, name, format, flag, cap] of rows) {
+  for (const [, name, format, flag] of rows) {
     const module = names[name];
     assert.ok(module, `${goFile}: unknown module constant ${name}`);
     assert.ok(formats[format], `${goFile}: unknown format ${format}`);
-    const maxBytes = /^\d+$/.test(cap) ? Number(cap) : consts[cap];
-    assert.notEqual(maxBytes, undefined, `${goFile}: cap ${cap} of ${module} is not a literal or a const of literals`);
-    out[module] = { format: formats[format], flag, maxBytes };
+    out[module] = { format: formats[format], flag };
   }
   return out;
 }
@@ -66,12 +63,13 @@ function tsModules() {
   return out;
 }
 
-test("the Go and TypeScript module tables name the same modules, formats, flags and caps", () => {
+test("the Go and TypeScript module tables name the same modules, formats and flags", () => {
   const go = goModules();
   const ts = tsModules();
   assert.deepEqual(Object.keys(ts).sort(), Object.keys(go).sort(), "module sets differ");
   for (const module of Object.keys(go)) {
-    assert.deepEqual(ts[module], go[module], `module ${module}: TypeScript ${JSON.stringify(ts[module])} vs Go ${JSON.stringify(go[module])}`);
+    const { format, flag } = ts[module];
+    assert.deepEqual({ format, flag }, go[module], `module ${module}: TypeScript ${JSON.stringify({ format, flag })} vs Go ${JSON.stringify(go[module])}`);
   }
   const union = /export type OfficeModule = ([^\n]+)/.exec(read("packages/core/office/docs-frame-protocol.ts"))?.[1] ?? "";
   assert.deepEqual([...union.matchAll(/'(\w+)'/g)].map((m) => m[1]).sort(), Object.keys(go).sort(), "the protocol's OfficeModule union differs");

@@ -321,6 +321,7 @@ func main() {
 	// (user decision 2026-10-14; docs/ops/RUNBOOK_FILE_GC.md).
 	fileSvc, err := service.NewFileService(service.FileServiceOptions{
 		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(), KeyRoot: storageCfg.KeyRoot,
+		DocumentMaxBytes:   cfg.EffectiveDocumentMaxBytes(),
 		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
 		// storage.bytes reservations for the Document purposes (G1-03): the
 		// hook ignores every other purpose.

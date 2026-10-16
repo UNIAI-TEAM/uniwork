@@ -164,15 +164,33 @@ type OfficeJobInput struct {
 	input       *officeInput
 }
 
-// documentFileMaxBytes is the DocumentFile policy cap: the most a base
-// version or an output may hold.
-func documentFileMaxBytes() int64 {
-	for _, spec := range files.DefaultSpecs() {
-		if spec.Purpose == files.DocumentFile {
+// documentFileMaxBytesFor reads the DocumentFile policy cap from f's
+// registry when f exposes one, or from files.DefaultRegistry() otherwise.
+func documentFileMaxBytesFor(f files.Service) int64 {
+	if r, ok := f.(interface{ Registry() files.Registry }); ok && r != nil {
+		if spec, err := r.Registry().Lookup(files.DocumentFile); err == nil && spec.Policy.MaxBytes > 0 {
 			return spec.Policy.MaxBytes
 		}
 	}
-	return 50 << 20
+	spec, err := files.DefaultRegistry().Lookup(files.DocumentFile)
+	if err != nil {
+		return files.DefaultDocumentMaxBytes
+	}
+	return spec.Policy.MaxBytes
+}
+
+func (s *DocumentService) documentFileMaxBytes() int64 {
+	if s == nil {
+		return documentFileMaxBytesFor(nil)
+	}
+	return documentFileMaxBytesFor(s.files)
+}
+
+func (s *DocumentOfficeService) documentFileMaxBytes() int64 {
+	if s == nil {
+		return documentFileMaxBytesFor(nil)
+	}
+	return documentFileMaxBytesFor(s.files)
 }
 
 func officeOperationID(jobID string) string { return "office_job:" + jobID }
@@ -447,7 +465,7 @@ func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope,
 		return officeInput{}, documentFileError(err)
 	}
 	defer r.Close()
-	limit := documentFileMaxBytes()
+	limit := s.documentFileMaxBytes()
 	raw, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
 		return officeInput{}, err
@@ -596,7 +614,7 @@ func (s *DocumentOfficeService) dispatch(ctx context.Context, row db.OfficeJob, 
 		&office.GrantInput{Checksum: input.checksum, Length: int64(len(input.bytes))},
 		&office.GrantOutput{
 			FileID: row.OutputFileID.String, URL: target.URL, Method: target.Method, Headers: target.Headers,
-			ExpiresAt: millis(target.ExpiresAt), MaxBytes: documentFileMaxBytes(),
+			ExpiresAt: millis(target.ExpiresAt), MaxBytes: s.documentFileMaxBytes(),
 		})
 	if err != nil {
 		return row, err

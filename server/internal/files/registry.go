@@ -247,12 +247,31 @@ var (
 	}
 )
 
+// DefaultDocumentMaxBytes is the default byte ceiling for document_file when a
+// caller does not pass an explicit override (200 MiB; SIZE-S1 / UNI-1859).
+const (
+	DefaultDocumentMaxBytes int64 = 200 << 20
+	defaultExportMaxBytes   int64 = 100 << 20
+)
+
 // DefaultSpecs is the declared registry table (FS-C1 section 8): prefix, scope
 // shape and policy per purpose. Caps follow what each pipeline publishes today
-// (2 MiB avatar, 25 MiB attachment, 4 MiB voice, 100/25 MiB frontend/backend
-// mismatch resolved by one policy). The Document purposes opened with G1-03
-// (UNI-677), once their reference providers held every file_id column.
+// (2 MiB avatar, 25 MiB attachment, 4 MiB voice, 200 MiB document_file). The
+// Document purposes opened with G1-03 (UNI-677), once their reference
+// providers held every file_id column.
 func DefaultSpecs() []PurposeSpec {
+	return SpecsWithDocumentMaxBytes(DefaultDocumentMaxBytes)
+}
+
+// SpecsWithDocumentMaxBytes builds the registry table with documentMaxBytes as
+// the document_file ceiling and max(100 MiB, documentMaxBytes) as the export
+// ceiling (SIZE-S1 / UNI-1859). A non-positive documentMaxBytes falls back to
+// DefaultDocumentMaxBytes.
+func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
+	if documentMaxBytes <= 0 {
+		documentMaxBytes = DefaultDocumentMaxBytes
+	}
+	exportMaxBytes := max(defaultExportMaxBytes, documentMaxBytes)
 	return []PurposeSpec{
 		{
 			Purpose: UserAvatar,
@@ -308,19 +327,19 @@ func DefaultSpecs() []PurposeSpec {
 			Purpose: AuditExport,
 			Prefix:  "audit/exports",
 			Scope:   ScopeOrg,
-			Policy:  Policy{MaxBytes: 100 << 20, MIMEAllowlist: exportMIMETypes, ReadMode: ReadProxy},
+			Policy:  Policy{MaxBytes: exportMaxBytes, MIMEAllowlist: exportMIMETypes, ReadMode: ReadProxy},
 		},
 		{
 			Purpose: TenantExport,
 			Prefix:  "privacy/exports",
 			Scope:   ScopeOrg,
-			Policy:  Policy{MaxBytes: 100 << 20, MIMEAllowlist: []string{"application/zip"}, ReadMode: ReadProxy},
+			Policy:  Policy{MaxBytes: exportMaxBytes, MIMEAllowlist: []string{"application/zip"}, ReadMode: ReadProxy},
 		},
 		{
 			Purpose: DocumentFile,
 			Prefix:  "documents/files",
 			Scope:   ScopeOrgWorkspace,
-			Policy:  Policy{MaxBytes: 50 << 20, MIMEAllowlist: documentMIMETypes, ChecksumRequired: true, ReadMode: ReadProxy},
+			Policy:  Policy{MaxBytes: documentMaxBytes, MIMEAllowlist: documentMIMETypes, ChecksumRequired: true, ReadMode: ReadProxy},
 			// DOC-004: a client never sees the path or storage key of a
 			// document, and the bytes are verified against a checksum.
 			// Opened by G1-03 (UNI-677) together with its reference

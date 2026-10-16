@@ -42,7 +42,7 @@ func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/office/frame-token", h.MintOfficeFrameToken, apiOp{
 		summary: "Mint an Office web frame token",
 		description: "Host page only: checks the live ACL of a file document a web module opens (docx, pdf, md, html, pptx, xlsx) and returns a server-signed token (10 min) bound to this document, its workspace, the caller and the module derived from the stored format. " +
-			"403 feature_disabled when that module's flag is off for the document's organization; 413 too_large when the stored file is over the module's cap (sheets: 10 MiB). " +
+			"403 feature_disabled when that module's flag is off for the document's organization. " +
 			"The host passes it to the frame in the postMessage init; it opens only /api/v1/office-frame/* for this document and is refused everywhere else.",
 		tags: []string{"documents"}, sdo: sdo.OfficeFrameTokenSDO{}, status: http.StatusCreated, auth: true,
 	})
@@ -73,7 +73,7 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 	})
 	f.Post("/office-frame/documents/{documentID}/uploads", h.UploadOfficeFrameFile, apiOp{
 		summary:     "Stage the bytes of a frame save",
-		description: "Frame token only, edit access: multipart (≤ 50 MiB) staging the new bytes of the document. Returns upload_id for .../versions/commit. Idempotency-Key makes a retry find the same upload.",
+		description: "Frame token only, edit access: multipart (≤ DOCUMENT_MAX_BYTES) staging the new bytes of the document. Returns upload_id for .../versions/commit. Idempotency-Key makes a retry find the same upload.",
 		tags:        []string{"documents"}, sdi: sdi.UploadOfficeFrameFileSDI{}, sdo: sdo.DocumentUploadSDO{}, status: http.StatusCreated, auth: true,
 	})
 	f.Post("/office-frame/documents/{documentID}/versions/commit", h.CommitOfficeFrameVersion, apiOp{

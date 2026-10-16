@@ -55,7 +55,11 @@ func (s *DocumentService) fileService() (files.Service, error) {
 
 func (s *DocumentService) fileLimits() document.FileLimits {
 	if s.store.limits.MaxEntries == 0 {
-		return document.DefaultFileLimits
+		limits := document.DefaultFileLimits
+		if maxBytes := s.documentFileMaxBytes(); maxBytes > 0 {
+			limits.TextScanBytes = maxBytes
+		}
+		return limits
 	}
 	return s.store.limits
 }
@@ -247,8 +251,12 @@ func documentFileError(err error) error {
 		return CodedError{Code: document.ErrCodeUnsupportedMedia, Status: http.StatusUnsupportedMediaType,
 			Msg: "định dạng tệp không được hỗ trợ", Fields: map[string]any{"reason": fe.Code}}
 	case files.CodeTooLarge:
+		maxBytes := fe.MaxBytes
+		if maxBytes <= 0 {
+			maxBytes = files.DefaultDocumentMaxBytes
+		}
 		return CodedError{Code: "file_too_large", Status: http.StatusRequestEntityTooLarge,
-			Msg: "tệp vượt quá dung lượng cho phép"}
+			Msg: "tệp vượt quá dung lượng cho phép", Fields: map[string]any{"max_bytes": maxBytes}}
 	case files.CodeNotFound:
 		return ErrNotFound
 	case files.CodeNotReady, files.CodeClaimExpired, files.CodeUploadCanceled, files.CodeDeleting:

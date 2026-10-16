@@ -80,7 +80,7 @@ func (s *DocumentOfficeService) ExportFramePDF(ctx context.Context, actor Actor,
 	}
 	switch {
 	case in.Bytes != nil:
-		input, err := officeExportInput(in.Bytes)
+		input, err := officeExportInputWithCap(in.Bytes, s.documentFileMaxBytes())
 		if err != nil {
 			return OfficeExportPDF{}, err
 		}
@@ -132,7 +132,7 @@ func (s *DocumentOfficeService) versionExportInput(ctx context.Context, actor Ac
 		return officeInput{}, err
 	}
 	defer f.Reader.Close()
-	limit := documentFileMaxBytes()
+	limit := s.documentFileMaxBytes()
 	raw, err := io.ReadAll(io.LimitReader(f.Reader.Body, limit+1))
 	if err != nil {
 		return officeInput{}, err
@@ -140,13 +140,20 @@ func (s *DocumentOfficeService) versionExportInput(ctx context.Context, actor Ac
 	if int64(len(raw)) > limit {
 		return officeInput{}, officeErr("upload_bounds", "input_too_large")
 	}
-	return officeExportInput(raw)
+	return officeExportInputWithCap(raw, limit)
 }
 
 // officeExportInput measures supplied bytes. They must fit the DocumentFile
 // cap and start like a ZIP container; the engine validates the rest.
 func officeExportInput(raw []byte) (officeInput, error) {
-	if int64(len(raw)) > documentFileMaxBytes() {
+	return officeExportInputWithCap(raw, documentFileMaxBytesFor(nil))
+}
+
+func officeExportInputWithCap(raw []byte, maxBytes int64) (officeInput, error) {
+	if maxBytes <= 0 {
+		maxBytes = documentFileMaxBytesFor(nil)
+	}
+	if int64(len(raw)) > maxBytes {
 		return officeInput{}, officeErr("upload_bounds", "input_too_large")
 	}
 	if len(raw) < 4 || string(raw[:4]) != "PK\x03\x04" {
