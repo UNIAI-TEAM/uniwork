@@ -597,12 +597,17 @@ type Routes struct {
 	CreateDocumentShare        http.HandlerFunc
 	CreateDocumentShareBatch   http.HandlerFunc
 	RevokeDocumentShare        http.HandlerFunc
-	CreateDocumentLink         http.HandlerFunc
-	RevokeDocumentLink         http.HandlerFunc
-	ListDocumentAccessLogs     http.HandlerFunc
-	GetDocumentSettings        http.HandlerFunc
-	SetDocumentSettings        http.HandlerFunc
-	GetPublicDocument          http.HandlerFunc
-	DownloadPublicDocument     http.HandlerFunc
-	GetPublicDocumentAsset     http.HandlerFunc
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	CreateDocumentBreakGlass http.HandlerFunc
+	RevokeDocumentBreakGlass http.HandlerFunc
+	GetDocumentAdminSummary  http.HandlerFunc
+	CreateDocumentLink       http.HandlerFunc
+	RevokeDocumentLink       http.HandlerFunc
+	ListDocumentAccessLogs   http.HandlerFunc
+	GetDocumentSettings      http.HandlerFunc
+	SetDocumentSettings      http.HandlerFunc
+	GetPublicDocument        http.HandlerFunc
+	DownloadPublicDocument   http.HandlerFunc
+	GetPublicDocumentAsset   http.HandlerFunc
 }

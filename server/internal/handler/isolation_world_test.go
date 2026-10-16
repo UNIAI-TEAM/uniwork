@@ -674,6 +674,27 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	tn.ids["docComment"] = isoID(t, out, "comment")
 	out = w.call(t, "POST", dp+"/shares", tn.token, map[string]any{"principal_type": "user", "principal_id": tn.peerID, "level": "view"})
 	tn.ids["share"] = isoID(t, out, "share")
+	// DOC-05 (UNI-1628): a restricted page whose ACL owner is the tenant's peer,
+	// so the tenant's owner (an implicit workspace admin) holds AdminScope on it
+	// and can open, and end, emergency access; one live grant of theirs is
+	// seeded by SQL because the API only grants to the caller.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Restricted", "kind": "page",
+		"content": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": m + " restricted body"}}}}},
+	})
+	tn.ids["restrictedDocument"] = isoID(t, out, "document")
+	if _, err := w.pool.Exec(context.Background(),
+		`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`, tn.ids["restrictedDocument"], tn.peerID); err != nil {
+		t.Fatal(err)
+	}
+	grantID := util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_break_glass_grants (
+		id, organization_id, workspace_id, document_id, actor_id, actor_kind, level, reason, expires_at
+	) VALUES ($1, $2, $3, $4, $5, 'human', 'view', $6, now() + interval '1 hour')`,
+		grantID, tn.orgID, tn.wsID, tn.ids["restrictedDocument"], tn.userID, m+" break-glass reason for the audit"); err != nil {
+		t.Fatal(err)
+	}
+	tn.ids["breakGlassGrant"] = grantID
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/documents/settings", tn.token, map[string]any{"public_links_enabled": true})
 	out = w.call(t, "POST", dp+"/links", tn.token, map[string]any{})
 	tn.ids["docLink"] = isoID(t, out, "link")

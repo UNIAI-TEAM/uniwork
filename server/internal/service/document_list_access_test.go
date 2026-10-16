@@ -30,7 +30,10 @@ func TestListRowAccessRules(t *testing.T) {
 		level  DocumentLevel
 		via    DocumentVia
 	}{
-		{"workspace admin manages every row", documentListScope{actorID: "me", seeAll: true, allowShares: true}, false, restricted, nil, DocumentLevelManage, DocumentViaMember},
+		// DOC-05: manage on every non-restricted row; a restricted row is
+		// AdminScope (TestListRowAccessAdminScope).
+		{"workspace admin manages every workspace row", documentListScope{actorID: "me", seeAll: true, allowShares: true}, false, doc, nil, DocumentLevelManage, DocumentViaMember},
+		{"workspace admin holds nothing on a restricted row", documentListScope{actorID: "me", seeAll: true, allowShares: true}, false, restricted, nil, DocumentLevelNone, ""},
 		{"acl owner manages a restricted row", member, false, owned, nil, DocumentLevelManage, DocumentViaMember},
 		{"member edits a workspace row", member, false, doc, nil, DocumentLevelEdit, DocumentViaMember},
 		{"member with a view share still edits", member, false, doc, []db.ListLiveSharesForDocumentsRow{share("user", "me", "view")}, DocumentLevelEdit, DocumentViaMember},
@@ -47,7 +50,7 @@ func TestListRowAccessRules(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := listRowAccess(c.scope, c.agent, c.doc, c.shares)
+			got := listRowAccess(c.scope, c.agent, c.doc, c.shares, false)
 			if got.Level != c.level || (c.level != DocumentLevelNone && got.Via != c.via) {
 				t.Fatalf("listRowAccess = %+v, want level %q via %q", got, c.level, c.via)
 			}
@@ -116,7 +119,8 @@ func TestListRowsCarryEffectiveLevel(t *testing.T) {
 					t.Fatalf("effectiveLevel %s: %v", d.ID, err)
 				}
 				item, ok := byID[d.ID]
-				if want.Level == DocumentLevelNone {
+				// DOC-05: an AdminScope row is listed with level none.
+				if want.Level == DocumentLevelNone && !want.AdminScope {
 					if ok {
 						t.Fatalf("%s listed for a viewer with no level", d.ID)
 					}
@@ -126,7 +130,7 @@ func TestListRowsCarryEffectiveLevel(t *testing.T) {
 					t.Fatalf("%s missing from the list (level %q)", d.ID, want.Level)
 				}
 				listed++
-				if item.Access.Level != want.Level || item.Access.Via != want.Via {
+				if item.Access != want {
 					t.Fatalf("%s row access = %+v, effectiveLevel = %+v", d.ID, item.Access, want)
 				}
 			}

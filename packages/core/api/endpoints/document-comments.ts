@@ -9,6 +9,7 @@ import {
   type DocumentCommentMention,
   type DocumentCommentRevision,
 } from "../../types/document";
+import { MentionCandidateSchema, type MentionCandidate } from "../../types/document-access";
 import { CommentReactionSchema, type CommentReaction } from "../../types/task-collaboration";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
@@ -314,23 +315,23 @@ export async function putDocumentCommentAnchors(
   };
 }
 
-// ---- Mention candidates (G8-06, UNI-1401) --------------------------------
-// One person the mention picker may offer: someone who holds at least view on
-// the document today. `email` is absent, not empty, when the caller may not
-// list the document workspace's members - a reader who reaches the document
-// through a direct share of another workspace sees no email - so the picker
-// reads absence as "not offered", never as "no address".
-
-export const MentionCandidateSchema = z.object({
-  user_id: z.string(),
-  display_name: z.string().optional().default(""),
-  avatar_url: z.string().optional(),
-  email: z.string().optional(),
-});
-export type MentionCandidate = z.infer<typeof MentionCandidateSchema>;
+// ---- Mention candidates (G8-06, UNI-1401; G8-18 can_view) -----------------
+// One person the mention picker may offer. Without `include=no_access` that is
+// someone who holds at least view on the document today. `email` is absent,
+// not empty, when the caller may not list the document workspace's members, so
+// the picker reads absence as "not offered", never as "no address". `can_view`
+// is false only for the workspace members `include=no_access` adds; an absent
+// or malformed value stays undefined and is never read as access.
 
 const MentionCandidateListResponse = z.object({
-  candidates: z.array(MentionCandidateSchema),
+  candidates: z.array(z.unknown()).transform((rows): MentionCandidate[] => {
+    const out: MentionCandidate[] = [];
+    for (const row of rows) {
+      const parsed = MentionCandidateSchema.safeParse(row);
+      if (parsed.success) out.push(parsed.data);
+    }
+    return out;
+  }),
 });
 
 export interface MentionCandidateQuery {
@@ -339,11 +340,15 @@ export interface MentionCandidateQuery {
   q?: string;
   /** Page size; the server clamps to [1, 50] with a default of 20. */
   limit?: number;
+  /** `"no_access"` also lists workspace members who cannot view yet
+   *  (`can_view: false`); the server honours it for members who may list
+   *  the workspace's people only. */
+  include?: "no_access";
 }
 
 /** GET /api/v1/documents/{documentID}/mention-candidates - the picker's
- *  people. A malformed answer degrades to an empty list, exactly like the
- *  comment thread. */
+ *  people. A malformed answer degrades to an empty list and a malformed row is
+ *  dropped, exactly like the comment thread. */
 export async function listDocumentMentionCandidates(
   documentId: string,
   query?: MentionCandidateQuery,
@@ -353,6 +358,7 @@ export async function listDocumentMentionCandidates(
   const q = query?.q?.trim();
   if (q) params.set("q", q);
   if (query?.limit !== undefined) params.set("limit", String(query.limit));
+  if (query?.include === "no_access") params.set("include", "no_access");
   const search = params.toString();
   const raw = await request(
     `/api/v1/documents/${enc(documentId)}/mention-candidates${search ? `?${search}` : ""}`,

@@ -235,3 +235,22 @@ test("a NOTE run through the evidence runner can never log a PASS", () => {
   assert.equal(ledger[0].result, "BLOCKED", "the ledger line a NOTE run writes is not a PASS");
   assert.equal(ledger[0].exitCode, SKIP_EXIT_CODE);
 });
+
+test("runJob FAILS (exit 1, never a bless) a web capture whose frame token granted no AI (RFE5-202)", () => {
+  const captures = cx.mkCaptures(tmpDir("g7-06-captures-"));
+  const goldens = cx.writeGoldens(tmpDir("g7-06-goldens-"), { capturesDir: captures, fixtures: [ONE], hosts: ["desktop", "web"] });
+  const metaFile = join(captures, "web", "meta.json");
+  const meta = readJson(metaFile);
+  meta.fixtures[ONE].ai = false;
+  meta.fixtures[ONE].uniworkAi = false;
+  writeFileSync(metaFile, `${JSON.stringify(meta, null, 2)}\n`);
+  const pinDir = fixturePinDir();
+  const compare = runJob({ capturesDir: captures, goldensDir: goldens, pinDir, fixtures: [ONE], checks: ["golden"], outDir: outDir("job-ai-off-compare") });
+  assert.equal(compare.checks.golden.status, "FAIL");
+  assert.deepEqual(compare.checks.golden.reasons, ["capture_ai_off"]);
+  assert.equal(exitCodeFor(compare.checks), 1);
+  const update = runJob({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), pinDir, fixtures: [ONE], updateGoldens: true, outDir: outDir("job-ai-off-update") });
+  assert.equal(update.checks.golden.status, "FAIL");
+  assert.deepEqual(update.checks.golden.reasons, [`capture_ai_off:web/${ONE}`]);
+  assert.equal(exitCodeFor(update.checks), 1);
+});

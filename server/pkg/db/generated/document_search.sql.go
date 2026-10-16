@@ -38,8 +38,51 @@ WHERE d.organization_id = $1
   AND ($12::timestamptz IS NULL OR d.archived_at < $12)
   AND ($13::text IS NULL
        OR (NOT $14::boolean
+           AND (NOT $3::boolean
+                 OR d.visibility <> 'restricted'
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY($7::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = $5
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $13::text || '%' ESCAPE '\')
-       OR ($14::boolean
+       OR (($14::boolean OR NOT (NOT $3::boolean
+                 OR d.visibility <> 'restricted'
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY($7::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = $5
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $13::text || '%' ESCAPE '\'))
   AND ($15::timestamptz IS NULL
        OR (d.archived_at, d.id) < ($15, $16::text))
@@ -253,8 +296,51 @@ WHERE d.organization_id = $1
   AND ($15::timestamptz IS NULL OR d.updated_at < $15)
   AND ($16::text IS NULL
        OR (NOT $17::boolean
+           AND (NOT $4::boolean
+                 OR d.visibility <> 'restricted'
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY($10::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = $7
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $16::text || '%' ESCAPE '\')
-       OR ($17::boolean
+       OR (($17::boolean OR NOT (NOT $4::boolean
+                 OR d.visibility <> 'restricted'
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY($10::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = $7
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $16::text || '%' ESCAPE '\'))
   AND ($18::float8 IS NULL
        OR (d.position, d.id) > ($18, $19::text))
@@ -373,26 +459,48 @@ const listDocumentsPage = `-- name: ListDocumentsPage :many
 
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision,
        COALESCE(CASE WHEN $1::text IS NULL THEN NULL::text
+                     WHEN NOT (NOT $2::boolean
+                 OR d.visibility <> 'restricted'
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $3)
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY($4::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = $3
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now())) THEN NULL::text
                      ELSE left(d.content_text, 160)::text END, '')::text AS snippet
 FROM documents d
-WHERE d.organization_id = $2
-  AND d.workspace_id = $3
+WHERE d.organization_id = $5
+  AND d.workspace_id = $6
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND ($4
-       OR ($5 AND d.visibility = 'workspace')
-       OR ($6 AND d.acl_owner_id = $7)
-       OR ($8 AND EXISTS (
+  AND ($2
+       OR ($7 AND d.visibility = 'workspace')
+       OR ($8 AND d.acl_owner_id = $3)
+       OR ($9 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($9::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $7)
+              AND s.level = ANY($10::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $3)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($10::text[]))))))
+                       AND s.principal_id = ANY($4::text[]))))))
   AND ($11::text IS NULL OR d.kind = $11)
   AND ($12::text IS NULL OR d.kind <> $12)
   AND ($13::text IS NULL OR d.updated_by = $13)
@@ -400,8 +508,51 @@ WHERE d.organization_id = $2
   AND ($15::timestamptz IS NULL OR d.updated_at < $15)
   AND ($1::text IS NULL
        OR (NOT $16::boolean
+           AND (NOT $2::boolean
+                 OR d.visibility <> 'restricted'
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $3)
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY($4::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = $3
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
-       OR ($16::boolean
+       OR (($16::boolean OR NOT (NOT $2::boolean
+                 OR d.visibility <> 'restricted'
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $3)
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY($4::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = $3
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $1::text || '%' ESCAPE '\'))
   AND ($17::timestamptz IS NULL
        OR (d.updated_at, d.id) < ($17, $18::text))
@@ -411,15 +562,15 @@ LIMIT $19
 
 type ListDocumentsPageParams struct {
 	Query           pgtype.Text        `json:"query"`
+	SeeAll          bool               `json:"see_all"`
+	ActorID         pgtype.Text        `json:"actor_id"`
+	ShareWorkspaces []string           `json:"share_workspaces"`
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
-	SeeAll          interface{}        `json:"see_all"`
 	MemberVisible   interface{}        `json:"member_visible"`
 	AclOwner        interface{}        `json:"acl_owner"`
-	ActorID         pgtype.Text        `json:"actor_id"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareLevels     []string           `json:"share_levels"`
-	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
 	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
@@ -494,6 +645,17 @@ type ListDocumentsPageRow struct {
 // a member listing visibility. Restricted docs never match member_visible,
 // so an invisible document drops out of the set before LIMIT runs.
 //
+// DOC-05 (UNI-1628): a see_all caller (workspace owner/admin) still lists a
+// restricted document they reach only through see_all - not the ACL owner, no
+// live share, no live break-glass grant - but cannot read it: such a row has
+// an empty snippet and a query matches its title only, never search_text, so
+// neither the snippet nor a body-only keyword leaks the content. The
+// "content readable" predicate is inlined where it is used.
+// acl_owner_id is NULL for agent/system-created documents: every ACL-owner leg of
+// that predicate carries IS NOT NULL, or the comparison is NULL, NOT NULL stays
+// NULL and the snippet CASE falls through to the body (same trap as
+// document_tree.sql ListDocumentSubtreeNeedingAccessCheck).
+//
 // Actor-kind guards (resolveLevel answers the same): agents are never share
 // principals and never ACL owners, so callers pass allow_shares / acl_owner
 // false for an agent and every share or ACL-owner leg folds shut.
@@ -502,15 +664,15 @@ type ListDocumentsPageRow struct {
 func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPageParams) ([]ListDocumentsPageRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsPage,
 		arg.Query,
+		arg.SeeAll,
+		arg.ActorID,
+		arg.ShareWorkspaces,
 		arg.OrganizationID,
 		arg.WorkspaceID,
-		arg.SeeAll,
 		arg.MemberVisible,
 		arg.AclOwner,
-		arg.ActorID,
 		arg.AllowShares,
 		arg.ShareLevels,
-		arg.ShareWorkspaces,
 		arg.Kind,
 		arg.ExcludeKind,
 		arg.UpdatedBy,

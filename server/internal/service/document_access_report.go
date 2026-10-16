@@ -12,12 +12,16 @@ import (
 )
 
 // Document access report (UNI-1643): who holds which level on every document
-// the caller manages in a workspace or one folder (recursive). It reads the
-// caller's and each person's level through the list mirror of the resolver
-// (documentListScope + listRowAccess), never through a second access rule.
+// the caller may administer (canAdminister: manage, or DOC-05's AdminScope on
+// a restricted document) in a workspace or one folder (recursive). It reads
+// the caller's and each person's level through the list mirror of the
+// resolver (documentListScope + listRowAccess, break-glass grants included),
+// never through a second access rule. It carries metadata only - titles,
+// paths, principals, levels - never a document's content, so an AdminScope
+// caller with no read level sees here what the share panel shows them.
 
-// Row sources of the access report. Unknown values stay possible on the wire
-// (break_glass lands with UNI-1413); clients render them as "other".
+// Row sources of the access report. Unknown values stay possible on the wire;
+// clients render them as "other".
 const (
 	AccessReportSourceACLOwner   = "acl_owner"
 	AccessReportSourceWorkspace  = "workspace"
@@ -82,9 +86,7 @@ func effectiveAccessReportLimit(limit int) int {
 	return limit
 }
 
-// accessReportLevels are the row levels a filter may name. comment is
-// accepted before UNI-1413 adds it to the shares CHECK; it then matches
-// nothing.
+// accessReportLevels are the row levels a filter may name (G8-18's ladder).
 var accessReportLevels = map[string]bool{"view": true, "comment": true, "edit": true, "manage": true}
 
 func validateAccessReportQuery(in DocumentAccessReportQuery) error {
@@ -125,7 +127,9 @@ type accessReportRun struct {
 // openAccessReport runs the gates of one report request through q: the
 // caller is a human effective member of the workspace (the same
 // documentListScope every document list resolves), and a named folder is a
-// live folder of this workspace the caller reads.
+// live folder of this workspace the caller reads or administers (DOC-05: an
+// AdminScope caller sees a restricted folder's metadata, so it may scope the
+// report to it; the same gate the share panel opens on).
 func (s *DocumentService) openAccessReport(ctx context.Context, q *db.Queries, actor Actor, workspaceID string, in DocumentAccessReportQuery) (*accessReportRun, error) {
 	if err := validateAccessReportQuery(in); err != nil {
 		return nil, err
@@ -155,7 +159,7 @@ func (s *DocumentService) openAccessReport(ctx context.Context, q *db.Queries, a
 		}
 	}
 	if in.FolderID != "" {
-		doc, _, err := s.authorizeDocumentQ(ctx, q, actor, in.FolderID, DocumentLevelView)
+		doc, _, err := s.authorizeDocumentGate(ctx, q, actor, in.FolderID, decideDocumentViewOrAdminister)
 		if err != nil {
 			if isGateRefusal(err) {
 				return nil, ErrNotFound
@@ -302,7 +306,7 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 	var listed []DocumentListItem
 	for _, c := range cands {
 		switch {
-		case c.Access.Level.AtLeast(DocumentLevelManage):
+		case c.Access.canAdminister():
 			listed = append(listed, c)
 		case c.Access.Level.AtLeast(DocumentLevelView):
 			out.skipped++
@@ -335,11 +339,25 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 	for _, l := range linkRows {
 		links[l.DocumentID] = int(l.N)
 	}
+	grantRows, err := r.q.ListLiveBreakGlassGrantsForReport(ctx, db.ListLiveBreakGlassGrantsForReportParams{
+		OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, DocumentIds: ids,
+	})
+	if err != nil {
+		return out, err
+	}
+	grants := make(map[string][]db.ListLiveBreakGlassGrantsForReportRow, len(listed))
+	for _, g := range grantRows {
+		// Only a person holds a grant (DOC-05); any other kind is not a
+		// principal the report can name.
+		if g.ActorKind == string(audit.KindHuman) {
+			grants[g.DocumentID] = append(grants[g.DocumentID], g)
+		}
+	}
 	if err := r.s.attachListPathsQ(ctx, r.q, r.scope, r.workspaceID, false, listed); err != nil {
 		return out, err
 	}
 	for _, it := range listed {
-		item, keep, err := r.buildItem(ctx, it, shares[it.Document.ID], links[it.Document.ID])
+		item, keep, err := r.buildItem(ctx, it, shares[it.Document.ID], grants[it.Document.ID], links[it.Document.ID])
 		if err != nil {
 			return out, err
 		}
@@ -363,7 +381,7 @@ func accessReportCandidate(r db.ListDocumentAccessReportSubtreeCandidatesRow) db
 
 // buildItem turns one listed document into its rows, then applies the person
 // and level filters; keep is false when the filters leave nothing of it.
-func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, shares []db.ListLiveDocumentSharesForReportRow, links int) (DocumentAccessReportItem, bool, error) {
+func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, shares []db.ListLiveDocumentSharesForReportRow, grants []db.ListLiveBreakGlassGrantsForReportRow, links int) (DocumentAccessReportItem, bool, error) {
 	doc := it.Document
 	item := DocumentAccessReportItem{Item: it, LiveLinkCount: links}
 	// The page's shares in the list mirror's shape: every level below is
@@ -372,12 +390,22 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 	for i, sh := range shares {
 		mirror[i] = db.ListLiveSharesForDocumentsRow{DocumentID: sh.DocumentID, PrincipalType: sh.PrincipalType, PrincipalID: sh.PrincipalID, Level: sh.Level}
 	}
+	// holdsGrant is listRowAccess's break-glass input for one person: a live
+	// grant of theirs on this document (it only counts on an AdminScope row).
+	holdsGrant := func(userID string) bool {
+		for _, g := range grants {
+			if g.ActorID == userID {
+				return true
+			}
+		}
+		return false
+	}
 	userLevel := func(userID string) (DocumentLevel, error) {
 		sc, err := r.userScope(ctx, userID)
 		if err != nil || sc == nil {
 			return DocumentLevelNone, err
 		}
-		return listRowAccess(*sc, false, doc, mirror).Level, nil
+		return listRowAccess(*sc, false, doc, mirror, holdsGrant(userID)).Level, nil
 	}
 	active := make([]bool, len(shares))
 	for i, sh := range shares {
@@ -437,9 +465,29 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 		row.EffectiveLevel = accessReportLevel(lvl)
 		item.Rows = append(item.Rows, row)
 	}
+	// Live break-glass grants (UNI-1643 P-10, DOC-05), after the shares in
+	// granted_at order. The admin opened it for themselves, so granted_by is
+	// the grantee; the reason stays off the report.
+	for _, g := range grants {
+		lvl, err := userLevel(g.ActorID)
+		if err != nil {
+			return item, false, err
+		}
+		row := DocumentAccessReportRow{
+			Source: AccessReportSourceBreakGlass, Via: string(DocumentViaBreakGlass),
+			PrincipalType: DocumentPrincipalUser, PrincipalID: g.ActorID, Level: g.Level,
+			EffectiveLevel: accessReportLevel(lvl), Active: lvl != DocumentLevelNone,
+			GrantedBy: g.ActorID, GrantedByKind: g.ActorKind,
+		}
+		if g.GrantedAt.Valid {
+			at := g.GrantedAt.Time.UTC()
+			row.GrantedAt = &at
+		}
+		item.Rows = append(item.Rows, row)
+	}
 
 	if r.in.PersonID != "" {
-		item.PersonLevel = listRowAccess(*r.person, false, doc, mirror).Level
+		item.PersonLevel = listRowAccess(*r.person, false, doc, mirror, holdsGrant(r.in.PersonID)).Level
 		kept := item.Rows[:0]
 		for _, row := range item.Rows {
 			if r.rowReachesPerson(doc, row) {
