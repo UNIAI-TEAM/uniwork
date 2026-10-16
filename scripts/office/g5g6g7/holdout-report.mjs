@@ -118,8 +118,9 @@ export function callLatencies(run) {
 }
 
 function tallyOf(asks, statusOf) {
-  const t = { total: asks.length, passed: 0, failed: 0, awaiting: 0 };
+  const t = { total: asks.length, passed: 0, failed: 0, awaiting: 0, capped: 0 };
   for (const ask of asks) {
+    if (ask.capReached) t.capped += 1;
     const s = statusOf(ask);
     if (s === 'pass') t.passed += 1;
     else if (s === 'needs_reviewer') t.awaiting += 1;
@@ -147,6 +148,10 @@ export function summarizeRun(run, flaky = new Set()) {
     partial: run.partial,
     overall: tallyOf(run.asks, statusOf),
     errored: run.asks.filter((a) => a.errored).length,
+    // The asks whose run ended at a cap (tool_rounds / model_calls): a real measurement of the model, not an error
+    // (G7-12 run409; a run file from before the fix carries no `capReached` and counts none).
+    capReached: run.asks.filter((a) => a.capReached).length,
+    capKinds: [...new Set(run.asks.filter((a) => a.capReached).map((a) => a.capReached.kind ?? 'unknown'))].sort(),
     byGroup: Object.fromEntries(GROUPS.map((g) => [g, tallyOf(run.asks.filter((a) => a.group === g), statusOf)])),
     byFormat: Object.fromEntries(FORMATS.map((f) => [f, tallyOf(run.asks.filter((a) => a.format === f), statusOf)])),
     outsideAllowlist: { asks: outside.length, occurrences: outside.reduce((n, a) => n + a.outsideAllowlist.length, 0), names: [...new Set(outside.flatMap((a) => a.outsideAllowlist))].sort() },
@@ -666,6 +671,7 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     latencyP50: distribution(summaries.map((s) => s.latency.p50)),
     latencyP95: distribution(summaries.map((s) => s.latency.p95)),
     byGroup: Object.fromEntries(GROUPS.map((g) => [g, distribution(summaries.map((s) => s.byGroup[g].rate))])),
+    byGroupCapped: Object.fromEntries(GROUPS.map((g) => [g, distribution(summaries.map((s) => s.byGroup[g].capped))])),
     byFormat: Object.fromEntries(FORMATS.map((f) => [f, distribution(summaries.map((s) => s.byFormat[f].rate))])),
   };
   const pooled = runs.flatMap((r) => callLatencies(r).values).sort((a, b) => a - b);
@@ -822,16 +828,22 @@ export function renderReport(report) {
   w();
   w('## 2. Tải của lần chạy');
   w();
-  w('| Lần | Luồng | Lượt hỏi | Lượt gọi model | Thử lại | 429 | 5xx/mạng | Gia hạn token (phiên / khung) | Token vào | Token ra | Nguồn token |');
-  w('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |');
+  w('| Lần | Luồng | Lượt hỏi | Lượt gọi model | Thử lại | 429 | 5xx/mạng | Lượt hỏi lỗi / hết trần | Gia hạn token (phiên / khung) | Token vào | Token ra | Nguồn token |');
+  w('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |');
   const tokenSource = (s) => (s.load.tokensFromUsageRows > 0 ? `ai_usage_events (${s.load.tokenCallsWithRow}/${s.load.tokenCalls} lượt gọi có dòng)` : s.load.inputTokens > 0 ? 'phản hồi façade' : 'không có');
-  report.summaries.forEach((s, i) => w(`| ${s.runIndex} | ${report.config[i].threads} | ${s.load.asks} | ${s.load.modelCalls} | ${s.load.retries} | ${s.load.rateLimited} | ${s.load.serverErrors} | ${s.load.renewals.session} / ${s.load.renewals.frame} | ${s.load.inputTokens} | ${s.load.outputTokens} | ${tokenSource(s)} |`));
+  report.summaries.forEach((s, i) => w(`| ${s.runIndex} | ${report.config[i].threads} | ${s.load.asks} | ${s.load.modelCalls} | ${s.load.retries} | ${s.load.rateLimited} | ${s.load.serverErrors} | ${s.errored} / ${s.capReached} | ${s.load.renewals.session} / ${s.load.renewals.frame} | ${s.load.inputTokens} | ${s.load.outputTokens} | ${tokenSource(s)} |`));
   w();
   // G7-12 pilot blocker: the credentials outlived by a run are renewed by the runner. The column above and this note are
   // the whole story: a renewal is not a defect, it voids no run, and it never enters the model latency (a retried call
   // keeps its own latency; the renewal time is recorded on the ask's `renewals` notes, outside every call).
   const renewals = report.summaries.reduce((n, s) => ({ session: n.session + s.load.renewals.session, frame: n.frame + s.load.renewals.frame }), { session: 0, frame: 0 });
   w(`Gia hạn token: ${renewals.session} lần gia hạn phiên, ${renewals.frame} lần gia hạn token khung. Token truy cập hết hạn sau 15 phút và token khung sau 10 phút, còn một lần chạy dài hơn cả hai cửa sổ, nên bộ chạy gia hạn trước khi dùng (phiên ở 12 phút, khung ở 8 phút) và gia hạn một lần nữa khi một lượt gọi trả 401; một lần gia hạn không làm mất hiệu lực lần chạy và không tính vào độ trễ model.`);
+  // G7-12 run409: a run allows 9 model calls (1 question turn + 8 tool rounds); the runner ends the ask at the cap the
+  // answer announces, or on a 409 run_limit_reached, and records `capReached` on it. That ask is measured like any
+  // other (usually it misses), it is not an error, and it is not counted in the session's "> 10% errors" stop rule.
+  const capped = report.summaries.reduce((n, s) => n + s.capReached, 0);
+  const capKinds = [...new Set(report.summaries.flatMap((s) => s.capKinds))].sort();
+  w(`Hết trần (cap_reached): ${capped} lượt hỏi${capKinds.length > 0 ? ` (trần: ${capKinds.join(', ')})` : ''}. Một run cho 1 lượt câu hỏi + 8 vòng tool-result = 9 lượt gọi model; bộ chạy dừng vòng công cụ khi câu trả lời báo \`x_uniwork.step >= limit\` và không bao giờ gửi lượt thứ mười, còn 409 \`run_limit_reached\` cũng kết thúc lượt hỏi như vậy. Lượt hỏi hết trần vẫn được chấm trên phần model đã tạo ra (nên thường lệch), **không** phải lỗi và **không** tính vào ngưỡng dừng 10% lượt hỏi lỗi của phiên; cột ở mục 2 in số lượt hỏi lỗi cạnh số hết trần.`);
   w();
   w('## 3. Chỉ số §9.2 (min / trung vị / max trên các lần chạy)');
   w();
@@ -863,9 +875,11 @@ export function renderReport(report) {
   w();
   w('### Theo nhóm (tỷ lệ khớp đáp án)');
   w();
-  w('| Nhóm | Mỗi lần chạy | min / trung vị / max |');
-  w('| --- | --- | --- |');
-  for (const g of GROUPS) row(`${g} (${report.summaries[0].byGroup[g].total} lượt hỏi)`, d.byGroup[g], pct);
+  w('| Nhóm | Mỗi lần chạy | min / trung vị / max | Hết trần (cap_reached), mỗi lần chạy |');
+  w('| --- | --- | --- | --- |');
+  for (const g of GROUPS) {
+    w(`| ${g} (${report.summaries[0].byGroup[g].total} lượt hỏi) | ${d.byGroup[g].values.map(pct).join('; ')} | ${triple(d.byGroup[g], pct)} | ${d.byGroupCapped[g].values.join('; ')} |`);
+  }
   w();
   w('### Theo định dạng (tỷ lệ khớp đáp án)');
   w();

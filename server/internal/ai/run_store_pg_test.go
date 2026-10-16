@@ -26,7 +26,9 @@ import (
 // run past its window is run_expired, a spent cap is run_limit_reached with
 // the cap in fields.limit, and a row under both caps (the lost race between
 // the UPDATE and the read) answers run_expired - the turn really did reserve
-// nothing, so asking again is the honest answer.
+// nothing, so asking again is the honest answer. A spent cap answers with the
+// run that was refused beside the error (A12: the refusal is an answer of that
+// run, and the wire names it); a run that is gone names nothing.
 func TestRunStoreRefusalNamesTheSpentCap(t *testing.T) {
 	now := time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)
 	row := func(mutate func(*db.AiUniworkRun)) db.AiUniworkRun {
@@ -40,17 +42,17 @@ func TestRunStoreRefusalNamesTheSpentCap(t *testing.T) {
 		return r
 	}
 
-	if err := runTurnRefusal(row(func(r *db.AiUniworkRun) {
+	if run, err := runTurnRefusal(row(func(r *db.AiUniworkRun) {
 		r.ExpiresAt = pgtype.Timestamptz{Time: now.Add(-time.Second), Valid: true}
-	}), false, now); !errors.Is(err, ErrRunExpired) {
-		t.Fatalf("expired run = %v, want ErrRunExpired", err)
+	}), false, now); !errors.Is(err, ErrRunExpired) || run.ID != "" {
+		t.Fatalf("expired run = %v / %q, want ErrRunExpired with no run named", err, run.ID)
 	}
 
 	atCallCap := row(func(r *db.AiUniworkRun) { r.ModelCalls = UniworkRunModelCallMax })
-	if err := runTurnRefusal(atCallCap, false, now); !isRunLimit(err, UniworkRunLimitModelCalls) {
-		t.Fatalf("spent call cap = %v, want run_limit_reached(model_calls)", err)
+	if run, err := runTurnRefusal(atCallCap, false, now); !isRunLimit(err, UniworkRunLimitModelCalls) || run.ID != "run-1" {
+		t.Fatalf("spent call cap = %v / %q, want run_limit_reached(model_calls) naming run-1", err, run.ID)
 	}
-	if err := runTurnRefusal(atCallCap, true, now); !isRunLimit(err, UniworkRunLimitModelCalls) {
+	if _, err := runTurnRefusal(atCallCap, true, now); !isRunLimit(err, UniworkRunLimitModelCalls) {
 		t.Fatalf("a tool round at the call cap = %v, want the call cap to win", err)
 	}
 
@@ -58,12 +60,12 @@ func TestRunStoreRefusalNamesTheSpentCap(t *testing.T) {
 		r.ModelCalls = 2
 		r.ToolRounds = UniworkRunToolRoundMax
 	})
-	if err := runTurnRefusal(atRoundCap, true, now); !isRunLimit(err, UniworkRunLimitToolRounds) {
-		t.Fatalf("spent round cap = %v, want run_limit_reached(tool_rounds)", err)
+	if run, err := runTurnRefusal(atRoundCap, true, now); !isRunLimit(err, UniworkRunLimitToolRounds) || run.ID != "run-1" {
+		t.Fatalf("spent round cap = %v / %q, want run_limit_reached(tool_rounds) naming run-1", err, run.ID)
 	}
 
-	if err := runTurnRefusal(row(nil), false, now); !errors.Is(err, ErrRunExpired) {
-		t.Fatalf("under both caps = %v, want ErrRunExpired (nothing was reserved)", err)
+	if run, err := runTurnRefusal(row(nil), false, now); !errors.Is(err, ErrRunExpired) || run.ID != "" {
+		t.Fatalf("under both caps = %v / %q, want ErrRunExpired with no run named (nothing was reserved)", err, run.ID)
 	}
 }
 
@@ -354,6 +356,54 @@ func TestRunStoreCapsRefuseAtModelCallsAndToolRounds(t *testing.T) {
 	if calls, toolRounds := runCounters(t, pool, rounds.ID); calls != UniworkRunModelCallMax || toolRounds != UniworkRunToolRoundMax {
 		t.Fatalf("counters = %d calls / %d rounds, want %d / %d", calls, toolRounds,
 			UniworkRunModelCallMax, UniworkRunToolRoundMax)
+	}
+}
+
+// The G7-12 official session's 409 at the store (2026-10-16): one question
+// turn and eight tool rounds are answered, and the ninth tool round — the
+// run's tenth model call — is refused run_limit_reached(tool_rounds). The run
+// is still live, so the refusal answers with it beside the error: the wire
+// names the run on those answers (A12, design §2.1), while a run past its
+// window is run_expired and names nothing (the client drops the id).
+func TestRunStoreToolRoundCapNamesTheRefusedRun(t *testing.T) {
+	store, _, pool := runStoreFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	conv := seedRunConversation(t, pool, "org-a", "user-a", now)
+
+	run, err := store.TakeTurn(ctx, TakeRunTurn{
+		OrganizationID: "org-a", ConversationID: conv, CreatedBy: "user-a", Now: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for round := 1; round <= UniworkRunToolRoundMax; round++ {
+		if _, err := store.TakeTurn(ctx, TakeRunTurn{
+			RunID: run.ID, OrganizationID: "org-a", ConversationID: conv, ToolRound: true,
+			Now: now.Add(time.Duration(round) * time.Second),
+		}); err != nil {
+			t.Fatalf("tool round %d of %d: %v", round, UniworkRunToolRoundMax, err)
+		}
+	}
+	refused, err := store.TakeTurn(ctx, TakeRunTurn{
+		RunID: run.ID, OrganizationID: "org-a", ConversationID: conv, ToolRound: true,
+		Now: now.Add(time.Minute),
+	})
+	wantRunLimitReached(t, err, UniworkRunLimitToolRounds)
+	if refused.ID != run.ID || refused.ConversationID != conv {
+		t.Fatalf("refusal named run %q of conversation %q, want %q of %q", refused.ID, refused.ConversationID, run.ID, conv)
+	}
+	if calls, rounds := runCounters(t, pool, run.ID); calls != UniworkRunModelCallMax-1 || rounds != UniworkRunToolRoundMax {
+		t.Fatalf("counters after the refusal = %d calls / %d rounds, want %d / %d",
+			calls, rounds, UniworkRunModelCallMax-1, UniworkRunToolRoundMax)
+	}
+
+	gone, err := store.TakeTurn(ctx, TakeRunTurn{
+		RunID: run.ID, OrganizationID: "org-a", ConversationID: conv,
+		Now: now.Add(UniworkRunIdleTTL + time.Minute),
+	})
+	if !errors.Is(err, ErrRunExpired) || gone.ID != "" {
+		t.Fatalf("turn past the window = %v / %q, want ErrRunExpired naming no run", err, gone.ID)
 	}
 }
 
