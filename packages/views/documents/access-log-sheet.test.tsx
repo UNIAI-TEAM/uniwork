@@ -201,6 +201,12 @@ describe("AccessLogSheet", () => {
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 
+  it("reads the logs for a break-glass admin (view + admin_scope parsed from the wire)", async () => {
+    renderSheet({ doc: documentFixture({ my_level: "view", admin_scope: true }) });
+    expect(await screen.findByText("Bình")).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.accessLog.manage_only"))).toBeNull();
+  });
+
   it("holds focus inside while open and closes on Escape", async () => {
     const onOpenChange = vi.fn();
     renderSheet({ onOpenChange });

@@ -32,6 +32,21 @@ func TestDocumentShareBatch(t *testing.T) {
 		}
 	}
 
+	// comment is a level of its own on the batch route.
+	res, out = doJSON(t, w.srv, "POST", path, w.token, map[string]any{
+		"principal_ids": []string{memberA}, "level": "comment"})
+	if res.StatusCode != 201 {
+		t.Fatalf("batch share at comment: %d %v", res.StatusCode, out)
+	}
+	if sh, _ := out["shares"].([]any); len(sh) != 1 || sh[0].(map[string]any)["level"] != "comment" {
+		t.Fatalf("comment shares = %v", out["shares"])
+	}
+	res, out = doJSON(t, w.srv, "POST", path, w.token, map[string]any{
+		"principal_ids": []string{memberA}, "level": "view"})
+	if res.StatusCode != 201 {
+		t.Fatalf("batch share back to view: %d %v", res.StatusCode, out)
+	}
+
 	// 422 names the offending ids (request order) and writes nothing.
 	unknown := util.NewID()
 	res, out = doJSON(t, w.srv, "POST", path, w.token, map[string]any{

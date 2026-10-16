@@ -80,4 +80,36 @@ describe("vi/en parity", () => {
       .map(([k]) => k);
     expect(leftover).toEqual([]);
   });
+
+  it("DOC-05 break-glass và thông báo document_break_glass có đủ bản vi/en đúng chuẩn", () => {
+    expect(VI["documents.breakGlass.lockedTitle"]).toBe("Tài liệu này ở chế độ hạn chế");
+    expect(EN["documents.breakGlass.lockedTitle"]).toBe("This document is restricted");
+    expect(VI["documents.breakGlass.reasonTooShort"]).toBe("Hãy nhập lý do ít nhất 10 ký tự.");
+    expect(EN["documents.breakGlass.reasonTooShort"]).toBe(
+      "Enter a reason of at least 10 characters.",
+    );
+    expect(VI["documents.breakGlass.reasonTooLong"]).toBe("Lý do tối đa 500 ký tự.");
+    expect(EN["documents.breakGlass.reasonTooLong"]).toBe(
+      "Reason must be 500 characters or fewer.",
+    );
+    expect(VI["documents.breakGlass.selfShareError"]).toBe(
+      "Quản trị viên không thể tự cấp quyền qua mục Chia sẻ. Hãy dùng Truy cập khẩn cấp (24 giờ, có ghi nhật ký).",
+    );
+    expect(EN["documents.breakGlass.selfShareError"]).toBe(
+      "Admins can't grant themselves access through Share. Use Emergency access (24 hours, audited).",
+    );
+    expect(VI["notifications.kind.document_break_glass"]).toBe(
+      "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “{{document}}”.",
+    );
+    expect(EN["notifications.kind.document_break_glass"]).toBe(
+      "{{actor}} opened emergency view access (24h) to “{{document}}”.",
+    );
+    expect(VI["notifications.kindTitle.document_break_glass"]).toBe(
+      "Truy cập khẩn cấp vào tài liệu",
+    );
+    expect(EN["notifications.kindTitle.document_break_glass"]).toBe(
+      "Emergency access to document",
+    );
+  });
 });
+

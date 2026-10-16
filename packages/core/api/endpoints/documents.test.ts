@@ -1,16 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { DocumentAccessSchema } from "../../types/document";
+import { ApiError } from "../http";
 import { setAccessToken } from "../session";
 import {
+  canBreakGlassFromError,
   createDocument,
+  createDocumentBreakGlass,
   createDocumentFile,
   documentAssetPath,
   documentDownloadPath,
   downloadDocumentFile,
   getDocument,
+  getDocumentAdminSummary,
   getDocumentAsset,
   getDocumentDownloadMeta,
+  isBreakGlassReasonInvalidError,
+  isBreakGlassRequiredError,
+  isDocumentRestrictedError,
+  parseDocumentAccessError,
   patchDocument,
+  revokeDocumentBreakGlass,
   uploadDocumentAsset,
   uploadDocumentFile,
 } from "./documents";
@@ -362,5 +372,271 @@ describe("documents endpoints", () => {
     );
     const out = await listDocumentVersions("d1");
     expect(out.versions[0]?.reason).toBe("future_reason");
+  });
+
+  // ---- DOC-05: break-glass + admin-summary + typed errors ----------------
+
+  const grantBody = (over: Record<string, unknown> = {}) => ({
+    id: "bg1",
+    document_id: "d1",
+    actor_id: "u_admin",
+    actor_name: "Nguyễn Quản Trị",
+    level: "view",
+    reason: "Kiểm tra sự cố bảo mật theo yêu cầu của trưởng bộ phận",
+    granted_at: "2026-10-15T02:00:00Z",
+    expires_at: "2026-10-16T02:00:00Z",
+    ...over,
+  });
+
+  it("createDocumentBreakGlass posts reason and parses the grant envelope", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ grant: grantBody() }, 201));
+    const grant = await createDocumentBreakGlass(
+      "d1",
+      { reason: "Kiểm tra sự cố bảo mật theo yêu cầu của trưởng bộ phận" },
+      { idempotencyKey: "bg-key-1" },
+    );
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/break-glass");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("bg-key-1");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      reason: "Kiểm tra sự cố bảo mật theo yêu cầu của trưởng bộ phận",
+    });
+    expect(grant).toMatchObject({
+      id: "bg1",
+      document_id: "d1",
+      actor_id: "u_admin",
+      actor_name: "Nguyễn Quản Trị",
+      level: "view",
+      expires_at: "2026-10-16T02:00:00Z",
+    });
+  });
+
+  it.each([
+    ...malformedBodies,
+    { grant: null },
+    { grant: { id: "bg1" } },
+    { grant: grantBody({ expires_at: "" }) },
+  ])("createDocumentBreakGlass degrades malformed response %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(
+      createDocumentBreakGlass("d1", { reason: "Lý do hợp lệ trên mười ký tự" }),
+    ).resolves.toBeNull();
+  });
+
+  it("revokeDocumentBreakGlass sends DELETE and verifies { status: 'ok' }", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    const ok = await revokeDocumentBreakGlass("d1", "bg1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/break-glass/bg1");
+    expect(init?.method).toBe("DELETE");
+    expect(ok).toBe(true);
+
+    for (const body of [...malformedBodies, { status: "failed" }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(revokeDocumentBreakGlass("d1", "bg1")).resolves.toBe(false);
+    }
+  });
+
+  it("getDocument keeps admin_scope: true and degrades a non-boolean admin_scope to undefined", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ my_level: "view", via: "break_glass", admin_scope: true }) }));
+    expect((await getDocument("d1"))?.admin_scope).toBe(true);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ admin_scope: "yes" }) }));
+    const degraded = await getDocument("d1");
+    expect(degraded?.title).toBe("Kế hoạch Q4");
+    expect(degraded?.admin_scope).toBeUndefined();
+  });
+
+  it("getDocumentAdminSummary reads metadata, acl_owner, and my_grant", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: {
+          id: "d1",
+          organization_id: "o1",
+          workspace_id: "w1",
+          parent_id: null,
+          kind: "page",
+          title: "Biên bản họp kín",
+          visibility: "restricted",
+          size_bytes: 0,
+          created_by: "u_owner",
+          created_at: "2026-10-14T09:00:00Z",
+          updated_at: "2026-10-15T01:00:00Z",
+        },
+        acl_owner: { user_id: "u_owner", level: "manage", via: "owner" },
+        my_level: "view",
+        via: "break_glass",
+        admin_scope: true,
+        my_grant: grantBody(),
+      }),
+    );
+    const summary = await getDocumentAdminSummary("d1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/admin-summary");
+    expect(init?.method).toBe("GET");
+    expect(summary?.document.title).toBe("Biên bản họp kín");
+    expect(summary?.acl_owner).toEqual({ user_id: "u_owner", level: "manage", via: "owner" });
+    expect(summary?.my_level).toBe("view");
+    expect(summary?.via).toBe("break_glass");
+    expect(summary?.my_grant?.id).toBe("bg1");
+    expect(summary?.admin_scope).toBe(true);
+  });
+
+  it("getDocumentAdminSummary tolerates malformed my_grant/acl_owner and rejects missing document", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: {
+          id: "d1",
+          workspace_id: "w1",
+          kind: "page",
+          title: "Tài liệu hạn chế",
+          visibility: "restricted",
+        },
+        acl_owner: { nope: true },
+        my_level: "",
+        my_grant: { id: "broken-grant-without-timestamps" },
+      }),
+    );
+    const degraded = await getDocumentAdminSummary("d1");
+    expect(degraded?.admin_scope).toBeUndefined();
+    expect(degraded?.document.id).toBe("d1");
+    expect(degraded?.acl_owner).toBeNull();
+    expect(degraded?.my_level).toBe("");
+    expect(degraded?.my_grant).toBeNull();
+
+    for (const body of [...malformedBodies, { document: { id: "d1" } }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(getDocumentAdminSummary("d1")).resolves.toBeNull();
+    }
+  });
+
+  it("getDocumentAdminSummary degrades a non-boolean admin_scope to undefined", async () => {
+    const document = { id: "d1", workspace_id: "w1", kind: "page", title: "Tài liệu hạn chế", visibility: "restricted" };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document, my_level: "", admin_scope: "yes" }));
+    const degraded = await getDocumentAdminSummary("d1");
+    expect(degraded?.document.id).toBe("d1");
+    expect(degraded?.admin_scope).toBeUndefined();
+  });
+
+  it("getDocumentAdminSummary reads owner_kind and revision when sent and degrades them when malformed (waits S-DOC06)", async () => {
+    const base = { id: "d1", workspace_id: "w1", kind: "page", title: "Tài liệu hạn chế", visibility: "restricted" };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: { ...base, owner_kind: "work_product", revision: "7" }, my_level: "" }),
+    );
+    const sent = await getDocumentAdminSummary("d1");
+    expect(sent?.document.owner_kind).toBe("work_product");
+    expect(sent?.document.revision).toBe("7");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: { ...base, owner_kind: 5, revision: 7 }, my_level: "" }));
+    const malformed = await getDocumentAdminSummary("d1");
+    expect(malformed?.document.id).toBe("d1");
+    expect(malformed?.document.owner_kind).toBeUndefined();
+    expect(malformed?.document.revision).toBeUndefined();
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: base, my_level: "" }));
+    const absent = await getDocumentAdminSummary("d1");
+    expect(absent?.document.owner_kind).toBeUndefined();
+    expect(absent?.document.revision).toBeUndefined();
+  });
+
+  it("DocumentSchema parses break_glass_expires_at and DocumentAccessSchema tolerates malformed break_glass items", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: docBody({
+          my_level: "view",
+          via: "break_glass",
+          break_glass_expires_at: "2026-10-16T02:00:00Z",
+        }),
+      }),
+    );
+    const doc = await getDocument("d1");
+    expect(doc?.via).toBe("break_glass");
+    expect(doc?.break_glass_expires_at).toBe("2026-10-16T02:00:00Z");
+
+    const parsedAccess = DocumentAccessSchema.parse({
+      my_level: "",
+      via: "",
+      break_glass: [grantBody(), { id: "incomplete" }, "bad"],
+    });
+    expect(parsedAccess.my_level).toBe("");
+    expect(parsedAccess.break_glass).toHaveLength(1);
+    expect(parsedAccess.break_glass?.[0]?.id).toBe("bg1");
+
+    const nonArrayBreakGlass = DocumentAccessSchema.parse({
+      my_level: "manage",
+      break_glass: "not-an-array",
+    });
+    expect(nonArrayBreakGlass.break_glass).toEqual([]);
+  });
+
+  it("parses document_restricted, break_glass_required, and break_glass_reason_invalid typed errors", () => {
+    const restrictedCanBreakGlass = new ApiError(
+      "restricted",
+      "document_restricted",
+      403,
+      "corr-1",
+      { can_break_glass: true },
+      "permission",
+    );
+    expect(parseDocumentAccessError(restrictedCanBreakGlass)).toEqual({
+      kind: "document_restricted",
+      code: "document_restricted",
+      canBreakGlass: true,
+      status: 403,
+      message: "restricted",
+    });
+    expect(isDocumentRestrictedError(restrictedCanBreakGlass)).toBe(true);
+    expect(canBreakGlassFromError(restrictedCanBreakGlass)).toBe(true);
+
+    // Malformed can_break_glass (non-boolean or missing fields) safely degrades to false.
+    const restrictedMalformed = new ApiError(
+      "restricted",
+      "document_restricted",
+      403,
+      "corr-2",
+      { can_break_glass: "true" },
+      "permission",
+    );
+    expect(parseDocumentAccessError(restrictedMalformed)).toMatchObject({ canBreakGlass: false });
+    expect(canBreakGlassFromError(restrictedMalformed)).toBe(false);
+
+    const selfShareRefused = new ApiError(
+      "use break-glass",
+      "break_glass_required",
+      403,
+      "corr-3",
+      undefined,
+      "permission",
+    );
+    expect(parseDocumentAccessError(selfShareRefused)).toEqual({
+      kind: "break_glass_required",
+      code: "break_glass_required",
+      status: 403,
+      message: "use break-glass",
+    });
+    expect(isBreakGlassRequiredError(selfShareRefused)).toBe(true);
+
+    const invalidReason = new ApiError(
+      "reason too short",
+      "break_glass_reason_invalid",
+      422,
+      "corr-4",
+      { min: 10, max: 500, length: 4 },
+    );
+    expect(parseDocumentAccessError(invalidReason)).toEqual({
+      kind: "break_glass_reason_invalid",
+      code: "break_glass_reason_invalid",
+      min: 10,
+      max: 500,
+      length: 4,
+      status: 422,
+      message: "reason too short",
+    });
+    expect(isBreakGlassReasonInvalidError(invalidReason)).toBe(true);
+
+    // Unrelated error or non-error returns null.
+    expect(parseDocumentAccessError(new ApiError("no", "forbidden", 403))).toBeNull();
+    expect(parseDocumentAccessError(null)).toBeNull();
+    expect(parseDocumentAccessError("nope")).toBeNull();
   });
 });

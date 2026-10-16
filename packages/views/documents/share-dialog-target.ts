@@ -1,4 +1,3 @@
-import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import type { Document, DocumentAccessLevel } from "@uniwork/core/types/document";
 
 /**
@@ -6,12 +5,13 @@ import type { Document, DocumentAccessLevel } from "@uniwork/core/types/document
  * A live `Document` satisfies it, and so does the locked card's target built
  * from the admin-summary read, where a pure admin has `my_level: ""` and
  * `admin_scope: true` — so the dialog never needs the document body.
- * `title` is optional: only the owner-transfer heading reads it.
+ * `title` is optional: only the owner-transfer heading reads it. `revision`
+ * is optional too: the summary does not carry it, and only the visibility
+ * editor needs it.
  */
-export type ShareDialogTarget = Pick<
-  Document,
-  "id" | "visibility" | "owner_kind" | "organization_id" | "revision" | "archived_at"
-> & {
+export type ShareDialogTarget = Pick<Document, "id" | "visibility" | "owner_kind" | "organization_id" | "archived_at"> & {
   my_level?: DocumentAccessLevel | "";
   title?: string;
-} & DocumentAdminScopeFake;
+  revision?: string;
+  admin_scope?: boolean;
+};

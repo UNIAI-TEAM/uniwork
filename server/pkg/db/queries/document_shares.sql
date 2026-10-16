@@ -53,3 +53,32 @@ WHERE id = sqlc.arg(id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id)
   AND revoked_at IS NULL;
+
+-- The caller's live emergency view grant on a document (DOC-05; UNI-1628).
+-- name: GetLiveDocumentBreakGlassGrantForActor :one
+SELECT *
+FROM document_break_glass_grants
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND actor_id = sqlc.arg(actor_id)
+  AND actor_kind = sqlc.arg(actor_kind)
+  AND revoked_at IS NULL
+  AND expires_at > now()
+ORDER BY granted_at DESC, id DESC
+LIMIT 1;
+
+-- The caller's live emergency view grants on a page of documents of one
+-- workspace, read once so a list can resolve every restricted row's level
+-- without a query per row (DOC-05; UNI-1628).
+-- name: ListLiveBreakGlassGrantsForDocuments :many
+SELECT document_id, level
+FROM document_break_glass_grants
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = ANY(sqlc.arg(document_ids)::text[])
+  AND actor_id = sqlc.arg(actor_id)
+  AND actor_kind = sqlc.arg(actor_kind)
+  AND revoked_at IS NULL
+  AND expires_at > now();
+

@@ -121,7 +121,10 @@ func fileUploadKey(command, target, key string) string {
 // UploadDocumentFile stages bytes for a later versions/commit (C-01 §14.4):
 // edit on the document now, bytes into FileService, format check, and the
 // staged file_id back as upload_id. The permission is checked again at
-// commit - this one only stops a stranger from filling storage.
+// commit - this one only stops a stranger from filling storage. It answers
+// as the commit does (preflightDocument, then decideFileSave), so an
+// AdminScope caller with no read level on a live restricted file gets
+// document_restricted here as on the asset upload route (DOC-05 §4).
 func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, documentID string, in DocumentUploadInput) (DocumentUpload, error) {
 	fs, err := s.fileService()
 	if err != nil {
@@ -131,7 +134,7 @@ func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, d
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	if err := decideDocumentAccess(doc, access, DocumentLevelEdit); err != nil {
+	if err := decideFileSave(doc, access); err != nil {
 		return DocumentUpload{}, err
 	}
 	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, documentScope(doc.OrganizationID, doc.WorkspaceID),

@@ -54,6 +54,9 @@ export const documentKeys = {
   // `shares`, so approve/decline invalidate both from one document.
   accessRequests: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "access-requests"] as const,
+  /** Metadata-only summary an admin-only caller reads (DOC-05); under detail so a detail invalidation refreshes it. */
+  adminSummary: (wsId: string, documentId: string) =>
+    [...documentKeys.detail(wsId, documentId), "admin-summary"] as const,
   accessLogs: (wsId: string, documentId: string, action: string = "") =>
     [...documentKeys.detail(wsId, documentId), "access-logs", action] as const,
   // UNI-1643. Under the workspace root so a `document.*` frame refreshes an open
