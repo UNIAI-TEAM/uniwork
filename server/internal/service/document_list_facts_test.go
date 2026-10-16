@@ -28,9 +28,12 @@ func TestDocumentListRowsCarrySizeAndOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create folder: %v", err)
 	}
+	// The uploaded seed is a Markdown file (note.md, text/markdown) and the
+	// blank is a DOCX the engine wrote, so each row reports the library format
+	// of its current version; a page and a folder report none (UNI-1868).
 	want := map[string]DocumentListFacts{
-		f.doc:              {SizeBytes: int64(len(content)), Origin: DocumentOriginUpload},
-		blank.Document.ID:  {SizeBytes: int64(len(blankDOCXSeed())), Origin: DocumentOriginCreated},
+		f.doc:              {SizeBytes: int64(len(content)), Origin: DocumentOriginUpload, Format: "md"},
+		blank.Document.ID:  {SizeBytes: int64(len(blankDOCXSeed())), Origin: DocumentOriginCreated, Format: "docx"},
 		page.Document.ID:   {Origin: DocumentOriginCreated},
 		folder.Document.ID: {Origin: DocumentOriginCreated},
 	}

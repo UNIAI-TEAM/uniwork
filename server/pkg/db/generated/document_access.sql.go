@@ -120,7 +120,7 @@ func (q *Queries) DocumentAccessLoggedSince(ctx context.Context, arg DocumentAcc
 
 const getDocumentByID = `-- name: GetDocumentByID :one
 
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 FROM documents
 WHERE id = $1
 `
@@ -178,6 +178,7 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id string) (Document, err
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }
@@ -546,7 +547,7 @@ func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAc
 }
 
 const listDocumentShareCandidates = `-- name: ListDocumentShareCandidates :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, c.created_at
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, c.created_at
 FROM (
   SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
   FROM document_shares s
@@ -563,21 +564,54 @@ JOIN documents d
   ON d.organization_id = $1
  AND d.workspace_id = c.workspace_id
  AND d.id = c.document_id
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
+ AND cv.id = d.file_version_id
 WHERE d.archived_at IS NULL
   AND d.owner_id IS NULL
+  AND ($4::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $5::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($6::text[])))
+                    AND length(d.title) > length($4::text) + 1
+                    AND right(lower(d.title), length($4::text) + 1) = '.' || $4::text))))
+  -- UNI-1868 access filter. Every row this walk keeps reaches the caller
+  -- through a share, so the level the filter compares is the share level; a
+  -- member leg that outranks it makes the row's via member (the service drops
+  -- those), and never a false negative here. 'restricted' is the visibility.
+  AND ($7::text IS NULL
+       OR ($7::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($7::text <> 'restricted' AND EXISTS (
+            SELECT 1 FROM document_shares a
+            WHERE a.organization_id = d.organization_id
+              AND a.workspace_id = d.workspace_id
+              AND a.document_id = d.id
+              AND a.revoked_at IS NULL
+              AND a.level = ANY($8::text[])
+              AND ((a.principal_type = 'user' AND a.principal_id = $2)
+                   OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                   OR (a.principal_type = 'workspace' AND a.principal_id = ANY($3::text[]))))))
   AND (
-    $4::timestamptz IS NULL
-    OR c.created_at < $4::timestamptz
-    OR (c.created_at = $4::timestamptz AND d.id > $5::text)
+    $9::timestamptz IS NULL
+    OR c.created_at < $9::timestamptz
+    OR (c.created_at = $9::timestamptz AND d.id > $10::text)
   )
 ORDER BY c.created_at DESC, d.id
-LIMIT $6
+LIMIT $11
 `
 
 type ListDocumentShareCandidatesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	UserID         string             `json:"user_id"`
 	WorkspaceIds   []string           `json:"workspace_ids"`
+	Format         pgtype.Text        `json:"format"`
+	FormatMime     pgtype.Text        `json:"format_mime"`
+	FormatMimes    []string           `json:"format_mimes"`
+	Access         pgtype.Text        `json:"access"`
+	AccessLevels   []string           `json:"access_levels"`
 	AfterCreatedAt pgtype.Timestamptz `json:"after_created_at"`
 	AfterID        pgtype.Text        `json:"after_id"`
 	MaxRows        int32              `json:"max_rows"`
@@ -600,6 +634,11 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 		arg.OrganizationID,
 		arg.UserID,
 		arg.WorkspaceIds,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
+		arg.AccessLevels,
 		arg.AfterCreatedAt,
 		arg.AfterID,
 		arg.MaxRows,
@@ -653,6 +692,7 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 			&i.Document.ArchiveBatchID,
 			&i.Document.ContentRevision,
 			&i.Document.WorkspaceLevel,
+			&i.Document.SystemKind,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -776,7 +816,7 @@ func (q *Queries) ListLiveDocumentShareLinks(ctx context.Context, arg ListLiveDo
 }
 
 const lockDocumentByID = `-- name: LockDocumentByID :one
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 FROM documents
 WHERE id = $1
 FOR UPDATE
@@ -831,6 +871,7 @@ func (q *Queries) LockDocumentByID(ctx context.Context, id string) (Document, er
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }

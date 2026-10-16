@@ -270,7 +270,7 @@ SET parent_id = NULL,
 WHERE id = $6
   AND organization_id = $7
   AND workspace_id = $8
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 `
 
 type DetachDocumentToRootParams struct {
@@ -343,12 +343,13 @@ func (q *Queries) DetachDocumentToRoot(ctx context.Context, arg DetachDocumentTo
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }
 
 const listDocumentArchiveBatch = `-- name: ListDocumentArchiveBatch :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -414,6 +415,7 @@ func (q *Queries) ListDocumentArchiveBatch(ctx context.Context, arg ListDocument
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 		); err != nil {
 			return nil, err
 		}
@@ -441,7 +443,7 @@ WITH RECURSIVE sub AS (
     AND d.workspace_id = $2
     AND sub.lvl < $4::int
 )
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, sub.lvl AS subtree_depth
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, sub.lvl AS subtree_depth
 FROM sub
 JOIN documents d ON d.id = sub.id
 `
@@ -495,6 +497,7 @@ type ListDocumentSubtreeRow struct {
 	ArchiveBatchID       pgtype.Text        `json:"archive_batch_id"`
 	ContentRevision      int64              `json:"content_revision"`
 	WorkspaceLevel       string             `json:"workspace_level"`
+	SystemKind           pgtype.Text        `json:"system_kind"`
 	SubtreeDepth         int32              `json:"subtree_depth"`
 }
 
@@ -565,6 +568,7 @@ func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtr
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 			&i.SubtreeDepth,
 		); err != nil {
 			return nil, err
@@ -787,7 +791,7 @@ WHERE id = $7
   AND workspace_id = $9
   AND revision = $10
   AND archived_at IS NULL
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 `
 
 type MoveDocumentParams struct {
@@ -865,6 +869,7 @@ func (q *Queries) MoveDocument(ctx context.Context, arg MoveDocumentParams) (Doc
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }
@@ -881,7 +886,7 @@ WHERE id = $5
   AND organization_id = $6
   AND workspace_id = $7
   AND archived_at IS NOT NULL
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 `
 
 type RenameArchivedDocumentParams struct {
@@ -950,6 +955,7 @@ func (q *Queries) RenameArchivedDocument(ctx context.Context, arg RenameArchived
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }
