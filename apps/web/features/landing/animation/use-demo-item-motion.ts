@@ -9,6 +9,7 @@ export function useDemoItemMotion(stage: RefObject<HTMLElement | null>, step: nu
     const surface = stage.current;
     if (!surface) return;
     const animations: Animation[] = [];
+    const clipping = new Map<HTMLElement, string>();
     const next = new Map<string, DOMRect>();
     const scaleX = surface.getBoundingClientRect().width / surface.offsetWidth || 1;
     const scaleY = surface.getBoundingClientRect().height / surface.offsetHeight || 1;
@@ -23,12 +24,14 @@ export function useDemoItemMotion(stage: RefObject<HTMLElement | null>, step: nu
       const x = (before.left - rect.left) / scaleX;
       const y = (before.top - rect.top) / scaleY;
       if (Math.abs(x) + Math.abs(y) < 2) return;
+      const viewport = item.closest<HTMLElement>("[data-demo-motion-viewport]");
+      if (viewport) { if (!clipping.has(viewport)) clipping.set(viewport, viewport.style.overflow); viewport.style.overflow = "visible"; }
       item.style.zIndex = "3";
       const animation = item.animate([
         { transform: `translate(${x}px, ${y}px)` },
         { transform: "translate(0, 0)" },
       ], { duration: 680, easing: "cubic-bezier(.16,1,.3,1)" });
-      animation.onfinish = () => { item.style.removeProperty("z-index"); };
+      animation.onfinish = () => { item.style.removeProperty("z-index"); if (viewport) viewport.style.overflow = clipping.get(viewport) ?? ""; };
       animations.push(animation);
     });
     previous.current = next;
@@ -36,6 +39,7 @@ export function useDemoItemMotion(stage: RefObject<HTMLElement | null>, step: nu
     // Interruption settles the real result, never strands a floating clone.
     return () => {
       animations.forEach(animation => animation.cancel());
+      clipping.forEach((overflow, viewport) => { viewport.style.overflow = overflow; });
       surface.querySelectorAll<HTMLElement>("[data-demo-item]").forEach(item => item.style.removeProperty("z-index"));
     };
   }, [stage, step, enabled]);

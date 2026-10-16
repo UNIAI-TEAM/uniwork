@@ -79,7 +79,7 @@ func (s *FileService) Upload(ctx context.Context, in files.UploadInput) (files.U
 	}
 	defer spool.close()
 
-	contentType := spec.Policy.Canonical(files.DetectContentType(spool.head, in.Filename))
+	contentType := spec.Policy.Canonical(files.DetectBodyContentType(spool.head, in.Filename, spool.file, spool.size))
 	if !spec.Policy.Allows(contentType) {
 		return files.Upload{}, s.refuseAttempt(ctx, att, files.TypeRejected(contentType))
 	}

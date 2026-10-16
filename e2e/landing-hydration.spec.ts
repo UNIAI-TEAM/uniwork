@@ -32,3 +32,25 @@ for (const [locale, dictionary] of Object.entries({ en, vi })) {
     }
   });
 }
+
+test("landing motion leaves the streamed product demo intact on direct entry and reload", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const hydrationErrors: string[] = [];
+  const recordHydrationError = (message: string) => {
+    if (/hydration|hydrated|server rendered|didn't match/i.test(message)) hydrationErrors.push(message);
+  };
+  page.on("pageerror", error => recordHydrationError(error.message));
+  page.on("console", message => {
+    if (message.type() === "error") recordHydrationError(message.text());
+  });
+
+  for (const load of ["initial", "reload"] as const) {
+    if (load === "initial") await page.goto("/vi?demo=compact#tai-lieu");
+    else await page.reload();
+    await landingReady(page);
+    await expect(page.locator('.product-demo-shell[data-demo-feature="documents"]')).toBeVisible();
+    await expect(page.locator("#product-preview .product-documents-library")).toBeVisible();
+    await expect(page.locator("#product-preview [data-scroll-reveal]")).toHaveCount(0);
+    expect(hydrationErrors).toEqual([]);
+  }
+});

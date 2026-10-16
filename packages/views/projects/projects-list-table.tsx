@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, type MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { usePutProject } from "@uniwork/core/tasks";
+import { useProjectFieldSave } from "./use-project-field-save";
 import type {
   ProjectColumnKey,
   ProjectSortDirection,
@@ -29,7 +29,6 @@ import { ProjectRowActions } from "./components/project-row-actions";
 import {
   formatRelativeDate,
   type OpenProject,
-  type ProjectRowPatch,
 } from "./project-row-metrics";
 import { useListScrollReset } from "./use-list-scroll-reset";
 
@@ -122,16 +121,7 @@ function ProjectTableRow({
   locale: string;
   leadOptions: AssigneeOption[];
 }) {
-  const putProject = usePutProject(workspaceId);
-  const handleUpdate = useCallback(
-    (patch: ProjectRowPatch) =>
-      putProject.mutate({
-        projectId: project.id,
-        body: { ...patch, revision: project.revision },
-        ifMatch: String(project.revision),
-      }),
-    [project.id, project.revision, putProject],
-  );
+  const handleUpdate = useProjectFieldSave(workspaceId, project);
 
   return (
     <ListGridRow

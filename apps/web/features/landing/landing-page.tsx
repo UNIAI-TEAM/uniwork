@@ -31,21 +31,26 @@ import "./landing-focus.css";
 import "./landing-dual-navigation.css";
 import "./landing-action-motion.css";
 import "./landing-lovable.css";
+import "./product-demo.css";
+import "./product-task-board.css";
+import "./product-meeting.css";
+import "./product-email.css";
+import "./product-current-screens.css";
 import "./landing-decisions.css";
 import "./landing-ai-stage.css";
 import trustStyles from "./landing-trust.module.css";
 import "./hero-nexus.css";
 
 /**
- * THESIS: One shared product stage covers six families and eighteen entries,
- * distinguishing usable scopes, partial foundations and planned concepts.
- * Reference UI follows the user's Lovable screenshots, not a released-app claim.
+ * THESIS: One shared product stage uses the current app shell and task cards.
+ * The product menu opens automatic demos directly; retained concept scenes remain
+ * available alongside the sandbox's task, chat, mail and document actions.
  * OWN-WORLD: Bright studio, cobalt ink, Be Vietnam Pro; large framed scenes
  * with clear gutters, spacious type and dark trust/closing passages.
  * STORY: Watch a short action sequence or explore the shared workspace, meet UNI,
  * then inspect governance and planned work before creating an account.
- * REFERENCE: User-supplied ClickUp feature-rail composition; claims checked
- * against develop 26e56c4b. Demos stay local, with configuration caveats.
+ * REFERENCE: Current product screenshots and the shipped task card/status
+ * components. The five action storyboards use local sample data.
  * FIRST VIEWPORT: A floating navigation dock above a centered, two-line
  * headline and one CTA. Real product screens connect four concise context labels.
  * Feature disclosure opens a compact directory; mobile keeps a native link menu.
