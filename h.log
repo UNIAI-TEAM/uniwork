@@ -1,0 +1,43 @@
+$ pnpm lint 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "LINT_EXIT=$rc"
+@uniwork/office-contracts:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: > @uniwork/views@0.0.0 lint /workspace/packages/views
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: 
+@uniwork/ui:lint: 
+@uniwork/ui:lint: > @uniwork/ui@0.0.0 lint /workspace/packages/ui
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: 
+@uniwork/office-engine-app:lint: 
+@uniwork/office-engine-app:lint: > @uniwork/office-engine-app@0.0.0 lint /workspace/apps/office-engine
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-engine-app:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: > @uniwork/core@0.0.0 lint /workspace/packages/core
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: 
+@uniwork/office-engine:lint: 
+@uniwork/office-engine:lint: > @uniwork/office-engine@0.0.0 lint /workspace/packages/office-engine
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: /workspace/packages/core/realtime/document-events.ts
+@uniwork/core:lint:   50:5  error  Expected a 'break' statement before 'case'  no-fallthrough
+@uniwork/core:lint: 
+@uniwork/core:lint: ✖ 1 problem (1 error, 0 warnings)
+@uniwork/core:lint: 
+@uniwork/core:lint:  ELIFECYCLE  Command failed with exit code 1.
+@uniwork/views:lint:  ELIFECYCLE  Command failed.
+@uniwork/core#lint:  ERROR  command (/workspace/packages/core) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run lint exited (1)
+
+ Tasks:    5 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    37.093s 
+Failed:    @uniwork/core#lint
+
+ ERROR  run failed: command  exited (1)
+
+lint: reported, not enforced — GATE_LEVEL=fast (docs/adr/0014).
+      Every finding above is real and fails the run at standard.
+
+LINT_EXIT=0

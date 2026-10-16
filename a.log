@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+c8e2bd49b59761f6fa992695587aadb259f30331
+360d4c6a502b375f265620d674d6671310495223
+c8e2bd49b chore: merge the G5-G7 root (360d4c6a5) into SH-S1
+360d4c6a5 fix(notification): register the document access request kinds on the server
+183dc9436 test(documents): keep the pristine-copy fixture's source editable
+16ae9fdf0 feat(documents): merge a share for the home workspace into the home row
+9a6eaa4d8 feat(documents): write the home row through one service helper
+c91af525a chore: merge G7-03a integration fault queue (908053854) into the G5-G7 root
+6b17f4597 chore: merge SH-S1 T3 (private by default + S-DOC02) into the SH-S1 head
+989a6b049 chore: merge SH-S1 T1 (save metric outcomes) into the SH-S1 head
