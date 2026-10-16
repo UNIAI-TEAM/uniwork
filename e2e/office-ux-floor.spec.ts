@@ -3,9 +3,10 @@ import { e2eBaseUrl } from "./api-url";
 import { auditText } from "./contrast";
 import { seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
-  EDITOR, FRAME_SELECTOR, PICKER_POP, S5_CARD, S5_MASK, S6_BAR, commitElsewhere, contrastIn, docsFrameInstalled,
-  finding, focusedIn, makeDirty, openDocs, openPicker, pinnedVersion, prepare, reachConflict, s5Choices, selectUniworkAi,
-  sizeFrame, surfaceIsMode, waitForBar, type Locale, type Mode,
+  EDITOR, FRAME_SELECTOR, PICKER_POP, S5_CARD, S5_MASK, S6_BAR, aiFlagsBeforeAll, clippedLabels, commitElsewhere, contrastIn, docsFrameInstalled,
+  expectFocus, finding, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
+  reachConflict, recordLiveWrites, recordMotion, s5Choices, selectUniworkAi, sizeFrame, smallTargets, surfaceIsMode, visualOrder,
+  waitForBar, type Locale, type Mode,
 } from "./office-ux-floor-fixtures";
 
 /**
@@ -17,14 +18,20 @@ import {
  *
  * States: S5 = dirty copy + a version committed through the API by a second
  * request + the frame's own Ctrl+S (409); S6 = a version committed while the
- * document is open (clean: info bar, dirty: warn bar); S7/S9 = UniWork AI with
- * AI_PROVIDER=fake on the server and office_ai_uniwork + office_ai_uniwork_docx
- * on for the organization (the frame token's `uniwork_ai` grant).
+ * document is open (clean: info bar, dirty: warn bar); S7/S8/S9 = UniWork AI with
+ * AI_PROVIDER=fake on the server and office_ai_uniwork + office_ai_uniwork_docx on
+ * for the organization (the frame token's `uniwork_ai` grant), set in that group's
+ * own beforeAll so an AI setup failure never takes the S5/S6 tests with it.
+ * The Docs frame's own dialog marker is `data-docs-web` (S5_MASK), not `data-office-web`.
  *
  * A rule the pinned frame is known to break is a BLOCKING finding: the test
  * reaches the state, then `finding()` marks the rest expected-to-fail with the
  * finding id (a failure before that is a real failure; an unexpected pass means
  * the product was fixed and the marker goes).
+ *
+ * Reading an expected-fail: `test.fail` also absorbs a timeout or a throw after the state was reached, so read
+ * each expected-fail's error against the rule in its `finding` annotation; an error that is not about that rule
+ * (a timeout, a selector that slipped) is a real failure. (`expect.soft` under test.fail would absorb the same.)
  *
  * Run with OFFICE_UX_FLOOR_E2E=1 (server with AI_PROVIDER=fake for S7/S9).
  */
@@ -48,8 +55,6 @@ test.beforeAll(async ({ browser, request }) => {
     await context.close();
   }
   await setFlag("office_engine", seeded.organizationId, true);
-  await setFlag("office_ai_uniwork", seeded.organizationId, true);
-  await setFlag("office_ai_uniwork_docx", seeded.organizationId, true);
   test.info().annotations.push({ type: "frame", description: pinnedVersion() });
 });
 
@@ -94,63 +99,21 @@ test.describe("contrast on the rendered frame (DESIGN.md › Colors)", () => {
         await frame.locator(`${S5_CARD} [data-choice="back"]`).waitFor();
         await audit(frame, S5_CARD, "S5 overwrite confirm", mode);
         await shot(frame, `s5-overwrite-${mode}-${locale}`);
-        expect((await focusedIn(frame)).id, "Overwrite confirm: default focus Back").toBe("back");
+        await expectFocus(frame, "back", "Overwrite confirm: default focus Back");
         await frame.locator(`${S5_CARD} [data-choice="back"]`).click();
-        expect((await focusedIn(frame)).id, "Back returns the focus to the button that opened the step").toBe("overwrite");
+        await expectFocus(frame, "overwrite", "Back returns the focus to the button that opened the step");
         // S5 step 2, web Reload confirm, then Back.
         await frame.locator(`${S5_CARD} [data-choice="reload"]`).click();
         await frame.locator(`${S5_CARD} [data-choice="back"]`).waitFor();
         await audit(frame, S5_CARD, "S5 reload confirm (web)", mode);
         await shot(frame, `s5-reload-${mode}-${locale}`);
-        expect((await focusedIn(frame)).id, "web Reload confirm: default focus Back").toBe("back");
+        await expectFocus(frame, "back", "web Reload confirm: default focus Back");
         await frame.locator(`${S5_CARD} [data-choice="back"]`).click();
-        expect((await focusedIn(frame)).id).toBe("reload");
+        await expectFocus(frame, "reload", "Back returns the focus to Reload");
         await frame.locator(`${S5_CARD} [data-choice="cancel"]`).click();
         await expect(frame.locator(S5_MASK)).toHaveCount(0);
       });
-
-      test(`S7 picker with UniWork AI and the S9 result line — ${mode} ${locale}`, async ({ page }) => {
-        await prepare(page, baseUrl, mode, locale);
-        const frame = await openDocs(page, seeded);
-        await openPicker(frame);
-        await audit(frame, PICKER_POP, "S7 picker", mode);
-        await shot(frame, `s7-picker-${mode}-${locale}`);
-        await frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first().click();
-        // S9: one UniWork AI turn against the fake provider; the answer (or its error line) is measured.
-        const composer = frame.locator(".ai-composer textarea, .ai-composer [contenteditable='true']").first();
-        await composer.click();
-        await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
-        await page.keyboard.press("Enter");
-        await frame.locator(".ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
-        await audit(frame, ".ai-chat", "S9 result/error", mode);
-        await shot(frame, `s9-result-${mode}-${locale}`);
-      });
     }
-
-    test(`S7 the selected option's focus ring is >= 3:1 against accent-soft — ${mode}`, async ({ page }) => {
-      await prepare(page, baseUrl, mode, "vi");
-      const frame = await openDocs(page, seeded);
-      await selectUniworkAi(frame);
-      // Keyboard open, so :focus-visible applies: the chip, Enter, the list enters at the selected option.
-      await frame.locator(".ai-model-chip").first().focus();
-      await page.keyboard.press("Enter");
-      await frame.locator(PICKER_POP).waitFor();
-      const selected = frame.locator(".ai-model-item.selected").first();
-      await selected.focus();
-      await page.keyboard.press("ArrowDown");
-      await page.keyboard.press("ArrowUp");
-      await selected.focus();
-      const ring = await selected.evaluate((el) => {
-        const cs = getComputedStyle(el);
-        return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), color: cs.outlineColor, bg: cs.backgroundColor, focusVisible: el.matches(":focus-visible") };
-      });
-      test.info().annotations.push({ type: "measured", description: JSON.stringify(ring) });
-      expect(ring.focusVisible, "the selected option is not :focus-visible").toBe(true);
-      finding("UXF-01", "Floor › Focus ring: .ai-model-item.selected:focus-visible has outline 2px var(--accent) at >= 3:1 against accent-soft (pin: outline none)");
-      expect(ring.style).not.toBe("none");
-      expect(ring.width).toBeGreaterThanOrEqual(2);
-      expect(await contrastIn(frame, ring.color, ring.bg)).toBeGreaterThanOrEqual(3);
-    });
   }
 });
 
@@ -163,13 +126,13 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
       return { role: card.getAttribute("role"), modal: card.getAttribute("aria-modal"), title: title?.tagName, tabindex: title?.getAttribute("tabindex"), body: !!document.getElementById(card.getAttribute("aria-describedby") ?? "") };
     });
     expect(aria, "Floor › S5: alertdialog, aria-modal, h2[tabindex=-1] title, described").toEqual({ role: "alertdialog", modal: "true", title: "H2", tabindex: "-1", body: true });
-    const { ids, closeLast, ys } = await s5Choices(frame);
+    const { ids, closeLast, pos } = await s5Choices(frame);
     const canonical = S5_ORDER.filter((id) => ids.includes(id));
     expect(ids, "S5 step 1 choices in DOM order").toEqual(canonical);
     expect(ids, "edit access: Reload, Overwrite, Cancel present").toEqual(expect.arrayContaining(["reload", "overwrite", "cancel"]));
     expect(closeLast, "the close X is the card's last control").toBe(true);
-    expect([...ys].sort((a, b) => a - b), "stacked buttons: visual top-to-bottom = DOM order").toEqual(ys);
-    expect((await focusedIn(frame)).id, "default focus").toBe("cancel");
+    expect(visualOrder(pos), "visual reading order (top to bottom, then left to right) = DOM order").toEqual(ids.map((_, i) => i));
+    await expectFocus(frame, "cancel", "default focus");
     // Tab cycles through every control of the card and wraps, never leaving it.
     const seen: string[] = [];
     for (let i = 0; i < ids.length + 3; i++) {
@@ -180,7 +143,7 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
     }
     expect(seen, "Tab reaches every choice and the X").toEqual(expect.arrayContaining([...ids, "close"]));
     // The rest of the frame is inert; the host page outside the iframe is inert while `modal` is on.
-    const frameInert = await frame.evaluate((mask) => [...document.body.children].filter((el) => !el.matches(mask) && !el.closest("[inert]")).map((el) => el.className || el.tagName), S5_MASK);
+    const frameInert = await frame.evaluate((mask) => [...document.body.children].filter((el) => !el.matches(mask) && !el.matches(".uw-live") /* UXF-04's own test */ && !el.closest("[inert]")).map((el) => el.className || el.tagName), S5_MASK);
     expect(frameInert, "frame body children outside the dialog without inert").toEqual([]);
     const hostOpen = await page.locator(FRAME_SELECTOR).evaluate((iframe) => {
       const loose: string[] = [];
@@ -224,14 +187,18 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
   test("Save copy sits between Reload and Overwrite with edit access", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    finding("UXF-02", "State Patterns › S5: 'Lưu thành bản sao…' (uwConflictSaveCopy, OQ-UX6) between Reload and Overwrite when the user can edit (pin: absent)");
-    expect((await s5Choices(frame)).ids).toEqual(["reload", "save-copy", "overwrite", "cancel"]);
+    finding("UXF-02", "State Patterns › S5: 'Lưu thành bản sao…' (uwConflictSaveCopy, OQ-UX6) between Reload and Overwrite when the user can edit (pin: absent; owner: card G5-12)");
+    const { ids } = await s5Choices(frame);
+    expect(ids, "save-copy, reload and overwrite present").toEqual(expect.arrayContaining(["reload", "save-copy", "overwrite"]));
+    // Relative order only: UXF-03 (diff first) is its own test, so fixing it must not change this verdict.
+    expect(ids.indexOf("reload"), "Reload before Save copy").toBeLessThan(ids.indexOf("save-copy"));
+    expect(ids.indexOf("save-copy"), "Save copy before Overwrite").toBeLessThan(ids.indexOf("overwrite"));
   });
 
   test("Docs shows 'Xem khác biệt' before Reload", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    finding("UXF-03", "State Patterns › S5: Docs/DOCX has 'Xem khác biệt' after the comparison table, before Reload (OQ-UX9) (pin: absent)");
+    finding("UXF-03", "State Patterns › S5: Docs/DOCX has 'Xem khác biệt' after the comparison table, before Reload (OQ-UX9) (pin: absent; owner: Advisor, fork)");
     const before = await frame.locator(S5_CARD).evaluate((card) => {
       const reload = card.querySelector('[data-choice="reload"]');
       const diff = [...card.querySelectorAll("button, a")].find((b) => /Xem khác biệt|View differences/i.test(b.textContent ?? ""));
@@ -245,8 +212,8 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
     const frame = await reachConflict(page, request, seeded);
     const live = await frame.evaluate(() => [...document.querySelectorAll(".uw-live")].map((el) => ({ role: el.getAttribute("role"), inert: !!el.closest("[inert]") })));
     test.info().annotations.push({ type: "measured", description: JSON.stringify(live) });
-    expect(live.length, "the frame has window live nodes").toBeGreaterThanOrEqual(2);
-    finding("UXF-04", "Floor › Vùng live: the window's live nodes are siblings of the inert part, never inside it (pin: frame-dialog inertSiblings inerts every body child, .uw-live included)");
+    expect(live.length, "the frame has a window live node once a bar was announced").toBeGreaterThanOrEqual(1);
+    finding("UXF-04", "Floor › Vùng live: the window's live nodes are siblings of the inert part, never inside it (pin: frame-dialog inertSiblings inerts every body child, .uw-live included; owner: Advisor, fork)");
     expect(live.filter((l) => l.inert)).toEqual([]);
   });
 });
@@ -255,6 +222,7 @@ test.describe("live regions (Floor › Vùng live)", () => {
   test("the frame has its two fixed live nodes from load, before any bar", async ({ page }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await openDocs(page, seeded);
+    finding("UXF-10", "Floor › Vùng live: the window's polite and assertive nodes exist from load (pin: remote-bar.ts liveNode() creates each on its first announce; owner: Advisor, fork)");
     const nodes = await frame.evaluate(() => ({
       status: document.querySelectorAll('.uw-live[role="status"]').length,
       alert: document.querySelectorAll('.uw-live[role="alert"]').length,
@@ -269,17 +237,7 @@ test.describe("live regions (Floor › Vùng live)", () => {
   test("an S6 bar is read once, through the window node; the bar itself is not live", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await openDocs(page, seeded);
-    await frame.evaluate(() => {
-      const w = window as unknown as { __uwLive: string[] };
-      w.__uwLive = [];
-      new MutationObserver((records) => {
-        for (const r of records) {
-          const el = (r.target.nodeType === Node.TEXT_NODE ? r.target.parentElement : r.target) as HTMLElement | null;
-          const live = el?.closest?.(".uw-live");
-          if (live && live.textContent) w.__uwLive.push(`${live.getAttribute("role")}:${live.textContent}`);
-        }
-      }).observe(document.body, { subtree: true, childList: true, characterData: true });
-    });
+    await recordLiveWrites(frame);
     await commitElsewhere(request, seeded);
     await waitForBar(frame, "info");
     await page.waitForTimeout(2_000);
@@ -291,15 +249,15 @@ test.describe("live regions (Floor › Vùng live)", () => {
         liveInBar: el.matches('[role="status"],[role="alert"],[aria-live]') || !!el.querySelector('[role="status"],[role="alert"],[aria-live]'),
         role: el.getAttribute("role"),
         label: el.getAttribute("aria-label"),
-        writes: (window as unknown as { __uwLive: string[] }).__uwLive,
       };
     }, S6_BAR);
     test.info().annotations.push({ type: "measured", description: JSON.stringify(result) });
     expect(result.role, "S6 bar is a region").toBe("region");
     expect(result.label ?? "", "the region has its label (uwRemoteRegion)").not.toBe("");
     expect(result.liveInBar, "the bar carries no role=status|alert / aria-live").toBe(false);
-    const reads = new Set(result.writes.filter((w) => w.startsWith("status:") && w.includes(result.text.trim())));
-    expect(reads.size, "the new-version sentence reaches the polite window node exactly once").toBe(1);
+    expect(result.text.trim(), "the bar has its sentence").not.toBe("");
+    // One entry per write that adds text (no Set): a double write or a clear + rewrite of the sentence is two entries.
+    expect(await liveReadsOf(frame, result.text.trim()), "the new-version sentence reaches the polite window node exactly once").toHaveLength(1);
   });
 });
 
@@ -338,7 +296,7 @@ test.describe("forced colors (DESIGN.md › Colors › Forced colors)", () => {
       });
       test.info().annotations.push({ type: "measured", description: JSON.stringify(got) });
       expect(got.length).toBeGreaterThan(0);
-      finding("UXF-05", "DESIGN › Forced colors: [aria-disabled=true] buttons use GrayText for text and border (pin: frame-dialog.css has no forced-colors rule, opacity only)");
+      finding("UXF-05", "DESIGN › Forced colors: [aria-disabled=true] buttons use GrayText for text and border (pin: frame-dialog.css has no forced-colors rule, opacity only; owner: Advisor, fork)");
       for (const b of got) {
         expect(b.color, `${b.id}: text`).toBe(b.gray);
         expect(b.border, `${b.id}: border`).toBe(b.gray);
@@ -348,31 +306,10 @@ test.describe("forced colors (DESIGN.md › Colors › Forced colors)", () => {
     }
   });
 
-  test("S7 the selected picker option has a 2px Highlight border, not only a fill", async ({ page }) => {
-    await prepare(page, baseUrl, "light", "vi");
-    await page.emulateMedia({ forcedColors: "active" });
-    const frame = await openDocs(page, seeded);
-    await selectUniworkAi(frame);
-    await openPicker(frame);
-    const sel = await frame.locator(".ai-model-item.selected").first().evaluate((el) => {
-      const probe = document.createElement("span");
-      probe.style.color = "Highlight";
-      el.append(probe);
-      const hl = getComputedStyle(probe).color;
-      probe.remove();
-      const cs = getComputedStyle(el);
-      return { width: parseFloat(cs.borderTopWidth), color: cs.borderTopColor, outline: cs.outlineStyle, hl };
-    });
-    test.info().annotations.push({ type: "measured", description: JSON.stringify(sel) });
-    await shot(frame, "s7-forced-colors");
-    finding("UXF-06", "DESIGN › Forced colors: .ai-model-item.selected has a 2px Highlight border (pin: background only)");
-    expect(sel.width).toBeGreaterThanOrEqual(2);
-    expect(sel.color).toBe(sel.hl);
-  });
 });
 
 test.describe("zoom, narrow frames and motion (Floor, Responsive & Platform)", () => {
-  test("zoom 200 %: no status label clipped by nowrap, S5 fully reachable", async ({ page, request }) => {
+  test("zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable", async ({ page, request }) => {
     // 200 % zoom = half the CSS viewport at twice the device pixels: 1280x800 -> 640x400.
     await prepare(page, baseUrl, "light", "vi");
     await page.setViewportSize({ width: 640, height: 400 });
@@ -383,14 +320,14 @@ test.describe("zoom, narrow frames and motion (Floor, Responsive & Platform)", (
     await page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first().click();
     await page.keyboard.press("Control+s");
     await frame.locator(S5_CARD).waitFor({ state: "visible", timeout: 60_000 });
-    const clipped = await frame.evaluate(([bar, card]) => [...document.querySelectorAll<HTMLElement>(`${bar} *, ${card} *`)].filter((el) => {
-      const cs = getComputedStyle(el);
-      const own = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim());
-      return own && cs.whiteSpace.includes("nowrap") && cs.overflow !== "visible" && el.scrollWidth > el.clientWidth + 1;
-    }).map((el) => (el.textContent ?? "").slice(0, 40)), [S6_BAR, S5_CARD] as const);
-    expect(clipped, "labels cut by nowrap at 200 %").toEqual([]);
+    expect(await clippedLabels(frame, false), "labels cut by nowrap at 200 %").toEqual([]);
     await reachable(frame);
     await shot(frame, "zoom-200");
+    // WCAG 1.4.12 text spacing (Floor › Phóng to 200% / text spacing): line height 1.5, paragraph spacing 2, letter 0.12, word 0.16 (em).
+    await frame.addStyleTag({ content: "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }" });
+    expect(await clippedLabels(frame, true), "labels cut or hidden with the 1.4.12 spacing overrides").toEqual([]);
+    await reachable(frame);
+    await shot(frame, "text-spacing");
   });
 
   test("S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable", async ({ page, request }) => {
@@ -423,8 +360,9 @@ test.describe("zoom, narrow frames and motion (Floor, Responsive & Platform)", (
       test.info().annotations.push({ type: "measured", description: JSON.stringify(box) });
       await shot(frame, `s5-narrow-${width}`);
       expect(new Set(box.xs).size, "buttons share one column").toBe(1);
-      expect([...box.ys].sort((a, b) => a - b)).toEqual(box.ys);
-      if (width > 448 + 32) finding("UXF-07", "Responsive › Web hẹp (< 768px): S5 takes the full width minus 16px margins (pin: .ow-dlg max-width 448px)");
+      expect(new Set(box.ys.map(Math.round)).size, "stacked: every button on its own row").toBe(box.ys.length);
+      expect([...box.ys].sort((a, b) => a - b), "stacked top-to-bottom = DOM order").toEqual(box.ys);
+      if (width > 448 + 32) finding("UXF-07", "Responsive › Web hẹp (< 768px): S5 takes the full width minus 16px margins (pin: .ow-dlg max-width 448px; owner: Advisor, fork)");
       expect(Math.abs(box.left - 16), "16px left margin").toBeLessThanOrEqual(1);
       expect(Math.abs(box.width - (box.inner - 32)), "full width minus 2x16px").toBeLessThanOrEqual(1);
     });
@@ -433,27 +371,102 @@ test.describe("zoom, narrow frames and motion (Floor, Responsive & Platform)", (
   test("reduced motion: no slide/fade on S6 or S5", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     await page.emulateMedia({ reducedMotion: "reduce" });
-    const frame = await reachConflict(page, request, seeded);
-    const moving = await frame.evaluate(([bar, mask]) => document.getAnimations().filter((a) => {
-      const target = (a.effect as KeyframeEffect | null)?.target as Element | null;
-      const t = a.effect?.getTiming();
-      return !!target?.closest(`${bar}, ${mask}`) && Number(t?.duration ?? 0) > 0;
-    }).length, [S6_BAR, S5_MASK] as const);
-    expect(moving).toBe(0);
+    const frame = await openDocs(page, seeded);
+    // The recorder goes in BEFORE the surfaces appear: a finished animation/transition is gone from getAnimations().
+    await recordMotion(frame, `${S6_BAR}, ${S5_MASK}`);
+    await commitElsewhere(request, seeded);
+    await waitForBar(frame, "info");
+    await makeDirty(page, `uw-ux-m-${Date.now().toString(36)}`);
+    await commitElsewhere(request, seeded);
+    await waitForBar(frame, "warn");
+    await page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first().click();
+    await page.keyboard.press("Control+s");
+    await frame.locator(S5_CARD).waitFor({ state: "visible", timeout: 60_000 });
+    await page.waitForTimeout(1_000);
+    const motion = await motionSeen(frame, [S6_BAR, S5_MASK, S5_CARD]);
+    test.info().annotations.push({ type: "measured", description: JSON.stringify(motion) });
+    expect(motion.missing, "surfaces not found: the measurement would be vacuous").toEqual([]);
+    expect(motion.moving, "slide/fade under prefers-reduced-motion").toEqual([]);
   });
 
   test("target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer)", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    const small = await frame.evaluate(([bar, card]) => [...document.querySelectorAll<HTMLElement>(`${bar} button, ${card} button`)].map((b) => {
-      const r = b.getBoundingClientRect();
-      return { name: (b.textContent || b.getAttribute("aria-label") || "").trim().slice(0, 30), w: r.width, h: r.height };
-    }).filter((b) => b.w < 24 || b.h < 24), [S6_BAR, S5_CARD] as const);
+    const small = await smallTargets(frame);
     expect(small).toEqual([]);
   });
 });
 
-test.describe("S7/S8 structure (Floor › S7, S8)", () => {
+test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags)", () => {
+  aiFlagsBeforeAll(() => seeded.organizationId);
+  for (const mode of MODES) {
+    for (const locale of LOCALES) {
+      test(`S7 picker with UniWork AI and the S9 result line — ${mode} ${locale}`, async ({ page }) => {
+        await prepare(page, baseUrl, mode, locale);
+        const frame = await openDocs(page, seeded);
+        await openPicker(frame);
+        await audit(frame, PICKER_POP, "S7 picker", mode);
+        await shot(frame, `s7-picker-${mode}-${locale}`);
+        await frame.locator(`${PICKER_POP} [role="option"]`, { hasText: "UniWork AI" }).first().click();
+        // S9: one UniWork AI turn against the fake provider; the answer (or its error line) is measured.
+        const composer = frame.locator(".ai-composer textarea, .ai-composer [contenteditable='true']").first();
+        await composer.click();
+        await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
+        await page.keyboard.press("Enter");
+        await frame.locator(".ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
+        await audit(frame, ".ai-chat", "S9 result/error", mode);
+        await shot(frame, `s9-result-${mode}-${locale}`);
+      });
+    }
+
+    test(`S7 the selected option's focus ring is >= 3:1 against accent-soft — ${mode}`, async ({ page }) => {
+      await prepare(page, baseUrl, mode, "vi");
+      const frame = await openDocs(page, seeded);
+      await selectUniworkAi(frame);
+      // Keyboard open, so :focus-visible applies: the chip, Enter, the list enters at the selected option.
+      await frame.locator(".ai-model-chip").first().focus();
+      await page.keyboard.press("Enter");
+      await frame.locator(PICKER_POP).waitFor();
+      const selected = frame.locator(".ai-model-item.selected").first();
+      await selected.focus();
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("ArrowUp");
+      await selected.focus();
+      const ring = await selected.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), color: cs.outlineColor, bg: cs.backgroundColor, focusVisible: el.matches(":focus-visible") };
+      });
+      test.info().annotations.push({ type: "measured", description: JSON.stringify(ring) });
+      expect(ring.focusVisible, "the selected option is not :focus-visible").toBe(true);
+      finding("UXF-01", "Floor › Focus ring: .ai-model-item.selected:focus-visible has outline 2px var(--accent) at >= 3:1 against accent-soft (pin: outline none; fixed on fork main 99e5a5253, waits for the D re-pin)");
+      expect(ring.style).not.toBe("none");
+      expect(ring.width).toBeGreaterThanOrEqual(2);
+      expect(await contrastIn(frame, ring.color, ring.bg)).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  test("S7 the selected picker option has a 2px Highlight border, not only a fill", async ({ page }) => {
+    await prepare(page, baseUrl, "light", "vi");
+    await page.emulateMedia({ forcedColors: "active" });
+    const frame = await openDocs(page, seeded);
+    await selectUniworkAi(frame);
+    await openPicker(frame);
+    const sel = await frame.locator(".ai-model-item.selected").first().evaluate((el) => {
+      const probe = document.createElement("span");
+      probe.style.color = "Highlight";
+      el.append(probe);
+      const hl = getComputedStyle(probe).color;
+      probe.remove();
+      const cs = getComputedStyle(el);
+      return { width: parseFloat(cs.borderTopWidth), color: cs.borderTopColor, outline: cs.outlineStyle, hl };
+    });
+    test.info().annotations.push({ type: "measured", description: JSON.stringify(sel) });
+    await shot(frame, "s7-forced-colors");
+    finding("UXF-06", "DESIGN › Forced colors: .ai-model-item.selected has a 2px Highlight border (pin: background only; owner: Advisor, fork)");
+    expect(sel.width).toBeGreaterThanOrEqual(2);
+    expect(sel.color).toBe(sel.hl);
+  });
+
   test("S7 listbox sits on the list, Manage and the footer are siblings after it", async ({ page }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await openDocs(page, seeded);
@@ -464,7 +477,7 @@ test.describe("S7/S8 structure (Floor › S7, S8)", () => {
       manageInList: !!pop.querySelector('[role="listbox"] .ai-model-manage'),
     }));
     test.info().annotations.push({ type: "measured", description: JSON.stringify(roles) });
-    finding("UXF-08", "Floor › S7: role=listbox on .ai-model-pop-list, .ai-model-pop is a labelled group, Manage outside the listbox (pin: listbox on .ai-model-pop with Manage inside)");
+    finding("UXF-08", "Floor › S7: role=listbox on .ai-model-pop-list, .ai-model-pop is a labelled group, Manage outside the listbox (pin: listbox on .ai-model-pop with Manage inside; fixed on fork main 99e5a5253, waits for the D re-pin)");
     expect(roles).toEqual({ pop: "group", list: "listbox", manageInList: false });
   });
 
@@ -472,20 +485,16 @@ test.describe("S7/S8 structure (Floor › S7, S8)", () => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await openDocs(page, seeded);
     await selectUniworkAi(frame);
-    finding("UXF-09", "Floor › S8 / IA S8: a region labelled aiUniworkDisclosureLabel with 'Đã hiểu' before the first UniWork AI turn (pin: strings only, no component renders it)");
+    const send = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
+    await expect(send, "S8: the composer has its Send button").toBeVisible({ timeout: 15_000 });
+    finding("UXF-09", "Floor › S8 / IA S8: a region labelled aiUniworkDisclosureLabel with 'Đã hiểu' before the first UniWork AI turn, and Send aria-disabled + aria-describedby until then (pin: strings only, no component renders it; fixed on fork main 99e5a5253, waits for the D re-pin)");
     const region = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|sent to UniWork AI/i });
     await expect(region).toBeVisible({ timeout: 10_000 });
+    await expect(send, "Send is aria-disabled before the acknowledgement").toHaveAttribute("aria-disabled", "true");
+    const reason = await send.evaluate((b) => b.getAttribute("aria-describedby")?.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? "").join("") ?? "");
+    expect(reason, "Send's aria-describedby names the reason").not.toBe("");
     await audit(frame, ".ai-composer", "S8 disclosure", "light");
+    await frame.getByRole("button", { name: /Đã hiểu|Got it/i }).first().click();
+    await expect(send, "Send is enabled after 'Đã hiểu'").not.toHaveAttribute("aria-disabled", "true");
   });
 });
-
-/** Every S5 control can be scrolled into view and is the topmost element at its centre. */
-async function reachable(frame: Frame): Promise<void> {
-  const blocked = await frame.locator(S5_CARD).evaluate((card) => [...card.querySelectorAll<HTMLElement>("button")].filter((b) => {
-    b.scrollIntoView({ block: "center" });
-    const r = b.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return r.width === 0 || r.height === 0 || !(hit === b || b.contains(hit));
-  }).map((b) => b.dataset.choice ?? b.className));
-  expect(blocked, "S5 controls not reachable").toEqual([]);
-}

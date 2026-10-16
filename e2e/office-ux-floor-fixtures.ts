@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Frame, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { Client } from "pg";
 import { basename, resolve } from "node:path";
 import { e2eApiUrl } from "./api-url";
 import { readPinnedFrame, type SeededDocx } from "./office-docs-web-fixtures";
@@ -19,8 +20,12 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 
 export const FRAME_SELECTOR = 'iframe[src*="/office-frame/docs/"]';
 export const EDITOR = '.ProseMirror[contenteditable="true"]';
-/** S5: the conflict dialog's backdrop carries the marker, the card is the alertdialog. */
-export const S5_MASK = '[data-office-web="conflict"]';
+/**
+ * S5: the conflict dialog's backdrop carries the marker, the card is the alertdialog. The Docs frame stamps its dialogs
+ * with `data-docs-web` (web/docs/bridge/notice.ts MARKER_ATTR, passed as `markerAttr` through `conflictFrame()`); the
+ * other modules use the default `data-office-web`. r1 used the default and never found the Docs dialog.
+ */
+export const S5_MASK = '[data-docs-web="conflict"]';
 export const S5_CARD = `${S5_MASK} .ow-dlg`;
 export const S6_BAR = ".uw-remote-bar";
 export const PICKER_POP = ".ai-model-pop";
@@ -146,18 +151,130 @@ export async function selectUniworkAi(frame: Frame): Promise<void> {
   await expect(frame.locator(PICKER_POP)).toHaveCount(0, { timeout: 10_000 });
 }
 
-/** The dialog's choices in DOM order (data-choice), then whether the close X is the card's last control. */
-export async function s5Choices(frame: Frame): Promise<{ ids: string[]; closeLast: boolean; ys: number[] }> {
+/** The dialog's choices in DOM order (data-choice), whether the close X is the card's last control, and each choice's top-left. */
+export async function s5Choices(frame: Frame): Promise<{ ids: string[]; closeLast: boolean; pos: { x: number; y: number }[] }> {
   return frame.locator(S5_CARD).evaluate((card) => {
     const buttons = [...card.querySelectorAll<HTMLElement>("button")];
-    const ids = buttons.filter((b) => b.dataset.choice).map((b) => b.dataset.choice!);
+    const choices = buttons.filter((b) => b.dataset.choice);
     const close = card.querySelector(".ow-dlg-close");
     return {
-      ids,
+      ids: choices.map((b) => b.dataset.choice!),
       closeLast: close !== null && buttons[buttons.length - 1] === close,
-      ys: buttons.filter((b) => b.dataset.choice).map((b) => b.getBoundingClientRect().top),
+      pos: choices.map((b) => { const r = b.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top) }; }),
     };
   });
+}
+
+/** Reading order of the choices (top to bottom, then left to right) as indices into DOM order: [0, 1, 2, ...] when visual = DOM. */
+export function visualOrder(pos: { x: number; y: number }[]): number[] {
+  return pos.map((p, i) => ({ p, i })).sort((a, b) => a.p.y - b.p.y || a.p.x - b.p.x).map((o) => o.i);
+}
+
+/** Polls the frame's focused element (a focus move may land in a later task, so one read is not enough). */
+export async function expectFocus(frame: Frame, id: string, message: string): Promise<void> {
+  await expect.poll(async () => (await focusedIn(frame)).id, { message, timeout: 5_000 }).toBe(id);
+}
+
+/**
+ * Starts recording, from now on, every animationstart / transitionrun inside `scope` whose computed duration is
+ * perceptible (> 1 ms; the usual reduced-motion idiom is 0.01 ms). Install BEFORE the surface appears: a finished
+ * CSS animation is no longer in document.getAnimations().
+ */
+export async function recordMotion(frame: Frame, scope: string): Promise<void> {
+  await frame.evaluate((sel) => {
+    const w = window as unknown as { __uwMotion: string[] };
+    w.__uwMotion = [];
+    const longest = (list: string) => Math.max(0, ...list.split(",").map((s) => parseFloat(s) * (s.trim().endsWith("ms") ? 0.001 : 1) || 0));
+    for (const type of ["animationstart", "transitionrun"] as const) {
+      document.addEventListener(type, (e) => {
+        const t = e.target as Element;
+        if (!t.closest?.(sel)) return;
+        const cs = getComputedStyle(t);
+        const seconds = longest(type === "animationstart" ? cs.animationDuration : cs.transitionDuration);
+        if (seconds > 0.001) w.__uwMotion.push(`${type} ${t.className || t.tagName} ${seconds}s`);
+      }, true);
+    }
+  }, scope);
+}
+
+/**
+ * The recorded motion plus the computed durations of the surfaces themselves (the elements that would slide or
+ * fade): a perceptible animation, or a transition on a slide/fade property, is motion under reduced motion.
+ */
+export async function motionSeen(frame: Frame, surfaces: readonly string[]): Promise<{ missing: string[]; moving: string[] }> {
+  return frame.evaluate((sels) => {
+    const w = window as unknown as { __uwMotion: string[] };
+    const longest = (list: string) => Math.max(0, ...list.split(",").map((s) => parseFloat(s) * (s.trim().endsWith("ms") ? 0.001 : 1) || 0));
+    const missing: string[] = [];
+    const moving = [...w.__uwMotion];
+    for (const sel of sels) {
+      const el = document.querySelector(sel);
+      if (!el) { missing.push(sel); continue; }
+      const cs = getComputedStyle(el);
+      if (cs.animationName !== "none" && longest(cs.animationDuration) > 0.001) moving.push(`${sel} animation ${cs.animationName} ${cs.animationDuration}`);
+      if (longest(cs.transitionDuration) > 0.001 && /all|opacity|transform|translate|top|bottom|left|right|height/.test(cs.transitionProperty)) moving.push(`${sel} transition ${cs.transitionProperty} ${cs.transitionDuration}`);
+    }
+    return { missing, moving };
+  }, surfaces);
+}
+
+/**
+ * Starts recording every write into a window live node (.uw-live): one entry per record that adds text, so the
+ * same sentence written twice (or cleared and rewritten) is two entries. Clearing a node adds no text.
+ */
+export async function recordLiveWrites(frame: Frame): Promise<void> {
+  await frame.evaluate(() => {
+    const w = window as unknown as { __uwLive: string[] };
+    w.__uwLive = [];
+    new MutationObserver((records) => {
+      for (const r of records) {
+        const el = (r.target.nodeType === Node.TEXT_NODE ? r.target.parentElement : r.target) as HTMLElement | null;
+        const live = el?.closest?.(".uw-live");
+        const text = r.type === "characterData" ? (r.target as CharacterData).data : [...r.addedNodes].map((n) => n.textContent ?? "").join("");
+        if (live && text) w.__uwLive.push(`${live.getAttribute("role")}:${text}`);
+      }
+    }).observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+}
+
+/** Every `status:` write recorded since recordLiveWrites that contains `sentence`. */
+export async function liveReadsOf(frame: Frame, sentence: string): Promise<string[]> {
+  const writes = await frame.evaluate(() => (window as unknown as { __uwLive: string[] }).__uwLive);
+  return writes.filter((w) => w.startsWith("status:") && w.includes(sentence));
+}
+
+/** Labels of own-text elements in the bar/card cut by `nowrap` (and, with `vertical`, by a hidden-overflow box too short for its text). */
+export async function clippedLabels(frame: Frame, vertical: boolean): Promise<string[]> {
+  return frame.evaluate(([bar, card, v]) => [...document.querySelectorAll<HTMLElement>(`${bar} *, ${card} *`)].filter((el) => {
+    const cs = getComputedStyle(el);
+    const own = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim());
+    if (!own) return false;
+    const wide = cs.whiteSpace.includes("nowrap") && cs.overflow !== "visible" && el.scrollWidth > el.clientWidth + 1;
+    const tall = v === "1" && ["hidden", "clip"].includes(cs.overflowY) && el.scrollHeight > el.clientHeight + 1;
+    return wide || tall;
+  }).map((el) => (el.textContent ?? "").slice(0, 40)), [S6_BAR, S5_CARD, vertical ? "1" : "0"] as const);
+}
+
+/** Every S5 control can be scrolled into view and is the topmost element at its centre. */
+export async function reachable(frame: Frame): Promise<void> {
+  const blocked = await frame.locator(S5_CARD).evaluate((card) => [...card.querySelectorAll<HTMLElement>("button")].filter((b) => {
+    b.scrollIntoView({ block: "center" });
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return r.width === 0 || r.height === 0 || !(hit === b || b.contains(hit));
+  }).map((b) => b.dataset.choice ?? b.className));
+  expect(blocked, "S5 controls not reachable").toEqual([]);
+}
+
+/** Visible S5/S6 buttons smaller than 24x24 CSS px (hidden, collapsed or display:none buttons are not targets). */
+export async function smallTargets(frame: Frame): Promise<{ name: string; w: number; h: number }[]> {
+  return frame.evaluate(([bar, card]) => [...document.querySelectorAll<HTMLElement>(`${bar} button, ${card} button`)].filter((b) => {
+    const r = b.getBoundingClientRect();
+    return b.getClientRects().length > 0 && getComputedStyle(b).visibility !== "hidden" && (r.width > 0 || r.height > 0);
+  }).map((b) => {
+    const r = b.getBoundingClientRect();
+    return { name: (b.textContent || b.getAttribute("aria-label") || "").trim().slice(0, 30), w: r.width, h: r.height };
+  }).filter((b) => b.w < 24 || b.h < 24), [S6_BAR, S5_CARD] as const);
 }
 
 /** The identity of the frame's focused element: its data-choice, a class, or the tag. */
@@ -222,4 +339,43 @@ export async function surfaceIsMode(frame: Frame, selector: string, mode: Mode):
   const ratioToWhite = await frame.locator(selector).first().evaluate((el) => getComputedStyle(el).backgroundColor);
   const c = await contrastIn(frame, ratioToWhite, "#ffffff");
   return mode === "light" ? c < 1.5 : c > 8;
+}
+
+/**
+ * Writes organization overrides for every flag in one connection, then polls `/config` once until all of them show.
+ * The server caches override rows for featureflags.CacheTTL (30 s, db_provider.go:28/61) and a direct DB write sends no
+ * invalidation, so the wait is one TTL for the whole set; one setFlag per flag paid it per flag (cloud r1: the hook ran
+ * out of its budget while polling the third). Same row ids as setFlag, so the two never fight.
+ */
+export async function setOrgFlags(organizationId: string, flags: Record<string, boolean>): Promise<void> {
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL ?? "postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" });
+  await client.connect();
+  try {
+    for (const [flag, enabled] of Object.entries(flags)) {
+      await client.query(
+        `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
+         VALUES ($1, $2, 'organization', $3, $4, 'e2e: ux floor', 'e2e', 'system')
+         ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = $4`,
+        [`e2e-${flag}-${organizationId}`, flag, organizationId, enabled],
+      );
+    }
+  } finally {
+    await client.end();
+  }
+  await expect.poll(async () => {
+    const response = await fetch(`${e2eApiUrl}/api/v1/config?organization_id=${encodeURIComponent(organizationId)}`);
+    if (!response.ok) return null;
+    const shown = ((await response.json()) as { flags?: Record<string, boolean> }).flags ?? {};
+    return Object.keys(flags).map((k) => `${k}=${shown[k]}`).join(",");
+  }, { timeout: 100_000, intervals: [1_000], message: `${Object.keys(flags).join(", ")} never reached /config` }).toBe(Object.entries(flags).map(([k, v]) => `${k}=${v}`).join(","));
+}
+
+/**
+ * The UniWork AI flags for a group of tests, in the group's own beforeAll: when the AI setup fails only that group
+ * fails, and the S5/S6 tests still run. Call inside the test.describe of the group.
+ */
+export function aiFlagsBeforeAll(organizationId: () => string): void {
+  test.beforeAll(async () => {
+    await setOrgFlags(organizationId(), { office_ai_uniwork: true, office_ai_uniwork_docx: true });
+  });
 }
