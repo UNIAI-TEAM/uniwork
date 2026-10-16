@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // parseMeetingDueSpoken turns the due text an AI summary carried over from
@@ -41,7 +42,9 @@ import (
 // week", "beginning/middle of next week").
 //
 // Weekdays and phrases are matched on whole words, so "thủ tục" is not "thứ
-// tư" and "thứ 20" is not "thứ 2".
+// tư" and "thứ 20" is not "thứ 2". An ordinal "thứ X" ("lần thứ hai", "phiên
+// bản thứ ba", "thứ hai lần") and "thứ tự" are not weekdays; that check reads
+// the diacritics, so text typed without them keeps the weekday reading.
 func parseMeetingDueSpoken(spoken string, anchor time.Time) *string {
 	spoken = strings.TrimSpace(spoken)
 	if spoken == "" {
@@ -66,7 +69,7 @@ func parseMeetingDueSpoken(spoken string, anchor time.Time) *string {
 		return nil
 	}
 
-	if wd, ok := findWeekday(tokens); ok {
+	if wd, ok := findWeekday(tokens, wordTokens(spoken)); ok {
 		switch {
 		case nextWeek:
 			return formatDatePtr(weekdayOfWeek(mondayOf(day).AddDate(0, 0, 7), wd))
@@ -214,10 +217,31 @@ var singleWordWeekdays = map[string]time.Weekday{
 	"sunday": time.Sunday,
 }
 
-// findWeekday returns the first weekday named in tokens.
-func findWeekday(tokens []string) (time.Weekday, bool) {
+// ordinalNounsBefore make the "thứ X" after them an ordinal ("lần thứ hai",
+// the second time; "phiên bản thứ ba", the third version), and
+// ordinalNounsAfter the "thứ X" before them ("thứ hai lần"). They are
+// compared with their diacritics, so "bàn" (discuss) in "họp bàn thứ 6" is
+// not "bản" (version).
+var (
+	ordinalNounsBefore = map[string]struct{}{
+		"lần": {}, "buổi": {}, "phiên": {}, "vòng": {}, "đợt": {}, "bản": {}, "bước": {}, "lượt": {}, "kỳ": {},
+	}
+	ordinalNounsAfter = map[string]struct{}{
+		"lần": {}, "vòng": {}, "bản": {}, "phiên": {},
+	}
+)
+
+// findWeekday returns the first weekday named in tokens (folded by
+// normalizePersonName). raw holds the same words lowercased with their
+// diacritics, used to tell an ordinal "thứ X" and "thứ tự" (order) from a
+// weekday; when raw does not line up with tokens (or the text was typed
+// without diacritics) every "thứ X" stays a weekday.
+func findWeekday(tokens, raw []string) (time.Weekday, bool) {
+	if len(raw) != len(tokens) {
+		raw = nil
+	}
 	for i, tok := range tokens {
-		if tok == "thu" && i+1 < len(tokens) {
+		if tok == "thu" && i+1 < len(tokens) && !isOrdinalThu(raw, i) {
 			if wd, ok := vietnameseWeekdays[tokens[i+1]]; ok {
 				return wd, true
 			}
@@ -230,6 +254,40 @@ func findWeekday(tokens []string) (time.Weekday, bool) {
 		}
 	}
 	return 0, false
+}
+
+// isOrdinalThu reports that the "thứ" at raw[i] starts an ordinal or "thứ
+// tự" rather than a weekday.
+func isOrdinalThu(raw []string, i int) bool {
+	if raw == nil || i+1 >= len(raw) {
+		return false
+	}
+	if raw[i+1] == "tự" {
+		return true
+	}
+	if i > 0 {
+		if _, ok := ordinalNounsBefore[raw[i-1]]; ok {
+			return true
+		}
+	}
+	if i+2 < len(raw) {
+		if _, ok := ordinalNounsAfter[raw[i+2]]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// wordTokens lowercases s and splits it into words, dropping what
+// foldVietnamese drops but keeping diacritics, so its words line up with
+// those of normalizePersonName(s).
+func wordTokens(s string) []string {
+	return strings.Fields(strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsSpace(r) {
+			return r
+		}
+		return -1
+	}, strings.ToLower(s)))
 }
 
 // namesPastWeek reports a phrase naming a week already gone ("tuần trước",

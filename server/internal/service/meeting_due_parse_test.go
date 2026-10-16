@@ -109,6 +109,26 @@ func TestParseMeetingDueSpoken(t *testing.T) {
 		{"thứ 20", ""},
 		{"thu 20", ""},
 		{"sau buổi họp", ""},
+		// Ordinal "thứ hai/ba/..." (second, third) after an ordinal noun or
+		// before one, and "thứ tự" (order), are not weekdays.
+		{"lần thứ hai", ""},
+		{"họp lần thứ 2", ""},
+		{"phiên bản thứ ba", ""},
+		{"vòng thứ hai", ""},
+		{"đợt thứ 2", ""},
+		{"bước thứ ba", ""},
+		{"buổi thứ hai", ""},
+		{"thứ hai lần", ""},
+		{"thứ ba vòng loại", ""},
+		{"thứ hai phiên", ""},
+		{"thứ tự", ""},
+		{"theo thứ tự ưu tiên", ""},
+		// Diacritics tell these apart from the ordinal nouns; without them
+		// the weekday reading stays.
+		{"thứ Hai bàn tiếp", "2026-09-07"},
+		{"họp bàn thứ 6", "2026-09-04"},
+		{"thu tu", "2026-09-09"},
+		{"lan thu hai", "2026-09-07"},
 		{"sometime soon", ""},
 		{"", ""},
 	}
