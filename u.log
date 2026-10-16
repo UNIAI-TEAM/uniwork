@@ -1,0 +1,24 @@
+$ grep -E 'panic|ERROR|messages/around' /tmp/src5-server.log | tail -n 120; tail -n 30 /tmp/src5-web.log; for p in 18549 13449; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18549/tcp 13449/tcp 2>/dev/null; sleep 1; for p in 18549 13449; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+07:40:28.715 INF http request method=OPTIONS path=/api/v1/workspaces/01M51TFCKH8ZYBHBA8WAZDZGW2/chat/rooms/01M51TFCQ25TJS7460P1Z3X668/messages/around/01M51TFCQHFQP6TE4V33RMPKX4 status=200 duration=10µs request_id=cursor/vYY7pnRi8A-000663 correlation_id=ec965a643006cb308b45bf2026cf5331 trace_id=ec965a643006cb308b45bf2026cf5331 span_id=69c583175df3385c
+07:40:28.725 INF http request method=GET path=/api/v1/workspaces/01M51TFCKH8ZYBHBA8WAZDZGW2/chat/rooms/01M51TFCQ25TJS7460P1Z3X668/messages/around/01M51TFCQHFQP6TE4V33RMPKX4 status=200 duration=9.464ms request_id=cursor/vYY7pnRi8A-000664 correlation_id=b3424320e8b69a8824bcbac0ae5859d1 trace_id=b3424320e8b69a8824bcbac0ae5859d1 span_id=31a04b079054d95d organization_id=01M51TFCKA189GB2XABDC9QKMP workspace_id=01M51TFCKH8ZYBHBA8WAZDZGW2 actor_id=01M51TFCNQK9Q6EE6TQE40Z20N actor_kind=human
+07:40:50.719 INF http request method=OPTIONS path=/api/v1/workspaces/01M51TG1YG62G32AAC8JMQKP67/chat/rooms/01M51TG21TMAPKM12J5Q46V27W/messages/around/01M51TG227CK4QF1H6AKKMDQPZ status=200 duration=8µs request_id=cursor/vYY7pnRi8A-001314 correlation_id=c2d3f6bb4943b4fa8d6fc796adcf0b2b trace_id=c2d3f6bb4943b4fa8d6fc796adcf0b2b span_id=0a25483fed711ab3
+07:40:50.722 INF http request method=GET path=/api/v1/workspaces/01M51TG1YG62G32AAC8JMQKP67/chat/rooms/01M51TG21TMAPKM12J5Q46V27W/messages/around/01M51TG227CK4QF1H6AKKMDQPZ status=200 duration=2.291ms request_id=cursor/vYY7pnRi8A-001315 correlation_id=0b078879746a79c4cea57836c12c8623 trace_id=0b078879746a79c4cea57836c12c8623 span_id=29bd3854faa11208 organization_id=01M51TG1YBT5FHBZXY0H65VANN workspace_id=01M51TG1YG62G32AAC8JMQKP67 actor_id=01M51TG20MWZG2003C7XT841PT actor_kind=human
+07:41:11.967 INF http request method=OPTIONS path=/api/v1/workspaces/01M51TGQ8PT7Y2AYB812KJE3KB/chat/rooms/01M51TGQC1WHCX3SGFSZ889Q59/messages/around/01M51TGQCGQPMFGW3TM3CCGW9V status=200 duration=9µs request_id=cursor/vYY7pnRi8A-001955 correlation_id=80851d0b8950be4d2370377381652707 trace_id=80851d0b8950be4d2370377381652707 span_id=6203ccda02c84405
+07:41:11.969 INF http request method=GET path=/api/v1/workspaces/01M51TGQ8PT7Y2AYB812KJE3KB/chat/rooms/01M51TGQC1WHCX3SGFSZ889Q59/messages/around/01M51TGQCGQPMFGW3TM3CCGW9V status=200 duration=2.192ms request_id=cursor/vYY7pnRi8A-001956 correlation_id=4ef07076563f456681f26b36364dbe9b trace_id=4ef07076563f456681f26b36364dbe9b span_id=cdb78e0d21cad4ae organization_id=01M51TGQ8FYAJ57E3DNA25AVB8 workspace_id=01M51TGQ8PT7Y2AYB812KJE3KB actor_id=01M51TGQAVWCY0TX4NF9MQFCRT actor_kind=human
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::13449
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::13449)
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 13449
+}
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 start: `next start`
+Exit status 1

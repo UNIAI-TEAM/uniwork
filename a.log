@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+e86199966b91fe1605cd7babebebffa0b1f641a6
+e86199966 fix(layout): mount a new route's page once, not inside the exiting copy too
+a7f77dab5 test(e2e): print what the page did when the DM jump has no ring
+251dae79f test(chat): pin the ?room=&message= jump on the whole chat page
+3b0eed52d chore: merge G5-G7 root 1dcb78457 into the SRC-01 lane
+1dcb78457 chore: merge G6-03a run409 + G7-12 cap-aware harness (f2dd093c5) into the G5-G7 root
+f2dd093c5 docs(office): say which asks the holdout cap count covers
+fea62d1b5 chore(office): comment the final-at-cap boundary in the holdout runner
+01acdba4a test(office): pin final-at-cap as a natural finish in the holdout runner
