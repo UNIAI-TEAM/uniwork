@@ -37,7 +37,7 @@ Tài liệu dành cho người dùng workspace UniWork. Kỹ thuật triển kha
 
 1. Meeting đã **Đang diễn ra** hoặc **Đã kết thúc**.
 2. Chủ trì (hoặc quản trị workspace) bấm **Tạo tóm tắt** trên trang chi tiết hoặc ở header tab Copilot. Cần ít nhất một nguồn: transcript, ghi chú, chat của cuộc họp, hoặc kết quả biểu quyết đã đóng. Khi chưa có nguồn nào, nút vẫn bấm tới được bằng bàn phím và nói rõ lý do.
-3. Trong lúc AI làm việc (có thể tới một phút), nút hiện vòng quay và trình đọc màn hình được báo “Đang tạo tóm tắt”. Mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm; mỗi người tạo tối đa khoảng 6 lần mỗi phút.
+3. Trong lúc AI làm việc (có thể tới một phút), nút hiện vòng quay và trình đọc màn hình được báo “Đang tạo tóm tắt”. Mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm (nếu máy chủ dừng giữa chừng, cuộc họp đó chờ tối đa 3 phút mới tóm tắt lại được); mỗi người tạo tối đa khoảng 6 lần mỗi phút.
 4. Đã có tóm tắt thì **Tạo lại tóm tắt** luôn hỏi xác nhận trước, ở cả trang chi tiết và Copilot. Bản mới thay bản cũ; các task đã tạo từ bản cũ vẫn giữ nguyên. Lựa chọn đang tick trên bản cũ bị bỏ.
 5. Dòng nhãn AI dưới tóm tắt ghi nguồn thật sự có lúc tạo (ví dụ “Từ bản ghi lời thoại và tin nhắn”), thời điểm và model. Có dữ liệu mới sau đó thì hiện “Có dữ liệu mới sau khi tạo tóm tắt”.
 
@@ -54,8 +54,8 @@ Tài liệu dành cho người dùng workspace UniWork. Kỹ thuật triển kha
 
 ### Cách server gợi ý người và hạn
 
-- **Người phụ trách:** server so tên AI ghi với các thành viên workspace có thể được giao việc (thành viên đã bị vô hiệu hóa và khách không tính), theo tên hồ sơ và tên hiển thị trong cuộc họp. Khớp khi bằng cả tên, hoặc bằng các chữ cuối của tên (“An”, “Văn An” khớp “Nguyễn Văn An”; “An” không khớp “Thanh”, “Lan” không khớp “Lan Anh”). Danh xưng đứng trước (“anh”, “chị”, “sếp”, “Mr”…) được bỏ; dấu tiếng Việt và chữ hoa không ảnh hưởng (“ĐỨC” khớp “Đức”, “Duc”). Nhiều người cùng khớp thì chỉ chọn khi đúng một người trong số đó dự họp; còn lại không gợi ý ai.
-- **Hạn:** server đọc ISO (`2026-09-10`), `ngày mai`, `thứ Sáu`, `thứ Sáu tuần sau`, `next week`, v.v. theo ngày của cuộc họp (giờ kết thúc thực tế, nếu không có thì giờ kết thúc dự kiến) và theo múi giờ của cuộc họp (mặc định Asia/Ho_Chi_Minh). Không đọc được thì không gợi ý ngày.
+- **Người phụ trách:** server so tên AI ghi với các thành viên workspace có thể được giao việc (thành viên đã bị vô hiệu hóa và khách không tính), theo tên hồ sơ và tên hiển thị trong cuộc họp. Thứ tự ưu tiên: khớp cả tên; khớp các chữ cuối của tên (“An”, “Văn An” khớp “Nguyễn Văn An”; “An” không khớp “Thanh”); cuối cùng, một chữ đơn khớp một chữ bất kỳ trong tên nếu chỉ đúng một người như vậy (“Hùng” khớp “Hùng Nguyễn”, “Lan” khớp một “Lan Anh” duy nhất). Danh xưng đứng trước (“anh”, “chị”, “sếp”, “Mr”…) được đọc cả hai cách, nên “anh Tuấn” ưu tiên người tên đúng “Tuấn”, còn tên đệm “Anh” trong “Nguyễn Anh Thư” vẫn khớp. Dấu tiếng Việt và chữ hoa không ảnh hưởng (“ĐỨC” khớp “Đức”, “Duc”). Nhiều người cùng khớp thì chỉ chọn khi đúng một người trong số đó dự họp; còn lại không gợi ý ai.
+- **Hạn:** server đọc ISO (`2026-09-10`), `ngày mai`, `thứ Sáu`, `thứ Sáu tuần sau`, `next week`, v.v. theo ngày của cuộc họp (giờ kết thúc thực tế, nếu không có thì giờ kết thúc dự kiến) và theo múi giờ của cuộc họp (mặc định Asia/Ho_Chi_Minh). Ngày đã qua so với cuộc họp (kể cả `05/09` khi họp ngày 06/09) không được gợi ý; riêng ngày tháng 1–2 nói trong cuộc họp tháng 12 được hiểu là năm sau. Cụm như “đầu tuần sau”, “tuần trước”, “tuần sau nữa” và số thứ tự (“lần thứ hai”) không được đoán thành ngày. Không đọc được thì không gợi ý ngày.
 
 ## Ghi hình và lịch
 
@@ -78,6 +78,7 @@ Tài liệu dành cho người dùng workspace UniWork. Kỹ thuật triển kha
 | `rate_limited` (429) | Vượt giới hạn tạo tóm tắt (khoảng 6 lần/phút/người) | Chờ một phút |
 | `summary_superseded` (409) | Tóm tắt vừa được tạo lại (bởi bạn hoặc chủ trì khác) | Chọn lại việc trong bản mới |
 | `summary_item_already_converted` (409) | Việc đã thành task trước đó (`fields.indexes`) | Danh sách tự cập nhật; chọn lại các việc còn lại |
+| `active_duplicate_task` (409) | Việc trùng tiêu đề với một task đang mở trong cùng dự án, hoặc hai việc trùng nhau trong lô (`fields.indexes`) | Hộp thoại đánh dấu các việc trùng: đổi tiêu đề, đổi dự án hoặc bỏ chọn rồi tạo lại |
 | `not_meeting_host` (403) | Không phải chủ trì hay quản trị workspace | Nhờ chủ trì tạo |
 | `assignee_not_member` (422) | Người được gán không còn trong workspace | Chọn người khác |
 | `not_found` (404) khi tạo task | Dự án đã chọn không còn | Chọn dự án khác hoặc **Không thuộc dự án** |
