@@ -9,17 +9,14 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
 import { libraryGroupSpans, libraryLadder, type LibraryColumnId } from "./library-columns";
-import { rowTypeKey, type RowGroup } from "./library-rows";
+import type { RowGroup } from "./library-rows";
 
 const COLUMN_LABEL: Record<LibraryColumnId, string> = {
   name: "documents.home.columns.name",
-  type: "documents.home.columns.type",
-  source: "documents.home.columns.source",
+  access: "documents.home.columns.access",
   editor: "documents.home.columns.editor",
   updated: "documents.home.columns.updated",
   size: "documents.home.columns.size",
-  access: "documents.home.columns.my_access",
-  visibility: "documents.home.columns.visibility",
   actions: "documents.home.columns.actions",
 };
 
@@ -39,8 +36,6 @@ export interface DocumentsLibraryListProps {
   cardsShown?: boolean;
   /** Show the archive badge on every row (the archive tab). */
   archived?: boolean;
-  /** Show the Type column (`documents.home.columns.type`) when an open folder is displayed. */
-  showType?: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -66,7 +61,6 @@ export function DocumentsLibraryList({
   typeFiltered = false,
   cardsShown = false,
   archived = false,
-  showType = false,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -158,7 +152,7 @@ export function DocumentsLibraryList({
     return "";
   };
 
-  const ladder = libraryLadder(showType);
+  const ladder = libraryLadder();
   const groupSpans = libraryGroupSpans(ladder);
 
   return (
@@ -202,14 +196,7 @@ export function DocumentsLibraryList({
                 </tr>
               ) : null}
               {group.rows.map((row) => (
-                <LibraryRowView
-                  key={row.id}
-                  row={row}
-                  handlers={handlers}
-                  archived={archived}
-                  ladder={ladder}
-                  typeCell={showType ? t(rowTypeKey(row)) : undefined}
-                />
+                <LibraryRowView key={row.id} row={row} handlers={handlers} archived={archived} ladder={ladder} />
               ))}
             </tbody>
           ))}

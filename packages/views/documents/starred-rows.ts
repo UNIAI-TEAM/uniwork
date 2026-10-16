@@ -60,6 +60,10 @@ export function favoriteRow(fav: FavoriteLike, known?: Known): DocumentSummaryRo
     size_bytes: known?.size_bytes,
     origin: known?.origin,
     my_level: known?.my_level,
+    // Pass through, never invented: a trashed favourite keeps its badge in the
+    // Starred view, and an owned one keeps "Bạn: Chủ sở hữu" (SV-1).
+    via: known?.via,
+    archived_at: known?.archived_at,
     id: fav.document_id,
     workspace_id: fav.workspace_id,
     parent_id: fav.parent_id ?? null,

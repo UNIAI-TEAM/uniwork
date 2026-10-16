@@ -67,43 +67,45 @@ function renderList(rows: LibraryRow[]) {
   );
 }
 
-describe("library table access columns", () => {
-  it("shows the viewer's level and the visibility per row, with — where the row carries nothing", () => {
+describe("library table access column", () => {
+  it("shows the visibility and the viewer's level per row, with — where the row carries nothing", () => {
     renderList([
       documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted" })),
       documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace" })),
       documentRow(item("c", "C.docx", { my_level: undefined, visibility: "weird" as DocumentSummaryRow["visibility"] })),
     ]);
-    expect(screen.getByRole("columnheader", { name: t("documents.home.columns.my_access") })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: t("documents.home.columns.visibility") })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: t("documents.home.columns.access") })).toBeTruthy();
     const rowA = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    // Each value shows twice: in its column (wide list) and in the secondary line (narrower list).
-    expect(within(rowA).getAllByText("Quản lý")).toHaveLength(2);
+    // The label shows twice: "Hạn chế" in the column (wide list) and on the secondary line (narrower list).
     expect(within(rowA).getAllByText("Hạn chế")).toHaveLength(2);
+    expect(within(rowA).getByText("Bạn: Quản lý")).toBeTruthy();
     const rowB = document.querySelector('[data-library-row="b"]') as HTMLElement;
-    expect(within(rowB).getAllByText("Chỉ xem")).toHaveLength(2);
+    expect(within(rowB).getByText("Bạn: Chỉ xem")).toBeTruthy();
     expect(within(rowB).getByText("Workspace")).toBeTruthy();
     const rowC = document.querySelector('[data-library-row="c"]') as HTMLElement;
-    expect(within(rowC).getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(within(rowC).getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });
 
   it("labels the comment level as its own word", () => {
     renderList([documentRow(item("a", "A.docx", { my_level: "comment" as DocumentSummaryRow["my_level"] }))]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    expect(within(row).getAllByText("Bình luận")).toHaveLength(2);
+    expect(within(row).getByText("Bạn: Bình luận")).toBeTruthy();
+    expect(within(row).getByText("Bình luận")).toBeTruthy();
   });
 
-  it("shows the two columns only when the list container is wide, and keeps the colgroup in step", () => {
+  it("shows the column only when the list container is wide, and keeps the colgroup in step", () => {
     renderList([documentRow(item("a", "A.docx", { my_level: "manage" }))]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    const cell = within(row).getAllByText("Quản lý").map((el) => el.closest("td")).find((td) => td?.className.includes("@min-[68rem]/library:table-cell"))!;
+    const cell = within(row).getByText("Bạn: Quản lý").closest("td")!;
     expect(cell.className).toContain("hidden");
-    expect(document.querySelectorAll("colgroup col")).toHaveLength(8);
-    expect(document.querySelectorAll("colgroup col.\\@min-\\[68rem\\]\\/library\\:table-column")).toHaveLength(2);
-    expect(document.querySelectorAll("thead th.\\@min-\\[68rem\\]\\/library\\:table-cell")).toHaveLength(2);
+    expect(cell.className).toContain("@min-[66rem]/library:table-cell");
+    expect(document.querySelectorAll("colgroup col")).toHaveLength(6);
+    expect(document.querySelectorAll("colgroup col.\\@min-\\[66rem\\]\\/library\\:table-column")).toHaveLength(1);
+    expect(document.querySelectorAll("thead th.\\@min-\\[66rem\\]\\/library\\:table-cell")).toHaveLength(1);
     // The ladder (documents-library-ladder.test.tsx) holds the rest: no viewport breakpoint decides a column.
     expect(document.querySelector("th.lg\\:table-cell, .xl\\:table-cell, .xl\\:table-column, .xl\\:hidden, .md\\:table-cell")).toBeNull();
   });
+
 
   it("carries the level and the restricted lock on the row's secondary line while the main area is narrow", () => {
     renderList([

@@ -5,35 +5,35 @@
  * docs aside and the app sidebar, so the viewport says nothing about the room
  * it has. Every optional column therefore joins by the width of the list's own
  * container (`@container/library`), in a ladder where Name keeps >= 280px:
- * a rung opens at `280 + 2px border + the fixed columns up to and including
- * it`, rounded up to the next rem. Header, colgroup, cells and the group
- * spanner all read the one class below, so none can drift out of step.
+ * a rung opens at `48px actions + 2px border + the fixed columns up to and
+ * including it`, rounded up to the next rem. Header, colgroup, cells and the
+ * group spanner all read the one class below, so none can drift out of step.
  *
  * Below the first rung only Name and the actions column exist (Name = the
- * container - 58px). Tailwind finds the classes as literals, so each rung is
+ * container - 50px). Tailwind finds the classes as literals, so each rung is
  * written out in full; `documents-library-ladder.test.tsx` re-derives every
  * threshold from the column widths.
  *
- * Fixed columns (px): actions 56 -> 96 from the first rung, Editor 144,
- * Updated 96, Size 96, Source 112, Type 144, My access 112, Visibility 144.
+ * The six board columns (Main.dc.html / Folder.dc.html — the same at Home and
+ * inside a folder) and their fixed widths: Truy cập 190px, Người sửa gần nhất
+ * 200px, Cập nhật 140px, Dung lượng 90px (right-aligned), Thao tác 48px.
+ * Thao tác widens to 96px once the app command can join it.
  *
- * | container | plain library              | open folder (Type)        |
- * | --------- | -------------------------- | ------------------------- |
- * | < 45rem   | Name, actions              | Name, actions             |
- * | 45rem     | + Editor, Updated, Size    | + Editor, Updated, Size   |
- * | 52rem     | + Source                   |                           |
- * | 54rem     |                            | + Type                    |
- * | 61rem     |                            | + Source                  |
- * | 68rem     | + My access, Visibility    | (never: 1130px needed)    |
+ * | container | columns on screen                    |
+ * | --------- | ------------------------------------ |
+ * | < 45rem   | Name, actions                        |
+ * | 45rem     | + Cập nhật, Dung lượng               |
+ * | 54rem     | + Người sửa gần nhất                 |
+ * | 66rem     | + Truy cập                           |
  */
 
-export type LibraryColumnId = "name" | "type" | "source" | "editor" | "updated" | "size" | "access" | "visibility" | "actions";
+export type LibraryColumnId = "name" | "access" | "editor" | "updated" | "size" | "actions";
 
 interface LibraryColumn {
   id: LibraryColumnId;
   /** Classes of the `<col>`. */
   col: string;
-  /** Visibility classes shared by the `<th>` and every `<td>` of the column. */
+  /** Visibility (and alignment) classes shared by the `<th>` and every `<td>` of the column. */
   cell: string;
 }
 
@@ -44,60 +44,39 @@ export interface LibraryLadder {
   head: string;
   /** The app command in the actions cell: shown once the actions column has room for it. */
   quick: string;
-  /** The editor · date · size part of the secondary line: hidden once those columns exist. */
+  /** The editor part of the secondary line: hidden once its column exists. */
   metaHides: string;
-  /** The whole secondary line (level + Restricted mark): hidden once My access / Visibility exist. Empty when they never do. */
+  /** The updated · size part of the secondary line: hidden once those columns exist. */
+  metaTailHides: string;
+  /** The whole secondary line (level + Restricted mark): hidden once Truy cập exists. */
   accessLineHides: string;
 }
 
 const NAME: LibraryColumn = { id: "name", col: "", cell: "" };
-const ACTIONS: LibraryColumn = { id: "actions", col: "w-14 @min-[45rem]/library:w-24", cell: "" };
+const ACTIONS: LibraryColumn = { id: "actions", col: "w-12 @min-[54rem]/library:w-24", cell: "" };
 
-const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-36 @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
-const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-24 @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
-const SIZE: LibraryColumn = { id: "size", col: "hidden w-24 @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
+// The board's fixed widths written as px so the mock columns land where the
+// design put them; the rungs derive from those widths (45rem = updated 140 +
+// size 90 + actions 48 + border 2 = 720px, and so on).
+const ACCESS: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[66rem]/library:table-column", cell: "hidden @min-[66rem]/library:table-cell" };
+const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell" };
+const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-[140px] @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
+const SIZE: LibraryColumn = { id: "size", col: "hidden w-[90px] @min-[45rem]/library:table-column", cell: "hidden text-right @min-[45rem]/library:table-cell" };
 
 const HEAD = "hidden bg-muted/50 @min-[45rem]/library:table-header-group";
-const QUICK = "hidden @min-[45rem]/library:block";
-const META_HIDES = "@min-[45rem]/library:hidden";
+const QUICK = "hidden @min-[54rem]/library:block";
 
-const PLAIN: LibraryLadder = {
-  columns: [
-    NAME,
-    { id: "source", col: "hidden w-28 @min-[52rem]/library:table-column", cell: "hidden @min-[52rem]/library:table-cell" },
-    EDITOR,
-    UPDATED,
-    SIZE,
-    { id: "access", col: "hidden w-28 @min-[68rem]/library:table-column", cell: "hidden @min-[68rem]/library:table-cell" },
-    { id: "visibility", col: "hidden w-36 @min-[68rem]/library:table-column", cell: "hidden @min-[68rem]/library:table-cell" },
-    ACTIONS,
-  ],
+const LADDER: LibraryLadder = {
+  columns: [NAME, ACCESS, EDITOR, UPDATED, SIZE, ACTIONS],
   head: HEAD,
   quick: QUICK,
-  metaHides: META_HIDES,
-  accessLineHides: "@min-[68rem]/library:hidden",
+  metaHides: "@min-[54rem]/library:hidden",
+  metaTailHides: "@min-[45rem]/library:hidden",
+  accessLineHides: "@min-[66rem]/library:hidden",
 };
 
-// With Type the pair would leave Name 254px at the list's widest (1104px), so
-// My access / Visibility stay on the secondary line in an open folder.
-const WITH_TYPE: LibraryLadder = {
-  columns: [
-    NAME,
-    { id: "type", col: "hidden w-36 @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell" },
-    { id: "source", col: "hidden w-28 @min-[61rem]/library:table-column", cell: "hidden @min-[61rem]/library:table-cell" },
-    EDITOR,
-    UPDATED,
-    SIZE,
-    ACTIONS,
-  ],
-  head: HEAD,
-  quick: QUICK,
-  metaHides: META_HIDES,
-  accessLineHides: "",
-};
-
-export function libraryLadder(showType: boolean): LibraryLadder {
-  return showType ? WITH_TYPE : PLAIN;
+export function libraryLadder(): LibraryLadder {
+  return LADDER;
 }
 
 /** The visibility class of one column's cells, or null when this ladder has no such column. */

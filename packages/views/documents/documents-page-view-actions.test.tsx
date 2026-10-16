@@ -315,7 +315,7 @@ describe("library views", () => {
     fireEvent.click(sidebarItem(t("documents.home.sidebar.shared")));
     const row = await rowOf("Hợp đồng chung");
     // An editor that is an agent without a member entry is named as an agent, not left blank.
-    expect(within(row).getByText(t("documents.home.editor_agent"))).toBeInTheDocument();
+    expect(within(row).getAllByText(t("documents.home.editor_agent")).length).toBeGreaterThan(0);
   });
 
   it("says the recent list could not be read and retries it", async () => {

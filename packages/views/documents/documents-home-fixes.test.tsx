@@ -253,7 +253,7 @@ describe("starred rows without a loaded copy (m1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} archived={false} ladder={libraryLadder(false)} />
+          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} archived={false} ladder={libraryLadder()} />
         </tbody>
       </table>,
     );
@@ -273,7 +273,7 @@ describe("starred rows without a loaded copy (m1)", () => {
     const { unmount } = render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} archived={false} ladder={libraryLadder(false)} />
+          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} archived={false} ladder={libraryLadder()} />
         </tbody>
       </table>,
     );
@@ -287,7 +287,7 @@ describe("starred rows without a loaded copy (m1)", () => {
             row={documentRow(favoriteRow(fav))}
             handlers={{ ...handlers, isStarred: () => false }}
             archived={false}
-            ladder={libraryLadder(false)}
+            ladder={libraryLadder()}
           />
         </tbody>
       </table>,

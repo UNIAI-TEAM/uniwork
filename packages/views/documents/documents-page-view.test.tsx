@@ -578,8 +578,8 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn(), { desktopOpen: desktopOpenWith(createSession) });
 
     const row = await rowOf("Đề xuất ngân sách.pdf");
-    expect(within(row).getAllByText(t("documents.home.origin.chat")).length).toBeGreaterThan(0);
-    expect(within(row).getByText("Dũng")).toBeInTheDocument();
+    // The board has no Source column; the owner name rides the secondary line until its column joins.
+    expect(within(row).getAllByText("Dũng").length).toBeGreaterThan(0);
     expect(within(row).queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
     expect(within(row).getByRole("button", { name: t("documents.home.row.download") })).toBeInTheDocument();
     // The sidebar names the modules once the sources API answered.
@@ -627,7 +627,7 @@ describe("DocumentsPageView", () => {
     expect(createSession.mock.calls[0]?.[1]).toMatchObject({ operation: "view", deployment_id: "dep-1" });
   });
 
-  it("shows a file's size and whether it was uploaded or created here", async () => {
+  it("shows a file's size in the Dung lượng column", async () => {
     route({
       list: () => [
         summary({ id: "u1", kind: "file", title: "Hợp đồng.pdf", size_bytes: 2048, origin: "upload" }),
@@ -636,10 +636,7 @@ describe("DocumentsPageView", () => {
     });
     renderView(vi.fn());
     const uploaded = await rowOf("Hợp đồng.pdf");
-    expect(within(uploaded).getByText(t("documents.home.origin.upload"))).toBeInTheDocument();
     expect(within(uploaded).getAllByText(/2 KB/).length).toBeGreaterThan(0);
-    const created = await rowOf("Báo cáo.docx");
-    expect(within(created).getByText(t("documents.home.origin.created"))).toBeInTheDocument();
   });
 
   it("moves a row into a folder picked in the dialog, on the revision it reads first", async () => {
@@ -1217,7 +1214,9 @@ describe("DocumentsPageView", () => {
       fireEvent.click(screen.getByRole("treeitem", { name: /Dự án CCB/ }));
       expect(await screen.findByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
       expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
-      expect(await screen.findByRole("columnheader", { name: t("documents.home.columns.type") })).toBeInTheDocument();
+      // Same six board columns inside a folder (F-7): Truy cập, never Loại.
+      expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
+      expect(await screen.findByRole("columnheader", { name: t("documents.home.columns.access") })).toBeInTheDocument();
       expect(groupHeaders()).toEqual([]);
     });
 
@@ -1254,27 +1253,6 @@ describe("DocumentsPageView", () => {
       });
     });
 
-    it("renders the Type column ('Loại') with a localized label per kind in an open folder", async () => {
-      route({
-        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
-        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
-        list: (path) =>
-          queryOf(path).get("parent_id") === "fo1"
-            ? [
-                summary({ id: "sub1", parent_id: "fo1", kind: "folder", title: "Thư mục con" }),
-                summary({ id: "p1", parent_id: "fo1", kind: "page", title: "Ghi chú họp" }),
-                file("f1", "Hợp đồng.docx", { parent_id: "fo1" }),
-              ]
-            : [],
-      });
-      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
-
-      const table = await screen.findByRole("table");
-      expect(within(table).getByRole("columnheader", { name: t("documents.home.columns.type") })).toBeInTheDocument();
-      expect(within(await rowOf("Thư mục con")).getByText(t("documents.file_types.folder"))).toBeInTheDocument();
-      expect(within(await rowOf("Ghi chú họp")).getByText(t("documents.file_types.page"))).toBeInTheDocument();
-      expect(within(await rowOf("Hợp đồng.docx")).getByText(t("documents.file_types.docx"))).toBeInTheDocument();
-    });
 
     it("defaults sort without crashing when platform storage throws", async () => {
       const getSpy = vi.spyOn(defaultStorage, "getItem").mockImplementation(() => {
