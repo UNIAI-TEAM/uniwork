@@ -371,8 +371,8 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                 </div>
                 <ul className="divide-y divide-border">
                   {access.data.acl_owner ? (
-                    // Wraps below sm: the name and label keep their line and the level
-                    // and the transfer button drop under them, instead of the button
+                    // Wraps below sm: the name and label keep their line and the
+                    // transfer button drops under them, instead of the button
                     // squeezing the name to nothing at 390px.
                     <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
                       <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
@@ -383,7 +383,6 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
-                        {levelLabel(access.data.acl_owner.level)}
                         <OwnerTransferAction
                           wsId={wsId}
                           doc={doc}

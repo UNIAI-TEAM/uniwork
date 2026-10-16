@@ -8922,9 +8922,9 @@
       "via_share": "chia sẻ trực tiếp",
       "via_link": "liên kết công khai",
       "via_ai_context": "ngữ cảnh AI",
-      "level_view": "Xem",
+      "level_view": "Chỉ xem",
       "level_comment": "Bình luận",
-      "level_edit": "Sửa",
+      "level_edit": "Chỉnh sửa",
       "level_manage": "Quản lý",
       "inactive": "Không còn hiệu lực",
       "effective": "Mức hiệu lực: {{level}}",
@@ -9084,9 +9084,9 @@
       "source_workspace": "Thành viên workspace",
       "source_break_glass": "Truy cập khẩn cấp",
       "source_other": "Khác",
-      "level_view": "Xem",
+      "level_view": "Chỉ xem",
       "level_comment": "Bình luận",
-      "level_edit": "Sửa",
+      "level_edit": "Chỉnh sửa",
       "level_manage": "Quản lý",
       "level_none": "Không có",
       "level_other": "Khác",
@@ -9461,9 +9461,9 @@
         "restricted": "Hạn chế"
       },
       "access": {
-        "view": "Xem",
+        "view": "Chỉ xem",
         "comment": "Bình luận",
-        "edit": "Sửa",
+        "edit": "Chỉnh sửa",
         "manage": "Quản lý"
       },
       "visibility": {

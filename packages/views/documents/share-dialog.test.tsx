@@ -234,7 +234,12 @@ describe("ShareDialog", () => {
 
     expect(await screen.findByText(t("documents.share.access_title"))).toBeInTheDocument();
     expect(screen.getByText(t("documents.share.my_level", { level: t("documents.share.level_manage") }))).toBeInTheDocument();
-    expect(screen.getByText(t("documents.share.acl_owner"))).toBeInTheDocument();
+    const ownerBadge = screen.getByText(t("documents.share.acl_owner"));
+    expect(ownerBadge).toBeInTheDocument();
+    const ownerRow = ownerBadge.closest("li")!;
+    expect(ownerRow).not.toHaveTextContent(t("documents.share.level_manage"));
+    expect(t("documents.share.level_view")).toBe("Chỉ xem");
+    expect(t("documents.share.level_edit")).toBe("Chỉnh sửa");
     expect(screen.getByText("Bình")).toBeInTheDocument();
     expect(screen.getByText("Design")).toBeInTheDocument();
     // A revoked/dead grant is marked, not hidden.
