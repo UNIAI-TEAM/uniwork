@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+1384083877041abf7c7c76a8a0ef0b034d622cf2
+138408387 fix(documents): keep audit/tenant export caps at 100 MiB and pin default cap parity (UNI-1859)
+41d41229a docs(documents): size-cap addendum r2b, export purposes unchanged
+1c0cf2738 test(documents): cover DOCUMENT_MAX_BYTES, config limits, and 413 max_bytes (UNI-1859)
+01999647b feat(documents): configure single DOCUMENT_MAX_BYTES cap and publish limits (UNI-1859)
+9629effd8 docs(documents): size-cap addendum r2, frame-scoped session routes
+9f1450169 docs(documents): size-cap addendum contract r1 (SIZE-SPEC)
+6c383974b chore: merge G7-12 residual tests (UNI-1384, e680b548a) into the G5-G7 root
+d9bc39aa5 chore: merge FU-G6-03a-BOUND (UNI-1367, 9b93240bf) into the G5-G7 root

@@ -1,0 +1,5 @@
+$ bash scripts/go-cover-floor.sh "$PWD/.go-tmp/cover.out"; rc=$?; echo; echo "FLOOR_EXIT=$rc"; cat server/coverage.floor
+coverage 76.7% — raise server/coverage.floor from 74
+
+FLOOR_EXIT=0
+74
