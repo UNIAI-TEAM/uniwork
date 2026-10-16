@@ -272,6 +272,52 @@ describe("server-side type and access filters (UNI-1868)", () => {
     expect(await screen.findByText("Trong thư mục.xlsx")).toBeInTheDocument();
   });
 
+  it.each([
+    ["recent", "recent"],
+    ["shared", "shared-with-me"],
+  ])("keeps only pages under the Trang chip on %s, filtered on the client (no kind param exists there)", async (scope, endpoint) => {
+    route({
+      list: (path) => {
+        if (!path.startsWith(`${LIST_BASE}/${endpoint}`)) return [summary()];
+        return [
+          summary({ id: "p1", title: "Trang của tôi" }),
+          file("f1", "Tệp của tôi.docx"),
+          summary({ id: "fo9", kind: "folder", title: "Thư mục của tôi" }),
+        ];
+      },
+    });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+
+    fireEvent.click(await scopeTab(scope));
+    await screen.findByText("Tệp của tôi.docx");
+    clickChip("page");
+    // Rows narrowed: only the page survives; no kind/format is sent to this endpoint.
+    expect(await screen.findByText("Trang của tôi")).toBeInTheDocument();
+    expect(screen.queryByText("Tệp của tôi.docx")).toBeNull();
+    expect(screen.queryByText("Thư mục của tôi")).toBeNull();
+    const endpointCalls = listCalls().filter((path) => path.startsWith(`${LIST_BASE}/${endpoint}`));
+    expect(endpointCalls.every((path) => !queryOf(path).get("kind") && !queryOf(path).get("format"))).toBe(true);
+  });
+
+  it.each([
+    ["recent", "recent"],
+    ["shared", "shared-with-me"],
+  ])("says 'in what is loaded' for an empty Trang result on %s while more pages wait", async (scope, endpoint) => {
+    route({
+      list: (path) => (path.startsWith(`${LIST_BASE}/${endpoint}`) ? [file("f1", "Chỉ có tệp.docx")] : [summary()]),
+      cursor: (path) => (path.startsWith(`${LIST_BASE}/${endpoint}`) ? "more" : null),
+    });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+
+    fireEvent.click(await scopeTab(scope));
+    await screen.findByText("Chỉ có tệp.docx");
+    clickChip("page");
+    expect(await screen.findByText(t("documents.home.no_matches_more_description"))).toBeInTheDocument();
+    expect(screen.queryByText("Chỉ có tệp.docx")).toBeNull();
+  });
+
   it("trash hides manage/edit, sends only format and access=restricted, and never carries a stale access from another tab", async () => {
     route({
       list: (path) => {
@@ -435,7 +481,7 @@ describe("server-side type and access filters (UNI-1868)", () => {
         // The title says .docx; the server read the MIME and says xlsx — the mark follows the server.
         file("srv", "Báo giá.docx", { format: "xlsx" }),
         file("ext", "Số liệu.xlsx"),
-        file("weird", "Ghi chú.docx", { format: "weird-format" }),
+        file("weird", "Ghi chú", { format: "weird-format" }),
       ],
     });
     renderView();
@@ -445,6 +491,6 @@ describe("server-side type and access filters (UNI-1868)", () => {
       within(screen.getByText(title).closest("tr")! as HTMLElement).getByRole("img", { name });
     expect(mark("Báo giá.docx", t("documents.file_types.xlsx"))).toBeInTheDocument();
     expect(mark("Số liệu.xlsx", t("documents.file_types.xlsx"))).toBeInTheDocument();
-    expect(mark("Ghi chú.docx", t("documents.file_types.file"))).toBeInTheDocument();
+    expect(mark("Ghi chú", t("documents.file_types.file"))).toBeInTheDocument();
   });
 });

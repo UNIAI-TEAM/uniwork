@@ -1,4 +1,4 @@
-import type { DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
+import { DOCUMENT_FILE_FORMATS, type DocumentList, type DocumentTreeNode } from "@uniwork/core/types/document";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { defaultStorage } from "@uniwork/core/platform";
 import type { StorageAdapter } from "@uniwork/core/types/storage";
@@ -64,7 +64,8 @@ export function rowFormat(row: LibraryRow): string {
   if (row.type === "document") {
     if (row.doc.kind === "page" || row.doc.kind === "folder") return row.doc.kind;
     const format = row.doc.format?.toLowerCase() ?? "";
-    return format || fileExtension(row.doc.title) || "file";
+    if ((DOCUMENT_FILE_FORMATS as readonly string[]).includes(format)) return format;
+    return fileExtension(row.doc.title) || "file";
   }
   return row.source.extension?.toLowerCase() || fileExtension(row.source.name) || "file";
 }

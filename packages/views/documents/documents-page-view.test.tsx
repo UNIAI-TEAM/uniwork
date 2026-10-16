@@ -1166,10 +1166,7 @@ describe("DocumentsPageView", () => {
       setItemSpy.mockRestore();
     });
 
-    // The filter is server-side now (UNI-1868): the mock answers the format
-    // param with every row (a real server narrows it), so all ~1000 capped
-    // rows render — allow the big render the time it needs on a loaded host.
-    it("loads all pages of an open folder before applying folders-first and sort, and respects the 1000-row cap (F4)", { timeout: 120000 }, async () => {
+    it("loads all pages of an open folder before applying folders-first and sort, and respects the 1000-row cap (F4)", async () => {
       const urls: string[] = [];
       route({
         tree: () => [
@@ -1199,18 +1196,17 @@ describe("DocumentsPageView", () => {
             ];
           }
           if (pid === "fo-cap") {
+            // Under the docx chip the server answers docx files only. Each full
+            // page counts toward the 1000-row cap, but only the one direct child
+            // (page 2's last row) renders: the rest sit in a deeper folder, which
+            // the open folder's direct-children filter drops.
             const batch = cur === "cap2" ? 500 : cur === "cap3" ? 1000 : 0;
+            const format = queryOf(path).get("format");
             return Array.from({ length: 500 }, (_, i) => {
               const n = batch + i + 1;
-              return n === 1000
-                ? file("cap-1000", "Tài liệu 1000.docx", { parent_id: "fo-cap", updated_at: "2026-10-01T00:00:00Z" })
-                : summary({
-                    id: `cap-${n}`,
-                    parent_id: "fo-cap",
-                    kind: "page",
-                    title: `Tài liệu ${n}`,
-                    updated_at: "2026-10-01T00:00:00Z",
-                  });
+              if (n === 1000) return file("cap-1000", "Tài liệu 1000.docx", { parent_id: "fo-cap", updated_at: "2026-10-01T00:00:00Z" });
+              if (format) return file(`deep-${n}`, `Sâu ${n}.docx`, { parent_id: "fo-deep", updated_at: "2026-10-01T00:00:00Z" });
+              return summary({ id: `cap-${n}`, parent_id: "fo-cap", kind: "page", title: `Tài liệu ${n}`, updated_at: "2026-10-01T00:00:00Z" });
             });
           }
           return [];

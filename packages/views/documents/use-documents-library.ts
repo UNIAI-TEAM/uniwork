@@ -289,15 +289,19 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   }
 
   // What the server could not filter (UNI-1868): the starred view (favorites
-  // + cache) and the sources view keep the client predicates on every row,
-  // and on a merged home they run on the source rows only — a document row
-  // there is the server's answer, and a folder surviving `format` would fall
-  // honestly say "no matches in what is loaded". A merged home counts only
-  // while source rows actually merged — an empty sources answer leaves the
-  // doc list fully server-filtered.
+  // + cache) and the sources view keep the client predicates on every row, and
+  // on a merged home they run on the source rows only — a document row there
+  // is the server's answer. Recent and shared-with-me take `format`/`access`
+  // but no `kind`, so the "Trang" chip there is narrowed on the client, and
+  // the empty state says "in what is loaded". A merged home counts only while
+  // source rows actually merged — an empty sources answer leaves the doc list
+  // fully server-filtered.
   const mergedHome = Boolean(home && !folderId && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
-  const clientFiltered = view.kind === "starred" || view.kind === "sources" || mergedHome;
+  const pageChipOnListWithoutKind = chip === "page" && (view.kind === "recent" || view.kind === "shared");
+  const clientFiltered = view.kind === "starred" || view.kind === "sources" || mergedHome || pageChipOnListWithoutKind;
   const rows = state.rows.filter((row) => {
+    // Only the type predicate runs on recent/shared: the server already applied `access` there.
+    if (pageChipOnListWithoutKind) return matchesChip(row, chip);
     const clientSide = view.kind === "starred" || view.kind === "sources" || (mergedHome && row.type === "source");
     return !clientSide || (matchesChip(row, chip) && matchesAccess(row, access));
   });
