@@ -5,10 +5,10 @@ import * as api from "../api/endpoints/email-hub";
 import { emailHubKeys, invalidateEmailHubCounts, invalidateEmailHubThreadsForAccount } from "./query-cache";
 
 const emailHubLazySyncFolders = new Set(["SENT", "DRAFTS", "TRASH", "ARCHIVE", "SPAM"]);
-/** IMAP-heavy folders: soft sync once when opened; force sync still when list is empty. */
+/** IMAP-heavy folders: force sync once when opened so provider moves show immediately. */
 const emailHubHeavyLazySyncFolders = new Set(["ARCHIVE", "TRASH", "SPAM"]);
-/** Virtual list folders (no IMAP mailbox): refresh list + inbox sync for snooze wake-ups. */
-const emailHubVirtualRefreshFolders = new Set(["SNOOZED"]);
+/** Virtual list folders (no IMAP mailbox): refresh list + pull provider state. */
+const emailHubVirtualRefreshFolders = new Set(["SNOOZED", "STARRED"]);
 
 export function emailHubLazySyncShowsSyncing(folder: string): boolean {
   return emailHubLazySyncFolders.has(folder) || emailHubVirtualRefreshFolders.has(folder);
@@ -80,11 +80,13 @@ export function useEmailHubLazyFolderSync(
     heavyOpenKey.current = token;
     let cancelled = false;
     setSyncing(true);
+    // Force on first open: soft sync often skips when the folder was never
+    // synced (debounce / empty LastSyncAt races) and leaves Trash/Spam blank.
     runEmailHubFolderSync(
       wsId,
       accountId,
       folder,
-      false,
+      true,
       () => invalidateEmailHubThreadsForAccount(qc, wsId, accountId),
       () => {
         if (!cancelled) setSyncing(false);
@@ -114,11 +116,13 @@ export function useEmailHubLazyFolderSync(
         q.queryKey[4] === folder,
       refetchType: "active",
     });
+    // STARRED: IMAP SEARCH \Flagged. SNOOZED: soft INBOX sync for wake-ups.
+    const syncFolder = folder === "STARRED" ? "STARRED" : "INBOX";
     runEmailHubFolderSync(
       wsId,
       accountId,
-      "INBOX",
-      false,
+      syncFolder,
+      folder === "STARRED",
       () => {
         invalidateEmailHubThreadsForAccount(qc, wsId, accountId);
         invalidateEmailHubCounts(qc, wsId, accountId);
