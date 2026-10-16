@@ -32,6 +32,7 @@ import {
   CROSS_HOST_API_CALLS,
   DEFAULT_STEP_TIMEOUT_MS,
   DIRTY_EDIT_PLANS,
+  FEED_NUDGE_LIMIT,
   FIXTURE_IDS,
   FIXTURE_KIND,
   REAL_AI_BLOCKER,
@@ -42,7 +43,10 @@ import {
   exitCodeFor,
   makeAppDirty,
   parseCrossHostArgs,
+  readRemoteNewerSurface,
+  remoteNewerMissReason,
   runCrossHostRow,
+  signOutPreviousSession,
 } from "./cross-host.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -423,6 +427,7 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
     dirtySource: "none",
     remoteCommits: [],
     calls: [],
+    nudges: 0,
     // a write the real app makes only after its own Save round-trip (D2-01)
     pendingSettle: null,
     workingCopyPath,
@@ -506,6 +511,10 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       const told = app.remoteCommits.some((c) => c.versionId && c.version === version);
       const newer = told && binding && Number(binding.baseVersion) < version;
       if (knobs.barMissing) return { visible: false, reason: "no new-version bar on any app page" };
+      // the bar only after the app's own feed pass: the nth nudge brings it (D2-04)
+      if (knobs.barAfterNudges && app.nudges < knobs.barAfterNudges) {
+        return { visible: false, reason: `the feed has not told the app yet (nudges=${app.nudges})` };
+      }
       if (!app.dirty || !newer) return { visible: false, reason: `dirty=${app.dirty} newer=${newer}` };
       return { visible: true, version, text: `Có phiên bản mới hơn trên UniWork (phiên bản ${version})`, where: knobs.barWhere ?? "editor" };
     },
@@ -547,6 +556,12 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       app.calls.push("restoreLink");
       app.offline = false;
       return { restored: true };
+    },
+    /** The tracer's forced feed pass: cut, retry, restore, retry (counted for D2-04). */
+    async nudgeSync() {
+      app.calls.push("nudgeSync");
+      app.nudges += 1;
+      return { nudged: true };
     },
     /**
      * The app's own Save (`window.aiOffice.uniworkSave`). Offline: the working
@@ -1144,6 +1159,107 @@ describe("G7-04 cross-host D2-01: the app's own Save is read asynchronously (rou
       delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
       scratch.cleanup();
     }
+  });
+});
+
+describe("G7-04 cross-host D2-04: the S6 new-version bar is read from the fork's own wording", () => {
+  /** Run `readRemoteNewerSurface` against a page whose DOM the caller describes. */
+  const withPage = (elements, actions, run) => {
+    const saved = globalThis.document;
+    globalThis.document = {
+      querySelectorAll: (selector) => (selector.includes("button") ? actions : elements),
+    };
+    try {
+      return run();
+    } finally {
+      if (saved === undefined) delete globalThis.document;
+      else globalThis.document = saved;
+    }
+  };
+
+  const textEl = (text) => ({ textContent: text });
+  const reloadEl = (label) => ({ textContent: label, getAttribute: () => null, click: () => {} });
+
+  it("finds a dirty document's bar (vi) and the version it names, with its reload action", () => {
+    // the fork's own strings: uwRemoteNewerDirty + uwRemoteReload at e99471fe2
+    const message =
+      "Có phiên bản mới hơn trên UniWork (phiên bản 3). Thay đổi của bạn chưa lưu nên tài liệu không tự tải lại.";
+    const probe = withPage([textEl(message)], [reloadEl("Tải lại bản mới nhất…")], () => readRemoteNewerSurface({ version: 3 }));
+    assert.equal(probe.visible, true);
+    assert.equal(probe.version, 3);
+    assert.equal(probe.actionFound, true);
+    assert.match(probe.text, /phiên bản mới hơn trên UniWork/);
+  });
+
+  it("finds the English wording too, and ignores the auto-hide 'updated' bar the step must not mistake for it", () => {
+    const english = "A newer version is on UniWork (version 4). You have unsaved changes, so the document didn’t reload.";
+    assert.equal(withPage([textEl(english)], [reloadEl("Reload latest…")], () => readRemoteNewerSurface({ version: 4 })).version, 4);
+    // the clean bar ("Đã cập nhật lên phiên bản 3 …" / "Updated to version 3 …") is not this step's bar
+    const updated = "Đã cập nhật lên phiên bản 3 do một thành viên lưu lúc 10:00.";
+    const probe = withPage([textEl(updated)], [reloadEl("Tải lại bản mới nhất…")], () => readRemoteNewerSurface({ version: 3 }));
+    assert.equal(probe.visible, false);
+  });
+
+  it("names a page whose probe threw instead of reporting a plain miss (the D2-04 masking)", () => {
+    assert.equal(remoteNewerMissReason(3, []), "no new-version bar naming version 3 on any app page");
+    assert.equal(
+      remoteNewerMissReason(3, ["REMOTE_NEWER_TEXT is not defined"]),
+      "no new-version bar naming version 3 on any app page (a page probe failed: REMOTE_NEWER_TEXT is not defined)",
+    );
+    assert.equal(remoteNewerMissReason(null, [null, "page crashed"]), "no new-version bar on any app page (a page probe failed: page crashed)");
+  });
+
+  it("re-runs the feed nudge while the bar is missing: a bar that only lands on the 2nd nudge still PASSes dirty-kept", async () => {
+    assert.ok(FEED_NUDGE_LIMIT >= 2, "the step must be allowed more than one nudge");
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer();
+    try {
+      const { result, app } = await runChain({
+        row: "G5-A03",
+        fixture: "fx-xlsx-revenue-xyz",
+        mock,
+        scratch,
+        knobs: { app: { barAfterNudges: 2 } },
+      });
+      assert.equal(result.status, "PASS", result.reason);
+      assert.equal(result.record.steps["dirty-kept"].status, "PASS");
+      assert.equal(result.record.steps["dirty-kept"].feedNudges, 2);
+      assert.ok(app.nudges >= 2, `the app must have been nudged twice, got ${app.nudges}`);
+      // then the bar's reload is driven on the same surface
+      assert.equal(result.record.steps["app-reload"].status, "PASS");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host D2-05: the previous row's session is signed out with the product's confirmation", () => {
+  it("answers the fork's sign-out gate with `{ confirmed: true }` before the harness's own logout", async () => {
+    const calls = [];
+    const signedIn = await signOutPreviousSession(async (name, args) => {
+      calls.push({ name, args });
+      return name === "accountStatus" ? { state: "signed-in" } : undefined;
+    });
+    assert.deepEqual(signedIn, { signedOut: true, state: "signed-in" });
+    assert.deepEqual(calls, [
+      { name: "accountStatus", args: undefined },
+      { name: "accountLogout", args: [{ confirmed: true }] },
+    ]);
+  });
+
+  it("does nothing to an app that is already signed out, and survives a status read that fails", async () => {
+    const calls = [];
+    const out = await signOutPreviousSession(async (name, args) => {
+      calls.push({ name, args });
+      return { state: "signed-out" };
+    });
+    assert.equal(out.signedOut, false);
+    assert.equal(calls.length, 1, "no logout is sent when the app has no session to end");
+
+    const failed = await signOutPreviousSession(async () => {
+      throw new Error("no aiOffice bridge");
+    });
+    assert.deepEqual(failed, { signedOut: false, state: null });
   });
 });
 

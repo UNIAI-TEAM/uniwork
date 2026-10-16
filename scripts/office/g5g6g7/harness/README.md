@@ -472,7 +472,9 @@ done
 Rows and what each step proves: `G5-A03.1` web Save → app binding version id +
 working-copy sha256 = the server checksum; `G5-A03.3` a dirty app keeps its local
 bytes and shows the S6 new-version bar while a web Save lands (a reload there is
-a FAIL), then the bar's reload action discards the edit; `G5-A03.2`/`G7-A01.4`
+a FAIL), then the bar's reload action discards the edit (the step reads the
+fork's own bar wording — `uwRemoteNewerDirty` plus the `uwRemoteReload` action —
+and re-runs the app's feed nudge, spaced and capped, while the bar is missing); `G5-A03.2`/`G7-A01.4`
 the desktop's reconnect commit is announced to the web frame and reloaded (the
 announced version id must be the desktop's); `G7-A01.3` the offline Save holds an
 intent with zero server versions (the step polls for the app's own receipt — a
@@ -482,6 +484,12 @@ read straight after `aiOffice.uniworkSave` can still be empty); `G7-A01.5` the A
 turn creates zero versions and the Save after it exactly one (polled the same way,
 until the server head and the app binding agree); `G7-A01.6` the three checksums
 agree and the tally is one version per user Save.
+
+The rows share ONE app process, and the driver signs the previous row's session
+out itself before the harness's sign-in — `accountLogout({ confirmed: true })`,
+the call the product's own account UI sends — because the fork's sign-out gate
+otherwise waits for a renderer prompt answer that no headless run can give, which
+is how the 4th row of a round can hang in `app-open` (D2-05).
 
 Which edits a run really drove through the editor UI is on the row: `uiEdits`
 (record and artifact) carries `dirty`, `offlineSave` and `aiSave`, each `real`

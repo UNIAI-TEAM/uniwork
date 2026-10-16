@@ -117,6 +117,13 @@ export const BLOCKED_OWNER = "g7-qa";
 export const WEB_FRAME_OWNER = "lead-f";
 export const DEFAULT_STEP_TIMEOUT_MS = 45_000;
 export const DEFAULT_POLL_MS = 250;
+/**
+ * How many times `dirty-kept` may run the tracer's feed-nudge recipe while it
+ * waits for the S6 bar (the first nudge is immediate, the rest are spread over
+ * the step bound). The app only learns about a newer version on a feed pass,
+ * and one nudge can land while the proxy is still cut (D2-04).
+ */
+export const FEED_NUDGE_LIMIT = 4;
 
 export const ROW_EXIT = Object.freeze({ PASS: 0, FAIL: 1, BLOCKED: BLOCKED_EXIT });
 
@@ -454,6 +461,23 @@ export async function makeAppDirty({ ctrl, kind, path = null, documentId = null 
 }
 
 /**
+ * The fork's S6 new-version bar, page-side: the wording it renders for a DIRTY
+ * document (`apps/shell/src/renderer/src/uniwork-docs-model.ts:538-552`,
+ * message key `uwRemoteNewerDirty`; strings `i18n/sync/vi.ts:311-312` /
+ * `en.ts:315-316`: "Có phiên bản mới hơn trên UniWork (phiên bản N). …" / "A
+ * newer version is on UniWork (version N). …"), the version it names, and its
+ * reload action (`uwRemoteReload`, model l.487; vi.ts:319 / en.ts:324). These
+ * three lived at module scope until the round-1 handover (d9b150f8f) dropped
+ * them while their uses in `readRemoteNewerSurface` stayed, so every page probe
+ * threw `REMOTE_NEWER_TEXT is not defined`, `findRemoteNewerPage` swallowed it
+ * into "no new-version bar", and `dirty-kept` FAILed with the bar on screen
+ * (D2-04, the G5-A03 xlsx row).
+ */
+const REMOTE_NEWER_TEXT = /(phiên bản mới hơn trên UniWork|newer version (?:is )?on UniWork)/i;
+const REMOTE_NEWER_VERSION = /(?:phiên bản|version)\s*\(?\s*(\d+)/i;
+const REMOTE_NEWER_RELOAD = /(Tải lại bản mới nhất|Reload latest)/i;
+
+/**
  * The S6 surface on one app page: any element whose text carries the
  * new-version bar message, the version number it names, and its reload action.
  * Read-only; the click is a second pass over the same matcher.
@@ -476,6 +500,21 @@ export function readRemoteNewerSurface({ version = null } = {}) {
     version: best?.version ?? null,
     actionFound: actions.length > 0,
   };
+}
+
+/**
+ * The "no bar" reason for `remoteNewerBar`/`clickReload`, naming the first page
+ * whose probe threw (D2-04): a crash inside the page-side probe used to be
+ * swallowed into a plain miss, which reads as a product gap (or a slow feed)
+ * instead of the harness bug it was.
+ */
+export function remoteNewerMissReason(version, probeErrors = []) {
+  const first = (probeErrors ?? []).find(Boolean);
+  const what =
+    version === null
+      ? "no new-version bar on any app page"
+      : `no new-version bar naming version ${version} on any app page`;
+  return first ? `${what} (a page probe failed: ${first})` : what;
 }
 
 // ---- small polling helper ------------------------------------------------------------------
@@ -780,6 +819,33 @@ async function createPlaywrightWebCtrl({
 // ---- the real desktop app controller (CDP + the harness TCP proxy) --------------------------
 
 /**
+ * Signs the previous row's session out of the shared app BEFORE the harness's
+ * sign-in runs, with the confirmation the product's own UI sends
+ * (`accountLogout({ confirmed: true })`,
+ * `apps/shell/src/renderer/src/account-model.ts:443`).
+ *
+ * The harness's `signIn` logs a signed-in app out with a bare
+ * `aiOffice.accountLogout()` (`harness/app.mjs:275`), and the fork's S3 gate
+ * asks the shell renderer first whenever the sign-out plan still holds unsent
+ * work (`uniwork-docs/wiring.ts:875-889` -> `uniwork-docs/account-boundary.ts`
+ * l.198-214, `plan.count > 0 || plan.ramOnly > 0`). Only the renderer's answer
+ * resolves that promise, and no one answers it in a headless run: on the 4th
+ * row of the cloud D2 round (G5-A03 docx, the app still holding row 3's dirty
+ * sheets edit) `app-open` hung to the 90 s step bound with
+ * `aiOffice.accountLogout did not settle within 90 s` (D2-05). Answering the
+ * gate here leaves the harness's own logout with a signed-out app.
+ *
+ * `aiOffice(name, args)` is `harness/app.mjs`'s bounded bridge, so a hang still
+ * ends as the caller's step timeout, never an unbounded wait.
+ */
+export async function signOutPreviousSession(aiOffice) {
+  const status = await aiOffice("accountStatus").catch(() => null);
+  if (status?.state !== "signed-in") return { signedOut: false, state: status?.state ?? null };
+  await aiOffice("accountLogout", [{ confirmed: true }]);
+  return { signedOut: true, state: status.state };
+}
+
+/**
  * The app half on `harness/app.mjs` `connectApp` (CDP) plus the harness's own
  * primitives: the deep-link handoff (`openDocumentV1`'s recipe in the tracer),
  * the app's own Save (`aiOffice.uniworkSave`), the proxy cut
@@ -822,6 +888,13 @@ async function createCdpAppCtrl({
   let signInFailureReason = "";
   let blockerReason = "";
   try {
+    // D2-05: answer the fork's sign-out gate for the PREVIOUS row's session (see
+    // `signOutPreviousSession`) before the harness's own logout can hang on it.
+    // A timeout here is the row's own FAIL; any other answer is best-effort and
+    // the harness's logout below reports what it sees.
+    await signOutPreviousSession(ctrl.aiOffice).catch((err) => {
+      if (err?.isAppStepTimeout) throw err;
+    });
     const signed = await ctrl.signIn(user);
     const state = signed?.status?.state;
     const sessionBin = existsSync(join(portsEnv.UNIWORK_USER_DATA, "uniwork-auth", "session.bin"));
@@ -857,8 +930,14 @@ async function createCdpAppCtrl({
     }
     return pages;
   };
-  /** The page that carries the S6 bar (probed with readRemoteNewerSurface). */
+  /**
+   * The page that carries the S6 bar (probed with readRemoteNewerSurface). A
+   * page whose probe throws does not fail the search — another page may show
+   * the bar — but the first error is kept so a miss can say what broke
+   * (`remoteNewerMissReason`, D2-04).
+   */
   const findRemoteNewerPage = async (version) => {
+    const probeErrors = [];
     for (const page of appPages()) {
       const probe = await runBoundedAppStep("readRemoteNewerSurface", () => page.evaluate(readRemoteNewerSurface, { version }), {
         timeoutMs: stepTimeoutMs,
@@ -870,11 +949,12 @@ async function createCdpAppCtrl({
         expectedUserId: user.id,
       }).catch((err) => {
         if (err?.isAppStepTimeout) throw err;
+        probeErrors.push(err.message);
         return null;
       });
-      if (probe?.visible) return { page, probe };
+      if (probe?.visible) return { page, probe, probeErrors };
     }
-    return { page: null, probe: null };
+    return { page: null, probe: null, probeErrors };
   };
   /** Closes the open tab of `filePath` the way the tracer does (readiness first), so a later Save takes the coordinator path. */
   const closeOpenTab = async (filePath) => {
@@ -946,13 +1026,13 @@ async function createCdpAppCtrl({
       return makeAppDirty({ ctrl, kind, path, documentId });
     },
     async remoteNewerBar({ version }) {
-      const { page, probe } = await findRemoteNewerPage(version);
-      if (!page) return { visible: false, reason: `no new-version bar naming version ${version} on any app page` };
+      const { page, probe, probeErrors } = await findRemoteNewerPage(version);
+      if (!page) return { visible: false, reason: remoteNewerMissReason(version, probeErrors) };
       return { visible: true, version: probe.version, text: probe.text, where: editorKindOfUrl(page.url()) ?? "shell" };
     },
     async clickReload() {
-      const { page, probe } = await findRemoteNewerPage(null);
-      if (!page) return { clicked: false, reason: "no new-version bar on any app page" };
+      const { page, probe, probeErrors } = await findRemoteNewerPage(null);
+      if (!page) return { clicked: false, reason: remoteNewerMissReason(null, probeErrors) };
       const clicked = await ctrl
         .evalBounded(
           page,
@@ -1408,12 +1488,28 @@ export async function runCrossHostRow({
       if (aborts("web-save-2")) return;
 
       const dirtyKept = await runStep("dirty-kept", "app", async () => {
-        await app.nudgeSync?.();
         const webSave2Version = record.versionCounts.afterWebSave2;
-        const noticed = await pollUntil(async () => app.remoteNewerBar({ version: webSave2Version }), (r) => r?.visible === true, {
-          boundMs: stepTimeout,
-          intervalMs: pollMs,
-        });
+        // The tracer's feed-nudge recipe (waitForFeedReloadV2): the app's own
+        // feed pass is what tells a dirty, open document that a newer version
+        // exists. One nudge can land while the proxy is still cut, so the poll
+        // re-runs it — spaced over the bound, capped at FEED_NUDGE_LIMIT — while
+        // the bar is missing (D2-04).
+        const nudgeEveryMs = Math.max(pollMs * 4, Math.floor(stepTimeout / (FEED_NUDGE_LIMIT * 3)));
+        let nudges = 0;
+        let lastNudgeAt = 0;
+        const noticed = await pollUntil(
+          async () => {
+            const at = now();
+            if (nudges < FEED_NUDGE_LIMIT && at - lastNudgeAt >= nudgeEveryMs) {
+              nudges += 1;
+              lastNudgeAt = at;
+              await app.nudgeSync?.();
+            }
+            return app.remoteNewerBar({ version: webSave2Version });
+          },
+          (r) => r?.visible === true,
+          { boundMs: stepTimeout, intervalMs: pollMs },
+        );
         const wc = wc0();
         const problems = [];
         if (wc?.sha256 !== record.details.dirtyEditSha) {
@@ -1423,11 +1519,13 @@ export async function runCrossHostRow({
           problems.push(`the app reloaded the incoming version (binding v${wc?.binding?.baseVersion ?? "none"})`);
         }
         if (noticed.value?.visible !== true) {
-          problems.push(`the S6 new-version bar was not visible: ${noticed.value?.reason ?? "no probe answer"}`);
+          problems.push(
+            `the S6 new-version bar was not visible: ${noticed.value?.reason ?? "no probe answer"} (feed nudges: ${nudges})`,
+          );
         }
         if (problems.length > 0) return { status: "FAIL", reason: problems.join("; ") };
         record.details.remoteNewerBar = noticed.value;
-        return { bar: noticed.value, workingCopySha256: wc.sha256 };
+        return { bar: noticed.value, workingCopySha256: wc.sha256, feedNudges: nudges };
       });
       if (aborts("dirty-kept")) return;
 
