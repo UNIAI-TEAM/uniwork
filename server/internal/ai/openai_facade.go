@@ -802,7 +802,8 @@ func UniworkPackModule(module string) (string, bool) {
 // editor owns the tool shapes, the server owns the names. The allowlist also
 // carries the turn's pack module, which the Gateway assembles the system text
 // by and the A7 budget counts.
-func UniworkModuleAllowlist(module string, offered []UniworkToolSpec, viewOnly bool) UniworkAllowlist {
+func UniworkModuleAllowlist(module string, offered []UniworkToolSpec, viewOnly, bound bool) UniworkAllowlist {
+	_ = bound
 	pack, _ := UniworkPackModule(module)
 	mod, ok := officeUniworkModulesV1[module]
 	if !ok {
