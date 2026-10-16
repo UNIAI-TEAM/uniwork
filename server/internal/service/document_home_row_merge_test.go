@@ -51,6 +51,11 @@ func TestShareHomeWorkspaceMergesIntoHomeRow(t *testing.T) {
 	if row.Visibility != documentVisibilityWorkspace || row.WorkspaceLevel != string(DocumentLevelView) {
 		t.Fatalf("home row = %q/%q, want workspace/view", row.Visibility, row.WorkspaceLevel)
 	}
+	// The merge is an access change like any other, so it bumps the document
+	// revision by exactly one (C-01 §9.1 item 3).
+	if row.Revision != doc.Revision+1 {
+		t.Fatalf("merged home row revision = %d, want exactly one bump from %d", row.Revision, doc.Revision)
+	}
 	if n := countAudit(t, f, audit.ActionDocumentWorkspaceAccessChanged, doc.ID); n != 1 {
 		t.Fatalf("workspace-access audit rows = %d, want 1", n)
 	}
@@ -82,6 +87,11 @@ func TestShareHomeWorkspaceMergesIntoHomeRow(t *testing.T) {
 	}
 	if row.WorkspaceLevel != string(DocumentLevelComment) {
 		t.Fatalf("home row level = %q, want comment", row.WorkspaceLevel)
+	}
+	// The re-level bumped the revision once more, and the same level again
+	// after it left that second bump where it was: two writes, two bumps.
+	if row.Revision != doc.Revision+2 {
+		t.Fatalf("re-levelled home row revision = %d, want exactly two bumps from %d", row.Revision, doc.Revision)
 	}
 	if n := countAudit(t, f, audit.ActionDocumentWorkspaceAccessChanged, doc.ID); n != 2 {
 		t.Fatalf("workspace-access audit rows = %d, want 2: the same level again is a no-op", n)
@@ -304,6 +314,12 @@ func TestApplyDocumentShareMergesHomeWorkspaceInAList(t *testing.T) {
 	}
 	if row.Visibility != documentVisibilityWorkspace || row.WorkspaceLevel != string(DocumentLevelComment) {
 		t.Fatalf("home row = %q/%q, want workspace/comment", row.Visibility, row.WorkspaceLevel)
+	}
+	// Only the one merged grant is an access change on the document row, so
+	// the revision moved exactly once for the whole list, not once per
+	// principal (C-01 §9.1 item 3).
+	if row.Revision != doc.Revision+1 {
+		t.Fatalf("list merge revision = %d, want exactly one bump from %d", row.Revision, doc.Revision)
 	}
 	if got := level(t, f, Human(tn.member.ID), row); got != DocumentLevelComment {
 		t.Fatalf("member level = %q, want the merged comment", got)

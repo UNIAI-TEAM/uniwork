@@ -23,8 +23,15 @@ func TestUpdateDocumentKeepsWorkspaceLevel(t *testing.T) {
 	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 	setWorkspaceLevel(t, f, doc, "view")
 
-	if _, err := f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), doc.ID, UpdateDocumentInput{Revision: doc.Revision, Visibility: strPtr("restricted")}); err != nil {
+	closedView, err := f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), doc.ID, UpdateDocumentInput{Revision: doc.Revision, Visibility: strPtr("restricted")})
+	if err != nil {
 		t.Fatalf("workspace -> restricted: %v", err)
+	}
+	// One visibility-only PATCH bumps the revision exactly once (C-01 §9.1
+	// item 3): no fields write ran, so the home-row move owns the bump, and
+	// the document the command answers with already names it.
+	if closedView.Document.Revision != doc.Revision+1 {
+		t.Fatalf("closing PATCH returned revision %d, want exactly one bump from %d", closedView.Document.Revision, doc.Revision)
 	}
 	if _, err := f.svc.GetDocument(f.ctx, Human(tn.member.ID), doc.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("a member still reads the closed home row: %v", err)
@@ -36,13 +43,23 @@ func TestUpdateDocumentKeepsWorkspaceLevel(t *testing.T) {
 	if closed.Visibility != "restricted" || closed.WorkspaceLevel != "view" {
 		t.Fatalf("closed home row = %q/%q, want restricted/view", closed.Visibility, closed.WorkspaceLevel)
 	}
+	if closed.Revision != doc.Revision+1 {
+		t.Fatalf("closed home row revision = %d, want exactly one bump from %d", closed.Revision, doc.Revision)
+	}
 
-	if _, err := f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), doc.ID, UpdateDocumentInput{Revision: closed.Revision, Visibility: strPtr("workspace")}); err != nil {
+	reopenView, err := f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), doc.ID, UpdateDocumentInput{Revision: closed.Revision, Visibility: strPtr("workspace")})
+	if err != nil {
 		t.Fatalf("restricted -> workspace: %v", err)
+	}
+	if reopenView.Document.Revision != closed.Revision+1 {
+		t.Fatalf("reopening PATCH returned revision %d, want exactly one bump from %d", reopenView.Document.Revision, closed.Revision)
 	}
 	reopened, err := f.q.GetDocumentByID(f.ctx, doc.ID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if reopened.Revision != closed.Revision+1 {
+		t.Fatalf("reopened home row revision = %d, want exactly one bump from %d", reopened.Revision, closed.Revision)
 	}
 	if reopened.WorkspaceLevel != "view" {
 		t.Fatalf("reopened home row level = %q, want the stored view", reopened.WorkspaceLevel)
