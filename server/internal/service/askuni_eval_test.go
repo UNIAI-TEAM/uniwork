@@ -219,7 +219,7 @@ func TestAskUniEvalFake(t *testing.T) {
 			if c.Injection {
 				checkInjectionIsContained(t, run.prompt)
 			}
-			if len(c.ForbidTitle) > 0 {
+			if len(c.ForbidTitle) > 0 || c.ControlAs != "" {
 				checkControl(t, e, c)
 			}
 		})
@@ -237,6 +237,9 @@ func checkControl(t *testing.T, e *evalWorld, c evalCase) {
 		user, wsID = e.other.ID, e.otherWS
 	default:
 		t.Fatalf("security case %s needs control_as owner|other_org", c.ID)
+	}
+	if len(c.ControlOf) == 0 {
+		t.Fatalf("case %s sets control_as %s but no control_expect: the control would check nothing", c.ID, c.ControlAs)
 	}
 	res, err := e.s.Ask(context.Background(), user, wsID, AskInput{Question: c.Question, Locale: c.Locale})
 	if err != nil {
