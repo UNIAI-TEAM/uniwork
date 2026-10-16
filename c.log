@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+c16236ae8bea85e79d2ab547b52fca64ac4de6a6
+c16236ae8 chore(merge): G5-G7 root 549906774 into VERHIST-01
+549906774 fix(documents): unescape the source file id in its routes
+1a69b0647 chore: merge SRC-01 (UNI-1814, da241952b) into the G5-G7 root
+da241952b Merge commit '7d27601f7' into feature/UNI-1814-src-01-chat-source-room
