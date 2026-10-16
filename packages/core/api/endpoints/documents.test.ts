@@ -29,6 +29,8 @@ import {
   revokeDocumentBreakGlass,
   uploadDocumentAsset,
   uploadDocumentFile,
+  type CreateDocumentBody,
+  type CreateDocumentFileMeta,
 } from "./documents";
 import {
   commitDocumentVersion,
@@ -718,6 +720,41 @@ describe("documents endpoints", () => {
       await expect(ensureMyFolder("w1")).resolves.toBeNull();
     },
   );
+
+  // ---- MYFOLDER-01 (UNI-1850): destination: "my_folder" ------------------
+
+  it("createDocument and createDocumentFile send destination: my_folder without parent_id", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ parent_id: "mf1" }) }));
+    await createDocument("w1", { title: "Trang mới", destination: "my_folder" });
+    const [, docInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(docInit?.body))).toEqual({
+      title: "Trang mới",
+      destination: "my_folder",
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "file", parent_id: "mf1" }) }),
+    );
+    await createDocumentFile(
+      "w1",
+      new File(["bytes"], "brief.docx"),
+      { destination: "my_folder", title: "Báo cáo" },
+    );
+    const [, fileInit] = vi.mocked(fetch).mock.calls[1]!;
+    const form = fileInit?.body as FormData;
+    expect(Array.from(form.keys())).toEqual(["destination", "title", "file"]);
+    expect(form.get("destination")).toBe("my_folder");
+    expect(form.get("parent_id")).toBeNull();
+
+    // Type-level union: destination and parent_id/parentId cannot both compile.
+    // @ts-expect-error destination and parent_id are mutually exclusive
+    const badDocBody: CreateDocumentBody = { title: "x", destination: "my_folder", parent_id: "p1" };
+    // @ts-expect-error destination and parentId are mutually exclusive
+    const badFileMeta: CreateDocumentFileMeta = { destination: "my_folder", parentId: "p1" };
+    expect(badDocBody).toBeDefined();
+    expect(badFileMeta).toBeDefined();
+  });
 });
+
 
 

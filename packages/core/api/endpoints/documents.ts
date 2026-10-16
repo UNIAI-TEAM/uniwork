@@ -42,16 +42,22 @@ export interface DocumentRequestOpts {
   filename?: string;
 }
 
-export interface CreateDocumentBody {
+export const DOCUMENT_DESTINATIONS = ["my_folder"] as const;
+export type DocumentCreateDestination = (typeof DOCUMENT_DESTINATIONS)[number];
+
+type CreateDocumentPlacementWire =
+  | { parent_id?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never };
+
+export type CreateDocumentBody = {
   title: string;
   /** "page" (default) or "folder" (a container with no content). A file
    *  document is created through createDocumentFile on the multipart route. */
   kind?: "page" | "folder";
-  parent_id?: string;
   icon?: string;
   content?: unknown;
   visibility?: DocumentVisibility;
-}
+} & CreateDocumentPlacementWire;
 
 export interface PatchDocumentBody {
   /** Required base revision as a decimal string; a stale base answers 422
@@ -64,11 +70,13 @@ export interface PatchDocumentBody {
   visibility?: DocumentVisibility;
 }
 
-export interface CreateDocumentFileMeta {
-  parent_id?: string;
+export type CreateDocumentFileMeta = {
   /** Display title; defaults to the file name server-side. */
   title?: string;
-}
+} & (
+  | { parent_id?: string; parentId?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never }
+);
 
 function idempotencyHeaders(opts?: DocumentRequestOpts): Record<string, string> | undefined {
   return opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined;
@@ -173,7 +181,11 @@ export async function createDocumentFile(
 ): Promise<Document | null> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/files`, {
     method: "POST",
-    body: fileForm(file, { parent_id: meta?.parent_id, title: meta?.title }),
+    body: fileForm(file, {
+      parent_id: meta?.parent_id ?? meta?.parentId,
+      destination: meta?.destination,
+      title: meta?.title,
+    }),
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,
   });

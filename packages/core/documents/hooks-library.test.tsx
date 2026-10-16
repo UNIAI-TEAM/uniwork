@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { ApiError } from "../api/http";
 import { setAccessToken } from "../api/session";
-import { useEnsureMyFolder as useEnsureMyFolderFromHooks } from "./hooks";
+import {
+  useCreateDocument,
+  useCreateDocumentFile,
+  useEnsureMyFolder as useEnsureMyFolderFromHooks,
+  type CreateDocumentFileInput,
+  type CreateDocumentInput,
+} from "./hooks";
 import {
   isEndpointMissing,
   useCreateBlankFile,
@@ -13,6 +19,8 @@ import {
   useDownloadDocumentSource,
   useEnsureMyFolder,
   useSaveSourceToFolder,
+  type CreateBlankFileInput,
+  type CreateFolderInput,
 } from "./hooks-library";
 import { documentKeys } from "./keys";
 
@@ -177,5 +185,107 @@ describe("documents library hooks", () => {
     expect(blob?.size).toBe(2);
     expect(useEnsureMyFolder).toBe(useEnsureMyFolderFromHooks);
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): destination: "my_folder" on create hooks ---
+
+  it("useCreateDocument, useCreateDocumentFile, useCreateBlankFile and useCreateFolder forward destination: my_folder", async () => {
+    const { wrapper } = setup();
+
+    // 1. useCreateDocument (JSON create page)
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "page", parent_id: "mf1" }) }, 201));
+    const createDoc = renderHook(() => useCreateDocument("w1"), { wrapper });
+    await act(async () => {
+      await createDoc.result.current.mutateAsync({
+        title: "Trang mới",
+        destination: "my_folder",
+      });
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({
+      title: "Trang mới",
+      destination: "my_folder",
+    });
+
+    // 2. useCreateDocumentFile (multipart upload field via meta and top-level)
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: docBody({
+          kind: "file",
+          parent_id: "mf1",
+          file: {
+            file_id: "f1",
+            version_id: "v1",
+            version: 1,
+            filename: "brief.docx",
+            mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            size_bytes: 5,
+            checksum_sha256: "abc",
+          },
+        }),
+      }),
+    );
+    const createFile = renderHook(() => useCreateDocumentFile("w1"), { wrapper });
+    await act(async () => {
+      await createFile.result.current.mutateAsync({
+        file: new File(["bytes"], "brief.docx"),
+        meta: { destination: "my_folder", title: "Báo cáo" },
+      });
+    });
+    const fileForm = vi.mocked(fetch).mock.calls[1]![1]?.body as FormData;
+    expect(fileForm.get("destination")).toBe("my_folder");
+    expect(fileForm.get("parent_id")).toBeNull();
+    expect(fileForm.get("title")).toBe("Báo cáo");
+
+    // 3. useCreateBlankFile (JSON blank file)
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ parent_id: "mf1" }) }, 201));
+    const createBlank = renderHook(() => useCreateBlankFile("w1"), { wrapper });
+    await act(async () => {
+      await createBlank.result.current.mutateAsync({
+        format: "docx",
+        title: "Mới",
+        destination: "my_folder",
+      });
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[2]![1]?.body))).toEqual({
+      format: "docx",
+      title: "Mới",
+      destination: "my_folder",
+    });
+
+    // 4. useCreateFolder (JSON folder)
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "folder", parent_id: "mf1" }) }, 201));
+    const createFolder = renderHook(() => useCreateFolder("w1"), { wrapper });
+    await act(async () => {
+      await createFolder.result.current.mutateAsync({
+        title: "Thư mục con",
+        destination: "my_folder",
+      });
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[3]![1]?.body))).toEqual({
+      kind: "folder",
+      title: "Thư mục con",
+      destination: "my_folder",
+    });
+
+    // Type-level union: destination and parentId/parent_id cannot both compile.
+    // @ts-expect-error destination and parent_id are mutually exclusive
+    const badDocInput: CreateDocumentInput = { title: "x", destination: "my_folder", parent_id: "p1" };
+    // @ts-expect-error destination and parentId are mutually exclusive
+    const badFileInput: CreateDocumentFileInput = {
+      file: new File(["x"], "a.docx"),
+      destination: "my_folder",
+      parentId: "p1",
+    };
+    // @ts-expect-error destination and parentId are mutually exclusive
+    const badBlankInput: CreateBlankFileInput = {
+      format: "docx",
+      title: "x",
+      destination: "my_folder",
+      parentId: "p1",
+    };
+    // @ts-expect-error destination and parentId are mutually exclusive
+    const badFolderInput: CreateFolderInput = { title: "x", destination: "my_folder", parentId: "p1" };
+    expect([badDocInput, badFileInput, badBlankInput, badFolderInput]).toHaveLength(4);
+  });
 });
+
 

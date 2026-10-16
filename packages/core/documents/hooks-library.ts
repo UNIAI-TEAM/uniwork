@@ -1,8 +1,12 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
-import { createBlankDocumentFile, type BlankDocumentFormat } from "../api/endpoints/documents-blank";
-import { createDocument } from "../api/endpoints/documents";
+import {
+  createBlankDocumentFile,
+  type BlankDocumentFormat,
+  type CreateBlankDocumentBody,
+} from "../api/endpoints/documents-blank";
+import { createDocument, type CreateDocumentBody } from "../api/endpoints/documents";
 import {
   downloadDocumentSource,
   listDocumentSources,
@@ -10,11 +14,22 @@ import {
   type ListDocumentSourcesOpts,
 } from "../api/endpoints/documents-sources";
 import type { Document } from "../types/document";
-import { useEnsureMyFolder } from "./hooks";
+import { useEnsureMyFolder, type CreateDocumentPlacementInput } from "./hooks";
 import { documentKeys } from "./keys";
 import { requireVerifiableDocument } from "./verify";
 
 export { useEnsureMyFolder };
+
+export type CreateBlankFileInput = {
+  format: BlankDocumentFormat;
+  title: string;
+  idempotencyKey?: string;
+} & CreateDocumentPlacementInput;
+
+export type CreateFolderInput = {
+  title: string;
+  idempotencyKey?: string;
+} & CreateDocumentPlacementInput;
 
 // Documents home hooks: the "other sources" list and the create-blank /
 // create-folder / save-from-source mutations. Mutations await the server and
@@ -75,19 +90,20 @@ function useAfterCreate(wsId: string) {
 export function useCreateBlankFile(wsId: string) {
   const onSuccess = useAfterCreate(wsId);
   return useMutation({
-    mutationFn: async (input: {
-      format: BlankDocumentFormat;
-      title: string;
-      parentId?: string;
-      idempotencyKey?: string;
-    }) =>
-      requireVerifiableDocument(
-        await createBlankDocumentFile(
-          wsId,
-          { format: input.format, title: input.title, parent_id: input.parentId },
-          { idempotencyKey: input.idempotencyKey },
-        ),
-      ),
+    mutationFn: async (input: CreateBlankFileInput) => {
+      const parent_id = input.parent_id ?? input.parentId;
+      const body: CreateBlankDocumentBody =
+        input.destination !== undefined
+          ? { format: input.format, title: input.title, destination: input.destination }
+          : {
+              format: input.format,
+              title: input.title,
+              ...(parent_id !== undefined ? { parent_id } : {}),
+            };
+      return requireVerifiableDocument(
+        await createBlankDocumentFile(wsId, body, { idempotencyKey: input.idempotencyKey }),
+      );
+    },
     onSuccess,
   });
 }
@@ -95,14 +111,20 @@ export function useCreateBlankFile(wsId: string) {
 export function useCreateFolder(wsId: string) {
   const onSuccess = useAfterCreate(wsId);
   return useMutation({
-    mutationFn: async (input: { title: string; parentId?: string; idempotencyKey?: string }) =>
-      requireVerifiableDocument(
-        await createDocument(
-          wsId,
-          { kind: "folder", title: input.title, parent_id: input.parentId },
-          { idempotencyKey: input.idempotencyKey },
-        ),
-      ),
+    mutationFn: async (input: CreateFolderInput) => {
+      const parent_id = input.parent_id ?? input.parentId;
+      const body: CreateDocumentBody =
+        input.destination !== undefined
+          ? { kind: "folder", title: input.title, destination: input.destination }
+          : {
+              kind: "folder",
+              title: input.title,
+              ...(parent_id !== undefined ? { parent_id } : {}),
+            };
+      return requireVerifiableDocument(
+        await createDocument(wsId, body, { idempotencyKey: input.idempotencyKey }),
+      );
+    },
     onSuccess,
   });
 }

@@ -14,6 +14,7 @@ import {
   uploadDocumentFile,
   type CreateDocumentBody,
   type CreateDocumentFileMeta,
+  type DocumentCreateDestination,
   type PatchDocumentBody,
 } from "../api/endpoints/documents";
 import { DocumentNotVerifiableError, type Document } from "../types/document";
@@ -35,6 +36,21 @@ import {
 // "result not verifiable" — the caller keeps its draft and idempotency key,
 // and a malformed answer never reads as saved.
 
+export type CreateDocumentPlacementInput =
+  | { parent_id?: string; parentId?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never };
+
+export type CreateDocumentInput = Omit<CreateDocumentBody, "parent_id" | "destination"> & {
+  idempotencyKey?: string;
+} & CreateDocumentPlacementInput;
+
+export type CreateDocumentFileInput = {
+  file: Blob;
+  meta?: CreateDocumentFileMeta;
+  title?: string;
+  idempotencyKey?: string;
+} & CreateDocumentPlacementInput;
+
 export function useDocument(
   wsId: string,
   documentId: string,
@@ -54,9 +70,14 @@ export function useDocument(
 export function useCreateDocument(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: CreateDocumentBody & { idempotencyKey?: string }) => {
-      const { idempotencyKey, ...rest } = body;
-      return requireVerifiableDocument(await createDocument(wsId, rest, { idempotencyKey }));
+    mutationFn: async (body: CreateDocumentInput) => {
+      const { idempotencyKey, parentId, parent_id, destination, ...rest } = body;
+      const resolvedParentId = parent_id ?? parentId;
+      const payload: CreateDocumentBody =
+        destination !== undefined
+          ? { ...rest, destination }
+          : { ...rest, ...(resolvedParentId !== undefined ? { parent_id: resolvedParentId } : {}) };
+      return requireVerifiableDocument(await createDocument(wsId, payload, { idempotencyKey }));
     },
     onSuccess: (doc) => {
       qc.setQueryData(documentKeys.detail(wsId, doc.id), doc);
@@ -86,12 +107,17 @@ export function useEnsureMyFolder(wsId: string) {
 export function useCreateDocumentFile(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      file: Blob;
-      meta?: CreateDocumentFileMeta;
-      idempotencyKey?: string;
-    }) => {
-      const doc = await createDocumentFile(wsId, input.file, input.meta, {
+    mutationFn: async (input: CreateDocumentFileInput) => {
+      const parent_id = input.meta?.parent_id ?? input.meta?.parentId ?? input.parent_id ?? input.parentId;
+      const destination = input.meta?.destination ?? input.destination;
+      const title = input.meta?.title ?? input.title;
+      const meta: CreateDocumentFileMeta | undefined =
+        destination !== undefined
+          ? { ...(title !== undefined ? { title } : {}), destination }
+          : parent_id !== undefined || title !== undefined
+            ? { ...(title !== undefined ? { title } : {}), ...(parent_id !== undefined ? { parent_id } : {}) }
+            : input.meta;
+      const doc = await createDocumentFile(wsId, input.file, meta, {
         idempotencyKey: input.idempotencyKey,
       });
       const verified = requireVerifiableDocument(doc);
