@@ -1,11 +1,14 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { initI18n } from "@uniwork/core/i18n";
+import type { User, Workspace } from "@uniwork/core/types";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrap } from "../test/api-mock";
+import { DocumentFavoriteToggle } from "./document-favorite-toggle";
 import { DocumentTree } from "./document-tree";
 import {
   findTreeNode,
@@ -499,6 +502,73 @@ describe("DocumentTree", () => {
     expect(padLeft).toBeGreaterThan(0);
     expect(padLeft).toBeLessThanOrEqual(140);
     expect(screen.getByText("Tầng 20")).toHaveAttribute("title", "Tầng 20");
+  });
+
+  it("shows the star marker next to a starred node's title, none on an unstarred node, and updates on star/unstar toggle without reload", async () => {
+    let otherStarred = false;
+    const rootFav = { document_id: "root1", workspace_id: WS, title: "Nhóm", kind: "page" };
+    const otherFav = { document_id: "other1", workspace_id: WS, title: "Đích", kind: "page" };
+    const foreignFav = { document_id: "child1", workspace_id: "other-ws", title: "Trang con", kind: "page" };
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: forest });
+      if (path === "/api/v1/orgs/org1/documents/favorites") {
+        return Promise.resolve({
+          favorites: otherStarred ? [rootFav, otherFav, foreignFav] : [rootFav, foreignFav],
+        });
+      }
+      if (path === "/api/v1/documents/other1/favorite" && opts?.method === "POST") {
+        otherStarred = true;
+        return Promise.resolve({ favorite: otherFav });
+      }
+      if (path === "/api/v1/documents/other1/favorite" && opts?.method === "DELETE") {
+        otherStarred = false;
+        return Promise.resolve({ status: "ok" });
+      }
+      return Promise.resolve({});
+    });
+
+    const workspace: Workspace = {
+      id: WS,
+      slug: "doi",
+      name: "Đội",
+      organization_id: "org1",
+      organization_slug: "acme",
+      organization_name: "Acme",
+    };
+    const user = { id: "u1", email: "an@example.com", display_name: "An", locale: "vi" } as User;
+
+    render(
+      wrap(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <DocumentTree wsId={WS} />
+          <DocumentFavoriteToggle documentId="other1" orgId="org1" />
+        </WorkspaceProvider>,
+      ),
+    );
+
+    const rootRow = await screen.findByRole("treeitem", { name: /Nhóm/ });
+    const otherRow = screen.getByRole("treeitem", { name: /Đích/ });
+
+    const rootStar = await within(rootRow).findByRole("img", { name: t("documents.home.row.starred") });
+    expect(within(rootRow).getByText("Nhóm").nextElementSibling).toBe(rootStar);
+    expect(rootStar).toHaveClass("ml-1", "size-3.5", "shrink-0", "fill-current", "text-brand");
+    expect(within(otherRow).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+
+    // Expand root1: child1 belongs to another workspace's favorites, so it shows no star here.
+    fireEvent.click(within(rootRow).getByRole("button", { name: t("documents.tree.expand", { title: "Nhóm" }) }));
+    const childRow = await screen.findByRole("treeitem", { name: /Trang con/ });
+    expect(within(childRow).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+
+    // Star other1 -> favorites query invalidates and refetches -> tree marker appears without reload.
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.comments.favorite_add") }));
+    const otherStar = await within(otherRow).findByRole("img", { name: t("documents.home.row.starred") });
+    expect(within(otherRow).getByText("Đích").nextElementSibling).toBe(otherStar);
+
+    // Unstar other1 -> favorites query invalidates and refetches -> tree marker disappears without reload.
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.comments.favorite_remove") }));
+    await waitFor(() =>
+      expect(within(otherRow).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull(),
+    );
   });
 });
 
