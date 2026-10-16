@@ -1,6 +1,6 @@
 # Documents — Phụ lục: khôi phục từng mục, xóa vĩnh viễn, Thùng rác chỉ đọc, báo chủ tài liệu
 
-> **Trạng thái:** in-progress — v0.1 hợp đồng, viết 2026-10-17, chưa có dòng code nào. Thẻ: RESTORE-01 (UNI-1843: §1, §2, §3, §5, §6) và TRASH-NOTIFY-01 (UNI-1844: §4); phần web thuộc e6-web. Q-T1..Q-T3 (§7) đang chạy theo đề xuất cho đến khi Advisor trả lời.
+> **Trạng thái:** in-progress — v0.1 hợp đồng, viết 2026-10-17, chưa có dòng code nào. Thẻ: RESTORE-01 (UNI-1843: §1, §2, §3, §5, §6) và TRASH-NOTIFY-01 (UNI-1844: §4); phần web thuộc e6-web. Q-T1..Q-T3 đã chốt (§7).
 
 **Quan hệ:** [Documents C-01](2026-09-08-documents-design.md) (cây, lưu trữ, purge 30 ngày), [phụ lục My Folder](2026-10-16-documents-my-folder-addendum.md) (My Folder không bao giờ vào thùng rác), [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md) (`AdminScope`).
 **Nguồn quyết định:** USER-DECISIONS 2026-10-16 15:05 (Q-R1 khôi phục từng mục, chỉ mang theo mục con người đó quản lý; Q-R2 thông báo trong app, không email; Q-R3 người có quyền sửa thấy mục của mình trong Thùng rác, chỉ đọc), người dùng 23:45 (xóa vĩnh viễn từ Thùng rác).
@@ -63,7 +63,9 @@ mặc định, fixture `archivedFolder` trong switch `{documentID}` của `isola
 ## 3. Người có quyền sửa thấy Thùng rác chỉ đọc (Q-R3)
 
 - T-1. "Mục của mình" cho người không quản lý = mục trong thùng rác mà cấp quyền tính như lúc chưa xóa của họ là `edit`
-  (workspace_level trên tài liệu không restricted, hoặc share `edit`), HOẶC họ là `created_by`. ⚠ Q-T1 bên dưới.
+  (workspace_level trên tài liệu không restricted, hoặc share `edit` còn hiệu lực). Không có nhánh "người tạo" (Q-T1 = c): sau khi
+  chuyển quyền sở hữu hoặc thu hồi share trên tài liệu restricted, người tạo có thể không còn quyền gì và không được thấy cả tên tài
+  liệu; chủ sở hữu luôn có quyền quản lý nên người tạo thông thường vẫn được bao.
 - T-2. `ListArchivedDocumentsPage` thêm nhánh thứ tư; mỗi hàng trả `my_level` thật (`edit`) để client tắt Khôi phục/Xóa vĩnh
   viễn. Người quản lý/admin như cũ.
 - T-3. Đọc nội dung một mục trong thùng rác: vẫn chỉ quản lý (không mở viewer cho edit holder ở vòng này). Danh sách chỉ
@@ -83,7 +85,7 @@ mặc định, fixture `archivedFolder` trong switch `{documentID}` của `isola
 - N-3. Không email (Q-R2). `{date}` = `purge_after` của batch (ngày theo múi giờ người nhận ở client).
 - N-4. Bấm thông báo → Thùng rác lọc tới mục (web e6-web). Người nhận là owner nên quản lý được mục → Khôi phục từng mục
   (R-1) giải đúng nỗi đau brief §3.
-- N-5. Không thông báo khi xóa vĩnh viễn hay purge hết hạn ở vòng này (⚠ Q-T2).
+- N-5. Không thông báo khi xóa vĩnh viễn hay purge hết hạn ở vòng này (Q-T2 = a).
 
 ## 5. Client `packages/core`
 
@@ -100,13 +102,12 @@ mặc định, fixture `archivedFolder` trong switch `{documentID}` của `isola
 - PG-1 purge dọn mọi bảng phụ thuộc (đếm hàng trước/sau theo document id) + blob ref nhả; PG-2 edit holder 403, không thấy
   404, mục sống 400; PG-3 hậu duệ không quản lý ở lại, restore sau → gốc; PG-4 PurgeExpired vẫn xanh sau refactor.
 - TR-1 edit holder thấy hàng `my_level=edit`, không thấy hàng không liên quan; restore/purge 403.
+- TR-2 người tạo không còn quyền hiện tại (đã chuyển sở hữu / share restricted bị thu hồi) KHÔNG thấy hàng đó trong Thùng rác.
 - NT-1 xóa thư mục chứa 3 doc của C → C nhận MỘT thông báo; người xóa không nhận; chạy lại consumer không nhân đôi.
 - Isolation: route purge trong matrix; `TestEveryQueryNamesItsTenant`; audit coverage.
 
-## 7. Câu hỏi cho Advisor (đề xuất kèm theo)
+## 7. Quyết định (Advisor 2026-10-17)
 
-- Q-T1 "mục của mình" cho người có quyền sửa: (a) cấp `edit` hiệu lực HOẶC là người tạo — **đề xuất**; (b) chỉ người tạo;
-  (c) chỉ cấp `edit`.
-- Q-T2 báo chủ khi người khác XÓA VĨNH VIỄN tài liệu của họ: (a) không ở vòng này — **đề xuất** (người xóa vĩnh viễn đã
-  quản lý được mục; owner luôn quản lý nên chỉ admin/manage-share mới xóa được của người khác); (b) có, kind thứ hai.
-- Q-T3 xóa vĩnh viễn toàn bộ thùng rác ("Dọn sạch"): (a) không ở vòng này — **đề xuất**; (b) có, route workspace chỉ admin.
+- Q-T1 = (c): chỉ cấp `edit` hiệu lực, không có nhánh người tạo (lý do ở T-1); test TR-2.
+- Q-T2 = (a): không thông báo khi xóa vĩnh viễn ở vòng này.
+- Q-T3 = (a): không có "Dọn sạch thùng rác" ở vòng này.
