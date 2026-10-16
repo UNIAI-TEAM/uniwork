@@ -14,6 +14,9 @@ import (
 const listArchivedDocumentsPage = `-- name: ListArchivedDocumentsPage :many
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind
 FROM documents d
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
@@ -38,7 +41,18 @@ WHERE d.organization_id = $1
   AND ($11::timestamptz IS NULL OR d.archived_at >= $11)
   AND ($12::timestamptz IS NULL OR d.archived_at < $12)
   AND ($13::text IS NULL
-       OR (NOT $14::boolean
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $14::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($15::text[])))
+                    AND length(d.title) > length($13::text) + 1
+                    AND right(lower(d.title), length($13::text) + 1) = '.' || $13::text))))
+  -- UNI-1868: every row this view can return is already manage (the ladder
+  -- above is manage-only), so the service refuses access=manage/edit here and
+  -- 'restricted' - the row's visibility - is the one access filter it takes.
+  AND ($16::text IS NULL OR d.visibility = 'restricted')
+  AND ($17::text IS NULL
+       OR (NOT $18::boolean
            AND (NOT $3::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
@@ -61,8 +75,8 @@ WHERE d.organization_id = $1
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
-           AND d.search_text ILIKE '%' || $13::text || '%' ESCAPE '\')
-       OR (($14::boolean OR NOT (NOT $3::boolean
+           AND d.search_text ILIKE '%' || $17::text || '%' ESCAPE '\')
+       OR (($18::boolean OR NOT (NOT $3::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
                  OR EXISTS (
@@ -84,11 +98,11 @@ WHERE d.organization_id = $1
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
-           AND uw_fold_search(d.title) ILIKE '%' || $13::text || '%' ESCAPE '\'))
-  AND ($15::timestamptz IS NULL
-       OR (d.archived_at, d.id) < ($15, $16::text))
+           AND uw_fold_search(d.title) ILIKE '%' || $17::text || '%' ESCAPE '\'))
+  AND ($19::timestamptz IS NULL
+       OR (d.archived_at, d.id) < ($19, $20::text))
 ORDER BY d.archived_at DESC, d.id DESC
-LIMIT $17
+LIMIT $21
 `
 
 type ListArchivedDocumentsPageParams struct {
@@ -104,6 +118,10 @@ type ListArchivedDocumentsPageParams struct {
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
+	Format          pgtype.Text        `json:"format"`
+	FormatMime      pgtype.Text        `json:"format_mime"`
+	FormatMimes     []string           `json:"format_mimes"`
+	Access          pgtype.Text        `json:"access"`
 	Query           pgtype.Text        `json:"query"`
 	MatchTitle      bool               `json:"match_title"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
@@ -127,6 +145,10 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
 		arg.Query,
 		arg.MatchTitle,
 		arg.CursorAt,
@@ -277,6 +299,9 @@ func (q *Queries) ListDocumentAncestors(ctx context.Context, arg ListDocumentAnc
 const listDocumentsByParentPage = `-- name: ListDocumentsByParentPage :many
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind
 FROM documents d
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
@@ -304,7 +329,33 @@ WHERE d.organization_id = $1
   AND ($14::timestamptz IS NULL OR d.updated_at >= $14)
   AND ($15::timestamptz IS NULL OR d.updated_at < $15)
   AND ($16::text IS NULL
-       OR (NOT $17::boolean
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $17::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($18::text[])))
+                    AND length(d.title) > length($16::text) + 1
+                    AND right(lower(d.title), length($16::text) + 1) = '.' || $16::text))))
+  AND ($19::text IS NULL
+       OR ($19::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($19::text <> 'restricted'
+           AND (($4 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)))
+                OR ($8 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
+                OR ($6 AND NOT $20::boolean
+                    AND d.visibility = 'workspace'
+                    AND d.workspace_level = ANY($21::text[]))
+                OR ($9 AND EXISTS (
+                     SELECT 1 FROM document_shares a
+                     WHERE a.organization_id = d.organization_id
+                       AND a.workspace_id = d.workspace_id
+                       AND a.document_id = d.id
+                       AND a.revoked_at IS NULL
+                       AND a.level = ANY($21::text[])
+                       AND ((a.principal_type = 'user' AND a.principal_id = $5)
+                            OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($10::text[]))))))))
+  AND ($22::text IS NULL
+       OR (NOT $23::boolean
            AND (NOT $4::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
@@ -327,8 +378,8 @@ WHERE d.organization_id = $1
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
-           AND d.search_text ILIKE '%' || $16::text || '%' ESCAPE '\')
-       OR (($17::boolean OR NOT (NOT $4::boolean
+           AND d.search_text ILIKE '%' || $22::text || '%' ESCAPE '\')
+       OR (($23::boolean OR NOT (NOT $4::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
                  OR EXISTS (
@@ -350,11 +401,11 @@ WHERE d.organization_id = $1
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
-           AND uw_fold_search(d.title) ILIKE '%' || $16::text || '%' ESCAPE '\'))
-  AND ($18::float8 IS NULL
-       OR (d.position, d.id) > ($18, $19::text))
+           AND uw_fold_search(d.title) ILIKE '%' || $22::text || '%' ESCAPE '\'))
+  AND ($24::float8 IS NULL
+       OR (d.position, d.id) > ($24, $25::text))
 ORDER BY d.position, d.id
-LIMIT $20
+LIMIT $26
 `
 
 type ListDocumentsByParentPageParams struct {
@@ -373,6 +424,12 @@ type ListDocumentsByParentPageParams struct {
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
+	Format          pgtype.Text        `json:"format"`
+	FormatMime      pgtype.Text        `json:"format_mime"`
+	FormatMimes     []string           `json:"format_mimes"`
+	Access          pgtype.Text        `json:"access"`
+	Agent           bool               `json:"agent"`
+	AccessLevels    []string           `json:"access_levels"`
 	Query           pgtype.Text        `json:"query"`
 	MatchTitle      bool               `json:"match_title"`
 	CursorPosition  pgtype.Float8      `json:"cursor_position"`
@@ -399,6 +456,12 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
+		arg.Agent,
+		arg.AccessLevels,
 		arg.Query,
 		arg.MatchTitle,
 		arg.CursorPosition,
@@ -494,6 +557,9 @@ SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.
                         AND g.expires_at > now())) THEN NULL::text
                      ELSE left(d.content_text, 160)::text END, '')::text AS snippet
 FROM documents d
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.id = d.file_version_id
 WHERE d.organization_id = $5
   AND d.workspace_id = $6
   AND d.owner_id IS NULL
@@ -519,9 +585,45 @@ WHERE d.organization_id = $5
   AND ($13::text IS NULL OR d.updated_by = $13)
   AND ($14::timestamptz IS NULL OR d.updated_at >= $14)
   AND ($15::timestamptz IS NULL OR d.updated_at < $15)
+  -- UNI-1868 format filter: the file format of the row's current version. The
+  -- MIME an upload verified wins; the title's extension answers only while the
+  -- MIME names none of the six formats the library lists. Folders always stay
+  -- (they are how one reaches files) and a page never matches.
+  AND ($16::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $17::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($18::text[])))
+                    AND length(d.title) > length($16::text) + 1
+                    AND right(lower(d.title), length($16::text) + 1) = '.' || $16::text))))
+  -- UNI-1868 access filter: the same ladder the permission block above
+  -- resolves, so it agrees with the my_level the row reports - role or ACL
+  -- owner manage, the home row's workspace_level, a live share at a level in
+  -- access_levels (manage; edit and manage). agent caps the home-row leg: an
+  -- agent reads view whatever the row carries. 'restricted' is the row's
+  -- visibility, the way the library's access filter has it.
+  AND ($19::text IS NULL
+       OR ($19::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($19::text <> 'restricted'
+           AND (($2 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)))
+                OR ($9 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
+                OR ($7 AND NOT $20::boolean
+                    AND d.visibility = 'workspace'
+                    AND d.workspace_level = ANY($21::text[]))
+                OR ($10 AND EXISTS (
+                     SELECT 1 FROM document_shares a
+                     WHERE a.organization_id = d.organization_id
+                       AND a.workspace_id = d.workspace_id
+                       AND a.document_id = d.id
+                       AND a.revoked_at IS NULL
+                       AND a.level = ANY($21::text[])
+                       AND ((a.principal_type = 'user' AND a.principal_id = $3)
+                            OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($4::text[]))))))))
   -- System rows (My Folder) are never "shared by me": they refuse shares and visibility changes.
-  AND (NOT $16::boolean OR d.system_kind IS NULL)
-  AND (NOT $16::boolean
+  AND (NOT $22::boolean OR d.system_kind IS NULL)
+  AND (NOT $22::boolean
        OR (($2::boolean OR $9::boolean)
            AND d.acl_owner_id IS NOT NULL
            AND d.acl_owner_id = $3
@@ -536,7 +638,7 @@ WHERE d.organization_id = $5
                             OR (sbm.principal_type = 'workspace')
                             OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))))
   AND ($1::text IS NULL
-       OR (NOT $17::boolean
+       OR (NOT $23::boolean
            AND (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
@@ -560,7 +662,7 @@ WHERE d.organization_id = $5
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
-       OR (($17::boolean OR NOT (NOT $2::boolean
+       OR (($23::boolean OR NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
                  OR EXISTS (
@@ -583,10 +685,10 @@ WHERE d.organization_id = $5
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $1::text || '%' ESCAPE '\'))
-  AND ($18::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($18, $19::text))
+  AND ($24::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($24, $25::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $20
+LIMIT $26
 `
 
 type ListDocumentsPageParams struct {
@@ -605,6 +707,12 @@ type ListDocumentsPageParams struct {
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
+	Format          pgtype.Text        `json:"format"`
+	FormatMime      pgtype.Text        `json:"format_mime"`
+	FormatMimes     []string           `json:"format_mimes"`
+	Access          pgtype.Text        `json:"access"`
+	Agent           bool               `json:"agent"`
+	AccessLevels    []string           `json:"access_levels"`
 	SharedByMe      bool               `json:"shared_by_me"`
 	MatchTitle      bool               `json:"match_title"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
@@ -695,6 +803,9 @@ type ListDocumentsPageRow struct {
 // false for an agent and every share or ACL-owner leg folds shut.
 // Flat "all" page and folded-text search share one cursor: (updated_at, id)
 // descending. q is already folded by the caller and escaped for LIKE.
+// UNI-1868: the current version of a file document, for the format filter and
+// the format each row reports. Joined on the document's own tenant pair, so a
+// version of another tenant can never answer for the row.
 func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPageParams) ([]ListDocumentsPageRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsPage,
 		arg.Query,
@@ -712,6 +823,12 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
+		arg.Agent,
+		arg.AccessLevels,
 		arg.SharedByMe,
 		arg.MatchTitle,
 		arg.CursorAt,
@@ -783,6 +900,9 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 const listRecentDocumentsPage = `-- name: ListRecentDocumentsPage :many
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind
 FROM documents d
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
@@ -794,12 +914,38 @@ WHERE d.organization_id = $1
               AND a.workspace_id = d.workspace_id
               AND a.document_id = d.id
               AND a.actor_id = $3))
-  AND (($4
+  AND ($4::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $5::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($6::text[])))
+                    AND length(d.title) > length($4::text) + 1
+                    AND right(lower(d.title), length($4::text) + 1) = '.' || $4::text))))
+  AND ($7::text IS NULL
+       OR ($7::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($7::text <> 'restricted'
+           AND (($8 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)))
+                OR ($9 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
+                OR ($10 AND NOT $11::boolean
+                    AND d.visibility = 'workspace'
+                    AND d.workspace_level = ANY($12::text[]))
+                OR ($13 AND EXISTS (
+                     SELECT 1 FROM document_shares a
+                     WHERE a.organization_id = d.organization_id
+                       AND a.workspace_id = d.workspace_id
+                       AND a.document_id = d.id
+                       AND a.revoked_at IS NULL
+                       AND a.level = ANY($12::text[])
+                       AND ((a.principal_type = 'user' AND a.principal_id = $3)
+                            OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($14::text[]))))))))
+  AND (($8
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3))
-       OR ($5 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($6::text[]))
-       OR ($7 AND d.acl_owner_id = $3)
-       OR ($8 AND EXISTS (
+       OR ($10 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($15::text[]))
+       OR ($9 AND d.acl_owner_id = $3)
+       OR ($13 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -808,23 +954,29 @@ WHERE d.organization_id = $1
               AND ((s.principal_type = 'user' AND s.principal_id = $3)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($9::text[]))))))
-  AND ($10::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($10, $11::text))
+                       AND s.principal_id = ANY($14::text[]))))))
+  AND ($16::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($16, $17::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $12
+LIMIT $18
 `
 
 type ListRecentDocumentsPageParams struct {
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	ActorID         string             `json:"actor_id"`
+	Format          pgtype.Text        `json:"format"`
+	FormatMime      pgtype.Text        `json:"format_mime"`
+	FormatMimes     []string           `json:"format_mimes"`
+	Access          pgtype.Text        `json:"access"`
 	SeeAll          interface{}        `json:"see_all"`
-	MemberVisible   interface{}        `json:"member_visible"`
-	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
+	MemberVisible   interface{}        `json:"member_visible"`
+	Agent           bool               `json:"agent"`
+	AccessLevels    []string           `json:"access_levels"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
+	ShareLevels     []string           `json:"share_levels"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
 	PageLimit       int32              `json:"page_limit"`
@@ -837,12 +989,18 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.ActorID,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
 		arg.SeeAll,
-		arg.MemberVisible,
-		arg.ShareLevels,
 		arg.AclOwner,
+		arg.MemberVisible,
+		arg.Agent,
+		arg.AccessLevels,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
+		arg.ShareLevels,
 		arg.CursorAt,
 		arg.CursorID,
 		arg.PageLimit,
