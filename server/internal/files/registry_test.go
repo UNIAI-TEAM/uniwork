@@ -83,8 +83,8 @@ func TestDocumentPoliciesMatchTheContract(t *testing.T) {
 	}
 
 	file := specs[DocumentFile]
-	if file.Policy.MaxBytes != 50<<20 {
-		t.Errorf("document_file cap = %d, want 50 MiB", file.Policy.MaxBytes)
+	if file.Policy.MaxBytes != 200<<20 {
+		t.Errorf("document_file cap = %d, want 200 MiB", file.Policy.MaxBytes)
 	}
 	if !file.Policy.ChecksumRequired {
 		t.Error("document_file must require a checksum")
@@ -94,6 +94,11 @@ func TestDocumentPoliciesMatchTheContract(t *testing.T) {
 	}
 	if file.Scope != ScopeOrgWorkspace {
 		t.Errorf("document_file scope = %q, want %q", file.Scope, ScopeOrgWorkspace)
+	}
+	for _, exp := range []UploadPurpose{AuditExport, TenantExport} {
+		if specs[exp].Policy.MaxBytes != 200<<20 {
+			t.Errorf("%s cap = %d, want max(100 MiB, 200 MiB)", exp, specs[exp].Policy.MaxBytes)
+		}
 	}
 
 	asset := specs[DocumentAsset]
@@ -105,6 +110,28 @@ func TestDocumentPoliciesMatchTheContract(t *testing.T) {
 	}
 	if asset.Policy.ReadMode != ReadProxy {
 		t.Errorf("document_asset read mode = %q, want %q", asset.Policy.ReadMode, ReadProxy)
+	}
+
+	smallSpecs := map[UploadPurpose]PurposeSpec{}
+	for _, spec := range SpecsWithDocumentMaxBytes(25 << 20) {
+		smallSpecs[spec.Purpose] = spec
+	}
+	if smallSpecs[DocumentFile].Policy.MaxBytes != 25<<20 {
+		t.Errorf("SpecsWithDocumentMaxBytes(25 MiB) document_file cap = %d, want 25 MiB", smallSpecs[DocumentFile].Policy.MaxBytes)
+	}
+	if smallSpecs[AuditExport].Policy.MaxBytes != 100<<20 || smallSpecs[TenantExport].Policy.MaxBytes != 100<<20 {
+		t.Errorf("SpecsWithDocumentMaxBytes(25 MiB) export caps = %d/%d, want 100 MiB floor", smallSpecs[AuditExport].Policy.MaxBytes, smallSpecs[TenantExport].Policy.MaxBytes)
+	}
+
+	largeSpecs := map[UploadPurpose]PurposeSpec{}
+	for _, spec := range SpecsWithDocumentMaxBytes(500 << 20) {
+		largeSpecs[spec.Purpose] = spec
+	}
+	if largeSpecs[DocumentFile].Policy.MaxBytes != 500<<20 {
+		t.Errorf("SpecsWithDocumentMaxBytes(500 MiB) document_file cap = %d, want 500 MiB", largeSpecs[DocumentFile].Policy.MaxBytes)
+	}
+	if largeSpecs[AuditExport].Policy.MaxBytes != 500<<20 || largeSpecs[TenantExport].Policy.MaxBytes != 500<<20 {
+		t.Errorf("SpecsWithDocumentMaxBytes(500 MiB) export caps = %d/%d, want 500 MiB", largeSpecs[AuditExport].Policy.MaxBytes, largeSpecs[TenantExport].Policy.MaxBytes)
 	}
 }
 

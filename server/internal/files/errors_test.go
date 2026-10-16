@@ -66,6 +66,9 @@ func TestErrorCodesMatchTheContractTable(t *testing.T) {
 			}
 		}
 	}
+	if got := TooLarge(209715200); got.MaxBytes != 209715200 {
+		t.Errorf("TooLarge(209715200).MaxBytes = %d, want 209715200", got.MaxBytes)
+	}
 }
 
 func TestStatusForUnknownCodeIsInternal(t *testing.T) {

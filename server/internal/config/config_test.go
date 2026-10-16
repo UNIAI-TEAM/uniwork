@@ -387,3 +387,58 @@ func TestLoadDocumentCommitIntentSweepTick(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadDocumentMaxBytes(t *testing.T) {
+	t.Run("unset defaults to 200 MiB", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("DOCUMENT_MAX_BYTES", "")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if cfg.DocumentMaxBytes != 209715200 {
+			t.Fatalf("DocumentMaxBytes = %d, want 209715200", cfg.DocumentMaxBytes)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		val  string
+		want int64
+	}{
+		{"min 1 MiB", "1048576", 1 << 20},
+		{"default 200 MiB", "209715200", 200 << 20},
+		{"max 2 GiB", "2147483648", 2 << 30},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("DOCUMENT_MAX_BYTES", tc.val)
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load() with DOCUMENT_MAX_BYTES=%s failed: %v", tc.val, err)
+			}
+			if cfg.DocumentMaxBytes != tc.want {
+				t.Fatalf("DocumentMaxBytes = %d, want %d", cfg.DocumentMaxBytes, tc.want)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name string
+		val  string
+	}{
+		{"zero", "0"},
+		{"negative", "-1"},
+		{"below 1 MiB", "1048575"},
+		{"above 2 GiB", "2147483649"},
+		{"non-integer", "200MB"},
+	} {
+		t.Run("invalid "+tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("DOCUMENT_MAX_BYTES", tc.val)
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), "DOCUMENT_MAX_BYTES") {
+				t.Fatalf("Load() with DOCUMENT_MAX_BYTES=%q = %v, want error mentioning DOCUMENT_MAX_BYTES", tc.val, err)
+			}
+		})
+	}
+}
