@@ -94,7 +94,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/workspaces/{workspaceID}/documents/files", h.CreateDocumentFile, apiOp{
 		summary: "Create a file document",
-		description: "Tạo document kiểu file bằng một request multipart: phần file stream vào FileService (purpose document_file, ≤ 50 MiB, MIME allowlist + magic bytes), parent_id/title là form field tùy chọn. " +
+		description: "Tạo document kiểu file bằng một request multipart: phần file stream vào FileService (purpose document_file, ≤ DOCUMENT_MAX_BYTES (mặc định 200 MiB), MIME allowlist + magic bytes), parent_id/title là form field tùy chọn. " +
 			"Form field visibility (phải đứng trước phần file): workspace|restricted; tài liệu mới ở gốc mặc định riêng tư, gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem, bỏ trống dưới cha thì kế thừa cha (cả mức), giá trị khác -> 400 invalid_request. " +
 			"Idempotency-Key cho retry an toàn. Bytes đến nguyên vẹn; kích thước/checksum do server đo, client không tự khai.",
 		tags:   []string{"documents"},
@@ -142,7 +142,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/uploads", h.UploadDocumentFile, apiOp{
 		summary: "Stage bytes for a file version",
-		description: "Multipart (một phần file, ≤ 50 MiB): giai đoạn bytes của candidate version. Trả upload_id (= file_id), checksum_sha256 server đo, size_bytes, claim_expires_at (~24h). " +
+		description: "Multipart (một phần file, ≤ DOCUMENT_MAX_BYTES (mặc định 200 MiB)): giai đoạn bytes của candidate version. Trả upload_id (= file_id), checksum_sha256 server đo, size_bytes, claim_expires_at (~24h). " +
 			"Commit bằng POST /documents/{id}/versions/commit với {upload_id, base_revision}; tài liệu đã lưu trữ -> 403 document_archived chỉ cho người có quyền sửa trở lên (dưới quyền sửa hoặc không xem được -> 404 not_found). Thứ tự từ chối: không xem được -> 404; đã lưu trữ -> 403 document_archived / 404; folder -> 422 folder_not_supported; không phải file -> 400 invalid_request; chỉ có quyền xem -> 403 forbidden. Idempotency-Key dẫn xuất key FileService: retry tìm lại cùng upload, không lưu bytes hai lần.",
 		tags:   []string{"documents"},
 		sdi:    sdi.UploadDocumentFileSDI{},

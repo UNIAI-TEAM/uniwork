@@ -8854,7 +8854,9 @@
       "version_description": "Tệp mới trở thành bản làm việc; phiên bản đang mở vẫn nằm trong lịch sử.",
       "pick": "Chọn tệp",
       "selected": "Đã chọn {{name}}",
-      "size_hint": "Tối đa 50 MiB mỗi tệp.",
+      "size_hint": "Tối đa {{max}} mỗi tệp.",
+      "too_large_named": "{{name}} nặng {{size}}, vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
+      "unsupported_format": "Định dạng của {{name}} chưa được hỗ trợ.",
       "submit": "Tải lên",
       "submitting": "Đang tải lên…",
       "cancel": "Hủy"
@@ -9689,7 +9691,8 @@
       "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa lưu trữ được một lần. Hãy lưu trữ từng phần bên trong trước.",
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
-      "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn."
+      "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
+      "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại."
     }
   },
   "squads": {

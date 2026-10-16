@@ -31,6 +31,11 @@ Input bytes travel inside the job envelope and must match the checksum/length th
 the write target inside the signed grant (the FileService provider-output URL from `RegisterProviderOutput`), and
 only to an origin listed in `OFFICE_ENGINE_OUTPUT_ORIGINS`. The service never fetches a URL or path a request names.
 
+Keep-alive is client-owned: the engine sets `keepAliveTimeout = 0` on its HTTP server, so it never initiates an idle
+close. Node's idle timer cannot see request bytes the kernel already holds, so firing it can reset a connection a
+caller has already pipelined a request onto (a 413 or 202 lost as ECONNRESET). Go's transport and every other
+caller run their own idle timeouts and close first; shutdown still reaps via `closeAllConnections()`.
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -39,13 +44,13 @@ only to an origin listed in `OFFICE_ENGINE_OUTPUT_ORIGINS`. The service never fe
 | `OFFICE_ENGINE_GRANT_KEY` | — (required, ≥ 32 chars, ≠ token) | Grant signing key, shared with Go |
 | `OFFICE_ENGINE_OUTPUT_ORIGINS` | empty (no output allowed) | Comma list of bare origins of the object store |
 | `OFFICE_ENGINE_HOST` / `OFFICE_ENGINE_PORT` | `0.0.0.0` / `8090` | Listen address |
-| `OFFICE_ENGINE_MAX_WORKERS` | `2` | Worker processes at once (max 64) |
+| `OFFICE_ENGINE_MAX_WORKERS` | `2` | Worker processes at once (max 64); also the bound on submit bodies being read and parsed at once — a submit beyond it answers `503 engine_overloaded` + `Retry-After: 2` before its body is read (the refusal that bounds peak supervisor memory) |
 | `OFFICE_ENGINE_MAX_QUEUE` | `16` | Accepted jobs waiting for a worker; beyond it `503 engine_overloaded` |
 | `OFFICE_ENGINE_MAX_JOB_MS` | `120000` | Wall-clock ceiling per job (contract max 600000) |
 | `OFFICE_ENGINE_CPU_MS` | `60000` | CPU time per job tree |
 | `OFFICE_ENGINE_MEMORY_MB` | `512` | RSS per job tree; the handler's V8 heap is capped at 75 % of it |
-| `OFFICE_ENGINE_TEMP_MB` | `256` | Bytes a job may leave in its temp dir |
-| `OFFICE_ENGINE_MAX_INPUT_BYTES` / `_MAX_OUTPUT_BYTES` | 50 MiB / 50 MiB | Byte bounds (DocumentFile caps a version at 50 MiB) |
+| `OFFICE_ENGINE_TEMP_MB` | `512`, never below input + output + 64 MiB (boot fails otherwise) | Bytes a job may leave in its temp dir |
+| `OFFICE_ENGINE_MAX_INPUT_BYTES` / `_MAX_OUTPUT_BYTES` | `DOCUMENT_MAX_BYTES`, else 200 MiB / 200 MiB | Byte bounds; unset, they follow the document cap the server enforces. Input is further clamped to the contract's 383 MiB JSON transport ceiling (401604608 — a base64 body cannot exceed V8's max string length), so a `DOCUMENT_MAX_BYTES` above it boots the engine with input 383 MiB; an explicit `OFFICE_ENGINE_MAX_INPUT_BYTES` past it refuses to start. The shared value itself must stay inside the server's [1 MiB, 2 GiB] range or the engine refuses to boot |
 | `OFFICE_ENGINE_TEMP_DIR` | `$TMPDIR/uniwork-office-engine` | Root of per-job temp dirs |
 | `OFFICE_ENGINE_SAMPLE_MS` | `100` | Usage / temp sampling period |
 | `OFFICE_ENGINE_RETENTION_MS` / `_MAX_RETAINED_JOBS` | 15 min / 1024 | How long a settled job answers status |
@@ -187,7 +192,9 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   `chmod 1777 /tmp` first, matching compose's `mode=1777`. Without it any worker uid could rename or delete the
   supervisor's `uniwork-office-engine` temp root.
 - The submit path parses and hashes the envelope on the service's event loop; a large input stalls other requests
-  briefly (measured in `reports/g2-02-engine-service/limits-measurement.md`).
+  briefly (measured in `reports/g2-02-engine-service/limits-measurement.md`). A declared `input_length` over the
+  configured `maxInputBytes` is refused before the base64 decode reads a character, so a refused upload never pays
+  the decode+hash cost an accepted one does.
 
 ### Restart and replay (Go side)
 

@@ -8859,7 +8859,9 @@
       "version_description": "The new file becomes the working copy; the open version stays in history.",
       "pick": "Choose a file",
       "selected": "Selected {{name}}",
-      "size_hint": "Up to 50 MiB per file.",
+      "size_hint": "Up to {{max}} per file.",
+      "too_large_named": "{{name}} is {{size}}, which is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "unsupported_format": "The format of {{name}} is not supported.",
       "submit": "Upload",
       "submitting": "Uploading…",
       "cancel": "Cancel"
@@ -9695,7 +9697,8 @@
       "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
-      "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level."
+      "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
+      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again."
     }
   },
   "squads": {

@@ -30,6 +30,7 @@ import {
   requireVerifiableDocument,
   requireVerifiableUpload,
 } from "./verify";
+export { useDocumentLimits } from "./limits";
 
 // TanStack Query owns documents server state. Mutations return null when the
 // response cannot prove the write; the guards in ./verify turn that into

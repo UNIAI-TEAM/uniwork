@@ -5,6 +5,7 @@ import { DEMO_MEMBERS, DEMO_PROFILE } from "./product-demo-data";
 import { lazy, Suspense, useRef, useState, type ComponentProps } from "react";
 import { ArrowLeft, Check, Folder, FolderTree, Monitor, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { DEFAULT_DOCUMENT_MAX_BYTES, formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import type { DocumentList } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -29,7 +30,7 @@ const pageContent = (text: string) => ({ type: "doc", content: text.split("\n\n"
 
 /** The current Documents library, with production navigation, create choices and rows. */
 export function ProductDemoDocuments() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const sequence = useRef(20);
   const [items, setItems] = useState<Doc[]>(() => FORMATS.map((format, index) => ({ id: `sample-doc-${index}`, organization_id: "demo", workspace_id: "demo", parent_id: index > 8 ? "sample-doc-1" : null, kind: format === "folder" ? "folder" : format === "page" ? "page" : "file", title: format === "folder" ? "Product launch" : `${["Product launch brief", "", "Meeting notes", "Design guidelines", "Product page", "Project proposal", "Launch presentation", "Project budget", "Implementation plan", "Team decisions", "Project scope", "Release notes"][index]}${format === "page" || format === "folder" ? "" : `.${format}`}`, visibility: "workspace", revision: "1", current_version: 1, position: index, created_by: DEMO_PROFILE.name, created_by_kind: "human", updated_by: DEMO_MEMBERS[index % 3]!.name, updated_by_kind: "human", created_at: "2026-10-14T08:00:00Z", updated_at: "2026-10-16T08:00:00Z", my_level: "manage", origin: "created", size_bytes: format === "page" || format === "folder" ? null : 2480, archived_at: null })));
   const [view, setView] = useState<LibraryView>({ kind: "home" });
@@ -72,7 +73,7 @@ export function ProductDemoDocuments() {
     </section></div>
     {notice && <p role="status" className="product-documents-notice">{notice}</p>}
     <DocumentsSidebarSheet {...sidebar} open={navOpen} onOpenChange={setNavOpen} />
-    <DocumentUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} title={t("documents.upload.title")} description={t("landing.lovable.sample")} hint={t("documents.upload.size_hint")} onSubmit={file => create("page", file.name, file)} />
+    <DocumentUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} title={t("documents.upload.title")} description={t("landing.lovable.sample")} hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(DEFAULT_DOCUMENT_MAX_BYTES, i18n.language) })} onSubmit={file => create("page", file.name, file)} />
     <FolderNameDialog open={!!rename} onOpenChange={open => { if (!open) setRename(null); }} mode="rename" kind={rename?.kind} initialName={rename?.title} onSubmit={title => { if (rename) patch(rename.id, { title }); setRename(null); return true; }} />
     <Dialog open={officeOpen} onOpenChange={setOfficeOpen}><DialogContent><DialogHeader><DialogTitle>{t("landing.productDemo.officeHome")}</DialogTitle><DialogDescription>{t("landing.lovable.sample")}</DialogDescription></DialogHeader><CreateCards pending={false} unavailable={UNAVAILABLE} onCreate={format => { create(format); setOfficeOpen(false); }} onUpload={() => { setOfficeOpen(false); setUploadOpen(true); }} /></DialogContent></Dialog>
   </div>;
