@@ -1000,7 +1000,7 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     });
     renderWithNav(fakeNav("/acme/team/documents/d1"));
     fireEvent.click(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") }));
-    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Kế hoạch Q3" }) });
     expect(await within(dialog).findByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
     // DOC-05 opens the owner transfer and the add-share form to admin_scope.
     expect(
@@ -1039,7 +1039,7 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     });
     renderWithNav(fakeNav("/acme/team/documents/d1"));
     fireEvent.click(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") }));
-    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Kế hoạch Q3" }) });
     await within(dialog).findByText(t("documents.share.add_title"));
 
     fireEvent.click(within(dialog).getByRole("combobox", { name: t("documents.share.principal_label") }));
@@ -1066,7 +1066,7 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     });
     const nav = fakeNav("/acme/team/documents/d1?access=requests&x=1");
     renderWithNav(nav);
-    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Kế hoạch Q3" }) });
     expect(
       await within(dialog).findByRole("heading", { name: t("documents.access_request.section_title", { count: 0 }) }),
     ).toBeInTheDocument();

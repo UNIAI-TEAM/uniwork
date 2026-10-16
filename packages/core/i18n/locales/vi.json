@@ -8891,6 +8891,8 @@
     },
     "share": {
       "title": "Chia sẻ tài liệu",
+      "title_named": "Chia sẻ “{{title}}”",
+      "stored_in": "Lưu tại: {{workspace}}",
       "description": "Cấp quyền cho người, workspace hoặc tổ chức. Danh sách bên dưới là quyền thật đang có.",
       "manage_only": "Bạn cần quyền quản lý để chia sẻ tài liệu này.",
       "loading": "Đang tải quyền truy cập…",

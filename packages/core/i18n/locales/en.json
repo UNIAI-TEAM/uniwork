@@ -8896,6 +8896,8 @@
     },
     "share": {
       "title": "Share document",
+      "title_named": "Share “{{title}}”",
+      "stored_in": "Stored in: {{workspace}}",
       "description": "Grant access to people, workspaces or the organization. The list below is the access that actually exists.",
       "manage_only": "You need manage access to share this document.",
       "loading": "Loading access…",

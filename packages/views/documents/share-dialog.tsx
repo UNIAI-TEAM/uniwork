@@ -180,6 +180,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   };
 
   const shares = access.data?.shares ?? [];
+  const docTitle = doc.title?.trim() ?? "";
+  const storedWorkspace =
+    orgWorkspaces.data?.find((w) => w.id === doc.workspace_id)?.name.trim() ||
+    (doc.workspace_id && workspace.id === doc.workspace_id ? workspace.name.trim() : "") ||
+    "";
+  const describedBy =
+    [storedWorkspace ? descriptionId : "", adminOnly ? adminNoteId : ""].filter(Boolean).join(" ") || undefined;
 
   // Owned documents have no share surface at all: their access is delegated
   // through the owning work product, and the server refuses every grant route.
@@ -196,11 +203,17 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
       <DialogContent
         className="max-h-[85dvh] overflow-hidden sm:max-w-xl"
         closeLabel={t("common.close")}
-        aria-describedby={adminOnly ? `${descriptionId} ${adminNoteId}` : descriptionId}
+        aria-describedby={describedBy}
       >
         <DialogHeader>
-          <DialogTitle>{t("documents.share.title")}</DialogTitle>
-          <DialogDescription id={descriptionId}>{t("documents.share.description")}</DialogDescription>
+          <DialogTitle>
+            {docTitle ? t("documents.share.title_named", { title: docTitle }) : t("documents.share.title")}
+          </DialogTitle>
+          {storedWorkspace ? (
+            <DialogDescription id={descriptionId}>
+              {t("documents.share.stored_in", { workspace: storedWorkspace })}
+            </DialogDescription>
+          ) : null}
           {adminOnly ? (
             <p id={adminNoteId} className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
               {t("documents.share.admin_scope_note")}

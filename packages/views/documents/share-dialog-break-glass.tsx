@@ -26,6 +26,7 @@ export function useShareWorkspace(doc: Pick<DocumentAdminRef, "id" | "organizati
     ctx?.workspace ?? {
       id: wsId,
       slug: "",
+      name: "",
       organization_id: doc.organization_id,
       organization_slug: "",
       organization_name: "",

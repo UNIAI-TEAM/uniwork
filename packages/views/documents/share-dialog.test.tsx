@@ -247,6 +247,26 @@ describe("ShareDialog", () => {
     expect(screen.getByText(/3 lượt xem/)).toBeInTheDocument();
   });
 
+  it("renders Chia sẻ “{{title}}” and Lưu tại: {{workspace}} in the header, falling back when title or workspace name is absent (VIS-SHS1-01)", async () => {
+    const { unmount } = renderDialog(documentFixture({ title: "Báo cáo doanh thu Q3", workspace_id: "w2" }));
+
+    const namedDialog = await screen.findByRole("dialog", {
+      name: t("documents.share.title_named", { title: "Báo cáo doanh thu Q3" }),
+    });
+    expect(
+      await within(namedDialog).findByText(t("documents.share.stored_in", { workspace: "Design" })),
+    ).toBeInTheDocument();
+    expect(within(namedDialog).queryByText(t("documents.share.description"))).toBeNull();
+    unmount();
+
+    renderDialog(documentFixture({ title: "", workspace_id: "ws-unknown" }));
+    const fallbackDialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    await within(fallbackDialog).findByText(t("documents.share.access_title"));
+    expect(within(fallbackDialog).queryByText(/Lưu tại:/)).toBeNull();
+    expect(within(fallbackDialog).queryByText(/ws-unknown/)).toBeNull();
+    expect(fallbackDialog).not.toHaveAttribute("aria-describedby");
+  });
+
   it("labels a live comment grant, mine and a row's, as Comment and never as View", async () => {
     const comment = {
       ...accessPayload,
@@ -558,7 +578,7 @@ describe("ShareDialog", () => {
 
     await pickPerson("Chi");
     fireEvent.click(screen.getByRole("button", { name: t("common.close") }));
-    await waitFor(() => expect(screen.queryByText(t("documents.share.title"))).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "reopen" }));
     await screen.findByText(t("documents.share.access_title"));
 
