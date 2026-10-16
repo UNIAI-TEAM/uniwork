@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -5; node -p "require('./apps/web/platform/office-frame/docs.pin.json').version"
+1eda14681a2fd342232c5fc9aa3cb92f641e6ab1
+1eda14681 test(office): read the live frame pin from sheets.pin.json instead of a literal sha
+333a4ab50 test(office): record the web frame AI grant and fail the job on an AI-less capture
+e7b8a5814 test(office): give the G7-06 capture server a test-only AI_CREDENTIAL_KEY
+14e8534f3 docs(office): add the generate_mindmap rows to the G6-01 extraction block at fork bf4ff7b
+aa427200e test(office): re-bless the G7-06 goldens at frame pin 0.1.0-bf4ff7b
+0.1.0-bf4ff7b

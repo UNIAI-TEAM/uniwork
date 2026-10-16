@@ -1,0 +1,26 @@
+$ OFFICE_FORK_SHA=bf4ff7b bash scripts/office/g5g6g7/harness/start.sh; rc=$?; echo; echo "HARNESS_START_EXIT=$rc"
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /workspace/.harness-run
+harness: D server  http://localhost:39423 (metrics 127.0.0.1:37689)
+harness: D web     http://localhost:35573
+harness: fork      bf4ff7b
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:39423 ...
+harness: the fork is already built at bf4ff7b; skipping build:all
+harness: starting the fork Electron app under xvfb...
+harness: app on :99 (pid 266505)
+harness: up
+  D server  http://localhost:39423
+  D web     http://localhost:35573
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-bf4ff7b @ bf4ff7b
+  pids      /workspace/.harness-run/pids
+  next      OFFICE_FORK_SHA=bf4ff7b HARNESS_RUN_DIR=/workspace/.harness-run node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /workspace/.harness-run
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=bf4ff7b HARNESS_RUN_DIR=/workspace/.harness-run \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /workspace/.harness-run
+
+HARNESS_START_EXIT=0
