@@ -113,7 +113,7 @@ WITH RECURSIVE sub AS (
     AND sub.lvl < $7::int
 )
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
-  d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
+  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
 FROM sub
 JOIN documents d ON d.id = sub.id
 WHERE d.organization_id = $1
@@ -144,6 +144,7 @@ type ListDocumentAccessReportSubtreeCandidatesRow struct {
 	Kind           string             `json:"kind"`
 	Title          string             `json:"title"`
 	Visibility     string             `json:"visibility"`
+	WorkspaceLevel string             `json:"workspace_level"`
 	OwnerKind      pgtype.Text        `json:"owner_kind"`
 	OwnerID        pgtype.Text        `json:"owner_id"`
 	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
@@ -180,6 +181,7 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 			&i.Kind,
 			&i.Title,
 			&i.Visibility,
+			&i.WorkspaceLevel,
 			&i.OwnerKind,
 			&i.OwnerID,
 			&i.AclOwnerID,
@@ -199,7 +201,7 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 const listDocumentAccessReportWorkspaceCandidates = `-- name: ListDocumentAccessReportWorkspaceCandidates :many
 
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
-  d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
+  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
 FROM documents d
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -227,6 +229,7 @@ type ListDocumentAccessReportWorkspaceCandidatesRow struct {
 	Kind           string             `json:"kind"`
 	Title          string             `json:"title"`
 	Visibility     string             `json:"visibility"`
+	WorkspaceLevel string             `json:"workspace_level"`
 	OwnerKind      pgtype.Text        `json:"owner_kind"`
 	OwnerID        pgtype.Text        `json:"owner_id"`
 	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
@@ -263,6 +266,7 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 			&i.Kind,
 			&i.Title,
 			&i.Visibility,
+			&i.WorkspaceLevel,
 			&i.OwnerKind,
 			&i.OwnerID,
 			&i.AclOwnerID,

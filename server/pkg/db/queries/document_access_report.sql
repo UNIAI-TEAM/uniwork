@@ -7,7 +7,7 @@
 
 -- name: ListDocumentAccessReportWorkspaceCandidates :many
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
-  d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
+  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
 FROM documents d
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
@@ -38,7 +38,7 @@ WITH RECURSIVE sub AS (
     AND sub.lvl < sqlc.arg(max_level)::int
 )
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
-  d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
+  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
 FROM sub
 JOIN documents d ON d.id = sub.id
 WHERE d.organization_id = sqlc.arg(organization_id)
