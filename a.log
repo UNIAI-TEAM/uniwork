@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+9cdfdca345a31f996827bb51560a07eb98e424e4
+9cdfdca34 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-923-office-g5g7-develop-pr2
+91bdd067a chore: merge G7-09 automated part (5acb20fd7) into the G5-G7 root
+3af4ce069 chore(office): merge develop c8aa05469 into the G5-G7 root for develop PR 2
