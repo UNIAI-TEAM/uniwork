@@ -133,23 +133,28 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="@container/trash flex flex-col gap-5">
       {header}
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[940px] table-fixed border-collapse text-left">
+      <div className="overflow-hidden rounded-lg border border-border">
+        {/* Same rule as the library table: the secondary columns hide by this
+            wrapper's own width, so Khôi phục and the purge header are never
+            pushed off-screen (TV-2). Rungs: Xóa lúc + Xóa vĩnh viễn sau at
+            40rem (date 120 + purge 150 + actions 160 + a readable name),
+            Xóa bởi last at 54rem — it is a dash until RESTORE-01. */}
+        <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.trash.title")}>
           <colgroup>
             <col />
-            <col className="w-[200px]" />
-            <col className="w-[120px]" />
-            <col className="w-[150px]" />
+            <col className="hidden w-[200px] @min-[54rem]/trash:table-column" />
+            <col className="hidden w-[120px] @min-[40rem]/trash:table-column" />
+            <col className="hidden w-[150px] @min-[40rem]/trash:table-column" />
             <col className="w-[160px]" />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-caption text-muted-foreground">
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.name")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.trash.columns.deleted_by")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.trash.columns.deleted_at")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.trash.columns.purge_after")}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium @min-[54rem]/trash:table-cell">{t("documents.trash.columns.deleted_by")}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium @min-[40rem]/trash:table-cell">{t("documents.trash.columns.deleted_at")}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium @min-[40rem]/trash:table-cell">{t("documents.trash.columns.purge_after")}</th>
               <th scope="col" className="px-3 py-2 font-medium">
                 <span className="sr-only">{t("documents.home.columns.actions")}</span>
               </th>
@@ -183,14 +188,14 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
                       <div className="flex w-full min-w-0 items-center gap-3 pointer-coarse:min-h-11">{nameCell}</div>
                     )}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="hidden px-3 py-3 @min-[54rem]/trash:table-cell">
                     {/* archived_by is not in the list data yet (RESTORE-01): a dash that says so, never a guessed name. */}
                     <span aria-label={t("documents.trash.pending_deleted_by")} title={t("documents.trash.pending_deleted_by")} className="text-muted-foreground">
                       —
                     </span>
                   </td>
-                  <td className="px-3 py-3 font-mono text-caption tabular-nums text-muted-foreground">{deletedAt || "—"}</td>
-                  <td className={cn("px-3 py-3 font-mono text-caption tabular-nums", left !== null && left <= URGENT_DAYS ? "text-destructive" : "text-muted-foreground")}>
+                  <td className="hidden px-3 py-3 text-caption tabular-nums text-muted-foreground @min-[40rem]/trash:table-cell">{deletedAt || "—"}</td>
+                  <td className={cn("hidden px-3 py-3 text-caption tabular-nums @min-[40rem]/trash:table-cell", left !== null && left <= URGENT_DAYS ? "text-destructive" : "text-muted-foreground")}>
                     {left === null ? "—" : t("documents.trash.days_left", { count: left })}
                   </td>
                   <td className="px-3 py-3">

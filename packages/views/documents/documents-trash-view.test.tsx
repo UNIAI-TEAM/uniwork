@@ -106,6 +106,39 @@ describe("DocumentsTrashView", () => {
     expect(cell).not.toHaveTextContent("someone-else");
   });
 
+  it("keeps the table inside its container: no minimum width and no horizontal scroll wrapper", () => {
+    renderView();
+    const table = screen.getByRole("table");
+    expect(table.className).not.toMatch(/min-w-/);
+    // The secondary columns hide by the wrapper's own width (TV-2), so the
+    // table must be a container-query child of a @container element.
+    expect(table.closest("[class*='@container']")).toBeTruthy();
+    for (const el of Array.from(table.querySelectorAll("colgroup col, th, td"))) {
+      const bad = Array.from(el.classList).filter((token) => /^(max-)?(sm|md|lg|xl|2xl):/.test(token) || token.startsWith("min-w-"));
+      expect(bad, el.outerHTML.slice(0, 80)).toEqual([]);
+    }
+  });
+
+  it("always shows Name and the restore control: only Xóa bởi, Xóa lúc and Xóa vĩnh viễn sau hide by container width", () => {
+    renderView();
+    const heads = screen.getAllByRole("columnheader");
+    const rung = (el: Element) => Array.from(el.classList).filter((token) => token === "hidden" || token.startsWith("@"));
+    // Name and actions never carry a container rung.
+    expect(rung(heads[0]!)).toEqual([]);
+    expect(rung(heads[4]!)).toEqual([]);
+    // The three secondary columns do, so Khôi phục is on screen at any width.
+    expect(rung(heads[1]!).length).toBeGreaterThan(0);
+    expect(rung(heads[2]!).length).toBeGreaterThan(0);
+    expect(rung(heads[3]!).length).toBeGreaterThan(0);
+    const rowEl = document.querySelector("[data-trash-row]") as HTMLElement;
+    const cells = Array.from(rowEl.querySelectorAll("td"));
+    expect(rung(cells[0]!)).toEqual([]);
+    expect(rung(cells[4]!)).toEqual([]);
+    expect(rung(cells[1]!).length).toBeGreaterThan(0);
+    expect(rung(cells[2]!).length).toBeGreaterThan(0);
+    expect(rung(cells[3]!).length).toBeGreaterThan(0);
+  });
+
   it("pluralizes the days left in English (1 day, not 1 days)", async () => {
     await setLocale("en");
     renderView({

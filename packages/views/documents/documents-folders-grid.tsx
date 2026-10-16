@@ -166,11 +166,14 @@ export interface DocumentsSectionsProps {
   documentsCount: number;
   /** The documents table (DocumentsLibraryList with its own states). */
   children: React.ReactNode;
+  /** TV-4: subfolder cards already fill the folder, so a folder with no
+   * documents renders no "Tài liệu 0" heading and no empty-state copy. */
+  hideDocuments?: boolean;
   grid: Omit<DocumentsFoldersGridProps, "folders">;
 }
 
 /** The board's two sections: folder cards, then the documents table, each titled with its count. */
-export function DocumentsSections({ folderTitle, folders, documentsCount, children, grid }: DocumentsSectionsProps) {
+export function DocumentsSections({ folderTitle, folders, documentsCount, children, hideDocuments = false, grid }: DocumentsSectionsProps) {
   const { t } = useTranslation();
   // Each section is named by its heading, count included: the page region is
   // already called "Tài liệu", and landmark names must stay unique.
@@ -181,17 +184,19 @@ export function DocumentsSections({ folderTitle, folders, documentsCount, childr
       {folders.length > 0 ? (
         <section aria-labelledby={foldersId} className="flex flex-col gap-3">
           <h2 id={foldersId} className="text-body font-semibold text-muted-foreground">
-            {t(folderTitle)} <span className="font-medium text-muted-foreground/80">{folders.length}</span>
+            {t(folderTitle)} <span className="font-medium text-muted-foreground">{folders.length}</span>
           </h2>
           <DocumentsFoldersGrid {...grid} folders={folders} />
         </section>
       ) : null}
-      <section aria-labelledby={documentsId} className="flex flex-col gap-2">
-        <h2 id={documentsId} className="text-body font-semibold text-muted-foreground">
-          {t("documents.home.sections.documents")} <span className="font-medium text-muted-foreground/80">{documentsCount}</span>
-        </h2>
-        {children}
-      </section>
+      {!hideDocuments ? (
+        <section aria-labelledby={documentsId} className="flex flex-col gap-2">
+          <h2 id={documentsId} className="text-body font-semibold text-muted-foreground">
+            {t("documents.home.sections.documents")} <span className="font-medium text-muted-foreground">{documentsCount}</span>
+          </h2>
+          {children}
+        </section>
+      ) : null}
     </>
   );
 }

@@ -99,10 +99,10 @@ describe("phone row layout (finding 1)", () => {
     const spanners = Array.from(group!.parentElement!.children).slice(1);
     expect(spanners.map((el) => el.getAttribute("colspan"))).toEqual(["1", "1", "1", "1"]);
     expect(spanners.map((el) => Array.from(el.classList).find((c) => c.startsWith("@min-"))?.split(":")[0])).toEqual([
-      "@min-[66rem]/library",
-      "@min-[54rem]/library",
-      "@min-[45rem]/library",
-      "@min-[45rem]/library",
+      "@min-[53rem]/library",
+      "@min-[40rem]/library",
+      "@min-[28rem]/library",
+      "@min-[28rem]/library",
     ]);
     // One header and the rows share one column template.
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);

@@ -152,12 +152,15 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const updatedParam = homeRoot ? (updated.since ?? undefined) : undefined;
   const listFilter = useMemo(
     () => ({
-      ...(folderId ? { parentId: folderId } : {}),
+      // The board's home list is ROOT documents only: parent_id="" (empty
+      // string) is the server's "roots" marker; a folder's own id scopes the
+      // list to that level (Main.dc, TV-3 option A).
+      ...(home ? { parentId: folderId ?? "" } : {}),
       ...(chip === "page" ? { kind: "page" as const } : {}),
       ...(editorParam ? { updatedBy: editorParam } : {}),
       ...(updatedParam ? { updatedFrom: updatedParam } : {}),
     }),
-    [folderId, chip, editorParam, updatedParam],
+    [home, folderId, chip, editorParam, updatedParam],
   );
   // The starred view reads the workspace root list too (the home root's own
   // cache entry when it was open), so starred rows get dates and editors.

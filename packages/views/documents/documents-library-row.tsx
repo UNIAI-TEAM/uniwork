@@ -232,7 +232,7 @@ export function LibraryRowView({
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
         </span>
-        {/* The editor rides on this line until its column joins (54rem), the date · size pair until theirs do (45rem); the level and the restricted mark until Truy cập does (66rem, library-columns.ts). Only the meta parts truncate: the mark keeps its width inside the Name cell. */}
+        {/* The editor rides on this line until its column joins (40rem), the date · size pair until theirs do (28rem); the level and the restricted mark until Truy cập does (53rem, library-columns.ts). Only the meta parts truncate: the mark keeps its width inside the Name cell. */}
         {editor || metaTail || levelLabel || restricted ? (
           <span data-library-access-line className={cn("flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-muted-foreground", ladder.accessLineHides)}>
             {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}

@@ -254,6 +254,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
   const groups = groupRows(tableRows, homeView ? "none" : groupBy, library.folderIndex);
+  const subfolders = subfoldersOf(library.tree, folderId);
   const accessFiltered = library.access !== "all";
   const filtered = homeFilters || ((chip !== "all" || accessFiltered) && library.unfilteredCount > 0);
   const listLoading = state.loading || (Boolean(folderId) && folder.isPending);
@@ -435,8 +436,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                 <LibraryToolbar variant={folderId ? "folder" : "home"} {...toolbar} />
                 <DocumentsSections
                   folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
-                  folders={subfoldersOf(library.tree, folderId)}
+                  folders={subfolders}
                   documentsCount={tableRows.length}
+                  hideDocuments={
+                    // TV-4: a folder whose children are only subfolders is not
+                    // empty, so it shows no "Tài liệu 0" and no empty copy.
+                    // Filters, loading and failure keep their own states.
+                    Boolean(folderId) && subfolders.length > 0 && tableRows.length === 0 && !filtered && !listLoading && !state.failure
+                  }
                   grid={{ docById: library.docById, handlers, onOpenFolder: (id) => goHome({ kind: "home" }, id) }}
                 >
                   {libraryList}

@@ -78,7 +78,7 @@ export function LibraryToolbar({
           }}
           items={sortItems}
         >
-          <SelectTrigger id="documents-folder-sort" size="sm" variant="subtle" className="w-44">
+          <SelectTrigger id="documents-folder-sort" size="sm" variant="subtle" className="w-fit min-w-44">
             <ArrowUpDown aria-hidden className="size-3.5 text-muted-foreground" />
             <SelectValue>{sortItems.find((item) => item.value === sort)?.label}</SelectValue>
           </SelectTrigger>

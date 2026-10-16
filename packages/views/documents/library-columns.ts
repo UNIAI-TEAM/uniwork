@@ -3,11 +3,14 @@
  *
  * The table is `table-fixed` inside a `max-w-6xl` list (<= 1104px), beside the
  * docs aside and the app sidebar, so the viewport says nothing about the room
- * it has. Every optional column therefore joins by the width of the list's own
- * container (`@container/library`), in a ladder where Name keeps >= 280px:
- * a rung opens at `48px actions + 2px border + the fixed columns up to and
- * including it`, rounded up to the next rem. Header, colgroup, cells and the
- * group spanner all read the one class below, so none can drift out of step.
+ * it has. At the default shell the container measures ~712px at a 1280
+ * viewport and ~872px at 1440. Every optional column therefore joins by the
+ * width of the list's own container (`@container/library`), in a ladder that
+ * keeps Name readable: a rung opens at `the fixed columns up to and including
+ * it + 2px border + a 160px name floor`, rounded up to the next rem — except
+ * Truy cập, which sits exactly at the widest width a 1440 shell reaches.
+ * Header, colgroup, cells and the group spanner all read the one class below,
+ * so none can drift out of step.
  *
  * Below the first rung only Name and the actions column exist (Name = the
  * container - 50px). Tailwind finds the classes as literals, so each rung is
@@ -21,10 +24,10 @@
  *
  * | container | columns on screen                    |
  * | --------- | ------------------------------------ |
- * | < 45rem   | Name, actions                        |
- * | 45rem     | + Cập nhật, Dung lượng               |
- * | 54rem     | + Người sửa gần nhất                 |
- * | 66rem     | + Truy cập                           |
+ * | < 25rem   | Name, actions                        |
+ * | 25rem     | + Cập nhật, Dung lượng               |
+ * | 41rem     | + Người sửa gần nhất                 |
+ * | 54rem     | + Truy cập                           |
  */
 
 export type LibraryColumnId = "name" | "access" | "editor" | "updated" | "size" | "actions";
@@ -56,23 +59,25 @@ const NAME: LibraryColumn = { id: "name", col: "", cell: "" };
 const ACTIONS: LibraryColumn = { id: "actions", col: "w-12 @min-[54rem]/library:w-24", cell: "" };
 
 // The board's fixed widths written as px so the mock columns land where the
-// design put them; the rungs derive from those widths (45rem = updated 140 +
-// size 90 + actions 48 + border 2 = 720px, and so on).
-const ACCESS: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[66rem]/library:table-column", cell: "hidden @min-[66rem]/library:table-cell" };
-const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell" };
-const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-[140px] @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
-const SIZE: LibraryColumn = { id: "size", col: "hidden w-[90px] @min-[45rem]/library:table-column", cell: "hidden text-right @min-[45rem]/library:table-cell" };
+// design put them; the rungs derive from those widths plus a 160px Name floor
+// (28rem = updated 140 + size 90 + actions 48 + border 2 + floor 160 rounded
+// up, 40rem = + editor 200, 53rem = + access 190 capped just under what the
+// 1440 shell's ~872px container reaches).
+const ACCESS: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[53rem]/library:table-column", cell: "hidden @min-[53rem]/library:table-cell" };
+const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[40rem]/library:table-column", cell: "hidden @min-[40rem]/library:table-cell" };
+const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-[140px] @min-[28rem]/library:table-column", cell: "hidden @min-[28rem]/library:table-cell" };
+const SIZE: LibraryColumn = { id: "size", col: "hidden w-[90px] @min-[28rem]/library:table-column", cell: "hidden text-right @min-[28rem]/library:table-cell" };
 
-const HEAD = "hidden bg-muted/50 @min-[45rem]/library:table-header-group";
+const HEAD = "hidden bg-muted/50 @min-[28rem]/library:table-header-group";
 const QUICK = "hidden @min-[54rem]/library:block";
 
 const LADDER: LibraryLadder = {
   columns: [NAME, ACCESS, EDITOR, UPDATED, SIZE, ACTIONS],
   head: HEAD,
   quick: QUICK,
-  metaHides: "@min-[54rem]/library:hidden",
-  metaTailHides: "@min-[45rem]/library:hidden",
-  accessLineHides: "@min-[66rem]/library:hidden",
+  metaHides: "@min-[40rem]/library:hidden",
+  metaTailHides: "@min-[28rem]/library:hidden",
+  accessLineHides: "@min-[53rem]/library:hidden",
 };
 
 export function libraryLadder(): LibraryLadder {
