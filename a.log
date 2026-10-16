@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1811-fd-14-app-pickers; git log --oneline -3
+a2ef24f97bb39085286521b63262829703306f4b
+a2ef24f97bb39085286521b63262829703306f4b
+a2ef24f9 fix(shell): show unsupported_format at the upload file field instead of a generic toast
+f1e94b2e fix(shell): guard formatForName against prototype keys and keep uploadDocument as single refusal authority
+bebbd508 Merge commit 'fa22cd9d9' into feature/UNI-1811-fd-14-app-pickers
