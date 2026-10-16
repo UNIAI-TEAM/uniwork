@@ -116,7 +116,7 @@ Theo đúng thứ tự, kiểm lại sau mỗi bước.
    `9991792100200003_documents_folder_name_user_uidx` và `9991792100200004_documents_drop_folder_name_legacy_idx`.
 5. Không sửa `schema_migrations` bằng tay; không tạo index bằng tay (phải để runner ghi version).
 
-## Rollback
+### Rollback
 
 Chính sách (review r1a, BE-MF-2): sau khi đã có My Folder, rollback được hỗ trợ **chỉ ở tầng ứng dụng**.
 
