@@ -1,0 +1,3 @@
+$ npx eslint $(git diff --name-only --diff-filter=AM fa22cd9d9 HEAD | grep -E '\.(ts|tsx)$' | tr '\n' ' '); rc=$?; echo; echo "ESLINT_EXIT=$rc"
+
+ESLINT_EXIT=0
