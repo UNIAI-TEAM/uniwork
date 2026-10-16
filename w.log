@@ -1,0 +1,13 @@
+$ tail -n 60 /tmp/repin1-server.log /tmp/repin1-web.log; for p in 18630 13550; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; true
+==> /tmp/repin1-server.log <==
+14:21:04.344 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+14:21:04.345 INF local storage adapter ready dir=/tmp/uniwork-uploads
+14:21:04.348 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/16 14:21:04 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+14:21:04.350 INF mail: log mode, messages are printed component=server
+14:21:04.350 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+14:21:04.350 INF ai gateway enabled component=server provider=fake
+14:21:04.350 INF uniwork ai transcript store not configured component=server
+14:21:04.960 INF listening component=server port=18630 swagger=http://localhost:18630/swagger/index.html
+14:21:04.960 INF mail: outbox worker started component=server tick=5s
+tail: cannot open '/tmp/repin1-web.log' for reading: No such file or directory

@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+992ccc1ef32df00e91c5c43fd5addb33458a4ae5
+5b07a16068006aabf5f0c39b46ef7eeff7e10130
+992ccc1ef docs(e2e): keep historical 0.1.0-fa22cd9 pin origin in openPicker comment
+3f437fac0 test(office): re-bless the G7-06 goldens at frame pin 0.1.0-5a72c13
+3f2f7de06 test(e2e): UXF-03/04/05/07/10 pass on frame pin 0.1.0-5a72c13
+78f4e2863 chore(office): re-pin the six office frames to web-0.1.0-5a72c13
+5ff8d1031 chore: merge G5-G7 root 94801c4ac (G7-04 round 1, develop sync) into the REPIN-1 branch (UNI-1825)
+1bafe89f0 docs(office): fix RBT2-1..3 in genoffice-tool-schemas.README.md and genoffice-tools.md
+
+SYNCED_EXIT=1
