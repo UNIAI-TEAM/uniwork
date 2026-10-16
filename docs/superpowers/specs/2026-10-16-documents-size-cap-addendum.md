@@ -1,6 +1,6 @@
 # Tài liệu — Giới hạn 200 MB, tải lên tệp lớn, gợi ý mở bằng app khi lag (addendum, phía D)
 
-> **Trạng thái:** in-progress — Contract r1 gửi Advisor 2026-10-16, chờ duyệt. Lát SIZE-SPEC (UNI-1858) của lane size-cap (UNI-1857).
+> **Trạng thái:** in-progress — Contract r2 Advisor duyệt 2026-10-16 23:35 (UTC+7); r2 = route theo phiên riêng cho frame + chủ thể mở phiên. Lát SIZE-SPEC (UNI-1858) của lane size-cap (UNI-1857).
 
 **Ngày:** 2026-10-16 · **Nguồn quyết định:** `briefs/size-thresholds-proposal-2026-10-16.md` §0 (D-S1, D-S2, D-S3 user ký 18:20), `briefs/plan-size-cap-2026-10-16.md`, quyết định Advisor `reports/g5-fork_main/advisor-size-decisions-2026-10-16.md` (OQ-SIZE-1..5, BENCH-01), contract fork `contract-size-frame-v0.1` r3 · **Vùng:** `server/internal/{config,handler,service,files,document,storage}`, `server/migrations`, `packages/core/{api,office}`, `packages/views/office`, `apps/web/platform/office-frame`
 
@@ -102,7 +102,9 @@ Mọi 413 `file_too_large` của tài liệu (handler cap, `service/document_fil
 | `DELETE /api/v1/upload-sessions/{sessionID}` | phiên | huỷ |
 | `GET` / `POST .../complete` / `DELETE` dưới `/api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}` | frame token | như trên, cho phiên tạo từ frame |
 
-Chỉ người tạo phiên thao tác được phiên đó; người khác (kể cả cùng workspace) nhận 404. Phiên tạo bằng frame token chỉ đi qua route frame của đúng tài liệu đó.
+**Chọn (r2): route theo phiên riêng cho frame** — `GET`, `POST .../complete`, `DELETE` dưới `/api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}` (frame token của đúng tài liệu đó, quyền sửa); route `/api/v1/upload-sessions/{sessionID}` **không** nhận frame token (chỉ phiên đăng nhập). Lý do: frame token chỉ hợp lệ cho một tài liệu và chỉ được nhận dưới `/office-frame/...` như mọi route frame hiện có.
+
+**Chủ thể mở phiên** được ghi trên dòng phiên: `opened_via` (`session` | `frame_token`), `created_by` + `created_by_kind` (người dùng), và với frame token thêm `document_id` của token. Một thao tác chỉ được nhận khi cùng chủ thể: phiên mở bằng phiên đăng nhập chỉ đi qua `/api/v1/upload-sessions/{id}` với cùng người dùng; phiên mở bằng frame token chỉ đi qua route frame với token của cùng người dùng và cùng `document_id`. Mọi trường hợp khác (người khác, route kia, tài liệu khác) → `404 not_found`, không lộ phiên tồn tại.
 
 **Thay đổi với lane g5-fork_main** (gửi qua Advisor): app dùng hai route tạo theo phạm vi (thay `POST /upload-sessions` + `purpose`), và `GET /upload-sessions/{id}` thay cho `POST .../urls`. Body/response bên dưới giữ đúng tên trường contract fork §8.3, trừ `purpose`/`workspace_id`/`document_id` (nằm trên path).
 
