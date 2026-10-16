@@ -33,12 +33,14 @@
 // fails here, not on a cloud VM.
 //
 // Cloud D2 added the turn-1 precondition (D2-02/D2-03): a row may PASS only
-// when AI turn 1 answered 200 on BOTH routes. A turn 1 refused 403
-// `office_capability_off` is BLOCKED with the capability named (the deployment
-// has the flag off, so no turn ever worked and the revoke cannot be shown),
-// whatever turn 2 answers; any other non-200 turn 1 is a FAIL naming both
-// routes; and a capability that flips off between the two turns is a FAIL named
-// as that flip, not as a revoke result.
+// when AI turn 1 answered 200 on BOTH routes. A turn 1 both routes refused 403
+// `office_capability_off` — and only when BOTH did (BE-704-451) — is BLOCKED
+// with the capability named (the deployment has the flag off, so no turn ever
+// worked and the revoke cannot be shown), whatever turn 2 answers; any other
+// non-200 turn 1, including one route refusing the capability while the other
+// 500s or times out, is a FAIL naming both routes; and a capability that flips
+// off between the two turns is a FAIL named as that flip, not as a revoke
+// result.
 //
 // BE-704-202 closed the last hole: under `AI_PROVIDER=fake` a turn 1 that
 // answered 200 still carries an unverifiable CONTENT (classifyAiResponse BLOCKs
@@ -66,9 +68,11 @@ import {
   CASE_EXPECTATIONS,
   REVOKE_CASES,
   REVOKE_FIXTURES,
+  REASON_VALUE_MAX_CHARS,
   capabilityOffBlocker,
   decideRevokeOutcome,
   parseArgs,
+  reasonValueOf,
   runRevokeCase,
 } from "./revoke.mjs";
 
@@ -158,10 +162,15 @@ function sha256Of(bytes) {
  * capability check (:503-515), so a deactivated member is never answered
  * `office_capability_off` and a turn-2 capability flip is only reachable on a
  * member the server still admits — the `downgrade` member.
- * `sessionFailure: "500"|"timeout"` makes the SESSION route answer that
- * transport/status failure while the frame route still answers (BE-704-352).
+ * `sessionFailure` / `frameFailure` make that one route answer a
+ * transport/status failure while the other route still answers (BE-704-352):
+ * `"500"` (a refused status), `"timeout"` (a request that never came back),
+ * `"transport"` (the platform's own fetch rejection) or `"driver"` (an
+ * exception the driver must never read as a route failure, BE-704-454).
+ * `uploadFailure` / `commitFailure` drive the same shapes on the member's Save
+ * (BE-704-450).
  */
-function createMockRevokeServer({ aiMode = "fake", sessionFailure = null, ignoreRevokeOnAiTurn = false, allowSaveAfterRevoke = false, commitIntentAfterRevoke = false } = {}) {
+function createMockRevokeServer({ aiMode = "fake", sessionFailure = null, frameFailure = null, uploadFailure = null, commitFailure = null, ignoreRevokeOnAiTurn = false, allowSaveAfterRevoke = false, commitIntentAfterRevoke = false } = {}) {
   const state = {
     users: new Map(),
     deactivated: new Set(),
@@ -200,6 +209,18 @@ function createMockRevokeServer({ aiMode = "fake", sessionFailure = null, ignore
   const capabilityOff = () => {
     const format = (state.fileName.split(".").pop() ?? "").toLowerCase();
     return json(403, { error: { code: "office_capability_off", message: "UniWork AI dang tat cho to chuc nay", fields: { capability: `ai_uniwork_${format}` } } });
+  };
+  /**
+   * The failure shapes the tests drive on one route (BE-704-352/450/454): a
+   * refused status (`"500"`), a request that never came back (`"timeout"`), the
+   * platform's own fetch rejection (`"transport"`, a `TypeError` carrying its
+   * `cause`), and a harness defect that is NOT a route failure (`"driver"`).
+   */
+  const failureOf = (kind, message) => {
+    if (kind === "timeout") throw Object.assign(new Error(message), { name: "TimeoutError" });
+    if (kind === "transport") throw new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED 127.0.0.1:1") });
+    if (kind === "driver") throw new Error(message);
+    return json(Number(kind), { error: { code: "internal", message: "boom" } });
   };
 
   const fetchImpl = async (urlStr, init = {}) => {
@@ -261,13 +282,11 @@ function createMockRevokeServer({ aiMode = "fake", sessionFailure = null, ignore
       const caller = isFrame ? frameCallerOf(init) : callerOf(init);
       if (!caller) return unauthorized();
       state.aiCalls += 1;
-      // BE-704-352: a session route that never answered — a 5xx or a transport
-      // timeout — while the frame route still does, so the driver must measure
-      // BOTH routes instead of ending in a generic exception FAIL.
-      if (sessionFailure && !isFrame) {
-        if (sessionFailure === "timeout") throw Object.assign(new Error("the session AI route timed out"), { name: "TimeoutError" });
-        return json(Number(sessionFailure), { error: { code: "internal", message: "boom" } });
-      }
+      // BE-704-352: a route that never answered — a 5xx or a transport failure —
+      // while the other route still answers, so the driver must measure BOTH
+      // routes instead of ending in a generic exception FAIL.
+      if (sessionFailure && !isFrame) return failureOf(sessionFailure, "the session AI route failed");
+      if (frameFailure && isFrame) return failureOf(frameFailure, "the frame AI route failed");
       // The Go gate order (BE-704-353): RequireMember
       // (service/ai_uniwork.go:241-244) runs BEFORE checkUniworkCapability
       // (:503-515), so a deactivated member is never answered
@@ -310,6 +329,9 @@ function createMockRevokeServer({ aiMode = "fake", sessionFailure = null, ignore
     if (method === "POST" && path === `/api/v1/documents/${DOC_ID}/uploads`) {
       const caller = callerOf(init);
       if (!caller) return unauthorized();
+      // BE-704-450: the Save routes fail the way any other route can — a refused
+      // status or a transport failure — so the driver's own mapper is exercised.
+      if (uploadFailure) return failureOf(uploadFailure, "the Save upload failed");
       if (!allowSaveAfterRevoke) {
         const refused = refusalOf(caller);
         if (refused) return refused;
@@ -324,6 +346,8 @@ function createMockRevokeServer({ aiMode = "fake", sessionFailure = null, ignore
     if (method === "POST" && path === `/api/v1/documents/${DOC_ID}/versions/commit`) {
       const caller = callerOf(init);
       if (!caller) return unauthorized();
+      // BE-704-450: the commit fails the same way the upload can.
+      if (commitFailure) return failureOf(commitFailure, "the Save commit failed");
       if (!allowSaveAfterRevoke) {
         const refused = refusalOf(caller);
         if (refused) return refused;
@@ -834,6 +858,102 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     });
   }
 
+  it("BE-704-451: the capability-off BLOCKED needs BOTH turn-1 routes — one refusal with a 500 or a timeout on the other route is turn1_not_200 FAIL (exit 1) naming both cells", async () => {
+    const combos = [
+      [{ aiMode: "capability-off", frameFailure: "500" }, "t1 s403 office_capability_off/f500 http_500"],
+      [{ aiMode: "capability-off", sessionFailure: "500" }, "t1 s500 http_500/f403 office_capability_off"],
+      [{ aiMode: "capability-off", frameFailure: "timeout" }, "t1 s403 office_capability_off/f0 timeout"],
+      [{ aiMode: "capability-off", sessionFailure: "timeout" }, "t1 s0 timeout/f403 office_capability_off"],
+    ];
+    for (const [options, cell] of combos) {
+      const mock = createMockRevokeServer(options);
+      const scratch = makeScratchRunDir();
+      try {
+        const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+        assert.equal(res.status, "FAIL", `${cell}: ${res.reason}`);
+        assert.equal(res.exitCode, 1);
+        assert.equal(res.blocker, "", "a mixed route failure is a FAIL, never a capability BLOCKED");
+        // the row's own step says FAIL too: the artifact never reads BLOCKED where the row FAILed
+        assert.equal(res.steps.aiTurn1.status, "FAIL");
+        assert.equal(res.steps.aiTurn1.reason, "turn1_not_200");
+        // BOTH measured route cells are in the reason, the refusing one and the failing one
+        assert.match(res.reason, /^turn1_not_200; t1 s/);
+        assert.ok(res.reason.includes(cell), `${cell} missing from ${res.reason}`);
+        // a measured route failure never lands in the driver_error path
+        assert.equal(res.steps.exception, undefined);
+        assert.equal(redactSignInError(res.reason), res.reason);
+      } finally {
+        scratch.cleanup();
+      }
+    }
+  });
+
+  it("BE-704-450: a Save upload/commit failure carries the SAME mapped code as the AI routes (http_<status>, timeout, transport), never a second vocabulary", async () => {
+    const combos = [
+      // a deactivate refuses the member's Save at the gate, so the OTHER route's
+      // answer is the case's own refusal (403 member_deactivated), and only the
+      // route under test carries the mapped failure code
+      [{ uploadFailure: "500" }, { upload: "500 http_500", commit: "403 member_deactivated" }],
+      [{ uploadFailure: "timeout" }, { upload: "0 timeout", commit: "403 member_deactivated" }],
+      [{ commitFailure: "500" }, { upload: "403 member_deactivated", commit: "500 http_500" }],
+      [{ commitFailure: "transport" }, { upload: "403 member_deactivated", commit: "0 transport" }],
+    ];
+    for (const [options, want] of combos) {
+      const mock = createMockRevokeServer(options);
+      const scratch = makeScratchRunDir();
+      try {
+        const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+        assert.equal(res.status, "FAIL", `${JSON.stringify(want)}: ${res.reason}`);
+        assert.equal(res.details.verdict, "save_not_refused");
+        // the Save answer carries the route's own mapped code, not a synthesized one
+        assert.equal(res.details.save.upload.status, Number(want.upload.split(" ")[0]));
+        assert.equal(res.details.save.upload.code, want.upload.split(" ")[1] ?? "");
+        assert.equal(res.details.save.commit.status, Number(want.commit.split(" ")[0]));
+        assert.equal(res.details.save.commit.code, want.commit.split(" ")[1] ?? "");
+        // and the same cells reach the compact reason
+        assert.ok(res.reason.includes(`save up ${want.upload}/cm ${want.commit}`), `${want.upload}/${want.commit} missing from ${res.reason}`);
+        // the old, invented `transport_error` code is nowhere
+        assert.ok(!/transport_error/.test(res.reason), `a code that is not on the wire leaked into the reason: ${res.reason}`);
+        assert.ok(!/transport_error/.test(JSON.stringify(res.details.save)), "the old synthesized code is still recorded");
+        assert.equal(redactSignInError(res.reason), res.reason);
+      } finally {
+        scratch.cleanup();
+      }
+    }
+  });
+
+  it("BE-704-454: a statusless fetch rejection is a measured `transport` route failure, while any other exception is the driver_error FAIL, never a route failure", async () => {
+    const scratch = makeScratchRunDir();
+    try {
+      // the platform's own fetch rejection (a TypeError carrying its cause):
+      // measured as `transport`, and the frame route is still tried
+      const transportMock = createMockRevokeServer({ aiMode: "real", sessionFailure: "transport" });
+      const transport = await runCase({ fetchImpl: transportMock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(transport.status, "FAIL", transport.reason);
+      assert.equal(transport.exitCode, 1);
+      assert.equal(transport.steps.exception, undefined, "a transport failure is measured, never a driver exception");
+      assert.equal(transport.details.verdict, "turn1_not_200");
+      assert.equal(transport.details.aiTurn1.session.status, 0);
+      assert.equal(transport.details.aiTurn1.session.code, "transport");
+      assert.match(transport.reason, /^turn1_not_200; t1 s0 transport\/f200 /);
+      assert.ok(
+        transportMock.state.calls.some((c) => c.path === `/api/v1/office-frame/documents/${DOC_ID}/ai/uniwork/chat/completions`),
+        "the frame route was never tried after the session transport failure",
+      );
+      // a harness defect: the same wrapper must NOT label it a route transport failure
+      const driverMock = createMockRevokeServer({ aiMode: "real", sessionFailure: "driver" });
+      const driver = await runCase({ fetchImpl: driverMock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(driver.status, "FAIL");
+      assert.equal(driver.exitCode, 1);
+      assert.equal(driver.details.verdict, "driver_error");
+      assert.equal(driver.steps.exception.status, "FAIL");
+      assert.match(driver.steps.exception.reason, /the session AI route failed/);
+      assert.ok(!/transport/.test(driver.reason), `a driver defect was reported as a route failure: ${driver.reason}`);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
   it("turn 1 200 on both routes but turn 2 refused office_capability_off is a FAIL named as a capability flip, driven through the downgrade the real gate order can produce (D2-03, BE-704-353)", async () => {
     // BE-704-353: RequireMember (service/ai_uniwork.go:241-244) refuses a
     // deactivated member BEFORE checkUniworkCapability (:503-515), so a
@@ -1052,7 +1172,7 @@ describe("decideRevokeOutcome", () => {
       versionsAfterRevoke: 3,
       aiTurn1: {
         session: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" },
-        frame: { status: 401, code: "unauthorized", errorClass: "session" },
+        frame: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" },
       },
       aiTurn2: { session: { status: 418, code: "teapot" }, frame: { status: 429, code: "rate_limited" } },
     });
@@ -1060,7 +1180,7 @@ describe("decideRevokeOutcome", () => {
     assert.equal(out.exitCode, 77);
     assert.equal(out.blocker, capabilityOffBlocker("ai_uniwork_xlsx"));
     for (const measured of [
-      "t1 s403 office_capability_off/f401 unauthorized",
+      "t1 s403 office_capability_off/f403 office_capability_off",
       "t2 s418 teapot/f429 rate_limited",
       "v 3->3",
       "save up 403 member_deactivated/cm 403 member_deactivated",
@@ -1101,7 +1221,7 @@ describe("decideRevokeOutcome", () => {
       turn1_not_200: { aiTurn1: { session: { status: 500, code: "http_500" }, frame: { status: 0, code: "timeout" } } },
       capability_flip: { aiTurn2: { session: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" }, frame: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" } } },
       turn2_not_refused: { aiTurn2: { session: { status: 200 }, frame: { status: 200 } } },
-      capability_off: { aiTurn1: { session: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" }, frame: { status: 401, code: "unauthorized", errorClass: "session" } } },
+      capability_off: { aiTurn1: { session: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" }, frame: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" } } },
       ai_disabled: { aiTurn1: { session: { status: 503, code: "ai_disabled" }, frame: { status: 503, code: "ai_disabled" } } },
       content_not_verifiable: { aiTurn1Step: { status: "BLOCKED" } },
     };
@@ -1113,6 +1233,70 @@ describe("decideRevokeOutcome", () => {
       assert.match(out.reason, /t1 s.+ t2 s.+ v \d+->\d+ save up .+\/cm /, verdict);
       assert.ok(out.reason.length <= 240, `${verdict}: ${out.reason.length} chars: ${out.reason}`);
       assert.equal(redactSignInError(out.reason), out.reason, verdict);
+    }
+  });
+
+  it("BE-704-451: the capability-off BLOCKED applies only when BOTH turn-1 routes answer that refusal — any other non-200 route is turn1_not_200 FAIL with both cells", () => {
+    const refusal = { status: 403, code: "office_capability_off", capability: "ai_uniwork_docx" };
+    const mixed = [
+      { session: refusal, frame: { status: 500, code: "http_500" } },
+      { session: { status: 500, code: "http_500" }, frame: refusal },
+      { session: refusal, frame: { status: 0, code: "timeout" } },
+      { session: { status: 0, code: "timeout" }, frame: refusal },
+    ];
+    for (const aiTurn1 of mixed) {
+      const out = decideRevokeOutcome({ ...base(), aiTurn1 });
+      assert.equal(out.status, "FAIL", JSON.stringify(aiTurn1));
+      assert.equal(out.exitCode, 1);
+      assert.equal(out.details.verdict, "turn1_not_200");
+      assert.match(out.reason, /^turn1_not_200; t1 s/);
+      // one route refused the whole turn, the other failed on its own: both are in the reason
+      const cell = (answer) => `${answer.status ?? "none"}${answer.code ? ` ${answer.code}` : ""}`;
+      assert.ok(out.reason.includes(`s${cell(aiTurn1.session)}/f${cell(aiTurn1.frame)}`), out.reason);
+      assert.equal(redactSignInError(out.reason), out.reason);
+    }
+    // the BLOCKED branch itself is unchanged: both routes must answer the refusal
+    assert.equal(decideRevokeOutcome({ ...base(), aiTurn1: { session: refusal, frame: refusal } }).status, "BLOCKED");
+  });
+
+  it("BE-704-452: every dynamic value a reason interpolates is bounded and redacted first, with an explicit marker for an oversized one", () => {
+    // 61 chars, deliberately not a token-shaped run (no 32+ [A-Za-z0-9_-] run), so the
+    // value reaches the cap instead of being redacted away
+    const longCode = `${"A".repeat(30)}.${"B".repeat(30)}`;
+    const longCapability = `ai_uniwork_${"c".repeat(30)}.${"d".repeat(30)}`;
+    const tokenShaped = `tok${"0".repeat(48)}`;
+    assert.equal(reasonValueOf(longCode), `oversized(${longCode.length})`);
+    // a credential-shaped run is redacted, never marked oversized
+    assert.equal(reasonValueOf(tokenShaped), "<redacted>");
+    // a value the cap carries is kept verbatim, at the cap and one over it
+    assert.equal(reasonValueOf("office_capability_off"), "office_capability_off");
+    assert.equal(reasonValueOf("x".repeat(REASON_VALUE_MAX_CHARS)), "x".repeat(REASON_VALUE_MAX_CHARS));
+    assert.equal(reasonValueOf("x".repeat(REASON_VALUE_MAX_CHARS + 1)), `oversized(${REASON_VALUE_MAX_CHARS + 1})`);
+
+    const failures = {
+      version_delta: { versionsAfterRevoke: 2 },
+      commit_intent_committed: { commitIntent: { hasCommitted: true } },
+      save_not_refused: { save: { upload: { status: 403, code: longCode }, commit: { status: 404, code: tokenShaped } } },
+      revoke_status: { revoke: { status: 409 } },
+      turn1_not_200: { aiTurn1: { session: { status: 500, code: longCode }, frame: { status: 0, code: tokenShaped } } },
+      capability_flip: { aiTurn2: { session: { status: 403, code: "office_capability_off", capability: longCapability }, frame: { status: 403, code: "office_capability_off", capability: longCapability } } },
+      capability_off: { aiTurn1: { session: { status: 403, code: "office_capability_off", capability: longCapability }, frame: { status: 403, code: "office_capability_off", capability: longCapability } } },
+      ai_disabled: { aiTurn1: { session: { status: 503, code: "ai_disabled" }, frame: { status: 503, code: "ai_disabled" } } },
+      content_not_verifiable: { aiTurn1Step: { status: "BLOCKED" } },
+    };
+    const longSave = { upload: { status: 403, code: longCode }, commit: { status: 404, code: tokenShaped } };
+    for (const [verdict, over] of Object.entries(failures)) {
+      const out = decideRevokeOutcome({ ...base(), save: longSave, ...over });
+      assert.notEqual(out.status, "PASS", verdict);
+      assert.ok(out.reason.length <= 240, `${verdict}: ${out.reason.length} chars: ${out.reason}`);
+      // the helper's output is a fixed point of the record's own redaction
+      assert.equal(redactSignInError(out.reason), out.reason, `${verdict}: ${out.reason}`);
+      // the oversized value is MARKED, and the tuple keeps every field
+      assert.ok(out.reason.includes(`oversized(${longCode.length})`), `${verdict} dropped the marker: ${out.reason}`);
+      assert.ok(out.reason.includes("<redacted>"), `${verdict} kept a token-shaped value: ${out.reason}`);
+      assert.match(out.reason, /t1 s.+ t2 s.+ v \d+->\d+ save up .+\/cm /, verdict);
+      // and the record's redaction never had to truncate it
+      assert.ok(!/\.\.\.$/.test(out.reason), `${verdict} was truncated: ${out.reason}`);
     }
   });
 
