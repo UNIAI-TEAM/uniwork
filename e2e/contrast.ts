@@ -1,4 +1,7 @@
-import { type Page } from "@playwright/test";
+import { type Frame, type Page } from "@playwright/test";
+
+/** A page or a same-origin frame (the office frames are measured inside their iframe). */
+type Surface = Page | Frame;
 
 /**
  * Phép đo tương phản dùng chung cho mọi spec — đo trên trang đã render, không
@@ -16,7 +19,7 @@ import { type Page } from "@playwright/test";
  * 150ms. Đọc `getComputedStyle` ngay lúc đó trả về màu đang chạy dở — từng làm
  * test này báo "Bỏ qua 2.44:1" trong khi giá trị token đã đúng.
  */
-async function settle(page: Page) {
+async function settle(page: Surface) {
   await page.evaluate(
     async () =>
       await Promise.all(
@@ -39,7 +42,7 @@ async function settle(page: Page) {
   );
 }
 
-export async function auditText(page: Page, rootSelector = "body") {
+export async function auditText(page: Surface, rootSelector = "body") {
   await settle(page);
   return page.evaluate((rootSelector) => {
     // Gộp màu bằng chính bộ vẽ của trình duyệt, không tự parse chuỗi. Token của
