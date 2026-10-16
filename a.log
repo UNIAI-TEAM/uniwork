@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1809-fd-11-app-folder-tree; git log --oneline -3
+7ad4d4c83d667481c98bd5124fab00db4a6a0cef
+7ad4d4c83d667481c98bd5124fab00db4a6a0cef
+7ad4d4c8 merge: FD-11 fix round 5 BE (fd11-fix-be5 6c86f8282..c6a04e42d) into the FD-11 branch
+c6a04e42 test(shell): pin lasting org-loss boundary and A -> null -> B suppression
+6c86f828 fix(shell): bump session epoch on lasting org-less status push
