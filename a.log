@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+75ef05d0dd6e53cc69249d77477c572e44d0e832
+75ef05d0d Merge commit 'b4bc3089e' into feature/UNI-1814-src-01-chat-source-room
+2930028ec fix(chat): clear the jump highlight when the message never shows
+b4bc3089e chore: merge STAR-01 (UNI-1796, a52aa8bc7) into the G5-G7 root
+a52aa8bc7 chore: merge G5-G7 root fb8dcf05f into the lane
+af93f2ad7 style(documents): match the tree star gap to the library row
+2fc437c1c chore: merge G5-G7 root fb8dcf05f into the SRC-01 lane
+6c383974b chore: merge G7-12 residual tests (UNI-1384, e680b548a) into the G5-G7 root
+d9bc39aa5 chore: merge FU-G6-03a-BOUND (UNI-1367, 9b93240bf) into the G5-G7 root

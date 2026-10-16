@@ -1,0 +1,37 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18551 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18551 PREVIEW_ORIGIN=http://localhost:13452 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads FF_DOCUMENTS=true NEXT_PUBLIC_API_URL=http://localhost:18551 NEXT_PUBLIC_WS_URL=ws://localhost:18551 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18551 OFFICE_FORK_SHA=$(node -p "require(\"./apps/web/platform/office-frame/docs.pin.json\").gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-source-chat.spec.ts documents-home.spec.ts --repeat-each=3 --reporter=list > /tmp/src7-e2e.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/src7-e2e.log | tail -n 200; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; echo "##### JUMP-DIAG"; sed -n '/\[jump-diag\] begin/,/\[jump-diag\] end/p' /tmp/src7-e2e.log | head -c 80000; echo "##### END JUMP-DIAG"; grep -E "[0-9]+ (skipped|did not run)" /tmp/src7-e2e.log; grep -qE "[0-9]+ passed" /tmp/src7-e2e.log || { echo "no passing test"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+
+Running 15 tests using 1 worker
+
+(node:149173) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:149173) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home (9.1s)
+  ✓   2 documents-home.spec.ts:120:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.5s)
+  ✓   3 documents-home.spec.ts:225:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level (2.5s)
+  ✓   4 documents-home.spec.ts:246:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.3s)
+  ✓   5 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (3.1s)
+(node:149312) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:149312) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   6 documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home (8.7s)
+  ✓   7 documents-home.spec.ts:120:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.7s)
+  ✓   8 documents-home.spec.ts:225:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level (2.5s)
+  ✓   9 documents-home.spec.ts:246:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.4s)
+  ✓  10 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (3.1s)
+(node:149451) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:149451) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  11 documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home (9.7s)
+  ✓  12 documents-home.spec.ts:120:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.8s)
+  ✓  13 documents-home.spec.ts:225:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level (2.6s)
+  ✓  14 documents-home.spec.ts:246:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.3s)
+  ✓  15 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (3.0s)
+
+  15 passed (1.2m)
+##### JUMP-DIAG
+##### END JUMP-DIAG
+
+E2E_EXIT=0
