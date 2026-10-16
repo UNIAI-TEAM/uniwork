@@ -8,11 +8,13 @@ const publicConfigKey = ["public-config"] as const;
  * sample rate. Hosts mount FeatureFlagsProvider from the answer; until it
  * arrives `data` is undefined and every flag reads its default.
  */
-export function usePublicConfig() {
+export function usePublicConfig(options?: { enabled?: boolean }) {
   return useQuery<PublicConfig>({
     queryKey: publicConfigKey,
     queryFn: () => getPublicConfig(),
+    enabled: options?.enabled ?? true,
     staleTime: 5 * 60_000,
+    gcTime: Infinity,
     retry: false,
   });
 }

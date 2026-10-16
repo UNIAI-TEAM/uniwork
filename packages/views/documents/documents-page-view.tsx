@@ -6,9 +6,10 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore } from "@uniwork/core/auth";
-import { useCreateDocumentFile, useDocument, useUpdateDocument } from "@uniwork/core/documents/hooks";
+import { useCreateDocumentFile, useDocument, useDocumentLimits, useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
 import { useDownloadDocumentSource } from "@uniwork/core/documents/hooks-library";
+import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { paths } from "@uniwork/core/paths";
 import { canEditDocument } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -31,7 +32,7 @@ import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
-import { documentErrorMessage } from "./document-error-message";
+import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { useDropUpload } from "./use-drop-upload";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
@@ -95,9 +96,10 @@ export interface DocumentsPageViewProps {
  * Every row is a server answer; create, upload and save await the server.
  */
 export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: DocumentsPageViewProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
+  const limits = useDocumentLimits({ enabled });
   const context = useOptionalWorkspace();
   const orgId = context?.workspace.organization_id ?? "";
   const { push, searchParams } = useNavigation();
@@ -164,6 +166,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
   const drop = useDropUpload({
     enabled: enabled && canCreate && !folderInvalid,
+    maxBytes: limits.upload_max_bytes,
     upload: async (file) => {
       await createFile.mutateAsync({ file, meta: parentForCreate ? { parent_id: parentForCreate } : undefined });
     },
@@ -184,13 +187,15 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   };
 
   const uploadFile = async (file: File) => {
+    const invalid = documentUploadValidationMessage(file, limits.upload_max_bytes, t, i18n.language);
+    if (invalid) return setUploadError(invalid);
     setUploadError(null);
     try {
       const doc = await createFile.mutateAsync({ file, meta: parentForCreate ? { parent_id: parentForCreate } : undefined });
       setUploadOpen(false);
       onOpen(doc.id);
     } catch (error) {
-      setUploadError(documentErrorMessage(error, t, "documents.page.upload_failed"));
+      setUploadError(documentErrorMessage(error, t, "documents.page.upload_failed", { locale: i18n.language, file, maxBytes: limits.upload_max_bytes }));
     }
   };
 
@@ -446,7 +451,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         }}
         title={t("documents.upload.title")}
         description={t("documents.upload.description")}
-        hint={t("documents.upload.size_hint")}
+        hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
         pending={createFile.isPending}
         error={uploadError}
         onSubmit={(file) => void uploadFile(file)}

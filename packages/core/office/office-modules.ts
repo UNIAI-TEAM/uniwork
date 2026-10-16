@@ -48,22 +48,12 @@ export interface OfficeModuleSpec {
    */
   recovery?: boolean;
   /**
-   * The largest stored file the frame opens (bytes). A larger document opens
-   * the too-large / open-in-the-app notice without asking for a token; the server refuses the mint
-   * with 413 too_large too, and a frame that answers its open with
-   * `too_large` falls back the same way. Sheets only (GO-D3 = C).
+   * Optional per-module stored-file cap (bytes). None of the web modules set
+   * a stored-file cap today (BENCH-01 #2 dropped the 10 MiB Sheets cap; the
+   * frame enforces its own 512 MiB worksheet XML gate).
    */
   maxBytes?: number;
 }
-
-/**
- * Sheets runs the engine in WASM in the browser (GO-D3 = C, CONTRACT C11):
- * cap 10 MiB of stored xlsx. Measured with the SH2 incremental index (fork
- * docs/web-modules/sheets-sidecar.md): 2.2M dense cells = ~10.3 MB file, ~2.3 s
- * to first paint, ~0.8 GB renderer peak. Same number as
- * OfficeFrameSheetsMaxBytes in server/internal/service/office_frame_module.go.
- */
-const SHEETS_MAX_BYTES = 10 * 1024 * 1024;
 
 const EDIT_PRINT: OfficeModuleGrant = { save: true, saveAs: true, print: true };
 const EDIT_PRINT_HTML_IMAGES: OfficeModuleGrant = { save: true, saveAs: true, print: true, exportHtml: true, images: true };
@@ -84,7 +74,7 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   },
   sheets: {
     flag: "office_sheets_web", format: "xlsx", extension: "xlsx",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT, maxBytes: SHEETS_MAX_BYTES, recovery: true, ai: true,
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT, recovery: true, ai: true,
   },
 };
 

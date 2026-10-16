@@ -251,7 +251,7 @@ describe("OfficeModuleHost", () => {
     expect(failed()).toBeNull();
   });
 
-  describe("a workbook above the Sheets cap", () => {
+  describe("a workbook above 10 MiB and the Sheets worksheet gate (BENCH-01 #2)", () => {
     const ticket = `ticket_${"a".repeat(32)}`;
     const session = { launch_ticket: ticket, launch_url: `uniwork-office://open?ticket=${ticket}`, expires_at: "2026-10-01T00:00:00Z", document_id: "doc-1", operation: "edit" as const, version: 2 };
     const big = { ...doc, current_version: 2, file: { size_bytes: 10 * 1024 * 1024 + 1, filename: "big.xlsx" } } as Document;
@@ -259,6 +259,7 @@ describe("OfficeModuleHost", () => {
     beforeEach(() => {
       vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ sheets: "0.2.0-abc1234" }));
       answerConfig({ office_sheets_web: true });
+      mocks.frameOutcome.kind = "size";
     });
 
     const expectNoEditor = () => {
@@ -267,18 +268,16 @@ describe("OfficeModuleHost", () => {
       expect(tooLargeNotice()?.textContent).toContain("File is too large to edit on the web");
     };
 
-    it("shows the open-in-the-app notice on the stored-size pre-check, without asking for a token", async () => {
+    it("opens a workbook over 10 MiB of stored xlsx in the frame (no stored-size pre-check block)", async () => {
+      mocks.frameOutcome.kind = undefined;
       await render(host("sheets", false, big));
-      expectNoEditor();
-      // Only the public config (for the launch deployment) is read; no frame mounts, so no token is asked.
-      expect(mocks.request.mock.calls.every(([path]) => String(path).startsWith("/api/v1/config"))).toBe(true);
-      expect(mocks.frameProps).not.toHaveBeenCalled();
-      expect(buttonByText("Open in UniWork Office")).toBeDefined();
-      expect(buttonByText("Download")).toBeDefined();
+      await until(() => frame() !== null);
+      expect(tooLargeNotice()).toBeNull();
+      expect(failed()).toBeNull();
+      expect(mocks.frameProps).toHaveBeenCalled();
     });
 
-    it("shows the same notice when the frame reports the worksheet gate (too_large)", async () => {
-      mocks.frameOutcome.kind = "size";
+    it("shows the open-in-the-app notice when the frame reports the worksheet gate (too_large)", async () => {
       await render(host("sheets", false, { ...doc, file: { size_bytes: 2048 } } as Document));
       await until(() => tooLargeNotice() !== null);
       expect(mocks.frameProps).toHaveBeenCalled();

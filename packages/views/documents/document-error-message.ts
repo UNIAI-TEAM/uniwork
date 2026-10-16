@@ -1,8 +1,20 @@
 import type { useTranslation } from "react-i18next";
-import { apiErrorMessage, errorCode } from "@uniwork/core/api";
+import { apiErrorMessage, errorCode, errorFields } from "@uniwork/core/api";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
+import {
+  DEFAULT_DOCUMENT_MAX_BYTES,
+  formatDocumentSizeMB,
+  validateDocumentUploadFile,
+} from "@uniwork/core/documents/limits";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
+
+interface DocumentErrorMessageOptions {
+  locale?: string;
+  file?: { name: string; size: number };
+  maxBytes?: number;
+  fallbackOpts?: Record<string, unknown>;
+}
 
 // The refusals the server answers with a stable code (422): the tree rules,
 // a folder too large to archive at once, a source file that may not be
@@ -19,9 +31,53 @@ const CODED = new Set([
   "source_not_saveable",
 ]);
 
-/** A user-facing sentence for a failed documents write. */
-export function documentErrorMessage(error: unknown, t: TFunction, fallbackKey: string): string {
-  const code = errorCode(error);
-  if (code && CODED.has(code)) return t(`documents.errors.${code}`, { max: TREE_MAX_LEVEL });
-  return apiErrorMessage(error) ?? t(fallbackKey);
+/**
+ * Validates a picked or dropped file before sending any bytes to the server.
+ * Returns the user-facing error message when rejected, or null when valid.
+ */
+export function documentUploadValidationMessage(
+  file: { name: string; size: number },
+  maxBytes: number,
+  t: TFunction,
+  locale?: string,
+): string | null {
+  const check = validateDocumentUploadFile(file, maxBytes);
+  if (check.ok) return null;
+  if (check.reason === "unsupported_format") {
+    return t("documents.upload.unsupported_format", { name: file.name });
+  }
+  return t("documents.upload.too_large_named", {
+    name: file.name,
+    size: formatDocumentSizeMB(file.size, locale, check.maxBytes),
+    max: formatDocumentSizeMB(check.maxBytes, locale),
+  });
 }
+
+/** A user-facing sentence for a failed documents write. */
+export function documentErrorMessage(
+  error: unknown,
+  t: TFunction,
+  fallbackKey: string,
+  opts?: DocumentErrorMessageOptions,
+): string {
+  const code = errorCode(error);
+  if (code === "file_too_large") {
+    const rawMax = errorFields(error)?.max_bytes;
+    const maxBytes =
+      typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0
+        ? rawMax
+        : (opts?.maxBytes ?? DEFAULT_DOCUMENT_MAX_BYTES);
+    const max = formatDocumentSizeMB(maxBytes, opts?.locale);
+    if (opts?.file) {
+      return t("documents.upload.too_large_named", {
+        name: opts.file.name,
+        size: formatDocumentSizeMB(opts.file.size, opts.locale, maxBytes),
+        max,
+      });
+    }
+    return t("documents.errors.file_too_large", { max });
+  }
+  if (code && CODED.has(code)) return t(`documents.errors.${code}`, { max: TREE_MAX_LEVEL });
+  return apiErrorMessage(error) ?? t(fallbackKey, opts?.fallbackOpts);
+}
+

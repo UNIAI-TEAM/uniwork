@@ -7,10 +7,96 @@ import type { OfficeInstallerOption } from "../../office/desktop-platform";
 
 /**
  * GET /api/v1/config (F-11): the public feature flags for the caller's
- * context, the RUM sample rate, and Work Management capabilities. Read once
- * at boot by the web host; a drifted response degrades to "no flags, no
- * sampling, no capabilities" rather than throwing.
+ * context, the RUM sample rate, Work Management capabilities, and document
+ * size limits. Read once at boot by the web host; a drifted response degrades
+ * to safe defaults rather than throwing.
  */
+
+export const DEFAULT_DOCUMENT_MAX_BYTES = 200 * 1024 * 1024;
+const DEFAULT_DOCUMENT_SAVE_WARN_RATIO = 0.9;
+
+interface DocumentWebOpenLimit {
+  warn_bytes: number;
+}
+
+interface DocumentWebOpenLimits {
+  docx: DocumentWebOpenLimit;
+  pptx: DocumentWebOpenLimit;
+  pdf: DocumentWebOpenLimit;
+  xlsx: DocumentWebOpenLimit;
+}
+
+export interface DocumentLimits {
+  upload_max_bytes: number;
+  save_warn_ratio: number;
+  web_open: DocumentWebOpenLimits;
+  chunked_upload_threshold_bytes?: number;
+}
+
+const DEFAULT_DOCUMENT_WEB_OPEN_LIMITS: DocumentWebOpenLimits = {
+  docx: { warn_bytes: 31_457_280 },
+  pptx: { warn_bytes: 26_214_400 },
+  pdf: { warn_bytes: 52_428_800 },
+  xlsx: { warn_bytes: 5_242_880 },
+};
+
+export const DEFAULT_DOCUMENT_LIMITS: DocumentLimits = {
+  upload_max_bytes: DEFAULT_DOCUMENT_MAX_BYTES,
+  save_warn_ratio: DEFAULT_DOCUMENT_SAVE_WARN_RATIO,
+  web_open: DEFAULT_DOCUMENT_WEB_OPEN_LIMITS,
+};
+
+const positiveIntField = z.number().int().positive().optional().catch(undefined);
+const warnRatioField = z.number().gt(0).lte(1).optional().catch(undefined);
+
+function webOpenFormatSchema(defaultWarnBytes: number) {
+  return z
+    .object({ warn_bytes: positiveIntField })
+    .optional()
+    .catch(undefined)
+    .transform((entry): DocumentWebOpenLimit => ({
+      warn_bytes: entry?.warn_bytes ?? defaultWarnBytes,
+    }));
+}
+
+const DocumentWebOpenSchema = z
+  .object({
+    docx: webOpenFormatSchema(DEFAULT_DOCUMENT_WEB_OPEN_LIMITS.docx.warn_bytes),
+    pptx: webOpenFormatSchema(DEFAULT_DOCUMENT_WEB_OPEN_LIMITS.pptx.warn_bytes),
+    pdf: webOpenFormatSchema(DEFAULT_DOCUMENT_WEB_OPEN_LIMITS.pdf.warn_bytes),
+    xlsx: webOpenFormatSchema(DEFAULT_DOCUMENT_WEB_OPEN_LIMITS.xlsx.warn_bytes),
+  })
+  .optional()
+  .catch(undefined)
+  .transform((webOpen): DocumentWebOpenLimits => webOpen ?? DEFAULT_DOCUMENT_WEB_OPEN_LIMITS);
+
+const DocumentLimitsSchema = z
+  .object({
+    upload_max_bytes: positiveIntField,
+    save_warn_ratio: warnRatioField,
+    chunked_upload_threshold_bytes: positiveIntField,
+    web_open: DocumentWebOpenSchema,
+  })
+  .optional()
+  .catch(undefined)
+  .transform((limits): DocumentLimits => ({
+    upload_max_bytes: limits?.upload_max_bytes ?? DEFAULT_DOCUMENT_MAX_BYTES,
+    save_warn_ratio: limits?.save_warn_ratio ?? DEFAULT_DOCUMENT_SAVE_WARN_RATIO,
+    ...(limits?.chunked_upload_threshold_bytes !== undefined
+      ? { chunked_upload_threshold_bytes: limits.chunked_upload_threshold_bytes }
+      : {}),
+    web_open: limits?.web_open ?? DEFAULT_DOCUMENT_WEB_OPEN_LIMITS,
+  }));
+
+const DocumentsConfigSchema = z
+  .object({
+    limits: DocumentLimitsSchema,
+  })
+  .optional()
+  .catch(undefined)
+  .transform((docs) => ({
+    limits: docs?.limits ?? DEFAULT_DOCUMENT_LIMITS,
+  }));
 
 const CapabilityEntrySchema = z
   .object({
@@ -41,6 +127,7 @@ const ConfigSchema = z.object({
   office_deployment_id: z.string().trim().min(1).optional(),
   // A drifted origin drops to "absent": links then carry no profile and the app keeps its server.
   office_api_origin: z.string().trim().min(1).optional().catch(undefined),
+  documents: DocumentsConfigSchema,
 });
 
 export interface PublicConfig {
@@ -53,13 +140,18 @@ export interface PublicConfig {
   office_deployment_id?: string;
   /** Public API origin the desktop app signs in to; carried on every web -> app link. */
   office_api_origin?: string;
+  /** System-wide document size limits and web-open thresholds (SIZE-W1a). */
+  documents?: { limits: DocumentLimits };
 }
 
 // No guessed fallback here: an id the server never advertised must leave the
 // desktop open action closed, not send a possibly-wrong deployment binding.
 const EMPTY: PublicConfig = {
-  flags: {}, rum_sample_rate: 0, work_management_capabilities: {},
+  flags: {},
+  rum_sample_rate: 0,
+  work_management_capabilities: {},
   office_installers: { dev: [], beta: [], stable: [] },
+  documents: { limits: DEFAULT_DOCUMENT_LIMITS },
 };
 
 type WireConfig = Omit<PublicConfig, "office_installers"> & {
@@ -87,6 +179,7 @@ export async function getPublicConfig(organizationId?: string): Promise<PublicCo
     office_installers: channels,
     office_deployment_id: parsed.office_deployment_id,
     office_api_origin: parsed.office_api_origin,
+    documents: parsed.documents ?? { limits: DEFAULT_DOCUMENT_LIMITS },
   };
 }
 

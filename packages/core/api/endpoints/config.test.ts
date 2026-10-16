@@ -24,16 +24,46 @@ describe("config endpoints", () => {
       rum_sample_rate: 0.2,
       work_management_capabilities: {},
       office_installers: { dev: [], beta: [], stable: [] },
+      documents: {
+        limits: {
+          upload_max_bytes: 209715200,
+          save_warn_ratio: 0.9,
+          web_open: {
+            docx: { warn_bytes: 31457280 },
+            pptx: { warn_bytes: 26214400 },
+            pdf: { warn_bytes: 52428800 },
+            xlsx: { warn_bytes: 5242880 },
+          },
+        },
+      },
     });
     expect(cfg.office_deployment_id).toBeUndefined();
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain("/api/v1/config?organization_id=org1");
   });
 
   it("getPublicConfig degrades a malformed response to no flags and no sampling", async () => {
+    const empty = {
+      flags: {},
+      rum_sample_rate: 0,
+      work_management_capabilities: {},
+      office_installers: { dev: [], beta: [], stable: [] },
+      documents: {
+        limits: {
+          upload_max_bytes: 209715200,
+          save_warn_ratio: 0.9,
+          web_open: {
+            docx: { warn_bytes: 31457280 },
+            pptx: { warn_bytes: 26214400 },
+            pdf: { warn_bytes: 52428800 },
+            xlsx: { warn_bytes: 5242880 },
+          },
+        },
+      },
+    };
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: "nope", rum_sample_rate: 7 }));
-    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_installers: { dev: [], beta: [], stable: [] } });
+    expect(await getPublicConfig()).toEqual(empty);
     vi.mocked(fetch).mockResolvedValueOnce(json([1, 2]));
-    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_installers: { dev: [], beta: [], stable: [] } });
+    expect(await getPublicConfig()).toEqual(empty);
   });
 
   it("getPublicConfig carries the default-config deployment id through unchanged", async () => {
@@ -108,6 +138,111 @@ describe("config endpoints", () => {
       metric: "lcp",
       value: 1830,
       route: "/[orgSlug]/[workspaceSlug]/tasks",
+    });
+  });
+
+  it("parses documents.limits with and without chunked_upload_threshold_bytes", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            upload_max_bytes: 209715200,
+            save_warn_ratio: 0.9,
+            web_open: {
+              docx: { warn_bytes: 31457280 },
+              pptx: { warn_bytes: 26214400 },
+              pdf: { warn_bytes: 52428800 },
+              xlsx: { warn_bytes: 5242880 },
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits).toEqual({
+      upload_max_bytes: 209715200,
+      save_warn_ratio: 0.9,
+      web_open: {
+        docx: { warn_bytes: 31457280 },
+        pptx: { warn_bytes: 26214400 },
+        pdf: { warn_bytes: 52428800 },
+        xlsx: { warn_bytes: 5242880 },
+      },
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            upload_max_bytes: 104857600,
+            save_warn_ratio: 0.85,
+            chunked_upload_threshold_bytes: 20971520,
+            web_open: {
+              docx: { warn_bytes: 31457280 },
+              pptx: { warn_bytes: 26214400 },
+              pdf: { warn_bytes: 52428800 },
+              xlsx: { warn_bytes: 5242880 },
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits).toEqual({
+      upload_max_bytes: 104857600,
+      save_warn_ratio: 0.85,
+      chunked_upload_threshold_bytes: 20971520,
+      web_open: {
+        docx: { warn_bytes: 31457280 },
+        pptx: { warn_bytes: 26214400 },
+        pdf: { warn_bytes: 52428800 },
+        xlsx: { warn_bytes: 5242880 },
+      },
+    });
+  });
+
+  it("degrades missing or malformed documents.limits fields to the contract fallbacks", async () => {
+    const fallbackLimits = {
+      upload_max_bytes: 209715200,
+      save_warn_ratio: 0.9,
+      web_open: {
+        docx: { warn_bytes: 31457280 },
+        pptx: { warn_bytes: 26214400 },
+        pdf: { warn_bytes: 52428800 },
+        xlsx: { warn_bytes: 5242880 },
+      },
+    };
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, documents: "bad" }));
+    expect((await getPublicConfig()).documents?.limits).toEqual(fallbackLimits);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            upload_max_bytes: -10,
+            save_warn_ratio: "nope",
+            chunked_upload_threshold_bytes: "bad",
+            web_open: {
+              docx: { warn_bytes: "bad" },
+              pptx: "bad",
+              pdf: { warn_bytes: 0 },
+              xlsx: { warn_bytes: 6291456 },
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits).toEqual({
+      ...fallbackLimits,
+      web_open: {
+        ...fallbackLimits.web_open,
+        xlsx: { warn_bytes: 6291456 },
+      },
     });
   });
 });

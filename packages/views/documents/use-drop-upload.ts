@@ -3,7 +3,8 @@
 import { useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
+import { DEFAULT_DOCUMENT_MAX_BYTES } from "@uniwork/core/documents/limits";
+import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 
 function hasFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
@@ -14,8 +15,16 @@ function hasFiles(event: DragEvent): boolean {
  * folder. Each file is its own create (awaited, one after another); the list
  * refreshes from the server when each lands. Nothing happens for a viewer.
  */
-export function useDropUpload({ enabled, upload }: { enabled: boolean; upload: (file: File) => Promise<void> }) {
-  const { t } = useTranslation();
+export function useDropUpload({
+  enabled,
+  upload,
+  maxBytes = DEFAULT_DOCUMENT_MAX_BYTES,
+}: {
+  enabled: boolean;
+  upload: (file: File) => Promise<void>;
+  maxBytes?: number;
+}) {
+  const { t, i18n } = useTranslation();
   const [active, setActive] = useState(false);
   // dragenter/dragleave fire for every child; count them to know when the
   // pointer really left the zone.
@@ -24,11 +33,23 @@ export function useDropUpload({ enabled, upload }: { enabled: boolean; upload: (
   const uploadAll = async (files: File[]) => {
     let done = 0;
     for (const file of files) {
+      const invalid = documentUploadValidationMessage(file, maxBytes, t, i18n.language);
+      if (invalid) {
+        toast.error(invalid);
+        continue;
+      }
       try {
         await upload(file);
         done += 1;
       } catch (error) {
-        toast.error(apiErrorMessage(error) ?? t("documents.home.drop_failed", { name: file.name }));
+        toast.error(
+          documentErrorMessage(error, t, "documents.home.drop_failed", {
+            locale: i18n.language,
+            file,
+            maxBytes,
+            fallbackOpts: { name: file.name },
+          }),
+        );
       }
     }
     if (done > 0) toast.success(t("documents.home.drop_done", { count: done }));
