@@ -1,0 +1,2 @@
+$ npx eslint scripts/genoffice-tools-extract.mjs scripts/genoffice-tools-extract.test.mjs; echo ESLINT_EXIT=$?
+ESLINT_EXIT=0

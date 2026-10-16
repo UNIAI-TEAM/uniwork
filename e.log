@@ -1,0 +1,4 @@
+$ npx prettier --check scripts/genoffice-tools-extract.mjs scripts/genoffice-tools-extract.test.mjs; echo PRETTIER_EXIT=$?
+Checking formatting...
+All matched files use Prettier code style!
+PRETTIER_EXIT=0
