@@ -1,0 +1,14 @@
+$ git rev-parse HEAD; git log --oneline -12
+c80635a07620e46784727ff652a661c70f68a902
+c80635a07 chore: merge the edit-lock server lane (root 10b16375a) into the web lane
+4845b6ac5 chore: merge root 10b16375a (MYFOLDER-01, SHAREDBYME-01, LISTFILTER-01) into the edit-lock server lane
+10b16375a chore: merge LISTFILTER-01 server + core (UNI-1868, 7a8154623) into the G5-G7 root
+d273efb38 chore: merge MYFOLDER-01 + SHAREDBYME-01 server (UNI-1850/1851, 8a1f0a97e) into the G5-G7 root
+79df10887 chore: merge the edit-lock server lane (root b65535f35, REPIN-1) into the web lane
+408081ee4 chore: merge root b65535f35 (REPIN-1) into the edit-lock server lane
+b65535f35 chore: merge REPIN-1 (UNI-1825, 712c8e467) into the G5-G7 root
+a1230d8fa chore: merge the edit-lock server lane (root 9863ca89b) into the web lane
+d043fd154 chore: merge root 9863ca89b (SRC-02a) into the edit-lock server lane
+7a8154623 Merge branch 'feature/UNI-1850-myfolder-sharedbyme' into feature/UNI-1868-listfilter
+8a1f0a97e Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1850-myfolder-sharedbyme
+9863ca89b chore: merge SRC-02a (UNI-1815, 54a24d6c6) into the G5-G7 root
