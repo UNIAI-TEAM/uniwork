@@ -92,6 +92,18 @@ func TestAIEndpoints(t *testing.T) {
 	if res.StatusCode != 200 || len(out["messages"].([]any)) != 2 {
 		t.Fatalf("messages: %d %v", res.StatusCode, out)
 	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", member, map[string]any{"conversation_id": convID, "question": "doanh thu năm 2019", "locale": "vi"})
+	if res.StatusCode != 200 {
+		t.Fatalf("ask without sources: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+convID+"/messages", member, nil)
+	if msgs := out["messages"].([]any); res.StatusCode != 200 || len(msgs) != 4 {
+		t.Fatalf("messages after no-source turn: %d %v", res.StatusCode, out)
+	} else if last := msgs[3].(map[string]any); last["notice"] != "no_sources" || last["content"] != "" {
+		t.Fatalf("no-source notice: %v", last)
+	} else if _, has := msgs[1].(map[string]any)["notice"]; has {
+		t.Fatalf("regular answer carries a notice: %v", msgs[1])
+	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+convID+"/messages", owner, nil)
 	if res.StatusCode != 404 {
 		t.Fatalf("owner reads member's conversation: %d %v", res.StatusCode, out)

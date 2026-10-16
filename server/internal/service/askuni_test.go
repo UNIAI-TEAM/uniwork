@@ -133,7 +133,7 @@ func TestAskCitesOnlyPermittedSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(resB.Citations) != 0 || resB.Message.Content != ai.NoSourcesAnswer || fake.Calls != calls {
+	if len(resB.Citations) != 0 || resB.Message.Content != "" || resB.Message.Notice.String != ai.NoticeNoSources || fake.Calls != calls {
 		t.Fatalf("cross-tenant leak: %+v", resB)
 	}
 }
@@ -375,5 +375,31 @@ func TestAskStripsUntrustedTagsFromAnswer(t *testing.T) {
 	}
 	if got := rows[len(rows)-1].Content; got != "Xong" {
 		t.Fatalf("stored = %q", got)
+	}
+}
+
+func TestAskWithoutSourcesStoresNoticeNotText(t *testing.T) {
+	s, fake, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "doanh thu năm 2019", Locale: "en"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fake.Calls != 0 || res.Message.Content != "" || res.Message.Notice.String != "no_sources" {
+		t.Fatalf("no-source turn: calls=%d msg=%+v", fake.Calls, res.Message)
+	}
+	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: res.ConversationID, Question: "Viết spec F-09"}); err != nil {
+		t.Fatal(err)
+	}
+	if fake.Calls != 1 {
+		t.Fatalf("matching question did not reach the provider: %d", fake.Calls)
+	}
+	for _, m := range fake.Last.Messages {
+		if m.Role == "assistant" && (strings.Contains(m.Content, ai.NoSourcesAnswer) || strings.TrimSpace(ai.StripUntrustedTags(m.Content)) == "") {
+			t.Fatalf("no-source turn replayed as history: %+v", m)
+		}
 	}
 }

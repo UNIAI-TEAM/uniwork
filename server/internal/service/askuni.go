@@ -179,9 +179,11 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	}
 	pack, truncated := ai.BuildContext(sources)
 
-	answer := ai.Answer{Answer: ai.NoSourcesAnswer, Citations: []ai.Citation{}}
+	answer := ai.Answer{Citations: []ai.Citation{}}
+	notice := ai.NoticeNoSources
 	var resp ai.Response
 	if len(pack) > 0 {
+		notice = ""
 		history, err := s.history(ctx, conv.ID)
 		if err != nil {
 			return AskResult{}, err
@@ -212,7 +214,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 			}
 		}
 	}
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer.Answer, citations, resp.UsageEventID)
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer.Answer, notice, citations, resp.UsageEventID)
 	if err != nil {
 		return AskResult{}, err
 	}
@@ -243,6 +245,16 @@ func (s *AskUNIService) history(ctx context.Context, convID string) ([]provider.
 	if err != nil {
 		return nil, err
 	}
+	// Drop no-source replies (notice code, or the fixed text older rows stored)
+	// before windowing, so they neither mislead the model nor eat a turn.
+	kept := rows[:0]
+	for _, r := range rows {
+		if r.Role == "assistant" && (r.Notice.String != "" || r.Content == ai.NoSourcesAnswer) {
+			continue
+		}
+		kept = append(kept, r)
+	}
+	rows = kept
 	if len(rows) > askHistory {
 		rows = rows[len(rows)-askHistory:]
 	}
@@ -257,7 +269,7 @@ func (s *AskUNIService) history(ctx context.Context, convID string) ([]provider.
 	return out, nil
 }
 
-func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answer string, citations []AskCitation, usageEventID string) (db.AiMessage, error) {
+func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answer, notice string, citations []AskCitation, usageEventID string) (db.AiMessage, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.AiMessage{}, err
@@ -272,7 +284,7 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answ
 	cj, _ := json.Marshal(citations)
 	msg, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
 		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: answer,
-		Citations: string(cj), UsageEventID: strText(usageEventID),
+		Citations: string(cj), UsageEventID: strText(usageEventID), Notice: strText(notice),
 	})
 	if err != nil {
 		return db.AiMessage{}, err
