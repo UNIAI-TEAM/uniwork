@@ -87,7 +87,8 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, access, on
         ))}
       </div>
       {/* The caption keeps the second "All" from reading as a repeat of the type chips, wherever the groups wrap. */}
-      <div className="flex max-w-full items-center gap-1.5">
+      {/* ml-3 on top of the row gap: with only two options (archive) the group fits beside the chips and must still read as its own group. */}
+      <div className="ml-3 flex max-w-full items-center gap-1.5">
         <span className="shrink-0 text-caption text-muted-foreground">{t("documents.home.access_group_caption")}</span>
         <div role="group" aria-label={t("documents.home.access_filter_label")} className="-mx-1 flex min-w-0 gap-1.5 overflow-x-auto px-1 py-0.5">
           {(accessOptions ?? ACCESS_FILTERS).map((value) => (
