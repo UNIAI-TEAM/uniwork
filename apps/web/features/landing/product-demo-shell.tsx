@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Bell, ChevronDown, MousePointer2, PanelLeft, Play, Plus, Search, Sparkles, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Logo } from "@uniwork/ui/brand";
 import { MODULE_ICONS } from "@uniwork/views/layout/module-icons";
 import { MODULE_TONES, type ModuleKey } from "@uniwork/views/layout/module-tones";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
@@ -15,6 +16,7 @@ import { DEMO_FEATURES, PRODUCT_GROUPS, type ProductFeature } from "./showcase";
 import { hasPlayback } from "./product-playback";
 import { EmbeddedProductDemo } from "./product-demo-context";
 import { MarketingPreferences } from "../../platform/marketing-preferences";
+import { DEMO_PROFILE, DEMO_WORKSPACE } from "./product-demo-data";
 
 export type DemoDestination = ProductFeature | "inbox";
 
@@ -89,7 +91,7 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, chi
   const content = <EmbeddedProductDemo.Provider value>
     <div ref={shell} className="product-demo-shell" data-demo-feature={mode} data-menu-open={menuOpen} data-collapsed={collapsed}>
       <aside className="product-demo-sidebar">
-        <div className="product-demo-workspace"><span className="product-demo-workspace-mark">U</span><span><small>UNICOM TECHNOLOGY</small><strong>UNICOM</strong></span><ChevronDown aria-hidden /><Button className="product-demo-sidebar-close" variant="ghost" size="icon" aria-label={t("common.close")} onClick={closeMenu}><X aria-hidden /></Button></div>
+        <div className="product-demo-workspace"><span className="product-demo-workspace-mark"><Logo variant="mark" size={28} /></span><span><small>{DEMO_WORKSPACE.organization}</small><strong>{DEMO_WORKSPACE.name}</strong></span><ChevronDown aria-hidden /><Button className="product-demo-sidebar-close" variant="ghost" size="icon" aria-label={t("common.close")} onClick={closeMenu}><X aria-hidden /></Button></div>
         <nav aria-label={t("landing.workspace.appNavigation")}>
           <TabsList className="product-demo-menu" activateOnFocus={false} aria-label={t("landing.catalog.navigation")}>
             {GROUPS.map((group, index) => <div className="product-demo-nav-group" key={index}>{group.label && <span className="product-demo-group-label">{t(group.label)}</span>}{group.items.map(item)}</div>)}
@@ -99,7 +101,7 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, chi
             })}
           </TabsList>
         </nav>
-        <div className="product-demo-profile"><span>Đ</span><div><strong>Đạt Đặng</strong><small>{t("landing.lovable.member")}</small></div></div>
+        <div className="product-demo-profile"><span>{DEMO_PROFILE.initials}</span><div><strong>{DEMO_PROFILE.name}</strong><small>{t("landing.lovable.member")}</small></div></div>
       </aside>
       {menuOpen && <button type="button" className="product-demo-menu-backdrop" aria-label={t("landing.lovable.close")} tabIndex={-1} onClick={closeMenu} />}
       <div className="product-demo-app">

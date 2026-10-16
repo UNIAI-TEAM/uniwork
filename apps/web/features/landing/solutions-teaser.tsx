@@ -24,13 +24,13 @@ function AudiencePreview({ audience }: { audience: Audience }) {
     {audience === "leaders" && <div className="solution-screen-content solution-screen-leaders">
       <div className="solution-screen-heading"><span>{t("landing.studio.overview")}</span><strong>{t("landing.studio.launchProject")}</strong></div>
       <div className="solution-screen-metrics"><div><span>{t("landing.reference.total")}</span><strong>04</strong></div><div><span>{t("landing.reference.progress")}</span><strong>02</strong></div><div><span>{t("landing.reference.completed")}</span><strong>01</strong></div></div>
-      <div className="solution-screen-row"><span className="solution-screen-status" /><span>{t("landing.studio.task_design")}</span><b>HA</b></div>
+      <div className="solution-screen-row"><span className="solution-screen-status" /><span>{t("landing.studio.task_design")}</span><b>KV</b></div>
       <div className="solution-screen-row"><span className="solution-screen-status" /><span>{t("landing.studio.task_review")}</span><b>TN</b></div>
       <div className="solution-screen-connector"><Check aria-hidden />{t("landing.studio.selectionHint")}</div>
     </div>}
     {audience === "product" && <div className="solution-screen-content solution-screen-product">
       <div className="solution-screen-heading"><span>{t("landing.studio.productTeam")}</span><strong>{t("landing.studio.launchProject")}</strong></div>
-      <div className="solution-screen-product-body"><div className="solution-screen-task"><span className="solution-screen-tag">UW-102 · {t("landing.studio.design")}</span><strong>{t("landing.studio.task_design")}</strong><span className="solution-screen-person"><b>HA</b> Hoàng Anh</span></div><div className="solution-screen-thread"><MessageSquareText aria-hidden /><strong>{t("landing.studio.contextAttached")}</strong><p>{t("landing.studio.message1")}</p><span>{t("landing.studio.sharedWithTeam")}</span></div></div>
+      <div className="solution-screen-product-body"><div className="solution-screen-task"><span className="solution-screen-tag">DEMO-102 · {t("landing.studio.design")}</span><strong>{t("landing.studio.task_design")}</strong><span className="solution-screen-person"><b>KV</b> Khánh Vy</span></div><div className="solution-screen-thread"><MessageSquareText aria-hidden /><strong>{t("landing.studio.contextAttached")}</strong><p>{t("landing.studio.message1")}</p><span>{t("landing.studio.sharedWithTeam")}</span></div></div>
       <div className="solution-screen-connector"><Check aria-hidden />{t("landing.studio.selectionHint")}</div>
     </div>}
     {audience === "operations" && <div className="solution-screen-content solution-screen-operations">

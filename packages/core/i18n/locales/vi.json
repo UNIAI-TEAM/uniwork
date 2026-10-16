@@ -155,6 +155,43 @@
           "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4": "Trang quản trị gói chặn giá hoặc hạn mức nhập sai trước khi lưu: số tiền phải là số nguyên, và giá trị sai làm nút Lưu không bấm được thay vì biến 499.000 thành 499 hoặc biến chữ thành hạn mức không giới hạn. Khi máy chủ từ chối, biểu mẫu ở lại trên màn hình kèm thông báo lỗi.",
           "c5d891540b40d0b14088aca2f202b66dfeef08ee1": "Một khoản thanh toán chỉ được ghi nhận một lần: trước đây hai lần xử lý song song của cùng khoản thanh toán đều tạo hóa đơn, nên tổ chức thấy hai hóa đơn cho một lần trả tiền. Phiên thanh toán nay được khóa và đóng trước khi đổi đăng ký, nên lần xử lý thứ hai dừng lại."
         }
+      },
+      "v1_5_0": {
+        "title": "Trợ lý AI làm việc với task, dự án, cuộc họp và tài liệu, hướng dẫn kết nối từng bước và một loạt bản sửa lớn cho chat",
+        "summary": "Trợ lý AI kết nối qua MCP như Claude, ChatGPT hoặc Gemini giờ đọc và ghi được task, dự án, cuộc họp và tài liệu thay mặt người đã cho phép, và Cài đặt › Ứng dụng AI có hướng dẫn kết nối Claude hoặc ChatGPT từng bước. Cuộc họp đã hủy khôi phục được bằng nút Khôi phục. Chat nhận một loạt bản sửa về quyền, đồng bộ thời gian thực, thông báo, thread, tìm kiếm, gửi tin và cuộc gọi. Kèm theo là các bản sửa cho Email Hub và Tài liệu, và các bản demo trên trang giới thiệu bám theo màn hình hiện tại của sản phẩm.",
+        "note": "Thao tác ghi của trợ lý AI chỉ có khi kết nối được cấp quyền ghi, tổ chức bật công tắc cho phép AI ghi và tính năng đã được bật; trợ lý làm việc thay mặt người đã cho phép, theo đúng quyền của người đó. Thao tác với tài liệu qua trợ lý tuân theo việc bật hoặc tắt Tài liệu của tổ chức; với trang quá dài hoặc có nội dung không chuyển được nguyên vẹn sang Markdown, trợ lý chỉ nối thêm được, không thay thế toàn bộ trang. Hướng dẫn từng bước hiện có cho Claude và ChatGPT; với Claude gói Team hoặc Enterprise, chủ sở hữu tổ chức Claude cần thêm connector trước.",
+        "features": {
+          "cee5763d0eba8a1097ad8cce142b06b1f2c59795d": "Trợ lý AI kết nối với UniWork qua MCP giờ làm việc được với task, dự án, cuộc họp và tài liệu thay mặt người đã cho phép: xem thành viên và task, tạo, sửa task và bình luận; xem, tạo và sửa dự án; xem, lên lịch, sửa, mời người, hủy và khôi phục cuộc họp; tìm, đọc, tạo, sửa tài liệu và bình luận trên tài liệu. Trợ lý không có thao tác xóa, mỗi thao tác ghi cho biết cách hoàn tác, và lệnh sửa bị từ chối nếu nội dung đã đổi kể từ lần trợ lý đọc. Trang đồng ý kết nối và công tắc Truy cập AI nay ghi rõ cả dự án và tài liệu.",
+          "c055cc969f60bf8f56d5575ab9107fbc60495e67b": "Cuộc họp đã hủy khôi phục được bằng nút Khôi phục trên trang của cuộc họp; nút chờ yêu cầu hoàn tất rồi mới cho bấm tiếp.",
+          "cb8db488814c8f81523fae678d92bf08f62087d6a": "Cài đặt › Ứng dụng AI có nút Hướng dẫn kết nối, mở hộp thoại từng bước cho Claude hoặc ChatGPT: chọn trợ lý, sao chép địa chỉ UniWork, mở trang của trợ lý trong tab mới, thêm UniWork, rồi đăng nhập và cho phép; mỗi bước có hình minh họa khoanh đúng chỗ cần bấm. Khi hộp thoại đang mở, UniWork tự nhận ra kết nối mới và gợi ý câu hỏi đầu tiên, kèm nút Kiểm tra lại nếu chưa thấy. Logo Claude, ChatGPT và Gemini hiện ở mục kết nối của Ứng dụng AI và Truy cập AI; ở dòng ứng dụng đã kết nối, logo chỉ hiện khi ứng dụng đã được xác minh."
+        },
+        "improvements": {
+          "cfde652d9c629769761cea53dd8c62c816bb5438d": "Khi trợ lý AI đọc một task, kết quả kèm 50 bình luận mới nhất cùng mã bình luận, tên người viết và thời gian, nên trợ lý trả lời được đúng bất kỳ bình luận nào chứ không chỉ bình luận do chính nó viết. Người viết hiện bằng tên hiển thị, không bao giờ bằng email.",
+          "c0ec00567d931c302d0f8cb9ad80d9e788ed44dfa": "Các bản demo tương tác trên trang giới thiệu nay dựng từ màn hình hiện tại của sản phẩm — task, dự án, chat, Email Hub, cuộc họp, lịch, tài liệu, thành viên và Ask UNI — với dữ liệu mẫu, và tự chạy lại chuỗi thao tác minh họa."
+        },
+        "fixes": {
+          "c00ede2f34a81c4247c10125bc13b53f2963e02cc": "Các tab phạm vi (Tất cả, Gần đây, Được chia sẻ, Lưu trữ) và hàng lọc loại tệp ở Trang chủ Tài liệu không còn hiện thanh cuộn thừa, và vẫn cuộn ngang được trên màn hình hẹp.",
+          "cd12a4989a99624ed944cf68d8baa10dce67e56a7": "Khi Tài liệu bị tắt cho một tổ chức, phần Tài liệu trong ứng dụng cũng đóng với thành viên của tổ chức đó, giống liên kết công khai và trợ lý AI; tổ chức khác không bị ảnh hưởng.",
+          "cb59d1c98dba066ccdad3658a5f8f1c5f2bfdfad8": "Gửi tin và gọi trong chat: độ dài tin, ghi chú, bài đăng và nhắc việc được đếm theo ký tự nên tin tiếng Việt không còn bị báo quá dài sớm; poll, ghi chú, bài đăng, nhắc việc không còn bị tạo trùng khi mạng chập chờn, và gửi trong DM thì người nhận có thông báo; ô soạn xóa ngay khi gửi; @nhắc tên gắn đúng người kể cả khi trùng tên, và gợi ý @ trong kênh chỉ gồm thành viên kênh. Tin chờ gửi bị từ chối hẳn được bỏ kèm thông báo, tin thoại gửi lại không tạo bản trùng, GIF và sticker chỉ hiện từ nguồn được phép, tên nhóm mới tối đa 80 ký tự, nhắc việc dừng ở phòng đã lưu trữ và thẻ nhắc việc có nút xóa. Bấm Gọi hai lần chỉ đổ chuông một lần, nghe hoặc từ chối ở một tab thì các tab khác thôi đổ chuông, cuộc gọi đang diễn ra không bị người khác chiếm, và tóm tắt cuộc gọi chỉ được đăng một lần.",
+          "c60ce04b243311f6f337b7ccbcdd003e73aeea914": "Quyền trong chat được siết ở mọi thao tác: người bị chặn trong DM và người bị cấm gửi không còn gửi poll, ghi chú, bài đăng, nhắc việc, sửa tin, thả reaction, ghim, bỏ phiếu, gọi, ghi âm hay nối thread với task. Người bị loại khỏi nhóm không tự vào lại bằng cách tạo nhóm mới với đúng các thành viên cũ; chỉ người quản trị phòng đổi được tên kênh và lần đổi được ghi lại; quản trị viên workspace bị hạ quyền cũng mất quyền ở kênh chung; quản trị viên cuối không rời được phòng còn thành viên; nút quản trị phòng chỉ hiện khi máy chủ cho phép. Poll ẩn kết quả không còn lộ số phiếu trước khi bầu, vào lại kênh công khai đã rời không còn lỗi, đồng nghiệp ở workspace khác vào được cuộc gọi trong DM và nhóm, và mở DM với đồng nghiệp đã bị vô hiệu hóa không còn khóa màn hình của bạn.",
+          "c7458c4c4acf123f2d4392446cadadca8c5b24a7c": "Thread và tìm kiếm trong chat: thread dài xem được cả các trả lời cũ; mở thread không còn tự theo dõi và thanh thread có nút Theo dõi / Bỏ theo dõi; xóa trả lời cập nhật số trả lời của tin gốc; trả lời gửi lúc mất mạng nằm đúng trong thread; nhảy tới tin không còn chèn trả lời thread vào luồng chính, và nút Về tin mới nhất đưa về cuối phòng và đánh dấu đã đọc; Tóm tắt trong thread tóm đúng các trả lời chưa đọc. Tìm tin gõ không dấu vẫn ra kết quả (hop ra Họp), thư mục kênh lọc đúng kể cả khi gõ _ hoặc %. Sửa hoặc xóa tin trong thread đã nối task lan sang bình luận bên task và ngược lại, còn xóa task thì gỡ link chat của task đó.",
+          "c3b5dbfd16c9e9698479dc08ae75fea87678df71a": "Chat đồng bộ thời gian thực và thông báo ổn định hơn: thanh bên tải lại có giới hạn và kênh chỉ gửi số thành viên thay vì cả danh sách, nên kênh đông người không còn làm chậm mọi người; kênh chuyển sang riêng tư thì người ngoài thôi nhận tin; kênh đổi tên, lưu trữ hoặc mới tạo và người bị loại khỏi phòng được cập nhật ngay trên thanh bên; sau khi mất kết nối, phòng đang mở, link task và trạng thái ghi âm được tải lại. Đọc tin trong chat đóng thông báo tương ứng nên push của DM chạy lại, hàng thông báo gộp mở đúng tin mới nhất, tắt thông báo một phòng áp dụng trên mọi thiết bị, và dòng xem trước, số chưa đọc ở thanh bên không còn sai khi tin cũ thay đổi hoặc có trả lời thread trong kênh chung. Đóng một trong các tab không còn làm bạn hiện offline với người khác.",
+          "c6764d566d5eb554969fc4b987ae3e8e3a66708af": "Email Hub: thư mục Gắn sao lấy đúng thư đã gắn sao trong hộp thư (kể cả Gmail), Spam được đồng bộ nền, Thùng rác và Spam đồng bộ ngay khi mở, và chuyển thư sang thư mục khác thì thư mục đích được đồng bộ trước. Khi soạn thư, nội dung dài cuộn được và ảnh dán vào thành tệp đính kèm; màn trống của Hẹn giờ và Tạm ẩn nói rõ chỉ gồm thư hẹn giờ, tạm ẩn trong UniWork.",
+          "cd363ca48e750a9dfe29aa3efbef9a9c4045c48de": "Email Hub mở thư nhanh và chắc hơn: hiện đoạn trích trong lúc tải nội dung, tự thử lại khi tải nội dung lỗi, tải trước các thư bên cạnh, và chỉ đánh dấu đã đọc sau khi nội dung đã tải xong.",
+          "c13087a29b3cb2ad63dc7a132870cbb4b3018c836": "Trong Tài liệu, lệnh tới nguồn của một tệp lấy từ chat nay mở đúng phòng và làm nổi tin nhắn chứa tệp, thay vì chỉ mở trang Chat.",
+          "c8d3b953959e51a40d91645de8e49a89fa4e7a9a2": "Thông báo chat chắc chắn hơn: sửa tin để thêm @nhắc tên thì người mới được nhắc nhận thông báo, cuộc gọi nhỡ trong DM tạo thông báo cho người nhận, người theo dõi thread trong kênh công khai nhận trả lời dù chưa vào kênh, và thông báo được thử lại khi hệ thống tạm lỗi thay vì bị mất. Sửa tin giữ nguyên mức ưu tiên và các dữ liệu khác của tin, còn gửi lại một tin đã bị xóa nhận báo lỗi rõ ràng thay vì lỗi máy chủ."
+        }
+      },
+      "v1_5_1": {
+        "title": "Menu Sản phẩm mở đúng trang tính năng và demo dùng dữ liệu mẫu mới",
+        "summary": "Bản vá cho trang giới thiệu: mỗi mục trong menu Sản phẩm mở trang riêng của tính năng, nút Xem demo trên trang tính năng mở bản demo ngay tại trang, và các bản demo dùng một không gian làm việc mẫu mới. Demo Lịch bám theo màn hình Lịch hiện tại.",
+        "note": "Bản vá này chỉ thay đổi trang giới thiệu; ứng dụng UniWork không thay đổi.",
+        "improvements": {
+          "c31a87b6e474f69e33cd44093e483d24dfe1a4f39": "Các bản demo trên trang giới thiệu dùng một không gian làm việc, thành viên và task mẫu mới ở cả tiếng Việt và tiếng Anh. Demo Lịch có ô tìm kiếm như màn hình Lịch hiện tại và mở sẵn ở khung 08:00."
+        },
+        "fixes": {
+          "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d": "Trên trang giới thiệu, mỗi mục trong menu Sản phẩm nay mở trang riêng của tính năng đó, và nút Xem demo trên trang tính năng mở bản demo ngay tại trang. Hình minh họa cuối trang chủ dùng giao diện sản phẩm hiện tại."
+        }
       }
     }
   },
@@ -5933,16 +5970,50 @@
         "filter": "Bộ lọc",
         "display": "Hiển thị",
         "tasks": {
-          "brief": "Họp với PA Việt Nam về hợp tác làm đại lý tên miền, hosting",
-          "uranus": "Triển khai uniwork cho Uranus",
-          "mytel": "Triển khai uniwork cho Mytel",
-          "viconnect": "Triển khai Uniwork cho Viconnect",
-          "simulation": "Triển khai Demo giải pháp Mô phỏng diễn tập",
-          "design": "Triển khai Uniwork cho Unicom",
-          "review": "Triển khai uniwork cho Athena",
-          "launch": "Làm lại dự toán theo quy mô, phạm vi của Quảng Ngãi",
+          "brief": "Hoàn thiện bản mô tả sản phẩm mẫu",
+          "research": "Khảo sát nhu cầu cho ứng dụng mẫu",
+          "wireframes": "Phác thảo bố cục trang giới thiệu",
+          "prototype": "Chuẩn bị bản mẫu tương tác",
+          "simulation": "Viết kịch bản kiểm thử onboarding",
+          "design": "Thiết kế trải nghiệm onboarding",
+          "review": "Tổng hợp phản hồi cho bản mẫu",
+          "launch": "Thống nhất phạm vi bản phát hành thử",
+          "handoff": "Bàn giao bộ hướng dẫn mẫu",
+          "integration": "Kiểm tra kết nối môi trường thử nghiệm",
           "followup": "Cập nhật onboarding từ trao đổi của nhóm"
         }
+      },
+      "concepts": {
+        "skills": [
+          "Tóm tắt bản mô tả mẫu",
+          "Soạn checklist onboarding",
+          "Chuẩn bị câu hỏi rà soát"
+        ],
+        "work-catalog": [
+          "Bản tin sản phẩm mẫu",
+          "Rà soát onboarding mẫu",
+          "Checklist phát hành thử"
+        ],
+        "decision-history": [
+          "Chốt phạm vi bản phát hành thử",
+          "Duyệt bố cục bản mẫu",
+          "Điều chỉnh lịch rà soát"
+        ],
+        "ai-market": [
+          "Trợ lý soạn thảo mẫu",
+          "Trợ lý rà soát mẫu",
+          "Trợ lý biên bản mẫu"
+        ],
+        "reports": [
+          "Tổng kết sprint mẫu",
+          "Phân bổ công việc mẫu",
+          "Báo cáo bản phát hành thử"
+        ]
+      },
+      "projects": {
+        "website": "Website minh họa",
+        "onboarding": "Onboarding đội mẫu",
+        "campaign": "Chiến dịch thử nghiệm"
       }
     },
     "businessOs": {
@@ -6601,7 +6672,7 @@
       "meetingList": "Danh sách cuộc họp",
       "meetingRoom": "Giao diện phòng họp",
       "reference": "Giao diện sản phẩm UniWork",
-      "sample": "Dữ liệu mẫu minh họa · Không thay đổi dữ liệu thật",
+      "sample": "Dữ liệu hư cấu minh họa · Không sử dụng dữ liệu khách hàng",
       "expand": "Mở rộng",
       "close": "Đóng bản xem trước",
       "fit": "Xem toàn bộ giao diện",
@@ -6669,7 +6740,7 @@
       "priority": "Ưu tiên xử lý",
       "mailPriority": "Bản mô tả ra mắt sản phẩm đang chờ bạn xem.",
       "mailStatistics": "Thống kê email",
-      "greeting": "Chào Minh Linh,",
+      "greeting": "Chào An Nhiên,",
       "assistantSub": "Tổng hợp thông tin trong workspace hôm nay.",
       "docAlert": "0 tài liệu cần cập nhật",
       "taskAlert": "27 việc đang quá hạn",
@@ -6858,11 +6929,11 @@
       "selectThread": "Chọn một thư để xem nội dung.",
       "readOnly": "Chỉ đọc, theo quyền truy cập",
       "answerPending": "Đang tìm trong workspace…",
-      "ownerAnswer": "Hoàng Anh phụ trách thiết kế onboarding. Công việc đang ở trạng thái in_progress.",
+      "ownerAnswer": "Khánh Vy phụ trách thiết kế onboarding. Công việc đang ở trạng thái in_progress.",
       "pointer": {
         "task-row": "Mở công việc",
         "assignee": "Giao người phụ trách",
-        "member": "Chọn Hoàng Anh",
+        "member": "Chọn Khánh Vy",
         "task-close": "Quay lại bảng",
         "task-status": "Đổi trạng thái",
         "task-done": "Chuyển sang done",
@@ -6880,11 +6951,11 @@
       "steps": {
         "tasks0": "Mở công việc cần giao người phụ trách.",
         "tasks1": "Mở trường người phụ trách trong chi tiết công việc.",
-        "tasks2": "Chọn Hoàng Anh trong danh sách thành viên.",
-        "tasks3": "Hoàng Anh nhận việc. Trạng thái vẫn là in_progress.",
+        "tasks2": "Chọn Khánh Vy trong danh sách thành viên.",
+        "tasks3": "Khánh Vy nhận việc. Trạng thái vẫn là in_progress.",
         "tasks4": "Trở lại bảng và mở menu trạng thái của công việc.",
-        "tasks5": "Minh Linh chọn done để đánh dấu công việc hoàn thành.",
-        "tasks6": "Thẻ chuyển sang cột done. Người phụ trách vẫn là Hoàng Anh.",
+        "tasks5": "An Nhiên chọn done để đánh dấu công việc hoàn thành.",
+        "tasks6": "Thẻ chuyển sang cột done. Người phụ trách vẫn là Khánh Vy.",
         "meetings0": "Trong menu Thêm, chọn chia sẻ màn hình.",
         "meetings1": "Chọn cửa sổ muốn chia sẻ với cuộc họp.",
         "meetings2": "Xác nhận chia sẻ cửa sổ đã chọn.",
@@ -6929,10 +7000,10 @@
       "contextTitle": "Ngữ cảnh được giữ cùng công việc",
       "contextNote": "Phản hồi từ cuộc họp và quyết định thiết kế đã được liên kết.",
       "question": "Ai đang phụ trách onboarding? Nguồn ở đâu?",
-      "answer": "Hoàng Anh phụ trách trải nghiệm onboarding. Bạn có thể kiểm tra tại công việc và nguồn bên dưới.",
+      "answer": "Khánh Vy phụ trách trải nghiệm onboarding. Bạn có thể kiểm tra tại công việc và nguồn bên dưới.",
       "chatBrief": "Nhóm mình chốt luồng onboarding trong bản ra mắt này nhé. Mình đã bổ sung phản hồi của nhóm dùng thử.",
       "chatReply": "Mình nhận phần này. Gắn luôn cuộc trao đổi vào công việc để cả đội cùng theo dõi.",
-      "taskLinked": "Minh Linh liên kết công việc",
+      "taskLinked": "An Nhiên liên kết công việc",
       "typing": "Đang minh họa cuộc trao đổi…",
       "contextReady": "Mọi người cùng một ngữ cảnh",
       "meetingTitle": "Đồng bộ sản phẩm",
@@ -6954,7 +7025,7 @@
       "deliverables": "Nội dung bàn giao",
       "linked": "Đã liên kết",
       "reviewed": "Đã xem xét · quyết định minh họa",
-      "reviewNote": "Minh Linh · Giữ nguồn tham chiếu cùng tài liệu.",
+      "reviewNote": "An Nhiên · Giữ nguồn tham chiếu cùng tài liệu.",
       "week": "Tuần làm việc · 21–25/09",
       "days": {
         "0": "Thứ hai",
@@ -6975,7 +7046,7 @@
       "permissionNote": "Quyền truy cập gắn với tổ chức và workspace. Đây là danh sách minh họa.",
       "steps": {
         "work0": "Chọn công việc cần cả đội tập trung.",
-        "work1": "Minh Linh giao phần onboarding cho Hoàng Anh.",
+        "work1": "An Nhiên giao phần onboarding cho Khánh Vy.",
         "work2": "Gắn cuộc trao đổi vào cùng công việc.",
         "work3": "Hoàn thành một việc. Tiến độ cả đội rõ hơn.",
         "meeting0": "Cả đội bước vào cùng một cuộc họp.",
@@ -7200,7 +7271,7 @@
     "meeting": {
       "online": "Họp trực tuyến",
       "roomTitle": "Họp kế hoạch sản phẩm",
-      "sharedBy": "Minh Linh đang chia sẻ · Minh họa",
+      "sharedBy": "An Nhiên đang chia sẻ · Minh họa",
       "planTitle": "Cùng chốt bước tiếp theo.",
       "planDescription": "Phạm vi rõ ràng. Mỗi việc có một người phụ trách.",
       "mic": "Mic",
@@ -7343,7 +7414,7 @@
       "send": "Gửi tin nhắn",
       "you": "Bạn",
       "ownerQuestion": "Ai đang phụ trách?",
-      "ownerAnswer": "Hoàng Anh phụ trách thiết kế onboarding. Minh Linh giữ brief sản phẩm, UNI tổng hợp phản hồi và Thanh Ngân phụ trách phạm vi ra mắt.",
+      "ownerAnswer": "Khánh Vy phụ trách thiết kế onboarding. An Nhiên giữ brief sản phẩm, UNI tổng hợp phản hồi và Gia Minh phụ trách phạm vi ra mắt.",
       "completedCount_one": "{{count}} trong 4 công việc minh họa đã hoàn thành.",
       "completedCount_other": "{{count}} trong 4 công việc minh họa đã hoàn thành."
     },
@@ -7378,7 +7449,7 @@
       "notice1": "Bạn được nhắc trong trao đổi",
       "notice2": "Một công việc được giao cho bạn",
       "notice3": "Phạm vi ra mắt đã được cập nhật",
-      "noticeContext1": "Minh Linh · Kênh sản phẩm",
+      "noticeContext1": "An Nhiên · Kênh sản phẩm",
       "noticeContext2": "Thiết kế trải nghiệm onboarding",
       "noticeContext3": "Dự án ra mắt sản phẩm",
       "organization": "Tổ chức",
@@ -7451,7 +7522,7 @@
       "askQuestion": "Dự án ra mắt đang tiến triển thế nào?",
       "askAnswer": "Dựa trên các công việc bạn có quyền xem trong workspace:",
       "askPoint1": "Phạm vi ra mắt đã thống nhất.",
-      "askPoint2": "Thiết kế onboarding đang được Hoàng Anh phụ trách.",
+      "askPoint2": "Thiết kế onboarding đang được Khánh Vy phụ trách.",
       "sourceLabel": "Nguồn",
       "askGuardrail": "Hỏi UNI chỉ đọc dữ liệu được cấp quyền. Đây là câu trả lời minh họa.",
       "workflowTitle": "Ít chuyển qua lại hơn.\nNhiều việc đi đến đích hơn.",

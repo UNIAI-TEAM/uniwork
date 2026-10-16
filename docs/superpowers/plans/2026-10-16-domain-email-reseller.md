@@ -1,5 +1,7 @@
 # Bán tên miền và hộp thư Implementation Plan
 
+> **Trạng thái:** in-progress — plan viết theo spec bản 2 (UNI-1808); task adapter HTTP chờ bảng §0 của spec; chưa có mã.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Chủ sở hữu tổ chức mua một gói tên miền + hộp thư (mức 3 hoặc 10) trên PAVietnam, trả UniWork qua VNPay. Giá bán do UniWork đặt. Hộp thư của người mua chỉ được tạo và nối Email Hub sau khi PAVietnam báo đã xác thực.

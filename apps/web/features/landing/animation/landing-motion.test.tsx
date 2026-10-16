@@ -43,7 +43,7 @@ it("reveals marketing content without mutating embedded demo sections before hyd
       <main id="landing-main">
         <section className="platform-section">
           <div id="marketing-content">
-            <div id="product-preview">
+            <div id="product-preview" className="product-demo">
               <div hidden><section><header>Task status</header></section></div>
               <section><header>Demo panel</header></section>
             </div>

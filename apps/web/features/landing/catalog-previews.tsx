@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 export function AuditPreview() {
   const { t } = useTranslation();
   const [selected, setSelected] = useState(0);
-  const events = [{ name: "task.updated", actor: "Hoàng Anh", time: "09:24" }, { name: "task.created", actor: "Minh Linh", time: "09:18" }, { name: "meeting.created", actor: "Thanh Ngân", time: "09:00" }];
+  const events = [{ name: "task.updated", actor: "Khánh Vy", time: "09:24" }, { name: "task.created", actor: "An Nhiên", time: "09:18" }, { name: "meeting.created", actor: "Gia Minh", time: "09:00" }];
   const event = events[selected]!;
   return <div className="catalog-preview">
     <div className="catalog-heading"><ScrollText aria-hidden /><div><h2>{t("landing.catalog.features.audit.label")}</h2><p>{t("landing.catalog.auditSub")}</p></div></div>
