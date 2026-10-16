@@ -531,6 +531,22 @@ func TestScoreIgnoresWhereTheToneMarkSits(t *testing.T) {
 	}
 }
 
+// Pointing words count as typed: folding must not turn "ít", "thật" or
+// "việc do Lan" (done by Lan) into "it", "that" or "việc đó".
+func TestPointsBack(t *testing.T) {
+	for q, want := range map[string]bool{
+		"Ai đang nhận cái đó?": true, "Nó có kịp không?": true, "cai do giao cho ai": true,
+		"Who owns that?": true, "Anh ấy làm gì?": true,
+		"Việc nào còn ít thời gian?": false, "Có thật là Banner Tết xong rồi không?": false,
+		"Task nào thất bại tuần này?": false, "Những việc do Lan Anh phụ trách?": false,
+		"Banner Tết đến đâu rồi?": false,
+	} {
+		if got := pointsBack(q); got != want {
+			t.Errorf("pointsBack(%q) = %v", q, got)
+		}
+	}
+}
+
 func TestAskIntentKeywordsMatchWholeWords(t *testing.T) {
 	for q, want := range map[string]bool{
 		"lịch template task": false, "task nào trên board": false, "task nào trễ hạn": true,
@@ -700,7 +716,10 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 	// A chain of follow-ups keeps the topic the chain started from.
 	conv := ""
 	var res AskResult
-	for _, q := range []string{"Banner Tết đến đâu rồi?", "Ai đang nhận cái đó?", "Cái đó bắt đầu khi nào?"} {
+	for _, q := range []string{
+		"Banner Tết đến đâu rồi?", "Ai đang nhận nó?", "Hạn của nó là ngày nào?",
+		"Nó có bị trễ không?", "Cái đó bắt đầu khi nào?",
+	} {
 		var err error
 		if res, err = s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: conv, Question: q, Locale: "vi"}); err != nil {
 			t.Fatal(err)
@@ -708,7 +727,7 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 		conv = res.ConversationID
 	}
 	if !citesTitle(res.Citations, "Banner Tết") {
-		t.Errorf("third turn of a chain lost the topic: %+v", res.Citations)
+		t.Errorf("fifth turn of a chain lost the topic: %+v", res.Citations)
 	}
 }
 

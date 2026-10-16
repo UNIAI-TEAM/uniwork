@@ -285,34 +285,48 @@ func hasOwnSubject(question, taskPrefix string, focus *ai.Focus, sources []ai.So
 }
 
 // pointsBack reports whether the question refers to what was said before:
-// "cái đó", "nó", "anh ấy", "that". Unaccented "do" is also "because", so
-// it counts only in a phrase.
+// "cái đó", "nó", "anh ấy", "that". Phrases match as typed, not folded: "ít"
+// folds to "it", "thật" to "that", and "việc do Lan làm" is not "việc đó", so
+// only the unaccented spelling of each phrase counts.
 func pointsBack(q string) bool {
-	for _, w := range words(q) {
+	ws := words(q)
+	for _, w := range ws {
 		switch w {
 		case "đó", "đấy", "ấy", "nó":
 			return true
 		}
 	}
-	return hasPhrase(q, "cai do", "viec do", "task do", "nguoi do", "cai nay", "viec nay", "cai kia", "that", "it")
+	hay := " " + strings.Join(ws, " ") + " "
+	for _, p := range []string{"cai do", "viec do", "task do", "nguoi do", "cai nay", "viec nay", "cai kia", "that", "it"} {
+		if strings.Contains(hay, " "+p+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 // previousQuestion is the raw text of the conversation's last question, not
-// the wrapped history copy, joined after the questions before it while each
-// points back ("Ai nhận cái đó?" after "Banner Tết đến đâu?"), three at most;
-// "" for a new conversation.
+// the wrapped history copy. When it points back, the nearest earlier question
+// that does not (the one that named the topic) comes before it, so a drill-down
+// keeps its topic at any length; "" for a new conversation.
 func previousQuestion(rows []db.AiMessage) string {
-	var qs []string
-	for i := len(rows) - 1; i >= 0 && len(qs) < 3; i-- {
+	last, topic := "", ""
+	for i := len(rows) - 1; i >= 0; i-- {
 		if rows[i].Role != "user" {
 			continue
 		}
-		qs = append([]string{rows[i].Content}, qs...)
-		if !pointsBack(rows[i].Content) {
+		if last == "" {
+			last = rows[i].Content
+		}
+		topic = rows[i].Content
+		if !pointsBack(topic) {
 			break
 		}
 	}
-	return strings.Join(qs, " ")
+	if topic == last {
+		return last
+	}
+	return topic + " " + last
 }
 
 // withPreviousQuestion appends the sources of "<previous question> <question>"
