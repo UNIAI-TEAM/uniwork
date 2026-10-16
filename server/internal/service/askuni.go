@@ -219,6 +219,9 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 			return AskResult{}, err
 		}
 		answer.Answer = ai.StripUntrustedTags(answer.Answer)
+		if strings.TrimSpace(answer.Answer) == "" {
+			answer.Answer, notice = "", ai.NoticeEmptyAnswer
+		}
 	}
 	citations := make([]AskCitation, 0, len(answer.Citations))
 	for _, c := range answer.Citations {

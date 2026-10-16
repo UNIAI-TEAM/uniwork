@@ -23,6 +23,10 @@ type Answer struct {
 // to cite; the client renders the text, the row stores only the code.
 const NoticeNoSources = "no_sources"
 
+// NoticeEmptyAnswer marks a model answer that was empty once its untrusted
+// tags were stripped, so the client shows a notice instead of an empty bubble.
+const NoticeEmptyAnswer = "empty_answer"
+
 // NoSourcesAnswer is what the caller says when the pack is empty: the
 // model is not even asked, so it cannot assert anything (spec §3.6).
 const NoSourcesAnswer = "Chưa đủ dữ liệu trong workspace để trả lời."

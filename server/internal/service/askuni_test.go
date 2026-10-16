@@ -379,6 +379,33 @@ func TestAskStripsUntrustedTagsFromAnswer(t *testing.T) {
 	}
 }
 
+// An answer that is nothing but untrusted tags is empty once they are
+// stripped: it is stored as a notice, never as an empty bubble.
+func TestAskStoresANoticeForAnAnswerEmptyAfterStripping(t *testing.T) {
+	s, fake, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09"}); err != nil {
+		t.Fatal(err)
+	}
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{
+			Text:  `{"answer":" <untrusted source=\"prior_answer\"> </untrusted> ","citations":[]}`,
+			Model: req.Model, UsagePresent: true, InputTokens: 10, OutputTokens: 5, StopReason: "end_turn",
+		}
+	}
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "spec là gì?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.q.AiListMessages(ctx, res.ConversationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last := rows[len(rows)-1]; last.Content != "" || last.Notice.String != ai.NoticeEmptyAnswer {
+		t.Fatalf("stored content %q notice %q; want empty content and %q", last.Content, last.Notice.String, ai.NoticeEmptyAnswer)
+	}
+}
+
 func TestAskWithoutSourcesStoresNoticeNotText(t *testing.T) {
 	s, fake, ua, _, w := askFixture(t)
 	ctx := context.Background()
