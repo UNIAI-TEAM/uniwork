@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -1413,6 +1414,49 @@ func TestSearchRoomMessagesIgnoresVietnameseMarks(t *testing.T) {
 	}
 	if hits := search("__"); len(hits) != 0 {
 		t.Fatalf("search __ must match literally, got %+v", hits)
+	}
+}
+
+func TestResendOfADeletedMessageIsGone(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clientID := "550e8400-e29b-41d4-a716-446655440001"
+	first, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{
+		Body:        "hello",
+		ClientMsgID: clientID,
+	})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, dm.ID, first.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	_, err = s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{
+		Body:        "hello again",
+		ClientMsgID: clientID,
+	})
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "chat_message_deleted" || ce.Status != http.StatusGone {
+		t.Fatalf("resend after delete: want 410 chat_message_deleted, got %v", err)
+	}
+
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range msgs {
+		if m.ID != first.ID && strings.Contains(m.Body, "again") {
+			t.Fatalf("unexpected new message after deleted resend: %+v", msgs)
+		}
 	}
 }
 

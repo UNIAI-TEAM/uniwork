@@ -23,12 +23,12 @@ test("every product chapter retains visual examples on a narrow English screen",
     expect(await page.locator("main").innerText()).not.toContain("landing.");
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await expect(page.locator('.feature-page-art .feature-art-window')).toHaveCSS('animation-name', 'none');
-    await expect(page.locator('.feature-demo [data-action="expand-preview"]')).toBeVisible();
+    await expect(page.locator('.feature-demo .product-demo-shell')).toHaveAttribute('data-demo-feature', key);
   }
   expect(errors).toEqual([]);
 });
 
-test("visual directory navigates to chapters and the full preview still expands", async ({ page }) => {
+test("visual directory navigates to chapters with the current product menu", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await gotoLanding(page, "/features");
   await landingReady(page);
@@ -37,9 +37,6 @@ test("visual directory navigates to chapters and the full preview still expands"
   await expect(cards.locator('.feature-art[aria-hidden="true"]')).toHaveCount(18);
   await page.locator('.feature-directory-visual a[href$="/features/chat"]').click();
   await expect(page).toHaveURL(/\/features\/chat$/);
-  await page.locator('.feature-demo [data-action="expand-preview"]').click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('dialog').locator('[data-lovable-screen="chat"]')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.feature-demo .product-demo-shell')).toHaveAttribute('data-demo-feature', 'chat');
+  await expect(page.locator('.feature-demo [data-action="toggle-presentation"]')).toBeVisible();
 });

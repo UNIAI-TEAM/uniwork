@@ -166,6 +166,21 @@ func (s *ChatService) UpdateChatRoomSettings(
 	return perms, nil
 }
 
+func memberMayPerform(
+	member db.GetActiveChatRoomMemberRow, userID string, room db.ChatRoom, check func(ChatRoomMemberPermissions) bool,
+) error {
+	if member.Role == "admin" {
+		return nil
+	}
+	if room.Kind == chatRoomKindGroup && room.CreatedBy == userID {
+		return nil
+	}
+	if !check(memberPermissionsFromRaw(room.MemberPermissions)) {
+		return ErrForbidden
+	}
+	return nil
+}
+
 func (s *ChatService) memberCanPerformRoomAction(
 	ctx context.Context, userID, roomID string, room db.ChatRoom, check func(ChatRoomMemberPermissions) bool,
 ) error {
@@ -175,15 +190,5 @@ func (s *ChatService) memberCanPerformRoomAction(
 	if err != nil {
 		return err
 	}
-	if member.Role == "admin" {
-		return nil
-	}
-	if room.Kind == chatRoomKindGroup && room.CreatedBy == userID {
-		return nil
-	}
-	perms := memberPermissionsFromRaw(room.MemberPermissions)
-	if !check(perms) {
-		return ErrForbidden
-	}
-	return nil
+	return memberMayPerform(member, userID, room, check)
 }

@@ -100,7 +100,10 @@ func (r *MeetingReminder) remind(ctx context.Context, m db.ListMeetingsDueRemind
 	members := make([]string, 0, len(userIDs))
 	for _, uid := range userIDs {
 		if _, err := c.env.members.RequireMember(ctx, m.WorkspaceID, uid); err != nil {
-			continue
+			if refused(err) {
+				continue
+			}
+			return false, err
 		}
 		members = append(members, uid)
 	}
