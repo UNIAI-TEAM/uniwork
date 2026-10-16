@@ -96,6 +96,7 @@ export function LibraryRowView({
   handlers: LibraryRowHandlers;
   archived: boolean;
   /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
+  ladder: LibraryLadder;
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);

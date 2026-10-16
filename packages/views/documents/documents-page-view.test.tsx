@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -11,10 +11,11 @@ import {
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { defaultStorage } from "@uniwork/core/platform";
-import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import type { OfficeLaunchSessionFactory } from "../office";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { DocumentsPageView } from "./documents-page-view";
+import { useDocumentsLibrary } from "./use-documents-library";
 
 const { t } = initI18n();
 
@@ -1137,7 +1138,7 @@ describe("DocumentsPageView", () => {
       setItemSpy.mockRestore();
     });
 
-    it("loads all pages of an open folder before applying sort, and respects the 1000-row cap (F4)", async () => {
+    it("loads all pages of an open folder before applying sort (F4)", async () => {
       const urls: string[] = [];
       route({
         tree: () => [
@@ -1147,14 +1148,8 @@ describe("DocumentsPageView", () => {
             kind: "folder",
             children: [treeNode({ id: "fol-p2", title: "Thư mục trang 2", kind: "folder", parent_id: "fo1" })],
           }),
-          treeNode({ id: "fo-cap", title: "Thư mục lớn", kind: "folder" }),
         ],
-        detail: (id) =>
-          id === "fo1"
-            ? folderDetail({ id: "fo1", title: "Dự án CCB" })
-            : id === "fo-cap"
-              ? folderDetail({ id: "fo-cap", title: "Thư mục lớn" })
-              : null,
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
         list: (path) => {
           urls.push(path);
           const pid = queryOf(path).get("parent_id");
@@ -1171,28 +1166,12 @@ describe("DocumentsPageView", () => {
               summary({ id: "doc-p1-old", parent_id: "fo1", kind: "page", title: "An", updated_at: "2026-08-01T00:00:00Z" }),
             ];
           }
-          if (pid === "fo-cap") {
-            const batch = cur === "cap2" ? 500 : cur === "cap3" ? 1000 : 0;
-            return Array.from({ length: 500 }, (_, i) => {
-              const n = batch + i + 1;
-              return n === 1000
-                ? file("cap-1000", "Tài liệu 1000.docx", { parent_id: "fo-cap", updated_at: "2026-10-01T00:00:00Z" })
-                : summary({
-                    id: `cap-${n}`,
-                    parent_id: "fo-cap",
-                    kind: "page",
-                    title: `Tài liệu ${n}`,
-                    updated_at: "2026-10-01T00:00:00Z",
-                  });
-            });
-          }
           return [];
         },
         cursor: (path) => {
           const pid = queryOf(path).get("parent_id");
           const cur = queryOf(path).get("cursor");
           if (pid === "fo1") return cur === "c2" ? null : "c2";
-          if (pid === "fo-cap") return !cur ? "cap2" : cur === "cap2" ? "cap3" : null;
           return null;
         },
       });
@@ -1208,15 +1187,46 @@ describe("DocumentsPageView", () => {
 
       await selectFolderSort(t("documents.home.sort.name"));
       await waitFor(() => expect(rowOrder()).toEqual(["doc-p1-old", "doc-p2", "doc-p1-new"]));
+    });
 
-      // Cap at 1000 rows: auto-loads page 1 (500) + page 2 (500) = 1000, stops before cap3, and keeps "Tải thêm".
-      fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục lớn/ }));
-      // The folder has no type chip to narrow it, so all 1000 rows render.
-      await screen.findByText("Tài liệu 1000.docx", {}, { timeout: 45000 });
-      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo-cap" && queryOf(u).get("cursor") === "cap2")).toBe(true);
-      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo-cap" && queryOf(u).get("cursor") === "cap3")).toBe(false);
-      expect(screen.getByRole("button", { name: t("documents.library.load_more") })).toBeInTheDocument();
-    }, 90_000);
+    // The 1000-row cap lives on the rows useDocumentsLibrary returns; driving it
+    // through the page rendered 1000 rows and needed a 90 s timeout, so the same
+    // assertions run on the hook instead (same route stub, no DOM).
+    it("stops an open folder's auto-paging at the 1000-row cap and keeps load-more working (F4)", async () => {
+      const urls: string[] = [];
+      route({
+        tree: () => [treeNode({ id: "fo-cap", title: "Thư mục lớn", kind: "folder" })],
+        list: (path) => {
+          urls.push(path);
+          const cur = queryOf(path).get("cursor");
+          const batch = cur === "cap2" ? 500 : cur === "cap3" ? 1000 : 0;
+          return Array.from({ length: 500 }, (_, i) => {
+            const n = batch + i + 1;
+            return summary({ id: `cap-${n}`, parent_id: "fo-cap", title: `Tài liệu ${n}`, updated_at: "2026-10-01T00:00:00Z" });
+          });
+        },
+        cursor: (path) => {
+          const cur = queryOf(path).get("cursor");
+          return !cur ? "cap2" : cur === "cap2" ? "cap3" : null;
+        },
+      });
+      const { result } = renderHook(
+        () => useDocumentsLibrary({ wsId: WS, orgId: "org1", enabled: true, view: { kind: "home" }, folderId: "fo-cap", chip: "all" }),
+        { wrapper: (props: { children: React.ReactNode }) => wrap(<>{props.children}</>) },
+      );
+
+      // Auto-pages fetch 500 + 500 = 1000 and stop before cap3.
+      await waitFor(() => expect(result.current.state.rows).toHaveLength(1000));
+      expect(result.current.state.loading).toBe(false);
+      expect(urls.some((u) => queryOf(u).get("cursor") === "cap2")).toBe(true);
+      expect(urls.some((u) => queryOf(u).get("cursor") === "cap3")).toBe(false);
+
+      // The cap does not lock the list: manual load-more still fetches page 3.
+      expect(result.current.state.hasMore).toBe(true);
+      act(() => result.current.state.loadMore());
+      await waitFor(() => expect(result.current.state.rows).toHaveLength(1500));
+      expect(urls.some((u) => queryOf(u).get("cursor") === "cap3")).toBe(true);
+    });
 
     it("lists direct children only and excludes grandchildren or root documents", async () => {
       const urls: string[] = [];
