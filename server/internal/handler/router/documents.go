@@ -533,13 +533,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/shares", h.CreateDocumentShare, apiOp{
-		summary:     "Share a document",
-		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409.",
-		tags:        []string{"documents"},
-		sdi:         sdi.ShareDocumentSDI{},
-		sdo:         sdo.DocumentShareSDO{},
-		status:      http.StatusCreated,
-		auth:        true,
+		summary: "Share a document",
+		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409. " +
+			"Share cho chính workspace chứa tài liệu không tạo dòng document_shares: nó ghi vào dòng Workspace gốc (visibility=workspace, workspace_level=level) và câu trả lời mô tả dòng đó (id và created_at rỗng); manage -> 422 level_not_allowed (dòng gốc tối đa edit), và mở một tài liệu riêng tư khi người gọi chỉ có admin_scope -> 403 break_glass_required.",
+		tags:   []string{"documents"},
+		sdi:    sdi.ShareDocumentSDI{},
+		sdo:    sdo.DocumentShareSDO{},
+		status: http.StatusCreated,
+		auth:   true,
 	})
 	d.Post("/documents/{documentID}/shares/batch", h.CreateDocumentShareBatch, apiOp{
 		summary: "Share a document with a batch of users",

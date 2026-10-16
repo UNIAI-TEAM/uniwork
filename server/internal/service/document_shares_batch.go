@@ -63,7 +63,7 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 		}
 		shares := make([]db.DocumentShare, 0, len(ids))
 		for _, id := range ids {
-			sh, err := applyDocumentShare(ctx, q, actor, doc, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: id, Level: level})
+			sh, err := applyDocumentShare(ctx, q, actor, doc, access, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: id, Level: level})
 			if err != nil {
 				return err
 			}

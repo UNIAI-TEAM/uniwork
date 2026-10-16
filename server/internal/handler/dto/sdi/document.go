@@ -239,10 +239,12 @@ type MoveDocumentSDI struct {
 // ShareDocumentSDI is POST /api/v1/documents/{documentID}/shares (C-01 §5.3).
 // A principal must belong to the document's organization; an existing live
 // grant for the same principal is revoked and replaced in one transaction.
+// A grant whose principal is the document's own workspace is written on its
+// home row instead (SH-S1): no document_shares row, at most the edit level.
 type ShareDocumentSDI struct {
 	PrincipalType string `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
 	PrincipalID   string `json:"principal_id" description:"ULID người/workspace, hoặc ULID tổ chức khi principal_type=organization" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level         string `json:"level" description:"view, comment, edit hoặc manage" example:"view"`
+	Level         string `json:"level" description:"view, comment, edit hoặc manage (manage không nhận cho workspace chứa tài liệu -> 422 level_not_allowed)" example:"view"`
 }
 
 // BreakGlassSDI is POST /api/v1/documents/{documentID}/break-glass: a workspace

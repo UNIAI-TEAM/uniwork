@@ -46,14 +46,16 @@ func TestDocumentCopy(t *testing.T) {
 		t.Run("copy keeps the source acl snapshot, bytes and provenance", func(t *testing.T) {
 			src := env.createFile(t, member, "snapshot.md", []byte("# Nguon sao chep\n"))
 			// The source is restricted and owned by another member's ACL slot,
-			// with one live share: the copy must inherit all three.
+			// with one live share: the copy must inherit all three. The share
+			// names another workspace - one naming the source's own workspace
+			// merges into its home row (SH-S1) and leaves no row to inherit.
 			if _, err := env.f.pool.Exec(ctx,
 				`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
 				src.Document.ID, env.tn.aclOwner.ID); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := env.svc.ShareDocument(ctx, aclOwner, src.Document.ID, DocumentShareInput{
-				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: env.tn.wsA, Level: DocumentLevelView,
+				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: env.tn.wsB, Level: DocumentLevelView,
 			}); err != nil {
 				t.Fatalf("share: %v", err)
 			}

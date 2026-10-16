@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -30,6 +31,19 @@ func errDocumentOwned() error {
 
 func errPrincipalNotInOrganization() error {
 	return coded(422, "principal_not_in_organization", "người hoặc nhóm được chia sẻ không thuộc tổ chức của tài liệu")
+}
+
+// errHomeRowLevelNotAllowed is Q-S1 of the share SRS addendum: the home row
+// tops out at edit, so a share naming the document's own workspace cannot
+// carry manage. Another workspace's share and the organization's keep the
+// behaviour they have today.
+func errHomeRowLevelNotAllowed() error {
+	return CodedError{
+		Code:   "level_not_allowed",
+		Status: http.StatusUnprocessableEntity,
+		Msg:    "dòng Workspace gốc chỉ nhận view, comment hoặc edit",
+		Fields: map[string]any{"max": string(DocumentLevelEdit)},
+	}
 }
 
 // requireDocumentACLChange is the shared head of every share/link command:
@@ -88,7 +102,7 @@ func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, docume
 		if err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, in); err != nil {
 			return err
 		}
-		sh, err := applyDocumentShare(ctx, q, actor, doc, in)
+		sh, err := applyDocumentShare(ctx, q, actor, doc, access, in)
 		out = sh
 		return err
 	})
@@ -110,8 +124,12 @@ func validShareLevel(level DocumentLevel) error {
 // the caller has gated the actor and validated the principal: the same live
 // level is returned unchanged with no audit row, another live level is
 // revoked and replaced, and a new grant is inserted with its audit row and
-// document.shared event.
-func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, in DocumentShareInput) (db.DocumentShare, error) {
+// document.shared event. A share naming the document's own workspace is not a
+// grant of its own (BR-04, SH-S1 item 2): it merges into the home row.
+func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput) (db.DocumentShare, error) {
+	if in.PrincipalType == DocumentPrincipalWorkspace && in.PrincipalID == doc.WorkspaceID {
+		return mergeDocumentShareIntoHomeRow(ctx, q, actor, doc, access, in.Level)
+	}
 	prev, err := q.GetDocumentShare(ctx, db.GetDocumentShareParams{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
@@ -171,6 +189,46 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 		return db.DocumentShare{}, err
 	}
 	return sh, nil
+}
+
+// mergeDocumentShareIntoHomeRow is a share whose principal is the document's
+// own workspace (BR-04, L1): no document_shares row is written - the home row
+// carries that workspace's grant - so the command moves visibility to
+// 'workspace' at the requested level through the one home-row writer. Q-S1
+// refuses manage, and DOC-05 refuses an AdminScope-only caller the widening
+// of a restricted document, exactly as the PATCH and the self-share rule do.
+func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel) (db.DocumentShare, error) {
+	if level == DocumentLevelManage {
+		return db.DocumentShare{}, errHomeRowLevelNotAllowed()
+	}
+	if doc.Visibility == documentVisibilityRestricted && !access.Level.AtLeast(DocumentLevelManage) {
+		return db.DocumentShare{}, errBreakGlassRequired()
+	}
+	updated, err := writeDocumentHomeRow(ctx, q, actor, doc, documentHomeRowMove{
+		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(level),
+	})
+	if err != nil {
+		return db.DocumentShare{}, err
+	}
+	return homeWorkspaceShareRow(updated, actor, level), nil
+}
+
+// homeWorkspaceShareRow is the answer a merged share gives: the grant the
+// home row now holds, in the shape a real grant has (same principal, same
+// level, the caller as its grantor). No document_shares row stands behind it,
+// so it has no id and no created_at, and it is ended by moving visibility,
+// never by revoking a share.
+func homeWorkspaceShareRow(doc db.Document, actor Actor, level DocumentLevel) db.DocumentShare {
+	return db.DocumentShare{
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		DocumentID:     doc.ID,
+		PrincipalType:  DocumentPrincipalWorkspace,
+		PrincipalID:    doc.WorkspaceID,
+		Level:          string(level),
+		GrantedBy:      actor.ID,
+		GrantedByKind:  string(actor.Kind),
+	}
 }
 
 // validateSharePrincipal keeps every grant inside the document's
