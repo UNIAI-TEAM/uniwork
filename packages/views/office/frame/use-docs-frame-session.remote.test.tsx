@@ -546,6 +546,20 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     if (!syncFeed) expect(frame.events("doc.remoteVersion")).toHaveLength(0);
   });
 
+  it("with office_sync_feed on a home-row access change reads the head once and offers a newer version (R6-60/-61)", async () => {
+    flag.syncFeed = true;
+    const frame = await openedFrame();
+    frame.server.head = { revision: "10", versionId: "v2" };
+    const headReads = () => requestMock.mock.calls.filter(([path]) => path === DOC_PATH).length;
+    const before = headReads();
+    await act(async () => {
+      ws.emit("document.workspace_access_changed", { document_id: "doc-1", workspace_id: "ws-1" });
+    });
+    await waitFor(() => expect(frame.events("doc.remoteVersion")).toEqual([expect.objectContaining({ revision: "10", version_id: "v2" })]));
+    await flush();
+    expect(headReads() - before).toBe(1);
+  });
+
   it("after a reconnect the feed lists the document and its head is gone: doc.blocked document_deleted", async () => {
     const frame = await openedFrame();
     frame.server.headError = new ApiError("not found", "not_found", 404);
