@@ -1,0 +1,43 @@
+$ pnpm lint 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "LINT_EXIT=$rc"
+@uniwork/views:lint: > @uniwork/views@0.0.0 lint /workspace/packages/views
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: 
+@uniwork/web:lint: 
+@uniwork/web:lint: > @uniwork/web@0.0.0 lint /workspace/apps/web
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: 
+@uniwork/office-engine:lint: 
+@uniwork/office-engine:lint: > @uniwork/office-engine@0.0.0 lint /workspace/packages/office-engine
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: 
+@uniwork/office-contracts:lint: 
+@uniwork/office-contracts:lint: > @uniwork/office-contracts@0.0.0 lint /workspace/packages/office-contracts
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: > @uniwork/core@0.0.0 lint /workspace/packages/core
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/chat/chat-page-content.tsx
+@uniwork/views:lint:   520:1  error  File has too many lines (501). Maximum allowed is 500  max-lines
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/email-hub/email-hub-view.tsx
+@uniwork/views:lint:   537:1  error  File has too many lines (504). Maximum allowed is 500  max-lines
+@uniwork/views:lint: 
+@uniwork/views:lint: ✖ 2 problems (2 errors, 0 warnings)
+@uniwork/views:lint: 
+@uniwork/views:lint:  ELIFECYCLE  Command failed with exit code 1.
+@uniwork/views#lint:  ERROR  command (/workspace/packages/views) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run lint exited (1)
+
+ Tasks:    6 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    1m5.6s 
+Failed:    @uniwork/views#lint
+
+ ERROR  run failed: command  exited (1)
+
+lint: reported, not enforced — GATE_LEVEL=fast (docs/adr/0014).
+      Every finding above is real and fails the run at standard.
+
+LINT_EXIT=0
