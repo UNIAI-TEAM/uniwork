@@ -159,21 +159,41 @@ func wordsOfTwo(q string) []string {
 }
 
 // score counts the terms the text holds as whole words. A term typed with
-// diacritics matches only as written ("năm" is not "nằm", "hà" is not "hàng");
-// one typed without them matches the folded text ("tet" finds "Tết").
+// diacritics matches only as written ("năm" is not "nằm", "hà" is not "hàng"),
+// wherever the tone mark sits; one typed without them matches the folded text
+// ("tet" finds "Tết").
 func score(text string, ts []string) int {
 	asWritten, folded := map[string]bool{}, map[string]bool{}
 	for _, w := range words(text) {
-		asWritten[w] = true
+		asWritten[toneKey(w)] = true
 		folded[foldForSearch(w)] = true
 	}
 	n := 0
 	for _, t := range ts {
-		if f := foldForSearch(t); (f != t && asWritten[t]) || (f == t && folded[t]) {
+		if f := foldForSearch(t); (f != t && asWritten[toneKey(t)]) || (f == t && folded[t]) {
 			n++
 		}
 	}
 	return n
+}
+
+// vietTones are the five tone marks. A syllable carries one, and old and new
+// spelling put it on different vowels ("thủy"/"thuỷ", "hóa"/"hoá").
+var vietTones = map[rune]bool{'̀': true, '́': true, '̃': true, '̉': true, '̣': true}
+
+// toneKey is a word with its tone marks moved to the end, so both spellings
+// are one key while the letters, vowel marks and the tone itself still count.
+func toneKey(w string) string {
+	var base, tones []rune
+	for _, r := range norm.NFD.String(w) {
+		if vietTones[r] {
+			tones = append(tones, r)
+		} else {
+			base = append(base, r)
+		}
+	}
+	slices.Sort(tones)
+	return norm.NFC.String(string(base)) + string(tones)
 }
 
 // hasPhrase reports whether any folded keyword occurs as whole adjacent tokens.

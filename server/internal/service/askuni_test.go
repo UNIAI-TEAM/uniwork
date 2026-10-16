@@ -507,6 +507,29 @@ func TestAskDropsDocumentsTheQuestionDoesNotMatch(t *testing.T) {
 	}
 }
 
+// The tone mark may sit on either vowel: "hóa"/"hoá" and "Thủy"/"Thuỷ" are one
+// word, while another tone ("năm"/"nằm") or another letter ("đi"/"di") is not.
+func TestScoreIgnoresWhereTheToneMarkSits(t *testing.T) {
+	for _, c := range []struct {
+		text, term string
+		want       int
+	}{
+		{"Hoá đơn tháng 10", "hóa", 1},
+		{"Hóa đơn tháng 10", "hoá", 1},
+		{"Chị Thuỷ phụ trách", "thủy", 1},
+		{"Sức khoẻ đội ngũ", "khỏe", 1},
+		{"Quý 3", "qúy", 1},
+		{"workspace nằm trong tổ chức", "năm", 0},
+		{"Hoà giải", "hóa", 0}, // same letters, another tone
+		{"di chuyển", "đi", 0},
+		{"đi họp", "di", 1}, // unaccented: folded
+	} {
+		if got := score(c.text, []string{c.term}); got != c.want {
+			t.Errorf("score(%q, %q) = %d, want %d", c.text, c.term, got, c.want)
+		}
+	}
+}
+
 func TestAskIntentKeywordsMatchWholeWords(t *testing.T) {
 	for q, want := range map[string]bool{
 		"lịch template task": false, "task nào trên board": false, "task nào trễ hạn": true,
