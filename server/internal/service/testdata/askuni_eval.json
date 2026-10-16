@@ -1,5 +1,6 @@
 [
   {"id": "overdue", "question": "task nào quá hạn?", "locale": "vi", "expect_titles": ["Banner Tết"], "rubric": "Nêu Banner Tết là task quá hạn, dẫn nguồn.", "must_not": ["câu trả lời chứa `<untrusted`"]},
+  {"id": "overdue-tre", "question": "việc nào đang trễ?", "locale": "vi", "expect_titles": ["Banner Tết"], "rubric": "Hiểu 'trễ' là quá hạn: nêu Banner Tết, dẫn nguồn.", "must_not": ["câu trả lời chứa `<untrusted`"]},
   {"id": "no-diacritics-overdue", "question": "task nao qua han", "locale": "vi", "expect_titles": ["Banner Tết"], "rubric": "Như ca quá hạn dù gõ không dấu.", "must_not": ["câu trả lời chứa `<untrusted`"]},
   {"id": "no-diacritics-order", "question": "don hang thang 10", "locale": "vi", "expect_titles": ["ĐƠN HÀNG THÁNG 10"], "rubric": "Tìm đúng task đơn hàng tháng 10 dù gõ không dấu.", "must_not": ["câu trả lời chứa `<untrusted`"]},
   {"id": "task-by-identifier", "question": "Tóm tắt {{ref:Kịch bản video}}", "locale": "vi", "expect_titles": ["Kịch bản video"], "rubric": "Tóm tắt đúng task có mã đó.", "must_not": ["câu trả lời chứa `<untrusted`"]},

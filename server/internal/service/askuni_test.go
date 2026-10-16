@@ -429,8 +429,64 @@ func TestAskMatchesWithoutDiacritics(t *testing.T) {
 	}
 }
 
+// A word typed with diacritics matches only as written: "năm" (year) is not
+// "nằm" (lies) in a description. The year task is the control that "năm" does
+// still match.
+func TestAskAccentedWordsMatchAsWritten(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	for _, in := range []CreateTaskInput{
+		{Title: "Ghi chú", Description: "workspace nằm trong tổ chức của bạn"},
+		{Title: "Báo cáo năm 2027"},
+	} {
+		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, in); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srcs, err := s.Sources(ctx, ai.SourceQuery{UserID: ua.ID, WorkspaceID: w.ID, Question: "doanh thu năm 2019"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := map[string]bool{}
+	for _, src := range srcs {
+		titles[src.Title] = true
+	}
+	if titles["Ghi chú"] || !titles["Báo cáo năm 2027"] {
+		t.Fatalf(`"năm" must match "năm 2027" and not "nằm": %+v`, srcs)
+	}
+}
+
+// A document the store finds by its folded text but whose words the question
+// does not hold (as typed) scores 0 and is not cited.
+func TestAskDropsDocumentsTheQuestionDoesNotMatch(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	docs := askDocs(t, s, mcpFlags(true))
+	for _, title := range []string{"Nằm lòng quy trình", "Kế hoạch năm 2027"} {
+		if _, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: title}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srcs, err := s.Sources(ctx, ai.SourceQuery{UserID: ua.ID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Question: "kế hoạch năm"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := map[string]bool{}
+	for _, src := range srcs {
+		titles[src.Title] = true
+	}
+	if titles["Nằm lòng quy trình"] || !titles["Kế hoạch năm 2027"] {
+		t.Fatalf(`"kế hoạch năm" must cite the plan and not "Nằm lòng": %+v`, srcs)
+	}
+}
+
 func TestAskIntentKeywordsMatchWholeWords(t *testing.T) {
-	for q, want := range map[string]bool{"lịch template task": false, "task nào trên board": false, "task nào trễ hạn": true} {
+	for q, want := range map[string]bool{
+		"lịch template task": false, "task nào trên board": false, "task nào trễ hạn": true,
+		"việc nào đang trễ?": true, "việc nào trễ?": true, // accented "trễ" alone
+		"viec nao dang tre": true, "task bi tre": true, "tre deadline": true, // folded phrases
+		"cây tre": false, "viec nao tre": false, // guard: unaccented "tre" alone is not lateness
+	} {
 		if got := asksOverdue(q); got != want {
 			t.Errorf("asksOverdue(%q) = %v", q, got)
 		}
@@ -450,10 +506,15 @@ func TestMcpSearchFindsATwoRuneName(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
 	task := x.task(t, x.ua.ID, x.w.ID, "Gặp chị Hà")
+	order := x.task(t, x.ua.ID, x.w.ID, "Đơn hàng mới")
+	due := x.task(t, x.ua.ID, x.w.ID, "Hạn chót")
 	found, err := x.tools.Search(ctx, x.p, x.w.ID, "Hà")
 	hit := false
 	for _, f := range found {
 		hit = hit || f.ID == task.ID
+		if f.ID == order.ID || f.ID == due.ID {
+			t.Errorf(`"Hà" matched %q: an accented word matches whole and as written`, f.Title)
+		}
 	}
 	if err != nil || !hit {
 		t.Fatalf("search for a 2-rune name = %+v, %v", found, err)
@@ -573,3 +634,4 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 	}
 	t.Fatalf("follow-up did not cite the previous question's task: %+v / notice %q", res.Citations, res.Message.Notice.String)
 }
+

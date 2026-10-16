@@ -13,6 +13,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -67,7 +68,9 @@ func seedAskEval(t *testing.T) *evalWorld {
 	t.Helper()
 	s, fake, owner, asker, w := askFixture(t)
 	ctx := context.Background()
-	for id, name := range map[string]string{owner.ID: "Thu Hà", asker.ID: "Bình Minh"} {
+	// No name may be a word a case asks with: an assignee whose name matches
+	// ("Thu" in "doanh thu") lifts every task of theirs, the welcome task too.
+	for id, name := range map[string]string{owner.ID: "Lan Anh", asker.ID: "Bình Minh"} {
 		if _, err := s.pool.Exec(ctx, `UPDATE users SET display_name = $2 WHERE id = $1`, id, name); err != nil {
 			t.Fatal(err)
 		}
@@ -75,6 +78,14 @@ func seedAskEval(t *testing.T) *evalWorld {
 	addOrgMember(t, s.q, w.OrganizationID, asker.ID)
 	addMember(t, s.meetings, w.ID, asker.ID)
 	docs := askDocs(t, s, mcpFlags(true))
+	// Onboarding seeds a welcome task per person in each workspace; its body is
+	// the text every real workspace starts with.
+	onboarding := NewOnboardingService(s.q, s.ws, mail.Renderer{}, &fakeOutbox{})
+	for _, u := range []db.User{owner, asker} {
+		if _, _, err := onboarding.SeedWelcomeTask(ctx, u.ID, w.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
 	wsRow, err := s.q.GetWorkspaceByID(ctx, w.ID)

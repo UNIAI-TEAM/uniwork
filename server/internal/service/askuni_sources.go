@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -111,15 +114,23 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 
 // tokens splits the diacritic-folded text into words.
 func tokens(q string) []string {
-	return strings.FieldsFunc(foldForSearch(q), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+	return strings.FieldsFunc(foldForSearch(q), notWordRune)
 }
 
+// words splits the lowercased text into words as written. NFC keeps a letter
+// and its marks one rune, so a decomposed "Hà" is the same word as a composed one.
+func words(q string) []string {
+	return strings.FieldsFunc(norm.NFC.String(strings.ToLower(q)), notWordRune)
+}
+
+func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }
+
 // ponytail: keyword overlap; swap for the A-04 search index when it exists.
-// Terms are folded words of 3+ runes or all digits, so "do"/"co"/"la" do not
-// match half the workspace while "10" still finds "tháng 10".
+// Terms are the question's words of 3+ runes or all digits, as typed, so
+// "do"/"co"/"la" do not match half the workspace while "10" still finds "tháng 10".
 func terms(q string) []string {
 	var out []string
-	for _, f := range tokens(q) {
+	for _, f := range words(q) {
 		if len([]rune(f)) >= 3 || strings.IndexFunc(f, func(r rune) bool { return !unicode.IsDigit(r) }) < 0 {
 			out = append(out, f)
 		}
@@ -136,10 +147,10 @@ func searchTerms(q string) []string {
 	return wordsOfTwo(q)
 }
 
-// wordsOfTwo returns the folded words of 2 or more runes.
+// wordsOfTwo returns the words of 2 or more runes, as typed.
 func wordsOfTwo(q string) []string {
 	var out []string
-	for _, f := range tokens(q) {
+	for _, f := range words(q) {
 		if len([]rune(f)) >= 2 {
 			out = append(out, f)
 		}
@@ -147,11 +158,18 @@ func wordsOfTwo(q string) []string {
 	return out
 }
 
+// score counts the terms the text holds as whole words. A term typed with
+// diacritics matches only as written ("năm" is not "nằm", "hà" is not "hàng");
+// one typed without them matches the folded text ("tet" finds "Tết").
 func score(text string, ts []string) int {
-	low := foldForSearch(text)
+	asWritten, folded := map[string]bool{}, map[string]bool{}
+	for _, w := range words(text) {
+		asWritten[w] = true
+		folded[foldForSearch(w)] = true
+	}
 	n := 0
 	for _, t := range ts {
-		if strings.Contains(low, t) {
+		if f := foldForSearch(t); (f != t && asWritten[t]) || (f == t && folded[t]) {
 			n++
 		}
 	}
@@ -169,8 +187,11 @@ func hasPhrase(q string, keywords ...string) bool {
 	return false
 }
 
+// asksOverdue: "trễ" alone counts only with its accent ("tre" is bamboo);
+// unaccented questions need a phrase.
 func asksOverdue(q string) bool {
-	return hasPhrase(q, "qua han", "tre han", "overdue", "late")
+	return slices.Contains(words(q), "trễ") ||
+		hasPhrase(q, "qua han", "tre han", "bi tre", "dang tre", "tre deadline", "overdue", "late")
 }
 
 func asksMembers(q string) bool {
@@ -356,7 +377,11 @@ func (s *AskUNIService) searchDocumentSources(ctx context.Context, tc ai.ToolCon
 	}
 	out := make([]scored, 0, len(order))
 	for _, id := range order {
-		out = append(out, *byID[id])
+		// The store matches folded substrings; a document none of whose words
+		// the question holds as typed is not about it.
+		if byID[id].score > 0 {
+			out = append(out, *byID[id])
+		}
 	}
 	return out
 }
