@@ -14,9 +14,10 @@ import (
 // 06:30 Vietnam time has "ngày mai" fall on the next Vietnam day.
 //
 // Understood, in this order:
-//   - an explicit date: YYYY-MM-DD, DD/MM/YYYY, or DD/MM (the next such day on
-//     or after the anchor). A date before the anchor day is refused: a task
-//     cannot be due in the past of the meeting that created it.
+//   - an explicit date: YYYY-MM-DD, DD/MM/YYYY, or DD/MM (this year's). A date
+//     before the anchor day is refused: a task cannot be due in the past of
+//     the meeting that created it. The one exception is the year boundary: a
+//     DD/MM in January or February said at a December meeting is next year's.
 //   - a weekday ("thứ Sáu", "thứ 6", "T6", "chủ nhật", "Friday"). On its own it
 //     is the next such day after the anchor day, so the anchor's own weekday
 //     means a week later. With "tuần sau" / "tuần tới" / "next week" it is that
@@ -114,13 +115,17 @@ func parseExplicitDate(s string, day time.Time) (d *time.Time, ok bool) {
 		if m[3] != "" {
 			return civilDate(atoi(m[3]), mm, dd, day.Location()), true
 		}
-		// No year: the next such day on or after the anchor day, this year or
-		// next. A 29/02 that neither year has stays nil.
-		for year := day.Year(); year <= day.Year()+1; year++ {
-			c := civilDate(year, mm, dd, day.Location())
-			if c != nil && !c.Before(day) {
-				return c, true
-			}
+		// No year: this year's date when it is on or after the anchor day.
+		// One before it is refused like a full date in the past (a meeting
+		// that ran past midnight saying "hạn 15/10" must not get next year's
+		// 15/10), except across the year boundary: at a December meeting a
+		// January or February date is next year's. A 29/02 the chosen year
+		// lacks stays nil.
+		if c := civilDate(day.Year(), mm, dd, day.Location()); c != nil && !c.Before(day) {
+			return c, true
+		}
+		if day.Month() == time.December && (mm == 1 || mm == 2) {
+			return civilDate(day.Year()+1, mm, dd, day.Location()), true
 		}
 		return nil, true
 	}

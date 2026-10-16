@@ -28,7 +28,9 @@ func TestParseMeetingDueSpoken(t *testing.T) {
 		{"05/09", "2026-09-05"},
 		{"5/9", "2026-09-05"},
 		{"trước 15/9", "2026-09-15"},
-		{"02/09", "2027-09-02"}, // already past this year: next year's
+		{"02/09", ""}, // already past: refused, not rolled to next year
+		{"15/03", ""}, // months past, outside the December rollover window
+		{"05/01", ""}, // January is next year only from a December meeting
 		{"03/09", "2026-09-03"},
 		// Today, tomorrow and the day after.
 		{"hôm nay", "2026-09-03"},
@@ -123,6 +125,42 @@ func TestSpokenDueFromAnEarlyMeeting(t *testing.T) {
 	anchor := meetingDueAnchor(db.Meeting{EndsAt: pgtype.Timestamptz{Time: end, Valid: true}, Timezone: "Asia/Ho_Chi_Minh"})
 	if got := parseMeetingDueSpoken("ngày mai", anchor); got == nil || *got != "2026-09-05" {
 		t.Fatalf("ngày mai after an early meeting: %v", got)
+	}
+}
+
+// TestParseMeetingDueSpokenYearlessDate holds the DD/MM rule: a date on or
+// after the anchor day is this year's; one before it is refused, except a
+// January or February date said at a December meeting, which is next year's.
+func TestParseMeetingDueSpokenYearlessDate(t *testing.T) {
+	vn := meetingLocation("Asia/Ho_Chi_Minh")
+	cases := []struct {
+		anchor time.Time
+		in     string
+		want   string // "" means nil
+	}{
+		// A meeting that ran past midnight: "15/10" was today when said,
+		// yesterday by the anchor. Never a year ahead.
+		{time.Date(2026, 10, 16, 0, 30, 0, 0, vn), "15/10", ""},
+		{time.Date(2026, 10, 16, 0, 30, 0, 0, vn), "hạn 15/10", ""},
+		{time.Date(2026, 10, 16, 0, 30, 0, 0, vn), "16/10", "2026-10-16"},
+		{time.Date(2026, 10, 16, 0, 30, 0, 0, vn), "20/11", "2026-11-20"},
+		{time.Date(2026, 11, 20, 10, 0, 0, 0, vn), "05/01", ""}, // November is outside the window
+		{time.Date(2026, 12, 20, 10, 0, 0, 0, vn), "05/01", "2027-01-05"},
+		{time.Date(2026, 12, 20, 10, 0, 0, 0, vn), "28/02", "2027-02-28"},
+		{time.Date(2026, 12, 20, 10, 0, 0, 0, vn), "29/02", ""}, // 2027 is not a leap year
+		{time.Date(2027, 12, 20, 10, 0, 0, 0, vn), "29/02", "2028-02-29"},
+		{time.Date(2026, 12, 20, 10, 0, 0, 0, vn), "10/12", ""},
+		{time.Date(2026, 12, 20, 10, 0, 0, 0, vn), "15/03", ""},
+		{time.Date(2026, 12, 20, 10, 0, 0, 0, vn), "24/12", "2026-12-24"},
+	}
+	for _, tc := range cases {
+		got := parseMeetingDueSpoken(tc.in, tc.anchor)
+		switch {
+		case tc.want == "" && got != nil:
+			t.Errorf("%q at %s: got %s, want nil", tc.in, tc.anchor.Format("2006-01-02"), *got)
+		case tc.want != "" && (got == nil || *got != tc.want):
+			t.Errorf("%q at %s: got %v, want %s", tc.in, tc.anchor.Format("2006-01-02"), got, tc.want)
+		}
 	}
 }
 
