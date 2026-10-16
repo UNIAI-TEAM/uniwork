@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+712c8e467e08f285b4e5978a75a26110897ad9fb
+7d27601f7ee788864940c27e89ad23e323b3986c
+712c8e467 chore: merge G5-G7 root 7d27601f7 (STAR-01, email-hub lint fix) into the REPIN-1 branch (UNI-1825)
+9a19086f3 test(e2e): S9 acknowledges the UniWork AI disclosure before sending
+777ccfefb test(ai): table cross-check calls the bound-aware allowlist as an unbound turn
+7d27601f7 fix(core): clear the email-hub hooks lint from the develop sync
+b4bc3089e chore: merge STAR-01 (UNI-1796, a52aa8bc7) into the G5-G7 root
+f60cb04b1 chore: merge G5-G7 root 6c383974b (SH-S1, GROUPBY-01, FU-G6-03a-BOUND, G7-12 residual tests) into the REPIN-1 branch (UNI-1825)
+
+SYNCED_EXIT=0

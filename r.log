@@ -1,0 +1,245 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_UX_FLOOR_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-ux-floor.spec.ts --reporter=list > /tmp/repin1r5-office-ux-floor.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/repin1r5-office-ux-floor.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/repin1r5-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/repin1r5-office-ux-floor.log && echo "skipped: office-ux-floor has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/repin1r5-office-ux-floor.log || { echo "no passing test matched office-ux-floor"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_UX_FLOOR_EXIT=$rc"
+
+Running 28 tests using 1 worker
+
+(node:76980) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:76980) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light vi (7.0s)
+  ✓   2 office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light en (7.0s)
+  ✓   3 office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark vi (6.7s)
+  ✓   4 office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark en (6.4s)
+  ✓   5 office-ux-floor.spec.ts:123:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert (5.6s)
+  ✓   6 office-ux-floor.spec.ts:168:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › aria-disabled choices (web offline) stay in the Tab loop with a reason (4.9s)
+  ✘   7 office-ux-floor.spec.ts:189:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy sits between Reload and Overwrite with edit access (4.8s)
+  ✓   8 office-ux-floor.spec.ts:200:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Docs shows 'Xem khác biệt' before Reload (4.8s)
+  ✓   9 office-ux-floor.spec.ts:211:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › the window live nodes stay outside the inert tree while S5 is open (5.1s)
+  ✓  10 office-ux-floor.spec.ts:222:3 › live regions (Floor › Vùng live) › the frame has its two fixed live nodes from load, before any bar (3.7s)
+  ✓  11 office-ux-floor.spec.ts:236:3 › live regions (Floor › Vùng live) › an S6 bar is read once, through the window node; the bar itself is not live (6.0s)
+  ✓  12 office-ux-floor.spec.ts:264:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 buttons keep a visible border, not colour alone (5.4s)
+  ✓  13 office-ux-floor.spec.ts:281:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 aria-disabled buttons use GrayText text and border (4.8s)
+  ✓  14 office-ux-floor.spec.ts:310:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable (5.3s)
+  ✓  15 office-ux-floor.spec.ts:331:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable (5.0s)
+  ✓  16 office-ux-floor.spec.ts:349:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked (5.0s)
+  ✓  17 office-ux-floor.spec.ts:349:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked (4.9s)
+  ✓  18 office-ux-floor.spec.ts:368:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › reduced motion: no slide/fade on S6 or S5 (7.1s)
+  ✓  19 office-ux-floor.spec.ts:389:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer) (4.7s)
+  ✓  20 office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi (5.3s)
+  ✓  21 office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en (5.1s)
+  ✓  22 office-ux-floor.spec.ts:425:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — light (4.4s)
+  ✓  23 office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi (5.1s)
+  ✓  24 office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en (4.9s)
+  ✓  25 office-ux-floor.spec.ts:425:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark (3.9s)
+  ✓  26 office-ux-floor.spec.ts:450:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill (4.0s)
+  ✓  27 office-ux-floor.spec.ts:471:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it (3.8s)
+  ✓  28 office-ux-floor.spec.ts:484:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send (4.4s)
+
+  28 passed (2.7m)
+===== e2e/test-results/office-ux-floor-S5-order-f-a1727--Overwrite-with-edit-access/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> Save copy sits between Reload and Overwrite with edit access
+- Location: office-ux-floor.spec.ts:189:3
+
+# Error details
+
+```
+Error: save-copy, reload and overwrite present
+
+expect(received).toEqual(expected) // deep equality
+
+Expected: ArrayContaining ["reload", "save-copy", "overwrite"]
+Received: ["diff", "reload", "overwrite", "cancel"]
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvb7ub8f, WS ux-floor-mvb7ub8f: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvb7ub8f" [ref=f1e14]
+              - generic "WS ux-floor-mvb7ub8f" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792170162016/rec-ws-1792170162016
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792170162016/rec-ws-1792170162016/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792170162016/rec-ws-1792170162016/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvb7ub8f, ux-floor-mvb7ub8f-1792170162016@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvb7ub8f" [ref=f1e113]
+              - generic "ux-floor-mvb7ub8f-1792170162016@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792170162016/rec-ws-1792170162016/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - iframe [active] [ref=f1e154]:
+          - generic [ref=f2e1]:
+            - region "Phiên bản mới" [ref=f2e2]:
+              - generic [ref=f2e3]: Có phiên bản mới hơn trên UniWork (phiên bản 12). Thay đổi của bạn chưa lưu nên tài liệu không tự tải lại.
+              - generic [ref=f2e4]:
+                - button "Tải lại bản mới nhất…" [ref=f2e5] [cursor=pointer]
+                - button "Để sau" [ref=f2e6] [cursor=pointer]
+            - button "Thảo luận" [ref=f2e9] [cursor=pointer]
+            - generic [ref=f2e14]:
+              - gene===== S9_SERVER_AI
+17:02:50.151 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=10.176ms request_id=cursor/xqAVqLMFRG-000182 correlation_id=664aace7e02d08799e6caeaa41896ab3 trace_id=664aace7e02d08799e6caeaa41896ab3 span_id=e29ea08f466e9ab8 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:02:51.041 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=7.285ms request_id=cursor/xqAVqLMFRG-000216 correlation_id=8336fa16e1d2fb95a0e870b561881817 trace_id=8336fa16e1d2fb95a0e870b561881817 span_id=525a71c5cdf12cc9 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:02:57.225 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=14µs request_id=cursor/xqAVqLMFRG-000306 correlation_id=6dd34050ab545ec7b77fc51ed432d7fe trace_id=6dd34050ab545ec7b77fc51ed432d7fe span_id=fd39c26f033098c9
+17:02:57.238 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=9.2ms request_id=cursor/xqAVqLMFRG-000309 correlation_id=3e04a5336b8fb252738ed5658b1f6ded trace_id=3e04a5336b8fb252738ed5658b1f6ded span_id=5e8abc05b0a43db7 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:02:58.190 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=4.824ms request_id=cursor/xqAVqLMFRG-000346 correlation_id=60b5679371200f905b972aed038fa7ba trace_id=60b5679371200f905b972aed038fa7ba span_id=df8f2c1389259758 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:03.801 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=9µs request_id=cursor/xqAVqLMFRG-000434 correlation_id=8ad643ae4eb40867c9f819229664a383 trace_id=8ad643ae4eb40867c9f819229664a383 span_id=12f9f83d58b6354b
+17:03:03.816 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=13.605ms request_id=cursor/xqAVqLMFRG-000436 correlation_id=a1522e423e832edb9cfbe2559ec7b008 trace_id=a1522e423e832edb9cfbe2559ec7b008 span_id=1d0112da608e3001 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:04.652 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=10.953ms request_id=cursor/xqAVqLMFRG-000469 correlation_id=80b903aacbe781aa1dfb5185a9afc746 trace_id=80b903aacbe781aa1dfb5185a9afc746 span_id=34ee3d3a6ef47583 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:10.321 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8µs request_id=cursor/xqAVqLMFRG-000560 correlation_id=c4fb148f76d70c634423f1371df8e132 trace_id=c4fb148f76d70c634423f1371df8e132 span_id=305cb522f37acd84
+17:03:10.335 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=10.487ms request_id=cursor/xqAVqLMFRG-000566 correlation_id=e378da30523dc953e03ac622edf9785e trace_id=e378da30523dc953e03ac622edf9785e span_id=3f31c8cc36c5a158 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:10.877 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=4.286ms request_id=cursor/xqAVqLMFRG-000581 correlation_id=e1e1def9706459daec0ae090f8a73fd6 trace_id=e1e1def9706459daec0ae090f8a73fd6 span_id=d0fe79be46f53b0a organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:15.850 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=4µs request_id=cursor/xqAVqLMFRG-000662 correlation_id=4abfb64b1fc811264dff9b1d7b45a8c2 trace_id=4abfb64b1fc811264dff9b1d7b45a8c2 span_id=175e42e376949185
+17:03:15.858 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6.648ms request_id=cursor/xqAVqLMFRG-000668 correlation_id=876a441c3e891d0749f2876694f0fdbf trace_id=876a441c3e891d0749f2876694f0fdbf span_id=fb6dcb09d4c9ea75 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:16.416 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=9.504ms request_id=cursor/xqAVqLMFRG-000690 correlation_id=b9d6f7c02caa1f9d6807742e78fb190d trace_id=b9d6f7c02caa1f9d6807742e78fb190d span_id=c1e11699a72492cf organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:20.792 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8µs request_id=cursor/xqAVqLMFRG-000763 correlation_id=998b297c42a3409100ffb4a1a3d14802 trace_id=998b297c42a3409100ffb4a1a3d14802 span_id=f191d4c57f09d3ff
+17:03:20.807 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=9.74ms request_id=cursor/xqAVqLMFRG-000771 correlation_id=4c92cb99cb68f5ec5db2b20bc3210138 trace_id=4c92cb99cb68f5ec5db2b20bc3210138 span_id=e0e75c24629c530d organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:21.320 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5.226ms request_id=cursor/xqAVqLMFRG-000787 correlation_id=054c588a5ebaf0f9d5ae2b3cbab62c17 trace_id=054c588a5ebaf0f9d5ae2b3cbab62c17 span_id=9211326ceddaa22a organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:25.625 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5µs request_id=cursor/xqAVqLMFRG-000866 correlation_id=ae17f99c6dfc35b39b75f16d5ad23177 trace_id=ae17f99c6dfc35b39b75f16d5ad23177 span_id=e9c4ee375980c27d
+17:03:25.637 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6.827ms request_id=cursor/xqAVqLMFRG-000870 correlation_id=59651a16b4b60c4ad52b81ee69ad4437 trace_id=59651a16b4b60c4ad52b81ee69ad4437 span_id=7ed6d982942017fc organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:26.581 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=7.111ms request_id=cursor/xqAVqLMFRG-000904 correlation_id=136ddcd73f1ffc306447da8195f713db trace_id=136ddcd73f1ffc306447da8195f713db span_id=be661f64dad8722d organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:30.388 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=11µs request_id=cursor/xqAVqLMFRG-000981 correlation_id=72e70294b18f1aac29a9f49e231ec021 trace_id=72e70294b18f1aac29a9f49e231ec021 span_id=19d3e2565daa6058
+17:03:30.401 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5.153ms request_id=cursor/xqAVqLMFRG-000983 correlation_id=d46170d2e37e61905c9449c5360fd018 trace_id=d46170d2e37e61905c9449c5360fd018 span_id=82d168a3d61b4dd0 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:31.323 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=11.516ms request_id=cursor/xqAVqLMFRG-001017 correlation_id=9261f52f002f3002d83b5a2dce1d188d trace_id=9261f52f002f3002d83b5a2dce1d188d span_id=33cb09eda066cdfe organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:35.526 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6µs request_id=cursor/xqAVqLMFRG-001098 correlation_id=37243ce92c9225afb13adf05daafc144 trace_id=37243ce92c9225afb13adf05daafc144 span_id=e45912473a34f2ce
+17:03:35.535 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=3.799ms request_id=cursor/xqAVqLMFRG-001101 correlation_id=4f7dca5f5c443e1a71d4f65e66ad6e90 trace_id=4f7dca5f5c443e1a71d4f65e66ad6e90 span_id=cb3f1bd61e279966 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:36.086 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=12.58ms request_id=cursor/xqAVqLMFRG-001120 correlation_id=0ecb2c15272e79e7934db25469409b2c trace_id=0ecb2c15272e79e7934db25469409b2c span_id=9da53b759217261c organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:39.238 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8µs request_id=cursor/xqAVqLMFRG-001181 correlation_id=1bbf595578205df25e2285704e90b757 trace_id=1bbf595578205df25e2285704e90b757 span_id=bc48dfd65e11c837
+17:03:39.251 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=10.551ms request_id=cursor/xqAVqLMFRG-001184 correlation_id=51abadc34d322cf5943dd6244869ec48 trace_id=51abadc34d322cf5943dd6244869ec48 span_id=a031791ecd2363f4 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:39.812 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=2.199ms request_id=cursor/xqAVqLMFRG-001208 correlation_id=ae4f123fe4a187085d24401790c74c16 trace_id=ae4f123fe4a187085d24401790c74c16 span_id=21ea7d6bd1231c65 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:45.260 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=11µs request_id=cursor/xqAVqLMFRG-001278 correlation_id=190414bbf71f7916df30bdbb4cd8dc74 trace_id=190414bbf71f7916df30bdbb4cd8dc74 span_id=acddb03018e47828
+17:03:45.277 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=10.986ms request_id=cursor/xqAVqLMFRG-001285 correlation_id=7f36758a461e274f7f4ee2430283a8b4 trace_id=7f36758a461e274f7f4ee2430283a8b4 span_id=e98f3bfa0a57fd56 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:46.242 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=7.427ms request_id=cursor/xqAVqLMFRG-001315 correlation_id=083bf92fcf4e9773875192ab2fdff7dc trace_id=083bf92fcf4e9773875192ab2fdff7dc span_id=8d7a0bc4022a84da organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:50.619 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8µs request_id=cursor/xqAVqLMFRG-001394 correlation_id=772e325f5775daae0f5d0918bb792a5b trace_id=772e325f5775daae0f5d0918bb792a5b span_id=496faae1674bf850
+17:03:50.627 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5.694ms request_id=cursor/xqAVqLMFRG-001398 correlation_id=54dcfc01abf3aad7e5ce2cae553a7f5c trace_id=54dcfc01abf3aad7e5ce2cae553a7f5c span_id=578dc1a8514481b8 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:51.152 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=9.502ms request_id=cursor/xqAVqLMFRG-001414 correlation_id=51f4740571c677b7fa98335949582f01 trace_id=51f4740571c677b7fa98335949582f01 span_id=c386c5bf6e852b99 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:55.382 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=3µs request_id=cursor/xqAVqLMFRG-001494 correlation_id=1c217060da847d2f57e7f799ac2fb052 trace_id=1c217060da847d2f57e7f799ac2fb052 span_id=81cc447f408b5163
+17:03:55.389 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=1.488ms request_id=cursor/xqAVqLMFRG-001499 correlation_id=22d8115128f2b35729230f6c85af09e4 trace_id=22d8115128f2b35729230f6c85af09e4 span_id=ab4a6e7b5e8782e6 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:03:55.941 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=3.205ms request_id=cursor/xqAVqLMFRG-001515 correlation_id=55ec709c8164f8f80d71f2110001af01 trace_id=55ec709c8164f8f80d71f2110001af01 span_id=0aa86b6e0305dfac organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:00.751 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6µs request_id=cursor/xqAVqLMFRG-001594 correlation_id=c3de0b6c8293f1d4e6e87c29f42fa19c trace_id=c3de0b6c8293f1d4e6e87c29f42fa19c span_id=404927dfcf723ea0
+17:04:00.760 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=3.769ms request_id=cursor/xqAVqLMFRG-001597 correlation_id=e6f01aad5e0bc58a5fd9412dd671c282 trace_id=e6f01aad5e0bc58a5fd9412dd671c282 span_id=3cba2c68994642b9 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:01.310 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=11.207ms request_id=cursor/xqAVqLMFRG-001613 correlation_id=499f08a2de529db3cf63e882259ba9a0 trace_id=499f08a2de529db3cf63e882259ba9a0 span_id=a7612daeb85c98fb organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:05.673 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=7µs request_id=cursor/xqAVqLMFRG-001692 correlation_id=08dafb583fec841da1c7c0ae4dca3f58 trace_id=08dafb583fec841da1c7c0ae4dca3f58 span_id=1118e7022715a395
+17:04:05.687 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=7.239ms request_id=cursor/xqAVqLMFRG-001696 correlation_id=9beff4430653b63b7513c619b0b60074 trace_id=9beff4430653b63b7513c619b0b60074 span_id=ed239eae69a2bb24 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:06.265 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8.166ms request_id=cursor/xqAVqLMFRG-001718 correlation_id=52ceddea1b04ec50f36a63c0ca00175c trace_id=52ceddea1b04ec50f36a63c0ca00175c span_id=231ed42a877786c7 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:10.634 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6µs request_id=cursor/xqAVqLMFRG-001797 correlation_id=6389c9c5dd7317f88b5d8d469e29f90a trace_id=6389c9c5dd7317f88b5d8d469e29f90a span_id=c32c088a7c6f47c7
+17:04:10.637 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=2.496ms request_id=cursor/xqAVqLMFRG-001799 correlation_id=ed1f6e9c32511fb1f5ced7bc31f4cfac trace_id=ed1f6e9c32511fb1f5ced7bc31f4cfac span_id=398196964bf33aa3 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:11.195 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5.414ms request_id=cursor/xqAVqLMFRG-001823 correlation_id=9917bd653cc0232320ad0bb19d8d6145 trace_id=9917bd653cc0232320ad0bb19d8d6145 span_id=4d977b25c48659e9 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:15.476 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6µs request_id=cursor/xqAVqLMFRG-001895 correlation_id=2ddb37cd178d89c7349a0a779b2b2afc trace_id=2ddb37cd178d89c7349a0a779b2b2afc span_id=7c046f2025db0a80
+17:04:15.483 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=4.841ms request_id=cursor/xqAVqLMFRG-001900 correlation_id=8ea0b2fba1204c6007488163ed656c6d trace_id=8ea0b2fba1204c6007488163ed656c6d span_id=80096bc6b81a5816 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:16.035 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5.367ms request_id=cursor/xqAVqLMFRG-001917 correlation_id=f43a9ed4f961073d1b7fbe045e07a744 trace_id=f43a9ed4f961073d1b7fbe045e07a744 span_id=da9e7a3e98c67bea organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:22.562 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8µs request_id=cursor/xqAVqLMFRG-002006 correlation_id=2298ab4e7ada480039a5f79823f2b896 trace_id=2298ab4e7ada480039a5f79823f2b896 span_id=e0ee095a3a4dda99
+17:04:22.574 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=9.09ms request_id=cursor/xqAVqLMFRG-002011 correlation_id=6062eee178137708ce7a1de8089edb0c trace_id=6062eee178137708ce7a1de8089edb0c span_id=e63e7b2d3c5f0d9b organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:23.112 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=1.456ms request_id=cursor/xqAVqLMFRG-002027 correlation_id=7017d4454a713407e72621cc3d70bd98 trace_id=7017d4454a713407e72621cc3d70bd98 span_id=6d463c85260605a4 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:43.520 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=2µs request_id=cursor/xqAVqLMFRG-002123 correlation_id=8b12a8c958f1d40f96c5914dfde3bedb trace_id=8b12a8c958f1d40f96c5914dfde3bedb span_id=5c713a5f08f3762b
+17:04:43.529 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6.201ms request_id=cursor/xqAVqLMFRG-002130 correlation_id=2c610ec2145c256dc150ffe35aecb76f trace_id=2c610ec2145c256dc150ffe35aecb76f span_id=8ad057c1b260ea55 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:44.494 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=4.285ms request_id=cursor/xqAVqLMFRG-002162 correlation_id=b59715303993d63c97ef013f45060b96 trace_id=b59715303993d63c97ef013f45060b96 span_id=291c7cd4dc572989 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:48.669 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8µs request_id=cursor/xqAVqLMFRG-002222 correlation_id=6aacce2aa6c668fd4cd9d4b997ea55c2 trace_id=6aacce2aa6c668fd4cd9d4b997ea55c2 span_id=07e1ebbc6da3c391
+17:04:48.677 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=3.545ms request_id=cursor/xqAVqLMFRG-002227 correlation_id=a595ecc1388eb2ccde7c697b2f31a3e8 trace_id=a595ecc1388eb2ccde7c697b2f31a3e8 span_id=4c9253d888068f5c organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:49.554 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5.128ms request_id=cursor/xqAVqLMFRG-002265 correlation_id=90dd62d59f26e9746691e5e8449bc927 trace_id=90dd62d59f26e9746691e5e8449bc927 span_id=3ee3295178880ff4 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:53.756 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5µs request_id=cursor/xqAVqLMFRG-002326 correlation_id=2634d67ad819b8ba7cecf2148bdf0bf4 trace_id=2634d67ad819b8ba7cecf2148bdf0bf4 span_id=950941c0ac89d685
+17:04:53.770 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=12.409ms request_id=cursor/xqAVqLMFRG-002330 correlation_id=160beb0839bf160974f4f3a153156f6d trace_id=160beb0839bf160974f4f3a153156f6d span_id=420d25af289a7030 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:54.736 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8.713ms request_id=cursor/xqAVqLMFRG-002363 correlation_id=62750ce4b15544d6f287336f86556534 trace_id=62750ce4b15544d6f287336f86556534 span_id=b028426e950db2c2 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:58.138 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6µs request_id=cursor/xqAVqLMFRG-002427 correlation_id=82998dcb2a829e576828565d9602d42e trace_id=82998dcb2a829e576828565d9602d42e span_id=bba49124ff284850
+17:04:58.150 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=11.748ms request_id=cursor/xqAVqLMFRG-002431 correlation_id=70bf0d6192434c1da7c0d36c8ff9ff0f trace_id=70bf0d6192434c1da7c0d36c8ff9ff0f span_id=404f3de60b9906b9 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:04:59.071 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=7.257ms request_id=cursor/xqAVqLMFRG-002458 correlation_id=6b15c1478803cbd91fc56d4ee6acc8ad trace_id=6b15c1478803cbd91fc56d4ee6acc8ad span_id=0f536d321d8c9152 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:03.144 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=6µs request_id=cursor/xqAVqLMFRG-002522 correlation_id=b6cc28050df7ab1e2c3630963e5b7878 trace_id=b6cc28050df7ab1e2c3630963e5b7878 span_id=7a8d90db501be3e9
+17:05:03.154 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=2.55ms request_id=cursor/xqAVqLMFRG-002529 correlation_id=e9a1739bafe5168ebd514daa9710f623 trace_id=e9a1739bafe5168ebd514daa9710f623 span_id=1bb6c9654708f1b0 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:03.993 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=4.271ms request_id=cursor/xqAVqLMFRG-002565 correlation_id=8d9ad92342dceb64a6c188b4958fdb22 trace_id=8d9ad92342dceb64a6c188b4958fdb22 span_id=df3530b80ec8e19b organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:08.151 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=4µs request_id=cursor/xqAVqLMFRG-002625 correlation_id=6d43362cfdb97e3d6511bd505cf40b80 trace_id=6d43362cfdb97e3d6511bd505cf40b80 span_id=c14d835f30f62e84
+17:05:08.157 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=1.894ms request_id=cursor/xqAVqLMFRG-002630 correlation_id=fae4d987893817cac1d751ea4a825127 trace_id=fae4d987893817cac1d751ea4a825127 span_id=ebc848ef85dd48de organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:08.718 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=9.727ms request_id=cursor/xqAVqLMFRG-002643 correlation_id=43a1a907e86493f5d803d732ab0f4993 trace_id=43a1a907e86493f5d803d732ab0f4993 span_id=0667f157b7d0ae56 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:12.112 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5µs request_id=cursor/xqAVqLMFRG-002709 correlation_id=64e2026641f007cc925d10f4d43bd1e6 trace_id=64e2026641f007cc925d10f4d43bd1e6 span_id=802369a05c5de8bd
+17:05:12.119 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=3.586ms request_id=cursor/xqAVqLMFRG-002711 correlation_id=7b3b08ed1bd6140b2f408e10bb4e528f trace_id=7b3b08ed1bd6140b2f408e10bb4e528f span_id=2975b3dbc158c0b6 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:12.664 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5.737ms request_id=cursor/xqAVqLMFRG-002733 correlation_id=1eda496e86cab26ce42850816b9082a8 trace_id=1eda496e86cab26ce42850816b9082a8 span_id=353f63bc8e72dadf organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:16.114 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=7µs request_id=cursor/xqAVqLMFRG-002793 correlation_id=892f769f93d76453f0ecd0e69f87f084 trace_id=892f769f93d76453f0ecd0e69f87f084 span_id=a2eb91a9d97a2127
+17:05:16.121 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=4.243ms request_id=cursor/xqAVqLMFRG-002798 correlation_id=9929687672be6801a3fcbf065f97aef3 trace_id=9929687672be6801a3fcbf065f97aef3 span_id=898b7a9c8d850746 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:16.676 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=5.597ms request_id=cursor/xqAVqLMFRG-002813 correlation_id=90cbe0f7b93c3d095e2443d90579ca03 trace_id=90cbe0f7b93c3d095e2443d90579ca03 span_id=f9a130758fe1d7b7 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:19.884 INF http request method=OPTIONS path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=3µs request_id=cursor/xqAVqLMFRG-002874 correlation_id=8e83753201088ac12ef521c7d7b18a1d trace_id=8e83753201088ac12ef521c7d7b18a1d span_id=b8d809f8bd1abd63
+17:05:19.897 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=8.624ms request_id=cursor/xqAVqLMFRG-002878 correlation_id=8894b3d1a624d30090b1dbef264a482d trace_id=8894b3d1a624d30090b1dbef264a482d span_id=b2487604c16fb192 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+17:05:20.824 INF http request method=GET path=/api/v1/workspaces/01M52TMXXXR1NJRN8WSAN4XWTV/ai/capabilities status=200 duration=3.295ms request_id=cursor/xqAVqLMFRG-002912 correlation_id=299a4d905c4740b8b031e01c6fa78e97 trace_id=299a4d905c4740b8b031e01c6fa78e97 span_id=3fa0d4ab5a8c2593 organization_id=01M52TMXXKR39XCJ3GB8MGYZZN workspace_id=01M52TMXXXR1NJRN8WSAN4XWTV actor_id=01M52TMXWSRTA5S6ZPED3EVDWN actor_kind=human
+
+E2E_UX_FLOOR_EXIT=0

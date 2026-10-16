@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19180 14100; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19180/tcp 14100/tcp 2>/dev/null; sleep 1; for p in 19180 14100; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+712c8e467e08f285b4e5978a75a26110897ad9fb
+712c8e467 chore: merge G5-G7 root 7d27601f7 (STAR-01, email-hub lint fix) into the REPIN-1 branch (UNI-1825)
+9a19086f3 test(e2e): S9 acknowledges the UniWork AI disclosure before sending
+777ccfefb test(ai): table cross-check calls the bound-aware allowlist as an unbound turn
+7d27601f7 fix(core): clear the email-hub hooks lint from the develop sync
