@@ -244,7 +244,7 @@ func TestSummarizeWithClosedMotionOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	// No transcript, notes or chat, and a vote still open is not material yet.
-	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !codedIs(err, "nothing_to_summarize") {
+	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !codedIs(err, "summary_no_source") {
 		t.Fatalf("open vote only: %v", err)
 	}
 	for _, uid := range []string{ua.ID, ub.ID} {

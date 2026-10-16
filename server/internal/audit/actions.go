@@ -254,6 +254,11 @@ const (
 	// (MeetingService.CreateTasksFromSummary, UNI-1853).
 	ActionMeetingSummaryTasksCreated = "meeting_summary.tasks_created"
 
+	// A host or admin generated the meeting's AI summary
+	// (MeetingService.Summarize); metadata names the summary and the usage
+	// row that paid for it.
+	ActionMeetingSummaryCreated = "meeting.summary_created"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

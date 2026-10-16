@@ -13,7 +13,11 @@ type Meetings struct {
 	OutboxRetry      prometheus.Counter
 	OutboxDeadLetter prometheus.Counter
 	ProviderDesync   prometheus.Counter
-	lifecycle        *prometheus.CounterVec
+	// SummaryErrors splits summary_error by why the run failed (not_configured,
+	// quota, rate_limited, timeout, provider, parse, empty, store), so a billed
+	// call that produced no summary is told from a provider outage.
+	SummaryErrors *prometheus.CounterVec
+	lifecycle     *prometheus.CounterVec
 }
 
 func NewMeetings() *Meetings {
@@ -54,6 +58,10 @@ func NewMeetings() *Meetings {
 			Name: "uniwork_meeting_provider_desync_total",
 			Help: "IN_PROGRESS meetings whose LiveKit room is IDLE (control-plane mismatch).",
 		}),
+		SummaryErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_meeting_summary_errors_total",
+			Help: "Failed AI meeting summary runs by reason.",
+		}, []string{"reason"}),
 		lifecycle: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_meetings_total",
 			Help: "Meeting lifecycle and AI outcomes by event (started, ended, auto_ended, summary_ok, summary_error).",
@@ -64,6 +72,12 @@ func NewMeetings() *Meetings {
 func (m *Meetings) Inc(event string) {
 	if m != nil && m.lifecycle != nil && event != "" {
 		m.lifecycle.WithLabelValues(event).Inc()
+	}
+}
+
+func (m *Meetings) IncSummaryError(reason string) {
+	if m != nil && m.SummaryErrors != nil && reason != "" {
+		m.SummaryErrors.WithLabelValues(reason).Inc()
 	}
 }
 
@@ -135,6 +149,7 @@ func (m *Meetings) Collectors() []prometheus.Collector {
 		m.OutboxRetry,
 		m.OutboxDeadLetter,
 		m.ProviderDesync,
+		m.SummaryErrors,
 		m.lifecycle,
 	}
 }
