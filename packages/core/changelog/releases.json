@@ -1,5 +1,26 @@
 [
   {
+    "id": "release-1-5-1",
+    "version": "1.5.1",
+    "date": "2026-10-16",
+    "sourceRef": "bcb332c5b378f8b32c02f97c2cb3dffad69753a7",
+    "contentKey": "v1_5_1",
+    "sections": [
+      {
+        "kind": "improvements",
+        "items": [
+          "c31a87b6e474f69e33cd44093e483d24dfe1a4f39"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d"
+        ]
+      }
+    ]
+  },
+  {
     "id": "release-1-5-0",
     "version": "1.5.0",
     "date": "2026-10-16",
