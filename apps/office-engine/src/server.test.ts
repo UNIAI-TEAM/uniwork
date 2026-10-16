@@ -469,6 +469,52 @@ describe("submit body memory bound (SIZE-S1 fix3)", () => {
     }
   });
 
+  it("keeps the body slot until the job hand-off: a submit parked in post-parse processing still refuses the next", async () => {
+    const h2 = await startHarness({ maxWorkers: 1, limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
+    const jobFor = () => {
+      const j = makeJob(h2.target, { text: "held" });
+      return { j, body: JSON.stringify(j.envelope) };
+    };
+    const jobs = h2.service.jobs;
+    const orig = jobs.submit.bind(jobs);
+    // Executor form: the tsconfig lib predates Promise.withResolvers.
+    let enteredResolve!: () => void;
+    const entered = new Promise<void>((r) => (enteredResolve = r));
+    let releaseGate!: () => void;
+    const gate = new Promise<void>((r) => (releaseGate = r));
+    // Park the first request at the hand-off point: everything after the body
+    // is parsed (grant, envelope validation + decode, fingerprint) sits inside
+    // it, so a held slot here proves the window is covered end to end.
+    let parked = false;
+    jobs.submit = ((jobReq: Parameters<typeof orig>[0]) => {
+      if (parked) return orig(jobReq);
+      parked = true;
+      enteredResolve();
+      return gate.then(() => orig(jobReq));
+    }) as typeof orig;
+    try {
+      const a = jobFor();
+      const first = rawSubmit(h2, { contentLength: a.body.length, grant: a.j.token });
+      first.req.end(a.body);
+      await entered;
+      // The first submit is still processing its decoded input: a second
+      // submit must be refused at the gate, never reaching the body read.
+      const b = jobFor();
+      const second = rawSubmit(h2, { contentLength: b.body.length, grant: b.j.token });
+      second.req.end(b.body);
+      const res = await second.reply;
+      expect(res.status).toBe(503);
+      expect(JSON.parse(res.body).error.code).toBe("engine_overloaded");
+      releaseGate();
+      expect((await first.reply).status).toBe(202);
+      await waitTerminal(h2, a.j);
+    } finally {
+      jobs.submit = orig;
+      releaseGate();
+      await h2.close();
+    }
+  });
+
   it("still accepts a chunked submit whose body parses", async () => {
     const j = makeJob(h.target, { text: "chunked-ok" });
     const body = JSON.stringify(j.envelope);

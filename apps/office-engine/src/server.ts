@@ -157,9 +157,13 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
     fail(res, boundaryFailure("upload_bounds", { max_input_bytes: config.limits.maxInputBytes }));
     return;
   }
-  // Read slots bound peak memory: maxWorkers bodies being buffered + parsed at
-  // once, no more. Refusal precedes any read and frees the socket instead of
-  // draining an upload the answer already refuses.
+  // Read slots bound peak memory: maxWorkers bodies being buffered, parsed
+  // and decoded at once, no more. The slot is held until the job takes the
+  // input — after parse the envelope still holds the base64 string and
+  // validateEnvelope allocates the decoded bytes, so releasing early would
+  // let more than maxWorkers requests sit in that window. Refusal precedes
+  // any read and frees the socket instead of draining an upload the answer
+  // already refuses.
   if (!slots.tryAcquire()) {
     deps.metrics.rejected("engine_overloaded");
     res.setHeader("Retry-After", 2);
@@ -193,56 +197,56 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
     } catch {
       throw new EngineContractViolation("envelope", "json_required", "body is not JSON");
     }
+    if (isDict(envelope) && envelope.operation === "convert") {
+      // Convert is a normal job now (G2-07b): validateEnvelope enforces the
+      // target_format payload key, and the bound-pair gate below decides
+      // whether this build carries the converter for (format, target_format).
+    }
+    const grant = verifyGrant(req.headers[GRANT_HEADER] as string | undefined, config.grantKey);
+    const validated = await validateEnvelope(envelope, { hash: nodeSha256Hex });
+    const env = envelope as Record<string, unknown>;
+    const payload = env.payload as Record<string, unknown>;
+    if (validated.operation === "cancel" || validated.operation === "capability" || !isBound(validated.operation, validated.format)) {
+      deps.metrics.rejected("unsupported_operation");
+      fail(res, boundaryFailure("unsupported_operation", { reason: "not_bound" }, { operation: validated.operation }));
+      return;
+    }
+    if (validated.inputs && validated.inputs.length > config.limits.maxInputBytes) {
+      deps.metrics.rejected("upload_bounds");
+      fail(res, boundaryFailure("upload_bounds", { max_input_bytes: config.limits.maxInputBytes }));
+      return;
+    }
+    bindEnvelope(
+      grant,
+      {
+        operation: validated.operation,
+        format: validated.format,
+        grantId: typeof env.grant_id === "string" ? env.grant_id : undefined,
+        baseRevision: typeof payload.base_revision === "number" ? payload.base_revision : undefined,
+        baseVersionId:
+          validated.operation === "convert" || validated.operation === "export"
+            ? validated.sourceVersionId
+            : typeof payload.base_version_id === "string"
+              ? payload.base_version_id
+              : undefined,
+        inputs: validated.inputs,
+      },
+      config.outputOrigins,
+    );
+    const fingerprint = await payloadFingerprint(env, { inputs: validated.inputs, hash: nodeSha256Hex });
+    const jobPayload = buildJobPayload(validated.operation, payload);
+    const { job, replay } = await deps.jobs.submit({
+      grant,
+      fingerprint,
+      requestId: env.request_id as string,
+      deadlineMs: validated.deadlineMs,
+      input: validated.inputs?.bytes ?? null,
+      payload: jobPayload,
+    });
+    send(res, replay ? 200 : 202, { ...jobView(job), replay, payload_fingerprint: fingerprint });
   } finally {
     slots.release();
   }
-  if (isDict(envelope) && envelope.operation === "convert") {
-    // Convert is a normal job now (G2-07b): validateEnvelope enforces the
-    // target_format payload key, and the bound-pair gate below decides
-    // whether this build carries the converter for (format, target_format).
-  }
-  const grant = verifyGrant(req.headers[GRANT_HEADER] as string | undefined, config.grantKey);
-  const validated = await validateEnvelope(envelope, { hash: nodeSha256Hex });
-  const env = envelope as Record<string, unknown>;
-  const payload = env.payload as Record<string, unknown>;
-  if (validated.operation === "cancel" || validated.operation === "capability" || !isBound(validated.operation, validated.format)) {
-    deps.metrics.rejected("unsupported_operation");
-    fail(res, boundaryFailure("unsupported_operation", { reason: "not_bound" }, { operation: validated.operation }));
-    return;
-  }
-  if (validated.inputs && validated.inputs.length > config.limits.maxInputBytes) {
-    deps.metrics.rejected("upload_bounds");
-    fail(res, boundaryFailure("upload_bounds", { max_input_bytes: config.limits.maxInputBytes }));
-    return;
-  }
-  bindEnvelope(
-    grant,
-    {
-      operation: validated.operation,
-      format: validated.format,
-      grantId: typeof env.grant_id === "string" ? env.grant_id : undefined,
-      baseRevision: typeof payload.base_revision === "number" ? payload.base_revision : undefined,
-      baseVersionId:
-        validated.operation === "convert" || validated.operation === "export"
-          ? validated.sourceVersionId
-          : typeof payload.base_version_id === "string"
-            ? payload.base_version_id
-            : undefined,
-      inputs: validated.inputs,
-    },
-    config.outputOrigins,
-  );
-  const fingerprint = await payloadFingerprint(env, { inputs: validated.inputs, hash: nodeSha256Hex });
-  const jobPayload = buildJobPayload(validated.operation, payload);
-  const { job, replay } = deps.jobs.submit({
-    grant,
-    fingerprint,
-    requestId: env.request_id as string,
-    deadlineMs: validated.deadlineMs,
-    input: validated.inputs?.bytes ?? null,
-    payload: jobPayload,
-  });
-  send(res, replay ? 200 : 202, { ...jobView(job), replay, payload_fingerprint: fingerprint });
 }
 
 function jobRoute(req: IncomingMessage, res: ServerResponse, deps: ServerDeps, jobId: string, cancel: boolean): void {
