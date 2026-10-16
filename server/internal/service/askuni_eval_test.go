@@ -347,7 +347,11 @@ func TestAskUniEvalLive(t *testing.T) {
 			prov, model, prompt, in, outTok, micros, run.latency.Milliseconds())
 	}
 	if priced > 0 {
-		fmt.Fprintf(&b, "\nChi phí trung bình: %d micros/câu (%.4f USD) trên %d lượt gọi model.\n", cost/int64(priced), float64(cost)/float64(priced)/1e6, priced)
+		// Two denominators: a no-source turn asks no model, so per call and per
+		// question differ; the P1 threshold is per question.
+		fmt.Fprintf(&b, "\nChi phí trung bình: %d micros/lượt gọi model có giá (%.4f USD, %d lượt) · %d micros/câu hỏi (%.4f USD, %d câu).\n",
+			cost/int64(priced), float64(cost)/float64(priced)/1e6, priced,
+			cost/int64(len(cases)), float64(cost)/float64(len(cases))/1e6, len(cases))
 	}
 	if err := os.WriteFile(out, []byte(b.String()), 0o644); err != nil {
 		t.Fatal(err)
