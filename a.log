@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+9fe29b522c9e45ac7594f351a5120c0f57c28676
+9fe29b522 fix(e2e): keep the UX floor org-flag helper private so knip passes
+9cdfdca34 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-923-office-g5g7-develop-pr2
+91bdd067a chore: merge G7-09 automated part (5acb20fd7) into the G5-G7 root
