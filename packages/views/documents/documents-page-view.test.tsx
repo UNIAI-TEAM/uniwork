@@ -581,7 +581,7 @@ describe("DocumentsPageView", () => {
     expect(within(row).getAllByText(t("documents.home.origin.chat")).length).toBeGreaterThan(0);
     expect(within(row).getByText("Dũng")).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
-    expect(within(row).getByRole("button", { name: t("documents.home.row.download") })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) })).toBeInTheDocument();
     // The sidebar names the modules once the sources API answered.
     expect(screen.getByRole("button", { name: t("documents.home.origin.chat") })).toBeInTheDocument();
 
@@ -785,13 +785,12 @@ describe("DocumentsPageView", () => {
     expect(postCall("POST")).toBeUndefined();
   });
 
-  it("says a chat file opens Chat, and offers no save for a file the server will not copy", async () => {
+  it("says a chat file says View where attached, and offers no save for a file the server will not copy", async () => {
     route({ list: () => [], sources: () => [source({ can_save: false })] });
     renderView(vi.fn());
     const row = await rowOf("Đề xuất ngân sách.pdf");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách.pdf" }) }));
-    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_chat") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeNull();
+    expect(await screen.findByRole("menuitem", { name: "Xem nơi đính kèm" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.save_to_folder") })).toBeNull();
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
   });

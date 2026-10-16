@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
@@ -9,7 +9,9 @@ import { useSearchStore } from "@uniwork/core/search";
 import type { User, Workspace } from "@uniwork/core/types";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { useNavigation } from "../navigation";
+import { useEffect } from "react";
 import { WorkspaceProvider } from "./workspace-context";
 import { WorkspaceChrome, WorkspaceTopBar } from "./workspace-top-bar";
 
@@ -80,6 +82,50 @@ describe("WorkspaceChrome", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.keyDown(document.body, { key: "c" });
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+
+  it("mounts the next page once when the route changes", async () => {
+    // The host's children slot always renders the current route, like Next's
+    // layout router: a page kept on screen while the old route animates out
+    // would mount the new route there first, then again once the exit ends,
+    // and a deep link that page consumed on its first mount would be lost.
+    requestMock.mockReset();
+    requestMock.mockResolvedValue({});
+    const mounts: string[] = [];
+    function Page({ name }: { name: string }) {
+      useEffect(() => {
+        mounts.push(name);
+      }, [name]);
+      return <p>{name}</p>;
+    }
+    // Each route is its own component, so a new route mounts a new page.
+    const DocumentsPage = () => <Page name="documents" />;
+    const ChatPage = () => <Page name="chat" />;
+    function Route() {
+      const { pathname } = useNavigation();
+      return pathname.endsWith("/chat") ? <ChatPage /> : <DocumentsPage />;
+    }
+    const nav = fakeNav("/acme/team/documents");
+    render(
+      wrapWithNav(
+        <ThemeProvider>
+          <LocaleAdapterProvider adapter={localeAdapter}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <SidebarProvider hasExternalTrigger>
+                <WorkspaceChrome>
+                  <Route />
+                </WorkspaceChrome>
+              </SidebarProvider>
+            </WorkspaceProvider>
+          </LocaleAdapterProvider>
+        </ThemeProvider>,
+        nav,
+      ),
+    );
+    act(() => nav.push("/acme/team/chat?room=r1&message=m1"));
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(mounts).toEqual(["documents", "chat"]);
   });
 });
 
