@@ -780,6 +780,7 @@ SELECT id, organization_id, document_id FROM document_edit_locks
 WHERE ended_at IS NULL
   AND expires_at <= now()
   AND (offline_hold_until IS NULL OR offline_hold_until <= now())
+  AND EXISTS (SELECT 1 FROM documents d WHERE d.id = document_edit_locks.document_id)
 ORDER BY expires_at
 LIMIT $1
 `
@@ -791,8 +792,10 @@ type ListExpiredDocumentEditLocksRow struct {
 }
 
 // tenant: system
-// The sweeper: unended tenures whose TTL and hold both ran out, oldest
-// first. Each is ended in its own transaction under the document lock.
+// The sweeper: unended tenures whose TTL and hold both ran out and whose
+// document still exists, oldest first. A tenure of a document that is gone
+// belongs to the delete consumer and is skipped by expireDocumentEditLock
+// anyway, so it must not fill a batch and starve the tenures that can end.
 func (q *Queries) ListExpiredDocumentEditLocks(ctx context.Context, batchLimit int32) ([]ListExpiredDocumentEditLocksRow, error) {
 	rows, err := q.db.Query(ctx, listExpiredDocumentEditLocks, batchLimit)
 	if err != nil {

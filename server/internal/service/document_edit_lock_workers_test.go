@@ -85,6 +85,47 @@ func TestEditLockSweeperExpires(t *testing.T) {
 	w.acquire(t, w.tn.aclOwner, gone.ID, "editor-next")
 }
 
+// FA5b: tenures whose document row is gone (the delete consumer's to end)
+// must not fill the sweeper's batch - a batch full of them would starve a
+// real expired tenure out of ListExpiredDocumentEditLocks forever, because
+// expireDocumentEditLock only skips them.
+func TestEditLockSweeperSkipsGoneDocuments(t *testing.T) {
+	w := newLockWorld(t)
+	d := w.page(t)
+	real := w.acquire(t, w.tn.member, d.ID, "editor-real")
+	w.expire(t, real.Lock.ID)
+
+	// More than one batch of expired tenures on document ids that do not
+	// exist, every one of them expiring before the real tenure.
+	orphans := make([]string, 0, int(documentEditLockSweepBatch)+1)
+	for i := 0; i < int(documentEditLockSweepBatch)+1; i++ {
+		id := util.NewID()
+		w.exec(t, `INSERT INTO document_edit_locks
+			(id, organization_id, document_id, user_id, session_id, editor_id, client, base_revision, granted_via, acquired_at, heartbeat_at, expires_at)
+			VALUES ($1, $2, $3, $4, 'orphan-session', 'orphan-editor', 'web_page', 1, 'acquire', now(), now(), now() - interval '1 hour')`,
+			id, w.tn.orgID, util.NewID(), w.tn.member.ID)
+		orphans = append(orphans, id)
+	}
+	defer func() {
+		if _, err := w.env.f.pool.Exec(w.ctx, `DELETE FROM document_edit_locks WHERE id = ANY($1)`, orphans); err != nil {
+			t.Fatalf("cleanup orphan tenures: %v", err)
+		}
+	}()
+
+	if _, err := w.svc.SweepExpiredDocumentEditLocks(w.ctx); err != nil {
+		t.Fatal(err)
+	}
+	w.wantEnded(t, real.Lock.ID, "expired")
+	var unended int
+	if err := w.env.f.pool.QueryRow(w.ctx,
+		`SELECT count(*) FROM document_edit_locks WHERE id = ANY($1) AND ended_at IS NULL`, orphans).Scan(&unended); err != nil {
+		t.Fatal(err)
+	}
+	if unended != len(orphans) {
+		t.Fatalf("orphan tenures unended %d/%d, want all (a gone document's tenure is the delete consumer's)", unended, len(orphans))
+	}
+}
+
 // insertRequest writes a pending request with the given expiry expression.
 func (w *lockWorld) insertRequest(t *testing.T, d db.Document, lock db.DocumentEditLock, requesterID, expires string) string {
 	t.Helper()
