@@ -365,9 +365,11 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                   <h3 id="share-access-title" className="text-label font-medium text-foreground">
                     {t("documents.share.access_title")}
                   </h3>
-                  <span className="text-caption text-muted-foreground">
-                    {t("documents.share.my_level", { level: levelLabel(access.data.my_level) })}
-                  </span>
+                  {LEVELS.includes(access.data.my_level as DocumentAccessLevel) ? (
+                    <span className="text-caption text-muted-foreground">
+                      {t("documents.share.my_level", { level: levelLabel(access.data.my_level) })}
+                    </span>
+                  ) : null}
                 </div>
                 <ul className="divide-y divide-border">
                   {access.data.acl_owner ? (

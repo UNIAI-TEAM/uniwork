@@ -291,6 +291,15 @@ describe("ShareDialog", () => {
     expect(screen.queryByText(t("documents.share.my_level", { level: t("documents.share.level_view") }))).toBeNull();
   });
 
+  it("omits the my_level line when an admin-only caller has no document level (VIS-SHS1-06)", async () => {
+    serve({ access: { ...accessPayload, my_level: "" } });
+    renderDialog(documentFixture({ my_level: "", admin_scope: true }));
+
+    expect(await screen.findByText(t("documents.share.access_title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
+    expect(screen.queryByText(/Mức của bạn|Your level/)).toBeNull();
+  });
+
   it("keeps a failed read with a retry", async () => {
     let fail = true;
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
