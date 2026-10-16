@@ -327,11 +327,11 @@ export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<strin
     if (groupBy === "source") add(`origin:${rowOrigin(row)}`, "", row);
     else if (groupBy === "type") add(`type:${isFolderRow(row) ? "folder" : rowFormat(row)}`, "", row);
     else if (row.type === "source") add(`origin:${rowOrigin(row)}`, "", row);
-    else if (isFolderRow(row)) add("folders", "", row);
     else {
       const path = folderPath(index, row.doc.parent_id);
       const last = path.at(-1);
       if (last) add(`folder:${last.id}`, path.map((node) => node.title).join(" / "), row);
+      else if (isFolderRow(row)) add("folders", "", row);
       else add("unfiled", "", row);
     }
   }

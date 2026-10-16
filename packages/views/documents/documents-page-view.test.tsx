@@ -342,7 +342,21 @@ describe("DocumentsPageView", () => {
         "Dự án CCB1",
       ]),
     );
-    expect(within(screen.getByRole("table")).getByText("Thư mục trống")).toBeInTheDocument();
+    const groupBody = (headerText: string) => {
+      const header = Array.from(document.querySelectorAll("[data-library-group]")).find(
+        (cell) => cell.textContent === headerText,
+      );
+      const tbody = header?.closest("tbody");
+      if (!tbody) throw new Error(`no tbody for group ${headerText}`);
+      return tbody;
+    };
+    const foldersGroup = groupBody(`${t("documents.home.groups.type.folder")}2`);
+    const unfiledGroup = groupBody(`${t("documents.home.groups.unfiled")}1`);
+    expect(within(foldersGroup).getByText("Dự án CCB")).toBeInTheDocument();
+    expect(within(foldersGroup).getByText("Thư mục trống")).toBeInTheDocument();
+    expect(within(unfiledGroup).queryByText("Dự án CCB")).toBeNull();
+    expect(within(unfiledGroup).queryByText("Thư mục trống")).toBeNull();
+    expect(within(unfiledGroup).getByText("Kế hoạch Q4")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("combobox", { name: t("documents.home.group_by.label") }));
     const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.group_by.type"));
