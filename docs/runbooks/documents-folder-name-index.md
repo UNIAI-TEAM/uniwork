@@ -63,7 +63,6 @@ Theo đúng thứ tự, kiểm lại sau mỗi bước.
    SET title = normalize(title, NFC)
    WHERE kind = 'folder'
      AND archived_at IS NULL
-     AND owner_id IS NULL
      AND system_kind IS NULL
      AND normalize(title, NFC) <> title;
 

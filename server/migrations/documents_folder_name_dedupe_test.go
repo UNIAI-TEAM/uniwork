@@ -377,8 +377,13 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 	// The runbook holds a fourth copy of the key expression - the one an
 	// operator actually runs (BE-FD02P2-1). It is markdown, not SQL, so it
 	// needs its own reader: the recovery block must stay the dedupe migration's
-	// statement verbatim (whitespace aside), and every key expression in the
-	// file keeps the inside-lower() shape.
+	// statements (comments and whitespace aside), and every key expression in
+	// the file keeps the inside-lower() shape. One deliberate delta (review
+	// BE-MF-1): the runbook scopes both statements to the current index
+	// population with system_kind IS NULL, because the historical migration
+	// predates system_kind and would rename My Folder rows. Removing exactly
+	// those two predicates must give the migration back, and both must be
+	// present, so dropping one fails.
 	runbook := filepath.Join("..", "..", "docs", "runbooks", "documents-folder-name-index.md")
 	blocks := fencedSQLBlocks(t, runbook)
 	recovery := 0
@@ -390,8 +395,13 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 			continue
 		}
 		recovery++
-		if want, got := normalizeSQL(readMigration(t, dedupe)), normalizeSQL(block); want != got {
-			t.Errorf("%s: the recovery SQL is not %s verbatim\nwant: %s\ngot:  %s", runbook, dedupe, want, got)
+		code := normalizeSQL(stripSQLComments(block))
+		if n := strings.Count(code, "system_kind IS NULL"); n != 2 {
+			t.Errorf("%s: the recovery SQL carries system_kind IS NULL %d times, want 2 (one per statement)", runbook, n)
+		}
+		scoped := strings.NewReplacer("AND system_kind IS NULL", "", "AND d.system_kind IS NULL", "").Replace(code)
+		if want, got := normalizeSQL(stripSQLComments(readMigration(t, dedupe))), normalizeSQL(scoped); want != got {
+			t.Errorf("%s: the recovery SQL is not %s apart from the system_kind scope\nwant: %s\ngot:  %s", runbook, dedupe, want, got)
 		}
 	}
 	if recovery != 1 {
