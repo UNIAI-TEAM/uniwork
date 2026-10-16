@@ -490,7 +490,7 @@ func TestDesktopDeviceKey(t *testing.T) {
 	if b := desktopDevice(req("01J8X4DEVN1P2Q3R4S5T6W7V8Y")); b == "" || b == a {
 		t.Fatalf("another id must key differently: %q vs %q", b, a)
 	}
-	for name, v := range map[string]string{"none": "", "short": "abc", "long": id + "0", "slash": "01J8X4DEVN1P2Q3R4S5T6W7V/", "space inside": "01J8X4DEVN1P 2Q3R4S5T6W7V"} {
+	for name, v := range map[string]string{"none": "", "short": "abc", "long": id + "0", "slash": id[:25] + "/", "space inside": id[:12] + " " + id[13:]} {
 		if got := desktopDevice(req(v)); got != "" {
 			t.Errorf("%s: key = %q, want the address fallback", name, got)
 		}
