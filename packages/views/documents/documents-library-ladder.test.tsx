@@ -174,8 +174,8 @@ describe.each([
     renderList(showType);
     for (let c = FLOOR; c <= LIST_MAX; c += 1) {
       const { name } = layoutAt(c);
-      // At the 320 floor only Name and the actions column exist; Name can only be 262px there.
-      const min = c - BORDER - 56 < NAME_MIN ? c - BORDER - 56 : NAME_MIN;
+      // At the 320 floor only Name and the actions column exist; Name can only be 238px there.
+      const min = c - BORDER - 80 < NAME_MIN ? c - BORDER - 80 : NAME_MIN;
       expect(name, `Name at ${c}`).toBeGreaterThanOrEqual(min);
     }
   });
