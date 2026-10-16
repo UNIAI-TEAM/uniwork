@@ -1,0 +1,863 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18571 FRONTEND_ORIGIN=http://localhost:13471 API_PUBLIC_URL=http://localhost:18571 PREVIEW_ORIGIN=http://localhost:13472 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18571 NEXT_PUBLIC_WS_URL=ws://localhost:18571 NEXT_PUBLIC_APP_URL=http://localhost:13471 E2E_BASE_URL=http://localhost:13471 E2E_API_URL=http://localhost:18571 DOCUMENT_EDIT_LOCK_TTL=20s DOCUMENT_EDIT_LOCK_HEARTBEAT=5s DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test document-edit-lock.spec.ts --reporter=list > /tmp/dl20-EDIT_LOCK.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/dl20-EDIT_LOCK.log | tail -n 60; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -E "[0-9]+ (skipped|did not run)" /tmp/dl20-EDIT_LOCK.log; grep -qE "[0-9]+ passed" /tmp/dl20-EDIT_LOCK.log || { echo "no passing test in document-edit-lock.spec.ts"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_EDIT_LOCK_EXIT=$rc"
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 60000ms
+      - waiting for getByRole('textbox', { name: 'Nội dung tài liệu' })
+        122 × locator resolved to <div role="textbox" translate="no" aria-multiline="true" contenteditable="false" aria-label="Nội dung tài liệu" class="tiptap ProseMirror rich-text-editor document-page-prose min-h-64 text-body leading-relaxed">…</div>
+            - unexpected value "false"
+
+
+      114 | /** The editor accepts input: this tab holds the edit lock. */
+      115 | async function expectEditable(page: Page, timeout = 60_000) {
+    > 116 |   await expect(surface(page)).toHaveAttribute("contenteditable", "true", { timeout });
+          |                               ^
+      117 | }
+      118 |
+      119 | async function expectReadOnly(page: Page, timeout = 60_000) {
+
+    Error Context: test-results/document-edit-lock-B-requests-A-saves-and-hands-over-B-edits/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/document-edit-lock-B-requests-A-saves-and-hands-over-B-edits/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/document-edit-lock-B-requests-A-saves-and-hands-over-B-edits/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) document-edit-lock.spec.ts:321:1 › same user, two tabs: the second offers Edit here and the first goes read-only 
+
+    Test timeout of 360000ms exceeded.
+
+    Error: page.waitForResponse: Target page, context or browser has been closed
+
+      322 |   const a = await signedIn(browser, memberA.email);
+      323 |   const doc = await createLockPage(a.page, `Khóa sửa 6 ${stamp}`, "Bản đầu của bước sáu");
+    > 324 |   const acquired = a.page.waitForResponse(
+          |                           ^
+      325 |     (r) => r.request().method() === "POST" && new URL(r.url()).pathname === `/api/v1/documents/${doc.id}/edit-lock`,
+      326 |   );
+      327 |   await a.page.goto(doc.path);
+
+    Error Context: test-results/document-edit-lock-same-us-591f7-nd-the-first-goes-read-only/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/document-edit-lock-same-us-591f7-nd-the-first-goes-read-only/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/document-edit-lock-same-us-591f7-nd-the-first-goes-read-only/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6 failed
+    document-edit-lock.spec.ts:145:1 › A edits: B reads only with A's name and time, and B's API save answers 423 document_locked 
+    document-edit-lock.spec.ts:177:1 › A closes the editor: B sees Edit now without a reload and can type 
+    document-edit-lock.spec.ts:203:1 › A's tab dies without releasing: after the TTL B can edit ────
+    document-edit-lock.spec.ts:237:1 › a manager takes over: A turns read-only and downloads the unsaved text 
+    document-edit-lock.spec.ts:290:1 › B requests: A saves and hands over, B edits ─────────────────
+    document-edit-lock.spec.ts:321:1 › same user, two tabs: the second offers Edit here and the first goes read-only 
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test document-edit-lock.spec.ts --reporter=list
+===== e2e/test-results/document-edit-lock-A-close-53e23-thout-a-reload-and-can-type/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: document-edit-lock.spec.ts >> A closes the editor: B sees Edit now without a reload and can type
+- Location: document-edit-lock.spec.ts:177:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator:  getByRole('textbox', { name: 'Nội dung tài liệu' })
+Expected: "true"
+Received: "false"
+Timeout:  60000ms
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 60000ms
+  - waiting for getByRole('textbox', { name: 'Nội dung tài liệu' })
+    122 × locator resolved to <div role="textbox" translate="no" aria-multiline="true" contenteditable="false" aria-label="Nội dung tài liệu" class="tiptap ProseMirror rich-text-editor document-page-prose min-h-64 text-body leading-relaxed">…</div>
+        - unexpected value "false"
+
+```
+
+```yaml
+- textbox "Nội dung tài liệu":
+  - paragraph: Bản đầu của bước hai
+```
+
+# Test source
+
+```ts
+  16  |  * edits a document at a time, on the real stack with two (or three) browser
+  17  |  * contexts. The organization owner is the manager; A and B are workspace
+  18  |  * members with `edit` on a workspace-visible page.
+  19  |  *
+  20  |  *   1. A edits -> B reads only, names A and the time; B's save over the API -> 423.
+  21  |  *   2. A closes the editor -> B gets "Sửa ngay" without a reload and types.
+  22  |  *   3. A's tab dies without releasing -> after the TTL B can edit.
+  23  |  *   4. The manager takes over -> A turns read-only and downloads the unsaved text.
+  24  |  *   5. B requests -> A saves and hands over -> B edits.
+  25  |  *   6. Same user, two tabs -> the second offers "Sửa ở đây" and takes the lock.
+  26  |  *
+  27  |  * Needs: documents flag ON (`FF_DOCUMENTS=true`, globalSetup), Postgres + Redis
+  28  |  * up, this worktree's migrations applied, web app on E2E_BASE_URL built against
+  29  |  * NEXT_PUBLIC_API_URL. Step 3 waits for the lock to expire, so it runs only
+  30  |  * when the API server was started with a short TTL; with the defaults (2m TTL,
+  31  |  * 30s sweep) it is skipped and says why. The server env for the full run:
+  32  |  *
+  33  |  *   DOCUMENT_EDIT_LOCK_TTL=20s
+  34  |  *   DOCUMENT_EDIT_LOCK_HEARTBEAT=5s
+  35  |  *   DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s
+  36  |  *
+  37  |  * (HEARTBEAT must stay at most half the TTL or the server refuses to start.)
+  38  |  * The short heartbeat also keeps step 6 quick: the first tab learns that the
+  39  |  * lock moved at its next heartbeat.
+  40  |  */
+  41  | test.describe.configure({ timeout: 360_000 });
+  42  | 
+  43  | const api = e2eApiUrl;
+  44  | const stamp = Date.now();
+  45  | /** The longest TTL step 3 waits out; the default 2m is skipped, not waited. */
+  46  | const SHORT_TTL_MAX_MS = 30_000;
+  47  | /** The heartbeat the server answers with the defaults (step 6 waits one of them). */
+  48  | const DEFAULT_HEARTBEAT_MS = 30_000;
+  49  | 
+  50  | let owner: RecordingAccount;
+  51  | let memberA: ApiUser;
+  52  | let memberB: ApiUser;
+  53  | // registerApiUser / createRecordingAccount use the tag as the display name.
+  54  | const ownerName = `lock-mgr-${stamp}`;
+  55  | const nameA = `lock-a-${stamp}`;
+  56  | const nameB = `lock-b-${stamp}`;
+  57  | 
+  58  | const opened: BrowserContext[] = [];
+  59  | 
+  60  | function authHeader(token: string): Record<string, string> {
+  61  |   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
+  62  | }
+  63  | 
+  64  | function pageContent(text: string) {
+  65  |   return { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] };
+  66  | }
+  67  | 
+  68  | test.beforeAll(async ({ browser }) => {
+  69  |   const page = await browser.newPage();
+  70  |   try {
+  71  |     owner = await createRecordingAccount(page, api, ownerName);
+  72  |     memberA = await registerApiUser(page, api, nameA);
+  73  |     await joinWorkspaceAsMember(page, api, owner.token, owner.wsId, memberA);
+  74  |     memberB = await registerApiUser(page, api, nameB);
+  75  |     await joinWorkspaceAsMember(page, api, owner.token, owner.wsId, memberB);
+  76  |   } finally {
+  77  |     await page.close();
+  78  |   }
+  79  | });
+  80  | 
+  81  | test.afterEach(async () => {
+  82  |   for (const ctx of opened.splice(0)) await ctx.close().catch(() => undefined);
+  83  | });
+  84  | 
+  85  | /** A workspace-visible page every member may edit; returns its id and app path. */
+  86  | async function createLockPage(page: Page, title: string, text: string): Promise<{ id: string; path: string }> {
+  87  |   const created = await page.request.post(`${api}/api/v1/workspaces/${owner.wsId}/documents`, {
+  88  |     headers: authHeader(owner.token),
+  89  |     data: { kind: "page", title, visibility: "workspace", content: pageContent(text) },
+  90  |   });
+  91  |   expect(created.ok(), `create page: HTTP ${created.status()} ${await created.text()}`).toBeTruthy();
+  92  |   const id = ((await created.json()) as { document: { id: string } }).document.id;
+  93  |   return { id, path: `/${owner.orgSlug}/${owner.wsSlug}/documents/${id}` };
+  94  | }
+  95  | 
+  96  | /** A fresh browser (own cookies, own session) signed in as `email`. */
+  97  | async function signedIn(browser: Browser, email: string): Promise<{ ctx: BrowserContext; page: Page }> {
+  98  |   const ctx = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
+  99  |   opened.push(ctx);
+  100 |   const page = await ctx.newPage();
+  101 |   await page.setViewportSize({ width: 1440, height: 900 });
+  102 |   await loginViaUi(page, email);
+  103 |   return { ctx, page };
+  104 | }
+  105 | 
+  106 | function surface(page: Page) {
+  107 |   return page.getByRole("textbox", { name: "Nội dung tài liệu" });
+  108 | }
+  109 | 
+  110 | function lockBanner(page: Page) {
+  111 |   return page===== e2e/test-results/document-edit-lock-A-edits-74bc3-answers-423-document-locked/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: document-edit-lock.spec.ts >> A edits: B reads only with A's name and time, and B's API save answers 423 document_locked
+- Location: document-edit-lock.spec.ts:145:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator:  getByRole('textbox', { name: 'Nội dung tài liệu' })
+Expected: "true"
+Received: "false"
+Timeout:  60000ms
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 60000ms
+  - waiting for getByRole('textbox', { name: 'Nội dung tài liệu' })
+    120 × locator resolved to <div role="textbox" translate="no" aria-multiline="true" contenteditable="false" aria-label="Nội dung tài liệu" class="tiptap ProseMirror rich-text-editor document-page-prose min-h-64 text-body leading-relaxed">…</div>
+        - unexpected value "false"
+
+```
+
+```yaml
+- textbox "Nội dung tài liệu":
+  - paragraph: Bản đầu của bước một
+```
+
+# Test source
+
+```ts
+  16  |  * edits a document at a time, on the real stack with two (or three) browser
+  17  |  * contexts. The organization owner is the manager; A and B are workspace
+  18  |  * members with `edit` on a workspace-visible page.
+  19  |  *
+  20  |  *   1. A edits -> B reads only, names A and the time; B's save over the API -> 423.
+  21  |  *   2. A closes the editor -> B gets "Sửa ngay" without a reload and types.
+  22  |  *   3. A's tab dies without releasing -> after the TTL B can edit.
+  23  |  *   4. The manager takes over -> A turns read-only and downloads the unsaved text.
+  24  |  *   5. B requests -> A saves and hands over -> B edits.
+  25  |  *   6. Same user, two tabs -> the second offers "Sửa ở đây" and takes the lock.
+  26  |  *
+  27  |  * Needs: documents flag ON (`FF_DOCUMENTS=true`, globalSetup), Postgres + Redis
+  28  |  * up, this worktree's migrations applied, web app on E2E_BASE_URL built against
+  29  |  * NEXT_PUBLIC_API_URL. Step 3 waits for the lock to expire, so it runs only
+  30  |  * when the API server was started with a short TTL; with the defaults (2m TTL,
+  31  |  * 30s sweep) it is skipped and says why. The server env for the full run:
+  32  |  *
+  33  |  *   DOCUMENT_EDIT_LOCK_TTL=20s
+  34  |  *   DOCUMENT_EDIT_LOCK_HEARTBEAT=5s
+  35  |  *   DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s
+  36  |  *
+  37  |  * (HEARTBEAT must stay at most half the TTL or the server refuses to start.)
+  38  |  * The short heartbeat also keeps step 6 quick: the first tab learns that the
+  39  |  * lock moved at its next heartbeat.
+  40  |  */
+  41  | test.describe.configure({ timeout: 360_000 });
+  42  | 
+  43  | const api = e2eApiUrl;
+  44  | const stamp = Date.now();
+  45  | /** The longest TTL step 3 waits out; the default 2m is skipped, not waited. */
+  46  | const SHORT_TTL_MAX_MS = 30_000;
+  47  | /** The heartbeat the server answers with the defaults (step 6 waits one of them). */
+  48  | const DEFAULT_HEARTBEAT_MS = 30_000;
+  49  | 
+  50  | let owner: RecordingAccount;
+  51  | let memberA: ApiUser;
+  52  | let memberB: ApiUser;
+  53  | // registerApiUser / createRecordingAccount use the tag as the display name.
+  54  | const ownerName = `lock-mgr-${stamp}`;
+  55  | const nameA = `lock-a-${stamp}`;
+  56  | const nameB = `lock-b-${stamp}`;
+  57  | 
+  58  | const opened: BrowserContext[] = [];
+  59  | 
+  60  | function authHeader(token: string): Record<string, string> {
+  61  |   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
+  62  | }
+  63  | 
+  64  | function pageContent(text: string) {
+  65  |   return { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] };
+  66  | }
+  67  | 
+  68  | test.beforeAll(async ({ browser }) => {
+  69  |   const page = await browser.newPage();
+  70  |   try {
+  71  |     owner = await createRecordingAccount(page, api, ownerName);
+  72  |     memberA = await registerApiUser(page, api, nameA);
+  73  |     await joinWorkspaceAsMember(page, api, owner.token, owner.wsId, memberA);
+  74  |     memberB = await registerApiUser(page, api, nameB);
+  75  |     await joinWorkspaceAsMember(page, api, owner.token, owner.wsId, memberB);
+  76  |   } finally {
+  77  |     await page.close();
+  78  |   }
+  79  | });
+  80  | 
+  81  | test.afterEach(async () => {
+  82  |   for (const ctx of opened.splice(0)) await ctx.close().catch(() => undefined);
+  83  | });
+  84  | 
+  85  | /** A workspace-visible page every member may edit; returns its id and app path. */
+  86  | async function createLockPage(page: Page, title: string, text: string): Promise<{ id: string; path: string }> {
+  87  |   const created = await page.request.post(`${api}/api/v1/workspaces/${owner.wsId}/documents`, {
+  88  |     headers: authHeader(owner.token),
+  89  |     data: { kind: "page", title, visibility: "workspace", content: pageContent(text) },
+  90  |   });
+  91  |   expect(created.ok(), `create page: HTTP ${created.status()} ${await created.text()}`).toBeTruthy();
+  92  |   const id = ((await created.json()) as { document: { id: string } }).document.id;
+  93  |   return { id, path: `/${owner.orgSlug}/${owner.wsSlug}/documents/${id}` };
+  94  | }
+  95  | 
+  96  | /** A fresh browser (own cookies, own session) signed in as `email`. */
+  97  | async function signedIn(browser: Browser, email: string): Promise<{ ctx: BrowserContext; page: Page }> {
+  98  |   const ctx = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
+  99  |   opened.push(ctx);
+  100 |   const page = await ctx.newPage();
+  101 |   await page.setViewportSize({ width: 1440, height: 900 });
+  102 |   await loginViaUi(page, email);
+  103 |   return { ctx, page };
+  104 | }
+  105 | 
+  106 | function surface(page: Page) {
+  107 |   return page.getByRole("textbox", { name: "Nội dung tài liệu" });
+  108 | }
+  109 | 
+  110 | function lockBanner(page: Pag===== e2e/test-results/document-edit-lock-a-manag-1f451--downloads-the-unsaved-text/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: document-edit-lock.spec.ts >> a manager takes over: A turns read-only and downloads the unsaved text
+- Location: document-edit-lock.spec.ts:237:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator:  getByRole('textbox', { name: 'Nội dung tài liệu' })
+Expected: "true"
+Received: "false"
+Timeout:  60000ms
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 60000ms
+  - waiting for getByRole('textbox', { name: 'Nội dung tài liệu' })
+    122 × locator resolved to <div role="textbox" translate="no" aria-multiline="true" contenteditable="false" aria-label="Nội dung tài liệu" class="tiptap ProseMirror rich-text-editor document-page-prose min-h-64 text-body leading-relaxed">…</div>
+        - unexpected value "false"
+
+```
+
+```yaml
+- textbox "Nội dung tài liệu":
+  - paragraph: Bản đầu của bước bốn
+```
+
+# Test source
+
+```ts
+  16  |  * edits a document at a time, on the real stack with two (or three) browser
+  17  |  * contexts. The organization owner is the manager; A and B are workspace
+  18  |  * members with `edit` on a workspace-visible page.
+  19  |  *
+  20  |  *   1. A edits -> B reads only, names A and the time; B's save over the API -> 423.
+  21  |  *   2. A closes the editor -> B gets "Sửa ngay" without a reload and types.
+  22  |  *   3. A's tab dies without releasing -> after the TTL B can edit.
+  23  |  *   4. The manager takes over -> A turns read-only and downloads the unsaved text.
+  24  |  *   5. B requests -> A saves and hands over -> B edits.
+  25  |  *   6. Same user, two tabs -> the second offers "Sửa ở đây" and takes the lock.
+  26  |  *
+  27  |  * Needs: documents flag ON (`FF_DOCUMENTS=true`, globalSetup), Postgres + Redis
+  28  |  * up, this worktree's migrations applied, web app on E2E_BASE_URL built against
+  29  |  * NEXT_PUBLIC_API_URL. Step 3 waits for the lock to expire, so it runs only
+  30  |  * when the API server was started with a short TTL; with the defaults (2m TTL,
+  31  |  * 30s sweep) it is skipped and says why. The server env for the full run:
+  32  |  *
+  33  |  *   DOCUMENT_EDIT_LOCK_TTL=20s
+  34  |  *   DOCUMENT_EDIT_LOCK_HEARTBEAT=5s
+  35  |  *   DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s
+  36  |  *
+  37  |  * (HEARTBEAT must stay at most half the TTL or the server refuses to start.)
+  38  |  * The short heartbeat also keeps step 6 quick: the first tab learns that the
+  39  |  * lock moved at its next heartbeat.
+  40  |  */
+  41  | test.describe.configure({ timeout: 360_000 });
+  42  | 
+  43  | const api = e2eApiUrl;
+  44  | const stamp = Date.now();
+  45  | /** The longest TTL step 3 waits out; the default 2m is skipped, not waited. */
+  46  | const SHORT_TTL_MAX_MS = 30_000;
+  47  | /** The heartbeat the server answers with the defaults (step 6 waits one of them). */
+  48  | const DEFAULT_HEARTBEAT_MS = 30_000;
+  49  | 
+  50  | let owner: RecordingAccount;
+  51  | let memberA: ApiUser;
+  52  | let memberB: ApiUser;
+  53  | // registerApiUser / createRecordingAccount use the tag as the display name.
+  54  | const ownerName = `lock-mgr-${stamp}`;
+  55  | const nameA = `lock-a-${stamp}`;
+  56  | const nameB = `lock-b-${stamp}`;
+  57  | 
+  58  | const opened: BrowserContext[] = [];
+  59  | 
+  60  | function authHeader(token: string): Record<string, string> {
+  61  |   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
+  62  | }
+  63  | 
+  64  | function pageContent(text: string) {
+  65  |   return { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] };
+  66  | }
+  67  | 
+  68  | test.beforeAll(async ({ browser }) => {
+  69  |   const page = await browser.newPage();
+  70  |   try {
+  71  |     owner = await createRecordingAccount(page, api, ownerName);
+  72  |     memberA = await registerApiUser(page, api, nameA);
+  73  |     await joinWorkspaceAsMember(page, api, owner.token, owner.wsId, memberA);
+  74  |     memberB = await registerApiUser(page, api, nameB);
+  75  |     await joinWorkspaceAsMember(page, api, owner.token, owner.wsId, memberB);
+  76  |   } finally {
+  77  |     await page.close();
+  78  |   }
+  79  | });
+  80  | 
+  81  | test.afterEach(async () => {
+  82  |   for (const ctx of opened.splice(0)) await ctx.close().catch(() => undefined);
+  83  | });
+  84  | 
+  85  | /** A workspace-visible page every member may edit; returns its id and app path. */
+  86  | async function createLockPage(page: Page, title: string, text: string): Promise<{ id: string; path: string }> {
+  87  |   const created = await page.request.post(`${api}/api/v1/workspaces/${owner.wsId}/documents`, {
+  88  |     headers: authHeader(owner.token),
+  89  |     data: { kind: "page", title, visibility: "workspace", content: pageContent(text) },
+  90  |   });
+  91  |   expect(created.ok(), `create page: HTTP ${created.status()} ${await created.text()}`).toBeTruthy();
+  92  |   const id = ((await created.json()) as { document: { id: string } }).document.id;
+  93  |   return { id, path: `/${owner.orgSlug}/${owner.wsSlug}/documents/${id}` };
+  94  | }
+  95  | 
+  96  | /** A fresh browser (own cookies, own session) signed in as `email`. */
+  97  | async function signedIn(browser: Browser, email: string): Promise<{ ctx: BrowserContext; page: Page }> {
+  98  |   const ctx = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
+  99  |   opened.push(ctx);
+  100 |   const page = await ctx.newPage();
+  101 |   await page.setViewportSize({ width: 1440, height: 900 });
+  102 |   await loginViaUi(page, email);
+  103 |   return { ctx, page };
+  104 | }
+  105 | 
+  106 | function surface(page: Page) {
+  107 |   return page.getByRole("textbox", { name: "Nội dung tài liệu" });
+  108 | }
+  109 | 
+  110 | function lockBanner(page: Page) {
+  111 |   retur===== e2e/test-results/document-edit-lock-A-s-tab-f4694-ng-after-the-TTL-B-can-edit/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: document-edit-lock.spec.ts >> A's tab dies without releasing: after the TTL B can edit
+- Location: document-edit-lock.spec.ts:203:1
+
+# Error details
+
+```
+Test timeout of 360000ms exceeded.
+```
+
+```
+Error: page.waitForResponse: Target page, context or browser has been closed
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org lock-mgr-1792178287203, WS lock-mgr-1792178287203: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org lock-mgr-1792178287203" [ref=f1e14]
+              - generic "WS lock-mgr-1792178287203" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792178287378/rec-ws-1792178287378
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792178287378/rec-ws-1792178287378/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792178287378/rec-ws-1792178287378/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "lock-a-1792178287203, lock-a-1792178287203-1792178287505@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: L
+            - generic [ref=f1e112]:
+              - generic "lock-a-1792178287203" [ref=f1e113]
+              - generic "lock-a-1792178287203-1792178287505@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Thông báo" [ref=f1e124] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e125] [cursor=pointer]
+          - button "Giao diện" [ref=f1e126] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e127] [cursor=pointer]
+      - generic [ref=f1e131]:
+        - generic [ref=f1e132]:
+          - button "Về thư viện tài liệu" [ref=f1e133] [cursor=pointer]
+          - generic [ref=f1e134]:
+            - link "Tài liệu" [ref=f1e135] [cursor=pointer]:
+              - /url: /rec-org-1792178287378/rec-ws-1792178287378/documents
+            - generic [ref=f1e138]: Khóa sửa 3 1792178287203
+          - generic [ref=f1e139]:
+            - generic [ref=f1e140]:
+              - button "Thêm vào yêu thích" [ref=f1e141] [cursor=pointer]
+              - button "Thảo luận" [ref=f1e142] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e144] [cursor=pointer]
+        - status [ref=f1e145]:
+          - generic [ref=f1e149]: Bạn xem được bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.
+        - generic [ref=f1e151]:
+          - generic [ref=f1e152]:
+            - heading "Khóa sửa 3 1792178287203" [level=1] [ref=f1e153]
+            - generic [ref=f1e154]:
+              - time [ref=f1e155]: Cập nhật 19:18 bởi lock-mgr-1792178287203
+              - generic [ref=f1e156]: 0 bình luận
+          - generic [ref=f1e158]:
+            - textbox "Nội dung tài liệu" [ref=f1e160]:
+              - paragraph [ref=f1e161]: Bản đầu của bước ba
+            - status [ref=f1e162]
+  - status [ref=f1e163]
+  - region "Notifications alt+T"
+  - alert [ref=f1e164]
+```
+
+# Test source
+
+```ts
+  106 | function surface(page: Page) {
+  107 |   return page.getByRole("textbox", { name: "Nội dung tài liệu" });
+  108 | }
+  109 | 
+  110 | function lockBanner(page: Page) {
+  111 |   return page.getByTestId("edit-lock-banner");
+  112 | }
+  113===== e2e/test-results/document-edit-lock-B-requests-A-saves-and-hands-over-B-edits/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: document-edit-lock.spec.ts >> B requests: A saves and hands over, B edits
+- Location: document-edit-lock.spec.ts:290:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator:  getByRole('textbox', { name: 'Nội dung tài liệu' })
+Expected: "true"
+Received: "false"
+Timeout:  60000ms
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 60000ms
+  - waiting for getByRole('textbox', { name: 'Nội dung tài liệu' })
+    122 × locator resolved to <div role="textbox" translate="no" aria-multiline="true" contenteditable="false" aria-label="Nội dung tài liệu" class="tiptap ProseMirror rich-text-editor document-page-prose min-h-64 text-body leading-relaxed">…</div>
+        - unexpected value "false"
+
+```
+
+```yaml
+- textbox "Nội dung tài liệu":
+  - paragraph: Bản đầu của bước năm
+```
+
+# Test source
+
+```ts
+  16  |  * edits a document at a time, on the real stack with two (or three) browser
+  17  |  * contexts. The organization owner is the manager; A and B are workspace
+  18  |  * members with `edit` on a workspace-visible page.
+  19  |  *
+  20  |  *   1. A edits -> B reads only, names A and the time; B's save over the API -> 423.
+  21  |  *   2. A closes the editor -> B gets "Sửa ngay" without a reload and types.
+  22  |  *   3. A's tab dies without releasing -> after the TTL B can edit.
+  23  |  *   4. The manager takes over -> A turns read-only and downloads the unsaved text.
+  24  |  *   5. B requests -> A saves and hands over -> B edits.
+  25  |  *   6. Same user, two tabs -> the second offers "Sửa ở đây" and takes the lock.
+  26  |  *
+  27  |  * Needs: documents flag ON (`FF_DOCUMENTS=true`, globalSetup), Postgres + Redis
+  28  |  * up, this worktree's migrations applied, web app on E2E_BASE_URL built against
+  29  |  * NEXT_PUBLIC_API_URL. Step 3 waits for the lock to expire, so it runs only
+  30  |  * when the API server was started with a short TTL; with the defaults (2m TTL,
+  31  |  * 30s sweep) it is skipped and says why. The server env for the full run:
+  32  |  *
+  33  |  *   DOCUMENT_EDIT_LOCK_TTL=20s
+  34  |  *   DOCUMENT_EDIT_LOCK_HEARTBEAT=5s
+  35  |  *   DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s
+  36  |  *
+  37  |  * (HEARTBEAT must stay at most half the TTL or the server refuses to start.)
+  38  |  * The short heartbeat also keeps step 6 quick: the first tab learns that the
+  39  |  * lock moved at its next heartbeat.
+  40  |  */
+  41  | test.describe.configure({ timeout: 360_000 });
+  42  | 
+  43  | const api = e2eApiUrl;
+  44  | const stamp = Date.now();
+  45  | /** The longest TTL step 3 waits out; the default 2m is skipped, not waited. */
+  46  | const SHORT_TTL_MAX_MS = 30_000;
+  47  | /** The heartbeat the server answers with the defaults (step 6 waits one of them). */
+  48  | const DEFAULT_HEARTBEAT_MS = 30_000;
+  49  | 
+  50  | let owner: RecordingAccount;
+  51  | let memberA: ApiUser;
+  52  | let memberB: ApiUser;
+  53  | // registerApiUser / createRecordingAccount use the tag as the display name.
+  54  | const ownerName = `lock-mgr-${stamp}`;
+  55  | const nameA = `lock-a-${stamp}`;
+  56  | const nameB = `lock-b-${stamp}`;
+  57  | 
+  58  | const opened: BrowserContext[] = [];
+  59  | 
+  60  | function authHeader(token: string): Record<string, string> {
+  61  |   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
+  62  | }
+  63  | 
+  64  | function pageContent(text: string) {
+  65  |   return { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] };
+  66  | }
+  67  | 
+  68  | test.beforeAll(async ({ browser }) => {
+  69  |   const page = await browser.newPage();
+  70  |   try {
+  71  |     owner = await createRecordingAccount(page, api, ownerName);
+  72  |     memberA = await registerApiUser(page, api, nameA);
+  73  |     await joinWorkspaceAsMember(page, api, owner.token, owner.wsId, memberA);
+  74  |     memberB = await registerApiUser(page, api, nameB);
+  75  |     await joinWorkspaceAsMember(page, api, owner.token, owner.wsId, memberB);
+  76  |   } finally {
+  77  |     await page.close();
+  78  |   }
+  79  | });
+  80  | 
+  81  | test.afterEach(async () => {
+  82  |   for (const ctx of opened.splice(0)) await ctx.close().catch(() => undefined);
+  83  | });
+  84  | 
+  85  | /** A workspace-visible page every member may edit; returns its id and app path. */
+  86  | async function createLockPage(page: Page, title: string, text: string): Promise<{ id: string; path: string }> {
+  87  |   const created = await page.request.post(`${api}/api/v1/workspaces/${owner.wsId}/documents`, {
+  88  |     headers: authHeader(owner.token),
+  89  |     data: { kind: "page", title, visibility: "workspace", content: pageContent(text) },
+  90  |   });
+  91  |   expect(created.ok(), `create page: HTTP ${created.status()} ${await created.text()}`).toBeTruthy();
+  92  |   const id = ((await created.json()) as { document: { id: string } }).document.id;
+  93  |   return { id, path: `/${owner.orgSlug}/${owner.wsSlug}/documents/${id}` };
+  94  | }
+  95  | 
+  96  | /** A fresh browser (own cookies, own session) signed in as `email`. */
+  97  | async function signedIn(browser: Browser, email: string): Promise<{ ctx: BrowserContext; page: Page }> {
+  98  |   const ctx = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
+  99  |   opened.push(ctx);
+  100 |   const page = await ctx.newPage();
+  101 |   await page.setViewportSize({ width: 1440, height: 900 });
+  102 |   await loginViaUi(page, email);
+  103 |   return { ctx, page };
+  104 | }
+  105 | 
+  106 | function surface(page: Page) {
+  107 |   return page.getByRole("textbox", { name: "Nội dung tài liệu" });
+  108 | }
+  109 | 
+  110 | function lockBanner(page: Page) {
+  111 |   return page.getByTestId("edit-loc===== e2e/test-results/document-edit-lock-same-us-591f7-nd-the-first-goes-read-only/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: document-edit-lock.spec.ts >> same user, two tabs: the second offers Edit here and the first goes read-only
+- Location: document-edit-lock.spec.ts:321:1
+
+# Error details
+
+```
+Test timeout of 360000ms exceeded.
+```
+
+```
+Error: page.waitForResponse: Target page, context or browser has been closed
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org lock-mgr-1792178775136, WS lock-mgr-1792178775136: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org lock-mgr-1792178775136" [ref=f1e14]
+              - generic "WS lock-mgr-1792178775136" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792178775266/rec-ws-1792178775266
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792178775266/rec-ws-1792178775266/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792178775266/rec-ws-1792178775266/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "lock-a-1792178775136, lock-a-1792178775136-1792178775396@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: L
+            - generic [ref=f1e112]:
+              - generic "lock-a-1792178775136" [ref=f1e113]
+              - generic "lock-a-1792178775136-1792178775396@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Thông báo" [ref=f1e124] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e125] [cursor=pointer]
+          - button "Giao diện" [ref=f1e126] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e127] [cursor=pointer]
+      - generic [ref=f1e131]:
+        - generic [ref=f1e132]:
+          - button "Về thư viện tài liệu" [ref=f1e133] [cursor=pointer]
+          - generic [ref=f1e134]:
+            - link "Tài liệu" [ref=f1e135] [cursor=pointer]:
+              - /url: /rec-org-1792178775266/rec-ws-1792178775266/documents
+            - generic [ref=f1e138]: Khóa sửa 6 1792178775136
+          - generic [ref=f1e139]:
+            - generic [ref=f1e140]:
+              - button "Thêm vào yêu thích" [ref=f1e141] [cursor=pointer]
+              - button "Thảo luận" [ref=f1e142] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e144] [cursor=pointer]
+        - status [ref=f1e145]:
+          - generic [ref=f1e149]: Bạn xem được bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.
+        - generic [ref=f1e151]:
+          - generic [ref=f1e152]:
+            - heading "Khóa sửa 6 1792178775136" [level=1] [ref=f1e153]
+            - generic [ref=f1e154]:
+              - time [ref=f1e155]: Cập nhật 19:26 bởi lock-mgr-1792178775136
+              - generic [ref=f1e156]: 0 bình luận
+          - generic [ref=f1e158]:
+            - textbox "Nội dung tài liệu" [ref=f1e160]:
+              - paragraph [ref=f1e161]: Bản đầu của bước sáu
+            - status [ref=f1e162]
+  - status [ref=f1e163]
+  - region "Notifications alt+T"
+  - alert [ref=f1e164]
+```
+
+# Test source
+
+```ts
+  224 |   // The tab dies: offline first, so neither the pagehide release nor a heartbeat gets out.
+  225 |   await a.ctx.setOffline(true);
+  226 |   await a.ctx.close();
+  227 | 
+  228 |   const banner = lockBanner(b.page);
+  no passing test in document-edit-lock.spec.ts
+
+E2E_EDIT_LOCK_EXIT=1

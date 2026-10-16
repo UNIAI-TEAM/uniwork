@@ -1,0 +1,14 @@
+$ git rev-parse HEAD; git log --oneline -12
+599326f60e653f3a1bc2cdb2733b9a293aec7fcb
+599326f60 chore: merge the edit-lock server lane (root 549906774) into the web lane
+dd413ffe6 chore: merge root 549906774 into the edit-lock server lane
+549906774 fix(documents): unescape the source file id in its routes
+48da0e754 test(documents): edit-lock fixtures create workspace-visible documents after SH-S1
+9bf690164 fix(documents): R7-1 live request caption on the holder's prompt
+857095856 fix(documents): V4-1 dark contrast of 'Yêu cầu lại' on the muted edit-lock banner
+1a69b0647 chore: merge SRC-01 (UNI-1814, da241952b) into the G5-G7 root
+da241952b Merge commit '7d27601f7' into feature/UNI-1814-src-01-chat-source-room
+7d27601f7 fix(core): clear the email-hub hooks lint from the develop sync
+75ef05d0d Merge commit 'b4bc3089e' into feature/UNI-1814-src-01-chat-source-room
+2930028ec fix(chat): clear the jump highlight when the message never shows
+b4bc3089e chore: merge STAR-01 (UNI-1796, a52aa8bc7) into the G5-G7 root
