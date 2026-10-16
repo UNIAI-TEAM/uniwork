@@ -1,5 +1,7 @@
 "use client";
 
+import { DEMO_PROFILE } from "./product-demo-data";
+
 import { useContext, useRef, useState, type KeyboardEvent, type ReactNode, type RefCallback } from "react";
 import { createPortal } from "react-dom";
 import { Inbox, SearchX } from "lucide-react";
@@ -78,7 +80,7 @@ function EmailWorkspace({ step }: { step?: number }) {
     const id = draft?.id ?? compose?.id ?? `demo-outbox-${++sequence.current}`;
     setCompose(null);
     if (!draft) { setOutbox(value => value.filter(row => row.id !== id)); setDrafts(value => { const next = { ...value }; delete next[id]; return next; }); return; }
-    const row: EmailHubThread = { id, account_id: DEMO_MAILBOX.id, folder: destination, subject: draft.subject || t("email_hub.no_subject"), snippet: draft.body, body_text: draft.body, from_name: "Đạt Đặng", from_addr: DEMO_MAILBOX.email_address, to_addrs: draft.to, sent_at: sendAt ?? new Date().toISOString(), is_read: true, is_starred: false, body_cached: true, has_attachments: draft.attachments.length > 0, attachments: draft.attachments.map(att => ({ id: att.id, filename: att.file.name, mime_type: att.file.type, size_bytes: att.file.size })), imap_labels: [] };
+    const row: EmailHubThread = { id, account_id: DEMO_MAILBOX.id, folder: destination, subject: draft.subject || t("email_hub.no_subject"), snippet: draft.body, body_text: draft.body, from_name: DEMO_PROFILE.name, from_addr: DEMO_MAILBOX.email_address, to_addrs: draft.to, sent_at: sendAt ?? new Date().toISOString(), is_read: true, is_starred: false, body_cached: true, has_attachments: draft.attachments.length > 0, attachments: draft.attachments.map(att => ({ id: att.id, filename: att.file.name, mime_type: att.file.type, size_bytes: att.file.size })), imap_labels: [] };
     setOutbox(value => [...value.filter(item => item.id !== id), row]);
     setDrafts(value => { const next = { ...value }; if (destination === "DRAFTS") next[id] = draft; else delete next[id]; return next; });
     setNotice(t(destination === "DRAFTS" ? "landing.productDemo.email.draftSaved" : "landing.productDemo.email.sentLocally"));
