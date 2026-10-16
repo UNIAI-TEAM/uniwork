@@ -659,6 +659,230 @@ func TestDocumentPurge(t *testing.T) {
 	})
 }
 
+func TestDocumentManualPurge(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "mp")
+	admin := Human(tn.wsAdmin.ID)
+	u := Human(tn.member.ID)
+
+	t.Run("PG-1: manual purge removes all dependent rows, releases blobs, and records manual_purge audit and outbox", func(t *testing.T) {
+		spy := &releaseSpy{}
+		f.svc.SetFiles(spy)
+
+		doc := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindPage, title: "Tài liệu xóa hẳn",
+		})
+		f.version(t, doc, 1, "auto", "f-mp-v1")
+		assetID := util.NewID()
+		insertRow(t, f.ctx, f.pool, "document_assets", map[string]any{
+			"id": assetID, "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"document_id": doc.ID, "file_id": "f-mp-asset", "mime_type": "image/png", "size_bytes": 10,
+			"created_by": tn.member.ID, "created_by_kind": "human",
+		})
+		f.share(t, doc, DocumentPrincipalUser, tn.aclOwner.ID, DocumentLevelView, tn.member.ID)
+		insertRow(t, f.ctx, f.pool, "document_share_links", map[string]any{
+			"id": util.NewID(), "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"document_id": doc.ID, "token_hash": "hash-" + util.NewID(),
+			"expires_at": time.Now().Add(24 * time.Hour),
+			"created_by": tn.member.ID, "created_by_kind": "human",
+		})
+		insertRow(t, f.ctx, f.pool, "document_access_logs", map[string]any{
+			"id": util.NewID(), "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"document_id": doc.ID, "actor_id": tn.member.ID, "actor_kind": "human",
+			"action": "view", "via": "member", "correlation_id": "corr-" + util.NewID(),
+		})
+		c, err := f.svc.AddDocumentComment(f.ctx, u, doc.ID, AddCommentInput{Body: "Bình luận gốc"}, "")
+		if err != nil {
+			t.Fatalf("AddDocumentComment: %v", err)
+		}
+		commentID := c.ID
+		if _, err := f.svc.UpdateDocumentComment(f.ctx, u, commentID, UpdateCommentInput{Body: "Bình luận sửa"}); err != nil {
+			t.Fatalf("UpdateDocumentComment: %v", err)
+		}
+		if _, err := f.svc.AddDocumentCommentReaction(f.ctx, u, commentID, "👍"); err != nil {
+			t.Fatalf("AddDocumentCommentReaction: %v", err)
+		}
+		insertRow(t, f.ctx, f.pool, "document_comment_mentions", map[string]any{
+			"id": util.NewID(), "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"document_id": doc.ID, "comment_id": commentID, "user_id": tn.aclOwner.ID,
+			"state": "active", "created_by": tn.member.ID, "created_by_kind": "human",
+		})
+		insertRow(t, f.ctx, f.pool, "document_favorites", map[string]any{
+			"id": util.NewID(), "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"document_id": doc.ID, "user_id": tn.member.ID,
+			"created_by": tn.member.ID, "created_by_kind": "human",
+		})
+
+		if _, err := f.svc.ArchiveDocument(f.ctx, u, doc.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("archive doc: %v", err)
+		}
+
+		tables := []struct {
+			name  string
+			query string
+			arg   string
+		}{
+			{"document_versions", `SELECT count(*) FROM document_versions WHERE document_id = $1`, doc.ID},
+			{"document_assets", `SELECT count(*) FROM document_assets WHERE document_id = $1`, doc.ID},
+			{"document_shares", `SELECT count(*) FROM document_shares WHERE document_id = $1`, doc.ID},
+			{"document_share_links", `SELECT count(*) FROM document_share_links WHERE document_id = $1`, doc.ID},
+			{"document_access_logs", `SELECT count(*) FROM document_access_logs WHERE document_id = $1`, doc.ID},
+			{"comment_reactions", `SELECT count(*) FROM comment_reactions WHERE comment_id = $1`, commentID},
+			{"document_comment_mentions", `SELECT count(*) FROM document_comment_mentions WHERE document_id = $1`, doc.ID},
+			{"document_comment_revisions", `SELECT count(*) FROM document_comment_revisions WHERE document_id = $1`, doc.ID},
+			{"document_comments", `SELECT count(*) FROM document_comments WHERE document_id = $1`, doc.ID},
+			{"document_favorites", `SELECT count(*) FROM document_favorites WHERE document_id = $1`, doc.ID},
+			{"documents", `SELECT count(*) FROM documents WHERE id = $1`, doc.ID},
+		}
+		for _, tc := range tables {
+			var n int
+			if err := f.pool.QueryRow(f.ctx, tc.query, tc.arg).Scan(&n); err != nil || n == 0 {
+				t.Fatalf("before purge %s count = %d, err = %v (want > 0)", tc.name, n, err)
+			}
+		}
+
+		purged, err := f.svc.PurgeDocument(f.ctx, u, doc.ID)
+		if err != nil {
+			t.Fatalf("PurgeDocument: %v", err)
+		}
+		if len(purged) != 1 || purged[0] != doc.ID {
+			t.Fatalf("purged = %v, want [%s]", purged, doc.ID)
+		}
+
+		for _, tc := range tables {
+			var n int
+			if err := f.pool.QueryRow(f.ctx, tc.query, tc.arg).Scan(&n); err != nil || n != 0 {
+				t.Fatalf("after purge %s count = %d, err = %v (want 0)", tc.name, n, err)
+			}
+		}
+		if got := spy.releasedIDs(); len(got) != 2 {
+			t.Fatalf("released blobs = %v, want 2 ids (f-mp-v1, f-mp-asset)", got)
+		}
+		var manualPurge bool
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT COALESCE((metadata::jsonb->>'manual_purge')::boolean, false) FROM audit_events
+			 WHERE action = 'document.deleted' AND resource_id = $1 AND actor_id = $2`,
+			doc.ID, tn.member.ID).Scan(&manualPurge); err != nil || !manualPurge {
+			t.Fatalf("audit manual_purge = %v, err = %v, want true", manualPurge, err)
+		}
+		var outboxCount int
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT count(*) FROM outbox_events WHERE topic = 'document.deleted' AND payload::jsonb->>'document_id' = $1`,
+			doc.ID).Scan(&outboxCount); err != nil || outboxCount != 1 {
+			t.Fatalf("outbox document.deleted count = %d, err = %v, want 1", outboxCount, err)
+		}
+	})
+
+	t.Run("PG-2: edit holder gets 403, invisible gets 404, live document gets 400 document_not_in_trash, over bound gets 400 folder_too_large", func(t *testing.T) {
+		f.svc.SetFiles(&releaseSpy{})
+		liveDoc := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+		})
+		_, err := f.svc.PurgeDocument(f.ctx, u, liveDoc.ID)
+		ce := wantCode(t, err, "document_not_in_trash")
+		if ce.Status != 400 {
+			t.Fatalf("document_not_in_trash status = %d, want 400", ce.Status)
+		}
+
+		trashed := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, archived: true,
+		})
+		if _, err := f.svc.PurgeDocument(f.ctx, u, trashed.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("invisible purge = %v, want ErrNotFound (404)", err)
+		}
+		f.share(t, trashed, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
+		if _, err := f.svc.PurgeDocument(f.ctx, u, trashed.ID); !errors.Is(err, ErrForbidden) {
+			t.Fatalf("edit holder purge = %v, want ErrForbidden (403)", err)
+		}
+
+		// Bound check: > archiveBound returns 400 folder_too_large.
+		root := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindFolder,
+		})
+		f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			parent: root.ID,
+		})
+		if _, err := f.svc.ArchiveDocument(f.ctx, u, root.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		f.svc.archiveMaxNodes = 1
+		defer func() { f.svc.archiveMaxNodes = 0 }()
+		_, err = f.svc.PurgeDocument(f.ctx, u, root.ID)
+		ce = wantCode(t, err, "folder_too_large")
+		if ce.Status != 400 {
+			t.Fatalf("purge folder_too_large status = %d, want 400", ce.Status)
+		}
+		f.liveArchived(t, root.ID)
+	})
+
+	t.Run("PG-3: unmanaged descendant stays in trash on folder purge and re-roots to workspace root when later restored", func(t *testing.T) {
+		f.svc.SetFiles(&releaseSpy{})
+		folderF := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindFolder, title: "Thư mục PG3",
+		})
+		managedChild := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindPage, title: "Con của U", parent: folderF.ID,
+		})
+		unmanagedChild := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Con của người khác", parent: folderF.ID,
+		})
+
+		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("admin archive F: %v", err)
+		}
+
+		purged, err := f.svc.PurgeDocument(f.ctx, u, folderF.ID)
+		if err != nil {
+			t.Fatalf("U purge F: %v", err)
+		}
+		if len(purged) != 2 {
+			t.Fatalf("purged = %v, want 2 (F and managedChild)", purged)
+		}
+		for _, id := range []string{folderF.ID, managedChild.ID} {
+			if _, err := f.q.GetDocumentByID(f.ctx, id); err == nil {
+				t.Fatalf("expected %s to be hard-deleted", id)
+			}
+		}
+		f.liveArchived(t, unmanagedChild.ID)
+
+		// Now aclOwner restores unmanagedChild: since folderF was purged, unmanagedChild detaches to workspace root.
+		res, err := f.svc.RestoreDocument(f.ctx, Human(tn.aclOwner.ID), unmanagedChild.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("aclOwner restore unmanagedChild: %v", err)
+		}
+		if res.View.Document.ParentID.Valid {
+			t.Fatalf("restored unmanagedChild parent = %v, want NULL (workspace root)", res.View.Document.ParentID)
+		}
+	})
+
+	t.Run("PG-4: PurgeExpired still purges expired rows via shared hardDeleteDocumentTx", func(t *testing.T) {
+		spy := &releaseSpy{}
+		f.svc.SetFiles(spy)
+		past := time.Now().Add(-time.Hour)
+		expired := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			archived: true, purgeAfter: past,
+		})
+		f.version(t, expired, 1, "auto", "f-pg4-exp")
+		rep, err := f.svc.PurgeExpired(f.ctx, time.Now())
+		if err != nil {
+			t.Fatalf("PurgeExpired: %v", err)
+		}
+		if rep.Purged < 1 {
+			t.Fatalf("PurgeExpired = %+v, want at least 1 purged", rep)
+		}
+		if _, err := f.q.GetDocumentByID(f.ctx, expired.ID); err == nil {
+			t.Fatal("expired document still exists after PurgeExpired")
+		}
+	})
+}
+
 // liveArchived asserts the row exists AND is still in the trash.
 func (f *docPermFixture) liveArchived(t *testing.T, id string) {
 	t.Helper()

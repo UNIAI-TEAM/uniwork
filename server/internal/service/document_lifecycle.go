@@ -68,6 +68,16 @@ func errFolderTooLarge() error {
 		"thư mục có quá nhiều mục để lưu trữ một lần (tối đa 1000): hãy lưu trữ từng phần")
 }
 
+func errPurgeFolderTooLarge() error {
+	return coded(http.StatusBadRequest, "folder_too_large",
+		"thư mục có quá nhiều mục để xóa vĩnh viễn một lần (tối đa 1000): hãy xóa từng phần")
+}
+
+func errDocumentNotInTrash() error {
+	return coded(http.StatusBadRequest, "document_not_in_trash",
+		"tài liệu không nằm trong thùng rác")
+}
+
 // requireManageOnSubtree refuses (ErrForbidden) unless the actor holds manage
 // on every live node of the subtree. One query names the nodes a human actor
 // does not trivially manage (workspace owner/admin, ACL owner, a user or
@@ -709,7 +719,10 @@ func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
 	if isMyFolder(doc) {
 		return errMyFolderLocked()
 	}
-	return decideDocumentAdminister(doc, access)
+	if !access.canAdminister() {
+		return ErrForbidden
+	}
+	return nil
 }
 
 // pristineCopyCleanup is the one archive that does not need manage: the
@@ -992,6 +1005,80 @@ func (s *DocumentService) RestoreOwnedDocumentInTx(ctx context.Context, q *db.Qu
 	return true, nil
 }
 
+// PurgeDocument permanently deletes an archived document and its same-batch,
+// still-trashed descendants that the caller holds manage on (RESTORE-01 §2).
+// Unmanaged descendants stay in the trash and re-root to the workspace root if
+// restored later.
+func (s *DocumentService) PurgeDocument(ctx context.Context, actor Actor, documentID string) ([]string, error) {
+	if !validActor(actor) || documentID == "" {
+		return nil, ErrNotFound
+	}
+	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	if err := q.LockDocumentTree(ctx, doc.WorkspaceID); err != nil {
+		return nil, err
+	}
+	doc, err = q.LockDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	access, err := s.effectiveLevel(ctx, q, actor, doc)
+	if err != nil {
+		return nil, err
+	}
+	if err := decideArchiveRootAccess(doc, access); err != nil {
+		return nil, err
+	}
+	if !doc.ArchivedAt.Valid {
+		return nil, errDocumentNotInTrash()
+	}
+	members, err := s.managedArchivedSubtree(ctx, q, actor, doc)
+	if err != nil {
+		return nil, err
+	}
+	if len(members) > s.archiveBound() {
+		return nil, errPurgeFolderTooLarge()
+	}
+	purged := make([]string, 0, len(members))
+	for _, m := range members {
+		locked, err := q.LockDocumentByID(ctx, m.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !locked.ArchivedAt.Valid {
+			continue
+		}
+		deleted, _, err := s.hardDeleteDocumentTx(ctx, q, locked, actor)
+		if err != nil {
+			return nil, err
+		}
+		if deleted {
+			purged = append(purged, locked.ID)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return purged, nil
+}
+
 // --- Retention sweeps -----------------------------------------------------
 
 // DocumentPurgeReport is what one purge pass did.
@@ -1120,6 +1207,22 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 	if !doc.ArchivedAt.Valid || !doc.PurgeAfter.Valid || !doc.PurgeAfter.Time.Before(now) {
 		return false, 0, nil // restored or re-archived later while the scan was in flight
 	}
+	purged, released, err := s.hardDeleteDocumentTx(ctx, q, doc, audit.System("documents.purge"))
+	if err != nil || !purged {
+		return false, 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, 0, err
+	}
+	return true, released, nil
+}
+
+// hardDeleteDocumentTx deletes one locked archived document, every row of its
+// dependent orbit (versions, assets, shares, share links, access logs, comment
+// reactions/mentions/revisions/comments, favorites), releases its FileService
+// references, and records the document.deleted audit and outbox rows inside
+// the caller's transaction (RESTORE-01 §2 P-4/P-6).
+func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor) (bool, int, error) {
 	fileIDs, err := q.ListDocumentFileIDs(ctx, db.ListDocumentFileIDsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
@@ -1191,23 +1294,28 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 			released = append(released, files.FileID(id.String))
 		}
 	}
-	if err := s.files.ReleaseInTx(ctx, q, released); err != nil {
-		return false, 0, err
+	if s.files != nil {
+		if err := s.files.ReleaseInTx(ctx, q, released); err != nil {
+			return false, 0, err
+		}
+	} else if len(released) > 0 {
+		return false, 0, errors.New("documents: purge requires FileService")
+	}
+	meta := map[string]any{"archived_by": textOrNil(doc.ArchivedBy), "file_ids": len(released)}
+	if actor.Kind == audit.KindHuman {
+		meta["manual_purge"] = true
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
-		Actor:          audit.System("documents.purge"),
+		Actor:          actor,
 		Action:         audit.ActionDocumentDeleted,
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
-		Metadata:       map[string]any{"archived_by": textOrNil(doc.ArchivedBy), "file_ids": len(released)},
+		Metadata:       meta,
 	}, audit.Event{Topic: "document.deleted", Payload: map[string]string{
 		"document_id": doc.ID, "workspace_id": doc.WorkspaceID,
 	}}); err != nil {
-		return false, 0, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return false, 0, err
 	}
 	return true, len(released), nil
