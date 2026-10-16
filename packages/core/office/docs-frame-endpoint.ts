@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at 039c2223511bc389a8b311782a834b7636c6fad4
-// (fork lane feature/UNI-1413-g8-18-fork-fix at 039c22235; unchanged since the G5-03w re-vendor, SHA bumped with the protocol.)
+// web/docs/protocol/endpoint.ts at bf4ff7b07ee799b13375e0b63ad4798ff255ae05
+// (fork lockstep branch feature/UNI-1413-doc05-lockstep-fork at bf4ff7b07; unchanged since the G5-03w re-vendor, SHA bumped with the protocol.)
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /**
