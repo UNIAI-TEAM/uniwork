@@ -34,7 +34,7 @@ export function FeaturePage({ featureKey }: { featureKey: FeaturePageKey }) {
         <nav className="marketing-breadcrumb" aria-label={t("landing.productPages.breadcrumb")}><Link href={paths.features()}>{t("landing.productPages.product")}</Link><ChevronRight aria-hidden /><span>{t(feature.label)}</span></nav>
         <h1>{t(`${prefix}.title`)}</h1>
         <p>{t(`${prefix}.description`)}</p>
-        <div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link><Link href={`/#${feature.anchor}`} className={buttonVariants({ variant: "outline", size: "lg" })}><Play aria-hidden />{t("landing.productPages.watchDemo")}</Link></div>
+        <div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link><MarketingAnchor href="#feature-preview" className={buttonVariants({ variant: "outline", size: "lg" })}><Play aria-hidden />{t("landing.productPages.watchDemo")}</MarketingAnchor></div>
         <p className="marketing-scope">{t(feature.availability)}</p>
       </div>
       <div className="feature-page-art"><FeatureIllustration featureKey={featureKey} /><div className="feature-art-caption"><feature.icon aria-hidden /><strong>{t(feature.label)}</strong><span>{t("landing.featureVisuals.sample")}</span></div></div>

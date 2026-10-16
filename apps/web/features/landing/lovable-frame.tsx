@@ -42,16 +42,11 @@ export function LovableFrame({ feature, children, label, completed = false, play
   </div>;
 }
 
-/** A static marketing illustration shares the app geometry without playback or dialogs. */
-export function LovablePoster({ feature, children, label, completed = false }: { feature: ProductFeature; children: ReactNode; label: string; completed?: boolean }) {
-  return <FittedViewport feature={feature} label={label} expanded={false} completed={completed} focused={false}>{children}</FittedViewport>;
-}
-
-function FittedViewport({ feature, children, label, expanded, completed, focused = true, embedded = false }: { feature: ProductFeature; children: ReactNode; label: string; expanded: boolean; completed: boolean; focused?: boolean; embedded?: boolean }) {
+function FittedViewport({ feature, children, label, expanded, completed, embedded = false }: { feature: ProductFeature; children: ReactNode; label: string; expanded: boolean; completed: boolean; embedded?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [detail, setDetail] = useState(false);
-  const compact = useCompactPreview() && focused;
+  const compact = useCompactPreview();
   const copy = usePreviewLabels();
   useEffect(() => {
     const node = host.current;

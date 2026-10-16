@@ -7,7 +7,6 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { type ProductFeature } from "./showcase";
 import { usePreviewPlayback } from "./animation/use-preview-playback";
 import { useDemoItemMotion } from "./animation/use-demo-item-motion";
-import { LovablePoster } from "./lovable-frame";
 import { ProductTaskScene } from "./product-task-scene";
 import { ProductEmailPreview } from "./product-email-preview";
 import { ProductMeetingPreview } from "./product-meeting-preview";
@@ -84,9 +83,4 @@ export function ProductPlayback({ featureKey }: { featureKey: PlaybackFeature; o
   return <div ref={host} className={`product-playback product-current-${featureKey}-player`} data-feature-preview={featureKey} data-step={step} data-beat-count={beatCount} data-running={running} data-reduced={reduced} data-pressing={pressing}>
     <Suspense fallback={null}><Scene step={step} control={playbackControl} cursor={cursorContent} stageRef={attachStage} label={t(`landing.actionDemo.steps.${featureKey}${step}`)} /></Suspense>
   </div>;
-}
-
-export function TaskPoster() {
-  const { t } = useTranslation();
-  return <LovablePoster feature="tasks" label={`${t("landing.lovable.allTasks")} — ${t("landing.lovable.sample")}`} completed><ProductTaskScene step={6} /></LovablePoster>;
 }

@@ -50,6 +50,7 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, chi
   const search = useRef<HTMLInputElement>(null);
   const shell = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (shell.current?.closest("[inert]")) return;
     const handleKey = (event: KeyboardEvent) => {
       if (!shell.current?.contains(event.target as Node)) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); search.current?.focus(); }
