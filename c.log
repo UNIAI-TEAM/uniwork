@@ -1,0 +1,8 @@
+$ pnpm generate:reserved-slugs && git diff --exit-code -- packages/core/paths/reserved-slugs.ts; rc=$?; echo; echo "CI_RESERVED_SLUGS_EXIT=$rc"
+
+> uniwork@ generate:reserved-slugs /workspace
+> node scripts/generate-reserved-slugs.mjs
+
+wrote packages/core/paths/reserved-slugs.ts
+
+CI_RESERVED_SLUGS_EXIT=0
