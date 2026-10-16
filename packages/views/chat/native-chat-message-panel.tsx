@@ -117,6 +117,7 @@ export function NativeChatMessagePanel({
   const {
     data: latestRows = [],
     isPending: latestPending,
+    isRefetching: latestRefetching = false,
     hasNextPage: roomHasMore,
     isFetchingNextPage: roomLoadingOlder,
     fetchNextPage: fetchOlderRoomPage,
@@ -255,11 +256,16 @@ export function NativeChatMessagePanel({
   // and leave an open anchor window so the sent message is visible at the bottom.
   const timelineMessages = threadRoot && threadsEnabled ? messages : latestMessages;
   const lastTimelineMessage = timelineMessages[timelineMessages.length - 1];
-  const prevLastTimelineRef = useRef<{ roomId: string; id: string | undefined }>({ roomId, id: undefined });
+  const anchored = Boolean(anchorMessages);
+  const prevLastTimelineRef = useRef<{ roomId: string; anchored: boolean; id: string | undefined }>({
+    roomId,
+    anchored: false,
+    id: undefined,
+  });
   useEffect(() => {
     const prev = prevLastTimelineRef.current;
-    const prevId = prev.roomId === roomId ? prev.id : undefined;
-    prevLastTimelineRef.current = { roomId, id: lastTimelineMessage?.id };
+    const prevId = prev.roomId === roomId && prev.anchored === anchored ? prev.id : undefined;
+    prevLastTimelineRef.current = { roomId, anchored, id: latestRefetching ? undefined : lastTimelineMessage?.id };
     if (!lastTimelineMessage) return;
     const isPendingOrQueued =
       lastTimelineMessage.deliveryStatus === "sending" ||
@@ -268,13 +274,16 @@ export function NativeChatMessagePanel({
     const isOwnMessage = isPendingOrQueued || lastTimelineMessage.sender === currentUserId;
     if (!isOwnMessage) return;
     if (anchorMessages || activeAnchorId) {
-      if (prevId !== lastTimelineMessage.id && (isPendingOrQueued || prevId !== undefined)) {
+      if (
+        prevId !== lastTimelineMessage.id &&
+        (isPendingOrQueued || (anchored && !latestRefetching && prevId !== undefined))
+      ) {
         clearAnchor();
       }
       return;
     }
     stickToBottomRef.current = true;
-  }, [activeAnchorId, anchorMessages, clearAnchor, currentUserId, lastTimelineMessage, roomId]);
+  }, [activeAnchorId, anchorMessages, anchored, clearAnchor, currentUserId, lastTimelineMessage, latestRefetching, roomId]);
 
   useEffect(() => {
     stickToBottomRef.current = true;
@@ -334,11 +343,24 @@ export function NativeChatMessagePanel({
     };
   }, [activeAnchorId, roomId, t, workspaceId]);
 
+  const highlightTimerRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!highlightMessageId) return;
-    const timer = window.setTimeout(() => setHighlightMessageId(null), 2500);
-    return () => window.clearTimeout(timer);
+    return () => {
+      if (highlightTimerRef.current !== null) {
+        window.clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
+    };
   }, [highlightMessageId]);
+
+  const handleHighlightShown = useCallback((messageId: string) => {
+    focusChatMessage(messageId);
+    if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => {
+      highlightTimerRef.current = null;
+      setHighlightMessageId((current) => (current === messageId ? null : current));
+    }, 2500);
+  }, []);
 
   const loadOlder = useCallback(async () => {
     if (loadingOlder || !hasMore || (!threadRoot && anchorMessages)) return;
@@ -487,7 +509,7 @@ export function NativeChatMessagePanel({
               stickToBottomRef={stickToBottomRef}
               programmaticScrollRef={programmaticScrollRef}
               highlightMessageId={highlightMessageId}
-              onHighlightShown={focusChatMessage}
+              onHighlightShown={handleHighlightShown}
               header={listHeader}
               empty={
                 latestPending ? (

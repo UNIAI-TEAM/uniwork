@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useChatRooms } from "@uniwork/core/chat";
+import { useChatRoomMessages, useChatRooms } from "@uniwork/core/chat";
 import {
   resetPendingChatMessagesForTests,
   usePendingChatMessagesStore,
@@ -215,6 +215,37 @@ describe("ChatPageView ?room=&message= deep link", () => {
   it.each(["dm", "ch"])("highlights when the rooms are already cached (%s)", async (kind) => {
     open(`room=r-${kind}&message=m-${kind}`, { async: true, cached: true });
     await expectHighlighted(`m-${kind}`);
+  });
+
+  it("keeps the highlight when a cached room refreshes its timeline with a newer own message on open", async () => {
+    let latestCalls = 0;
+    const base = TIMELINES["r-dm"]!.latest;
+    const withNewerOwn = [...base, textMessage("r-dm", "r-dm-a30", reader.id, 45)];
+    requestMock.mockImplementation((path: string) => {
+      if (path.split("?")[0]?.endsWith("/chat/rooms/r-dm/messages")) {
+        latestCalls += 1;
+        return later({ messages: latestCalls === 1 ? base : withNewerOwn }, latestCalls === 1 ? 0 : 80);
+      }
+      return serve(path);
+    });
+    function AfterRoomAndTimelineCached({ children }: { children: React.ReactNode }) {
+      const rooms = useChatRooms(WS);
+      const messages = useChatRoomMessages(WS, "r-dm");
+      const [ready, setReady] = useState(false);
+      if (rooms.isSuccess && messages.isSuccess && !ready) setReady(true);
+      return ready ? children : null;
+    }
+    aroundDelayMs = 5;
+    const nav = fakeNav("/acme/team/chat?room=r-dm&message=m-dm");
+    render(
+      wrapWithNav(
+        <AfterRoomAndTimelineCached>
+          <ChatPageView workspaceId={WS} currentUserId={reader.id} />
+        </AfterRoomAndTimelineCached>,
+        nav,
+      ),
+    );
+    await expectHighlighted("m-dm");
   });
 
   it.each(["dm", "ch"])("highlights when the reader joins the workspace room on open (%s)", async (kind) => {
