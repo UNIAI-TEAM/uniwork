@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+9c9a3afa9f40cf16b0673b9e0a7226cf1971f712
+89262b63b0251842e6bd6f6ed7125c03882c0556
+9c9a3afa9 test(documents): pin the locked-card target to the document's workspace
+64465f54f fix(office): block an open frame on a home-row access change
+153889bdf Merge branch 'feature/UNI-923-office-g5-g6-g7' of github.com:UNIAI-TEAM/uniwork into feature/UNI-1780-sh-s1-workspace-level
+89262b63b chore: merge DOC05-LOCKSTEP (UNI-1413 + UNI-1628, b102210f0) into the G5-G7 root
+cbcc2a66e chore: merge C-01 6.1 audit docs follow-up (4defebdfb) into the G5-G7 root
+4defebdfb docs(documents): an autosave writes its audit row (C-01 §6.1, ADR 0009)
+91bdd067a chore: merge G7-09 automated part (5acb20fd7) into the G5-G7 root
+c3d7f9a36 test(documents): pin one revision bump on visibility-only PATCH and merged home shares

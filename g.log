@@ -1,0 +1,10 @@
+$ pnpm knip 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+Unused exports (1)
+setOrgFlags  function  e2e/office-ux-floor-fixtures.ts:371:23
+ ELIFECYCLE  Command failed with exit code 1.
+
+KNIP_EXIT=1
