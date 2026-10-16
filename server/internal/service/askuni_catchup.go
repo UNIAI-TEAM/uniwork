@@ -23,8 +23,8 @@ type CatchUpInput struct {
 	RoomID       string
 	ThreadRootID string
 	Locale       string
-	// Since is the room read pointer the client saw before opening the room
-	// (opening marks it read). Room scope only; nil uses the stored pointer.
+	// Since is the read pointer the client saw before opening the room or
+	// thread (opening marks it read); nil uses the stored pointer.
 	Since *time.Time
 }
 
@@ -193,15 +193,24 @@ func (s *AskUNIService) catchUpMessages(
 		return nil, time.Time{}, "", "", err
 	}
 
+	// The room is readable, so a client pointer only picks the window; one in
+	// the future would hide everything and is ignored.
+	clientOK := clientSince != nil && clientSince.Before(s.now())
+	if clientOK {
+		since, usedCursor = clientSince.UTC(), true
+	}
+
 	if threadRootID != "" {
 		scope = "thread"
-		if fol, err := s.q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{
-			ThreadRootID: threadRootID, UserID: userID,
-		}); err == nil && fol.LastReadAt.Valid {
-			since = fol.LastReadAt.Time.UTC()
-			usedCursor = true
-		} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, time.Time{}, "", "", err
+		if !clientOK {
+			fol, err := s.q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{
+				ThreadRootID: threadRootID, UserID: userID,
+			})
+			if err == nil && fol.LastReadAt.Valid {
+				since, usedCursor = fol.LastReadAt.Time.UTC(), true
+			} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, time.Time{}, "", "", err
+			}
 		}
 		rows, err := s.chat.ListThreadMessages(ctx, userID, workspaceID, roomID, threadRootID, ListChatMessagesInput{Limit: catchUpMsgLimit})
 		if err != nil {
@@ -211,11 +220,6 @@ func (s *AskUNIService) catchUpMessages(
 		return out, since, scope, catchUpCursorMode(usedCursor), nil
 	}
 
-	// The room is readable, so a client pointer only picks the window; one in
-	// the future would hide everything and is ignored.
-	if clientSince != nil && clientSince.Before(s.now()) {
-		since, usedCursor = clientSince.UTC(), true
-	}
 	// The newest page of the main timeline, oldest first: the backlog's most
 	// recent end, which is what a reader catching up needs.
 	rows, err := s.chat.listMessages(ctx, userID, room, ListChatMessagesInput{Limit: catchUpMsgLimit, SkipMarkRead: true})

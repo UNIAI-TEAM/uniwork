@@ -1,0 +1,9 @@
+{
+  "source": "User attachment codex-clipboard-23a1c3ed-e7d4-46db-a25e-60264a155563.png",
+  "method": "Unmodified copy of the user-supplied Office logo",
+  "role": "Office edition identity in the public navigation",
+  "request": "2026-10-14: replace the incorrect generic UniWork icon with the supplied Office logo",
+  "sourceDimensions": [66, 46],
+  "visibleIconBounds": { "left": 19, "top": 7, "width": 32, "height": 32 },
+  "modifications": "None to the bitmap. CSS displays the native icon bounds and clips the original white reference padding."
+}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CHAT_FILE_MAX_BYTES,
   isChatAcceptedFile,
+  isChatFileTooLarge,
   isChatImageContentType,
   isChatImageFile,
   isChatPdfContentType,
@@ -48,6 +50,14 @@ describe("chat-file-accept", () => {
   it("infers image type from filename when content_type is empty", () => {
     expect(resolveChatFileContentType({ filename: "photo.PNG", content_type: "" })).toBe("image/png");
     expect(isChatImageContentType(undefined, "shot.jpg")).toBe(true);
+  });
+
+  it("treats a file past 25 MB as too large", () => {
+    const small = new File(["x"], "a.pdf", { type: "application/pdf" });
+    const large = new File(["x"], "a.pdf", { type: "application/pdf" });
+    Object.defineProperty(large, "size", { value: CHAT_FILE_MAX_BYTES + 1 });
+    expect(isChatFileTooLarge(small)).toBe(false);
+    expect(isChatFileTooLarge(large)).toBe(true);
   });
 
   it("detects image files in the composer from type or name", () => {

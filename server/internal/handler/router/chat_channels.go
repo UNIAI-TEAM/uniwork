@@ -20,7 +20,7 @@ func registerChatChannels(r api, h Routes, chatWriteLimit, chatRoomLimit func(ht
 		})
 		ch.Get("/workspaces/{workspaceID}/chat/channels", h.ListChatChannels, apiOp{
 			summary:     "List chat channels",
-			description: "scope=mine|discoverable; lọc project_id và q.",
+			description: "scope=mine|discoverable; lọc project_id.",
 			tags:        []string{"chat"},
 			sdo:         sdo.ChatChannelListSDO{},
 			auth:        true,

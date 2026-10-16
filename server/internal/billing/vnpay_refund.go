@@ -105,7 +105,7 @@ func (v *VNPay) Refund(ctx context.Context, in RefundInput) (RefundResult, error
 		return RefundResult{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
+	res, err := vnpHTTP.Do(req)
 	if err != nil {
 		return RefundResult{}, err
 	}

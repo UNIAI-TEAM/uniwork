@@ -116,7 +116,7 @@ export function ChatPageConversationToolbar({
       <GroupChatToolbar
         icon={activeChannel.visibility === "private" ? Lock : Hash}
         title={headerTitle}
-        memberCount={activeChannel.member_user_ids.length + 1}
+        memberCount={activeChannel.member_count}
         backAriaLabel={backToListLabel}
         onBack={onBack}
         sidebarCollapsed={sidebarCollapsed}

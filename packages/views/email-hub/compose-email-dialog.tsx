@@ -337,17 +337,17 @@ export function ComposeEmailDialog({
         }}
       >
         <DialogContent
-          className="max-h-[calc(100dvh-2rem)] grid-cols-[minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-2xl"
+          className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
           onKeyDown={handleKeyDown}
           closeLabel={t("common.close")}
         >
-          <DialogHeader className="gap-1 border-b border-border py-3.5 pr-12 pl-4 text-left">
+          <DialogHeader className="shrink-0 gap-1 border-b border-border py-3.5 pr-12 pl-4 text-left">
             <DialogTitle className="text-title-sm font-semibold">{t(composeModeTitleKey(mode))}</DialogTitle>
             <DialogDescription className="text-caption">{t(composeModeDescriptionKey(mode))}</DialogDescription>
           </DialogHeader>
 
-          <div className="min-h-0 overflow-y-auto">
-            <div className="divide-y divide-border border-b border-border">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div className="shrink-0 divide-y divide-border border-b border-border">
               <FieldRow label={t("email_hub.compose.from")} htmlFor={canPickFrom ? "email-hub-from" : undefined}>
                 {canPickFrom ? (
                   <Select
@@ -420,10 +420,32 @@ export function ComposeEmailDialog({
               rows={10}
               value={draft.body}
               onChange={(e) => patch({ body: e.target.value })}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                const imageFiles: File[] = [];
+                for (const item of items) {
+                  if (item.kind === "file" && item.type.startsWith("image/")) {
+                    const file = item.getAsFile();
+                    if (file) imageFiles.push(file);
+                  }
+                }
+                if (imageFiles.length === 0) return;
+                e.preventDefault();
+                setAttachments((prev) => {
+                  const next = [...prev];
+                  for (const file of imageFiles) {
+                    if (next.length >= 10) break;
+                    next.push({ id: crypto.randomUUID(), file });
+                  }
+                  return next;
+                });
+                toast.success(t("email_hub.compose.paste_image_attached", { count: imageFiles.length }));
+              }}
               placeholder={t("email_hub.compose.body_placeholder")}
               aria-label={t("email_hub.compose.body")}
               className={cn(
-                "min-h-[12rem] resize-y rounded-none border-0 bg-transparent px-4 py-3 text-body shadow-none",
+                "min-h-[12rem] flex-1 resize-none rounded-none border-0 bg-transparent px-4 py-3 text-body shadow-none",
                 "focus-visible:border-0 focus-visible:ring-0",
               )}
             />

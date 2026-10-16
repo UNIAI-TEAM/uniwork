@@ -25,6 +25,14 @@ describe("OfficeInstallPrompt", () => {
     expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
   });
   it.each([
+    ["en", /If UniWork Office already opened, you can close this dialog/],
+    ["vi", /Nếu UniWork Office đã mở, bạn có thể đóng hộp thoại này/],
+  ] as const)("tells the reader the dialog can be closed when the app already opened, %s (UNI-1649)", async (locale, text) => {
+    await setLocale(locale);
+    render(<OfficeInstallPrompt {...props({ reason: "not-installed" })} />);
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+  it.each([
     ["win32-x64", "Windows", "x64 · .exe"], ["darwin-arm64", "macOS", "Apple Silicon · .dmg"],
     ["darwin-x64", "macOS", "Intel · .dmg"], ["linux-x64-deb", "Linux", ".deb"],
   ] as const)("recommends %s and focuses the matching download action", async (platform, os, chip) => {

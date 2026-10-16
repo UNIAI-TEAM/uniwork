@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { UserX } from "lucide-react";
 import { AccessNoticePage } from "./access-notice-page";
 
 /**
@@ -11,14 +10,14 @@ import { AccessNoticePage } from "./access-notice-page";
  * deactivated membership no longer counts as belonging (ADR 0032 D1), so the
  * way out is /get-started: create an organization or join another one.
  */
-export function MemberDeactivatedPage() {
+export function MemberDeactivatedPage({ announce = false }: { announce?: boolean }) {
   const { t } = useTranslation(undefined, { keyPrefix: "org.deactivated" });
   return (
     <AccessNoticePage
-      icon={UserX}
       title={t("title")}
       description={t("description")}
       linkLabel={t("get_started_link")}
+      announce={announce}
     />
   );
 }

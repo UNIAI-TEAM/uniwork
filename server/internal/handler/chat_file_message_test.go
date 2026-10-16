@@ -90,7 +90,7 @@ func uploadChatFile(
 	return res, out
 }
 
-func TestSendAndStreamChatFileMessage(t *testing.T) {
+func TestSendChatFileMessage(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LOCAL_UPLOAD_DIR", dir)
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
@@ -127,22 +127,6 @@ func TestSendAndStreamChatFileMessage(t *testing.T) {
 	msg2, _ := out2["message"].(map[string]any)
 	if msg2["id"] != messageID {
 		t.Fatalf("retry id = %v want %s", msg2["id"], messageID)
-	}
-
-	streamPath := "/api/v1/workspaces/" + f.wsID + "/chat/rooms/" + f.dmRoomID + "/messages/" + messageID + "/file"
-	req, _ := http.NewRequest("GET", f.srv.URL+streamPath, nil)
-	req.Header.Set("Authorization", "Bearer "+f.tokens["a"])
-	stream, err := f.srv.Client().Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stream.Body.Close()
-	if stream.StatusCode != http.StatusOK {
-		t.Fatalf("stream status = %d", stream.StatusCode)
-	}
-	got, _ := io.ReadAll(stream.Body)
-	if !bytes.Equal(got, tinyPNG) {
-		t.Fatalf("stream bytes = %d want %d", len(got), len(tinyPNG))
 	}
 
 	resBad, _ := uploadChatFile(

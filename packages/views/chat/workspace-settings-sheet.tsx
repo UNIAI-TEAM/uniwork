@@ -38,9 +38,11 @@ import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatRoomRenameDialog } from "./chat-room-rename-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { WorkspaceRoomMemberList } from "./workspace-room-member-list";
 import { ChatConversationToolbar } from "./chat-conversation-toolbar";
 import { ChatRoomMark } from "./chat-room-mark";
+import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 
 export function WorkspaceSettingsSheet({
   open,
@@ -52,6 +54,7 @@ export function WorkspaceSettingsSheet({
   currentUserId,
   youLabel,
   onOpenSearch,
+  onMessage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +65,7 @@ export function WorkspaceSettingsSheet({
   currentUserId: string;
   youLabel: string;
   onOpenSearch?: () => void;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
   const {
@@ -72,7 +76,7 @@ export function WorkspaceSettingsSheet({
   } = useChatRoomMembers(workspaceId, roomId, open);
   const { data: rooms = [] } = useChatRooms(workspaceId);
   const roomRecord = useMemo(() => rooms.find((room) => room.id === roomId), [roomId, rooms]);
-  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(roomId);
+  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, roomId);
   const currentMember = useCurrentMember(workspaceId);
   const manageId = useId();
   const [membersOpen, setMembersOpen] = useState(false);
@@ -104,7 +108,7 @@ export function WorkspaceSettingsSheet({
             title={displayName}
             leading={<ChatRoomMark icon={House} size="header" />}
             editAriaLabel={t("chat.settings_edit_name")}
-            onEdit={roomPermissions.canChangeProfile ? () => setRenameOpen(true) : undefined}
+            onEdit={isModerator ? () => setRenameOpen(true) : undefined}
           />
 
           <ChatSettingsQuickActions>
@@ -139,6 +143,8 @@ export function WorkspaceSettingsSheet({
             />
           ) : null}
 
+          <ChatRoomSharedTotals workspaceId={workspaceId} roomId={roomId} open={open} />
+
           <ChatSettingsCollapsibleSection
             title={t("chat.workspace_members")}
             summary={
@@ -161,6 +167,7 @@ export function WorkspaceSettingsSheet({
                 currentUserId={currentUserId}
                 youLabel={youLabel}
                 isModerator={isModerator}
+                onMessage={onMessage}
               />
             )}
             <p className="px-4 pt-1 text-caption text-muted-foreground">{t("chat.workspace_room_moderation_hint")}</p>

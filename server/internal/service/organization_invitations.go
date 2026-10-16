@@ -26,10 +26,34 @@ func (s *OrganizationMemberService) SetMail(r mail.Renderer, out mail.Enqueuer) 
 	s.out = out
 }
 
-// InviteToOrg invites people to the organization itself, with no workspace
-// behind it: they land in the company and pick a team afterwards.
-func (s *OrganizationMemberService) InviteToOrg(ctx context.Context, actorID, orgID string, emails []string, orgRole string) ([]db.Invitation, []string, error) {
+// OrgInvitation is one invitation to the organization with the workspaces
+// accepting it grants (UNI-1582): the ones the admin picked, or the
+// invitation's own workspace when it was sent from one.
+type OrgInvitation struct {
+	db.Invitation
+	InvitedByName string
+	Workspaces    []WorkspaceRef
+}
+
+// maxInviteWorkspaces bounds the workspaces one invitation may grant.
+const maxInviteWorkspaces = 100
+
+// InviteToOrg invites people to the organization itself. workspaceIDs are the
+// workspaces of the organization the invitee joins on accept, as a plain
+// member (UNI-1582); none is a valid choice, and an admin then adds them
+// later. Every id must be one of this organization's workspaces: another
+// tenant's is refused like a workspace that does not exist, so the answer
+// says nothing about it (ADR 0008).
+//
+// An address that already holds a pending invitation keeps its token (the
+// link in the first email must keep working) and takes the latest workspace
+// choice: the admin's last word is what the invitee is shown and gets.
+func (s *OrganizationMemberService) InviteToOrg(ctx context.Context, actorID, orgID string, emails []string, orgRole string, workspaceIDs []string) ([]OrgInvitation, []string, error) {
 	if _, err := s.requireAdmin(ctx, orgID, actorID); err != nil {
+		return nil, nil, err
+	}
+	grants, err := grantableWorkspaces(ctx, s.q, orgID, workspaceIDs)
+	if err != nil {
 		return nil, nil, err
 	}
 	if err := requireVerifiedEmail(ctx, s.q, actorID); err != nil {
@@ -88,8 +112,9 @@ func (s *OrganizationMemberService) InviteToOrg(ctx context.Context, actorID, or
 	q := s.q.WithTx(tx)
 
 	seen := map[string]bool{}
-	var invs []db.Invitation
+	var invs []OrgInvitation
 	var skipped []string
+	grantIDs := refIDList(grants)
 	for _, raw := range emails {
 		email := strings.ToLower(strings.TrimSpace(raw))
 		if email == "" || seen[email] {
@@ -105,7 +130,10 @@ func (s *OrganizationMemberService) InviteToOrg(ctx context.Context, actorID, or
 		if existing, err := q.GetPendingInvitationForEmail(ctx, db.GetPendingInvitationForEmailParams{
 			OrganizationID: orgID, Lower: email,
 		}); err == nil {
-			invs = append(invs, existing)
+			if err := regrantInvitation(ctx, q, actorID, existing, grantIDs); err != nil {
+				return nil, nil, err
+			}
+			invs = append(invs, OrgInvitation{Invitation: existing, Workspaces: grants})
 			continue
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil, err
@@ -123,7 +151,14 @@ func (s *OrganizationMemberService) InviteToOrg(ctx context.Context, actorID, or
 		if err != nil {
 			return nil, nil, err
 		}
-		invs = append(invs, inv)
+		for _, id := range grantIDs {
+			if err := q.AddInvitationWorkspace(ctx, db.AddInvitationWorkspaceParams{
+				InvitationID: inv.ID, WorkspaceID: id, OrganizationID: orgID,
+			}); err != nil {
+				return nil, nil, err
+			}
+		}
+		invs = append(invs, OrgInvitation{Invitation: inv, Workspaces: grants})
 		msg, err := s.render.OrganizationInvite(email, inviter.Locale, mail.OrganizationInviteData{
 			InviterName: inviter.DisplayName, OrganizationName: org.Name,
 			AcceptURL: s.render.AppURL + "/invite/" + inv.Token, Expires: inviteTTL,
@@ -142,7 +177,7 @@ func (s *OrganizationMemberService) InviteToOrg(ctx context.Context, actorID, or
 			Actor:          audit.User(actorID),
 			Action:         audit.ActionMemberInvited,
 			ResourceType:   "invitation", ResourceID: inv.ID,
-			Changes: audit.Diff(nil, map[string]any{"org_role": orgRole}),
+			Changes: audit.Diff(nil, map[string]any{"org_role": orgRole, "workspace_ids": grantIDs}),
 		}, audit.Event{Topic: "member.invited", Payload: map[string]string{
 			"organization_id": orgID, "invitation_id": inv.ID,
 		}}); err != nil {
@@ -158,12 +193,44 @@ func (s *OrganizationMemberService) InviteToOrg(ctx context.Context, actorID, or
 	return invs, skipped, nil
 }
 
-// PendingInvitations lists the organization's outstanding invitations.
-func (s *OrganizationMemberService) PendingInvitations(ctx context.Context, actorID, orgID string) ([]db.ListPendingOrganizationInvitationsRow, error) {
+// PendingInvitations lists the organization's outstanding invitations, each
+// with the workspaces it grants.
+func (s *OrganizationMemberService) PendingInvitations(ctx context.Context, actorID, orgID string) ([]OrgInvitation, error) {
 	if _, err := s.requireAdmin(ctx, orgID, actorID); err != nil {
 		return nil, err
 	}
-	return s.q.ListPendingOrganizationInvitations(ctx, orgID)
+	rows, err := s.q.ListPendingOrganizationInvitations(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+	}
+	granted, err := invitationGrants(ctx, s.q, ids, []string{orgID})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]OrgInvitation, 0, len(rows))
+	for _, r := range rows {
+		inv := OrgInvitation{
+			Invitation: db.Invitation{
+				ID: r.ID, WorkspaceID: r.WorkspaceID, Email: r.Email, Role: r.Role, Token: r.Token,
+				ExpiresAt: r.ExpiresAt, AcceptedAt: r.AcceptedAt, CreatedAt: r.CreatedAt,
+				OrganizationID: r.OrganizationID, OrgRole: r.OrgRole, InvitedBy: r.InvitedBy, RevokedAt: r.RevokedAt,
+			},
+			InvitedByName: r.InvitedByName.String,
+			Workspaces:    granted[r.ID],
+		}
+		if r.WorkspaceID.Valid && r.WorkspaceSlug.Valid {
+			inv.Workspaces = []WorkspaceRef{{ID: r.WorkspaceID.String, Name: r.WorkspaceName.String, Slug: r.WorkspaceSlug.String}}
+		}
+		if inv.Workspaces == nil {
+			inv.Workspaces = []WorkspaceRef{}
+		}
+		out = append(out, inv)
+	}
+	return out, nil
 }
 
 // RevokeInvitation withdraws an invitation that has not been accepted. The row
@@ -246,7 +313,8 @@ func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actor
 
 // checkOwnerPassword is the password an owner re-enters to hand the
 // organization over (OPEN_QUESTIONS P2): TransferOwnership and the invitation
-// switch both ask for it before their transaction.
+// switch both ask for it before their transaction. A mismatch is 403
+// password_incorrect, never the login's 401 (see ErrPasswordIncorrect).
 func checkOwnerPassword(ctx context.Context, q *db.Queries, userID, password string) error {
 	me, err := q.GetUserByID(ctx, userID)
 	if err != nil {
@@ -257,7 +325,7 @@ func checkOwnerPassword(ctx context.Context, q *db.Queries, userID, password str
 			"tài khoản chưa có mật khẩu; đặt mật khẩu trước khi chuyển quyền chủ sở hữu")
 	}
 	if !auth.CheckPassword(me.PasswordHash.String, password) {
-		return ErrInvalidCredentials
+		return errPasswordIncorrect()
 	}
 	return nil
 }

@@ -7,6 +7,13 @@ export const WorkspaceSchema = z.object({
   organization_id: z.string(),
   organization_slug: z.string(),
   organization_name: z.string(),
+  // Workspace profile (spec 2026-10-14). Optional and forgiving: a server that
+  // does not send them, or sends the wrong type, yields undefined, never a
+  // dropped workspace. The UI reads undefined as "not set".
+  description: z.string().optional().catch(undefined),
+  icon_emoji: z.string().optional().catch(undefined),
+  icon_url: z.string().optional().catch(undefined),
+  task_prefix: z.string().optional().catch(undefined),
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 
@@ -37,6 +44,17 @@ export const MemberSchema = z.object({
 });
 export type Member = Omit<z.infer<typeof MemberSchema>, "role"> & { role: MemberRole };
 
+const InvitationWorkspaceRefSchema = z.object({ id: z.string(), slug: z.string(), name: z.string() });
+export type InvitationWorkspaceRef = z.infer<typeof InvitationWorkspaceRefSchema>;
+
+/**
+ * Every workspace accepting an invitation grants (UNI-1582): the one it was
+ * sent from, or the ones an admin picked for an organization invitation.
+ * Absent from older servers, and a drifted list reads as none rather than
+ * costing the whole response.
+ */
+const InvitationWorkspacesSchema = z.array(InvitationWorkspaceRefSchema).default([]).catch([]);
+
 export const PendingInvitationSchema = z.object({
   id: z.string(),
   role: z.string(),
@@ -46,10 +64,24 @@ export const PendingInvitationSchema = z.object({
   org_role: z.string().default("member"),
   /** Absent for an invitation to the organization itself (F-03): the server omits the key. */
   workspace: z.object({ id: z.string(), slug: z.string(), name: z.string() }).optional(),
+  workspaces: InvitationWorkspacesSchema,
   organization: z.object({ id: z.string(), slug: z.string(), name: z.string() }),
   invited_by: z.object({ display_name: z.string() }),
 });
 export type PendingInvitation = z.infer<typeof PendingInvitationSchema>;
+
+/**
+ * Where accepting an invitation leads: its `workspaces`, or - from a server
+ * that only names the workspace an invitation was sent from - that one.
+ */
+export function invitationWorkspaces(
+  invitation: Pick<PendingInvitation, "workspace"> & { workspaces?: InvitationWorkspaceRef[] },
+): InvitationWorkspaceRef[] {
+  // Optional here: a record built outside the schema (a cache seeded by hand)
+  // may not carry the key.
+  if (invitation.workspaces?.length) return invitation.workspaces;
+  return invitation.workspace ? [invitation.workspace] : [];
+}
 
 const InvitationOrgRefSchema = z.object({ id: z.string(), slug: z.string(), name: z.string() });
 
@@ -84,6 +116,7 @@ export const InvitationPreviewSchema = z.object({
     organization: InvitationOrgRefSchema,
     /** Absent for an invitation to the organization itself. */
     workspace: InvitationOrgRefSchema.optional(),
+    workspaces: InvitationWorkspacesSchema,
     org_role: z.string().default("member"),
     /** Omitted when the inviter has no display name. */
     inviter_name: z.string().optional(),

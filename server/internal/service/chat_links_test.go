@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -217,5 +219,152 @@ func TestReactionOnFileMessageReportsMine(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("list must carry my_reactions for the viewer")
+	}
+}
+
+// Linking, creating a task from a message and (un)syncing a thread change what
+// everyone in the room sees, so they need the standing of a writer there.
+func TestLinkCommandsNeedSendStandingInRoom(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	tasks := NewTaskService(pool, q, s.ws, newMemStorage())
+	s.SetTasks(tasks)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "thong-bao", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "Lịch nghỉ lễ"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	synced, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "synced by A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: synced.ID}); err != nil {
+		t.Fatal(err)
+	}
+	bTask, err := tasks.Create(ctx, Human(ub.ID), w.ID, CreateTaskInput{Title: "B's task"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count := func(sql, arg string) int {
+		t.Helper()
+		var n int
+		if err := pool.QueryRow(ctx, sql, arg).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	snapshot := func() [3]int {
+		return [3]int{
+			count(`SELECT count(*) FROM tasks WHERE workspace_id = $1`, w.ID),
+			count(`SELECT count(*) FROM chat_message_links WHERE room_id = $1`, ch.ID),
+			count(`SELECT count(*) FROM chat_thread_task_links WHERE room_id = $1`, ch.ID),
+		}
+	}
+	before := snapshot()
+
+	refused := func(stage string, ok func(error) bool) {
+		t.Helper()
+		if _, err := s.LinkChatMessage(ctx, ub.ID, w.ID, root.ID, CreateChatMessageLinkInput{
+			TargetType: "task", TargetID: bTask.ID,
+		}); !ok(err) {
+			t.Fatalf("%s link: %v", stage, err)
+		}
+		if _, err := s.CreateTaskFromMessage(ctx, ub.ID, w.ID, root.ID, CreateTaskFromMessageInput{}); !ok(err) {
+			t.Fatalf("%s create task: %v", stage, err)
+		}
+		if _, err := s.SyncThreadTask(ctx, ub.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: bTask.ID}); !ok(err) {
+			t.Fatalf("%s sync: %v", stage, err)
+		}
+		if err := s.UnsyncThreadTask(ctx, ub.ID, w.ID, root.ID); !ok(err) {
+			t.Fatalf("%s unsync: %v", stage, err)
+		}
+		if after := snapshot(); after != before {
+			t.Fatalf("%s: rows changed %v -> %v", stage, before, after)
+		}
+	}
+
+	refused("not a member", func(err error) bool { return codedIs(err, "chat_not_member") })
+
+	if _, err := s.JoinChannel(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+		RoomID: ch.ID, UserID: ub.ID, SendRestricted: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	refused("send restricted", func(err error) bool {
+		var invalid ValidationError
+		return errors.As(err, &invalid)
+	})
+}
+
+// TestDeleteTaskDropsItsChatLinks: deleting a task takes its card off the
+// message and frees the thread it synced with, in the same transaction, so a
+// new task can sync the thread again (UNI-1686).
+func TestDeleteTaskDropsItsChatLinks(t *testing.T) {
+	s, tasks, q, ua, w, pool := chatWithTasks(t)
+	ctx := context.Background()
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "drop-links", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	synced, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, root.ID, CreateTaskFromMessageInput{SyncThread: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	carded, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, other.ID, CreateTaskFromMessageInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlinkedBefore := len(topicsLike(t, pool, w.OrganizationID, "chat.thread.unlinked"))
+	linkedBefore := len(topicsLike(t, pool, w.OrganizationID, "chat.message.linked"))
+
+	if err := tasks.Delete(ctx, ua.ID, synced.ID); err != nil {
+		t.Fatal(err)
+	}
+	if links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, ch.ID, []string{root.ID}); err != nil || len(links) != 0 {
+		t.Fatalf("root links after delete: err=%v %+v; want none", err, links)
+	}
+	if _, err := q.GetChatThreadTaskLinkByThread(ctx, root.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("thread link after delete: %v; want ErrNoRows", err)
+	}
+	if got := len(topicsLike(t, pool, w.OrganizationID, "chat.thread.unlinked")) - unlinkedBefore; got != 1 {
+		t.Fatalf("chat.thread.unlinked rows: %d; want 1", got)
+	}
+	if got := len(topicsLike(t, pool, w.OrganizationID, "chat.message.linked")) - linkedBefore; got != 1 {
+		t.Fatalf("chat.message.linked rows: %d; want 1", got)
+	}
+
+	// The batch delete goes through the same path.
+	if _, err := tasks.BatchDeleteTasks(ctx, Human(ua.ID), w.ID, []string{carded.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, ch.ID, []string{other.ID}); err != nil || len(links) != 0 {
+		t.Fatalf("other links after batch delete: err=%v %+v; want none", err, links)
+	}
+
+	next, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "next"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: next.ID}); err != nil {
+		t.Fatalf("sync freed thread to a new task: %v", err)
 	}
 }

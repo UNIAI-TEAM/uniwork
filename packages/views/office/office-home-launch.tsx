@@ -10,6 +10,7 @@ import {
   type DesktopPlatformGuess,
   type OfficeChannel,
   type OfficeInstallerOption,
+  type OfficeLaunchOptions,
   type OfficeLaunchOutcome,
 } from "@uniwork/core/office";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -23,7 +24,7 @@ export interface OfficeHomeLaunchProps {
   /** The public deployment profile the link carries; without both, the link has none. */
   deploymentId?: string;
   apiOrigin?: string;
-  launch: (url: string) => Promise<OfficeLaunchOutcome>;
+  launch: (url: string, options?: OfficeLaunchOptions) => Promise<OfficeLaunchOutcome>;
   loadInstallers: () => Promise<{ installers: OfficeInstallerOption[]; supportedPlatforms?: readonly DesktopPlatform[] }>;
   loadPlatformHint: () => Promise<DesktopPlatformGuess>;
   downloadInstaller: (platform: DesktopPlatform) => Promise<string>;
@@ -46,6 +47,8 @@ export function OfficeHomeLaunch({ channel, deploymentId, apiOrigin, launch, loa
   const [reason, setReason] = useState<"not-installed" | "error">("not-installed");
   const [launching, setLaunching] = useState(false);
   const busy = useRef(false);
+  // The app opened after the launcher gave up: no "did not respond" prompt, now or while the installers load.
+  const lateHandoff = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -64,13 +67,19 @@ export function OfficeHomeLaunch({ channel, deploymentId, apiOrigin, launch, loa
 
   if (!hint || hint.confidence === "unsupported") return null;
 
+  const onLateHandoff = () => {
+    lateHandoff.current = true;
+    setInstallOpen(false);
+  };
+
   const run = async () => {
     if (busy.current) return;
     busy.current = true;
+    lateHandoff.current = false;
     setLaunching(true);
     try {
       const profile = deploymentId && apiOrigin ? { deploymentId, apiOrigin } : undefined;
-      const outcome = await launch(buildOfficeHomeLink(channel, profile)).catch((): OfficeLaunchOutcome => "error");
+      const outcome = await launch(buildOfficeHomeLink(channel, profile), { onLateHandoff }).catch((): OfficeLaunchOutcome => "error");
       if (outcome === "launched") return;
       setReason(outcome === "not-installed" ? "not-installed" : "error");
       try {
@@ -80,7 +89,7 @@ export function OfficeHomeLaunch({ channel, deploymentId, apiOrigin, launch, loa
       } catch {
         setInstallers([]);
       }
-      setInstallOpen(true);
+      if (!lateHandoff.current) setInstallOpen(true);
     } finally {
       busy.current = false;
       setLaunching(false);

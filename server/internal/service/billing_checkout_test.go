@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/billing"
@@ -93,6 +95,42 @@ func TestCheckoutReusesPendingIntentForSamePlan(t *testing.T) {
 	}
 }
 
+type recordingCheckout struct {
+	inputs []billing.CheckoutInput
+}
+
+func (recordingCheckout) Name() string { return "vnpay" }
+func (r *recordingCheckout) CreateCheckout(_ context.Context, in billing.CheckoutInput) (billing.CheckoutSession, error) {
+	r.inputs = append(r.inputs, in)
+	return billing.CheckoutSession{URL: "https://pay.example/ok"}, nil
+}
+func (recordingCheckout) ParseWebhook(*http.Request) (billing.Event, error) {
+	return billing.Event{}, billing.ErrProviderUnavailable
+}
+
+func TestCheckoutReusesIntentExpiry(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	rec := &recordingCheckout{}
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, rec)
+	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.inputs) != 2 {
+		t.Fatalf("checkouts = %d, want 2", len(rec.inputs))
+	}
+	if rec.inputs[0].CreatedAt.IsZero() || rec.inputs[0].ExpiresAt.IsZero() {
+		t.Fatal("first checkout did not receive intent dates")
+	}
+	if !rec.inputs[1].ExpiresAt.Equal(rec.inputs[0].ExpiresAt) || !rec.inputs[1].CreatedAt.Equal(rec.inputs[0].CreatedAt) {
+		t.Fatalf("reused intent dates created %v->%v expires %v->%v",
+			rec.inputs[0].CreatedAt, rec.inputs[1].CreatedAt, rec.inputs[0].ExpiresAt, rec.inputs[1].ExpiresAt)
+	}
+}
+
 func TestApplyProviderEventPaidAfterFailedIPN(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
@@ -122,7 +160,7 @@ func TestApplyProviderEventPaidAfterFailedIPN(t *testing.T) {
 	}
 }
 
-func TestApplyProviderEventRejectsWhenQuotaExceededAtIPN(t *testing.T) {
+func TestApplyProviderEventAppliesPaidPlanWhenOverQuotaAtIPN(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "free_small", 0, map[string]int64{FeatureWorkspacesMax: 1})
 	f.seedPlan(t, "paid_team", 500000, map[string]int64{FeatureWorkspacesMax: 1})
@@ -141,8 +179,23 @@ func TestApplyProviderEventRejectsWhenQuotaExceededAtIPN(t *testing.T) {
 		t.Fatal(err)
 	}
 	ev := billing.Event{ProviderEventID: "paid-quota", ProviderTxnRef: intentID, Paid: true, Amount: 500000, Currency: "VND"}
-	if err := f.billing.ApplyProviderEvent(f.ctx, ev); !errors.Is(err, ErrQuotaExceeded) {
-		t.Fatalf("want quota exceeded, got %v", err)
+	if err := f.billing.ApplyProviderEvent(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err := f.pool.QueryRow(f.ctx, `SELECT status FROM billing_payment_intents WHERE id = $1`, intentID).Scan(&status); err != nil || status != "completed" {
+		t.Fatalf("intent status = %q (%v), want completed", status, err)
+	}
+	snap, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil || snap.Plan.Code != "paid_team" {
+		t.Fatalf("plan = %q err=%v", snap.Plan.Code, err)
+	}
+	var n, paid int64
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*)::int, coalesce(sum(amount_paid), 0)::bigint FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&n, &paid); err != nil || n != 1 || paid != 500000 {
+		t.Fatalf("invoices = %d paid=%d (%v), want 1 invoice of 500000", n, paid, err)
+	}
+	if _, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "three", "three"); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("third workspace: got %v", err)
 	}
 }
 

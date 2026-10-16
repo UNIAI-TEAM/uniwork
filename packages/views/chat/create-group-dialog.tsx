@@ -121,6 +121,7 @@ export function CreateGroupDialog({
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder={t("chat.group_name_placeholder")}
+              maxLength={80}
               autoFocus
             />
           </div>

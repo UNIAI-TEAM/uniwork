@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import * as connect from "../api/endpoints/connect";
 import type { ConnectedApp, ConnectedAppList, McpPolicy } from "../api/endpoints/connect";
 
@@ -10,11 +10,19 @@ export const connectKeys = {
   policy: (orgSlug: string) => [...connectKeys.all(), "policy", orgSlug] as const,
 };
 
-export function useMyConnectedApps(opts?: { enabled?: boolean }) {
+/**
+ * `refetchInterval` polls while a screen waits for a connection made in
+ * another app (the connect guide); every other reader leaves it off.
+ */
+export function useMyConnectedApps(opts?: {
+  enabled?: boolean;
+  refetchInterval?: UseQueryOptions<ConnectedAppList>["refetchInterval"];
+}) {
   return useQuery<ConnectedAppList>({
     queryKey: connectKeys.mine(),
     queryFn: connect.listMyConnectedApps,
     enabled: opts?.enabled ?? true,
+    refetchInterval: opts?.refetchInterval ?? false,
   });
 }
 
@@ -59,6 +67,18 @@ export function useSetMcpPolicy(orgSlug: string) {
     mutationFn: async (enabled: boolean) => {
       const policy = await connect.setMcpPolicy(orgSlug, enabled);
       if (!policy) throw new Error("mcp policy response did not parse");
+      return policy;
+    },
+    onSuccess: (policy) => qc.setQueryData(connectKeys.policy(orgSlug), policy),
+  });
+}
+
+export function useSetMcpWritePolicy(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const policy = await connect.setMcpWritePolicy(orgSlug, enabled);
+      if (!policy) throw new Error("mcp write policy response did not parse");
       return policy;
     },
     onSuccess: (policy) => qc.setQueryData(connectKeys.policy(orgSlug), policy),

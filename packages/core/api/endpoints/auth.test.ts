@@ -232,5 +232,19 @@ describe("email verification and providers", () => {
       await deleteAccount({ password: "pw" });
       expect(getAccessToken()).toBeNull();
     });
+
+    it.each([
+      [{ password: "wrong" }, "password_incorrect", 403],
+      [{ code: "000000" }, "mfa_code_incorrect", 403],
+      [{ email_confirmation: "x@y.z" }, "email_confirmation_mismatch", 400],
+    ])("deleteAccount surfaces a refused proof once, without a session refresh (%s)", async (body, code, status) => {
+      setAccessToken("tok-4");
+      vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code, message: "m" } }, status));
+      await expect(deleteAccount(body)).rejects.toMatchObject({ code, status });
+      // One request: no refresh, no replay carrying the proof a second time.
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+      // The session is not dropped by a refusal.
+      expect(getAccessToken()).toBe("tok-4");
+    });
   });
 });

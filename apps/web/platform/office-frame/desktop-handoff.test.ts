@@ -56,6 +56,57 @@ describe("desktop handoff browser binding", () => {
     remove.mockRestore();
   });
 
+  it("waits about 2.5 s for a cold start before calling the app missing (UNI-1649)", async () => {
+    const wait = vi.fn(async () => undefined);
+    await launchOfficeDeepLink("uniwork-office://home", { open: vi.fn(), wait, isHidden: () => false, onHandoffSignal: () => () => undefined });
+    expect(wait).toHaveBeenCalledWith(2500, undefined);
+  });
+
+  it("reports a hand-off that lands after the timeout, once, and stops listening (UNI-1649)", async () => {
+    let signal: () => void = () => undefined;
+    const unsubscribe = vi.fn();
+    const onLateHandoff = vi.fn();
+    const outcome = await launchOfficeDeepLink("uniwork-office://home", {
+      open: vi.fn(), wait: async () => undefined, isHidden: () => false, onLateHandoff,
+      onHandoffSignal: (fn) => { signal = fn; return unsubscribe; },
+    });
+    expect(outcome).toBe("not-installed");
+    expect(unsubscribe).not.toHaveBeenCalled();
+    signal();
+    signal();
+    expect(onLateHandoff).toHaveBeenCalledOnce();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("gives up on a late hand-off after the grace window (UNI-1649)", async () => {
+    vi.useFakeTimers();
+    try {
+      let signal: () => void = () => undefined;
+      const unsubscribe = vi.fn();
+      const onLateHandoff = vi.fn();
+      await launchOfficeDeepLink("uniwork-office://home", {
+        open: vi.fn(), wait: async () => undefined, isHidden: () => false, onLateHandoff, lateWindowMs: 5000,
+        onHandoffSignal: (fn) => { signal = fn; return unsubscribe; },
+      });
+      vi.advanceTimersByTime(5000);
+      expect(unsubscribe).toHaveBeenCalledOnce();
+      signal();
+      expect(onLateHandoff).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not keep listening when the hand-off was seen in time or nobody asked for the late signal (UNI-1649)", async () => {
+    const unsubscribe = vi.fn();
+    const onLateHandoff = vi.fn();
+    await launchOfficeDeepLink("uniwork-office://home", { open: vi.fn(), wait: async () => undefined, isHidden: () => true, onLateHandoff, onHandoffSignal: () => unsubscribe });
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    unsubscribe.mockClear();
+    await launchOfficeDeepLink("uniwork-office://home", { open: vi.fn(), wait: async () => undefined, isHidden: () => false, onHandoffSignal: () => unsubscribe });
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
   it("recognises a handoff when the browser becomes hidden", async () => {
     await expect(launchOfficeDeepLink("uniwork-office://open?ticket=x", { open: vi.fn(), wait: async () => undefined, isHidden: () => true })).resolves.toBe("launched");
   });

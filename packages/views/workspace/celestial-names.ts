@@ -1,19 +1,26 @@
-/** Tên thiên thể tiếng Việt + slugBase EN ổn định cho nút "Ngẫu nhiên". */
-export const CELESTIAL_NAMES: readonly { name: string; slugBase: string }[] = [
-  { name: "Sao Thủy", slugBase: "mercury" },
-  { name: "Sao Kim", slugBase: "venus" },
-  { name: "Trái Đất", slugBase: "earth" },
-  { name: "Sao Hỏa", slugBase: "mars" },
-  { name: "Sao Mộc", slugBase: "jupiter" },
-  { name: "Sao Thổ", slugBase: "saturn" },
-  { name: "Thiên Vương", slugBase: "uranus" },
-  { name: "Hải Vương", slugBase: "neptune" },
-  { name: "Mặt Trăng", slugBase: "luna" },
-  { name: "Sao Bắc Cực", slugBase: "polaris" },
-  { name: "Thiên Lang", slugBase: "sirius" },
-  { name: "Chức Nữ", slugBase: "vega" },
-  { name: "Ngưu Lang", slugBase: "altair" },
-  { name: "Tiên Nữ", slugBase: "andromeda" },
-  { name: "Lạp Hộ", slugBase: "orion" },
-  { name: "Thiên Hà", slugBase: "galaxy" },
-];
+/**
+ * Stable English slug bases for the "Random" button. The display name of each
+ * comes from `onboarding.step_workspace.random_names.<slugBase>` in the
+ * interface language (UNI-1484), so an English interface never suggests a
+ * Vietnamese name; the slug stays the same in every language.
+ */
+export const CELESTIAL_SLUG_BASES = [
+  "mercury",
+  "venus",
+  "earth",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "luna",
+  "polaris",
+  "sirius",
+  "vega",
+  "altair",
+  "andromeda",
+  "orion",
+  "galaxy",
+] as const;
+
+export type CelestialSlugBase = (typeof CELESTIAL_SLUG_BASES)[number];

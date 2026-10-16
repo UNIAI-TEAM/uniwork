@@ -44,7 +44,7 @@ type resolveFilter func(fileRecord) bool
 // still resolve.
 func (s *FileService) ResolveMany(ctx context.Context, in files.ResolveInput) ([]files.Resolved, error) {
 	mode := in.Mode
-	entries, err := s.resolveRecords(ctx, in.Scope, &mode, in.Disposition, in.FileIDs, nil)
+	entries, err := s.resolveRecords(ctx, in.Scope, &mode, in.Disposition, in.Variant, in.FileIDs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -68,9 +68,14 @@ type resolvedEntry struct {
 // resolveRecords is ResolveMany with two knobs the module-facing contract does
 // not expose: mode nil resolves every id in its own purpose's mode (the
 // upload-session route serves mixed purposes), and keep drops records the
-// caller's context does not cover.
-func (s *FileService) resolveRecords(ctx context.Context, scope files.Scope, mode *files.ReadMode, disposition files.Disposition, ids []files.FileID, keep resolveFilter) ([]resolvedEntry, error) {
+// caller's context does not cover. variant signs each id's derivative where
+// one exists (ResolveInput.Variant).
+func (s *FileService) resolveRecords(ctx context.Context, scope files.Scope, mode *files.ReadMode, disposition files.Disposition, variant files.Variant, ids []files.FileID, keep resolveFilter) ([]resolvedEntry, error) {
 	records, err := s.loadResolvable(ctx, scope, ids)
+	if err != nil {
+		return nil, err
+	}
+	derived, err := s.derivativeRecords(ctx, scope, variant, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +114,13 @@ func (s *FileService) resolveRecords(ctx context.Context, scope files.Scope, mod
 			entry.ClaimWindowEnds = end
 		}
 		if readMode == files.ReadPresign {
-			url, expires, err := s.presignRead(ctx, rec, disposition, now)
+			// The source passed every check above, which is what authorizes
+			// its derivative; without one the original is the variant.
+			signed := rec
+			if d, ok := derived[id]; ok {
+				signed = d
+			}
+			url, expires, err := s.presignRead(ctx, signed, disposition, now)
 			if err != nil {
 				refuse(files.StorageUnavailable(err))
 				continue

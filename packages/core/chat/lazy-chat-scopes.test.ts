@@ -9,6 +9,7 @@ function room(id: string, unread = 0): ChatRoomRecord {
     name: id,
     workspace_id: "ws1",
     member_user_ids: [],
+    member_count: 0,
     unread_count: unread,
     mention_unread_count: 0,
   };

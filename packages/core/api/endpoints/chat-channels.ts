@@ -37,7 +37,6 @@ export type UpdateChatChannelInput = {
 export type ListChatChannelsOpts = {
   scope?: "mine" | "discoverable" | string;
   project_id?: string;
-  q?: string;
 };
 
 export async function createChatChannel(
@@ -62,7 +61,6 @@ export async function listChatChannels(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/channels${qs({
       scope: opts.scope,
       project_id: opts.project_id,
-      q: opts.q,
     })}`,
   );
   const parsed = parseWithFallback(raw, ChatRoomsListSchema, { rooms: [] }, {

@@ -242,20 +242,26 @@ func (s *ChatService) persistMessageMentions(
 func (s *ChatService) publishMentionNotifications(
 	ctx context.Context,
 	room db.ChatRoom,
-	senderID, messageID string,
+	senderID, messageID, threadRootID string,
 	mentionedUserIDs []string,
 ) {
 	if len(mentionedUserIDs) == 0 {
 		return
 	}
 	s.pub.SendToUsers(ctx, mentionedUserIDs, Event{
-		Type: "chat.mention.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": messageID,
-			"sender_id":  senderID,
-		},
+		Type:    "chat.mention.created",
+		Payload: chatMessageFramePayload(room.ID, messageID, senderID, threadRootID),
 	})
+}
+
+// chatMessageFramePayload names a thread reply's root only when there is one,
+// so a main-timeline frame keeps its old shape.
+func chatMessageFramePayload(roomID, messageID, senderID, threadRootID string) map[string]string {
+	p := map[string]string{"room_id": roomID, "message_id": messageID, "sender_id": senderID}
+	if threadRootID != "" {
+		p["thread_root_id"] = threadRootID
+	}
+	return p
 }
 
 func (s *ChatService) roomMentionUnread(

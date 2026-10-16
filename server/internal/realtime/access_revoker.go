@@ -45,7 +45,7 @@ func (a *AccessRevoker) disconnectLater(userID, workspaceID string) {
 func (*AccessRevoker) Name() string { return "realtime_access_revoker" }
 
 func (*AccessRevoker) Topics() []string {
-	return []string{"member.removed", "member.deactivated", "member.left", "chat.room.member_removed", "session.revoked", "organization.suspended", "organization.closed"}
+	return []string{"member.removed", "member.deactivated", "member.left", "chat.room.member_removed", "chat.channel.updated", "session.revoked", "organization.suspended", "organization.closed"}
 }
 
 func (a *AccessRevoker) Handle(ctx context.Context, ev outbox.Row) error {
@@ -67,6 +67,14 @@ func (a *AccessRevoker) Handle(ctx context.Context, ev outbox.Row) error {
 				}
 			}
 		})
+		return nil
+	}
+	if ev.Topic == "chat.channel.updated" {
+		// The row names no user and may have made the channel private, so
+		// every socket holding it is asked again; readers keep it.
+		if p["room_id"] != "" {
+			a.hub.RevokeScope("", ScopeChat, p["room_id"])
+		}
 		return nil
 	}
 	userID := p["user_id"]

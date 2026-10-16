@@ -32,7 +32,7 @@ describe("CreateInviteLinkDialog", () => {
     requestMock.mockReturnValue(new Promise(() => {}));
     const dialog = renderDialog();
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo liên kết" }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang tạo…" })).toBeDisabled());
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang tạo…" })).toHaveAttribute("aria-disabled", "true"));
   });
 
   it("offers a labelled copy button once the link exists", async () => {

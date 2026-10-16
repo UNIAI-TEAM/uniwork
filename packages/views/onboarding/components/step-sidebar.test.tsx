@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { StepSidebar } from "./step-sidebar";
+import { StepProgressBar, StepSidebar } from "./step-sidebar";
 
 initI18n();
 
@@ -20,5 +20,12 @@ describe("StepSidebar", () => {
   it("locks rail when backDisabled", () => {
     render(<StepSidebar currentStep="workspace" onStepChange={() => {}} backDisabled />);
     expect(screen.queryByRole("button", { name: /Về bạn/ })).toBeNull();
+  });
+
+  it("lets the phone progress row wrap, so Log out drops a line instead of widening the step at 200% text", () => {
+    const { container } = render(<StepProgressBar currentStep="organization" footer={<button type="button">Đăng xuất</button>} />);
+    const row = container.firstElementChild!;
+    expect(row).toHaveClass("flex-wrap");
+    expect(screen.getByRole("button", { name: "Đăng xuất" }).parentElement).toHaveClass("ml-auto");
   });
 });

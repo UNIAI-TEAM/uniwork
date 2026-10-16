@@ -5,8 +5,8 @@ import type { ChatMentionCandidate } from "./chat-mention-utils";
 import {
   filterMentionCandidates,
   formatComposerMentionDisplay,
-  getActiveMentionQuery,
   insertMentionToken,
+  resolveActiveMentionQuery,
 } from "./chat-mention-utils";
 
 /** The whole @-word starting at `start` (up to the next space), whatever the caret. */
@@ -57,7 +57,7 @@ export function useComposerMentions({
   const sync = (value: string, cursor: number) => {
     const dismissed = dismissedRef.current;
     if (dismissed && mentionWordAt(value, dismissed.start) !== dismissed.word) dismissedRef.current = null;
-    const active = enabled ? getActiveMentionQuery(value, cursor) : null;
+    const active = enabled ? resolveActiveMentionQuery(value, cursor, candidates ?? [], allLabel) : null;
     if (!active || (dismissedRef.current && dismissedRef.current.start === active.start)) {
       setMention(null);
       return;

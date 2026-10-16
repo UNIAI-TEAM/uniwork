@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { openManualPreview, selectWorkspaceFeature } from "./landing-catalog-helpers";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const width of [1440, 768, 390]) {
   test(`manual navigation layers share one preview at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/#hop");
+    await gotoLanding(page, "/#hop");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     await openManualPreview(page);
     const stage = page.locator("#product-preview");
@@ -53,7 +55,8 @@ for (const width of [1440, 390]) {
     await context.addCookies([{ name: "uniwork-locale", value: "en", url: baseURL! }]);
     await page.setViewportSize({ width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
-    await page.goto("/#email");
+    await gotoLanding(page, "/#email");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     await openManualPreview(page);
     const stage = page.locator("#product-preview");

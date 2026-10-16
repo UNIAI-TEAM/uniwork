@@ -30,6 +30,7 @@ require (
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/swaggest/openapi-go v0.2.61
 	github.com/swaggo/http-swagger/v2 v2.0.2
+	github.com/yuin/goldmark v1.8.6
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0

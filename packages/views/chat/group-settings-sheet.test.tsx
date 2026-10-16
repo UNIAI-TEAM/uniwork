@@ -7,6 +7,7 @@ import { GroupSettingsSheet } from "./group-settings-sheet";
 vi.mock("@uniwork/core/chat", () => ({
   useChatRoomMembers: () => ({ data: [] }),
   useChatRooms: () => ({ data: [] }),
+  useSetChatRoomMuted: () => ({ mutate: vi.fn() }),
   useUpdateChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useRemoveChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useUpdateChatRoomSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
