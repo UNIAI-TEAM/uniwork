@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -5; node -p "require('./apps/web/platform/office-frame/docs.pin.json').version"
+594bb5e6fd91ffa32f5a01093f152eeca1ed25d1
+594bb5e6f chore(office): re-pin the six office frames to web-0.1.0-bf4ff7b
+271c82ba1 chore(office): re-vendor the frame protocol at fork bf4ff7b0
+c34d56fbc Merge the G5-G7 root (29409e305) into the DOC-05 lockstep branch
+ad21dd3b4 fix(documents): one predicate for Manage access and consume ?access=requests on the member card
+16d9a70f1 fix(documents): parse admin_scope on document reads, summaries and the admin summary
+0.1.0-bf4ff7b
