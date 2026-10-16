@@ -470,6 +470,50 @@ func TestDocumentSourceListNamesTheChatMessage(t *testing.T) {
 	}
 }
 
+// UNI-1814 review R1-1: the mapper on its own, every source kind, no DB. A
+// chat file names the message it sits in (the row id behind
+// "<source>:<row id>"), so "go to source" can open the room at it; a task,
+// task-comment, meeting and email file name none.
+func TestDocumentSourceItemNamesTheMessageOnlyForChat(t *testing.T) {
+	const (
+		messageID = "01J8X4MSG0N1P2Q3R4S5T6U7V8"
+		parentID  = "01J8X4ROOM0N1P2Q3R4S5T6U7V8"
+		taskID    = "01J8X4TSK0N1P2Q3R4S5T6U7V8"
+	)
+	row := func(src, rowID, parentKind, parentRef string) db.ListDocumentSourceChatFilesRow {
+		return db.ListDocumentSourceChatFilesRow{
+			SourceID: src + ":" + rowID, RowID: rowID,
+			ParentKind: parentKind, ParentID: parentID, ParentTitle: "Kênh dự án", ParentRef: parentRef,
+			Name: "file.pdf", MimeType: "application/pdf", SizeBytes: 42,
+			OwnerID: "01J8X4USR0N1P2Q3R4S5T6U7V8", OwnerKind: "member", OwnerName: "An",
+		}
+	}
+	cases := []struct {
+		name string
+		src  string
+		row  db.ListDocumentSourceChatFilesRow
+		want string
+	}{
+		{"chat channel file names its message", DocumentSourceChat, row(DocumentSourceChat, messageID, "channel", ""), messageID},
+		{"chat dm file names its message", DocumentSourceChat, row(DocumentSourceChat, messageID, "dm", ""), messageID},
+		{"task file names no message", DocumentSourceTask, row(DocumentSourceTask, "01J8X4ATT0N1P2Q3R4S5T6U7V8", "task", ""), ""},
+		{"task comment file names no message", DocumentSourceTask, row(DocumentSourceTask, "01J8X4CMT0N1P2Q3R4S5T6U7V8", "task_comment", taskID), ""},
+		{"meeting file names no message", DocumentSourceMeeting, row(DocumentSourceMeeting, "01J8X4REC0N1P2Q3R4S5T6U7V8", "meeting", ""), ""},
+		{"email file names no message", DocumentSourceEmail, row(DocumentSourceEmail, "01J8X4EML0N1P2Q3R4S5T6U7V8", "email_thread", ""), ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			item := documentSourceItem(c.src, c.row)
+			if item.Source != c.src || item.ID != c.src+":"+c.row.RowID {
+				t.Fatalf("item = %s (%s), want source %s and id %s", item.ID, item.Source, c.src, c.src+":"+c.row.RowID)
+			}
+			if item.Parent.MessageID != c.want {
+				t.Errorf("parent message id = %q, want %q", item.Parent.MessageID, c.want)
+			}
+		})
+	}
+}
+
 func TestDocumentSourceSaveCopiesTheBytesIntoANewDocument(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
