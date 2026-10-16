@@ -175,6 +175,7 @@ fails on drift. One flat namespace, keys nested by section:
 | transfer ownership | **chuyển quyền sở hữu** | Transfer ownership | `org.transfer.*`; immediate, no acceptance step; the former owner becomes `admin` |
 | document owner (ACL) | **chủ sở hữu** (tài liệu) | Owner | `documents.share.acl_owner`; người giữ `acl_owner_id` — quản lý tài liệu khi còn là thành viên hiệu lực của workspace; khác vai trò `owner` của tổ chức/workspace |
 | transfer document ownership | **chuyển quyền sở hữu** (tài liệu) | Transfer ownership | `documents.share.owner.*`; ngay lập tức, không có bước chấp nhận; chủ cũ giữ mức đã chọn (mặc định Chỉnh sửa) hoặc không giữ gì — khác `org.transfer.*` |
+| document access level | **Chỉ xem** / **Bình luận** / **Chỉnh sửa** / **Quản lý** | View / Comment / Edit / Manage | `documents.share.level_*`, `documents.accessReport.level_*`, `documents.home.access.*` |
 | close organization | **đóng tổ chức** | Close organization | `org.close.*`; archives the organization, deletes nothing (ADR 0032) — never "xóa tổ chức", which is the 5-day privacy deletion |
 | switch organization | **chuyển tổ chức** | Switch organization | `invitations.switch.*`; leave, transfer or close the current one and join another in one step — never "đổi tổ chức" |
 | comment | **bình luận** | Comment | |

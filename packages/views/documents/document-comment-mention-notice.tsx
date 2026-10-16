@@ -18,6 +18,7 @@ import { extractMentionTokens, formatMentionList } from "./document-comments-mod
 export function PostSendMentionNotice({
   wsId,
   documentId,
+  documentWorkspaceId = "",
   items,
   nameOfId,
   body,
@@ -26,6 +27,7 @@ export function PostSendMentionNotice({
 }: {
   wsId: string;
   documentId: string;
+  documentWorkspaceId?: string;
   items: readonly DocumentCommentMentionWithoutAccess[];
   nameOfId?: (userId: string) => string;
   /** The saved comment text; its mention labels name people the server could not. */
@@ -35,7 +37,7 @@ export function PostSendMentionNotice({
   testId?: string;
 }) {
   const { t, i18n } = useTranslation();
-  const shareMutation = useShareDocument(wsId, documentId);
+  const shareMutation = useShareDocument(wsId, documentId, documentWorkspaceId);
   const [sharedIds, setSharedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [sharing, setSharing] = useState(false);
   const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(() => new Set());

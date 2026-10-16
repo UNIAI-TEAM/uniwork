@@ -44,6 +44,9 @@ func TestCatalogueMatchesInitialRolloutContract(t *testing.T) {
 			ReasonCode:     "host_not_built",
 			ExplanationKey: "capabilities.host_not_built",
 		},
+		"documents.create_visibility": {
+			Status: Available,
+		},
 	}
 	for key, entry := range want {
 		if got[key] != entry {

@@ -75,6 +75,7 @@ export const WS_EVENT_TYPES = [
   "document.shared",
   "document.updated",
   "document.version_created",
+  "document.workspace_access_changed",
   "document.unfavorited",
   "document.lock_changed",
   "document.lock_taken_over",

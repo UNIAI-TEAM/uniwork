@@ -16,10 +16,17 @@ import { blockOfHeadError, type FrameBlock, type FrameRemoteVersion, type Remote
  * always come from the same answer. Deletion and a lost share block the frame whatever the
  * `office_sync_feed` flag says (EXPERIENCE.md › sync_feed: the flag turns off S6 news, not the S11
  * lock): the realtime frames always run, only the new-version path and the feed follow the flag.
+ * A home-row access change (`document.workspace_access_changed`) is a loss-of-access hint too:
+ * with the flag off it reads the head for the block verdict only.
  */
 
 /** Frames whose document may have a new head (a new version, or a metadata-only bump). */
-const HEAD_EVENTS: readonly WSEventType[] = ["document.version_created", "document.updated", "document.moved", "document.restored"];
+const HEAD_EVENTS: readonly WSEventType[] = [
+  "document.version_created",
+  "document.updated",
+  "document.moved",
+  "document.restored",
+];
 /** Feed pages read per catch-up; a workspace beyond that is caught up on the next reconnect. */
 const FEED_PAGES = 50;
 
@@ -100,6 +107,9 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
       client.on("document.deleted", (payload) => { if (documentOf(payload) === documentId) latest.current.onBlocked("document_deleted"); }),
       // A revoked share says nothing of who lost access: the head read answers 403 for them only.
       client.on("document.share_revoked", (payload) => { if (documentOf(payload) === documentId) void readHead(); }),
+      // A home-row access change may have restricted this viewer out: the head read answers 403 for
+      // them only; with the flag off it gives the block verdict alone, no S6 news (S11 is flag-independent).
+      client.on("document.workspace_access_changed", (payload) => { if (documentOf(payload) === documentId) void readHead(syncFeed); }),
       // With the feed off a reconnect still asks the head once: a delete or a revoke while the
       // socket was down must block now, not at the next refused Save (S11 is flag-independent).
       client.onReconnect(() => { if (syncFeed) void catchUp(); else void readHead(false); }),

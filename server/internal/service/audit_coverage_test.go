@@ -1146,6 +1146,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// SH-S1 (UNI-1780): the workspace home row's visibility/level pair.
+		// Two commands move it and both write this one action - the PATCH
+		// with visibility set, and a share for the document's own workspace,
+		// which merges into the row (T4) - so the case runs both.
+		audit.ActionDocumentWorkspaceAccessChanged: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.UpdateDocument(f.ctx, Human(f.owner.ID), docID, UpdateDocumentInput{Revision: 1, Visibility: strPtr("restricted")}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: f.workspace.ID, Level: DocumentLevelView,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// G1-04a (UNI-678): a PATCH of the page; the audit row is metadata only.
 		audit.ActionDocumentUpdated: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
@@ -1685,6 +1700,7 @@ func auditActions() []string {
 		audit.ActionDocumentShareRevoked,
 		audit.ActionDocumentBreakGlassGranted,
 		audit.ActionDocumentBreakGlassRevoked,
+		audit.ActionDocumentWorkspaceAccessChanged,
 		audit.ActionDocumentLinkCreated,
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,

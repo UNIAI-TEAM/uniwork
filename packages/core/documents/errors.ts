@@ -1,5 +1,5 @@
 import { ApiError, errorClassOf, errorCode, errorFields } from "../api/http";
-import type { DocumentErrorClass } from "../types/document";
+import { DOCUMENT_ACCESS_LEVELS, type DocumentAccessLevel, type DocumentErrorClass } from "../types/document";
 
 // Maps the stable wire codes of C-01 §14.5 onto the client-side classes the
 // save machine and the UI branch on — a mirror of errorClassByCode in
@@ -118,4 +118,21 @@ export function sharePrincipalsNotInOrganization(err: unknown): string[] | null 
   const ids = errorFields(err)?.principal_ids;
   if (!Array.isArray(ids)) return null;
   return ids.filter((id): id is string => typeof id === "string" && id !== "");
+}
+
+/**
+ * The ceiling on a share for the document's own workspace (SH-S1 Q-S1). The
+ * server answers that refusal — 422 `level_not_allowed`, the home row tops out
+ * below manage — with the top level it does take in `fields.max`. The code is
+ * deliberately unclassified (`dto/sdo/error_class.go`: the caller may share,
+ * so not permission; nothing needs a reload, so not conflict), so it never
+ * reaches CODE_TO_CLASS and this helper is the client's whole reading of it.
+ * Null for any other failure, so a caller keeps its own state instead of
+ * lowering a level that was never refused.
+ */
+export function shareLevelNotAllowedMax(err: unknown): DocumentAccessLevel | null {
+  if (errorCode(err) !== "level_not_allowed") return null;
+  const max = errorFields(err)?.max;
+  if (typeof max !== "string") return null;
+  return DOCUMENT_ACCESS_LEVELS.find((level) => level === max) ?? null;
 }
