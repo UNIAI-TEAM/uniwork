@@ -100,7 +100,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 ## 3. Cột cơ học (sinh bằng script, không sửa tay)
 
 <!-- extract:begin -->
-<!-- genoffice-tools-extract v1 rev=cb76dde5928f8ea9cf66af938d3f83bd1278f78c -->
+<!-- genoffice-tools-extract v1 rev=bf4ff7b07ee799b13375e0b63ad4798ff255ae05 -->
 | module | tool | input_schema_sha256 | editor_write | source |
 | --- | --- | --- | --- | --- |
 | docs | accept_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -115,6 +115,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | docs | edit_chart | c29264bd21515db11818de1199fe3af4e8d87a1aaab711fe9ef1f176fe635a45 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | edit_note | f465830acda36342513258eff25bc94a37c3cfc7868505a0fefcceabb4bfb055 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | generate_image | f6852b9e5272085ee5e6509a3c6a37dcd28da7f5349151248118e9e4f38c1cde | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | generate_mindmap | unresolved:identifier:depth | no | apps/docs/src/renderer/ai/mind-map.ts |
 | docs | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | image_search | 874a0d101865e7910d3ba9145ce2d9a29776932ce1a689060beb89d8d04fb699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | insert_chart | 12fab920f1474bfb8d1ed16c4cc02856f27d322275d274149df02cf2e4b521a4 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -152,6 +153,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | markdown | apply_ops | e796ff6fcf174827819356e0312f2246fd573b42cb7bbb1f0b7052407c1334c3 | yes | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | ask_clarification | 7b1327afd202f0d0d47debc5f922fdcbe4541bad90d6f97efe31db002b3373f7 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | generate_image | ed7b16fa3ca50a85c50bc04b296613c9b84014231d5c3ea987819284f5561c25 | yes | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | generate_mindmap | unresolved:identifier:depth | no | apps/markdown/src/renderer/ai/mind-map.ts |
 | markdown | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | image_search | 9c4b23b1cd0fe8dae086fe7c3c86dbceb1130a0c36d8ea7f93bbbe8bcfc9de2a | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | insert_image | f53e4d066d933c53c73e9025eb6871cbad02f6693f678290fd1f51748b55f726 | yes | apps/markdown/src/renderer/ai/tools.ts |
@@ -248,7 +250,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 
 ### 3.1 Đối chiếu cột cơ học với cột tay
 
-- **Tên công cụ:** 141 dòng, khớp đúng tập tên của các bảng tay §4 theo từng module — docs 38, markdown 10, html 8, sheets 21,
+- **Tên công cụ:** 143 dòng, khớp đúng tập tên của các bảng tay §4 theo từng module — docs 39, markdown 11, html 8, sheets 21,
   slides 18, pdf 46; `agent-core` không có dòng nào. Không thiếu, không thừa, không trùng. So với bản G6-01 (135 dòng) có 6 dòng
   mới, đều do G6-12 thêm công cụ: `ask_clarification` ở docs, markdown, sheets và pdf (bốn hàng, cùng `input_schema_sha256`
   `7b1327af…` với html — hợp đồng C-ASK), cùng `summarize_range` và `compare_ranges` ở sheets (§9 dòng 21, 24).
@@ -258,6 +260,10 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
   `set_header_footer`, `define_style`, `set_page_setup`, `set_watermark` `no` → `yes` (§9 dòng 5); sheets
   `merge_attached_workbooks` `undeclared` → `yes` (§9, mục merge); html `ask_clarification`, pdf `create_document`, pdf
   `generate_image` `undeclared` → `no`. Không còn ô `undeclared` nào trong khối.
+- **Khối ở `bf4ff7b0` (DOC-05 lockstep, 2026-10-16):** 143 dòng; so với `cb76dde5` chỉ khác dòng `rev=` và hai hàng mới `docs`
+  `generate_mindmap` và `markdown` `generate_mindmap` (hash in `unresolved:identifier:depth`, `editor_write` `no`, nguồn
+  `mind-map.ts` của từng module) — đúng đầu ra của `scripts/genoffice-tools-extract.mjs --rev bf4ff7b0` ở fork. Hai hàng đã đóng
+  ở §9.1; cột tay ở §4.2 và §4.3.
 - **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Ở khối `cb76dde5` còn **12**
   chỗ hai cột khác nhau, đều nhóm B (công cụ ghi file; không phải lỗi). Ở `66169a9a` là **13**: 12 chỗ nhóm B và 1 chỗ nhóm C
   (markdown `ask_clarification`, đọc của script — xem dòng C dưới bảng, đã đóng ở G7-06). Tính lại từ 20 của khối cũ: −5 (nhóm A
@@ -352,6 +358,7 @@ view-only) chỉ giữ `READ_ONLY_TOOLS` (`docs-skill.ts:38-48` (66169a9a)), cô
 | insert_picture | cả hai | `url` (http(s) hoặc `data:image`), vị trí, cỡ, float → ack | PNG/JPG/GIF | có | |
 | insert_text_box | cả hai | text, kích thước, vị trí, wrap → ack | cỡ chữ trong `MIN/MAX_FONT_SIZE_PT` | có | |
 | ask_clarification | cả hai (chỉ khi panel có thẻ hỏi) | `questions[]` (≤ 4, mỗi câu ≤ 5 lựa chọn) → câu trả lời của người dùng | `inputSchema` giống từng byte html (hash `7b1327af…`); mô tả riêng cho docs: hỏi nghĩa/phạm vi/đích trước khi sửa hoặc trả lời | không (`mutated: false` ở mọi đường trả về) | **mới ở G6-12** (§7, §9 dòng 7; `tools.ts:110` (66169a9a)). Thẻ gắn vào panel, chặn run tới khi người dùng trả lời; Bỏ qua/Dừng/Chat mới/đóng panel trả `cancelled`. Câu trả lời hiện thành biên nhận dưới tin nhắn người dùng (`clarify-receipts.ts`). View-only giữ |
+| generate_mindmap | cả hai | `root` (cây `label`, `block?`, `children[]`), `focus?` → thẻ sơ đồ tư duy trong chat | tối đa 120 nút, sâu 5, nhãn 60 ký tự, `focus` 80 ký tự; trích dẫn `block` sai bị bỏ, không lỗi (`docs/ai/mind-map.ts:12-17` (bf4ff7b0)) | không (`mutated: false`; chỉ trả `display: { kind: 'mindmap' }`, nằm trong `READ_ONLY_TOOLS`) | **mới sau `cb76dde5`** (khối §3 đọc ở `bf4ff7b0`; `docs/ai/tools.ts:1479` (bf4ff7b0)). Không ghi tài liệu, không ghi file; view-only giữ. Sản phẩm: Advisor 2026-10-16 `msg_f4b50f24445b` (mặc định của Advisor, người dùng có thể đổi) |
 
 Ghi chú docs:
 - Bảo vệ Word (chỉ đọc, chỉ form, chỉ comment, khóa mật khẩu ghi) **không** được truyền vào panel: `AiPanel` chỉ nhận
@@ -391,6 +398,7 @@ chú trong prompt và từ chối nếu vẫn bị gọi; (2) `ask_clarification
 | read_frontmatter | cả hai | — → YAML thô | — | không | |
 | web_search | cả hai, web cần `webSearch` | query, maxResults → câu trả lời, link, trích | mặc định 6 | không | |
 | ask_clarification | cả hai (chỉ khi panel có thẻ hỏi) | `questions[]` (≤ 4 câu, ≤ 5 lựa chọn) → câu trả lời của người dùng | `inputSchema` giống từng byte html; mô tả riêng cho markdown | không (`mutated: false` ở mọi đường trả về; khối §3 ở `cb76dde5` cũng ghi `no` sau khi sửa script, §3.1 nhóm C đã đóng) | **mới ở G6-12** (§7, §9 dòng 7; `md/ai/tools.ts:149` (66169a9a)). Chặn run tới khi người dùng trả lời; Bỏ qua/Dừng/Chat mới/đóng panel trả `cancelled`; biên nhận dưới tin nhắn người dùng. View-only giữ. Rào vùng sửa không áp |
+| generate_mindmap | cả hai | `root` (cây `label`, `block?`, `children[]`), `focus?` → thẻ sơ đồ tư duy trong chat | tối đa 120 nút, sâu 5, nhãn 60 ký tự, `focus` 80 ký tự; trích dẫn `block` sai bị bỏ, không lỗi (`md/ai/mind-map.ts:12-17` (bf4ff7b0)) | không (`mutated: false`; chỉ trả `display: { kind: 'mindmap' }`, nằm trong `READ_ONLY_TOOLS`) | **mới sau `cb76dde5`** (khối §3 đọc ở `bf4ff7b0`; `md/ai/tools.ts:793` (bf4ff7b0)). Không ghi tài liệu, không ghi file; view-only giữ. Sản phẩm: Advisor 2026-10-16 `msg_f4b50f24445b` (mặc định của Advisor, người dùng có thể đổi) |
 
 **Rào vùng sửa (G6-12, §9 dòng 9) — markdown.** Chỉ bật khi lượt có phạm vi: gửi từ composer/popover/ribbon khi đang có vùng chọn
 (chip "Selection (N words)" còn đó; bỏ chip bằng × thì lượt không rào) hoặc gửi hàng đợi sửa (mỗi neo là một vùng). Rào là danh
@@ -871,6 +879,10 @@ WEBSERVICE/FILTERXML: không phải phát hiện (§5 sheets (a)).
 - PDF thao tác cấp file (`extract_pages`, `split_pdf`, `split_pages`, `merge_pages`): **tắt với tài liệu UniWork ở v1**
   (G6-14 Q7 (b)).
 
+- Hàng review thủ công (owner F + Product) của `docs` `generate_mindmap` và `markdown` `generate_mindmap`, mới ở fork `bf4ff7b0`:
+  **đã đóng cả hai** — Advisor decision 2026-10-16 `msg_f4b50f24445b` (Advisor default, user may override). Công cụ chỉ đọc
+  (`mutated: false`), không ghi tài liệu hay file.
+
 Phần dưới giữ nguyên văn câu hỏi lúc mở để truy vết.
 
 Mọi mục dưới đây **chờ Product (đợt 3)**: code giữ nguyên tới khi người dùng ký; mỗi mục có phương án và khuyến nghị trong packet G6-12.
@@ -927,5 +939,6 @@ Cột tay (§2, §4–§9) chờ owner F + Product ký qua Advisor; chữ ký đ
 
 Trạng thái ở `66169a9a` (G6-12): khối §3 và lệnh AC-2 đã chạy lại (§1); cột tay đã làm mới cho mọi hàng G6-12 sửa (§3.1, §4, §5, §6, §7, §8, §9);
 G7-06 chạy lại AC-2 và làm mới khối §3 ở `cb76dde5` bằng extractor đã sửa (§1, §3.1 nhóm C đã đóng);
+DOC-05 lockstep (2026-10-16) làm mới khối §3 ở `bf4ff7b0` (thêm hai hàng `generate_mindmap`, đã đóng theo Advisor decision `msg_f4b50f24445b`, Advisor default, user may override);
 phần chờ ký gồm các mục "chờ Product (đợt 3)" ở §9, §9.1 và các xác nhận mặc định ở §9.2. Hàng chưa ký vẫn là hàng chưa ký — G6-12
 không đóng gate G6-D4.

@@ -43,6 +43,10 @@ const (
 	KindDocumentEditRequested       = "document_edit_requested"
 	KindDocumentEditRequestAnswered = "document_edit_request_answered"
 	KindDocumentEditTakenOver       = "document_edit_taken_over"
+	// A workspace admin opened emergency view access to a restricted
+	// document (DOC-05; UNI-1628). Sent to the document's ACL owner; the
+	// params carry ids only.
+	KindDocumentBreakGlass = "document_break_glass"
 	// Chat (H1): one row per room or thread while unread, so a burst of
 	// messages is one notification and one push.
 	KindChatMentioned     = "chat_mentioned"
@@ -63,6 +67,7 @@ var Kinds = []string{
 	KindDocumentCommented, KindDocumentMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
 	KindDocumentEditRequested, KindDocumentEditRequestAnswered, KindDocumentEditTakenOver,
+	KindDocumentBreakGlass,
 	KindChatMentioned, KindChatDM, KindChatThreadReplied,
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 }

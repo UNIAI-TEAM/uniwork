@@ -50,6 +50,12 @@ var errorClassByCode = map[string]string{
 	// signature no longer verifies (G5-D1 row 15): the app drops its
 	// committed copy and keeps the locked drafts.
 	"offline_lease_revoked": "permission",
+	// DOC-05 (UNI-1628): an admin who administers a restricted document but
+	// holds no read level asked for its content (document_restricted, with
+	// fields.can_break_glass), or tried to grant themselves read access
+	// outside the audited break-glass path (break_glass_required).
+	"document_restricted":  "permission",
+	"break_glass_required": "permission",
 
 	// missing: unknown, or not visible to this actor.
 	"not_found": "missing",
@@ -121,6 +127,10 @@ var errorClassByCode = map[string]string{
 //     and document_link_limit, which stay unclassified: "quota" would read as a
 //     usage meter and "conflict" as a reload-and-retry; the picker keeps its
 //     selection and shows the cap from fields.max instead.
+//   access_report_too_large (422, fields.max_rows) an access report export
+//     over 10,000 rows or folder nodes (UNI-1643), refused before any byte.
+//     The same count-limit reasoning as share_batch_too_large: the page asks
+//     to narrow the folder or add a filter.
 //   commit_intent_unknown  (410, fields.outcome="unknown", plan G5-07) the
 //     server holds no commit intent for the key any more (swept after the
 //     resume window) or never did. "gone" would teach the client to leave;

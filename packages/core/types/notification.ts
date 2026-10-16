@@ -24,6 +24,7 @@ export const NOTIFICATION_KINDS = [
   "document_edit_requested",
   "document_edit_request_answered",
   "document_edit_taken_over",
+  "document_break_glass",
   "chat_mentioned",
   "chat_dm",
   "chat_thread_replied",

@@ -335,11 +335,16 @@ func (s *DocumentChangesService) pageFeed(ctx context.Context, cs changeCursorSc
 // resolveFeedRow then treats an owned document as unreadable: a caller the
 // snapshot proves read it before it became owned gets the ids-only removal, a
 // stranger gets nothing.
+//
+// DOC-05: an AdminScope row (a workspace admin on a restricted document)
+// resolves through its shares alone. A break-glass grant is deliberately not
+// read here: the feed fills the offline library, and a 24-hour grant whose
+// expiry writes no audit row could never be retracted from it.
 func feedRowLevel(scope documentListScope, doc db.Document, shares []db.ListLiveSharesForDocumentsRow) DocumentLevel {
 	if doc.OwnerID.Valid {
 		return DocumentLevelNone
 	}
-	return listRowAccess(scope, false, doc, shares).Level
+	return listRowAccess(scope, false, doc, shares, false).Level
 }
 
 // feedCandidate is one document's audit rows on one page, in xact order: the

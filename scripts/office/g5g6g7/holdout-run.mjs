@@ -11,6 +11,9 @@
 // g712-runs/); an --out inside the repo (symlinks resolved) is refused unless --allow-in-repo is given (tests use a temp
 // dir). One invocation writes ONE session folder <out>/<sessionId>/ holding run-NN.json and manifest.json (session id,
 // case-set hash, the sha256 of every run file): the report counts exactly the runs the manifest lists.
+// A run's own cap ends an ask (G7-12 run409): the answer's x_uniwork.step/limit stops the tool loop (1 question turn
+// + 8 tool rounds = 9 model calls, never a tenth) and a 409 run_limit_reached ends it the same way, recorded as the
+// ask's `capReached` - never an ask error and never a harness abort.
 // Both credentials expire mid-run (access token 15 min, frame token 10 min, against a run of ~100 min at one thread):
 // the runner renews each one before use and once after a 401, and counts the renewals per ask, per run and in the report.
 // The test user's credentials (password, refresh cookie, access token) live in the session closure only - never a run file.
@@ -35,8 +38,13 @@ export const MANIFEST_KIND = 'uniwork-office-g7-holdout-manifest';
 export const sha256Hex = (value) => createHash('sha256').update(value).digest('hex');
 export const DEFAULT_CASES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/holdout/cases');
 export const DEFAULT_OUT_DIR = path.join(os.homedir(), 'office-g5g6g7/reports/g6-ai_server/g712-runs');
-// The façade's own cap is 10 model calls per run (server/internal/ai/run_store.go); a run that reaches it is an error.
-export const MAX_STEPS = 10;
+// One run allows 1 question turn + 8 tool-result turns = 9 model calls (A3; server/internal/ai/run_store.go,
+// design G6-03b §4.4/§5.4): the ninth tool round - the tenth call - is refused by contract, so the loop never sends
+// it. The answer's own x_uniwork.step/limit ends the loop even earlier when the run's cap is already spent
+// (run409 report §5.1).
+export const MAX_STEPS = 9;
+/** The cap one run's tool-result turns are held under: x_uniwork.limit (A13, design §4.4). */
+export const TOOL_ROUND_LIMIT_KIND = 'tool_rounds';
 export const LANGS = ['vi', 'en'];
 const FIXTURES_REL = 'docs/office/g5g6g7/fixtures';
 // The windows of the D server (server/internal/config/config.go: AccessTokenTTL 15 min; server/internal/service/office_frame.go:
@@ -109,7 +117,8 @@ const HOST_PORT_URL_RE = /\bhttps?:\/\/[^\s"'<>]+:\d+\b/gi;
 const USERINFO_URL_RE = /\b[a-z][a-z0-9+.-]{1,15}:\/\/[^\s/@"'<>]+@[^\s"'<>]+/gi;
 // An email address (G712-62): the test user's own address is a credential like the password, but an address the case set
 // or a fixture legitimately carries is content - the caller exempts exactly those strings (see fixtureEmails), never a
-// pattern like a whole domain.
+// pattern like a whole domain. It is applied AFTER the hard kinds (G712-71), so an address-shaped value that is also a
+// key, a credential assignment or a private host keeps its hard kind.
 const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}\b/g;
 // Provider-style keys (sk-, ak-, xai-, AIza, AKIA, ghp_/gho_/ghs_, github_pat_, sk_live_/pk_live_, xox*-) and a bearer token of any case.
 const KEY_RE = /\b(?:(?:sk|ak|xai|rk|pk)-[A-Za-z0-9_-]{8,}|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}|AIza[0-9A-Za-z_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|bearer\s+[A-Za-z0-9._~+/=-]{16,})\b/gi;
@@ -153,6 +162,8 @@ function looksEncoded(run) {
  * `exemptEmails` (a Set of exact addresses) is the G712-62 escape for content: an address the holdout cases or their
  * fixtures really carry is legitimate data and is kept, while any other address is redacted as the soft kind `email`.
  * The exemption is the exact string, never a pattern, so a credential-shaped address of another domain still goes.
+ * The hard kinds run before the soft address rule (G712-71): a value that is both address-shaped and a key, a
+ * credential assignment or a private host is reported under that hard kind and still voids the run.
  */
 export function redactSecrets(text, { exemptEmails = null } = {}) {
   const found = new Map();
@@ -161,11 +172,6 @@ export function redactSecrets(text, { exemptEmails = null } = {}) {
   let out = String(text);
   swap(USERINFO_URL_RE, 'userinfo_url');
   swap(HOST_PORT_URL_RE, 'host_port_url');
-  out = out.replace(EMAIL_RE, (match) => {
-    if (exemptEmails?.has(match)) return match;
-    note('email');
-    return '[redacted:email]';
-  });
   swap(PRIVATE_HOST_RE, 'private_host');
   swap(IPV6_RE, 'ipv6');
   out = out.replace(IPV4_RE, (match, offset, whole) => {
@@ -182,6 +188,13 @@ export function redactSecrets(text, { exemptEmails = null } = {}) {
   swap(KEY_RE, 'key');
   swap(JWT_RE, 'jwt');
   swap(CREDENTIAL_ASSIGNMENT_RE, 'credential');
+  // The soft address rule comes last (G712-71), after every hard kind: an address-shaped key, credential assignment or
+  // private host was already redacted under its own kind, so it keeps the flag that keeps the run out of a pass.
+  out = out.replace(EMAIL_RE, (match) => {
+    if (exemptEmails?.has(match)) return match;
+    note('email');
+    return '[redacted:email]';
+  });
   swap(HEX_RUN_RE, 'hex_run');
   out = out.replace(BASE64_RUN_RE, (run) => {
     if (!looksEncoded(run)) return run;
@@ -271,6 +284,15 @@ async function callFacade({ transport, mount, remount, headers, body, step, reco
       record.counts.serverErrors += 1;
       wait = Math.min(2000 * (attempt + 1), opts.retryWaitCapMs);
     } else {
+      const detail = errorBodyOf(res.text);
+      // A run_limit_reached is the run's documented end, not a fault (A3; design §4.3; run409 report §5.2): the ask
+      // ends where it is, with the refused cap's kind ('tool_rounds' | 'model_calls') recorded. Every other 4xx -
+      // conversation_expired and run_expired included - stays the call's failure.
+      if (res.status === 409 && detail?.code === 'run_limit_reached') {
+        call.refusal = 'run_limit_reached';
+        const kind = typeof detail.fields?.limit === 'string' && detail.fields.limit !== '' ? detail.fields.limit : 'unknown';
+        return { res, call, mount: current, capReached: { kind, refused: true } };
+      }
       call.error = `HTTP ${res.status}`;
       return { res, call, mount: current, failed: `HTTP ${res.status}: ${String(res.text).slice(0, 160)}` };
     }
@@ -283,6 +305,14 @@ async function callFacade({ transport, mount, remount, headers, body, step, reco
   }
 }
 
+/** The run's tool-round cap as the answer reports it ({ kind, step, limit }), null when the answer carries none. */
+function toolRoundCap(xUniwork) {
+  const step = Number(xUniwork?.step);
+  const limit = Number(xUniwork?.limit);
+  if (!Number.isFinite(step) || !Number.isFinite(limit)) return null;
+  return { kind: TOOL_ROUND_LIMIT_KIND, step, limit };
+}
+
 /** Asks one case in one language through the façade; returns the ask record (graded, with every call it made). */
 export async function askOne({ caseDoc, lang, transport, session, catalogue, opts }) {
   const started = performance.now();
@@ -293,34 +323,44 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     counts: { rateLimited: 0, serverErrors: 0, retries: 0 }, renewals: [], modelTurns: 0, error: null,
   };
   const renewals = record.renewals;
-  const note = (kind, t0) => renewals.push({ kind, ms: Number((performance.now() - t0).toFixed(1)) });
+  // A credential wait the ask itself paid, as one note per wait: a renewal it ran (`session` / `frame`, one note per
+  // token minted) or the wait it spent on another ask's mount already in flight (`mount_wait`, G712-70). Every note is
+  // time that leaves `wallMsNoRenewals`; only the session and frame notes are token renewals the run summary counts.
+  const note = (kind, ms) => renewals.push({ kind, ms: Number(Number(ms).toFixed(1)) });
   const backend = (opts.backendFactory ?? createBackend)(caseDoc, { fixturesDir: opts.fixturesDir });
   const tools = offeredTools(caseDoc, catalogue);
   const offeredNames = new Set(tools.map((t) => t.function.name));
   record.unobtainableOps = unobtainableOps(caseDoc, tools);
   const fixtureId = caseDoc.fixtures[0].id;
-  let mount;
-  try {
-    mount = await session.mount(fixtureId);
-  } catch (err) {
-    throw new HarnessAbort(`cannot mount fixture ${fixtureId}: ${String(err?.message ?? err).slice(0, 160)}`);
-  }
-  renewals.push(...(mount.renewals ?? []));
-  // A fresh frame token for the SAME mounted document (the fixture is uploaded again only when the document is gone);
-  // the renewal is noted on the ask and its own time never lands in a call's latency. A mount that joined a renewal
-  // already in flight for this document minted no token, so it is not noted: the frame count follows the tokens
-  // actually minted, not the asks that asked for one (G712-60).
-  const remount = async () => {
+  // The mount of one ask. A fresh frame token for the SAME mounted document is a renewal (the fixture is uploaded again
+  // only when the document is gone); the first mount of a fixture is not. The renewal is noted on the ask and its own
+  // time never lands in a call's latency. A mount that joined a renewal already in flight for this document minted no
+  // token, so it is not noted as a frame renewal: the frame count follows the tokens actually minted, not the asks that
+  // asked for one (G712-60) - but the wait it spent is noted, so it leaves the clean wall too (G712-70).
+  const mountAsk = async (fixtureId0, { fresh = false } = {}) => {
     const t0 = performance.now();
-    const next = await session.mount(fixtureId, { fresh: true });
-    if (next.minted) note('frame', t0);
+    const next = await session.mount(fixtureId0, { fresh });
+    if (fresh && next.minted) note('frame', performance.now() - t0);
+    else if (next.waitedMs > 0) note('mount_wait', next.waitedMs);
     renewals.push(...(next.renewals ?? []));
     return next;
   };
+  let mount;
+  try {
+    mount = await mountAsk(fixtureId);
+  } catch (err) {
+    throw new HarnessAbort(`cannot mount fixture ${fixtureId}: ${String(err?.message ?? err).slice(0, 160)}`);
+  }
+  const remount = () => mountAsk(fixtureId, { fresh: true });
   let conversation = '';
   let run = '';
   let messages = firstMessages(caseDoc, lang);
   let reply = '';
+  // The run cap that ended the ask: null when the ask ended with a final reply or an error (design §4.4; run409 §5).
+  let capReached = null;
+  let lastStep = null;
+  let lastLimit = null;
+  let lastContent = '';
   let usageTokens = { input: 0, output: 0, source: 'none' };
   const models = new Set();
   for (let step = 0; step < MAX_STEPS; step += 1) {
@@ -330,6 +370,15 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     const body = { model: 'uniwork', stream: true, messages, ...(tools.length > 0 ? { tools } : {}) };
     const out = await callFacade({ transport, mount, remount, headers, body, step, record, opts });
     mount = out.mount ?? mount;
+    if (out.capReached) {
+      // A 409 run_limit_reached is the run's documented end (design §4.3; run409 report §5.2): the finished run's
+      // header is dropped and the conversation is kept, so a later question opens a new run in it. The ask ends with
+      // what the model produced so far - never an error, never a harness abort.
+      run = '';
+      capReached = { ...out.capReached, step: lastStep, limit: lastLimit };
+      reply = lastContent;
+      break;
+    }
     if (out.failed) { record.error = out.failed; break; }
     conversation = out.res.headers.get('x-uniwork-ai-conversation') ?? conversation;
     run = out.res.headers.get('x-uniwork-ai-run') ?? run;
@@ -347,7 +396,24 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     if (usage) usageTokens = { input: usageTokens.input + usage.input, output: usageTokens.output + usage.output, source: 'facade' };
     out.call.finishReason = parsed.finishReason;
     out.call.model = parsed.model || null;
+    const observed = toolRoundCap(parsed.xUniwork);
+    if (observed) { lastStep = observed.step; lastLimit = observed.limit; }
+    lastContent = parsed.content;
+    // A reply with no tool call is a natural finish: the cap cut nothing off, so capReached stays null (G712-R13-1/2).
     if (!parsed.toolCalls || parsed.toolCalls.length === 0) { reply = parsed.content; break; }
+    // The run's own cap, read from the answer (A13, design §4.4): step is the tool rounds the run has spent after
+    // this turn and limit is 8, so an answer that spends the last round ends the ask here - one more tool turn would
+    // be refused. The last answer's tool calls are not executed: their result has no turn left to come back on.
+    if (observed && observed.step >= observed.limit) {
+      capReached = { ...observed, refused: false };
+      reply = parsed.content;
+      break;
+    }
+    if (step === MAX_STEPS - 1) {
+      capReached = { kind: TOOL_ROUND_LIMIT_KIND, step: observed?.step ?? lastStep, limit: observed?.limit ?? lastLimit, refused: false };
+      reply = parsed.content;
+      break;
+    }
     const results = [];
     for (const tc of parsed.toolCalls) {
       const name = tc.function?.name ?? '';
@@ -368,8 +434,8 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
         : result) });
     }
     messages = results;
-    if (step === MAX_STEPS - 1) record.error = `no final reply within ${MAX_STEPS} model calls (run_limit_reached)`;
   }
+  record.capReached = capReached;
   record.models = [...models];
   record.tokens = usageTokens;
   record.writes = backend.writes();
@@ -448,7 +514,7 @@ async function askSafely({ caseDoc, lang, ...rest }) {
       calls: [], toolCalls: [], dropped: [], writeLog: [], invalidArguments: [], denied: [], writes: 0, models: [], modelTurns: 0,
       expects: { numeric: caseDoc.expected.numeric.length, writes: caseDoc.expected.writes, mustNotContain: caseDoc.expected.mustNotContain.length },
       counts: { rateLimited: 0, serverErrors: 0, retries: 0 }, renewals: [], tokens: { input: 0, output: 0, source: 'none' },
-      adapter: { reportStatus: 'missing', anchorLenient: 0, extraFigures: 0 }, answer: null, unobtainableOps: [],
+      adapter: { reportStatus: 'missing', anchorLenient: 0, extraFigures: 0 }, answer: null, unobtainableOps: [], capReached: null,
       error: message, errored: true, status: scored.status, checks: scored.checks, outsideAllowlist: [], wallMs: 0, renewalMs: 0, wallMsNoRenewals: 0, redactions: [],
     };
   }
@@ -639,13 +705,15 @@ const FLAGS = [
 const ULID_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const newId = () => Array.from({ length: 26 }, () => ULID_ALPHABET[Math.floor(Math.random() * 32)]).join('');
 
-async function postJson(serverUrl, route, body, token) {
+async function postJson(serverUrl, route, body, token, { exemptEmails = null } = {}) {
   const res = await fetch(`${serverUrl}${route}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${route} failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  // A setup failure is a server body: it can echo the address the test user signed up with, so it is redacted here
+  // like every other text the runner throws (G712-72).
+  if (!res.ok) throw new Error(redactSecrets(`${route} failed: ${res.status} ${(await res.text()).slice(0, 200)}`, { exemptEmails }).text);
   return res.json();
 }
 
@@ -659,12 +727,18 @@ async function postJsonRaw(serverUrl, route, body, { cookie = null } = {}) {
   return { ok: res.ok, status: res.status, text: await res.text(), cookie: refreshCookieOf(res.headers.get('set-cookie')) };
 }
 
-/** The error_class of a server error body ({ error: { code, error_class } }), null when the body is not one. */
-export function errorClassOf(text) {
+/** The error detail of a server error body ({ error: { code, error_class, fields } }), null when the body is not one. */
+export function errorBodyOf(text) {
   try {
     const body = JSON.parse(String(text));
-    return typeof body?.error?.error_class === 'string' ? body.error.error_class : null;
+    return body?.error && typeof body.error === 'object' ? body.error : null;
   } catch { return null; }
+}
+
+/** The error_class of a server error body ({ error: { code, error_class } }), null when the body is not one. */
+export function errorClassOf(text) {
+  const value = errorBodyOf(text)?.error_class;
+  return typeof value === 'string' ? value : null;
 }
 
 /** The refresh cookie of a Set-Cookie header, as the "name=value" pair, null when the header is not one. */
@@ -682,17 +756,22 @@ export function refreshCookieOf(header) {
  * access token is older than SESSION_RENEW_AFTER_MS and once more when the answer is a 401 of class session; a second
  * 401 stays the caller's failure, as before. A fresh mount mints a new frame token for the SAME document and re-uploads
  * the fixture only when the document is gone (404). Every mount reports the renewals it caused as [{ kind, ms }] and
- * whether this call minted the frame token itself (`minted`), so two asks sharing one renewal count it once (G712-60).
+ * whether this call minted the frame token itself (`minted`), so two asks sharing one renewal count it once (G712-60),
+ * and how long it waited on another ask's mount already in flight (`waitedMs`, G712-70).
  */
 export async function createServerSession({
   serverUrl, dbUrl, sql = execPsql, fixturesRel = FIXTURES_REL, email = `g712-holdout-${Date.now()}@example.com`,
-  password = `Holdout-${Date.now()}-Pw!`, nowMs = Date.now, sessionRenewAfterMs = SESSION_RENEW_AFTER_MS,
+  password = `Holdout-${Date.now()}-Pw!`, nowMs = Date.now, sessionRenewAfterMs = SESSION_RENEW_AFTER_MS, exemptEmails = null,
 }) {
   const stamp = Date.now();
   const credentials = { email, password, cookie: null };
   const session = { token: '', userId: '', orgId: '', wsId: '' };
   let issuedAtMs = nowMs();
   let renewal = null;
+  // Every text this closure throws is a server body and can echo the address the run signed up with, so it is redacted
+  // before it reaches the operator's stderr, the way the abort reason and the ask errors are (G712-72). `exemptEmails`
+  // keeps the exact addresses the case set carries, as everywhere else.
+  const setupFailed = (text) => new Error(redactSecrets(text, { exemptEmails }).text);
 
   const adopt = (body) => {
     session.token = body.access_token || body.token || '';
@@ -711,7 +790,7 @@ export async function createServerSession({
         viaRefresh = false;
         out = await postJsonRaw(serverUrl, '/api/v1/auth/login', { email: credentials.email, password: credentials.password });
       }
-      if (!out.ok) throw new Error(`session renewal via ${viaRefresh ? 'refresh' : 'login'} failed: ${out.status} ${out.text.slice(0, 160)}`);
+      if (!out.ok) throw setupFailed(`session renewal via ${viaRefresh ? 'refresh' : 'login'} failed: ${out.status} ${out.text.slice(0, 160)}`);
       if (out.cookie) credentials.cookie = out.cookie;
       adopt(JSON.parse(out.text));
       return out;
@@ -735,7 +814,7 @@ export async function createServerSession({
   };
 
   const reg = await postJsonRaw(serverUrl, '/api/v1/auth/register', { email: credentials.email, password: credentials.password, display_name: 'G7-12 Holdout Runner' });
-  if (!reg.ok) throw new Error(`/api/v1/auth/register failed: ${reg.status} ${reg.text.slice(0, 200)}`);
+  if (!reg.ok) throw setupFailed(`/api/v1/auth/register failed: ${reg.status} ${reg.text.slice(0, 200)}`);
   if (reg.cookie) credentials.cookie = reg.cookie;
   adopt(JSON.parse(reg.text));
   session.userId = JSON.parse(reg.text).user?.id ?? '';
@@ -745,9 +824,9 @@ export async function createServerSession({
       INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind) VALUES ${values}
       ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = EXCLUDED.enabled;`]);
   }
-  const org = await postJson(serverUrl, '/api/v1/orgs', { name: 'G7-12 Org', slug: `g712-org-${stamp}` }, session.token);
+  const org = await postJson(serverUrl, '/api/v1/orgs', { name: 'G7-12 Org', slug: `g712-org-${stamp}` }, session.token, { exemptEmails });
   session.orgId = org.organization?.id || org.id;
-  const ws = await postJson(serverUrl, `/api/v1/orgs/${session.orgId}/workspaces`, { name: 'G7-12 Workspace', slug: `g712-ws-${stamp}` }, session.token);
+  const ws = await postJson(serverUrl, `/api/v1/orgs/${session.orgId}/workspaces`, { name: 'G7-12 Workspace', slug: `g712-ws-${stamp}` }, session.token, { exemptEmails });
   session.wsId = ws.workspace?.id || ws.id;
   if (dbUrl) sql(dbUrl, ['-v', 'ON_ERROR_STOP=1', '-c', `UPDATE subscriptions SET overrides = '{"office.ai_cloud": true, "ai.tokens": 100000000}'::jsonb WHERE organization_id = '${session.orgId}';`]);
 
@@ -769,7 +848,7 @@ export async function createServerSession({
       });
       return { ok: res.ok, status: res.status, text: await res.text() };
     }, renewals);
-    if (!out.ok) throw new Error(`upload file ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
+    if (!out.ok) throw setupFailed(`upload file ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
     const body = JSON.parse(out.text);
     return body.document?.id || body.file?.document_id || body.file?.id || body.id;
   };
@@ -785,7 +864,7 @@ export async function createServerSession({
       return { ok: res.ok, status: res.status, text: await res.text() };
     }, renewals);
     if (out.status === 404) return null;
-    if (!out.ok) throw new Error(`mint frame token for ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
+    if (!out.ok) throw setupFailed(`mint frame token for ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
     const body = JSON.parse(out.text);
     return { docId, frameToken: body.token, aiGrant: body.ai, mintedAt: nowMs() };
   };
@@ -809,18 +888,24 @@ export async function createServerSession({
     orgId: session.orgId,
     // `minted` says this call minted a frame token itself; a call that read the cache or joined a mount already in
     // flight minted nothing, so the frame-renewal count stays the tokens minted (G712-60). `renewals` carries the
-    // session renewals the mount caused, reported by the call that ran it.
+    // session renewals the mount caused, reported by the call that ran it. `waitedMs` is the time this call spent on
+    // another ask's mount already in flight (0 for the call that ran the mount and for a cache read), so the joiner can
+    // record a wait it paid and leave it out of the clean wall a pilot measures server overhead with (G712-70).
     async mount(fixtureId, { fresh = false } = {}) {
       const cached = mounts.get(fixtureId);
-      if (!fresh && cached) return { ...cached, renewals: [], minted: false };
+      if (!fresh && cached) return { ...cached, renewals: [], minted: false, waitedMs: 0 };
       // One mount per fixture at a time: two lanes that start together must not upload the same fixture twice. The ask
       // that started the mount reports the renewals it caused; an ask that joined a shared mount reports none.
       const pending = inflight.get(fixtureId);
-      if (pending) return { ...(await pending.mount), renewals: [], minted: false };
+      if (pending) {
+        const t0 = performance.now();
+        const joined = await pending.mount;
+        return { ...joined, renewals: [], minted: false, waitedMs: Number((performance.now() - t0).toFixed(1)) };
+      }
       const renewals = [];
       const started = { mount: mountFixture(fixtureId, renewals).finally(() => inflight.delete(fixtureId)) };
       inflight.set(fixtureId, started);
-      return { ...(await started.mount), renewals, minted: true };
+      return { ...(await started.mount), renewals, minted: true, waitedMs: 0 };
     },
   };
 }
@@ -915,7 +1000,7 @@ async function main() {
   const { cases } = loadCases(args.cases);
   const sessionId = newSessionId();
   const outDir = path.join(args.out, sessionId);
-  const session = await createServerSession({ serverUrl: args.serverUrl, dbUrl: args.dbUrl });
+  const session = await createServerSession({ serverUrl: args.serverUrl, dbUrl: args.dbUrl, exemptEmails: fixtureEmails(cases) });
   const files = await runHoldout({
     cases, runs: args.runs, threads: args.threads, outDir, sessionId, transport: httpTransport(args.serverUrl), session,
     usageReader: createUsageReader({ dbUrl: args.dbUrl }), redis: args.redis, serverSha: args.serverSha ?? '', onlyIds: args.only ?? null, limit: args.limit ?? 0,

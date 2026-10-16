@@ -103,7 +103,9 @@ type RunStore interface {
 	// Gateway — and one tool round when the turn answers the model's calls —
 	// opening a run when RunID is empty. It answers ErrRunExpired when the
 	// named run is unknown, expired or not this conversation's, and
-	// RunLimitReached when a cap is already spent.
+	// RunLimitReached when a cap is already spent — with the run that was
+	// refused beside the error, because that refusal is an answer of a live
+	// run and the wire names it (A12, design §2.1).
 	TakeTurn(ctx context.Context, in TakeRunTurn) (Run, error)
 	// AddCredits records the tokens one answered model call cost, so the run
 	// carries what it spent (uniwork_ai_uniwork_run_credits, design §7).

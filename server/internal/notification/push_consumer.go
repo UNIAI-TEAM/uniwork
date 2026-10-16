@@ -186,6 +186,14 @@ func documentResourceURL(ctx context.Context, q *db.Queries, origin string, n db
 	if rid := params["request_id"]; rid != "" && n.Kind == KindDocumentEditRequested {
 		link += "?edit_request=" + url.QueryEscape(rid)
 	}
+	// The owner lands on the access panel, where the live grant can be revoked.
+	if n.Kind == KindDocumentBreakGlass {
+		sep := "?"
+		if strings.Contains(link, "?") {
+			sep = "&"
+		}
+		link += sep + "access=break_glass"
+	}
 	return link, nil
 }
 

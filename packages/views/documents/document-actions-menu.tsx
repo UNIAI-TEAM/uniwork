@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
-import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { canAdministerDocument } from "@uniwork/core/permissions";
 import type { Document } from "@uniwork/core/types/document";
@@ -37,7 +36,7 @@ import { VersionHistorySheet } from "./version-history-sheet";
 
 export interface DocumentActionsMenuProps {
   wsId: string;
-  doc: Document & DocumentAdminScopeFake;
+  doc: Document;
   /** Route of a document id, for opening a freshly created copy. */
   documentHrefFor?: (documentId: string) => string;
   /** Called after a verified archive so the host can leave the trashed doc. */

@@ -1,11 +1,9 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
-import type { User, Workspace } from "@uniwork/core/types";
-import { WorkspaceProvider } from "../layout/workspace-context";
-import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
-import { DocumentLockedCard } from "./document-locked-card";
+import { requestMock, wrapWithNav } from "../test/api-mock";
+import { DocumentBreakGlassBanner, DocumentLockedCard } from "./document-locked-card";
 
 // DOC7-W01 (access addendum §3.1-3.4): the member card never shows anything
 // of the document, sends one request, and reads the server's answers about
@@ -16,24 +14,6 @@ const WS = "ws1";
 const K = (k: string, o?: Record<string, unknown>) => t(`documents.access_request.${k}`, o);
 const FLAG = "uniwork_document_access_request_sent:d1";
 const SEND_PATH = "/api/v1/documents/d1/access-requests";
-
-const user: User = {
-  id: "u1",
-  email: "an@acme.vn",
-  display_name: "An",
-  onboarded_at: "2026-08-25T00:00:00Z",
-  email_verified_at: "2026-08-25T00:00:00Z",
-  onboarding_questionnaire: {},
-  locale: "vi",
-};
-const workspace: Workspace = {
-  id: WS,
-  slug: "team",
-  name: "Team",
-  organization_id: "o1",
-  organization_slug: "acme",
-  organization_name: "Acme",
-};
 
 function renderMember(over: { source?: { kind: "task"; id: string } | null; onRetryOpen?: () => void; onBack?: () => void } = {}) {
   const onRetryOpen = over.onRetryOpen ?? vi.fn();
@@ -64,6 +44,7 @@ beforeEach(() => {
   requestMock.mockReset();
 });
 afterEach(() => {
+  cleanup();
   vi.useRealTimers();
   localStorage.clear();
 });
@@ -268,69 +249,189 @@ describe("DocumentLockedCard variant=member", () => {
   });
 });
 
+// DOC5-W03 (permission-levels addendum §4): the admin variant explains the
+// restriction, shows the summary metadata and asks a reason for emergency access.
 describe("DocumentLockedCard variant=admin", () => {
-  it("keeps the restricted copy and offers Manage access once the admin summary answers", async () => {
-    requestMock.mockImplementation((path: string) => {
-      if (path === "/api/v1/documents/d1/admin-summary") {
-        return Promise.resolve({ id: "d1", title: "Lương 2026", kind: "page", visibility: "restricted", organization_id: "o1", revision: "4" });
-      }
-      return Promise.resolve({});
-    });
+  it("renders admin locked title, body, metadata, and break-glass reason form when canBreakGlass is true", () => {
     render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <DocumentLockedCard variant="admin" wsId={WS} documentId="d1" onBack={vi.fn()} />
-        </WorkspaceProvider>,
-      ),
+      <DocumentLockedCard
+        variant="admin"
+        canBreakGlass
+        metadata={{
+          title: "Báo cáo lương Q4",
+          ownerName: "Nguyễn Văn A",
+          visibility: "restricted",
+          updatedAt: "2026-10-14T08:30:00Z",
+          sizeBytes: 2048,
+        }}
+        onGrantBreakGlass={vi.fn()}
+      />,
     );
-    // An admin never had this document: it is restricted, not revoked.
-    expect(screen.getByRole("heading", { name: K("admin_locked_title") })).toBeInTheDocument();
-    expect(screen.getByText(K("admin_locked_body"))).toBeInTheDocument();
-    expect(screen.queryByText(t("documents.detail.revoked_title"))).toBeNull();
-    expect(screen.queryByText(t("documents.detail.revoked_description"))).toBeNull();
-    expect(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") })).toBeInTheDocument();
-    // Admins manage but never read: the title the summary carries is not on the card.
-    expect(screen.queryByText("Lương 2026")).toBeNull();
-    expect(screen.queryByRole("button", { name: K("send") })).toBeNull();
-  });
 
-  it("opens Share at the requests section from ?access=requests and drops the parameter (DOC7-W02, §2.5)", async () => {
-    requestMock.mockImplementation((path: string) => {
-      if (path === "/api/v1/documents/d1/admin-summary") {
-        return Promise.resolve({ id: "d1", title: "Lương 2026", kind: "page", visibility: "restricted", organization_id: "o1", revision: "4" });
-      }
-      if (path === "/api/v1/documents/d1/access-requests") return Promise.resolve({ requests: [] });
-      if (path === "/api/v1/documents/d1/shares") {
-        return Promise.resolve({ my_level: "", admin_scope: true, acl_owner: null, shares: [], links: [] });
-      }
-      return Promise.resolve({});
-    });
-    const nav = fakeNav("/acme/team/documents/d1?access=requests&x=1");
-    render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <DocumentLockedCard variant="admin" wsId={WS} documentId="d1" onBack={vi.fn()} />
-        </WorkspaceProvider>,
-        nav,
-      ),
-    );
-    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    expect(screen.getByText("Tài liệu này ở chế độ hạn chế")).toBeInTheDocument();
     expect(
-      await within(dialog).findByRole("heading", { name: t("documents.access_request.section_title", { count: 0 }) }),
+      screen.getByText(
+        "Quản trị viên quản lý được tài liệu nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
+      ),
     ).toBeInTheDocument();
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1?x=1"));
+    expect(screen.getByText("Báo cáo lương Q4")).toBeInTheDocument();
+    expect(screen.getByText("Hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Chủ sở hữu: Nguyễn Văn A")).toBeInTheDocument();
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument();
+
+    expect(screen.getByLabelText("Lý do truy cập khẩn cấp")).toBeInTheDocument();
+    expect(screen.getByTestId("break-glass-reason-counter")).toHaveTextContent("0/500");
+    expect(
+      screen.getByRole("button", { name: "Mở quyền Xem (24 giờ)" }),
+    ).toBeInTheDocument();
   });
 
-  it("shows no Manage access when the admin summary is refused", async () => {
-    requestMock.mockRejectedValue(new ApiError("forbidden", "forbidden", 403));
+  it("validates reason trimmed length (< 10 shows reasonTooShort, > 500 shows reasonTooLong, 10..500 submits trimmed reason)", async () => {
+    const onGrant = vi.fn().mockResolvedValue(undefined);
     render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <DocumentLockedCard variant="admin" wsId={WS} documentId="d1" onBack={vi.fn()} />
-        </WorkspaceProvider>,
-      ),
+      <DocumentLockedCard
+        variant="admin"
+        canBreakGlass
+        metadata={{ title: "Hợp đồng mật" }}
+        onGrantBreakGlass={onGrant}
+      />,
     );
-    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+
+    const textarea = screen.getByLabelText("Lý do truy cập khẩn cấp");
+    const submitBtn = screen.getByRole("button", { name: "Mở quyền Xem (24 giờ)" });
+
+    // 9 characters after trim -> too short
+    fireEvent.change(textarea, { target: { value: "   123456789   " } });
+    expect(screen.getByTestId("break-glass-reason-counter")).toHaveTextContent("9/500");
+    expect(screen.getByRole("alert")).toHaveTextContent("Hãy nhập lý do ít nhất 10 ký tự.");
+    fireEvent.click(submitBtn);
+    expect(onGrant).not.toHaveBeenCalled();
+
+    // 501 characters after trim -> too long
+    fireEvent.change(textarea, { target: { value: "x".repeat(501) } });
+    expect(screen.getByTestId("break-glass-reason-counter")).toHaveTextContent("501/500");
+    expect(screen.getByRole("alert")).toHaveTextContent("Lý do tối đa 500 ký tự.");
+    fireEvent.click(submitBtn);
+    expect(onGrant).not.toHaveBeenCalled();
+
+    // 10 characters after trim -> valid, submits trimmed reason
+    fireEvent.change(textarea, { target: { value: "  Kiểm toán!  " } });
+    expect(screen.getByTestId("break-glass-reason-counter")).toHaveTextContent("10/500");
+    expect(screen.queryByTestId("break-glass-reason-error")).not.toBeInTheDocument();
+
+    fireEvent.click(submitBtn);
+    await waitFor(() => {
+      expect(onGrant).toHaveBeenCalledTimes(1);
+    });
+    expect(onGrant).toHaveBeenCalledWith("Kiểm toán!");
+  });
+
+  it("hides the break-glass reason form when canBreakGlass is false (can_break_glass=false)", () => {
+    render(
+      <DocumentLockedCard
+        variant="admin"
+        canBreakGlass={false}
+        metadata={{ title: "Biên bản họp HĐQT" }}
+        onGrantBreakGlass={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Tài liệu này ở chế độ hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Biên bản họp HĐQT")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Lý do truy cập khẩn cấp")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Mở quyền Xem (24 giờ)" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders DocumentBreakGlassBanner active and expired states and triggers onEndAccess", () => {
+    const onEnd = vi.fn();
+    const { rerender } = render(
+      <DocumentBreakGlassBanner
+        expiresAt="2026-10-15T12:00:00Z"
+        onEndAccess={onEnd}
+      />,
+    );
+
+    expect(screen.getByTestId("break-glass-active-banner")).toHaveTextContent(
+      /Bạn đang xem bằng truy cập khẩn cấp \(chỉ xem\) đến/,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Kết thúc truy cập" }));
+    expect(onEnd).toHaveBeenCalledTimes(1);
+
+    rerender(<DocumentBreakGlassBanner expired />);
+    expect(screen.getByTestId("break-glass-expired-banner")).toHaveTextContent(
+      "Truy cập khẩn cấp đã hết hạn. Mở lại truy cập khẩn cấp nếu bạn vẫn cần kiểm tra tài liệu này.",
+    );
+  });
+
+  it("counts the reason in code points like the server's runes (R21 L6)", () => {
+    render(
+      <DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={vi.fn()} />,
+    );
+    // Ten emoji are 20 UTF-16 units but 10 runes: exactly the minimum.
+    fireEvent.change(screen.getByLabelText(t("documents.breakGlass.reasonLabel")), {
+      target: { value: "😀".repeat(10) },
+    });
+    expect(screen.getByTestId("break-glass-reason-counter")).toHaveTextContent("10/500");
+    expect(screen.queryByTestId("break-glass-reason-error")).toBeNull();
+  });
+
+  it.each([
+    ["too long", { min: 10, max: 500, length: 501 }, "documents.breakGlass.reasonTooLong"],
+    ["too short", { min: 10, max: 500, length: 3 }, "documents.breakGlass.reasonTooShort"],
+  ])("maps a 422 reason that is %s to its own message", async (_name, fields, key) => {
+    const onGrant = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("invalid", "break_glass_reason_invalid", 422, undefined, fields),
+      );
+    render(<DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={onGrant} />);
+    fireEvent.change(screen.getByLabelText(t("documents.breakGlass.reasonLabel")), {
+      target: { value: "Kiểm tra sự cố bảo mật khẩn cấp" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.breakGlass.confirmButton") }));
+    expect(await screen.findByText(t(key))).toBeInTheDocument();
+  });
+
+  it("uses the role type scale and the shared focus ring, with one id per mounted card (R21 M4)", () => {
+    const { container } = render(
+      <>
+        <DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={vi.fn()} />
+        <DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={vi.fn()} />
+      </>,
+    );
+    const html = container.innerHTML;
+    expect(html).not.toMatch(/\btext-(xs|sm|base)\b/);
+    const areas = screen.getAllByLabelText(t("documents.breakGlass.reasonLabel"));
+    expect(areas).toHaveLength(2);
+    expect(areas[0]!.id).not.toBe(areas[1]!.id);
+    expect(areas[0]).toHaveAttribute("data-slot", "textarea");
+  });
+
+  it("shows the pending banner with a retry while the grant has not opened the document yet", () => {
+    const onRetry = vi.fn();
+    render(
+      <DocumentLockedCard variant="admin" grantPending onRetryOpen={onRetry} onGrantBreakGlass={vi.fn()} />,
+    );
+    expect(screen.getByTestId("break-glass-pending-banner")).toHaveTextContent(
+      t("documents.breakGlass.grantedPending"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: t("documents.detail.retry") }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps End access disabled until the grant id is known", () => {
+    render(<DocumentBreakGlassBanner expiresAt="2026-10-15T12:00:00Z" endDisabled onEndAccess={vi.fn()} />);
+    expect(screen.getByRole("button", { name: t("documents.breakGlass.endAccessButton") })).toBeDisabled();
+  });
+
+  it("offers Manage access only when the host passes it (access addendum §2.5)", () => {
+    const onManage = vi.fn();
+    const { rerender } = render(<DocumentLockedCard variant="admin" canBreakGlass={false} />);
     expect(screen.queryByRole("button", { name: t("documents.share.admin_manage_button") })).toBeNull();
+    rerender(<DocumentLockedCard variant="admin" canBreakGlass={false} onManageAccess={onManage} />);
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.admin_manage_button") }));
+    expect(onManage).toHaveBeenCalledTimes(1);
   });
 });

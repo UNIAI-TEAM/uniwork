@@ -32,6 +32,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   document_edit_requested: moduleTone("documents"),
   document_edit_request_answered: moduleTone("documents"),
   document_edit_taken_over: moduleTone("documents"),
+  document_break_glass: moduleTone("documents"),
   chat_mentioned: moduleTone("chat"),
   chat_dm: moduleTone("chat"),
   chat_thread_replied: moduleTone("chat"),

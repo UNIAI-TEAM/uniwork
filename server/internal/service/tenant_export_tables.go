@@ -75,6 +75,7 @@ var tenantExportIncludedTables = []string{
 	"departments",
 	"document_access_logs",
 	"document_assets",
+	"document_break_glass_grants",
 	"document_comment_mentions",
 	"document_comment_revisions",
 	"document_comments",
