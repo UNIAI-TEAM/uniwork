@@ -1,8 +1,10 @@
 package files
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/binary"
+	"io"
 	"net/http"
 	"path"
 	"strings"
@@ -168,7 +170,8 @@ func odfType(head []byte) string {
 }
 
 // ooxmlType walks the zip local file headers in head and names the OOXML
-// package they describe. A package needs the content-types part and parts of// one main folder; a zip holding two main folders is ambiguous and stays a
+// package they describe. A package needs the content-types part and parts of
+// one main folder; a zip holding two main folders is ambiguous and stays a
 // zip, and so does a macro-enabled package (a vbaProject.bin part), which no
 // purpose allows under the plain OOXML types. It reads names only, never
 // decompresses.
@@ -187,7 +190,7 @@ func ooxmlType(head []byte) string {
 		zip64Size      = 0xffffffff
 	)
 	sig := []byte("PK\x03\x04")
-	var contentTypes, word, xl, ppt, macros bool
+	var names ooxmlParts
 	for pos := 0; pos+localHeaderLen <= len(head) && bytes.Equal(head[pos:pos+4], sig); {
 		flags := binary.LittleEndian.Uint16(head[pos+6:])
 		method := binary.LittleEndian.Uint16(head[pos+8:])
@@ -199,19 +202,7 @@ func ooxmlType(head []byte) string {
 			break
 		}
 		name := string(head[pos+localHeaderLen : nameEnd])
-		switch {
-		case name == "[Content_Types].xml":
-			contentTypes = true
-		case strings.HasPrefix(name, "word/"):
-			word = true
-		case strings.HasPrefix(name, "xl/"):
-			xl = true
-		case strings.HasPrefix(name, "ppt/"):
-			ppt = true
-		}
-		if strings.HasSuffix(name, "/vbaProject.bin") {
-			macros = true
-		}
+		names.add(name)
 		dataStart := nameEnd + extraLen
 		switch {
 		case compressed == zip64Size:
@@ -237,18 +228,71 @@ func ooxmlType(head []byte) string {
 			pos = dataStart + int(compressed)
 		}
 	}
-	if !contentTypes || macros {
+	return names.mime()
+}
+
+// ooxmlParts collects the part names that decide an OOXML package. The head
+// walk and the central-directory path both feed it, so one rule names the
+// package whichever way the names were read.
+type ooxmlParts struct {
+	contentTypes, word, xl, ppt, macros bool
+}
+
+func (p *ooxmlParts) add(name string) {
+	switch {
+	case name == "[Content_Types].xml":
+		p.contentTypes = true
+	case strings.HasPrefix(name, "word/"):
+		p.word = true
+	case strings.HasPrefix(name, "xl/"):
+		p.xl = true
+	case strings.HasPrefix(name, "ppt/"):
+		p.ppt = true
+	}
+	if strings.HasSuffix(name, "/vbaProject.bin") {
+		p.macros = true
+	}
+}
+
+func (p *ooxmlParts) mime() string {
+	if !p.contentTypes || p.macros {
 		return ""
 	}
 	switch {
-	case word && !xl && !ppt:
+	case p.word && !p.xl && !p.ppt:
 		return mimeDOCX
-	case xl && !word && !ppt:
+	case p.xl && !p.word && !p.ppt:
 		return mimeXLSX
-	case ppt && !word && !xl:
+	case p.ppt && !p.word && !p.xl:
 		return mimePPTX
 	}
 	return ""
+}
+
+// DetectBodyContentType is DetectContentType for a body whose bytes can be
+// read at an offset (the upload spool, the fake's buffer). The head decides
+// everything it can; a zip the head leaves untyped, from a body longer than
+// the head, is typed from the central directory at the end of the archive,
+// because a package whose first part is a large media file pushes
+// [Content_Types].xml past the head. Only entry names are read, never
+// inflated, and the same rule as ooxmlType applies.
+func DetectBodyContentType(head []byte, filename string, body io.ReaderAt, size int64) string {
+	ct := DetectContentType(head, filename)
+	if ct != mimeZip || body == nil || size <= int64(len(head)) {
+		return ct
+	}
+	zr, err := zip.NewReader(body, size)
+	if err != nil {
+		return ct
+	}
+	var names ooxmlParts
+	for _, f := range zr.File {
+		names.add(f.Name)
+	}
+	if ooxml := names.mime(); ooxml != "" {
+		return ooxml
+	}
+	return ct
 }
 
 // oggType reads the first Ogg page. Its payload is the identification header
