@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -115,6 +116,49 @@ func TestDocumentWorkspaceAccessChangedAuditAndOutbox(t *testing.T) {
 	}
 	if v, ok := diff["visibility"]; !ok || v.From != "workspace" || v.To != "restricted" {
 		t.Fatalf("home-row visibility change = %s, want workspace -> restricted", changes)
+	}
+
+	// One PATCH that moves the home row and the content at once writes one row
+	// per fact: the home-row event for the visibility half and the autosave's
+	// document.updated row for the content half, with no document.updated
+	// frame - neither title nor icon moved (C-01 §5.1).
+	doc2 := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+	if _, err := f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), doc2.ID, UpdateDocumentInput{
+		Revision: doc2.Revision, Visibility: strPtr("restricted"), Content: pageJSON("nội dung mới"),
+	}); err != nil {
+		t.Fatalf("combined visibility+content PATCH: %v", err)
+	}
+	if n := countAudit(t, f, audit.ActionDocumentWorkspaceAccessChanged, doc2.ID); n != 1 {
+		t.Fatalf("combined PATCH workspace-access rows = %d, want 1", n)
+	}
+	if n := countAudit(t, f, audit.ActionDocumentUpdated, doc2.ID); n != 1 {
+		t.Fatalf("combined PATCH document.updated rows = %d, want 1", n)
+	}
+	if n := countOutbox(t, f, "document.updated", doc2.ID); n != 0 {
+		t.Fatalf("combined PATCH document.updated frames = %d, want none", n)
+	}
+	if n := countOutbox(t, f, "document.workspace_access_changed", doc2.ID); n != 1 {
+		t.Fatalf("combined PATCH workspace-access frames = %d, want 1", n)
+	}
+	// One successful PATCH bumps the revision once, however many halves it
+	// writes (C-01 §9.1 item 3), and the document.updated row's metadata names
+	// that final revision.
+	final, err := f.q.GetDocumentByID(f.ctx, doc2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if final.Revision != doc2.Revision+1 {
+		t.Fatalf("combined PATCH revision = %d, want exactly one bump from %d", final.Revision, doc2.Revision)
+	}
+	var auditRevision string
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata::jsonb->>'revision' FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		audit.ActionDocumentUpdated, doc2.ID,
+	).Scan(&auditRevision); err != nil {
+		t.Fatal(err)
+	}
+	if auditRevision != strconv.FormatInt(final.Revision, 10) {
+		t.Fatalf("combined PATCH audit revision = %q, want the final revision %d", auditRevision, final.Revision)
 	}
 }
 

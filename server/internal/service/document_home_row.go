@@ -24,6 +24,12 @@ type documentHomeRowMove struct {
 	// BatchID rides the audit metadata when the write belongs to a batched
 	// command (SH-S2's PUT /access); empty on a single command.
 	BatchID string
+	// KeepRevision leaves the row's revision where it is: the caller's
+	// command already bumped it (a PATCH that wrote the document's fields in
+	// the same request), and one successful command bumps the revision once
+	// (C-01 §9.1 item 3). The zero value bumps, so a caller that does not ask
+	// keeps the behaviour of every other home-row write.
+	KeepRevision bool
 }
 
 // writeDocumentHomeRow is the one place a document's home row moves. Inside
@@ -47,6 +53,7 @@ func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc d
 	updated, err := q.UpdateDocumentHomeRow(ctx, db.UpdateDocumentHomeRowParams{
 		Visibility:     move.Visibility,
 		WorkspaceLevel: move.WorkspaceLevel,
+		KeepRevision:   move.KeepRevision,
 		UpdatedBy:      actor.ID,
 		UpdatedByKind:  string(actor.Kind),
 		ID:             doc.ID,

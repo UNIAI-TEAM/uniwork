@@ -690,19 +690,20 @@ const updateDocumentHomeRow = `-- name: UpdateDocumentHomeRow :one
 UPDATE documents
 SET visibility = $1,
     workspace_level = $2,
-    revision = revision + 1,
-    updated_by = $3,
-    updated_by_kind = $4,
+    revision = revision + CASE WHEN $3::boolean THEN 0 ELSE 1 END,
+    updated_by = $4,
+    updated_by_kind = $5,
     updated_at = now()
-WHERE id = $5
-  AND organization_id = $6
-  AND workspace_id = $7
+WHERE id = $6
+  AND organization_id = $7
+  AND workspace_id = $8
 RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
 `
 
 type UpdateDocumentHomeRowParams struct {
 	Visibility     string `json:"visibility"`
 	WorkspaceLevel string `json:"workspace_level"`
+	KeepRevision   bool   `json:"keep_revision"`
 	UpdatedBy      string `json:"updated_by"`
 	UpdatedByKind  string `json:"updated_by_kind"`
 	ID             string `json:"id"`
@@ -714,11 +715,15 @@ type UpdateDocumentHomeRowParams struct {
 // 'workspace', the level the row grants every effective member of the
 // document's workspace. Every caller runs it inside the transaction that
 // already holds the row lock, so no revision is expected here; the write
-// bumps the revision like any other access-relevant change.
+// bumps the revision like any other access-relevant change unless the caller
+// asks to keep it (keep_revision): one successful command bumps the revision
+// once, so a PATCH that already wrote the document's fields in the same
+// request moves the home row to that same revision (C-01 §9.1 item 3).
 func (q *Queries) UpdateDocumentHomeRow(ctx context.Context, arg UpdateDocumentHomeRowParams) (Document, error) {
 	row := q.db.QueryRow(ctx, updateDocumentHomeRow,
 		arg.Visibility,
 		arg.WorkspaceLevel,
+		arg.KeepRevision,
 		arg.UpdatedBy,
 		arg.UpdatedByKind,
 		arg.ID,

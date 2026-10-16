@@ -777,6 +777,12 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 		if homeChanged {
 			if updated, err = writeDocumentHomeRow(ctx, q, actor, updated, documentHomeRowMove{
 				Visibility: *in.Visibility, WorkspaceLevel: doc.WorkspaceLevel,
+				// One successful PATCH bumps the revision once (C-01 §9.1
+				// item 3): the fields write above already moved it when it
+				// ran, so the home row joins that revision instead of adding
+				// a second bump. A visibility-only PATCH has no fields write
+				// and leaves the bump to this move.
+				KeepRevision: metaChanged || contentChanged,
 			}); err != nil {
 				return err
 			}
