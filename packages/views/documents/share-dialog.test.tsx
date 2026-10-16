@@ -923,13 +923,23 @@ describe("ShareDialog requests section (DOC7-W02)", () => {
   }
   const listed = () => requestMock.mock.calls.some(([path]) => path === LIST);
 
-  it("lists the pending requests above the access list for a manager", async () => {
+  it("orders dialog sections as add -> access list -> access requests -> visibility -> public links (VIS-SHS1-02)", async () => {
     serveRequests();
     renderDialog();
-    const heading = await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 1 }) });
+    const requestsHeading = await screen.findByRole("heading", {
+      name: t("documents.access_request.section_title", { count: 1 }),
+    });
     expect(await screen.findByText("Chi")).toBeInTheDocument();
-    const access = screen.getByRole("region", { name: t("documents.share.access_title") });
-    expect(heading.compareDocumentPosition(access) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const addSection = screen.getByRole("region", { name: t("documents.share.add_title") });
+    const accessSection = screen.getByRole("region", { name: t("documents.share.access_title") });
+    const requestsSection = requestsHeading.closest("section")!;
+    const visibilitySection = screen.getByRole("region", { name: t("documents.share.visibility_title") });
+    const linksSection = screen.getByRole("region", { name: t("documents.share.links_title") });
+
+    expect(addSection.compareDocumentPosition(accessSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(accessSection.compareDocumentPosition(requestsSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(requestsSection.compareDocumentPosition(visibilitySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(visibilitySection.compareDocumentPosition(linksSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("is there for a pure admin (admin_scope without a level)", async () => {

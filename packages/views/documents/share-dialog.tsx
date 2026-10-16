@@ -245,98 +245,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
               {members.error ? (
                 <ShareMembersErrorLine error={members.error} retrying={members.retrying} onRetry={members.retry} />
               ) : null}
-              {!doc.archived_at ? <AccessRequestsSection wsId={wsId} documentId={doc.id} focusOnOpen={focusRequests} /> : null}
               <ShareDialogBreakGlassSection wsId={wsId} docId={doc.id} grants={access.data.break_glass} initialOpen={initialSection === "break_glass"} resolveName={memberName} />
-              <section aria-labelledby="share-access-title" className="rounded-lg border border-border">
-                <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-                  <h3 id="share-access-title" className="text-label font-medium text-foreground">
-                    {t("documents.share.access_title")}
-                  </h3>
-                  <span className="text-caption text-muted-foreground">
-                    {t("documents.share.my_level", { level: levelLabel(access.data.my_level) })}
-                  </span>
-                </div>
-                <ul className="divide-y divide-border">
-                  {access.data.acl_owner ? (
-                    // Wraps below sm: the name and label keep their line and the level
-                    // and the transfer button drop under them, instead of the button
-                    // squeezing the name to nothing at 390px.
-                    <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
-                      <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
-                        <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                        <NameOrSkeleton name={memberName(access.data.acl_owner.user_id)} />
-                        <span className="shrink-0 text-caption text-muted-foreground">
-                          {t("documents.share.acl_owner")}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
-                        {levelLabel(access.data.acl_owner.level)}
-                        <OwnerTransferAction
-                          wsId={wsId}
-                          doc={doc}
-                          ownerId={access.data.acl_owner.user_id}
-                          ownerName={memberName(access.data.acl_owner.user_id) ?? t("documents.share.person_unknown")}
-                          orgMembers={members.rows}
-                        />
-                      </span>
-                    </li>
-                  ) : null}
-                  {shares.map((row) => (
-                    <li key={row.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                      {/* Level text sits under the name so 390px keeps the name (TV-2). */}
-                      <div className="min-w-0 flex-1">
-                        <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
-                          {row.principal_type === "user" ? (
-                            <UserRound aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                          ) : row.principal_type === "workspace" ? (
-                            <Building2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                          )}
-                          <NameOrSkeleton name={principalName(row)} />
-                          {!row.active ? (
-                            <span className="shrink-0 text-caption text-muted-foreground">
-                              {t("documents.share.inactive")}
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="block pl-5.5 text-caption text-muted-foreground">
-                          {levelLabel(row.level)}
-                          {row.effective_level && row.effective_level !== row.level
-                            ? ` · ${t("documents.share.effective", { level: levelLabel(row.effective_level) })}`
-                            : ""}
-                          {row.effective_via ? ` · ${viaLabel(row.effective_via)}` : ""}
-                        </span>
-                      </div>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
-                          disabled={revokeShare.isPending}
-                          aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
-                          onClick={() => {
-                            setAddError(null);
-                            revokeShare.mutate(row.id);
-                          }}
-                        >
-                          {revokeShare.isPending && revokeShare.variables === row.id ? (
-                            <Spinner aria-hidden role="presentation" />
-                          ) : null}
-                          {t("documents.share.revoke")}
-                        </Button>
-                      </span>
-                    </li>
-                  ))}
-                  {!shares.length && !access.data.acl_owner ? (
-                    <li className="px-3 py-2 text-caption text-muted-foreground">
-                      {t("documents.share.no_grants")}
-                    </li>
-                  ) : null}
-                </ul>
-              </section>
-
               <section aria-labelledby="share-add-title" className="flex flex-col gap-2 rounded-lg border border-border p-3">
                 <h3 id="share-add-title" className="text-label font-medium text-foreground">
                   {t("documents.share.add_title")}
@@ -450,6 +359,98 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                   </p>
                 ) : null}
               </section>
+
+              <section aria-labelledby="share-access-title" className="rounded-lg border border-border">
+                <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+                  <h3 id="share-access-title" className="text-label font-medium text-foreground">
+                    {t("documents.share.access_title")}
+                  </h3>
+                  <span className="text-caption text-muted-foreground">
+                    {t("documents.share.my_level", { level: levelLabel(access.data.my_level) })}
+                  </span>
+                </div>
+                <ul className="divide-y divide-border">
+                  {access.data.acl_owner ? (
+                    // Wraps below sm: the name and label keep their line and the level
+                    // and the transfer button drop under them, instead of the button
+                    // squeezing the name to nothing at 390px.
+                    <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
+                      <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
+                        <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                        <NameOrSkeleton name={memberName(access.data.acl_owner.user_id)} />
+                        <span className="shrink-0 text-caption text-muted-foreground">
+                          {t("documents.share.acl_owner")}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
+                        {levelLabel(access.data.acl_owner.level)}
+                        <OwnerTransferAction
+                          wsId={wsId}
+                          doc={doc}
+                          ownerId={access.data.acl_owner.user_id}
+                          ownerName={memberName(access.data.acl_owner.user_id) ?? t("documents.share.person_unknown")}
+                          orgMembers={members.rows}
+                        />
+                      </span>
+                    </li>
+                  ) : null}
+                  {shares.map((row) => (
+                    <li key={row.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                      {/* Level text sits under the name so 390px keeps the name (TV-2). */}
+                      <div className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
+                          {row.principal_type === "user" ? (
+                            <UserRound aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                          ) : row.principal_type === "workspace" ? (
+                            <Building2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                          )}
+                          <NameOrSkeleton name={principalName(row)} />
+                          {!row.active ? (
+                            <span className="shrink-0 text-caption text-muted-foreground">
+                              {t("documents.share.inactive")}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="block pl-5.5 text-caption text-muted-foreground">
+                          {levelLabel(row.level)}
+                          {row.effective_level && row.effective_level !== row.level
+                            ? ` · ${t("documents.share.effective", { level: levelLabel(row.effective_level) })}`
+                            : ""}
+                          {row.effective_via ? ` · ${viaLabel(row.effective_via)}` : ""}
+                        </span>
+                      </div>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
+                          disabled={revokeShare.isPending}
+                          aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
+                          onClick={() => {
+                            setAddError(null);
+                            revokeShare.mutate(row.id);
+                          }}
+                        >
+                          {revokeShare.isPending && revokeShare.variables === row.id ? (
+                            <Spinner aria-hidden role="presentation" />
+                          ) : null}
+                          {t("documents.share.revoke")}
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                  {!shares.length && !access.data.acl_owner ? (
+                    <li className="px-3 py-2 text-caption text-muted-foreground">
+                      {t("documents.share.no_grants")}
+                    </li>
+                  ) : null}
+                </ul>
+              </section>
+
+              {!doc.archived_at ? <AccessRequestsSection wsId={wsId} documentId={doc.id} focusOnOpen={focusRequests} /> : null}
 
               {doc.revision !== undefined ? (
                 <VisibilitySection
