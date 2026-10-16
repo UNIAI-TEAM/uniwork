@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+362ac16e3145459133fbc7a0c86c764720edc000
+6c383974bd467c252c142d2bfdb7cdc63f8f4e36
+362ac16e3 fix(documents): align Documents sub-nav labels by boxing the plain glyph at 20px
+48818a14c chore(merge): G5-G7 root 6c383974b into ICONS-01
+54c2716d4 fix(documents): draw the Trash row with lucide Trash, pin the nav icon map in a test
+e94339481 chore(merge): G5-G7 root 4e483f6b4 into ICONS-01
+6c383974b chore: merge G7-12 residual tests (UNI-1384, e680b548a) into the G5-G7 root
+d9bc39aa5 chore: merge FU-G6-03a-BOUND (UNI-1367, 9b93240bf) into the G5-G7 root
+cc2ac0a70 feat(documents): one icon set for the Documents nav and the UniNote mark
+4e483f6b4 chore: merge SH-S1 (UNI-1780, 2e3eb42c9) into the G5-G7 root
+fb8dcf05f chore: merge GROUPBY-01 (UNI-1848, f9ed37caf) into the G5-G7 root
+fcf9651df chore(merge): develop f6df189ed into the G5-G7 root (UNI-923)

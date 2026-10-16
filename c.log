@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+362ac16e3145459133fbc7a0c86c764720edc000
+362ac16e3 fix(documents): align Documents sub-nav labels by boxing the plain glyph at 20px
+48818a14c chore(merge): G5-G7 root 6c383974b into ICONS-01
+54c2716d4 fix(documents): draw the Trash row with lucide Trash, pin the nav icon map in a test
+e94339481 chore(merge): G5-G7 root 4e483f6b4 into ICONS-01

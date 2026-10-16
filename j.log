@@ -1,0 +1,126 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e test -- --shard=1/2 > /tmp/icons01c2-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/icons01c2-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/icons01c2-E2E.log; grep -E "✘|\[failed\]" /tmp/icons01c2-E2E.log | head -40; echo; echo "E2E_SUITE1_EXIT=$rc"
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px ─────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px ──────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px ──────────────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: en ──────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: vi ──────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: en ───────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: vi ───────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light ──────────────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark ───────────────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark ────────────────────
+    landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence 
+    landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls 
+    landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it 
+    landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace ────────────────
+    landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up 
+    landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes 
+    landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable 
+    landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening ─
+    landing-motion.spec.ts:150:1 › nonessential motion stops offscreen ─────────────────────────────
+    landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact ─────
+    landing-playback.spec.ts:31:1 › reduced motion is still by default and manual exploration retains local actions 
+    landing-playback.spec.ts:51:3 › every storyboard reaches its last beat without clipping at 1440px 
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-vi ────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-en ────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-vi ─────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-en ─────────────────
+    landing-product-board.spec.ts:4:1 › the real task board is the default demo and plays its action sequence 
+    landing-product-email.spec.ts:13:3 › the current inbox fits at 1680px ──────────────────────────
+    landing-product-email.spec.ts:13:3 › the current inbox fits at 1440px ──────────────────────────
+    landing-product-email.spec.ts:13:3 › the current inbox fits at 768px ───────────────────────────
+    landing-product-email.spec.ts:13:3 › the current inbox fits at 390px ───────────────────────────
+    landing-product-email.spec.ts:31:1 › mail can be searched, filtered, starred, archived and composed locally 
+    landing-product-email.spec.ts:79:1 › phone folder navigation and reading actions remain usable ─
+    landing-product-email.spec.ts:96:1 › autoplay opens a full-width reader, stars the message and can pause 
+    landing-product-meeting.spec.ts:23:3 › the current conference and bottom controls fit at 1680px 
+    landing-product-meeting.spec.ts:23:3 › the current conference and bottom controls fit at 1440px 
+    landing-product-meeting.spec.ts:23:3 › the current conference and bottom controls fit at 768px ─
+    landing-product-meeting.spec.ts:23:3 › the current conference and bottom controls fit at 390px ─
+    landing-product-meeting.spec.ts:39:1 › the source-backed manual room supports devices, sharing, recording, chat and AI actions 
+    landing-product-meeting.spec.ts:95:1 › a phone keeps five meeting controls visible and opens the real panel tabs 
+    landing-product-meeting.spec.ts:125:1 › the meeting movie targets the visible Share control and completes sharing 
+    landing-product-menu.spec.ts:7:3 › the product menu operates the landing demo at 390px ─────────
+    landing-product-menu.spec.ts:49:1 › the marketing product menu opens a demo directly ───────────
+    landing-product-menu.spec.ts:59:1 › create, search and save stay inside the demo across view switches 
+    landing-product-menu.spec.ts:95:3 › the app shell stays readable in dark mode 1440 ─────────────
+    landing-product-menu.spec.ts:95:3 › the app shell stays readable in dark mode 390 ──────────────
+    landing-product-pages.spec.ts:6:1 › product menu opens demos while feature introductions remain available 
+    landing-product-pages.spec.ts:60:3 › public pages render without overflow 390-dark ─────────────
+    landing-realism.spec.ts:45:1 › My tasks scopes and Projects open the current task details ──────
+    landing-realism.spec.ts:61:1 › chat waits for creation before attaching the task ───────────────
+    landing-realism.spec.ts:86:1 › email keeps the same thread and Ask UNI only opens its cited source 
+    landing-realism.spec.ts:115:1 › assignment opens details and a member picker without completing the task 
+    landing-realism.spec.ts:137:1 › screen sharing needs source selection and confirmation; planned entries never autoplay 
+    landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 1440px 
+    landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 390px 
+    landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 1440px 
+    landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 390px 
+    landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+    landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: en 
+    landing-scroll.spec.ts:38:1 › grouped feature navigation supports keyboard selection ───────────
+    landing-scroll.spec.ts:118:1 › feature selector stays visible in reduced motion without a decorative rail 
+    landing-studio.spec.ts:8:1 › studio demo switches views and tabs locally, with keyboard support 
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop ──────────────────
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile ───────────────────
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: user-1294 ────────────────
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop-dark-en ──────────
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile-dark-en ───────────
+    landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark ──────────────
+    landing-updates.spec.ts:8:1 › new product stories are local demos with truthful availability ───
+    landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-vi ───────
+    landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-en ───────
+    landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-vi ────────
+    landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-en ────────
+    landing-workspace.spec.ts:42:1 › local state survives view switches across the demo ────────────
+    landing.spec.ts:48:3 › landing › dải tin cậy, FAQ và hai trang giải pháp ───────────────────────
+  74 skipped
+  217 passed (46.2m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test -- --shard=1/2`
+Exit status 1
+  101 failed
+  74 skipped
+  217 passed (46.2m)
+  ✘   29 documents-folders.spec.ts:724:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live (9.0s)
+  ✘   40 documents-folders.spec.ts:1991:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (342ms)
+  ✘   41 documents-folders.spec.ts:2172:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 (10.5s)
+  ✘   42 documents-folders.spec.ts:2386:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button (649ms)
+  ✘   52 documents-isolation.spec.ts:125:1 › two saves from one base: the first wins, the stale one conflicts (11ms)
+  ✘   57 documents-sharing-ui.spec.ts:29:1 › share, public link, anonymous read, access log and revoke (37.6s)
+  ✘   80 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 1440-light (11.4s)
+  ✘   81 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 768-light (11.3s)
+  ✘   82 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 820-dark (11.4s)
+  ✘   89 landing-catalog.spec.ts:5:1 › catalog covers 25 reference entries without implying illustrations are working modules (6.6s)
+  ✘   90 landing-catalog.spec.ts:30:1 › project and organization previews work locally and source links stay within the showcase (1.0m)
+  ✘   91 landing-chapters.spec.ts:16:3 › public chapters 1440-vi-light (9.4s)
+  ✘   92 landing-chapters.spec.ts:16:3 › public chapters 390-en-dark (9.3s)
+  ✘   93 landing-chapters.spec.ts:16:3 › public chapters 1510-en-dark (9.6s)
+  ✘   94 landing-chapters.spec.ts:16:3 › public chapters 768-vi-light (9.5s)
+  ✘   95 landing-chapters.spec.ts:16:3 › public chapters 320-vi-light (9.5s)
+  ✘   96 landing-chapters.spec.ts:92:1 › contextual closing demo links open their actual preview (6.0s)
+  ✘   98 landing-closing.spec.ts:18:3 › product-led closing / 1554-vi-dark (6.4s)
+  ✘  101 landing-closing.spec.ts:18:3 › product-led closing / 390-vi-light (6.5s)
+  ✘  108 landing-current-screens.spec.ts:7:3 › current product screens fit the preview at 1440px (1.7s)
+  ✘  109 landing-current-screens.spec.ts:7:3 › current product screens fit the preview at 390px (1.7s)
+  ✘  111 landing-current-screens.spec.ts:57:1 › the current chat composer sends locally and creates a task from a message (1.4s)
+  ✘  112 landing-current-screens.spec.ts:81:1 › projects and people use the shared list controls (6.9s)
+  ✘  114 landing-current-screens.spec.ts:118:1 › a compact calendar keeps its grid and planner reachable (2.5s)
+  ✘  123 landing-density.spec.ts:5:3 › product stage shares the landing frame at 1910px (5.8s)
+  ✘  124 landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px (6.0s)
+  ✘  125 landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px (5.9s)
+  ✘  126 landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px (5.8s)
+  ✘  127 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: en (8.1s)
+  ✘  128 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: vi (8.1s)
+  ✘  129 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: en (7.7s)
+  ✘  130 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: vi (7.7s)
+  ✘  141 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light (6.4s)
+  ✘  142 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark (6.5s)
+  ✘  143 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark (6.5s)
+  ✘  144 landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence (8.8s)
+  ✘  145 landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls (1.0m)
+  ✘  146 landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it (1.0m)
+  ✘  147 landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace (6.7s)
+  ✘  148 landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up (6.6s)
+
+E2E_SUITE1_EXIT=1
