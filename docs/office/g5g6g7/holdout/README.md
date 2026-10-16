@@ -170,7 +170,8 @@ như bí mật ngay trong từng lượt hỏi thay vì bỏ cả lần chạy: 
 không thể là kết luận đạt. Ngoại lệ: loại `base64_run` / `hex_run` (chuỗi dài trông như mã hóa, có thể chỉ là một định danh dài) và loại
 `email` (địa chỉ trong câu trả lời có thể là nội dung hợp lệ) vẫn được liệt kê trong `redactions` để người đọc xem, nhưng không làm mất
 hiệu lực lần chạy; các loại khoá, token, userinfo, host:port, IPv4 vẫn làm mất hiệu lực. Địa chỉ mà **bộ ca mang sẵn** (đọc lúc chạy) là ngoại lệ theo đúng chuỗi đó, không theo mẫu rộng: một địa chỉ
-khác trong cùng câu trả lời vẫn bị che (G712-62). Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
+khác trong cùng câu trả lời vẫn bị che (G712-62). Luật địa chỉ chạy **sau** các loại cứng (G712-71): một giá trị vừa có dạng địa chỉ vừa là khoá, là phép gán
+thông tin đăng nhập hay là host nội bộ thì được báo theo loại cứng đó và vẫn làm lần chạy không thể là đạt. Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
 khi đứng cạnh dấu hiệu tiền tệ (`đồng`, `VNĐ`, `₫`) hoặc sau chữ "số" — đứng một mình, làm host của URL không cổng, hay đứng trước cổng thì bị che và đánh dấu (G712-40). Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
 (mã phiên, hash bộ ca, sha256 của từng file run); báo cáo chỉ tính đúng các lần chạy mà manifest liệt kê.
 
@@ -243,7 +244,9 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
 - **Token hết hạn giữa lần chạy là chuyện bình thường, và bộ chạy tự gia hạn** (điểm chặn của phi công G7-12). Token truy cập
   của máy chủ sống 15 phút và token khung 10 phút, còn một lần chạy ở 1 luồng kéo dài khoảng 100 phút, nên lần nào cũng đi qua cả
   hai cửa sổ. Bộ chạy giữ thông tin đăng nhập của người dùng thử **trong tiến trình** — mật khẩu, cookie refresh và token truy cập
-  không bao giờ vào `run-NN.json`, `manifest.json`, `report.md` hay dòng log — và gia hạn theo cách ứng dụng web làm: `POST
+  không bao giờ vào `run-NN.json`, `manifest.json`, `report.md` hay dòng log, kể cả khi một bước dựng phiên (đăng ký, tạo tổ chức, tải
+  fixture, mint token khung) thất bại và thân lỗi của máy chủ nhắc lại địa chỉ: văn bản lỗi cũng đi qua bộ che trước khi ra stderr
+  (G712-72) — và gia hạn theo cách ứng dụng web làm: `POST
   /api/v1/auth/refresh` khi còn cookie refresh của lần đăng nhập, không thì `POST /api/v1/auth/login`. Gia hạn trước khi dùng khi
   token truy cập cũ hơn 12 phút và token khung cũ hơn 8 phút, rồi gia hạn thêm một lần khi một lượt gọi trả 401; 401 thứ hai liên
   tiếp làm lượt hỏi lỗi như trước. Gia hạn token khung chỉ **mint lại cho đúng tài liệu đã gắn**, không tải lại fixture (chỉ tải
@@ -251,7 +254,9 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   `{ kind: session|frame, ms }` trên lượt hỏi, tổng hợp thành `renewals` của lần chạy và thành cột "Gia hạn token (phiên / khung)"
   ở mục 2 báo cáo; lượt gọi thử lại giữ độ trễ của chính nó (thời gian gia hạn không tính vào độ trễ model) và **một lần gia hạn
   không làm mất hiệu lực lần chạy**. Gia hạn token khung được đếm theo **token thật sự được mint**: hai lượt hỏi cùng một tài liệu
-  gia hạn cùng lúc thì chỉ mint một token và chỉ ghi một ghi chú (G712-60). `wallMs` mỗi lượt hỏi là thời gian thô, gồm cả thời
+  gia hạn cùng lúc thì chỉ mint một token và chỉ ghi một ghi chú (G712-60). Lượt hỏi **chờ** lần mount đang chạy của lượt khác ghi
+  lại thời gian chờ đó thành ghi chú `mount_wait` (G712-70): nó không phải một token được mint nên không vào cột đếm gia hạn, nhưng
+  vẫn được trừ khỏi `wallMsNoRenewals`. `wallMs` mỗi lượt hỏi là thời gian thô, gồm cả thời
   gian gia hạn đã ghi trên lượt đó; `wallMsNoRenewals` đã trừ phần gia hạn ấy — dùng nó cho phép đo "server overhead (wall − model
   sum)", còn báo cáo cộng cả hai theo từng lần chạy (`summaries[].wallMs` và `summaries[].wallMsNoRenewals`, G712-61).
   Hội thoại không đổi khi gia hạn token khung — cùng một mã hội thoại; còn nếu máy chủ trả 409 `conversation_expired` thì đó là
