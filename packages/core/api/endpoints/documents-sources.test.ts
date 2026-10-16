@@ -114,6 +114,25 @@ describe("documents-sources endpoints", () => {
     expect(out.items[0]?.parent.message_id).toBe("m1");
   });
 
+  it("carries the chat message a file was sent in on its parent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ items: [item({ parent: { kind: "chat_dm", id: "r1", title: "An", message_id: "m9" } })] }),
+    );
+    const out = await listDocumentSources("w1");
+    expect(out.items[0]?.parent).toEqual({ kind: "chat_dm", id: "r1", title: "An", message_id: "m9" });
+  });
+
+  it.each([
+    { label: "missing", parent: { kind: "task", id: "t1", title: "T" } },
+    { label: "a number", parent: { kind: "chat_dm", id: "r1", title: "An", message_id: 7 } },
+    { label: "null", parent: { kind: "chat_dm", id: "r1", title: "An", message_id: null } },
+  ])("degrades a message_id that is $label to an empty string", async ({ parent }) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [item({ parent })] }));
+    const out = await listDocumentSources("w1");
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]?.parent.message_id).toBe("");
+  });
+
   it("keeps lenient enum parsing: unknown source/parent kind still parse", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ items: [item({ source: "future", parent: { kind: "future_parent", id: "x", title: "X" } })] }),

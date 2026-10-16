@@ -223,10 +223,17 @@ function MessageBody({
   };
 
   if (message.kind === "voice" && message.voice) {
-    return <ChatVoiceMessageRow {...common} />;
+    return <ChatVoiceMessageRow {...common} highlighted={highlighted} />;
   }
   if (message.kind === "file" && message.file) {
-    return <ChatFileMessageRow {...common} replyToMessage={layout.replyTarget} onJumpToMessage={actions.onJumpToMessage} />;
+    return (
+      <ChatFileMessageRow
+        {...common}
+        replyToMessage={layout.replyTarget}
+        onJumpToMessage={actions.onJumpToMessage}
+        highlighted={highlighted}
+      />
+    );
   }
   return (
     <ChatMessageRow
