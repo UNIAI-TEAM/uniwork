@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1811-fd-14-app-pickers; git log --oneline -3
+982af6445e1ff8e62b3f911080d524196ecf72c0
+982af6445e1ff8e62b3f911080d524196ecf72c0
+982af644 fix(shell): Open from UniWork lists only documents UniWork Office opens
+12617eb5 fix(shell): upload picker offers only the formats UniWork Office opens
+e99471fe Merge G6-10 (UNI-1375) 98abb91fa: deterministic waits in the format painter and mirrored margins e2e specs
