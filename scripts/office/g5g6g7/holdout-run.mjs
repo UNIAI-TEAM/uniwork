@@ -399,6 +399,7 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     const observed = toolRoundCap(parsed.xUniwork);
     if (observed) { lastStep = observed.step; lastLimit = observed.limit; }
     lastContent = parsed.content;
+    // A reply with no tool call is a natural finish: the cap cut nothing off, so capReached stays null (G712-R13-1/2).
     if (!parsed.toolCalls || parsed.toolCalls.length === 0) { reply = parsed.content; break; }
     // The run's own cap, read from the answer (A13, design §4.4): step is the tool rounds the run has spent after
     // this turn and limit is 8, so an answer that spends the last round ends the ask here - one more tool turn would
