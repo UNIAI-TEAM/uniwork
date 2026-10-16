@@ -571,7 +571,7 @@ func (s *ChatService) authorizeRoomMember(ctx context.Context, userID, workspace
 }
 
 func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspaceID, roomID string, requireMember bool) (db.ChatRoom, error) {
-	w, err := s.workspaceForChat(ctx, userID, workspaceID)
+	wsMember, err := s.ws.RequireMember(ctx, workspaceID, userID)
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
@@ -591,7 +591,7 @@ func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspace
 			return db.ChatRoom{}, ErrNotFound
 		}
 	default:
-		if room.OrganizationID != w.OrganizationID {
+		if room.OrganizationID != wsMember.OrganizationID {
 			return db.ChatRoom{}, ErrNotFound
 		}
 	}
