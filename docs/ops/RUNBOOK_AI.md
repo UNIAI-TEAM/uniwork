@@ -32,6 +32,8 @@ ra mạng.
    `AI_MODEL_<CAPABILITY>` (Email Hub dùng `AI_MODEL_EMAIL_THREAD_SUMMARY`).
 4. Restart `uniwork-be`; kiểm `GET …/ai/capabilities` → `enabled: true`.
 
+`TestDeployEnvResolvesPricedModels` (`server/internal/ai/deploy_env_test.go`) đọc `deploy/app/env/uniwork-be.env` và chặn cấu hình lệch: tên model không khớp provider, model ngoài allowlist (rơi về mặc định), hoặc model chưa có giá. Rollback một đợt đổi cấu hình AI: revert commit rồi chạy `ci/scripts/rollout-uniwork.sh`.
+
 ## Số cần nhìn
 
 | Metric | Ý nghĩa | Ngưỡng |
