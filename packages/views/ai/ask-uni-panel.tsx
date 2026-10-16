@@ -73,7 +73,7 @@ function Citations({ citations }: { citations: AiCitation[] }) {
   );
 }
 
-function Turn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" | "citations"> }) {
+export function AskUniMessageTurn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" | "citations"> }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const mine = message.role === "user";
   return (
@@ -275,7 +275,7 @@ export function AskUniPanel() {
           ) : (
             <ul className="space-y-4" aria-live="polite">
               {turns.map((m) => (
-                <Turn key={m.id} message={m} />
+                <AskUniMessageTurn key={m.id} message={m} />
               ))}
               {ask.isPending ? (
                 <li className="flex items-center gap-2 text-caption text-muted-foreground">

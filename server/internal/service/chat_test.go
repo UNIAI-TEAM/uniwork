@@ -3,10 +3,15 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
@@ -382,6 +387,130 @@ func TestCreateGroupAndInvite(t *testing.T) {
 	}
 }
 
+func TestCreateGroupRejectsLongName(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-c@example.com", "C")
+	for _, u := range []db.User{ub, uc} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+
+	tooLong := strings.Repeat("ệ", chatRoomNameMaxRunes+1)
+	_, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: tooLong, MemberUserIDs: []string{ub.ID, uc.ID}})
+	requireValidationError(t, err, "overlong group name")
+	if err.Error() != "tên phòng tối đa 80 ký tự" {
+		t.Fatalf("message: %q", err.Error())
+	}
+
+	atLimit := strings.Repeat("ệ", chatRoomNameMaxRunes)
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: atLimit, MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil || group.Name != atLimit {
+		t.Fatalf("name at the limit: err=%v name=%q", err, group.Name)
+	}
+}
+
+func TestCreateGroupDefaultNameFitsTheLimit(t *testing.T) {
+	s, _, q, ua, _, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	ids := make([]string, 0, 3)
+	for i, letter := range []string{"x", "y", "z"} {
+		u := registerVerified(t, q, as, fmt.Sprintf("chat-long-%d@example.com", i), strings.Repeat(letter, 60))
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+		ids = append(ids, u.ID)
+	}
+
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{MemberUserIDs: ids})
+	if err != nil {
+		t.Fatalf("create unnamed group: %v", err)
+	}
+	if n := utf8.RuneCountInString(group.Name); n == 0 || n > chatRoomNameMaxRunes {
+		t.Fatalf("default name has %d runes: %q", n, group.Name)
+	}
+}
+
+// groupTrioFixture seeds ua, ub, uc in one workspace and a group ua created for them.
+func groupTrioFixture(t *testing.T) (*ChatService, *db.Queries, db.User, db.User, db.User, db.Workspace, ChatRoomSummary) {
+	t.Helper()
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-c@example.com", "C")
+	for _, u := range []db.User{ub, uc} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+	group, err := s.CreateGroup(context.Background(), ua.ID, w.ID, CreateGroupInput{
+		Name: "Trio", MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	return s, q, ua, ub, uc, w, group
+}
+
+func TestCreateGroupDoesNotReadmitAKickedMember(t *testing.T) {
+	s, _, ua, ub, uc, w, group := groupTrioFixture(t)
+	ctx := context.Background()
+	if err := s.RemoveChatRoomMember(ctx, ua.ID, w.ID, group.ID, uc.ID); err != nil {
+		t.Fatalf("kick: %v", err)
+	}
+	again, err := s.CreateGroup(ctx, uc.ID, w.ID, CreateGroupInput{MemberUserIDs: []string{ua.ID, ub.ID}})
+	if err != nil {
+		t.Fatalf("recreate group: %v", err)
+	}
+	if again.ID == group.ID {
+		t.Fatal("kicked member got the old group back")
+	}
+	if _, err := s.ListRoomMessages(ctx, uc.ID, w.ID, group.ID, ListChatMessagesInput{}); err != ErrForbidden {
+		t.Fatalf("kicked member reads the old group: %v", err)
+	}
+}
+
+func TestCreateGroupReturnsANewRoomWhenMembersChanged(t *testing.T) {
+	s, q, ua, ub, uc, w, group := groupTrioFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	ud := registerVerified(t, q, as, "chat-d@example.com", "D")
+	addOrgMember(t, q, w.OrganizationID, ud.ID)
+	if _, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, group.ID, []string{ud.ID}); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	again, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatalf("recreate group: %v", err)
+	}
+	if again.ID == group.ID {
+		t.Fatal("got the group that now includes D")
+	}
+	ids, err := q.ListChatRoomMemberUserIDs(ctx, again.ID)
+	if err != nil || len(ids) != 3 || slices.Contains(ids, ud.ID) {
+		t.Fatalf("new group members = %v, %v", ids, err)
+	}
+}
+
+func TestCreateGroupDoesNotRepromoteADemotedCreator(t *testing.T) {
+	s, q, ua, ub, uc, w, group := groupTrioFixture(t)
+	ctx := context.Background()
+	// No API demotes a group creator today; the row is set directly to pin
+	// that CreateGroup never grants a role.
+	if err := q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+		RoomID: group.ID, UserID: ua.ID, Role: "member",
+	}); err != nil {
+		t.Fatalf("demote: %v", err)
+	}
+	again, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil || again.ID != group.ID {
+		t.Fatalf("dedupe: err=%v id=%q want %q", err, again.ID, group.ID)
+	}
+	m, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: group.ID, UserID: ua.ID})
+	if err != nil || m.Role != "member" {
+		t.Fatalf("creator role = %q, %v; want member", m.Role, err)
+	}
+}
+
 func TestBlockDM(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
@@ -415,6 +544,100 @@ func TestBlockDM(t *testing.T) {
 	}
 	if _, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "ok again"}); err != nil {
 		t.Fatalf("send after unblock: %v", err)
+	}
+}
+
+// Every write a peer can make into a DM honours a block, not only text messages.
+func TestBlockDMCoversEveryWritePath(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	old, err := s.SendRoomMessage(ctx, ub.ID, w.ID, dm.ID, SendChatMessageInput{Body: "before block"})
+	if err != nil {
+		t.Fatalf("send before block: %v", err)
+	}
+	if err := s.BlockChatUser(ctx, ua.ID, w.ID, ub.ID); err != nil {
+		t.Fatalf("block: %v", err)
+	}
+	paths := []struct {
+		name string
+		call func() error
+	}{
+		{"poll", func() error {
+			_, err := s.SendPollMessage(ctx, ub.ID, w.ID, dm.ID, SendPollMessageInput{Question: "Q?", Options: []string{"a", "b"}})
+			return err
+		}},
+		{"note", func() error {
+			_, err := s.SendNoteMessage(ctx, ub.ID, w.ID, dm.ID, SendNoteMessageInput{Body: "note"})
+			return err
+		}},
+		{"post", func() error {
+			_, err := s.SendPostMessage(ctx, ub.ID, w.ID, dm.ID, SendPostMessageInput{Title: "T", Body: "post"})
+			return err
+		}},
+		{"reminder", func() error {
+			_, err := s.SendReminderMessage(ctx, ub.ID, w.ID, dm.ID, SendReminderMessageInput{
+				Body: "nhắc", RemindAt: futureRemindAt(), Repeat: "daily",
+			})
+			return err
+		}},
+		{"edit", func() error {
+			_, err := s.EditChatMessage(ctx, ub.ID, w.ID, dm.ID, old.ID, "edited")
+			return err
+		}},
+		{"reaction", func() error {
+			_, err := s.ToggleChatMessageReaction(ctx, ub.ID, w.ID, dm.ID, old.ID, "👍")
+			return err
+		}},
+		{"typing", func() error {
+			return s.SignalTyping(ctx, ub.ID, w.ID, dm.ID)
+		}},
+	}
+	for _, p := range paths {
+		if err := p.call(); !codedIs(err, "chat_user_blocked") {
+			t.Errorf("%s after block = %v, want chat_user_blocked", p.name, err)
+		}
+	}
+}
+
+// Reopening a DM with someone who blocked you must not pull them back into it.
+func TestResolveDMDoesNotReaddTheBlocker(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	if err := s.BlockChatUser(ctx, ua.ID, w.ID, ub.ID); err != nil {
+		t.Fatalf("block: %v", err)
+	}
+	if _, err := s.ResolveDM(ctx, ub.ID, w.ID, ua.ID); err != nil {
+		t.Fatalf("blocked peer resolve dm: %v", err)
+	}
+	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: dm.ID, UserID: ua.ID,
+	}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("blocker membership after peer resolve = %v, want no active row", err)
+	}
+	if err := s.UnblockChatUser(ctx, ua.ID, w.ID, ub.ID); err != nil {
+		t.Fatalf("unblock: %v", err)
+	}
+	if _, err := s.ResolveDM(ctx, ub.ID, w.ID, ua.ID); err != nil {
+		t.Fatalf("resolve dm after unblock: %v", err)
+	}
+	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: dm.ID, UserID: ua.ID,
+	}); err != nil {
+		t.Fatalf("blocker membership after unblock: %v", err)
 	}
 }
 
@@ -575,7 +798,7 @@ func TestVoiceBlockedDM(t *testing.T) {
 	if err := s.BlockChatUser(ctx, ub.ID, w.ID, ua.ID); err != nil {
 		t.Fatalf("block: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1"); err == nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1", false); err == nil {
 		t.Fatal("voice invite should fail when blocked")
 	}
 	if _, err := s.MintVoiceTokenRoom(ctx, ua.ID, dm.ID, "call-1"); err == nil {
@@ -599,7 +822,7 @@ func TestVoiceInviteAfterLeave(t *testing.T) {
 	if err := s.LeaveChatRoom(ctx, ua.ID, w.ID, dm.ID); err != nil {
 		t.Fatalf("leave: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1"); err != ErrForbidden {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1", false); err != ErrForbidden {
 		t.Fatalf("invite after leave: %v", err)
 	}
 }
@@ -617,7 +840,7 @@ func TestVoiceAcceptAfterLeave(t *testing.T) {
 	if err := s.LeaveChatRoom(ctx, ub.ID, w.ID, dm.ID); err != nil {
 		t.Fatalf("leave: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-1"); err != nil {
@@ -626,7 +849,7 @@ func TestVoiceAcceptAfterLeave(t *testing.T) {
 	if _, err := s.MintVoiceTokenRoom(ctx, ub.ID, dm.ID, "call-1"); err != nil {
 		t.Fatalf("token after accept rejoin: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-2"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-2", false); err != nil {
 		t.Fatalf("invite to rejoined peer: %v", err)
 	}
 }
@@ -641,7 +864,7 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-log-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-log-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-log-1"); err != nil {
@@ -670,6 +893,9 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 		}
 		if msg.VoiceCall.CallerID != ua.ID {
 			t.Fatalf("caller: %+v", msg.VoiceCall)
+		}
+		if msg.VoiceCall.Video {
+			t.Fatal("a voice invite was stored as a video call")
 		}
 		if len(msg.VoiceCall.Participants) != 2 {
 			t.Fatalf("participants: %+v", msg.VoiceCall.Participants)
@@ -717,7 +943,7 @@ func TestChannelVoiceCall(t *testing.T) {
 	}
 	pub.events = nil
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "channel-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "channel-call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	last := pub.events[len(pub.events)-1]
@@ -775,7 +1001,7 @@ func TestChannelVoiceCallRequiresMember(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, ch.ID, "channel-no-join"); !codedIs(err, "chat_not_member") {
+	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, ch.ID, "channel-no-join", false); !codedIs(err, "chat_not_member") {
 		t.Fatalf("invite before join: want chat_not_member, got %v", err)
 	}
 }
@@ -787,7 +1013,7 @@ func TestDefaultChannelVoiceBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("default channel: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, defaultRoom.RoomID, "default-call"); err == nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, defaultRoom.RoomID, "default-call", false); err == nil {
 		t.Fatal("expected voice invite blocked on default channel")
 	}
 }
@@ -809,7 +1035,7 @@ func TestGroupVoiceCallLogParticipants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-log-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-log-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, group.ID, "group-log-1"); err != nil {
@@ -872,7 +1098,7 @@ func TestGroupVoiceCall(t *testing.T) {
 	}
 	pub.events = nil
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-call-1", false); err != nil {
 		t.Fatalf("group invite: %v", err)
 	}
 	last := pub.events[len(pub.events)-1]
@@ -938,7 +1164,7 @@ func TestGroupVoiceTokenInvitedMember(t *testing.T) {
 	if _, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, group.ID, []string{ud.ID}); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "inv-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "inv-call-1", false); err != nil {
 		t.Fatalf("voice invite: %v", err)
 	}
 	if _, err := s.MintVoiceTokenRoom(ctx, ud.ID, group.ID, "inv-call-1"); err != nil {
@@ -962,7 +1188,7 @@ func TestGroupVoiceHangupOnlyCaller(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-hangup-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-hangup-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	pub.events = nil
@@ -993,7 +1219,7 @@ func TestVoiceCallStrangerCannotJoin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-stranger"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-stranger", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, uc.ID, w.ID, dm.ID, "call-stranger"); err != ErrForbidden {
@@ -1001,6 +1227,83 @@ func TestVoiceCallStrangerCannotJoin(t *testing.T) {
 	}
 	if _, err := s.MintVoiceTokenRoom(ctx, uc.ID, dm.ID, "call-stranger"); err != ErrForbidden {
 		t.Fatalf("stranger token: %v", err)
+	}
+}
+
+// DMs and groups are organization-level: a peer who is only in another
+// workspace of the organization answers the call too (UNI-1660).
+func TestVoiceTokenCrossWorkspaceDM(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	w2View, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Voice WS 2", "voice-ws-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w2View.Workspace.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "xws-call-1", false); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w2View.Workspace.ID, dm.ID, "xws-call-1"); err != nil {
+		t.Fatalf("accept from ws2: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, ub.ID, dm.ID, "xws-call-1"); err != nil {
+		t.Fatalf("token from ws2: %v", err)
+	}
+}
+
+func TestVoiceTokenCrossWorkspaceGroupAndArchivedChannel(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	w2View, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Voice WS 3", "voice-ws-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w2View.Workspace.ID, ub.ID)
+	uc := registerVerified(t, q, as, "chat-xws-outsider@example.com", "C")
+	addOrgMember(t, q, w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, q, w.ID, uc.ID)
+	ud := registerVerified(t, q, as, "chat-xws-member@example.com", "D")
+	addOrgMember(t, q, w.OrganizationID, ud.ID)
+	addWorkspaceMember(t, q, w.ID, ud.ID)
+
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
+		Name: "Cross ws voice", MemberUserIDs: []string{ub.ID, ud.ID},
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "xws-group-1", false); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, ub.ID, group.ID, "xws-group-1"); err != nil {
+		t.Fatalf("group member from ws2 token: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, uc.ID, group.ID, "xws-group-1"); err != ErrForbidden {
+		t.Fatalf("org member outside the group token: %v", err)
+	}
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "voice-archived", Visibility: chatVisibilityPrivate,
+	})
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "xws-channel-1", false); err != nil {
+		t.Fatalf("channel invite: %v", err)
+	}
+	if err := s.ArchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, ua.ID, ch.ID, "xws-channel-1"); err != ErrNotFound {
+		t.Fatalf("archived channel token: %v", err)
 	}
 }
 
@@ -1017,6 +1320,28 @@ func TestLookupUserDifferentOrg(t *testing.T) {
 		t.Fatalf("lookup across orgs: err=%v want not found", err)
 	}
 	_ = otherOrg
+}
+
+// A deactivated colleague is "not here" to the caller: the peer check answers
+// 404, never the caller-facing member_deactivated that locks the client out
+// (UNI-1659).
+func TestChatPeerDeactivatedIsNotFound(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	members := NewOrganizationMemberService(s.pool, q, s.ws.orgs)
+	if _, err := members.Deactivate(ctx, ua.ID, w.OrganizationID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	_, errDM := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	_, errProfile := s.LookupUserByID(ctx, ua.ID, w.ID, ub.ID)
+	_, errBlock := s.GetChatBlockStatus(ctx, ua.ID, w.ID, ub.ID)
+	for name, err := range map[string]error{"ResolveDM": errDM, "LookupUserByID": errProfile, "GetChatBlockStatus": errBlock} {
+		if !errors.Is(err, ErrNotFound) || errors.Is(err, ErrMemberDeactivated) {
+			t.Errorf("%s on a deactivated peer: err=%v, want not found", name, err)
+		}
+	}
 }
 
 func TestSearchRoomMessages(t *testing.T) {
@@ -1047,6 +1372,91 @@ func TestSearchRoomMessages(t *testing.T) {
 	around, err := s.ListRoomMessagesAround(ctx, ua.ID, w.ID, dm.ID, hits[0].ID, 50)
 	if err != nil || len(around) < 2 {
 		t.Fatalf("around: err=%v len=%d", err, len(around))
+	}
+}
+
+// UNI-1694: Vietnamese users type without marks, so "hop" must find "Họp".
+func TestSearchRoomMessagesIgnoresVietnameseMarks(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "Họp lúc 3 giờ ở Đà Nẵng"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	search := func(query string) []ChatMessageRow {
+		t.Helper()
+		hits, err := s.SearchRoomMessages(ctx, ub.ID, w.ID, dm.ID, SearchChatMessagesInput{Query: query})
+		if err != nil {
+			t.Fatalf("search %q: %v", query, err)
+		}
+		return hits
+	}
+	for _, query := range []string{"hop", "HỌP", "da nang", "ĐÀ  NẴNG"} {
+		if hits := search(query); len(hits) != 1 || hits[0].ID != msg.ID {
+			t.Fatalf("search %q: want the one message, got %+v", query, hits)
+		}
+	}
+	if _, err := s.EditChatMessage(ctx, ua.ID, w.ID, dm.ID, msg.ID, "Hủy họp"); err != nil {
+		t.Fatal(err)
+	}
+	if hits := search("huy"); len(hits) != 1 || hits[0].ID != msg.ID {
+		t.Fatalf("search huy after edit: got %+v", hits)
+	}
+	if hits := search("da nang"); len(hits) != 0 {
+		t.Fatalf("search the old body after edit: got %+v", hits)
+	}
+	if hits := search("__"); len(hits) != 0 {
+		t.Fatalf("search __ must match literally, got %+v", hits)
+	}
+}
+
+func TestResendOfADeletedMessageIsGone(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clientID := "550e8400-e29b-41d4-a716-446655440001"
+	first, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{
+		Body:        "hello",
+		ClientMsgID: clientID,
+	})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, dm.ID, first.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	_, err = s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{
+		Body:        "hello again",
+		ClientMsgID: clientID,
+	})
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "chat_message_deleted" || ce.Status != http.StatusGone {
+		t.Fatalf("resend after delete: want 410 chat_message_deleted, got %v", err)
+	}
+
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range msgs {
+		if m.ID != first.ID && strings.Contains(m.Body, "again") {
+			t.Fatalf("unexpected new message after deleted resend: %+v", msgs)
+		}
 	}
 }
 
@@ -1132,5 +1542,42 @@ func TestSendWorkspaceMessageRejectsLongBody(t *testing.T) {
 	var ve ValidationError
 	if !errors.As(err, &ve) || ve.Msg != "tin nhắn quá dài" {
 		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+// A send restriction closes every write that reaches the whole room: pinning,
+// voting and ringing the room, not only text.
+func TestSendRestrictedMemberCannotPinVoteOrCall(t *testing.T) {
+	s, _, q, ua, ub, w := noteFixture(t)
+	ctx := context.Background()
+	groupID := noteGroup(t, s, ua, ub, w, q, "Mute ghim", "mute-pin-peer@example.com")
+	poll := mustSendPoll(t, s, ctx, ua.ID, w.ID, groupID, SendPollMessageInput{
+		Question: "Ăn gì?", Options: []string{"Phở", "Bún"},
+	})
+	restrict := func(on bool) {
+		t.Helper()
+		if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+			RoomID: groupID, UserID: ub.ID, SendRestricted: on,
+		}); err != nil {
+			t.Fatalf("restrict=%v: %v", on, err)
+		}
+	}
+
+	restrict(true)
+	_, err := s.ToggleChatMessagePin(ctx, ub.ID, w.ID, groupID, poll.ID)
+	requireValidationError(t, err, "muted pin")
+	_, err = s.VoteChatPollMessage(ctx, ub.ID, w.ID, groupID, poll.ID, poll.Poll.Options[0].ID)
+	requireValidationError(t, err, "muted vote")
+	requireValidationError(t, s.SignalVoiceInvite(ctx, ub.ID, w.ID, groupID, "muted-call", false), "muted call")
+
+	restrict(false)
+	if _, err := s.ToggleChatMessagePin(ctx, ub.ID, w.ID, groupID, poll.ID); err != nil {
+		t.Fatalf("pin after unmute: %v", err)
+	}
+	if _, err := s.VoteChatPollMessage(ctx, ub.ID, w.ID, groupID, poll.ID, poll.Poll.Options[0].ID); err != nil {
+		t.Fatalf("vote after unmute: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, groupID, "unmuted-call", false); err != nil {
+		t.Fatalf("call after unmute: %v", err)
 	}
 }

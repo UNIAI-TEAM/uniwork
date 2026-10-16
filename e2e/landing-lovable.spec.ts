@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { selectWorkspaceFeature, workspaceGroups } from "./landing-catalog-helpers";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const sample of [{ width: 1440, theme: "light", locale: "vi" }, { width: 1440, theme: "dark", locale: "en" }, { width: 390, theme: "dark", locale: "vi" }] as const) {
   test(`Lovable reference fits every feature ${sample.width}-${sample.theme}`, async ({ page, context, baseURL }) => {
     await context.addCookies([{ name: "uniwork-locale", value: sample.locale, url: baseURL! }]);
     await page.setViewportSize({ width: sample.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.theme });
-    await page.goto("/#tong-quan");
+    await gotoLanding(page, "/#tong-quan");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     await page.evaluate(theme => document.documentElement.classList.toggle("dark", theme === "dark"), sample.theme);
     const workspace = page.locator("#product-preview");
@@ -58,7 +60,8 @@ for (const sample of [{ width: 1440, theme: "light", locale: "vi" }, { width: 14
 
 test("scaled action film keeps the explicit assignment and completion sequence", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#du-an");
+  await gotoLanding(page, "/#du-an");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   const player = page.locator(".product-playback");
   await player.scrollIntoViewIfNeeded();
@@ -83,7 +86,8 @@ test("scaled action film keeps the explicit assignment and completion sequence",
 
 test("expanded film preserves reduced motion and exposes playback controls", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#du-an");
+  await gotoLanding(page, "/#du-an");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   const player = page.locator("#product-preview .product-playback");
   await player.locator("[data-action='expand-preview']").click();
@@ -105,7 +109,8 @@ test("expanded film preserves reduced motion and exposes playback controls", asy
 
 test("meeting listing pauses the film and returning to the room restores it", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#hop");
+  await gotoLanding(page, "/#hop");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   const player = page.locator(".product-playback");
   await expect(async () => {

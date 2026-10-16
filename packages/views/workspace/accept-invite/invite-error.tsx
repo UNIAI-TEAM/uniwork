@@ -16,6 +16,7 @@ import { useLogout } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import type { IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { InviteNotice } from "./invite-notices";
@@ -32,13 +33,11 @@ export type InviteErrorReason =
   | "failed";
 
 /**
- * Lời mời hỏng là chuyện thường: link đã dùng, đã bị thu hồi, hoặc gõ sai. Bản
- * cũ đổ thẳng `message` của server ra màn hình, nên người dùng Việt nhận đúng
- * hai chữ "not found" trên một trang trắng không logo, không lối đi tiếp.
- *
- * Mỗi mã lỗi server trả về được dịch sang một câu nói rõ chuyện gì và làm gì
- * tiếp; mã lạ (và một response hỏng, `null`) rơi về câu chung thay vì lộ chuỗi
- * tiếng Anh. The page's AuthShell shows the reason as its description.
+ * A broken invitation is ordinary: the link was used, revoked, or mistyped.
+ * Each code the server answers with maps to a sentence that says what
+ * happened and what to do next; an unknown code (and a malformed response,
+ * `null`) falls back to the generic sentence instead of leaking the server's
+ * English message. The page's AuthShell shows the reason as its description.
  */
 export function inviteErrorReason(error: unknown): InviteErrorReason {
   if (error instanceof ApiError) {
@@ -84,7 +83,16 @@ const RETRYABLE: ReadonlySet<InviteErrorReason> = new Set(["rateLimited", "faile
  * every reason. The shell's heading takes focus when this replaces the
  * loading or the preview, which is what announces it.
  */
-export function InviteErrorBody({ reason, onRetry }: { reason: InviteErrorReason; onRetry: () => void }) {
+export function InviteErrorBody({
+  reason,
+  onRetry,
+  retrying = false,
+}: {
+  reason: InviteErrorReason;
+  onRetry: () => void;
+  /** The invitation is being read again after a retry: the button shows it working and asks only once. */
+  retrying?: boolean;
+}) {
   const { t } = useTranslation();
   const logout = useLogout();
   const { icon, tone, hintKey } = REASONS[reason];
@@ -102,7 +110,19 @@ export function InviteErrorBody({ reason, onRetry }: { reason: InviteErrorReason
         {/* Signing out lands on login with this invite as `next` (onAnon),
             so the invitee comes straight back after switching account. */}
         {reason === "wrongAccount" ? (
-          <Button size="lg" className="w-full" onClick={() => logout.mutate()} aria-disabled={logout.isPending}>
+          <Button
+            type="button"
+            size="lg"
+            // While signing out the button reads as working, not as unavailable.
+            className={cn("w-full", logout.isPending && "aria-disabled:cursor-progress aria-disabled:opacity-100")}
+            aria-disabled={logout.isPending || undefined}
+            aria-busy={logout.isPending || undefined}
+            onClick={() => {
+              if (!logout.isPending) logout.mutate();
+            }}
+          >
+            {/* Decorative: the button's name stays "Dùng tài khoản khác". */}
+            {logout.isPending ? <Spinner /> : null}
             {t("workspace.acceptInviteError.switchAccount")}
           </Button>
         ) : null}
@@ -112,13 +132,23 @@ export function InviteErrorBody({ reason, onRetry }: { reason: InviteErrorReason
           </AppLink>
         ) : null}
         {retry ? (
-          <Button type="button" size="lg" className="w-full" onClick={onRetry}>
-            <RefreshCw aria-hidden />
+          <Button
+            type="button"
+            size="lg"
+            className={cn("w-full", retrying && "aria-disabled:cursor-progress aria-disabled:opacity-100")}
+            aria-disabled={retrying || undefined}
+            aria-busy={retrying || undefined}
+            onClick={() => {
+              if (!retrying) onRetry();
+            }}
+          >
+            {/* Decorative: aria-busy carries the state; the name stays "Thử lại". */}
+            {retrying ? <Spinner /> : <RefreshCw aria-hidden />}
             {t("common.retry")}
           </Button>
         ) : null}
-        {/* Link đội lốt nút chính: nó điều hướng, nên giữ là <a> cho trình
-            đọc màn hình thay vì Button bị đổi role. */}
+        {/* A link dressed as a button: it navigates, so it stays an <a> for
+            screen readers rather than a Button with a borrowed role. */}
         <AppLink
           href={paths.workspaces()}
           className={cn(buttonVariants({ size: "lg", variant: ownAction ? "outline" : "default" }), "w-full")}

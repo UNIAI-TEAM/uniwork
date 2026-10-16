@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 const cases = [
   { width: 1440, locale: "vi", theme: "light" },
@@ -16,7 +17,8 @@ for (const scenario of cases) {
     await context.addCookies([{ name: "uniwork-locale", value: scenario.locale, url: baseURL! }]);
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
-    await page.goto("/why-uniwork");
+    await gotoLanding(page, "/why-uniwork");
+    await landingReady(page);
     await expect(page.locator(".why-hero h1")).toBeVisible();
     await expect(page.locator(".why-proof-figure")).toHaveCount(3);
     await expect(page.locator(".why-availability")).toContainText(scenario.locale === "vi" ? "Đang phát triển" : "In development");

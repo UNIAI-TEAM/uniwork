@@ -18,13 +18,29 @@ import { InvitationList, InvitationListError, InvitationListSkeleton } from "./i
  * lỗi và có dữ liệu, để AuthShell không kéo focus lên heading khi dữ liệu về.
  * "Để sau" và "Đăng xuất" là lối ra cho người không muốn lời mời nào ở đây,
  * hoặc đang đăng nhập nhầm tài khoản.
+ *
+ * The view mounts as soon as the host has a route for it: `enabled` holds the
+ * request back while the session is resolving (the frame and its heading are
+ * already on screen), and `exitReady` says the host knows where an empty list
+ * or "Để sau" leads. Only those two exits wait on it, so the list never queues
+ * behind the lookup that decides them.
  */
-export function InvitationsView({ onEmpty, onSkip }: { onEmpty: () => void; onSkip: () => void }) {
+export function InvitationsView({
+  enabled = true,
+  exitReady = true,
+  onEmpty,
+  onSkip,
+}: {
+  enabled?: boolean;
+  exitReady?: boolean;
+  onEmpty: () => void;
+  onSkip: () => void;
+}) {
   const { t } = useTranslation();
-  const { data: invites, isFetched, isError, refetch, isRefetching } = useMyInvitations();
+  const { data: invites, isFetched, isError, refetch, isRefetching } = useMyInvitations(enabled);
   useEffect(() => {
-    if (isFetched && invites && invites.length === 0) onEmpty();
-  }, [isFetched, invites, onEmpty]);
+    if (exitReady && isFetched && invites && invites.length === 0) onEmpty();
+  }, [exitReady, isFetched, invites, onEmpty]);
 
   let body;
   if (isError) {
@@ -46,7 +62,18 @@ export function InvitationsView({ onEmpty, onSkip }: { onEmpty: () => void; onSk
             edges, where the list's frame is. */}
         <div className="flex items-center justify-between gap-3">
           <OnboardingLogoutButton />
-          <Button type="button" variant="ghost" size="sm" className="-mr-2" onClick={onSkip}>
+          {/* Held, in the tab order, for the moment before the host knows
+              where "later" leads (aria-disabled contract). */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="-mr-2"
+            aria-disabled={!exitReady || undefined}
+            onClick={() => {
+              if (exitReady) onSkip();
+            }}
+          >
             {t("common.later")}
           </Button>
         </div>

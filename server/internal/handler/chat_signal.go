@@ -18,7 +18,7 @@ func (h *handlers) signalChatVoiceInvite(w http.ResponseWriter, r *http.Request)
 	}
 	err := h.Chat.SignalVoiceInvite(
 		r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID,
+		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID, in.Video,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

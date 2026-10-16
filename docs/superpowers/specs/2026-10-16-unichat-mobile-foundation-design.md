@@ -1,0 +1,68 @@
+# UniChat — Nền `apps/chat-mobile`: Expo iOS + Android, ranh giới import, CI, auth PKCE, realtime, push, deep link (lát M1)
+
+> **Trạng thái:** in-progress — Đề xuất, chờ duyệt. Lát M1 của epic UNI-1826; issue UNI-1831.
+
+**Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.3, §6 M1 · **Luật:** ADR 0011 (§1 nới cho UniChat: iOS và Android cùng lúc) · **Nguồn mirror:** `multica/apps/mobile/{CLAUDE.md, data/realtime/ws-client.ts, data/realtime/realtime-provider.tsx, data/api.ts, data/query-client.ts, data/secure-storage.ts, data/auth-store.ts, data/workspace-store.ts, scripts/ios-run.sh}`, `multica/.github/workflows/mobile-verify.yml`
+
+## 1. Mục tiêu
+
+App Expo chạy trên simulator iOS và emulator Android với: đăng nhập PKCE qua trình duyệt hệ thống, chọn workspace, socket realtime ba tầng có replay khi hết hạn token, đăng ký push Expo, deep link; mọi tầng có test Node; chưa có màn hình chat.
+
+## 2. Cấu trúc và stack
+
+```text
+apps/chat-mobile/
+  app/                 # Expo Router: (auth)/login, (app)/[org]/[ws]/(tabs)/{chat,calls,contacts,settings}
+  components/{ui,nav,chat,calls,contacts,settings,brand}/
+  data/{api.ts,schemas.ts,query-client.ts,secure-storage.ts,auth/,realtime/,queries/,mutations/,stores/}
+  lib/                 # pure helpers + *.test.ts (vitest, Node): *-display.ts mirror web
+  locales/{vi,en}.json # sinh bằng scripts/sync-i18n.mjs từ packages/core/i18n/locales
+  scripts/{ios-run.sh,sync-i18n.mjs}
+  app.config.ts eas.json(M4) CLAUDE.md
+```
+
+Stack theo `multica/apps/mobile/package.json` tại thời điểm scaffold (Expo ~55, React Native 0.83, Expo Router, NativeWind 4 + Tailwind 3.4, react-native-reusables, TanStack Query 5, Zustand, expo-secure-store, NetInfo), thêm `expo-web-browser`, `expo-crypto`, `expo-notifications`, `expo-linking`, `expo-image`, `expo-image-picker`, `expo-document-picker`. React/RN ghim trong `package.json` của app, không qua `catalog:` (ADR 0011).
+
+## 3. Thiết kế
+
+### 3.1 Ranh giới import (lint, không phải quy ước)
+ESLint `no-restricted-imports`: cấm `@uniwork/views*`, `@uniwork/ui*`, `next/*`, và trong `@uniwork/core` cấm mọi đường trừ allowlist: `types/*` (chỉ `import type`), `api/schema` (`parseWithFallback`), `api/endpoints/chat-schemas`, `permissions/rules`, `paths`, `types/events`, và các module thuần của `core/chat` liệt kê rõ (`read-receipt-utils`, `poll-utils`, `post-utils`, `note-utils`, `reminder-utils`, `room-permissions-utils`, `client-msg-id`, `pending-message-id`, `lazy-chat-scopes`, `message-links`, `typing-user-id`, `composer-priority`, `chat-room-helpers`). Logic khác: copy vào `lib/*-display.ts`, ghi nguồn ở đầu tệp, test parity. `scripts/governance.test.mjs`: có `apps/chat-mobile` ⇒ có `CLAUDE.md`, CI chính lọc `!@uniwork/chat-mobile`, lint allowlist tồn tại.
+
+### 3.2 Định danh và cấu hình
+`app.config.ts` theo `APP_ENV`: bundle id / applicationId `com.uniworkos.chat`, `.dev`, `.staging`; scheme `uniworkchat` / `uniworkchat-dev`; `associatedDomains: applinks:app.uniworkos.com`; Android `intentFilters` `autoVerify` cho `https://app.uniworkos.com`; chuỗi quyền vi/en (mic, camera, ảnh, thông báo); `extra.apiUrl`, `extra.appUrl`, `extra.authClientId`, `extra.deploymentId`.
+
+### 3.3 Đăng nhập
+`data/auth/pkce.ts` (verifier 64 ký tự từ `expo-crypto`, S256), `data/auth/flow.ts`: `GET /auth/desktop/start` → `WebBrowser.openAuthSessionAsync(authorization_url, redirectUri)` → parse `code`/`state` → `POST /auth/desktop/exchange` → SecureStore `{access_token, refresh_token, device_session_id, expires_at}`. `data/api.ts`: bearer, 401 → refresh single-flight → retry; refresh 401 → đăng xuất. Đăng xuất gọi `/auth/desktop/logout`. Hồ sơ `GET /me`, tổ chức/workspace qua API hiện có; một tài khoản một tổ chức (ADR 0032) nên màn hình chọn chỉ liệt kê workspace.
+
+### 3.4 Realtime ba tầng
+`ws-client.ts` (copy thiết kế multica): một socket, frame đầu `{"type":"auth","payload":{"token"}}`, chờ `auth_ack`, `subscribe`/`unsubscribe` scope `chat`, xử lý `subscribe_ack`/`subscribe_error(lookup_failed)` với backoff như `packages/core/realtime/use-chat-room-scopes.ts`, `{"type":"ping"}` mỗi 25 giây, backoff jitter, ba trạng thái idle/active/paused theo AppState, NetInfo; socket đóng `CloseSessionEnded` → refresh → reconnect → replay scope; giới hạn 25 scope chat. `realtime-provider.tsx` mount theo auth + workspace. `use-<feature>-realtime.ts` là tầng ba (M2a). Mọi frame chỉ mang id (ADR 0015): patch bằng fetch theo id, rồi invalidate hẹp.
+
+### 3.5 Push
+Sau đăng nhập lần đầu hỏi quyền; `getExpoPushTokenAsync({projectId})` → đăng ký qua tuyến push hiện có với `platform` (lát N2). Android: kênh `chat` (importance high). Chạm thông báo → mở `data.url` qua bộ parse deep link. Hủy đăng ký khi tắt trong Cài đặt hoặc đăng xuất.
+
+### 3.6 Deep link
+`expo-linking`: universal/app link `https://app.uniworkos.com/{org}/{ws}/chat?room=&message=` và `uniworkchat://open?url=`; `lib/deep-link.ts` parse bằng cùng tham số web (`room`, `message`, `dm`), có test; app chưa đăng nhập → lưu rồi mở sau.
+
+### 3.7 i18n và theme
+`scripts/sync-i18n.mjs` lấy khóa `chat.*`, `common.*`, `auth.*` từ `packages/core/i18n/locales/{vi,en}.json` → `locales/`; test parity thất bại khi lệch. Theme: biến CSS NativeWind đặt tên theo `packages/ui/styles/tokens.css` (`--background`, `--foreground`, `--brand`…), sáng/tối/hệ thống lưu SecureStore; `NAV_THEME` mirror.
+
+## 4. Tiêu chí hoàn thành và test
+
+| Kiểm | Test |
+|---|---|
+| ws-client: frame auth trước mọi frame; replay scope sau reconnect; pause ở nền; hết hạn token → refresh → reconnect | `data/realtime/ws-client.test.ts` |
+| Schema malformed → fallback, không ném | `data/schemas.test.ts` |
+| Parse deep link ba dạng | `lib/deep-link.test.ts` |
+| PKCE: verifier/challenge đúng RFC 7636; state lệch → từ chối | `data/auth/pkce.test.ts`, `flow.test.ts` |
+| i18n parity | `lib/i18n.test.ts` |
+| Lint đỏ với import cấm, xanh với allowlist | fixture test eslint |
+| Governance | `scripts/governance.test.mjs` |
+| Chạy tay: `ios` và `android` đăng nhập → danh sách workspace đúng như web; token push xuất hiện trong `push_subscriptions` | checklist |
+
+Lệnh: `pnpm --filter @uniwork/chat-mobile test|lint|typecheck`; `node --test scripts/governance.test.mjs`; `scripts/no-usf-leak.test.mjs`.
+
+## 5. Rủi ro
+Expo SDK trôi so với multica lúc scaffold; `openAuthSessionAsync` trên Android cần Custom Tabs; universal links chỉ hoạt động khi web đã phục vụ `/.well-known` (lát N3).
+
+## 6. Để builder quyết
+Tên tệp/thư mục chi tiết; dùng `expo-auth-session` hay viết PKCE tay (đề xuất tay, ~100 dòng, không thêm phụ thuộc lớn); cách ghim phiên bản RNR.

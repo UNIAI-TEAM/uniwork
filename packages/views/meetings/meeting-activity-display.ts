@@ -56,6 +56,8 @@ const KIND: Record<string, ActivityKind> = {
   MEETING_STARTED: "started",
   MEETING_ENDED: "ended",
   MEETING_CANCELED: "canceled",
+  // Same mark on the timeline as the cancellation it reverses.
+  MEETING_RESTORED: "canceled",
   MEETING_UPDATED: "updated",
   HOST_TRANSFERRED: "host",
   PARTICIPANT_INVITED: "invited",

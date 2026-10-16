@@ -76,7 +76,7 @@ func TestGroupVoiceCallNeedsASecondParticipant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "solo-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "solo-1", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ua.ID, w.ID, group.ID, "solo-1"); err != nil {
@@ -135,7 +135,7 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "summary-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "summary-call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "summary-call-1"); err != nil {
@@ -198,6 +198,58 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	}
 }
 
+func TestEditingASummaryKeepsTheSummary(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	fake := &provider.Fake{Reply: ai.FakeReply}
+	s.SetAIGateway(ai.NewGateway(q, fake, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "edit-summary-call", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "edit-summary-call"); err != nil {
+		t.Fatal(err)
+	}
+	backdateVoiceCallAnswer(t, dm.ID, "edit-summary-call", 45*time.Second)
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "edit-summary-call"); err != nil {
+		t.Fatal(err)
+	}
+	d := outbox.New(pool, q, outbox.Options{})
+	d.Register(NewChatVoiceSummaryConsumer(s))
+	if err := d.Process(ctx, 50); err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summaryID, senderID string
+	for _, msg := range msgs {
+		if msg.VoiceCallSummary != nil {
+			summaryID = msg.ID
+			senderID = msg.SenderID
+		}
+	}
+	if summaryID == "" {
+		t.Fatal("summary message missing")
+	}
+	edited, err := s.EditChatMessage(ctx, senderID, w.ID, dm.ID, summaryID, "Tóm tắt (đã sửa chính tả)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edited.VoiceCallSummary == nil || strings.TrimSpace(edited.VoiceCallSummary.Summary) == "" {
+		t.Fatalf("summary card lost: %+v", edited.VoiceCallSummary)
+	}
+	if len(edited.VoiceCallSummary.ActionItems) == 0 {
+		t.Fatalf("action items lost: %+v", edited.VoiceCallSummary)
+	}
+}
+
 func TestVoiceCallSummarySkipsWhenAIDisabled(t *testing.T) {
 	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
@@ -208,7 +260,7 @@ func TestVoiceCallSummarySkipsWhenAIDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "summary-call-2"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "summary-call-2", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "summary-call-2"); err != nil {
@@ -280,5 +332,227 @@ func TestVoiceHangupKeepsTheCallLogWhenTheSummaryCapFails(t *testing.T) {
 	}
 	if logs != 1 {
 		t.Fatalf("call logs = %d, want 1", logs)
+	}
+}
+
+// failVoiceSummaryJobsFor makes the outbox refuse the summary job of one room,
+// the way a database failing mid-hangup would, until the test ends.
+func failVoiceSummaryJobsFor(t *testing.T, pool *pgxpool.Pool, roomID string) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `CREATE OR REPLACE FUNCTION test_fail_voice_summary_job() RETURNS trigger
+		LANGUAGE plpgsql AS $$
+		BEGIN
+			IF NEW.topic = 'chat.voice.call.completed' AND NEW.payload::jsonb->>'room_id' = '`+roomID+`' THEN
+				RAISE EXCEPTION 'injected outbox failure';
+			END IF;
+			RETURN NEW;
+		END $$`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `CREATE TRIGGER test_fail_voice_summary_job BEFORE INSERT ON outbox_events
+		FOR EACH ROW EXECUTE FUNCTION test_fail_voice_summary_job()`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DROP TRIGGER IF EXISTS test_fail_voice_summary_job ON outbox_events`)
+		_, _ = pool.Exec(ctx, `DROP FUNCTION IF EXISTS test_fail_voice_summary_job()`)
+	})
+}
+
+func voiceCallLogCount(t *testing.T, pool *pgxpool.Pool, roomID string) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM chat_messages WHERE room_id = $1 AND kind = 'voice_call_log'`, roomID,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// The call log, its audit row and its summary job commit together, so a
+// failed job never leaves a log that says "summarising" forever; the other
+// side still hears the hangup (UNI-1703).
+func TestVoiceCallLogAndSummaryJobCommitTogether(t *testing.T) {
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	s.SetAIGateway(ai.NewGateway(q, &provider.Fake{Reply: ai.FakeReply}, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failVoiceSummaryJobsFor(t, pool, dm.ID)
+	acceptDMVoiceCall(t, s, ua, ub, w, dm.ID, "tx-fail")
+	backdateVoiceCallAnswer(t, dm.ID, "tx-fail", 45*time.Second)
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "tx-fail"); err == nil {
+		t.Fatal("hangup succeeded although the summary job could not be queued")
+	}
+	if n := voiceCallLogCount(t, pool, dm.ID); n != 0 {
+		t.Fatalf("call logs = %d, want 0 when the summary job failed", n)
+	}
+	var audited int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'chat.voice_call.logged'`, w.OrganizationID,
+	).Scan(&audited); err != nil {
+		t.Fatal(err)
+	}
+	if audited != 0 {
+		t.Fatalf("audit rows = %d, want 0", audited)
+	}
+	if len(pub.sentTo("chat.voice.hangup")) == 0 {
+		t.Fatal("chat.voice.hangup not published after a failed call log")
+	}
+}
+
+// A logged call writes one audit row for the log, sharing its correlation id
+// with the summary job it queued (ADR 0009, UNI-1703).
+func TestVoiceCallLogWritesAuditAndJobTogether(t *testing.T) {
+	s, _, ua, ub, w, pool := aiChatFixture(t)
+	ctx := context.Background()
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	talk(t, s, ua, ub, w, dm.ID, "tx-ok", 45*time.Second)
+	var logID string
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM chat_messages WHERE room_id = $1 AND kind = 'voice_call_log'`, dm.ID,
+	).Scan(&logID); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := pool.Query(ctx,
+		`SELECT resource_id, correlation_id FROM audit_events WHERE organization_id = $1 AND action = 'chat.voice_call.logged'`, w.OrganizationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resources, correlations []string
+	for rows.Next() {
+		var res, corr string
+		if err := rows.Scan(&res, &corr); err != nil {
+			t.Fatal(err)
+		}
+		resources = append(resources, res)
+		correlations = append(correlations, corr)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(resources) != 1 || resources[0] != logID {
+		t.Fatalf("audit rows for the log = %v, want [%s]", resources, logID)
+	}
+	var jobCorrelation string
+	if err := pool.QueryRow(ctx,
+		`SELECT coalesce(correlation_id, '') FROM outbox_events WHERE topic = 'chat.voice.call.completed' AND payload::jsonb->>'room_id' = $1`, dm.ID,
+	).Scan(&jobCorrelation); err != nil {
+		t.Fatal(err)
+	}
+	if jobCorrelation != correlations[0] {
+		t.Fatalf("job correlation %q != audit correlation %q", jobCorrelation, correlations[0])
+	}
+}
+
+// voiceSummaryJob returns the room's queued summary job payload, filled the
+// way the consumer fills it, and the call log it summarises.
+func voiceSummaryJob(t *testing.T, pool *pgxpool.Pool, w db.Workspace, roomID string) (map[string]string, db.ChatMessage) {
+	t.Helper()
+	ctx := context.Background()
+	var raw string
+	if err := pool.QueryRow(ctx,
+		`SELECT payload FROM outbox_events WHERE topic = 'chat.voice.call.completed' AND payload::jsonb->>'room_id' = $1`, roomID,
+	).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	payload := map[string]string{}
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		t.Fatal(err)
+	}
+	payload["organization_id"], payload["workspace_id"] = w.OrganizationID, w.ID
+	logMsg, err := db.New(pool).GetChatMessageByID(ctx, payload["call_log_message_id"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return payload, logMsg
+}
+
+func voiceSummaryCount(t *testing.T, pool *pgxpool.Pool, roomID string) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM chat_messages WHERE room_id = $1 AND metadata ? 'voice_call_summary'`, roomID,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// A call log deleted before its summary job runs ends the job at once: no LLM
+// call, no summary, no retry (UNI-1702).
+func TestVoiceCallSummarySkipsADeletedCallLog(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	fake := &provider.Fake{Reply: ai.FakeReply}
+	s.SetAIGateway(ai.NewGateway(q, fake, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	talk(t, s, ua, ub, w, dm.ID, "deleted-log", 45*time.Second)
+	_, logMsg := voiceSummaryJob(t, pool, w, dm.ID)
+	if err := s.DeleteChatMessage(ctx, logMsg.SenderID, w.ID, dm.ID, logMsg.ID); err != nil {
+		t.Fatalf("delete call log: %v", err)
+	}
+
+	d := outbox.New(pool, q, outbox.Options{})
+	d.Register(NewChatVoiceSummaryConsumer(s))
+	if err := d.Process(ctx, 50); err != nil {
+		t.Fatalf("process outbox: %v", err)
+	}
+	if fake.Calls != 0 {
+		t.Fatalf("LLM calls = %d, want 0 for a deleted call log", fake.Calls)
+	}
+	if n := voiceSummaryCount(t, pool, dm.ID); n != 0 {
+		t.Fatalf("summaries = %d, want 0", n)
+	}
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM outbox_events WHERE topic = 'chat.voice.call.completed' AND payload::jsonb->>'room_id' = $1`, dm.ID,
+	).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "DONE" {
+		t.Fatalf("summary job status = %s, want DONE", status)
+	}
+}
+
+// A redelivered summary job posts nothing more: one call, one summary
+// (UNI-1702).
+func TestVoiceCallSummaryPostsOnceWhenRedelivered(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	fake := &provider.Fake{Reply: ai.FakeReply}
+	s.SetAIGateway(ai.NewGateway(q, fake, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	talk(t, s, ua, ub, w, dm.ID, "redelivered", 45*time.Second)
+	payload, _ := voiceSummaryJob(t, pool, w, dm.ID)
+	for range 2 {
+		if err := s.HandleVoiceCallCompleted(ctx, payload); err != nil {
+			t.Fatalf("handle: %v", err)
+		}
+	}
+	if n := voiceSummaryCount(t, pool, dm.ID); n != 1 {
+		t.Fatalf("summaries = %d, want 1", n)
+	}
+	if fake.Calls != 1 {
+		t.Fatalf("LLM calls = %d, want 1", fake.Calls)
 	}
 }

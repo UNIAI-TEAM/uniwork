@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const sample of [
   { width: 1440, locale: "vi", theme: "light" },
@@ -14,7 +15,8 @@ for (const sample of [
     await context.addCookies([{ name: "uniwork-locale", value: sample.locale, url: baseURL! }]);
     await page.setViewportSize({ width: sample.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.theme });
-    await page.goto("/#du-an");
+    await gotoLanding(page, "/#du-an");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     await page.evaluate(theme => document.documentElement.classList.toggle("dark", theme === "dark"), sample.theme);
     const player = page.locator(".product-playback");
@@ -72,13 +74,13 @@ for (const sample of [
       }
     }
     const moved = player.locator('[data-status="done"] [data-demo-item="design"]');
-    await expect(moved).toContainText("HA");
+    await expect(moved).toContainText("Hoàng Anh");
     await expect(moved).toHaveAttribute("data-demo-result", "task-moved");
     const keyframes = JSON.parse((await moved.getAttribute("data-observed-motion"))!);
     expect(keyframes[0].transform).not.toBe("translate(0px, 0px)");
     expect(keyframes[1].transform).toBe("translate(0, 0)");
     await expect(player.locator('[data-demo-item="design"]')).toHaveCount(1);
-    await expect(player.locator('.lovable-task-stats > div').nth(2)).toContainText("4");
+    await expect(player.locator('[data-status="done"] [data-slot="status-heading"]')).toContainText("1");
     await player.locator("[data-action='toggle-playback']").click();
     await expect(player).toHaveAttribute("data-running", "false");
     expect(await player.locator(".action-stage").evaluate(element => element.getAnimations({ subtree: true }).filter(animation => animation.playState === "running").length)).toBe(0);
@@ -91,7 +93,8 @@ for (const sample of [
 
 test("reduced motion keeps click results without spatial effects", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#du-an");
+  await gotoLanding(page, "/#du-an");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   const player = page.locator(".product-playback");
   await player.scrollIntoViewIfNeeded();

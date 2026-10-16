@@ -74,7 +74,7 @@ export function useSlugForm() {
       setServerError(null);
     },
     randomize: () => {
-      const id = randomWorkspaceIdentity();
+      const id = randomWorkspaceIdentity((base) => t(`onboarding.step_workspace.random_names.${base}`));
       slugSource.current = "random";
       setName(id.name);
       setSlug(id.slug);

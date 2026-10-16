@@ -34,21 +34,23 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err != nil {
 		return err
 	}
+	// The caller is signed in, so a wrong proof is never 401 (see
+	// ErrPasswordIncorrect): each one answers its own code.
 	switch {
 	case u.PasswordHash.Valid:
 		if !auth.CheckPassword(u.PasswordHash.String, in.Password) {
-			return ErrInvalidCredentials
+			return errPasswordIncorrect()
 		}
 	case u.MfaEnabledAt.Valid:
 		if !s.secondFactorMatches(ctx, u, in.Code) {
-			return ErrInvalidCredentials
+			return errMfaCodeIncorrect()
 		}
 	default:
 		// ponytail: a Google-only account without MFA has no secret to ask
 		// for; typing the address is the confirmation. Add an emailed code
 		// when a product owner asks for it.
 		if !strings.EqualFold(strings.TrimSpace(in.EmailConfirmation), u.Email) {
-			return ErrInvalidCredentials
+			return errEmailConfirmationMismatch()
 		}
 	}
 	owned, err := s.q.CountOwnedOrganizationsForUser(ctx, userID)

@@ -1,26 +1,45 @@
 "use client";
 import { ArrowRight, Play } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { Logo } from "@uniwork/ui/brand";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Tabs } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
 import { landingFont } from "../../platform/landing-font";
 import { ANCHORS, href } from "./anchors";
-import { TaskPoster } from "./product-playback";
+import { ProductDemoShell } from "./product-demo-shell";
+import { ProductTaskScene } from "./product-task-scene";
 import "./landing.css";
 import "./landing-closing.css";
 
 export type ClosingAction = { href: string; labelKey: string; icon: "play" | "arrow" };
 
+const posterAction = () => {};
+
+/** The closing illustration uses the same shell and board as the main demo. */
+function TaskPoster() {
+  const { t } = useTranslation();
+  return <div className="product-demo product-demo-poster" role="img" aria-label={`${t("landing.lovable.allTasks")} — ${t("landing.lovable.sample")}`}>
+    <div inert aria-hidden="true">
+      <Tabs defaultValue="tasks" orientation="vertical" unstyled>
+        <ProductDemoShell mode="tasks" onSelect={posterAction} onCreate={posterAction} watch={false} onWatch={posterAction}>
+          <ProductTaskScene step={6} />
+        </ProductDemoShell>
+      </Tabs>
+    </div>
+  </div>;
+}
+
 /** A product chapter closes in the same visual rhythm as its examples and related features. */
 export function FinalCta({
   compact = false,
   titleKey = "landing.final.compactTitle",
+  descriptionKey = "landing.studio.finalSub",
   demoHref = href(ANCHORS.platform),
   secondaryAction,
-}: { compact?: boolean; titleKey?: string; demoHref?: string; secondaryAction?: ClosingAction }) {
+}: { compact?: boolean; titleKey?: string; descriptionKey?: string; demoHref?: string; secondaryAction?: ClosingAction }) {
   const { t } = useTranslation();
   const SecondaryIcon = secondaryAction?.icon === "arrow" ? ArrowRight : Play;
   if (compact) {
@@ -29,7 +48,7 @@ export function FinalCta({
         <div className="final-compact-copy">
           <div className="final-chapter-mark" aria-hidden="true"><Logo variant="mark" size={44} /></div>
           <h2 id="final-title">{t(titleKey)}</h2>
-          <p>{t("landing.studio.finalSub")}</p>
+          <p>{t(descriptionKey)}</p>
         </div>
         <div className="final-compact-actions">
           <Link href={paths.register()} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "final-compact-primary")}>

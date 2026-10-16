@@ -54,7 +54,7 @@ func TestMcpStartRedirectsProtocolErrors(t *testing.T) {
 	for name, mut := range map[string]func(*McpAuthorizeInput){
 		"unsupported_response_type": func(in *McpAuthorizeInput) { in.ResponseType = "token" },
 		"invalid_request":           func(in *McpAuthorizeInput) { in.CodeChallengeMethod = "plain" },
-		"invalid_scope":             func(in *McpAuthorizeInput) { in.Scope = "write" },
+		"invalid_scope":             func(in *McpAuthorizeInput) { in.Scope = "admin" },
 		"invalid_target":            func(in *McpAuthorizeInput) { in.Resource = "https://elsewhere.test/mcp" },
 	} {
 		in := base
@@ -87,7 +87,7 @@ func TestMcpConsentBelongsToFirstReader(t *testing.T) {
 	if _, err := w.svc.Consent(w.ctx, other.ID, id); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("another person reading the attempt: %v", err)
 	}
-	if _, err := w.svc.Approve(w.ctx, other.ID, id, consent.CSRFToken, w.org.ID); err == nil {
+	if _, err := w.svc.Approve(w.ctx, other.ID, id, consent.CSRFToken, w.org.ID, false); err == nil {
 		t.Fatal("another person approved the attempt")
 	}
 }
@@ -97,14 +97,14 @@ func TestMcpApproveChecksCSRFAndOrganization(t *testing.T) {
 	c := w.publicClient(t, "https://x.test/cb")
 	id := w.startAttempt(t, c, "https://x.test/cb", "")
 	consent, _ := w.svc.Consent(w.ctx, w.owner.ID, id)
-	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID); !errors.Is(err, ErrMcpConnectorDisabled) {
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, false); !errors.Is(err, ErrMcpConnectorDisabled) {
 		t.Fatalf("org not enabled: %v", err)
 	}
 	w.enable(t)
-	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, "wrong", w.org.ID); !errors.Is(err, ErrMcpCSRF) {
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, "wrong", w.org.ID, false); !errors.Is(err, ErrMcpCSRF) {
 		t.Fatalf("wrong csrf: %v", err)
 	}
-	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, "01NOTMYORG000000000000000"); !errors.Is(err, ErrForbidden) {
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, "01NOTMYORG000000000000000", false); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("foreign organization: %v", err)
 	}
 }
@@ -128,14 +128,14 @@ func TestMcpApproveRefusesAnotherUsersAttempt(t *testing.T) {
 	if _, err := w.q.SetOrganizationMcpPolicy(w.ctx, db.SetOrganizationMcpPolicyParams{ID: otherOrg.ID, Enabled: true, ActorID: other.ID}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.svc.Approve(w.ctx, other.ID, id, consent.CSRFToken, otherOrg.ID); !errors.Is(err, ErrMcpCSRF) {
+	if _, err := w.svc.Approve(w.ctx, other.ID, id, consent.CSRFToken, otherOrg.ID, false); !errors.Is(err, ErrMcpCSRF) {
 		t.Fatalf("another user approving the claimant's attempt: %v", err)
 	}
 	if n := w.countRows(t, `SELECT count(*) FROM mcp_grants WHERE client_id = $1`, c.ClientID); n != 0 {
 		t.Fatalf("grants after refused approve = %d", n)
 	}
 	// The claimant can still finish it.
-	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID); err != nil {
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, false); err != nil {
 		t.Fatalf("claimant approve: %v", err)
 	}
 }
@@ -154,7 +154,7 @@ func TestMcpApproveRefusesExpiredAttempt(t *testing.T) {
 	if _, err := w.pool.Exec(w.ctx, `UPDATE mcp_auth_attempts SET expires_at = now() - interval '1 minute' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID); !errors.Is(err, ErrMcpAttemptExpired) {
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, false); !errors.Is(err, ErrMcpAttemptExpired) {
 		t.Fatalf("expired attempt: %v", err)
 	}
 	if n := w.countRows(t, `SELECT count(*) FROM mcp_grants WHERE organization_id = $1`, w.org.ID); n != 0 {
@@ -181,7 +181,7 @@ func TestMcpApproveExpiryRacingTheUpdateIsExpired(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.svc.now = func() time.Time { return time.Now().Add(-2 * time.Hour) } // the lock check still sees it as live
-	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID); !errors.Is(err, ErrMcpAttemptExpired) {
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, false); !errors.Is(err, ErrMcpAttemptExpired) {
 		t.Fatalf("expiry racing the update: %v", err)
 	}
 	if n := w.countRows(t, `SELECT count(*) FROM mcp_grants WHERE organization_id = $1`, w.org.ID); n != 0 {
@@ -200,7 +200,7 @@ func TestMcpApproveKeepsRedirectQuery(t *testing.T) {
 	c := w.publicClient(t, redirect)
 	id := w.startAttempt(t, c, redirect, "abc")
 	consent, _ := w.svc.Consent(w.ctx, w.owner.ID, id)
-	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID)
+	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,5 +300,134 @@ func TestMcpConsentOfAWithdrawnClientIsGone(t *testing.T) {
 				t.Fatalf("err = %v, want it to wrap ErrMcpClientUnavailable and not the raw sentinel", err)
 			}
 		})
+	}
+}
+
+// startWrite opens an attempt that asks for write and returns its id.
+func (w *mcpWorld) startWrite(t *testing.T, c McpClient) string {
+	t.Helper()
+	to, err := w.svc.Start(w.ctx, McpAuthorizeInput{ResponseType: "code", ClientID: c.ClientID, RedirectURI: "https://x.test/cb", CodeChallenge: mcpTestChallenge(), CodeChallengeMethod: "S256", Scope: "read write"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return attemptID(t, to)
+}
+
+func (w *mcpWorld) grantScope(t *testing.T, clientID string) string {
+	t.Helper()
+	g, err := w.q.GetActiveMcpGrant(w.ctx, db.GetActiveMcpGrantParams{OrganizationID: w.org.ID, UserID: w.owner.ID, ClientID: clientID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g.Scope
+}
+
+// The grant holds write only when the app asked for it, the person ticked it
+// and the organization allows it; a later consent can raise or lower it, and
+// each change is audited.
+func TestApproveDecidesTheGrantScope(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	c := w.publicClient(t, "https://x.test/cb")
+
+	// Write asked and ticked, but the organization has not opened write.
+	id := w.startWrite(t, c)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !consent.WriteRequested || consent.Organizations[0].WriteEnabled {
+		t.Fatalf("consent = %+v, want write requested but not open", consent)
+	}
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.grantScope(t, c.ClientID); got != "read" {
+		t.Fatalf("scope with write closed = %q, want read", got)
+	}
+
+	// The organization opens write; the same app asks again and the person ticks it.
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	id = w.startWrite(t, c)
+	consent, _ = w.svc.Consent(w.ctx, w.owner.ID, id)
+	if !consent.Organizations[0].WriteEnabled {
+		t.Fatalf("consent after opening write = %+v", consent.Organizations)
+	}
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.grantScope(t, c.ClientID); got != "read write" {
+		t.Fatalf("scope after ticking write = %q, want read write", got)
+	}
+
+	// Reconnecting without the tick takes write away.
+	id = w.startWrite(t, c)
+	consent, _ = w.svc.Consent(w.ctx, w.owner.ID, id)
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.grantScope(t, c.ClientID); got != "read" {
+		t.Fatalf("scope after unticking = %q, want read", got)
+	}
+	var changes int
+	if err := w.pool.QueryRow(w.ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'mcp_grant.scope_changed'`, w.org.ID).Scan(&changes); err != nil {
+		t.Fatal(err)
+	}
+	if changes != 2 {
+		t.Fatalf("scope_changed rows = %d, want 2", changes)
+	}
+}
+
+// An app that asked for read only never gets write, whatever the box says.
+func TestApproveNeverWidensBeyondTheRequest(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	c := w.publicClient(t, "https://x.test/cb")
+	to, err := w.svc.Start(w.ctx, McpAuthorizeInput{ResponseType: "code", ClientID: c.ClientID, RedirectURI: "https://x.test/cb", CodeChallenge: mcpTestChallenge(), CodeChallengeMethod: "S256"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := attemptID(t, to)
+	consent, _ := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if consent.WriteRequested {
+		t.Fatal("a read-only request reads as asking for write")
+	}
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.grantScope(t, c.ClientID); got != "read" {
+		t.Fatalf("scope = %q, want read", got)
+	}
+}
+
+// The platform write flag is the third leg of the gate: with the organization's
+// write switch on, turning the flag off still keeps write out of the grant.
+func TestApproveNeedsThePlatformWriteFlag(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	c := w.publicClient(t, "https://x.test/cb")
+
+	w.svc.SetFlags(mcpFlagsExcept{off: mcpWriteFlagKey})
+	id := w.startWrite(t, c)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !consent.WriteRequested || !consent.Organizations[0].Enabled || consent.Organizations[0].WriteEnabled {
+		t.Fatalf("consent with the write flag off = %+v, want the connector on and write closed", consent)
+	}
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.grantScope(t, c.ClientID); got != "read" {
+		t.Fatalf("scope with the write flag off = %q, want read", got)
 	}
 }

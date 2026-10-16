@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -85,50 +86,99 @@ func (s *ChatService) UpdateChatRoomSettings(
 	}
 	isModerator := canModerateChatRoom(actorID, actorMember, room, wsMember)
 
+	// Validate and authorize everything before the first write, so a refused
+	// request changes nothing.
+	current := memberPermissionsFromRaw(room.MemberPermissions)
+	changes := map[string]audit.Change{}
 	if in.MemberPermissions != nil {
 		if !isModerator {
 			return ChatRoomMemberPermissions{}, ErrForbidden
 		}
-		perms := *in.MemberPermissions
-		encoded, err := encodeMemberPermissions(perms)
-		if err != nil {
-			return ChatRoomMemberPermissions{}, err
-		}
-		if err := s.q.UpdateChatRoomMemberPermissions(ctx, db.UpdateChatRoomMemberPermissionsParams{
-			ID: roomID, MemberPermissions: encoded,
-		}); err != nil {
-			return ChatRoomMemberPermissions{}, err
+		if *in.MemberPermissions != current {
+			changes["member_permissions"] = audit.Change{From: current, To: *in.MemberPermissions}
 		}
 	}
+	var name string
 	if in.Name != nil {
-		name := strings.TrimSpace(*in.Name)
+		name = strings.TrimSpace(*in.Name)
 		if name == "" {
 			return ChatRoomMemberPermissions{}, Invalid("tên phòng không được để trống")
 		}
 		if utf8.RuneCountInString(name) > chatRoomNameMaxRunes {
 			return ChatRoomMemberPermissions{}, Invalid("tên phòng tối đa 80 ký tự")
 		}
-		if !isModerator {
-			if err := s.memberCanPerformRoomAction(ctx, actorID, roomID, room, func(p ChatRoomMemberPermissions) bool {
-				return p.AllowChangeProfile
-			}); err != nil {
-				return ChatRoomMemberPermissions{}, err
-			}
+		// Only a group lets regular members rename it; a channel, the default
+		// one included, is renamed by its moderators.
+		if !isModerator && (room.Kind != chatRoomKindGroup || !current.AllowChangeProfile) {
+			return ChatRoomMemberPermissions{}, ErrForbidden
 		}
-		if err := s.q.UpdateChatRoomName(ctx, db.UpdateChatRoomNameParams{
+		if name != room.Name {
+			changes["name"] = audit.Change{From: room.Name, To: name}
+		}
+	}
+	if len(changes) == 0 {
+		return current, nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ChatRoomMemberPermissions{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	perms := current
+	if _, ok := changes["member_permissions"]; ok {
+		perms = *in.MemberPermissions
+		encoded, err := encodeMemberPermissions(perms)
+		if err != nil {
+			return ChatRoomMemberPermissions{}, err
+		}
+		if err := q.UpdateChatRoomMemberPermissions(ctx, db.UpdateChatRoomMemberPermissionsParams{
+			ID: roomID, MemberPermissions: encoded,
+		}); err != nil {
+			return ChatRoomMemberPermissions{}, err
+		}
+	}
+	if _, ok := changes["name"]; ok {
+		if err := q.UpdateChatRoomName(ctx, db.UpdateChatRoomNameParams{
 			ID: roomID, Name: name,
 		}); err != nil {
 			return ChatRoomMemberPermissions{}, err
 		}
 	}
-	perms := memberPermissionsFromRaw(room.MemberPermissions)
-	if in.MemberPermissions != nil {
-		perms = *in.MemberPermissions
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    roomAnchorWorkspaceID(room),
+		Actor:          audit.User(actorID),
+		Action:         audit.ActionChatRoomSettingsUpdated,
+		ResourceType:   "chat_room",
+		ResourceID:     roomID,
+		Changes:        changes,
+	}); err != nil {
+		return ChatRoomMemberPermissions{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ChatRoomMemberPermissions{}, err
 	}
 	s.publishChatRoomMembersEvent(ctx, roomID, Event{
 		Type: "chat.room.updated", Payload: map[string]string{"room_id": roomID},
 	})
 	return perms, nil
+}
+
+func memberMayPerform(
+	member db.GetActiveChatRoomMemberRow, userID string, room db.ChatRoom, check func(ChatRoomMemberPermissions) bool,
+) error {
+	if member.Role == "admin" {
+		return nil
+	}
+	if room.Kind == chatRoomKindGroup && room.CreatedBy == userID {
+		return nil
+	}
+	if !check(memberPermissionsFromRaw(room.MemberPermissions)) {
+		return ErrForbidden
+	}
+	return nil
 }
 
 func (s *ChatService) memberCanPerformRoomAction(
@@ -140,15 +190,5 @@ func (s *ChatService) memberCanPerformRoomAction(
 	if err != nil {
 		return err
 	}
-	if member.Role == "admin" {
-		return nil
-	}
-	if room.Kind == chatRoomKindGroup && room.CreatedBy == userID {
-		return nil
-	}
-	perms := memberPermissionsFromRaw(room.MemberPermissions)
-	if !check(perms) {
-		return ErrForbidden
-	}
-	return nil
+	return memberMayPerform(member, userID, room, check)
 }

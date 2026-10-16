@@ -3,7 +3,6 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useChatUnreadBadge } from "@uniwork/core/chat";
-import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
 import { useNotifications } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
 import { getWebNotificationPermission, showWebNotification } from "@uniwork/core/platform";
@@ -40,7 +39,8 @@ function useTitleCount(count: number) {
  * hidden. The banner needs permission already granted (never prompted here)
  * and stays off while this browser has Web Push, which shows the same thing.
  * It watches the unread notifications the realtime sync already refetches on
- * notification.created, so the rows, titles and preferences are the inbox's.
+ * notification.created, so the rows, titles and preferences are the inbox's;
+ * a room the person muted has no rows, since the server skips it (UNI-1697).
  */
 export function WorkspaceChatAttention() {
   const { t } = useTranslation();
@@ -65,12 +65,10 @@ export function WorkspaceChatAttention() {
     newestSeen.current = Math.max(before ?? -Infinity, ...rows.map(stamp));
     // The first load is the backlog, not news; a visible tab has the inbox.
     if (before === null || document.visibilityState !== "hidden") return;
-    const muted = useChatRoomPreferencesStore.getState().isNotificationsMuted;
     for (const n of rows) {
       // Only what is newer than anything seen: an old row the top-20 window
       // pulls in once newer ones are read is not news (UNI-1074).
       if (!BANNER_KINDS.has(n.kind) || stamp(n) <= before) continue;
-      if (n.resource_parent_id && muted(n.resource_parent_id)) continue;
       // The id is the tag: a merged row replaces its earlier banner.
       showWebNotification({
         slug: workspace.slug,

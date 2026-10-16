@@ -1,6 +1,6 @@
 "use client";
 import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";

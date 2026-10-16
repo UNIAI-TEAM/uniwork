@@ -81,6 +81,50 @@ func TestWorkspaceMembershipChangesReachTheDefaultChannel(t *testing.T) {
 	}
 }
 
+// Demoting a workspace admin undoes the channel admin the sync gave them, so
+// they can no longer moderate the whole workspace's channel; a member raised
+// in the channel by hand keeps the role (UNI-1676).
+func TestDemotedWorkspaceAdminLosesTheDefaultChannelAdmin(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-demote-c@example.com", "C")
+	ud := registerVerified(t, q, as, "chat-demote-d@example.com", "D")
+	for _, u := range []db.User{ub, uc, ud} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin := "admin"
+	if err := s.UpdateChatRoomMember(ctx, ua.ID, w.ID, room.RoomID, uc.ID, UpdateChatRoomMemberInput{Role: &admin}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.ws.UpdateMemberRole(ctx, ua.ID, w.ID, ub.ID, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultChannelRole(t, q, room.RoomID, ub.ID); got != "admin" {
+		t.Fatalf("after promotion: role %q, want admin", got)
+	}
+	if _, err := s.ws.UpdateMemberRole(ctx, ua.ID, w.ID, ub.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultChannelRole(t, q, room.RoomID, ub.ID); got != "member" {
+		t.Fatalf("after demotion: role %q, want member", got)
+	}
+	restrict := true
+	err = s.UpdateChatRoomMember(ctx, ub.ID, w.ID, room.RoomID, ud.ID, UpdateChatRoomMemberInput{SendRestricted: &restrict})
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("demoted admin restricting a member: %v, want ErrForbidden", err)
+	}
+	if got := defaultChannelRole(t, q, room.RoomID, uc.ID); got != "admin" {
+		t.Fatalf("hand-raised channel admin after B's demotion: role %q, want admin", got)
+	}
+}
+
 // Deactivation keeps the workspace row, so the safety net must not read it
 // as a member to re-add: the person stays out of the default channel, and a
 // row left active behind Deactivate's back is marked left (UNI-1084).

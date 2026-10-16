@@ -18,7 +18,12 @@ afterEach(() => {
 
 function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> = {}) {
   const setTarget = vi.fn();
-  const setDraft = vi.fn();
+  // One draft behind both accessors, so a test reads back what the hook wrote.
+  let draft = "hello";
+  const getDraft = vi.fn(() => draft);
+  const setDraft = vi.fn((value: string) => {
+    draft = value;
+  });
   const setReplyTo = vi.fn();
   const setConnectError = vi.fn();
 
@@ -30,7 +35,7 @@ function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> 
     activeRoomId: "room1",
     activeGroup: null,
     activeChannel: null,
-    getDraft: () => "hello",
+    getDraft,
     setDraft,
     replyTo: null as ChatMessage | null,
     setReplyTo,
@@ -71,6 +76,71 @@ describe("useChatPageActions", () => {
     );
     expect(deps.setReplyTo).toHaveBeenCalledWith(null);
     expect(deps.setDraft).toHaveBeenCalledWith("");
+  });
+
+  it("clears the draft before the server answers", async () => {
+    let resolveSend: ((value: null) => void) | undefined;
+    const deps = buildDeps({
+      sendRoomMessage: {
+        mutateAsync: vi.fn(
+          (): Promise<null> =>
+            new Promise<null>((resolve) => {
+              resolveSend = resolve;
+            }),
+        ),
+      },
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    let sendPromise: Promise<void> | undefined;
+    act(() => {
+      sendPromise = result.current.provisionAndSend();
+    });
+    expect(deps.getDraft()).toBe("");
+
+    // A second Enter while the first send is in flight finds nothing to send,
+    // and text typed meanwhile survives the first send finishing.
+    await act(async () => {
+      await result.current.provisionAndSend();
+    });
+    expect(deps.sendRoomMessage.mutateAsync).toHaveBeenCalledTimes(1);
+    deps.setDraft("B đang viết dở");
+
+    resolveSend?.(null);
+    await act(async () => {
+      await sendPromise;
+    });
+    expect(deps.getDraft()).toBe("B đang viết dở");
+  });
+
+  it("puts the draft back when the send fails without queueing", async () => {
+    const deps = buildDeps({
+      sendRoomMessage: {
+        mutateAsync: vi.fn().mockRejectedValue(new ApiError("invalid", "validation_failed", 422)),
+      },
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend();
+    });
+
+    expect(deps.getDraft()).toBe("hello");
+  });
+
+  it("sends a sticker without touching the draft", async () => {
+    const deps = buildDeps();
+    deps.setDraft("đang gõ");
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.sendMessageBody("![sticker](https://cdn.example.com/s.png)");
+    });
+
+    expect(deps.sendRoomMessage.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ body: "![sticker](https://cdn.example.com/s.png)" }),
+    );
+    expect(deps.getDraft()).toBe("đang gõ");
   });
 
   it("sends composer priority with the message and clears it", async () => {
@@ -118,6 +188,26 @@ describe("useChatPageActions", () => {
         group: expect.objectContaining({ id: "g1", name: "Squad" }),
       });
       expect(deps.setCreateGroupOpen).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it("lets the server name a group left unnamed", async () => {
+    const deps = buildDeps();
+    const members = [
+      { user_id: "u1", email: "a@example.com", display_name: "A" },
+      { user_id: "u2", email: "b@example.com", display_name: "B" },
+    ];
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    act(() => {
+      result.current.handleCreateGroup(members, "  ");
+    });
+
+    await waitFor(() => {
+      expect(deps.createGroup.mutateAsync).toHaveBeenCalledWith({
+        name: "",
+        member_user_ids: ["u1", "u2"],
+      });
     });
   });
 
@@ -199,7 +289,8 @@ describe("useChatPageActions", () => {
       kind: "channel" as const,
       name: "dev",
       workspace_id: "ws1",
-      member_user_ids: ["u1"],
+      member_user_ids: [],
+      member_count: 2,
       unread_count: 0,
       mention_unread_count: 0,
       is_default: false,
@@ -211,7 +302,7 @@ describe("useChatPageActions", () => {
       inviteMembers: {
         mutateAsync: vi.fn().mockResolvedValue({
           ...channel,
-          member_user_ids: ["u1", "u2"],
+          member_count: 3,
         }),
       },
     });
@@ -230,7 +321,7 @@ describe("useChatPageActions", () => {
       expect(deps.setTarget).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: "channel",
-          channel: expect.objectContaining({ member_user_ids: ["u1", "u2"] }),
+          channel: expect.objectContaining({ id: "ch1", member_count: 3 }),
         }),
       );
     });
@@ -268,7 +359,7 @@ describe("useChatPageActions", () => {
     expect(deps.setConnectError).toHaveBeenCalledWith(
       "Bạn đang gửi quá nhanh. Tin chưa được gửi, chờ một chút rồi gửi lại.",
     );
-    expect(deps.setDraft).not.toHaveBeenCalledWith("");
+    expect(deps.getDraft()).toBe("hello");
     const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
     expect(useChatSendOutboxStore.getState().entries).toEqual([]);
   });

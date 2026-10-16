@@ -23,6 +23,8 @@ type UpdateMeetingInput struct {
 	ProjectID        *string
 	// QuorumPercent: 1–100 sets the minimum attendance, 0 clears it.
 	QuorumPercent *int
+	// ExpectedVersion is the version the caller read; nil skips the check (MCP, ADR 0033).
+	ExpectedVersion *int32
 }
 
 // quorumChanges: setting want (0 = none) would change the stored quorum.
@@ -85,6 +87,9 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	}
 	if err := meetingEditable(m, in); err != nil {
 		return db.Meeting{}, err
+	}
+	if in.ExpectedVersion != nil && *in.ExpectedVersion != m.Version {
+		return db.Meeting{}, errMeetingVersionConflict(m.Version)
 	}
 	// The edit dialog sends the quorum back unchanged with every save; only a
 	// different value is refused on a finalized roll.

@@ -10,6 +10,7 @@ import { SheetClose } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
+import { ChatMemberProfileTrigger } from "./chat-member-profile";
 
 export function ChatSettingsTitleRow({
   title,
@@ -254,19 +255,40 @@ export function ChatMemberRow({
   name,
   detail,
   actions,
+  profile,
 }: {
   avatar: ReactNode;
   name: string;
   detail?: ReactNode;
   actions?: ReactNode;
+  /** Click opens their address and, for someone else, a direct message. */
+  profile?: { userId?: string; email?: string; avatarUrl?: string; onMessage?: () => void };
 }) {
-  return (
-    <li className="flex min-h-12 items-center gap-3 px-4 py-1.5">
+  const identity = (
+    <>
       {avatar}
       <div className="min-w-0 flex-1">
         <p className="truncate text-body font-medium text-foreground">{name}</p>
         {detail ? <p className="truncate text-caption text-muted-foreground">{detail}</p> : null}
       </div>
+    </>
+  );
+  return (
+    <li className="flex min-h-12 items-center gap-3 px-4 py-1.5">
+      {profile ? (
+        <ChatMemberProfileTrigger
+          name={name}
+          email={profile.email}
+          detail={typeof detail === "string" ? detail : undefined}
+          userId={profile.userId}
+          avatarUrl={profile.avatarUrl}
+          onMessage={profile.onMessage}
+        >
+          {identity}
+        </ChatMemberProfileTrigger>
+      ) : (
+        identity
+      )}
       {actions ? <div className="flex shrink-0 items-center gap-0.5">{actions}</div> : null}
     </li>
   );

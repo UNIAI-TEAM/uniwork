@@ -103,6 +103,16 @@ func TestDefaultRoomMessageEventsGoToTheWorkspace(t *testing.T) {
 	if got := pub.sentTo("chat.message.updated"); !slices.Equal(got, []string{"workspace:" + w.ID}) {
 		t.Fatalf("default room edit went to %v, want the workspace", got)
 	}
+	poll := mustSendPoll(t, s, ctx, ua.ID, w.ID, room.RoomID, SendPollMessageInput{
+		Question: "Họp lúc mấy giờ?", Options: []string{"9h", "10h"},
+	})
+	pub.sent = nil
+	if _, err := s.VoteChatPollMessage(ctx, ua.ID, w.ID, room.RoomID, poll.ID, poll.Poll.Options[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := pub.sentTo("chat.message.updated"); !slices.Equal(got, []string{"workspace:" + w.ID}) {
+		t.Fatalf("default room vote went to %v, want the workspace", got)
+	}
 }
 
 // chat.room.read matters to the reader's other tabs and, in a DM, to the peer

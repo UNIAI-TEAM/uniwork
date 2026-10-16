@@ -98,6 +98,28 @@ describe("useDashboardGuard", () => {
     await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/workspaces"));
   });
 
+  it("moves an old slug to the workspace's current slug, keeping the path and the query", async () => {
+    useAuthStore.getState().setUser(user);
+    requestMock.mockResolvedValue({
+      workspace: { id: "ws1", slug: "team-new", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme" },
+    });
+    const adapter = nav("/acme/team/tasks/01J8TASK");
+    adapter.searchParams = new URLSearchParams("view=board");
+    renderGuard(adapter);
+    await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/acme/team-new/tasks/01J8TASK?view=board"));
+  });
+
+  it("leaves the URL alone when the slug is current", async () => {
+    useAuthStore.getState().setUser(user);
+    requestMock.mockResolvedValue({
+      workspace: { id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme" },
+    });
+    const adapter = nav("/acme/team/tasks");
+    const { result } = renderGuard(adapter);
+    await waitFor(() => expect(result.current.workspace?.id).toBe("ws1"));
+    expect(adapter.replace).not.toHaveBeenCalled();
+  });
+
   it("returns the user and workspace when every gate passes, and never redirects", async () => {
     useAuthStore.getState().setUser(user);
     requestMock.mockResolvedValue({ workspace });

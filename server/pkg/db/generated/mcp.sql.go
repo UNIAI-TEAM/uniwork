@@ -581,30 +581,40 @@ func (q *Queries) GetMcpTokenByDigestForUpdate(ctx context.Context, digest strin
 }
 
 const getOrganizationMcpPolicy = `-- name: GetOrganizationMcpPolicy :one
-SELECT id, mcp_enabled_at, mcp_enabled_by FROM organizations WHERE id = $1
+SELECT id, mcp_enabled_at, mcp_enabled_by, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1
 `
 
 type GetOrganizationMcpPolicyRow struct {
-	ID           string             `json:"id"`
-	McpEnabledAt pgtype.Timestamptz `json:"mcp_enabled_at"`
-	McpEnabledBy pgtype.Text        `json:"mcp_enabled_by"`
+	ID                string             `json:"id"`
+	McpEnabledAt      pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy      pgtype.Text        `json:"mcp_enabled_by"`
+	McpWriteEnabledAt pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy pgtype.Text        `json:"mcp_write_enabled_by"`
 }
 
 func (q *Queries) GetOrganizationMcpPolicy(ctx context.Context, id string) (GetOrganizationMcpPolicyRow, error) {
 	row := q.db.QueryRow(ctx, getOrganizationMcpPolicy, id)
 	var i GetOrganizationMcpPolicyRow
-	err := row.Scan(&i.ID, &i.McpEnabledAt, &i.McpEnabledBy)
+	err := row.Scan(
+		&i.ID,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+	)
 	return i, err
 }
 
 const getOrganizationMcpPolicyForUpdate = `-- name: GetOrganizationMcpPolicyForUpdate :one
-SELECT id, mcp_enabled_at, mcp_enabled_by FROM organizations WHERE id = $1 FOR UPDATE
+SELECT id, mcp_enabled_at, mcp_enabled_by, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1 FOR UPDATE
 `
 
 type GetOrganizationMcpPolicyForUpdateRow struct {
-	ID           string             `json:"id"`
-	McpEnabledAt pgtype.Timestamptz `json:"mcp_enabled_at"`
-	McpEnabledBy pgtype.Text        `json:"mcp_enabled_by"`
+	ID                string             `json:"id"`
+	McpEnabledAt      pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy      pgtype.Text        `json:"mcp_enabled_by"`
+	McpWriteEnabledAt pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy pgtype.Text        `json:"mcp_write_enabled_by"`
 }
 
 // SetPolicy reads the value it is about to change under the row lock, so the
@@ -612,7 +622,13 @@ type GetOrganizationMcpPolicyForUpdateRow struct {
 func (q *Queries) GetOrganizationMcpPolicyForUpdate(ctx context.Context, id string) (GetOrganizationMcpPolicyForUpdateRow, error) {
 	row := q.db.QueryRow(ctx, getOrganizationMcpPolicyForUpdate, id)
 	var i GetOrganizationMcpPolicyForUpdateRow
-	err := row.Scan(&i.ID, &i.McpEnabledAt, &i.McpEnabledBy)
+	err := row.Scan(
+		&i.ID,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+	)
 	return i, err
 }
 
@@ -982,13 +998,46 @@ func (q *Queries) RevokeMcpTokensForUserInOrganization(ctx context.Context, arg 
 	return result.RowsAffected(), nil
 }
 
+const setMcpGrantScope = `-- name: SetMcpGrantScope :one
+UPDATE mcp_grants SET scope = $2 WHERE id = $1 AND revoked_at IS NULL
+RETURNING id, organization_id, user_id, client_id, scope, created_by, created_by_kind, created_at, last_used_at, revoked_at, revoked_by, revoked_by_kind
+`
+
+type SetMcpGrantScopeParams struct {
+	ID    string `json:"id"`
+	Scope string `json:"scope"`
+}
+
+// tenant: by-id
+func (q *Queries) SetMcpGrantScope(ctx context.Context, arg SetMcpGrantScopeParams) (McpGrant, error) {
+	row := q.db.QueryRow(ctx, setMcpGrantScope, arg.ID, arg.Scope)
+	var i McpGrant
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.UserID,
+		&i.ClientID,
+		&i.Scope,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.RevokedAt,
+		&i.RevokedBy,
+		&i.RevokedByKind,
+	)
+	return i, err
+}
+
 const setOrganizationMcpPolicy = `-- name: SetOrganizationMcpPolicy :one
 UPDATE organizations SET
   mcp_enabled_at = CASE WHEN $1::bool THEN COALESCE(mcp_enabled_at, now()) ELSE NULL END,
   mcp_enabled_by = CASE WHEN $1::bool THEN $2::text ELSE NULL END,
+  mcp_write_enabled_at = CASE WHEN $1::bool THEN mcp_write_enabled_at ELSE NULL END,
+  mcp_write_enabled_by = CASE WHEN $1::bool THEN mcp_write_enabled_by ELSE NULL END,
   updated_at = now()
 WHERE id = $3
-RETURNING id, mcp_enabled_at, mcp_enabled_by
+RETURNING id, mcp_enabled_at, mcp_enabled_by, mcp_write_enabled_at, mcp_write_enabled_by
 `
 
 type SetOrganizationMcpPolicyParams struct {
@@ -998,15 +1047,60 @@ type SetOrganizationMcpPolicyParams struct {
 }
 
 type SetOrganizationMcpPolicyRow struct {
-	ID           string             `json:"id"`
-	McpEnabledAt pgtype.Timestamptz `json:"mcp_enabled_at"`
-	McpEnabledBy pgtype.Text        `json:"mcp_enabled_by"`
+	ID                string             `json:"id"`
+	McpEnabledAt      pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy      pgtype.Text        `json:"mcp_enabled_by"`
+	McpWriteEnabledAt pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy pgtype.Text        `json:"mcp_write_enabled_by"`
 }
 
+// Turning the connector off turns write off with it: write never outlives read.
 func (q *Queries) SetOrganizationMcpPolicy(ctx context.Context, arg SetOrganizationMcpPolicyParams) (SetOrganizationMcpPolicyRow, error) {
 	row := q.db.QueryRow(ctx, setOrganizationMcpPolicy, arg.Enabled, arg.ActorID, arg.ID)
 	var i SetOrganizationMcpPolicyRow
-	err := row.Scan(&i.ID, &i.McpEnabledAt, &i.McpEnabledBy)
+	err := row.Scan(
+		&i.ID,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+	)
+	return i, err
+}
+
+const setOrganizationMcpWritePolicy = `-- name: SetOrganizationMcpWritePolicy :one
+UPDATE organizations SET
+  mcp_write_enabled_at = CASE WHEN $1::bool THEN COALESCE(mcp_write_enabled_at, now()) ELSE NULL END,
+  mcp_write_enabled_by = CASE WHEN $1::bool THEN $2::text ELSE NULL END,
+  updated_at = now()
+WHERE id = $3
+RETURNING id, mcp_enabled_at, mcp_enabled_by, mcp_write_enabled_at, mcp_write_enabled_by
+`
+
+type SetOrganizationMcpWritePolicyParams struct {
+	Enabled bool   `json:"enabled"`
+	ActorID string `json:"actor_id"`
+	ID      string `json:"id"`
+}
+
+type SetOrganizationMcpWritePolicyRow struct {
+	ID                string             `json:"id"`
+	McpEnabledAt      pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy      pgtype.Text        `json:"mcp_enabled_by"`
+	McpWriteEnabledAt pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy pgtype.Text        `json:"mcp_write_enabled_by"`
+}
+
+func (q *Queries) SetOrganizationMcpWritePolicy(ctx context.Context, arg SetOrganizationMcpWritePolicyParams) (SetOrganizationMcpWritePolicyRow, error) {
+	row := q.db.QueryRow(ctx, setOrganizationMcpWritePolicy, arg.Enabled, arg.ActorID, arg.ID)
+	var i SetOrganizationMcpWritePolicyRow
+	err := row.Scan(
+		&i.ID,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+	)
 	return i, err
 }
 

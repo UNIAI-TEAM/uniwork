@@ -1,4 +1,5 @@
 "use client";
+import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
 import type { ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
@@ -165,55 +166,39 @@ export function useToggleChatMessagePin(workspaceId: string) {
   });
 }
 
-/** Blobs are immutable per message; keep them while a room is in use. */
-const CHAT_BLOB_GC_MS = 5 * 60_000;
+/** A signed URL counts as dead this long before it ends, so a click never lands on one. */
+const CHAT_MEDIA_URL_MARGIN_MS = 60_000;
 
 /**
- * The bytes of a file message (image or PDF preview, reply thumbnail). Keyed
- * by message, so the timeline rebuilding its rows or the list remounting one
- * reads the cached Blob instead of downloading it again; callers create
- * their own object URL from it and revoke it on unmount. `variant: "thumb"`
- * is the timeline's photo preview, cached apart from the original.
+ * Whether a file or voice message's signed storage URL (UNI-1633) can still
+ * be used. The message list carries the URLs; a screen left open past
+ * url_expires_at holds dead ones.
  */
-export function useChatFileBlob(
-  workspaceId: string,
-  roomId: string,
-  messageId: string,
-  enabled = true,
-  variant?: chat.ChatFileVariant,
-) {
-  return useQuery({
-    queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId, variant),
-    queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId, variant),
-    enabled: !!workspaceId && !!roomId && !!messageId && enabled,
-    staleTime: Infinity,
-    gcTime: CHAT_BLOB_GC_MS,
-    structuralSharing: false,
-  });
+export function isChatMediaUrlFresh(
+  url: string | undefined,
+  expiresAt: string | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!url) return false;
+  const at = Date.parse(expiresAt ?? "");
+  return Number.isFinite(at) && at - CHAT_MEDIA_URL_MARGIN_MS > now;
 }
 
-/** Loads a file's bytes through the same cache (download button). */
-export function useChatFileBlobLoader(workspaceId: string, roomId: string) {
+/**
+ * Loads one message again for freshly signed media URLs and writes it back
+ * into the room caches, so every row showing it re-renders with them.
+ */
+export function useRefreshChatMessageMedia(workspaceId: string, roomId: string) {
   const qc = useQueryClient();
-  return (messageId: string): Promise<Blob> =>
-    qc.fetchQuery({
-      queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId),
-      queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId),
-      staleTime: Infinity,
-      gcTime: CHAT_BLOB_GC_MS,
-    });
-}
-
-/** Loads a voice message's bytes once per message for the shared player. */
-export function useChatVoiceBlobLoader(workspaceId: string, roomId: string) {
-  const qc = useQueryClient();
-  return (messageId: string): Promise<Blob> =>
-    qc.fetchQuery({
-      queryKey: chatKeys.voiceBlob(workspaceId, roomId, messageId),
-      queryFn: () => chat.loadChatVoiceBlob(workspaceId, roomId, messageId),
-      staleTime: Infinity,
-      gcTime: CHAT_BLOB_GC_MS,
-    });
+  // Stable across renders: callers key effects on it.
+  return useCallback(
+    async (messageId: string): Promise<chat.ChatMessageRecord | null> => {
+      const fresh = await chat.getChatRoomMessage(workspaceId, roomId, messageId);
+      applyChatMessageResponse(qc, workspaceId, roomId, fresh, false);
+      return fresh;
+    },
+    [qc, workspaceId, roomId],
+  );
 }
 
 export function useChatBlockStatus(workspaceId: string, userId: string, enabled: boolean) {

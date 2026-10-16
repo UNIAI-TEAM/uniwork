@@ -98,6 +98,27 @@ func TestChatPostValidationErrors(t *testing.T) {
 	}); err == nil {
 		t.Fatal("long body should fail")
 	}
+
+	// The limits count characters, not UTF-8 bytes ("ệ" is 3 bytes).
+	if _, err := s.SendPostMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendPostMessageInput{
+		Title: strings.Repeat("ệ", maxPostTitleLen), Body: strings.Repeat("ệ", maxPostBodyLen),
+	}); err != nil {
+		t.Fatalf("Vietnamese title and body at the limit: %v", err)
+	}
+	if _, err := s.SendPostMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendPostMessageInput{
+		Title: strings.Repeat("ệ", maxPostTitleLen+1), Body: "ok",
+	}); err == nil {
+		t.Fatal("long Vietnamese title should fail")
+	} else {
+		requireNoteValidationError(t, err, "long Vietnamese title")
+	}
+	if _, err := s.SendPostMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendPostMessageInput{
+		Title: "ok", Body: strings.Repeat("ệ", maxPostBodyLen+1),
+	}); err == nil {
+		t.Fatal("long Vietnamese body should fail")
+	} else {
+		requireNoteValidationError(t, err, "long Vietnamese body")
+	}
 }
 
 func TestChatPostCreateNotesForbidden(t *testing.T) {

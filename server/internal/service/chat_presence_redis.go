@@ -36,12 +36,12 @@ if prev and tonumber(prev) > tonumber(ARGV[3]) then return 0 end
 return 1
 `)
 
-// KEYS[1] workspace set, KEYS[2] expiry index; ARGV user, member.
-// Returns 1 when an entry was there.
+// KEYS[1] workspace set, KEYS[2] expiry index; ARGV user, member, until.
+// XX LT only brings an existing expiry forward (Redis >= 6.2).
 var presenceLeaveScript = redis.NewScript(`
-local removed = redis.call('ZREM', KEYS[1], ARGV[1])
-redis.call('ZREM', KEYS[2], ARGV[2])
-return removed
+redis.call('ZADD', KEYS[1], 'XX', 'LT', ARGV[3], ARGV[1])
+redis.call('ZADD', KEYS[2], 'XX', 'LT', ARGV[3], ARGV[2])
+return 0
 `)
 
 // KEYS[1] expiry index; ARGV now, batch, workspace key prefix.
@@ -95,15 +95,15 @@ func (r *redisPresenceStore) beat(ctx context.Context, workspaceID, userID strin
 	return n == 1, nil
 }
 
-func (r *redisPresenceStore) leave(ctx context.Context, workspaceID, userID string, _ time.Time) (bool, error) {
-	n, err := presenceLeaveScript.Run(ctx, r.rdb,
+func (r *redisPresenceStore) leave(ctx context.Context, workspaceID, userID string, until time.Time) error {
+	err := presenceLeaveScript.Run(ctx, r.rdb,
 		[]string{r.workspaceKey(workspaceID), r.expiryKey()},
-		userID, presenceMember(workspaceID, userID),
-	).Int()
+		userID, presenceMember(workspaceID, userID), until.UnixMilli(),
+	).Err()
 	if err != nil {
-		return false, fmt.Errorf("presence leave: %w", err)
+		return fmt.Errorf("presence leave: %w", err)
 	}
-	return n == 1, nil
+	return nil
 }
 
 func (r *redisPresenceStore) online(ctx context.Context, workspaceID string, now time.Time) ([]string, error) {

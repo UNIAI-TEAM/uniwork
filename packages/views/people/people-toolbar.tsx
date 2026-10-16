@@ -103,6 +103,7 @@ export function PeopleToolbar({
   // is already typing somewhere, where "/" is just a character.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (searchRef.current?.closest("[hidden], [inert]")) return;
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable='true'], [role='dialog']")) return;

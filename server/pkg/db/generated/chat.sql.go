@@ -101,6 +101,31 @@ func (q *Queries) BumpChatThreadReplyStats(ctx context.Context, arg BumpChatThre
 	return i, err
 }
 
+const carryOverChatRoomMemberSendRestricted = `-- name: CarryOverChatRoomMemberSendRestricted :exec
+UPDATE chat_room_members m
+SET send_restricted = true, updated_at = now()
+WHERE m.room_id = $1 AND m.user_id = $2 AND m.status = 'active'
+  AND (
+    SELECT l.send_restricted FROM chat_room_members l
+    WHERE l.room_id = $1 AND l.user_id = $2 AND l.status = 'left'
+    ORDER BY l.left_at DESC NULLS LAST, l.created_at DESC
+    LIMIT 1
+  )
+`
+
+type CarryOverChatRoomMemberSendRestrictedParams struct {
+	RoomID string `json:"room_id"`
+	UserID string `json:"user_id"`
+}
+
+// tenant: parent room_id
+// A self-join keeps the read-only mark of the user's latest 'left' row, so
+// leaving and joining again does not lift a moderator's restriction.
+func (q *Queries) CarryOverChatRoomMemberSendRestricted(ctx context.Context, arg CarryOverChatRoomMemberSendRestrictedParams) error {
+	_, err := q.db.Exec(ctx, carryOverChatRoomMemberSendRestricted, arg.RoomID, arg.UserID)
+	return err
+}
+
 const createChatFileMessage = `-- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
@@ -164,13 +189,73 @@ func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileM
 	return i, err
 }
 
+const createChatKindMessage = `-- name: CreateChatKindMessage :one
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, client_msg_id, organization_id
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
+`
+
+type CreateChatKindMessageParams struct {
+	ID             string      `json:"id"`
+	RoomID         string      `json:"room_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	SenderID       string      `json:"sender_id"`
+	SenderKind     string      `json:"sender_kind"`
+	Kind           string      `json:"kind"`
+	Body           string      `json:"body"`
+	Metadata       []byte      `json:"metadata"`
+	ClientMsgID    pgtype.Text `json:"client_msg_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// A poll, reminder, note or post; client_msg_id makes a retried send idempotent.
+func (q *Queries) CreateChatKindMessage(ctx context.Context, arg CreateChatKindMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, createChatKindMessage,
+		arg.ID,
+		arg.RoomID,
+		arg.WorkspaceID,
+		arg.SenderID,
+		arg.SenderKind,
+		arg.Kind,
+		arg.Body,
+		arg.Metadata,
+		arg.ClientMsgID,
+		arg.OrganizationID,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const createChatMessage = `-- name: CreateChatMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id,
-  organization_id
+  organization_id, metadata
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6, $7, $8, $9,
-  $10
+  $10, COALESCE($11::jsonb, '{}'::jsonb)
 ) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
@@ -185,6 +270,7 @@ type CreateChatMessageParams struct {
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	ThreadRootID     pgtype.Text `json:"thread_root_id"`
 	OrganizationID   string      `json:"organization_id"`
+	Metadata         []byte      `json:"metadata"`
 }
 
 func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error) {
@@ -199,218 +285,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		arg.ClientMsgID,
 		arg.ThreadRootID,
 		arg.OrganizationID,
-	)
-	var i ChatMessage
-	err := row.Scan(
-		&i.ID,
-		&i.RoomID,
-		&i.WorkspaceID,
-		&i.SenderID,
-		&i.Kind,
-		&i.Body,
-		&i.Metadata,
-		&i.ReplyToMessageID,
-		&i.EditedAt,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.SenderKind,
-		&i.ClientMsgID,
-		&i.ThreadRootID,
-		&i.ReplyCount,
-		&i.LastReplyAt,
-		&i.MirroredFromCommentID,
-		&i.FileID,
-		&i.OrganizationID,
-	)
-	return i, err
-}
-
-const createChatNoteMessage = `-- name: CreateChatNoteMessage :one
-INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
-) VALUES (
-  $1, $2, $3, $4, 'note', $5, $6, $7
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
-`
-
-type CreateChatNoteMessageParams struct {
-	ID             string `json:"id"`
-	RoomID         string `json:"room_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	SenderID       string `json:"sender_id"`
-	Body           string `json:"body"`
-	Metadata       []byte `json:"metadata"`
-	OrganizationID string `json:"organization_id"`
-}
-
-func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteMessageParams) (ChatMessage, error) {
-	row := q.db.QueryRow(ctx, createChatNoteMessage,
-		arg.ID,
-		arg.RoomID,
-		arg.WorkspaceID,
-		arg.SenderID,
-		arg.Body,
 		arg.Metadata,
-		arg.OrganizationID,
-	)
-	var i ChatMessage
-	err := row.Scan(
-		&i.ID,
-		&i.RoomID,
-		&i.WorkspaceID,
-		&i.SenderID,
-		&i.Kind,
-		&i.Body,
-		&i.Metadata,
-		&i.ReplyToMessageID,
-		&i.EditedAt,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.SenderKind,
-		&i.ClientMsgID,
-		&i.ThreadRootID,
-		&i.ReplyCount,
-		&i.LastReplyAt,
-		&i.MirroredFromCommentID,
-		&i.FileID,
-		&i.OrganizationID,
-	)
-	return i, err
-}
-
-const createChatPollMessage = `-- name: CreateChatPollMessage :one
-INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
-) VALUES (
-  $1, $2, $3, $4, 'poll', $5, $6, $7
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
-`
-
-type CreateChatPollMessageParams struct {
-	ID             string `json:"id"`
-	RoomID         string `json:"room_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	SenderID       string `json:"sender_id"`
-	Body           string `json:"body"`
-	Metadata       []byte `json:"metadata"`
-	OrganizationID string `json:"organization_id"`
-}
-
-func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollMessageParams) (ChatMessage, error) {
-	row := q.db.QueryRow(ctx, createChatPollMessage,
-		arg.ID,
-		arg.RoomID,
-		arg.WorkspaceID,
-		arg.SenderID,
-		arg.Body,
-		arg.Metadata,
-		arg.OrganizationID,
-	)
-	var i ChatMessage
-	err := row.Scan(
-		&i.ID,
-		&i.RoomID,
-		&i.WorkspaceID,
-		&i.SenderID,
-		&i.Kind,
-		&i.Body,
-		&i.Metadata,
-		&i.ReplyToMessageID,
-		&i.EditedAt,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.SenderKind,
-		&i.ClientMsgID,
-		&i.ThreadRootID,
-		&i.ReplyCount,
-		&i.LastReplyAt,
-		&i.MirroredFromCommentID,
-		&i.FileID,
-		&i.OrganizationID,
-	)
-	return i, err
-}
-
-const createChatPostMessage = `-- name: CreateChatPostMessage :one
-INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
-) VALUES (
-  $1, $2, $3, $4, 'post', $5, $6, $7
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
-`
-
-type CreateChatPostMessageParams struct {
-	ID             string `json:"id"`
-	RoomID         string `json:"room_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	SenderID       string `json:"sender_id"`
-	Body           string `json:"body"`
-	Metadata       []byte `json:"metadata"`
-	OrganizationID string `json:"organization_id"`
-}
-
-func (q *Queries) CreateChatPostMessage(ctx context.Context, arg CreateChatPostMessageParams) (ChatMessage, error) {
-	row := q.db.QueryRow(ctx, createChatPostMessage,
-		arg.ID,
-		arg.RoomID,
-		arg.WorkspaceID,
-		arg.SenderID,
-		arg.Body,
-		arg.Metadata,
-		arg.OrganizationID,
-	)
-	var i ChatMessage
-	err := row.Scan(
-		&i.ID,
-		&i.RoomID,
-		&i.WorkspaceID,
-		&i.SenderID,
-		&i.Kind,
-		&i.Body,
-		&i.Metadata,
-		&i.ReplyToMessageID,
-		&i.EditedAt,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.SenderKind,
-		&i.ClientMsgID,
-		&i.ThreadRootID,
-		&i.ReplyCount,
-		&i.LastReplyAt,
-		&i.MirroredFromCommentID,
-		&i.FileID,
-		&i.OrganizationID,
-	)
-	return i, err
-}
-
-const createChatReminderMessage = `-- name: CreateChatReminderMessage :one
-INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
-) VALUES (
-  $1, $2, $3, $4, 'reminder', $5, $6, $7
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
-`
-
-type CreateChatReminderMessageParams struct {
-	ID             string `json:"id"`
-	RoomID         string `json:"room_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	SenderID       string `json:"sender_id"`
-	Body           string `json:"body"`
-	Metadata       []byte `json:"metadata"`
-	OrganizationID string `json:"organization_id"`
-}
-
-func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatReminderMessageParams) (ChatMessage, error) {
-	row := q.db.QueryRow(ctx, createChatReminderMessage,
-		arg.ID,
-		arg.RoomID,
-		arg.WorkspaceID,
-		arg.SenderID,
-		arg.Body,
-		arg.Metadata,
-		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -615,8 +490,35 @@ func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoic
 	return i, err
 }
 
+const dropChatThreadReplyStats = `-- name: DropChatThreadReplyStats :exec
+UPDATE chat_messages root
+SET reply_count = GREATEST(root.reply_count - 1, 0),
+    last_reply_at = (
+      SELECT max(r.created_at) FROM chat_messages r
+      WHERE r.thread_root_id = $1
+        AND r.room_id = $2
+        AND r.deleted_at IS NULL
+    )
+WHERE root.id = $1
+  AND root.room_id = $2
+  AND root.workspace_id = $3
+`
+
+type DropChatThreadReplyStatsParams struct {
+	ThreadRootID pgtype.Text `json:"thread_root_id"`
+	RoomID       string      `json:"room_id"`
+	WorkspaceID  string      `json:"workspace_id"`
+}
+
+// One reply was deleted (earlier in the same transaction): one fewer, and
+// last_reply_at falls back to the newest reply still alive.
+func (q *Queries) DropChatThreadReplyStats(ctx context.Context, arg DropChatThreadReplyStatsParams) error {
+	_, err := q.db.Exec(ctx, dropChatThreadReplyStats, arg.ThreadRootID, arg.RoomID, arg.WorkspaceID)
+	return err
+}
+
 const getActiveChatRoomMember = `-- name: GetActiveChatRoomMember :one
-SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
+SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 LIMIT 1
 `
@@ -627,19 +529,20 @@ type GetActiveChatRoomMemberParams struct {
 }
 
 type GetActiveChatRoomMemberRow struct {
-	ID             string             `json:"id"`
-	RoomID         string             `json:"room_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	UserID         string             `json:"user_id"`
-	Role           string             `json:"role"`
-	Status         string             `json:"status"`
-	SendRestricted bool               `json:"send_restricted"`
-	InvitedBy      pgtype.Text        `json:"invited_by"`
-	JoinedAt       pgtype.Timestamptz `json:"joined_at"`
-	LeftAt         pgtype.Timestamptz `json:"left_at"`
-	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ID                 string             `json:"id"`
+	RoomID             string             `json:"room_id"`
+	WorkspaceID        string             `json:"workspace_id"`
+	UserID             string             `json:"user_id"`
+	Role               string             `json:"role"`
+	Status             string             `json:"status"`
+	SendRestricted     bool               `json:"send_restricted"`
+	NotificationsMuted bool               `json:"notifications_muted"`
+	InvitedBy          pgtype.Text        `json:"invited_by"`
+	JoinedAt           pgtype.Timestamptz `json:"joined_at"`
+	LeftAt             pgtype.Timestamptz `json:"left_at"`
+	LastReadAt         pgtype.Timestamptz `json:"last_read_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 // tenant: parent room_id
@@ -654,6 +557,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 		&i.Role,
 		&i.Status,
 		&i.SendRestricted,
+		&i.NotificationsMuted,
 		&i.InvitedBy,
 		&i.JoinedAt,
 		&i.LeftAt,
@@ -669,7 +573,6 @@ SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_mess
 WHERE room_id = $1
   AND sender_id = $2
   AND client_msg_id = $3
-  AND deleted_at IS NULL
 `
 
 type GetChatMessageByClientMsgIDParams struct {
@@ -996,7 +899,7 @@ INSERT INTO chat_room_members (
   id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
-) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id
+) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted
 `
 
 type InsertChatRoomMemberParams struct {
@@ -1035,6 +938,7 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 		&i.UpdatedAt,
 		&i.SendRestricted,
 		&i.OrganizationID,
+		&i.NotificationsMuted,
 	)
 	return i, err
 }
@@ -1258,11 +1162,6 @@ WHERE r.workspace_id = $1
       AND mem.status IN ('invited', 'active')
   )
   AND ($3::text IS NULL OR r.project_id = $3)
-  AND (
-    $4::text IS NULL
-    OR r.name ILIKE '%' || $4 || '%'
-    OR r.topic ILIKE '%' || $4 || '%'
-  )
 ORDER BY r.name ASC
 `
 
@@ -1270,7 +1169,6 @@ type ListChatChannelsDiscoverableParams struct {
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 	UserID      string      `json:"user_id"`
 	ProjectID   pgtype.Text `json:"project_id"`
-	SearchQ     pgtype.Text `json:"search_q"`
 }
 
 type ListChatChannelsDiscoverableRow struct {
@@ -1293,12 +1191,7 @@ type ListChatChannelsDiscoverableRow struct {
 }
 
 func (q *Queries) ListChatChannelsDiscoverable(ctx context.Context, arg ListChatChannelsDiscoverableParams) ([]ListChatChannelsDiscoverableRow, error) {
-	rows, err := q.db.Query(ctx, listChatChannelsDiscoverable,
-		arg.WorkspaceID,
-		arg.UserID,
-		arg.ProjectID,
-		arg.SearchQ,
-	)
+	rows, err := q.db.Query(ctx, listChatChannelsDiscoverable, arg.WorkspaceID, arg.UserID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -1347,6 +1240,7 @@ SELECT
   r.member_permissions,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
+  mem.notifications_muted,
   -- Same capped badges as ListChatRoomsForMember.
   (
     SELECT COUNT(*)::int FROM (
@@ -1376,13 +1270,12 @@ SELECT
       LIMIT 100
     ) mentioned
   ) AS mention_unread_count,
-  -- The default channel is the whole workspace; its roster is not a sidebar field.
-  ARRAY(
-    SELECT o.user_id FROM chat_room_members o
-    WHERE o.room_id = r.id AND NOT r.is_default
-      AND o.status IN ('invited', 'active') AND o.user_id != $1
-    ORDER BY o.user_id
-  )::text[] AS member_user_ids,
+  -- A channel carries its size, not its roster (up to 1,000 ids per row).
+  -- The default channel is the whole workspace; its size is not a sidebar field.
+  (
+    SELECT COUNT(*)::int FROM chat_room_members o
+    WHERE o.room_id = r.id AND NOT r.is_default AND o.status IN ('invited', 'active')
+  ) AS member_count,
   -- COALESCE: empty channels have no last_msg row; sqlc maps these as string.
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
@@ -1412,11 +1305,6 @@ WHERE r.workspace_id = $2
   AND r.archived_at IS NULL
   AND mem.status IN ('invited', 'active')
   AND ($3::text IS NULL OR r.project_id = $3)
-  AND (
-    $4::text IS NULL
-    OR r.name ILIKE '%' || $4 || '%'
-    OR r.topic ILIKE '%' || $4 || '%'
-  )
 ORDER BY r.is_default DESC, COALESCE(last_msg.created_at, r.updated_at) DESC
 `
 
@@ -1424,7 +1312,6 @@ type ListChatChannelsMineParams struct {
 	UserID      string      `json:"user_id"`
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 	ProjectID   pgtype.Text `json:"project_id"`
-	SearchQ     pgtype.Text `json:"search_q"`
 }
 
 type ListChatChannelsMineRow struct {
@@ -1439,9 +1326,10 @@ type ListChatChannelsMineRow struct {
 	MemberPermissions     []byte             `json:"member_permissions"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
+	NotificationsMuted    bool               `json:"notifications_muted"`
 	UnreadCount           int32              `json:"unread_count"`
 	MentionUnreadCount    int32              `json:"mention_unread_count"`
-	MemberUserIds         []string           `json:"member_user_ids"`
+	MemberCount           int32              `json:"member_count"`
 	LastMessageBody       string             `json:"last_message_body"`
 	LastMessageKind       string             `json:"last_message_kind"`
 	LastMessageSenderID   string             `json:"last_message_sender_id"`
@@ -1450,12 +1338,7 @@ type ListChatChannelsMineRow struct {
 }
 
 func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannelsMineParams) ([]ListChatChannelsMineRow, error) {
-	rows, err := q.db.Query(ctx, listChatChannelsMine,
-		arg.UserID,
-		arg.WorkspaceID,
-		arg.ProjectID,
-		arg.SearchQ,
-	)
+	rows, err := q.db.Query(ctx, listChatChannelsMine, arg.UserID, arg.WorkspaceID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -1475,9 +1358,10 @@ func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannels
 			&i.MemberPermissions,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
+			&i.NotificationsMuted,
 			&i.UnreadCount,
 			&i.MentionUnreadCount,
-			&i.MemberUserIds,
+			&i.MemberCount,
 			&i.LastMessageBody,
 			&i.LastMessageKind,
 			&i.LastMessageSenderID,
@@ -1515,174 +1399,6 @@ func (q *Queries) ListChatMessageFileRefs(ctx context.Context, dollar_1 []string
 			return nil, err
 		}
 		items = append(items, file_id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listChatMessagesAfterInRoom = `-- name: ListChatMessagesAfterInRoom :many
-SELECT
-  m.id,
-  m.room_id,
-  m.workspace_id,
-  m.sender_id,
-  m.kind,
-  m.body,
-  m.metadata,
-  m.reply_to_message_id,
-  m.edited_at,
-  m.created_at,
-  m.client_msg_id,
-  u.display_name AS sender_display_name
-FROM chat_messages m
-INNER JOIN users u ON u.id = m.sender_id
-WHERE m.room_id = $1
-  AND m.workspace_id = $2
-  AND m.deleted_at IS NULL
-  AND m.created_at > $3
-ORDER BY m.created_at ASC
-LIMIT $4
-`
-
-type ListChatMessagesAfterInRoomParams struct {
-	RoomID      string             `json:"room_id"`
-	WorkspaceID string             `json:"workspace_id"`
-	AfterAt     pgtype.Timestamptz `json:"after_at"`
-	MsgLimit    int32              `json:"msg_limit"`
-}
-
-type ListChatMessagesAfterInRoomRow struct {
-	ID                string             `json:"id"`
-	RoomID            string             `json:"room_id"`
-	WorkspaceID       string             `json:"workspace_id"`
-	SenderID          string             `json:"sender_id"`
-	Kind              string             `json:"kind"`
-	Body              string             `json:"body"`
-	Metadata          []byte             `json:"metadata"`
-	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
-	EditedAt          pgtype.Timestamptz `json:"edited_at"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
-	SenderDisplayName string             `json:"sender_display_name"`
-}
-
-func (q *Queries) ListChatMessagesAfterInRoom(ctx context.Context, arg ListChatMessagesAfterInRoomParams) ([]ListChatMessagesAfterInRoomRow, error) {
-	rows, err := q.db.Query(ctx, listChatMessagesAfterInRoom,
-		arg.RoomID,
-		arg.WorkspaceID,
-		arg.AfterAt,
-		arg.MsgLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListChatMessagesAfterInRoomRow{}
-	for rows.Next() {
-		var i ListChatMessagesAfterInRoomRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.RoomID,
-			&i.WorkspaceID,
-			&i.SenderID,
-			&i.Kind,
-			&i.Body,
-			&i.Metadata,
-			&i.ReplyToMessageID,
-			&i.EditedAt,
-			&i.CreatedAt,
-			&i.ClientMsgID,
-			&i.SenderDisplayName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listChatMessagesBeforeOrAtInRoom = `-- name: ListChatMessagesBeforeOrAtInRoom :many
-SELECT
-  m.id,
-  m.room_id,
-  m.workspace_id,
-  m.sender_id,
-  m.kind,
-  m.body,
-  m.metadata,
-  m.reply_to_message_id,
-  m.edited_at,
-  m.created_at,
-  m.client_msg_id,
-  u.display_name AS sender_display_name
-FROM chat_messages m
-INNER JOIN users u ON u.id = m.sender_id
-WHERE m.room_id = $1
-  AND m.workspace_id = $2
-  AND m.deleted_at IS NULL
-  AND m.created_at <= $3
-ORDER BY m.created_at DESC
-LIMIT $4
-`
-
-type ListChatMessagesBeforeOrAtInRoomParams struct {
-	RoomID      string             `json:"room_id"`
-	WorkspaceID string             `json:"workspace_id"`
-	BeforeOrAt  pgtype.Timestamptz `json:"before_or_at"`
-	MsgLimit    int32              `json:"msg_limit"`
-}
-
-type ListChatMessagesBeforeOrAtInRoomRow struct {
-	ID                string             `json:"id"`
-	RoomID            string             `json:"room_id"`
-	WorkspaceID       string             `json:"workspace_id"`
-	SenderID          string             `json:"sender_id"`
-	Kind              string             `json:"kind"`
-	Body              string             `json:"body"`
-	Metadata          []byte             `json:"metadata"`
-	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
-	EditedAt          pgtype.Timestamptz `json:"edited_at"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
-	SenderDisplayName string             `json:"sender_display_name"`
-}
-
-func (q *Queries) ListChatMessagesBeforeOrAtInRoom(ctx context.Context, arg ListChatMessagesBeforeOrAtInRoomParams) ([]ListChatMessagesBeforeOrAtInRoomRow, error) {
-	rows, err := q.db.Query(ctx, listChatMessagesBeforeOrAtInRoom,
-		arg.RoomID,
-		arg.WorkspaceID,
-		arg.BeforeOrAt,
-		arg.MsgLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListChatMessagesBeforeOrAtInRoomRow{}
-	for rows.Next() {
-		var i ListChatMessagesBeforeOrAtInRoomRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.RoomID,
-			&i.WorkspaceID,
-			&i.SenderID,
-			&i.Kind,
-			&i.Body,
-			&i.Metadata,
-			&i.ReplyToMessageID,
-			&i.EditedAt,
-			&i.CreatedAt,
-			&i.ClientMsgID,
-			&i.SenderDisplayName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2062,6 +1778,7 @@ SELECT
   r.member_permissions,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
+  mem.notifications_muted,
   -- Badges stop at 100 (the client shows 99+), so a room left unread for
   -- months costs the same as one read a minute ago. Both count the main
   -- timeline only (opening a room reads that, not threads) and, for a member
@@ -2169,6 +1886,7 @@ type ListChatRoomsForMemberRow struct {
 	MemberPermissions     []byte             `json:"member_permissions"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
+	NotificationsMuted    bool               `json:"notifications_muted"`
 	UnreadCount           int32              `json:"unread_count"`
 	MentionUnreadCount    int32              `json:"mention_unread_count"`
 	MemberUserIds         []string           `json:"member_user_ids"`
@@ -2201,6 +1919,7 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.MemberPermissions,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
+			&i.NotificationsMuted,
 			&i.UnreadCount,
 			&i.MentionUnreadCount,
 			&i.MemberUserIds,
@@ -2282,13 +2001,15 @@ INNER JOIN users u ON u.id = m.sender_id
 WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
-  AND (
-    m.id = $3
-    OR m.thread_root_id = $3
-  )
-  AND ($4::timestamptz IS NULL OR m.created_at < $4)
-ORDER BY m.created_at DESC
-LIMIT $5
+  AND m.thread_root_id = $3::text
+  -- Replies only (the service puts the root on the first page), keyset page
+  -- older than (before_at, before_id) as in ListChatMessagesByRoom.
+  AND ($4::timestamptz IS NULL OR (
+    m.created_at <= $4::timestamptz
+    AND (m.created_at, m.id) < ($4::timestamptz, $5::text)
+  ))
+ORDER BY m.created_at DESC, m.id DESC
+LIMIT $6
 `
 
 type ListChatThreadMessagesParams struct {
@@ -2296,6 +2017,7 @@ type ListChatThreadMessagesParams struct {
 	WorkspaceID  string             `json:"workspace_id"`
 	ThreadRootID string             `json:"thread_root_id"`
 	BeforeAt     pgtype.Timestamptz `json:"before_at"`
+	BeforeID     string             `json:"before_id"`
 	MsgLimit     int32              `json:"msg_limit"`
 }
 
@@ -2323,6 +2045,7 @@ func (q *Queries) ListChatThreadMessages(ctx context.Context, arg ListChatThread
 		arg.WorkspaceID,
 		arg.ThreadRootID,
 		arg.BeforeAt,
+		arg.BeforeID,
 		arg.MsgLimit,
 	)
 	if err != nil {
@@ -2552,23 +2275,6 @@ func (q *Queries) MuteChatThreadFollower(ctx context.Context, arg MuteChatThread
 	return err
 }
 
-const reactivateChatRoomMember = `-- name: ReactivateChatRoomMember :exec
-UPDATE chat_room_members
-SET status = 'active', joined_at = now(), left_at = NULL, updated_at = now()
-WHERE room_id = $1 AND user_id = $2 AND status = 'left'
-`
-
-type ReactivateChatRoomMemberParams struct {
-	RoomID string `json:"room_id"`
-	UserID string `json:"user_id"`
-}
-
-// tenant: parent room_id
-func (q *Queries) ReactivateChatRoomMember(ctx context.Context, arg ReactivateChatRoomMemberParams) error {
-	_, err := q.db.Exec(ctx, reactivateChatRoomMember, arg.RoomID, arg.UserID)
-	return err
-}
-
 const restoreChatRoomsLeftAtDeactivation = `-- name: RestoreChatRoomsLeftAtDeactivation :exec
 UPDATE chat_room_members m SET status = 'active', left_at = NULL, updated_at = now()
 FROM organization_members om
@@ -2615,7 +2321,10 @@ WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
   AND m.kind = 'text'
-  AND m.body ILIKE $3 ESCAPE '\'
+  -- Folded on both sides (foldForSearch builds the pattern) and served by
+  -- idx_chat_messages_body_fold; ILIKE keeps case folding for scripts the
+  -- uw_fold_search table does not lower-case.
+  AND uw_fold_search(m.body) ILIKE $3::text ESCAPE '\'
   AND ($4::timestamptz IS NULL OR m.created_at < $4)
 ORDER BY m.created_at DESC
 LIMIT $5
@@ -2624,7 +2333,7 @@ LIMIT $5
 type SearchChatMessagesByRoomParams struct {
 	RoomID        string             `json:"room_id"`
 	WorkspaceID   string             `json:"workspace_id"`
-	SearchPattern []byte             `json:"search_pattern"`
+	SearchPattern string             `json:"search_pattern"`
 	BeforeAt      pgtype.Timestamptz `json:"before_at"`
 	ResultLimit   int32              `json:"result_limit"`
 }
@@ -2683,6 +2392,26 @@ func (q *Queries) SearchChatMessagesByRoom(ctx context.Context, arg SearchChatMe
 	return items, nil
 }
 
+const setChatRoomMemberNotificationsMuted = `-- name: SetChatRoomMemberNotificationsMuted :execrows
+UPDATE chat_room_members SET notifications_muted = $3, updated_at = now()
+WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
+`
+
+type SetChatRoomMemberNotificationsMutedParams struct {
+	RoomID             string `json:"room_id"`
+	UserID             string `json:"user_id"`
+	NotificationsMuted bool   `json:"notifications_muted"`
+}
+
+// tenant: parent room_id
+func (q *Queries) SetChatRoomMemberNotificationsMuted(ctx context.Context, arg SetChatRoomMemberNotificationsMutedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setChatRoomMemberNotificationsMuted, arg.RoomID, arg.UserID, arg.NotificationsMuted)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :one
 UPDATE chat_messages
 SET deleted_at = now()
@@ -2704,6 +2433,47 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 		arg.WorkspaceID,
 		arg.SenderID,
 	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
+const softDeleteChatReminderMessage = `-- name: SoftDeleteChatReminderMessage :one
+UPDATE chat_messages
+SET deleted_at = now()
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND kind = 'reminder' AND deleted_at IS NULL
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
+`
+
+type SoftDeleteChatReminderMessageParams struct {
+	ID          string `json:"id"`
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// A room moderator retires another member's reminder (its author may have left).
+func (q *Queries) SoftDeleteChatReminderMessage(ctx context.Context, arg SoftDeleteChatReminderMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, softDeleteChatReminderMessage, arg.ID, arg.RoomID, arg.WorkspaceID)
 	var i ChatMessage
 	err := row.Scan(
 		&i.ID,

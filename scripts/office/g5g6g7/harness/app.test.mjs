@@ -257,6 +257,69 @@ test("signIn: signs out first, approves the consent as the user, reports the org
   assert.equal(out.status.profile.id, "user-M");
 });
 
+test("signIn settles the fork's sign-out gate: the previous session is closed with the product's own confirmation (D3-03)", async () => {
+  // The fork asks the shell renderer before it signs out a session whose working copy still
+  // holds unsent work (uniwork-docs/wiring.ts:875-889 -> account-boundary.ts:198-214), and only
+  // the renderer's answer resolves that ask: a bare `accountLogout()` with a pending intent
+  // never settles (fault/app-session.mjs:169-181, and cloud D3's `app-open` hung to 90 s with
+  // "aiOffice.accountLogout did not settle within 90 s"). This fake is that gate.
+  let state = "signed-in";
+  const logouts = [];
+  const win = shellWindow({
+    aiOffice: {
+      accountStatus: async () => ({ state, loggedIn: state === "signed-in" }),
+      accountLogout: (options) => {
+        logouts.push(options);
+        if (options?.confirmed !== true) return new Promise(() => {}); // never settles
+        state = "signed-out";
+        return undefined;
+      },
+      accountLogin: async () => {},
+      onAccountLogin: (cb) => {
+        setTimeout(() => cb({ phase: "url", url: "http://web/desktop/authorize?attempt_id=att-1" }), 5);
+        return () => {};
+      },
+    },
+  });
+  const shell = fakePage("genoffice-app://shell/index.html", win);
+  const ctrl = await connectApp({
+    portsEnv,
+    runDir,
+    apiOrigin,
+    timeoutMs: 400,
+    cdpConnector: async () => fakeBrowser([shell]),
+    deepLinkDeliverer: () => {
+      writeFileSync(join(userData, "uniwork-auth", "session.bin"), "x");
+      state = "signed-in";
+      return { status: 0 };
+    },
+  });
+  const out = await ctrl.signIn({ key: "M", id: "user-M", token: "TOKEN-M" });
+  assert.deepEqual(logouts, [{ confirmed: true }], "the harness must send the product's own confirmation, not a bare logout");
+  assert.equal(out.status.state, "signed-in");
+  assert.equal(out.sessionBinExists, true);
+});
+
+test("signOut settles the same gate: the product's own confirmation, then the account status", async () => {
+  let state = "signed-in";
+  const logouts = [];
+  const win = shellWindow({
+    aiOffice: {
+      accountStatus: async () => ({ state, loggedIn: state === "signed-in" }),
+      accountLogout: (options) => {
+        logouts.push(options);
+        if (options?.confirmed !== true) return new Promise(() => {});
+        state = "signed-out";
+        return undefined;
+      },
+    },
+  });
+  const shell = fakePage("genoffice-app://shell/index.html", win);
+  const ctrl = await connect([shell], { timeoutMs: 400 });
+  assert.equal((await ctrl.signOut()).state, "signed-out");
+  assert.deepEqual(logouts, [{ confirmed: true }]);
+});
+
 test("openByTicket delivers the deep link and waits for the active document; focus activates the tab and fires focus on editor pages; selection reads __genofficeControl", async () => {
   const log = [];
   let active = null;

@@ -18,8 +18,15 @@ function useBrowserOnline(callback: () => void): void {
   }, [callback]);
 }
 
-/** Drain persisted pending text sends when the browser or WS connection recovers. */
-export function useChatSendOutboxFlush(workspaceId: string, senderId: string): void {
+/**
+ * Drain persisted pending text sends when the browser or WS connection recovers.
+ * `onDropped` hears how many the server refused for good; pass a stable callback.
+ */
+export function useChatSendOutboxFlush(
+  workspaceId: string,
+  senderId: string,
+  onDropped?: (count: number) => void,
+): void {
   const qc = useQueryClient();
   const flushingRef = useRef(false);
 
@@ -30,16 +37,17 @@ export function useChatSendOutboxFlush(workspaceId: string, senderId: string): v
 
     flushingRef.current = true;
     try {
-      await flushChatSendOutbox(workspaceId, senderId, async (payload) => {
+      const { dropped } = await flushChatSendOutbox(workspaceId, senderId, async (payload) => {
         const message = await deliverChatTextMessage(workspaceId, payload);
         applyChatMessageResponse(qc, workspaceId, payload.roomId, message, true);
       });
+      if (dropped > 0) onDropped?.(dropped);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     } finally {
       flushingRef.current = false;
     }
-  }, [qc, senderId, workspaceId]);
+  }, [qc, senderId, workspaceId, onDropped]);
 
   const flushVoid = useCallback(() => {
     void flush();

@@ -43,6 +43,7 @@ import {
   canPromoteChatMember,
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { initialOf } from "./chat-initials";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
@@ -68,6 +69,7 @@ export function GroupSettingsSheet({
   leaveDisabled,
   onOpenSearch,
   memberAvatarByUserId = {},
+  onMessage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -83,6 +85,7 @@ export function GroupSettingsSheet({
   onLeave: () => void | Promise<void>;
   leaving?: boolean;
   leaveDisabled?: boolean;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
   const {
@@ -97,7 +100,7 @@ export function GroupSettingsSheet({
     () => rooms.find((room) => room.id === group.room_id),
     [group.room_id, rooms],
   );
-  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(group.room_id);
+  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, group.room_id);
   const currentMember = useCurrentMember(workspaceId);
   const moderation = useRoomMemberModeration({ workspaceId, roomId: group.room_id });
   const [membersOpen, setMembersOpen] = useState(false);
@@ -153,6 +156,7 @@ export function GroupSettingsSheet({
           send_restricted: false,
           email: "",
           display_name: youLabel,
+          is_creator: false,
         },
       });
     }
@@ -250,6 +254,20 @@ export function GroupSettingsSheet({
                             ? t("chat.room_role_muted")
                             : member.email
                     }
+                    profile={{
+                      userId: member.key,
+                      email: member.email,
+                      avatarUrl: lookupMemberAvatarUrl(memberAvatarByUserId, member.key),
+                      onMessage:
+                        !member.isSelf && onMessage && member.email
+                          ? () =>
+                              onMessage({
+                                user_id: member.key,
+                                email: member.email ?? "",
+                                display_name: member.legalLabel,
+                              })
+                          : undefined,
+                    }}
                     actions={
                       <>
                         <Button
@@ -267,7 +285,13 @@ export function GroupSettingsSheet({
                           <ChatRoomMemberActions
                             label={member.label}
                             canPromote={canPromoteChatMember(member.chat, isModerator)}
-                            canDemote={canDemoteChatMember(member.chat, currentUserId, isModerator)}
+                            canDemote={canDemoteChatMember(
+                              member.chat,
+                              currentUserId,
+                              chatMembers,
+                              currentMember.role,
+                              roomRecord,
+                            )}
                             canMute={canMuteChatMember(member.chat, isModerator)}
                             canUnmute={canUnmuteChatMember(member.chat, isModerator)}
                             canKick={isModerator && member.chat.role === "member"}

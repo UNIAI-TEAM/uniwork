@@ -30,6 +30,11 @@ type CheckoutInput struct {
 	Currency  string
 	OrderInfo string
 	ClientIP  string
+	// CreatedAt and ExpiresAt are the payment intent's own timestamps. VNPay
+	// uses them as vnp_CreateDate and vnp_ExpireDate so a reused link dies
+	// with the intent instead of staying payable after it expires.
+	CreatedAt time.Time
+	ExpiresAt time.Time
 }
 
 type CheckoutSession struct {
