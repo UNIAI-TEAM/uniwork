@@ -472,7 +472,7 @@ func TestAIUniworkModuleTableMatchesGeneratedSchemas(t *testing.T) {
 		schemasBytes,
 		string(toolsDocBytes),
 		officeUniworkModulesV1,
-		UniworkModuleAllowlist,
+		unboundUniworkAllowlist,
 	)
 	if len(findings) != 0 {
 		t.Fatalf("UniWork tool allowlist drifted from %s / %s:\n%s",
@@ -538,7 +538,7 @@ func TestAIUniworkModuleTableMatchesGeneratedSchemas(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, gotFindings := crossCheckUniworkTableAgainstSchemas(reRead, string(toolsDocBytes), officeUniworkModulesV1, UniworkModuleAllowlist)
+		_, gotFindings := crossCheckUniworkTableAgainstSchemas(reRead, string(toolsDocBytes), officeUniworkModulesV1, unboundUniworkAllowlist)
 		if !slices.ContainsFunc(gotFindings, func(f string) bool {
 			return strings.Contains(f, "docs Read =") && strings.Contains(f, "generate_mindmap")
 		}) {
@@ -569,4 +569,11 @@ func cloneUniworkModuleTable(src map[string]uniworkModuleTools) map[string]uniwo
 		}
 	}
 	return out
+}
+
+// unboundUniworkAllowlist adapts the bound-aware UniworkModuleAllowlist to the
+// 3-arg cross-check shape; bound=false because the module table describes an
+// unbound turn (bound hiding is covered by the root's own tests).
+func unboundUniworkAllowlist(module string, offered []UniworkToolSpec, viewOnly bool) UniworkAllowlist {
+	return UniworkModuleAllowlist(module, offered, viewOnly, false)
 }

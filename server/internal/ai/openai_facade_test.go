@@ -1097,7 +1097,7 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 	// markdown is a read-only display tool (editor_write=no), so a view-only
 	// turn keeps it in the offered allowlist while dropping write_document.
 	for _, module := range []string{"docs", "markdown"} {
-		ro := UniworkModuleAllowlist(module, facadeSpecs("generate_mindmap", "write_document"), true)
+		ro := UniworkModuleAllowlist(module, facadeSpecs("generate_mindmap", "write_document"), true, false)
 		if got := strings.Join(ro.Tools.Names(), ","); got != "generate_mindmap" {
 			t.Errorf("%s view-only allowlist = %q, want generate_mindmap kept", module, got)
 		}
