@@ -231,6 +231,14 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 				"retry_after_s", limited.Fields["retry_after"], "latency_ms", latency.Milliseconds())
 			return Response{}, limited
 		}
+		// A structured answer cut at max_tokens is bad output, not an outage:
+		// the vendor answered, and the tokens it spent are on resp.
+		if errors.Is(perr, provider.ErrTruncated) {
+			_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrOutputInvalid.Code, latency, nil)
+			g.observe(req.Capability, "failed", latency)
+			g.log.Warn("ai: output truncated", "usage_event_id", row.ID, "capability", req.Capability, "output_tokens", resp.OutputTokens)
+			return Response{}, ErrOutputInvalid.wrap(perr)
+		}
 		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
 		g.observe(req.Capability, "failed", latency)
 		g.log.Warn("ai: provider error", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds(), "err", perr)
