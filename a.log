@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+e0614f724be4719d840e855fa4d8ad8b959cf270
+e0614f724 refactor(documents): move the source preview into its own file
+c81a2fba3 fix(documents): source rows — link only known parents, name the email button, preview renderable images
+9adc78b4c feat(documents): open files from elsewhere view-only
+1a69b0647 chore: merge SRC-01 (UNI-1814, da241952b) into the G5-G7 root
+da241952b Merge commit '7d27601f7' into feature/UNI-1814-src-01-chat-source-room
+7d27601f7 fix(core): clear the email-hub hooks lint from the develop sync
+75ef05d0d Merge commit 'b4bc3089e' into feature/UNI-1814-src-01-chat-source-room
+2930028ec fix(chat): clear the jump highlight when the message never shows
