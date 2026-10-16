@@ -165,8 +165,11 @@ func wordsOfTwo(q string) []string {
 func score(text string, ts []string) int {
 	asWritten, folded := map[string]bool{}, map[string]bool{}
 	for _, w := range words(text) {
-		asWritten[toneKey(w)] = true
-		folded[foldForSearch(w)] = true
+		f := foldForSearch(w)
+		folded[f] = true
+		if f != w { // a plain word never equals an accented term's key
+			asWritten[toneKey(w)] = true
+		}
 	}
 	n := 0
 	for _, t := range ts {
@@ -179,7 +182,13 @@ func score(text string, ts []string) int {
 
 // vietTones are the five tone marks. A syllable carries one, and old and new
 // spelling put it on different vowels ("thủy"/"thuỷ", "hóa"/"hoá").
-var vietTones = map[rune]bool{'̀': true, '́': true, '̃': true, '̉': true, '̣': true}
+var vietTones = map[rune]bool{
+	'\u0300': true, // huyền
+	'\u0301': true, // sắc
+	'\u0303': true, // ngã
+	'\u0309': true, // hỏi
+	'\u0323': true, // nặng
+}
 
 // toneKey is a word with its tone marks moved to the end, so both spellings
 // are one key while the letters, vowel marks and the tone itself still count.
