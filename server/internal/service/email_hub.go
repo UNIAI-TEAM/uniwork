@@ -304,10 +304,10 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 		view.BodyText = ""
 		view.BodyHTML = ""
 	}
-	if markRead {
-		view = s.markThreadReadIfNeeded(ctx, acc, row, view)
-	}
 	if !fetchBody {
+		if markRead {
+			view = s.markThreadReadIfNeeded(ctx, acc, row, view)
+		}
 		return view, nil
 	}
 	if view.BodyCached {
@@ -315,14 +315,23 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 			s.log.Warn("email hub hydrate body failed", "thread_id", threadID, "err", err)
 		}
 		if view.BodyText != "" || view.BodyHTML != "" {
+			if markRead {
+				view = s.markThreadReadIfNeeded(ctx, acc, row, view)
+			}
 			return view, nil
 		}
 		if strings.TrimSpace(row.BodyObjectKey) == "" {
+			if markRead {
+				view = s.markThreadReadIfNeeded(ctx, acc, row, view)
+			}
 			return view, nil
 		}
 	}
 	// needs_reconnect: serve what is cached, never dial (spec §3).
 	if !s.Enabled() || acc.AuthFailedAt.Valid {
+		if markRead {
+			view = s.markThreadReadIfNeeded(ctx, acc, row, view)
+		}
 		return view, nil
 	}
 	s.gov.beginInteractive(accountID)
@@ -330,15 +339,24 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 	body, err := s.fetchThreadBodyInteractive(ctx, acc, row)
 	if err != nil {
 		s.log.Warn("email hub fetch body failed", "thread_id", threadID, "code", emailHubErrCode(err))
+		if markRead {
+			view = s.markThreadReadIfNeeded(ctx, acc, row, view)
+		}
 		return view, nil
 	}
 	if imapclient.BodyIsSnippetPlaceholder(body.HTML, body.Text, view.Snippet) {
 		s.log.Warn("email hub fetch body placeholder only", "thread_id", threadID)
+		if markRead {
+			view = s.markThreadReadIfNeeded(ctx, acc, row, view)
+		}
 		return view, nil
 	}
 	view.BodyText = body.Text
 	view.BodyHTML = body.HTML
 	view.BodyCached = true
+	if markRead {
+		view = s.markThreadReadIfNeeded(ctx, acc, row, view)
+	}
 	return view, nil
 }
 

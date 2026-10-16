@@ -47,8 +47,8 @@ import { useEmailHubShortcutsPref } from "./use-email-hub-shortcuts-pref";
 import { useEmailHubThreadActions } from "./use-email-hub-thread-actions";
 import { EmailHubSenderAvatarProvider } from "./email-hub-sender-avatar-context";
 
-const EMAIL_HUB_LIST_PREFETCH_TOP = 2;
-const EMAIL_HUB_HOVER_PREFETCH_MS = 150;
+const EMAIL_HUB_LIST_PREFETCH_TOP = 5;
+const EMAIL_HUB_HOVER_PREFETCH_MS = 50;
 
 export function EmailHubView() {
   const { t, i18n } = useTranslation();
@@ -112,7 +112,7 @@ export function EmailHubView() {
 
   const prefetchThreadHover = useCallback(
     (id: string) => {
-      if (!accountId || id === selectedId || readingEmail) return;
+      if (!accountId || id === selectedId) return;
       const timers = hoverPrefetchTimers.current;
       const pending = timers.get(id);
       if (pending !== undefined) window.clearTimeout(pending);
@@ -122,7 +122,7 @@ export function EmailHubView() {
       }, EMAIL_HUB_HOVER_PREFETCH_MS);
       timers.set(id, timer);
     },
-    [accountId, qc, readingEmail, selectedId, wsId],
+    [accountId, qc, selectedId, wsId],
   );
   const sidebarCounts = useEmailHubSidebarCounts(wsId, accountId);
 
@@ -182,11 +182,21 @@ export function EmailHubView() {
   }, [accountId, debouncedSearch, hasAttachmentsOnly, isScheduledFolder, qc, rows, selectedId, threads.isFetched, threads.isFetching, unreadOnly, wsId]);
 
   useEffect(() => {
-    if (!accountId || rows.length === 0 || readingEmail) return;
+    if (!accountId || rows.length === 0) return;
+    const selectedIdx = selectedId ? rows.findIndex((row) => row.id === selectedId) : -1;
+    const prefetchIds = new Set<string>();
     for (const row of rows.slice(0, EMAIL_HUB_LIST_PREFETCH_TOP)) {
-      if (row.id !== selectedId) prefetchEmailHubThread(qc, wsId, accountId, row.id);
+      prefetchIds.add(row.id);
     }
-  }, [accountId, readingEmail, rows, qc, wsId, selectedId]);
+    if (selectedIdx >= 0) {
+      for (const row of rows.slice(Math.max(0, selectedIdx - 1), selectedIdx + 2)) {
+        prefetchIds.add(row.id);
+      }
+    }
+    for (const id of prefetchIds) {
+      if (id !== selectedId) prefetchEmailHubThread(qc, wsId, accountId, id);
+    }
+  }, [accountId, rows, qc, wsId, selectedId]);
 
   const openCompose = useCallback((mode: ComposeMode, source?: EmailHubThread | null) => {
     setComposeMode(mode);
@@ -216,14 +226,14 @@ export function EmailHubView() {
     setFolder,
     openCompose,
     onToggleAi: toggleAi,
-    refetchDetail: () => void detail.refetch(),
+    refetchDetail: () => void detail.refetchBody(),
   });
 
   const selectThread = useCallback(
     (threadId: string) => {
+      if (accountId) prefetchEmailHubThread(qc, wsId, accountId, threadId);
       setSelectedId(threadId);
       if (!accountId) return;
-      void qc.cancelQueries({ queryKey: emailHubKeys.thread(wsId, accountId, threadId) });
       const row = rows.find((item) => item.id === threadId);
       // The detail GET marks it read; a reconnect-needed mailbox would refuse the PATCH with 409.
       if (row && !row.is_read && !activeAccount?.needs_reconnect) threadActions.setRead(threadId, true);
@@ -399,7 +409,7 @@ export function EmailHubView() {
           readableBody={readableBody}
           bodyLoading={detail.isBodyLoading}
           bodyLoadFailed={detail.isBodyLoadFailed}
-          onBodyRefetch={() => void detail.refetch()}
+          onBodyRefetch={() => void detail.refetchBody()}
           actions={actions}
           pending={threadActions.pending}
           aiOpen={aiOpen}
