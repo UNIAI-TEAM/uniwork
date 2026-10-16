@@ -190,7 +190,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 			Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,
 			Capability: ai.CapCopilotAnswer, PromptID: ai.PromptCopilotAnswer,
 			Vars: map[string]any{
-				"question": question, "locale": in.Locale, "today": s.now().Format("2006-01-02"),
+				"question": ai.EscapeUntrusted(question), "locale": in.Locale, "today": s.now().Format("2006-01-02"),
 				"sources": ai.RenderSources(pack),
 			},
 			History: history, Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
@@ -202,6 +202,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 		if err != nil {
 			return AskResult{}, err
 		}
+		answer.Answer = ai.StripUntrustedTags(answer.Answer)
 	}
 	citations := make([]AskCitation, 0, len(answer.Citations))
 	for _, c := range answer.Citations {
@@ -247,7 +248,11 @@ func (s *AskUNIService) history(ctx context.Context, convID string) ([]provider.
 	}
 	out := make([]provider.Message, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, provider.Message{Role: r.Role, Content: r.Content})
+		src := "question"
+		if r.Role == "assistant" {
+			src = "prior_answer"
+		}
+		out = append(out, provider.Message{Role: r.Role, Content: ai.WrapUntrusted(src, r.Content)})
 	}
 	return out, nil
 }

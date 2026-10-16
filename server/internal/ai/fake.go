@@ -8,7 +8,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
-var sourceTag = regexp.MustCompile(`\[(S\d+)\] ([^\n(]+)`)
+var sourceTag = regexp.MustCompile(`<untrusted source="(S\d+)">\n([^\n]+)`)
 
 // FakeReply is the AI_PROVIDER=fake behaviour for development and E2E: a
 // deterministic, well-formed answer for every prompt. For copilot_answer it
