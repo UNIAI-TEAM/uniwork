@@ -331,9 +331,14 @@ func TestDocumentCopyPristineArchive(t *testing.T) {
 
 		// copyOf makes a workspace-visible source whose ACL owner is aclOwner
 		// and lets member copy it: member edits the copy, does not manage it.
+		// The source's home row is re-levelled to edit because a root create
+		// that asks for the workspace toggle lands on the row's view default
+		// (Q-S3, SH-S1 T3) - a member who holds only view may read it but not
+		// copy it.
 		copyOf := func(t *testing.T, name string) DocumentFileResult {
 			t.Helper()
 			src := env.createFile(t, aclOwner, name, []byte("# Nguon\n"))
+			setWorkspaceLevel(t, env.f, src.Document, string(DocumentLevelEdit))
 			copied, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
 			mustf(t, err, "copy")
 			if copied.Access.Level != DocumentLevelEdit {
