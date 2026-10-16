@@ -122,6 +122,26 @@ func terms(q string) []string {
 	return out
 }
 
+// searchTerms is terms, except that a query made only of 2-rune words (names
+// such as "Hà", "An") scores with those words instead of nothing.
+func searchTerms(q string) []string {
+	if ts := terms(q); len(ts) > 0 {
+		return ts
+	}
+	return wordsOfTwo(q)
+}
+
+// wordsOfTwo returns the folded words of 2 or more runes.
+func wordsOfTwo(q string) []string {
+	var out []string
+	for _, f := range tokens(q) {
+		if len([]rune(f)) >= 2 {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 func score(text string, ts []string) int {
 	low := foldForSearch(text)
 	n := 0
@@ -205,7 +225,7 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 	if err != nil {
 		return nil, err
 	}
-	ts := terms(query)
+	ts := searchTerms(query)
 	overdue := asksOverdue(query)
 	today := s.now().UTC().Truncate(24 * time.Hour)
 	names := s.memberNames(ctx, tc)

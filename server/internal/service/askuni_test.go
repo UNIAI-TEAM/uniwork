@@ -429,18 +429,32 @@ func TestAskMatchesWithoutDiacritics(t *testing.T) {
 }
 
 func TestAskIntentKeywordsMatchWholeWords(t *testing.T) {
-	for q, want := range map[string]bool{"lịch template task": false, "task nào trễ hạn": true} {
+	for q, want := range map[string]bool{"lịch template task": false, "task nào trên board": false, "task nào trễ hạn": true} {
 		if got := asksOverdue(q); got != want {
 			t.Errorf("asksOverdue(%q) = %v", q, got)
 		}
 	}
 	for q, want := range map[string]bool{
-		"hai đơn hàng chậm": false, "remember this task": false,
+		"hai đơn hàng chậm": false, "tại sao đơn hàng chậm": false, "remember this task": false,
 		"đổi tên task":         false, // guard: already false on the substring code
 		"ai đang làm đơn hàng": true, "đội ngũ gồm ai": true,
 	} {
 		if got := asksMembers(q); got != want {
 			t.Errorf("asksMembers(%q) = %v", q, got)
 		}
+	}
+}
+
+func TestMcpSearchFindsATwoRuneName(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	task := x.task(t, x.ua.ID, x.w.ID, "Gặp chị Hà")
+	found, err := x.tools.Search(ctx, x.p, x.w.ID, "Hà")
+	hit := false
+	for _, f := range found {
+		hit = hit || f.ID == task.ID
+	}
+	if err != nil || !hit {
+		t.Fatalf("search for a 2-rune name = %+v, %v", found, err)
 	}
 }
