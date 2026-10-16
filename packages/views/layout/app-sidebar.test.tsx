@@ -20,7 +20,7 @@ const workspace: Workspace = {
   organization_slug: "acme", organization_name: "Acme",
 };
 
-function renderSidebar(pathname: string) {
+function renderSidebar(pathname: string, props: { variant?: "full" | "chat-only" } = {}) {
   const nav = {
     push: vi.fn(), replace: vi.fn(), back: vi.fn(),
     pathname, searchParams: new URLSearchParams(), getShareableUrl: (p: string) => p,
@@ -29,7 +29,7 @@ function renderSidebar(pathname: string) {
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <SidebarProvider>
-          <AppSidebar />
+          <AppSidebar {...props} />
         </SidebarProvider>
       </WorkspaceProvider>,
       nav,
@@ -276,5 +276,18 @@ describe("AppSidebar › home", () => {
     renderWithHome("/acme/team/tasks");
     expect(screen.getByRole("link", { name: "Trang chủ" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Công việc" })).toHaveAttribute("aria-current", "page");
+  });
+});
+
+describe("AppSidebar › chat-only", () => {
+  it("drops the module nav and pins but keeps the switcher and the account menu", async () => {
+    renderSidebar("/acme/team/chat", { variant: "chat-only" });
+    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Công việc" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Trò chuyện" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Acme, Team: chuyển workspace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /tài khoản$/ }));
+    expect(await screen.findByRole("menuitem", { name: "Cài đặt" })).toHaveAttribute("href", "/acme/team/settings");
+    expect(await screen.findByRole("menuitem", { name: "Đăng xuất" })).toBeInTheDocument();
   });
 });
