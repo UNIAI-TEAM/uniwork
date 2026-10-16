@@ -54,7 +54,8 @@ async function providerSession(p: SessionProvider): Promise<{ user: User } | nul
   const token = await p.getAccessToken();
   setAccessToken(token);
   const user = token ? await auth.me() : null;
-  return user ? { user } : null;
+  // The host may drop the token while /me is in flight; a user without a token is not a session.
+  return user && getAccessToken() !== null ? { user } : null;
 }
 
 /** Drop to anon. Logout callback runs only for an explicit logout, not token loss. */
@@ -116,8 +117,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     clearSession();
     const provider = getSessionProvider();
     if (provider) {
-      await provider.logout();
-      setAccessToken(null);
+      try {
+        await provider.logout();
+      } finally {
+        setAccessToken(null);
+      }
     } else {
       await auth.logout();
     }

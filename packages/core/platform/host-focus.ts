@@ -13,11 +13,15 @@ function subscribe(onChange: () => void): () => void {
     document.addEventListener("visibilitychange", onChange);
     return () => document.removeEventListener("visibilitychange", onChange);
   }
+  let seen = false;
   const off = bridge.onFocusChange((focused) => {
+    seen = true;
     hostFocused = focused;
     onChange();
   });
+  // The one-shot query loses to any event that arrived while it was pending.
   void bridge.isFocused().then((focused) => {
+    if (seen) return;
     hostFocused = focused;
     onChange();
   });

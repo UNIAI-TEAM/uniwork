@@ -211,6 +211,27 @@ describe("auth store with a session provider", () => {
     expect(auth.refreshSession).not.toHaveBeenCalled();
   });
 
+  it("initialize is anon when the host drops the token while /me is in flight", async () => {
+    const p = provider("t");
+    registerSessionProvider(p);
+    vi.mocked(auth.me).mockImplementationOnce(async () => {
+      setAccessToken(null);
+      return user;
+    });
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
+  });
+
+  it("logout drops the token even when the host's logout rejects", async () => {
+    const p = provider("t");
+    p.logout.mockRejectedValueOnce(new Error("ipc"));
+    registerSessionProvider(p);
+    setAccessToken("t");
+    useAuthStore.getState().setUser(user);
+    await expect(useAuthStore.getState().logout()).rejects.toThrow("ipc");
+    expect(getAccessToken()).toBeNull();
+  });
+
   it("logout hands the session back to the host and drops the token", async () => {
     const p = provider("t");
     registerSessionProvider(p);

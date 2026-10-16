@@ -57,4 +57,24 @@ describe("useHostFocus inside UniChat", () => {
     unmount();
     expect(off).toHaveBeenCalledTimes(1);
   });
+
+  it("lets a focus event beat a slower isFocused() answer", async () => {
+    let onChange: ((focused: boolean) => void) | null = null;
+    let answer: ((focused: boolean) => void) | null = null;
+    (window as Win).desktopAPI = {
+      app: "unichat",
+      isFocused: () => new Promise<boolean>((resolve) => { answer = resolve; }),
+      onFocusChange: (cb: (focused: boolean) => void) => {
+        onChange = cb;
+        return () => {};
+      },
+    };
+    const { result } = renderHook(() => useHostFocus());
+    act(() => onChange?.(false));
+    expect(result.current).toBe(false);
+    await act(async () => {
+      answer?.(true);
+    });
+    expect(result.current).toBe(false);
+  });
 });
