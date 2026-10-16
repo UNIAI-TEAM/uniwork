@@ -320,14 +320,29 @@ describe("DocumentsPageView", () => {
 
   it("groups by folder by default and by file type on request", async () => {
     route({
-      tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
-      list: () => [summary(), file("f1", "Báo giá.docx", { parent_id: "fo1" })],
+      tree: () => [
+        treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" }),
+        treeNode({ id: "fo-empty", title: "Thư mục trống", kind: "folder" }),
+      ],
+      list: () => [
+        summary(),
+        summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }),
+        summary({ id: "fo-empty", kind: "folder", title: "Thư mục trống" }),
+        file("f1", "Báo giá.docx", { parent_id: "fo1" }),
+      ],
     });
     renderView(vi.fn());
     await screen.findByText("Báo giá.docx");
 
     const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((cell) => cell.textContent);
-    await waitFor(() => expect(groupHeaders()).toEqual([`${t("documents.home.groups.unfiled")}1`, "Dự án CCB1"]));
+    await waitFor(() =>
+      expect(groupHeaders()).toEqual([
+        `${t("documents.home.groups.type.folder")}2`,
+        `${t("documents.home.groups.unfiled")}1`,
+        "Dự án CCB1",
+      ]),
+    );
+    expect(within(screen.getByRole("table")).getByText("Thư mục trống")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("combobox", { name: t("documents.home.group_by.label") }));
     const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.group_by.type"));
@@ -336,7 +351,11 @@ describe("DocumentsPageView", () => {
     fireEvent.click(option);
 
     await waitFor(() =>
-      expect(groupHeaders()).toEqual([`${t("documents.home.groups.type.page")}1`, `${t("documents.home.groups.type.docx")}1`]),
+      expect(groupHeaders()).toEqual([
+        `${t("documents.home.groups.type.page")}1`,
+        `${t("documents.home.groups.type.folder")}2`,
+        `${t("documents.home.groups.type.docx")}1`,
+      ]),
     );
   });
 

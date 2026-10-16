@@ -309,10 +309,11 @@ export interface RowGroup {
 }
 
 /**
- * Groups in first-seen order of the (already sorted) rows. Built-in keys are
- * `unfiled` (no folder), `origin:<origin>` and `type:<format>`; the view
- * translates them. A source row has no folder in the workspace tree, so under
- * "group by folder" it joins the group of its module.
+ * Groups in first-seen order of the (already sorted) rows, with `folders`
+ * first under "group by folder". Built-in keys are `folders`, `unfiled` (no
+ * folder), `origin:<origin>` and `type:<format>`; the view translates them. A
+ * source row has no folder in the workspace tree, so under "group by folder"
+ * it joins the group of its module.
  */
 export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<string, FolderInfo>): RowGroup[] {
   if (groupBy === "none") return [{ key: "all", title: "", rows }];
@@ -326,6 +327,7 @@ export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<strin
     if (groupBy === "source") add(`origin:${rowOrigin(row)}`, "", row);
     else if (groupBy === "type") add(`type:${isFolderRow(row) ? "folder" : rowFormat(row)}`, "", row);
     else if (row.type === "source") add(`origin:${rowOrigin(row)}`, "", row);
+    else if (isFolderRow(row)) add("folders", "", row);
     else {
       const path = folderPath(index, row.doc.parent_id);
       const last = path.at(-1);
@@ -333,7 +335,10 @@ export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<strin
       else add("unfiled", "", row);
     }
   }
-  return [...groups.values()];
+  const folders = groups.get("folders");
+  if (!folders) return [...groups.values()];
+  groups.delete("folders");
+  return [folders, ...groups.values()];
 }
 
 /** Human-readable size: "318 KB", "1.2 MB" (locale decimal mark). */
