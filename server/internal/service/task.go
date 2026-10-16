@@ -69,6 +69,9 @@ type CreateTaskInput struct {
 	Properties    map[string]json.RawMessage
 	// AllowDuplicate skips the active-title guard (CLI / explicit override).
 	AllowDuplicate bool
+
+	// order is set by CreateManyWith when the batch keeps its input order.
+	order *createOrder
 }
 
 // UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/StartAt/DueAt/ProjectID
@@ -368,6 +371,23 @@ func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID strin
 // workspace are resolved once, while each task still goes through the same
 // validation, entitlement, audit, and outbox path as Create.
 func (s *TaskService) CreateMany(ctx context.Context, actor Actor, workspaceID string, inputs []CreateTaskInput) ([]db.Task, error) {
+	return s.CreateManyWith(ctx, actor, workspaceID, inputs, CreateManyOptions{})
+}
+
+// CreateManyOptions lets a caller put its own checks and rows in the batch's
+// transaction, so they commit or roll back with the tasks.
+type CreateManyOptions struct {
+	// Before runs after membership is checked, before the first insert.
+	Before func(ctx context.Context, q *db.Queries, ws db.Workspace) error
+	// After runs with the created tasks, in input order, before the commit.
+	After func(ctx context.Context, q *db.Queries, ws db.Workspace, tasks []db.Task) error
+	// KeepOrder places the batch on the board in input order (the first
+	// input on top) instead of each create taking the top slot in turn.
+	KeepOrder bool
+}
+
+// CreateManyWith is CreateMany with the caller's hooks in the transaction.
+func (s *TaskService) CreateManyWith(ctx context.Context, actor Actor, workspaceID string, inputs []CreateTaskInput, opts CreateManyOptions) ([]db.Task, error) {
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return nil, err
 	}
@@ -381,18 +401,60 @@ func (s *TaskService) CreateMany(ctx context.Context, actor Actor, workspaceID s
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if opts.Before != nil {
+		if err := opts.Before(ctx, q, ws); err != nil {
+			return nil, err
+		}
+	}
+	var order *createOrder
+	if opts.KeepOrder {
+		order = newCreateOrder(len(inputs))
+	}
 	tasks := make([]db.Task, 0, len(inputs))
 	for _, in := range inputs {
+		in.order = order
 		task, err := s.createTaskInTx(ctx, q, actor, ws, workspaceID, in)
 		if err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, task)
 	}
+	if opts.After != nil {
+		if err := opts.After(ctx, q, ws, tasks); err != nil {
+			return nil, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return tasks, nil
+}
+
+// createOrder keeps a batch in input order on the board: the first task of a
+// status takes the top slot, each next one sits right below the one before,
+// and all of them stay above what the column held. Without it every create
+// takes the top slot in turn, so the batch reads bottom-up.
+type createOrder struct {
+	size int
+	base map[string]float64
+	next map[string]int
+}
+
+func newCreateOrder(size int) *createOrder {
+	return &createOrder{size: size, base: map[string]float64{}, next: map[string]int{}}
+}
+
+// position is the slot of the next task of status; minPos is the column's
+// current top, read before this insert.
+func (o *createOrder) position(status string, minPos float64) float64 {
+	base, ok := o.base[status]
+	if !ok {
+		base = minPos - 1024*float64(o.size)
+		o.base[status] = base
+	}
+	p := base + 1024*float64(o.next[status])
+	o.next[status]++
+	return p
 }
 
 // createTaskInTx inserts a task and its audit/outbox rows using q (caller owns the tx).
@@ -462,6 +524,10 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	position := minPos - 1024
+	if in.order != nil {
+		position = in.order.position(status, minPos)
+	}
 	number, err := q.NextTaskNumber(ctx, db.NextTaskNumberParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 	})
@@ -474,7 +540,7 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		Status: status, Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind,
 		AssigneeType: normalizedAssigneeType(in.AssigneeID, assigneeKind), StartDate: start, DueDate: due,
 		StartAt: optTz(in.StartAt), DueAt: optTz(in.DueAt),
-		Position: minPos - 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+		Position: position, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
 		Revision: 1, LastActivityAt: nowTz(),
 		OriginType: originTypeText(in.OriginType), OriginID: optText(in.OriginID),
