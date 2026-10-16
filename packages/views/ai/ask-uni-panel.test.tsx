@@ -124,14 +124,19 @@ describe("AskUniPanel", () => {
     await waitFor(() => expect(useAiPanelStore.getState().conversationId).toBeNull());
   });
 
-  it("does not send while an IME composition is committing", async () => {
+  it.each([
+    ["isComposing", { key: "Enter", isComposing: true }],
+    ["keyCode 229", { key: "Enter", keyCode: 229 }],
+  ])("does not send while an IME composition is committing (%s)", async (_label, init) => {
     mockApi();
     mount();
     useAiPanelStore.getState().setOpen(true);
     const box = await screen.findByRole("textbox", { name: /Hỏi UNI/ });
     fireEvent.change(box, { target: { value: "x" } });
-    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
-    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(box, init);
+    // Submitting clears the box synchronously; a guarded Enter leaves it alone.
+    expect(box).toHaveValue("x");
+    await new Promise((r) => setTimeout(r, 20));
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/ask", expect.anything());
   });
 
