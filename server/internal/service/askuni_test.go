@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -456,5 +457,37 @@ func TestMcpSearchFindsATwoRuneName(t *testing.T) {
 	}
 	if err != nil || !hit {
 		t.Fatalf("search for a 2-rune name = %+v, %v", found, err)
+	}
+}
+
+func TestAskFindsTaskByIdentifier(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	task, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Kịch bản video"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := fmt.Sprintf("%s-%d", ws.TaskPrefix, task.Number)
+	for _, q := range []string{"Tóm tắt " + ref + ".", "(" + strings.ToLower(ref) + ")?"} {
+		srcs, err := s.Sources(ctx, ai.SourceQuery{UserID: ua.ID, WorkspaceID: w.ID, Question: q})
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, src := range srcs {
+			if src.Title == "Kịch bản video" {
+				n++
+			}
+		}
+		if len(srcs) == 0 || srcs[0].Title != "Kịch bản video" || n != 1 {
+			t.Errorf("%q: want task first and cited once: %+v", q, srcs)
+		}
+	}
+	if _, err := s.Sources(ctx, ai.SourceQuery{UserID: ua.ID, WorkspaceID: w.ID, Question: "Tóm tắt ZZZ-999"}); err != nil {
+		t.Fatalf("unknown identifier must not error: %v", err)
 	}
 }

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -272,6 +274,9 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 	if err != nil {
 		return nil, err
 	}
+	if items, err = s.addIdentifierHits(ctx, tc, query, items); err != nil {
+		return nil, err
+	}
 	chat, err := s.chatContext(ctx, tc, query)
 	if err != nil {
 		return nil, err
@@ -289,6 +294,40 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 		}
 	}
 	return topSources(items, ai.MaxSources), nil
+}
+
+var taskIdentifierRe = regexp.MustCompile(`(?i)\b([a-z][a-z0-9]{1,9})-(\d{1,9})\b`)
+
+// addIdentifierHits boosts (or adds) the task a PREFIX-N reference in the
+// question names. Ask-only: searchWorkItems is shared with MCP search.
+// shortcut: GetByRefIn ignores retired prefixes (workspace_aliases); old-prefix questions fall back to keyword search until the lookup learns aliases.
+func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext, query string, items []scored) ([]scored, error) {
+	for _, ref := range taskIdentifierRe.FindAllString(query, 5) {
+		t, err := s.tasks.GetByRefIn(ctx, Human(tc.ActorID), tc.WorkspaceID, ref)
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		found := false
+		for i := range items {
+			if strings.HasSuffix(items[i].src.Href, "/tasks/"+t.ID) {
+				items[i].score += 10
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+		srcs, err := s.taskContext(ctx, tc, t.ID)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, scored{src: srcs[0], score: 10, when: t.UpdatedAt.Time})
+	}
+	return items, nil
 }
 
 func taskSource(base string, t taskRow, names map[string]string) ai.Source {
