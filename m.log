@@ -1,0 +1,17 @@
+$ pnpm --filter @uniwork/core lint; rc=$?; echo; echo "CORE_LINT_EXIT=$rc"
+
+> @uniwork/core@0.0.0 lint /workspace/packages/core
+> eslint . --max-warnings 0
+
+
+/workspace/packages/core/email-hub/hooks.ts
+  233:6  warning  React Hook useEffect has a missing dependency: 'detail'. Either include it or remove the dependency array                                                           react-hooks/exhaustive-deps
+  295:9  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+✖ 2 problems (1 error, 1 warning)
+
+/workspace/packages/core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/core@0.0.0 lint: `eslint . --max-warnings 0`
+Exit status 1
+
+CORE_LINT_EXIT=1
