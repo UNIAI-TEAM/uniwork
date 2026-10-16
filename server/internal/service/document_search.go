@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -57,8 +58,80 @@ type ListDocumentsInput struct {
 	UpdatedFrom time.Time
 	UpdatedTo   time.Time
 	SharedByMe  bool
-	Cursor      string
-	Limit       int
+	// Format and Access are the type and access filters of the library list
+	// (UNI-1868): a file format of the six in internal/files, and one of
+	// manage/edit/restricted. An unknown value, Format with kind=page and
+	// manage/edit on the trash are 400 invalid_filter (resolveListFilters).
+	Format string
+	Access string
+	Cursor string
+	Limit  int
+}
+
+// The access filter of a document list (UNI-1868). manage and edit compare
+// the level the caller holds on the row; restricted is the row's visibility,
+// exactly as the library's own access filter reads it.
+const (
+	DocumentAccessManage     = "manage"
+	DocumentAccessEdit       = "edit"
+	DocumentAccessRestricted = "restricted"
+)
+
+// documentListFilters is the format/access pair of one list request, resolved
+// into what the list queries take: the format and the MIME its verified
+// uploads carry, every MIME the format table names (so the SQL can tell a MIME
+// it cannot name from one it can), the access filter and the levels that
+// satisfy it. A zero Format/Access means the filter is not set.
+type documentListFilters struct {
+	format       string
+	access       string
+	formatMime   string
+	accessLevels []string
+}
+
+// resolveListFilters parses ?format= and ?access= strictly (UNI-1868). An
+// unknown value, format together with kind=page, and manage/edit on the trash
+// view are 400 invalid_filter; the trash is manage-only, so its one access
+// filter is restricted.
+func resolveListFilters(format, access, kind string, archived bool) (documentListFilters, error) {
+	var out documentListFilters
+	if format != "" {
+		if kind == DocumentKindPage {
+			return out, coded(http.StatusBadRequest, "invalid_filter", "format không dùng được cùng kind=page")
+		}
+		if mime, ok := files.DocumentFormatMime(format); !ok {
+			return out, coded(http.StatusBadRequest, "invalid_filter", "format phải là docx, xlsx, pptx, pdf, md hoặc html")
+		} else {
+			out.format = format
+			out.formatMime = mime
+		}
+	}
+	switch access {
+	case "":
+	case DocumentAccessRestricted:
+		out.access = access
+	case DocumentAccessManage, DocumentAccessEdit:
+		if archived {
+			return out, coded(http.StatusBadRequest, "invalid_filter", "access=manage/edit không dùng được trên thùng rác")
+		}
+		out.access = access
+		out.accessLevels = accessFilterLevels(access)
+	default:
+		return out, coded(http.StatusBadRequest, "invalid_filter", "access phải là manage, edit hoặc restricted")
+	}
+	return out, nil
+}
+
+// accessFilterLevels is the levels that satisfy one access filter, the way the
+// library's filter reads my_level: manage needs manage, edit takes edit or
+// manage. A share and a home row are compared against the same list (a home
+// row never carries manage, so manage's list only ever matches a share or a
+// role), which is why the SQL takes one array for both legs.
+func accessFilterLevels(access string) []string {
+	if access == DocumentAccessManage {
+		return []string{string(DocumentLevelManage)}
+	}
+	return []string{string(DocumentLevelEdit), string(DocumentLevelManage)}
 }
 
 // DocumentPathItem is one ancestor step from root to direct parent on a
@@ -292,6 +365,10 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	default:
 		return DocumentListPage{}, Invalid("kind phải là page, file, folder hoặc document")
 	}
+	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, in.Archived)
+	if err != nil {
+		return DocumentListPage{}, err
+	}
 	updatedBy := nullText(in.UpdatedBy)
 	var from, to pgtype.Timestamptz
 	if !in.UpdatedFrom.IsZero() {
@@ -320,6 +397,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			SeeAll: scope.seeAll, AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
 			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(), Access: nullText(filters.access),
 			Query: query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
@@ -347,6 +426,9 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(),
+			Access:      nullText(filters.access), AccessLevels: filters.accessLevels, Agent: agent,
 			Query: query, MatchTitle: matchTitle,
 			CursorPosition: cursorPos, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
@@ -372,6 +454,9 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(),
+			Access:      nullText(filters.access), AccessLevels: filters.accessLevels, Agent: agent,
 			SharedByMe: in.SharedByMe,
 			Query:      query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
@@ -551,6 +636,10 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	default:
 		return DocumentListPage{}, Invalid("match phải là title")
 	}
+	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, false)
+	if err != nil {
+		return DocumentListPage{}, err
+	}
 	limit := in.Limit
 	if limit <= 0 {
 		limit = defaultDocumentListPage
@@ -567,7 +656,12 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
 		AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
 		ShareWorkspaces: scope.shareWorkspaces,
-		CursorAt:        cursorAt, CursorID: nullText(cursor.ID), PageLimit: int32(limit + 1),
+		Format:          nullText(filters.format), FormatMime: nullText(filters.formatMime),
+		FormatMimes: files.DocumentFormatMimes(),
+		// The recent list is human-only, so the home-row leg never needs the
+		// agent cap.
+		Access: nullText(filters.access), AccessLevels: filters.accessLevels, Agent: false,
+		CursorAt: cursorAt, CursorID: nullText(cursor.ID), PageLimit: int32(limit + 1),
 	})
 	if err != nil {
 		return DocumentListPage{}, err

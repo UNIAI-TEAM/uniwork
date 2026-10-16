@@ -33,6 +33,8 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		Query:      strings.TrimSpace(q.Get("q")),
 		Match:      strings.TrimSpace(q.Get("match")),
 		Kind:       strings.TrimSpace(q.Get("kind")),
+		Format:     strings.TrimSpace(q.Get("format")),
+		Access:     strings.TrimSpace(q.Get("access")),
 		UpdatedBy:  strings.TrimSpace(q.Get("updated_by")),
 		SharedByMe: strings.TrimSpace(q.Get("shared_by_me")) == "true",
 		Cursor:     strings.TrimSpace(q.Get("cursor")),
@@ -132,7 +134,10 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	in := service.SharedWithMeQuery{}
+	in := service.SharedWithMeQuery{
+		Format: strings.TrimSpace(r.URL.Query().Get("format")),
+		Access: strings.TrimSpace(r.URL.Query().Get("access")),
+	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
 		at, id, ok := decodeSharedWithMeCursor(raw)
 		if !ok {
@@ -322,6 +327,12 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 	}
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		out.Icon = &doc.Icon.String
+	}
+	// The library format of a file row (UNI-1868): absent for a page, a folder
+	// and a file neither a verified MIME nor the title names.
+	if facts.Format != "" {
+		format := facts.Format
+		out.Format = &format
 	}
 	if snippet != "" {
 		out.Snippet = &snippet
