@@ -41,10 +41,16 @@ export function pinChatScrollToBottom(
   apply();
   // measureElement grows the spacer after paint; keep pinning for two frames.
   requestAnimationFrame(() => {
-    if (!stickToBottomRef.current) return;
+    if (!stickToBottomRef.current) {
+      programmaticScrollRef.current = false;
+      return;
+    }
     apply();
     requestAnimationFrame(() => {
-      if (!stickToBottomRef.current) return;
+      if (!stickToBottomRef.current) {
+        programmaticScrollRef.current = false;
+        return;
+      }
       apply();
       programmaticScrollRef.current = false;
     });

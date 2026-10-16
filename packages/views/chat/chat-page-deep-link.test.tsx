@@ -1,11 +1,17 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useChatRooms } from "@uniwork/core/chat";
+import {
+  resetPendingChatMessagesForTests,
+  usePendingChatMessagesStore,
+} from "@uniwork/core/chat/pending-messages-store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import type { User } from "@uniwork/core/types";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { ChatPageView } from "./chat-page-view";
+import { pinChatScrollToBottom } from "./virtual-chat-message-list";
 
 // Drive the real VirtualChatMessageList in jsdom with a 570px scrollport and ResizeObserver.
 const resizeCallbacks = new Set<() => void>();
@@ -79,6 +85,7 @@ let joined = true;
 let aroundDelayMs = 0;
 let latestDelayMs = 0;
 let aroundFails = false;
+let aroundEmpty = false;
 const later = <T,>(value: T, ms: number) =>
   ms <= 0 ? Promise.resolve(value) : new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
 
@@ -91,7 +98,8 @@ function serve(path: string): Promise<unknown> {
   }
   const around = /\/chat\/rooms\/([^/]+)\/messages\/around\/([^/]+)$/.exec(url);
   if (around) {
-    if (aroundFails) return Promise.reject(new Error("not found"));
+    if (aroundFails) return later(null, aroundDelayMs).then(() => Promise.reject(new Error("not found")));
+    if (aroundEmpty) return later({ messages: [] }, aroundDelayMs);
     return later({ messages: TIMELINES[around[1] ?? ""]?.around ?? [] }, aroundDelayMs);
   }
   const latest = /\/chat\/rooms\/([^/]+)\/messages$/.exec(url);
@@ -123,14 +131,17 @@ function AfterRoomsCached({ children }: { children: React.ReactNode }) {
 
 async function flushFramesAndObservers() {
   for (let i = 0; i < 4; i++) {
-    await later(null, 20);
     for (const cb of Array.from(resizeCallbacks)) cb();
+    await later(null, 20);
   }
+  await later(null, 40);
 }
 
 async function expectHighlighted(messageId: string) {
-  await waitFor(() => expect(document.getElementById(`chat-msg-${messageId}`)).not.toBeNull());
-  await waitFor(() => expect(document.getElementById(`chat-msg-${messageId}`)?.className).toMatch(/ring-brand/));
+  await waitFor(() => expect(document.getElementById(`chat-msg-${messageId}`)).not.toBeNull(), { timeout: 4000 });
+  await waitFor(() => expect(document.getElementById(`chat-msg-${messageId}`)?.className).toMatch(/ring-brand/), {
+    timeout: 4000,
+  });
   await flushFramesAndObservers();
   expect(document.getElementById(`chat-msg-${messageId}`)).not.toBeNull();
   expect(document.getElementById(`chat-msg-${messageId}`)?.className).toMatch(/ring-brand/);
@@ -141,11 +152,14 @@ const scrollTops = new WeakMap<HTMLElement, number>();
 beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(reader);
+  resetPendingChatMessagesForTests();
   joined = true;
   aroundDelayMs = 0;
   latestDelayMs = 0;
   aroundFails = false;
+  aroundEmpty = false;
   resizeCallbacks.clear();
+  vi.restoreAllMocks();
   vi.stubGlobal("ResizeObserver", ActiveResizeObserver);
   Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 570 });
   Object.defineProperty(HTMLElement.prototype, "scrollHeight", { configurable: true, get: () => 3520 });
@@ -209,10 +223,75 @@ describe("ChatPageView ?room=&message= deep link", () => {
     await expectHighlighted(`m-${kind}`);
   });
 
-  it("never shows the around banner when the anchor window fails to load", async () => {
+  it("never shows the around banner when the anchor window fails to load, pins the newest row, and lets a later scroll leave the bottom", async () => {
     aroundFails = true;
     open("room=r-dm&message=m-dm");
     await flushFramesAndObservers();
     expect(screen.queryByText("Đang xem vị trí tin nhắn đã tìm")).toBeNull();
+    expect(document.getElementById("chat-msg-r-dm-a29")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Về tin mới nhất" })).toBeNull();
+
+    act(() => {
+      screen.getByRole("log").scrollTop = 500;
+    });
+    expect(screen.getByRole("button", { name: "Về tin mới nhất" })).toBeInTheDocument();
+  });
+
+  it("resets programmaticScrollRef when stickToBottomRef turns false while pinChatScrollToBottom is in flight", async () => {
+    const scrollEl = document.createElement("div");
+    const stickRef = { current: true };
+    const programmaticRef = { current: false };
+    pinChatScrollToBottom(scrollEl, stickRef, programmaticRef);
+    expect(programmaticRef.current).toBe(true);
+    stickRef.current = false;
+    await later(null, 40);
+    expect(programmaticRef.current).toBe(false);
+  });
+
+  it("toasts jump_failed once and pins the newest row when around returns an empty list", async () => {
+    const toastError = vi.spyOn(toast, "error").mockImplementation(() => "");
+    aroundEmpty = true;
+    open("room=r-dm&message=m-dm");
+    await flushFramesAndObservers();
+    expect(toastError).toHaveBeenCalledTimes(1);
+    expect(toastError).toHaveBeenCalledWith("Không mở được tin nhắn được trích dẫn.");
+    expect(screen.queryByText("Đang xem vị trí tin nhắn đã tìm")).toBeNull();
+    expect(document.getElementById("chat-msg-r-dm-a29")).not.toBeNull();
+  });
+
+  it("leaves the anchor window and shows the sent row at the bottom on an own send while anchored", async () => {
+    open("room=r-dm&message=m-dm");
+    await expectHighlighted("m-dm");
+    expect(screen.getByText("Đang xem vị trí tin nhắn đã tìm")).toBeInTheDocument();
+    expect(document.getElementById("chat-msg-r-dm-a29")).toBeNull();
+
+    act(() => {
+      usePendingChatMessagesStore.getState().upsert({
+        workspaceId: WS,
+        roomId: "r-dm",
+        client_msg_id: "c-own-1",
+        body: "Tin mới của tôi",
+        senderId: reader.id,
+        createdAt: Date.UTC(2026, 9, 16, 5, 1, 0),
+        status: "sending",
+      });
+    });
+    await flushFramesAndObservers();
+
+    expect(screen.queryByText("Đang xem vị trí tin nhắn đã tìm")).toBeNull();
+    expect(document.getElementById("chat-msg-pending:c-own-1")).not.toBeNull();
+    expect(screen.getByText("Tin mới của tôi")).toBeInTheDocument();
+  });
+
+  it("pins the newest row into view when clicking 'Về tin mới nhất'", async () => {
+    open("room=r-dm&message=m-dm");
+    await expectHighlighted("m-dm");
+    expect(document.getElementById("chat-msg-r-dm-a29")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Về tin mới nhất" }));
+    await flushFramesAndObservers();
+
+    expect(screen.queryByText("Đang xem vị trí tin nhắn đã tìm")).toBeNull();
+    expect(document.getElementById("chat-msg-r-dm-a29")).not.toBeNull();
   });
 });

@@ -145,18 +145,19 @@ export function NativeChatMessagePanel({
   );
   const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(workspaceId);
 
-  const allMessages = useMemo(
+  const latestMessages = useMemo(
     () =>
       buildMainTimelineMessages({
-        anchorMessages,
+        anchorMessages: null,
         latestRows,
         pendingEntries,
         outboxEntries,
         currentUserId,
         threadsEnabled,
       }),
-    [anchorMessages, currentUserId, latestRows, outboxEntries, pendingEntries, threadsEnabled],
+    [currentUserId, latestRows, outboxEntries, pendingEntries, threadsEnabled],
   );
+  const allMessages = anchorMessages ?? latestMessages;
 
   const messages = useMemo(() => {
     if (!threadRoot || !threadsEnabled) return allMessages;
@@ -235,19 +236,45 @@ export function NativeChatMessagePanel({
     onActiveThreadRootIdChange?.(threadRoot?.id ?? null);
   }, [onActiveThreadRootIdChange, threadRoot?.id]);
 
-  // Own optimistic / pending sends must keep the viewport on the newest row.
-  const lastTimelineMessage = anchorMessages || activeAnchorId ? undefined : messages[messages.length - 1];
+  const onClearAnchorRef = useRef(onClearAnchor);
+  onClearAnchorRef.current = onClearAnchor;
+
+  // The latest page replaces the anchor window; re-sticking lets the list pin
+  // it to the bottom and the room be marked read, as scrollToLatest does.
+  const clearAnchor = useCallback(() => {
+    stickToBottomRef.current = true;
+    programmaticScrollRef.current = false;
+    setAwayFromLatest(false);
+    setAnchorMessages(null);
+    setHighlightMessageId(null);
+    setLocalAnchor(null);
+    if (anchorMessageId) onClearAnchorRef.current?.();
+  }, [anchorMessageId]);
+
+  // Own optimistic / pending sends must keep the viewport on the newest row,
+  // and leave an open anchor window so the sent message is visible at the bottom.
+  const timelineMessages = threadRoot && threadsEnabled ? messages : latestMessages;
+  const lastTimelineMessage = timelineMessages[timelineMessages.length - 1];
+  const prevLastTimelineRef = useRef<{ roomId: string; id: string | undefined }>({ roomId, id: undefined });
   useEffect(() => {
+    const prev = prevLastTimelineRef.current;
+    const prevId = prev.roomId === roomId ? prev.id : undefined;
+    prevLastTimelineRef.current = { roomId, id: lastTimelineMessage?.id };
     if (!lastTimelineMessage) return;
-    if (
+    const isPendingOrQueued =
       lastTimelineMessage.deliveryStatus === "sending" ||
       lastTimelineMessage.deliveryStatus === "queued" ||
-      isPendingChatMessageId(lastTimelineMessage.id) ||
-      lastTimelineMessage.sender === currentUserId
-    ) {
-      stickToBottomRef.current = true;
+      isPendingChatMessageId(lastTimelineMessage.id);
+    const isOwnMessage = isPendingOrQueued || lastTimelineMessage.sender === currentUserId;
+    if (!isOwnMessage) return;
+    if (anchorMessages || activeAnchorId) {
+      if (prevId !== lastTimelineMessage.id && (isPendingOrQueued || prevId !== undefined)) {
+        clearAnchor();
+      }
+      return;
     }
-  }, [currentUserId, lastTimelineMessage]);
+    stickToBottomRef.current = true;
+  }, [activeAnchorId, anchorMessages, clearAnchor, currentUserId, lastTimelineMessage, roomId]);
 
   useEffect(() => {
     stickToBottomRef.current = true;
@@ -262,9 +289,6 @@ export function NativeChatMessagePanel({
     return () => stopChatVoicePlayback();
   }, [roomId, onReplyToChange, onActiveThreadRootIdChange]);
 
-  const onClearAnchorRef = useRef(onClearAnchor);
-  onClearAnchorRef.current = onClearAnchor;
-
   useEffect(() => {
     if (!activeAnchorId) {
       setAnchorMessages(null);
@@ -275,13 +299,20 @@ export function NativeChatMessagePanel({
     let cancelled = false;
     stickToBottomRef.current = false;
     setLoadingAnchor(true);
+    const failAnchorJump = (err: unknown) => {
+      stickToBottomRef.current = true;
+      programmaticScrollRef.current = false;
+      setAwayFromLatest(false);
+      setAnchorMessages(null);
+      setLocalAnchor(null);
+      onClearAnchorRef.current?.();
+      toastChatError(err, t, t("chat.message_list.jump_failed"));
+    };
     void listChatRoomMessagesAround(workspaceId, roomId, activeAnchorId)
       .then((rows) => {
         if (cancelled) return;
         if (rows.length === 0) {
-          setAnchorMessages(null);
-          setLocalAnchor(null);
-          onClearAnchorRef.current?.();
+          failAnchorJump(null);
           return;
         }
         setAnchorMessages(rows.map(toChatMessage));
@@ -291,10 +322,7 @@ export function NativeChatMessagePanel({
       .catch((err: unknown) => {
         // The message is gone or unreachable: say so instead of doing nothing.
         if (cancelled) return;
-        setAnchorMessages(null);
-        setLocalAnchor(null);
-        onClearAnchorRef.current?.();
-        toastChatError(err, t, t("chat.message_list.jump_failed"));
+        failAnchorJump(err);
       })
       .finally(() => {
         if (!cancelled) setLoadingAnchor(false);
@@ -399,15 +427,6 @@ export function NativeChatMessagePanel({
     setAwayFromLatest(false);
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
-  };
-
-  // The latest page replaces the anchor window; re-sticking lets the list pin
-  // it to the bottom and the room be marked read, as scrollToLatest does.
-  const clearAnchor = () => {
-    stickToBottomRef.current = true;
-    setAwayFromLatest(false);
-    setLocalAnchor(null);
-    if (anchorMessageId) onClearAnchor?.();
   };
 
   // Older history loads in the message's own shape. When more exists, a
