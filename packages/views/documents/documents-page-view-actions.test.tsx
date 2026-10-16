@@ -247,10 +247,15 @@ describe("file from another module", () => {
       fireEvent.click(sourceNameButton(row));
       await waitFor(() => expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Ai1/download`));
       const dialog = await screen.findByRole("dialog");
-      expect(within(dialog).getByRole("img", { name: "Chụp màn hình.png" })).toHaveAttribute("src", "blob:budget");
+      const image = within(dialog).getByRole("img", { name: "Chụp màn hình.png" });
+      expect(image).toHaveAttribute("src", "blob:budget");
+      // S2V-4: the close button sits on the dialog's own surface, never on the image.
+      const close = within(dialog).getByRole("button", { name: t("documents.home.row.preview_close") });
+      expect(image).not.toContainElement(close);
+      expect(close.compareDocumentPosition(image) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
       // A preview never navigates or saves the file.
       expect(adapter.push).not.toHaveBeenCalled();
-      fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.row.preview_close") }));
+      fireEvent.click(close);
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
       expect(revokeUrl).toHaveBeenCalledWith("blob:budget");
     } finally {
@@ -338,8 +343,27 @@ describe("file from another module", () => {
     route({ sources: () => [source()] });
     const adapter = renderView();
     const row = await rowOf("Đề xuất ngân sách.pdf");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) }));
+    const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) });
+    // S2V-2: an icon button rendered at every list width — nothing in its
+    // chain may carry the ladder's `hidden @min-[45rem]/library:block` rung.
+    const wrapper = secondary.parentElement;
+    expect(wrapper?.className ?? "").not.toMatch(/(^|\s)hidden(\s|$)/);
+    expect(wrapper?.className ?? "").not.toMatch(/@min-\[45rem\]\/library:block/);
+    // Icon-only: the visible label lives on the tooltip, not as button text.
+    expect(secondary).toHaveAttribute("data-slot", "tooltip-trigger");
+    expect(secondary).not.toHaveTextContent(t("documents.home.row.go_to_source"));
+    fireEvent.click(secondary);
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
+  });
+
+  it("carries the visible label on the tooltip of the icon-only button", async () => {
+    route({ sources: () => [source()] });
+    renderView();
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) });
+    secondary.focus();
+    const tip = await screen.findByText(t("documents.home.row.go_to_source"));
+    expect(tip.closest('[data-slot="tooltip-content"]')).toBeTruthy();
   });
 
   it("opens the DM room at the message the file was sent in", async () => {
@@ -368,11 +392,12 @@ describe("file from another module", () => {
     const adapter = renderView();
     await pickFromMenu("Hóa đơn.pdf", "Mở Email");
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/email");
-    // The row's own button says it too — and its accessible name says the
-    // visible label (WCAG 2.5.3), not the generic go-to-source copy.
+    // The row's own button is icon-only: the accessible name says the visible
+    // label (WCAG 2.5.3) and the tooltip carries the words.
     const row = await rowOf("Hóa đơn.pdf");
     const secondary = within(row).getByRole("button", { name: t("documents.home.row.open_email_named", { title: "Hóa đơn.pdf" }) });
-    expect(secondary).toHaveTextContent(t("documents.home.row.open_email"));
+    expect(secondary).toHaveAttribute("data-slot", "tooltip-trigger");
+    expect(secondary).not.toHaveTextContent(t("documents.home.row.open_email"));
     fireEvent.click(secondary);
     expect(adapter.push).toHaveBeenCalledTimes(2);
   });

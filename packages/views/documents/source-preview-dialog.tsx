@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
-import { Dialog, DialogContent, DialogTitle } from "@uniwork/ui/components/ui/dialog";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 
 /** The mutation `useDownloadDocumentSource` returns; named structurally so callers are not bound to the hook's type. */
@@ -62,16 +64,25 @@ export function useSourcePreview(download: SourcePreviewDownloader): {
       }}
     >
       <DialogContent
-        closeLabel={t("documents.home.row.preview_close")}
+        showCloseButton={false}
         overlayClassName="bg-black/70"
-        className="max-w-[calc(100%-2rem)] bg-surface p-3 sm:max-w-4xl"
+        className="max-w-[calc(100%-2rem)] gap-0 bg-surface p-3 pt-0 sm:max-w-4xl"
       >
         <DialogTitle className="sr-only">{preview?.name ?? ""}</DialogTitle>
+        {/* S2V-4: the close rides on a strip of dialog surface, so the × never
+            lands on image pixels. The strip grows for the coarse-pointer target. */}
+        <div className="pointer-coarse:h-11 flex h-7 items-start justify-end pt-1.5">
+          <DialogClose
+            render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("documents.home.row.preview_close")} />}
+          >
+            <X aria-hidden />
+          </DialogClose>
+        </div>
         {preview?.url ? (
           <img
             src={preview.url}
             alt={preview.name}
-            className="mx-auto max-h-[80vh] w-full object-contain"
+            className="mx-auto max-h-[80vh] w-auto max-w-full object-contain"
             onError={() => {
               // A mime the allowlist passed can still fail to draw: close and say so.
               close();

@@ -1,4 +1,6 @@
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
+import type { LucideIcon } from "lucide-react";
+import { ExternalLink, Mail } from "lucide-react";
 
 /** The workspace paths a source link needs; `paths.workspace(orgSlug, wsSlug)` satisfies it. */
 export interface SourceLinkPaths {
@@ -92,5 +94,18 @@ export function sourceLinkNamedLabelKey(parent: DocumentSourceFile["parent"]): s
       return "documents.home.row.open_email_named";
     default:
       return "documents.home.row.go_to_source_named";
+  }
+}
+
+/**
+ * The glyph of the row's icon button: email gets the module's Mail glyph
+ * (conventions.md §4), every other linked parent the ExternalLink it always had.
+ */
+export function sourceLinkIcon(parent: DocumentSourceFile["parent"]): LucideIcon {
+  switch (parent.kind) {
+    case "email_thread":
+      return Mail;
+    default:
+      return ExternalLink;
   }
 }
