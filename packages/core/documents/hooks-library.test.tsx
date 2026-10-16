@@ -313,6 +313,18 @@ describe("documents library hooks", () => {
     });
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it("useCreateDocumentFile refuses a parent plus a meta destination before any request", async () => {
+    const { wrapper } = setup();
+    const hook = renderHook(() => useCreateDocumentFile("w1"), { wrapper });
+    const bad = {
+      file: new File(["x"], "a.docx"),
+      parentId: "p1",
+      meta: { destination: "my_folder" },
+    } as unknown as CreateDocumentFileInput;
+    await act(async () => {
+      await expect(hook.result.current.mutateAsync(bad)).rejects.toThrow(/mutually exclusive/);
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });
-
-
