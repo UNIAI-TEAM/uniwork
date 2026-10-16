@@ -47,17 +47,8 @@ func (s *ChatService) EditChatMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	msg, err := q.GetChatMessageInRoomForUpdate(ctx, db.GetChatMessageInRoomForUpdateParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ChatMessageRow{}, ErrNotFound
-	}
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	before := decodeChatMessageMetadata(msg.Metadata)
-	meta, err := encodeMentionsMetadata(msg.Metadata, mentions)
+	before := decodeChatMessageMetadata(updated.Metadata)
+	meta, err := encodeMentionsMetadata(updated.Metadata, mentions)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}

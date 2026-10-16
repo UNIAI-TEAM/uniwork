@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -192,14 +191,18 @@ func mentionedUserIDsFromMetadata(meta chatMessageMetadata) []string {
 }
 
 func encodeMentionsMetadata(raw []byte, m chatMentions) ([]byte, error) {
-	meta := decodeChatMessageMetadata(raw)
-	meta.MentionedUserIDs = m.Named
-	meta.MentionsAll = m.All
-	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 && !meta.MentionsAll &&
-		meta.Priority == "" && meta.Poll == nil && meta.Reminder == nil && meta.Note == nil && meta.Post == nil {
-		return []byte("{}"), nil
+	var named, all any
+	if len(m.Named) > 0 {
+		named = m.Named
 	}
-	return json.Marshal(meta)
+	if m.All {
+		all = true
+	}
+	out, err := patchMetadataKey(raw, "mentioned_user_ids", named)
+	if err != nil {
+		return nil, err
+	}
+	return patchMetadataKey(out, "mentions_all", all)
 }
 
 // messageMentionsCurrentUser reports whether a message mentions userID; an
