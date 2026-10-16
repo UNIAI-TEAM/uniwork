@@ -942,6 +942,28 @@ func TestResourceURLDocumentVectors(t *testing.T) {
 		}
 	})
 
+	t.Run("break-glass notification opens the document on the access panel", func(t *testing.T) {
+		row, err := f.q.UpsertNotification(f.ctx, db.UpsertNotificationParams{
+			ID: util.NewID(), UserID: f.member.ID, OrganizationID: f.orgID,
+			WorkspaceID: pgtype.Text{String: f.wsID, Valid: true},
+			Kind:        KindDocumentBreakGlass, GroupKey: "document:" + docID + ":break_glass:" + util.NewID(),
+			ResourceType: "document", ResourceID: docID,
+			ActorKind: "human", ActorID: f.owner.ID, TitleKey: TitleKey(KindDocumentBreakGlass),
+			Params: `{"document_id":"` + docID + `","grant_id":"01J8X4GRNT1P2Q3R4S5T6U7V"}`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws/documents/" + docID + "?access=break_glass"
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("no comment id opens the bare document", func(t *testing.T) {
 		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, f.member.ID, f.wsID, `{}`))
 		if err != nil {

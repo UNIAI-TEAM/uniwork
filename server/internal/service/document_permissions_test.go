@@ -267,8 +267,14 @@ func runPermCases(t *testing.T, f *docPermFixture, cases []permCase) {
 					t.Fatalf("authorize err = %v, want %v", aerr, c.wantErr)
 				}
 			case c.level == DocumentLevelNone:
-				if !errors.Is(aerr, ErrNotFound) {
-					t.Fatalf("authorize err = %v, want ErrNotFound", aerr)
+				// An AdminScope caller is told the content is restricted;
+				// anyone else never learns the document exists.
+				want := ErrNotFound
+				if got.AdminScope {
+					want = ErrDocumentRestricted
+				}
+				if !errors.Is(aerr, want) {
+					t.Fatalf("authorize err = %v, want %v", aerr, want)
 				}
 			default:
 				if aerr != nil {
@@ -336,7 +342,9 @@ func TestDocumentPermission(t *testing.T) {
 
 		// Restricted document: the member line is gone, shares remain.
 		{"restricted: acl owner", H(tn.aclOwner.ID), docR, manage, member, nil},
-		{"restricted: ws admin", H(tn.wsAdmin.ID), docR, manage, member, nil},
+		// DOC-05: a ws admin administers a restricted document but reads
+		// it only through a share or break-glass (AdminScope, level none).
+		{"restricted: ws admin", H(tn.wsAdmin.ID), docR, none, "", nil},
 		{"restricted: plain member", H(tn.member.ID), docR, none, "", nil},
 		{"restricted: user share view", H(tn.outsider.ID), docR, view, share, nil},
 		{"restricted: workspace share edit", H(tn.bMember.ID), docR, edit, share, nil},

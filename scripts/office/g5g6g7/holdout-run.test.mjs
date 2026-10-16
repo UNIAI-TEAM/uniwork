@@ -615,8 +615,8 @@ describe('answer adapter', () => {
 const usageReader = async (ids) => new Map(ids.map((id, i) => [id, { promptId: 'office_uniwork_ai@test', provider: 'fake', model: 'stub-resolved', status: 'succeeded', latencyMs: 100 + (i % 7), inputTokens: 5, outputTokens: 2 }]));
 const noSleep = async () => {};
 
-async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, mintDelayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
-  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs, mintDelayMs });
+async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, mintDelayMs = 0, toolRoundLimit = 8, announceSteps = true, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
+  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs, mintDelayMs, toolRoundLimit, announceSteps });
   const session = await createServerSession({ serverUrl: facade.url });
   const mounts = [];
   const wrapped = { ...session, mount: (id, o) => { mounts.push({ id, ...o }); return mount ? mount(id, o, session, mounts.length) : session.mount(id, o); } };
@@ -676,7 +676,7 @@ describe('runner against a stub façade', () => {
     assert.ok(ask.toolCalls.length >= 1);
     assert.ok(ask.calls.every((c) => c.status === 200 && c.traceId && c.clientMs >= 0 && c.usage.latencyMs >= 100));
     assert.deepEqual(ask.counts, { rateLimited: 0, serverErrors: 0, retries: 0 });
-    assert.deepEqual(ask.renewals, [], 'a reference run renews nothing');
+    assert.deepEqual(ask.renewals.filter((r) => r.kind !== 'mount_wait'), [], 'a reference run renews nothing (waiting for a shared mount is not a renewal, G712-70)');
     assert.equal(ask.tokens.source, 'ai_usage_events');
     assert.equal(ask.tokens.input, 5 * ask.calls.length);
     assert.equal(ask.answer.tools.used.includes('compute'), true);
@@ -772,13 +772,99 @@ describe('runner faults and failures', () => {
     assert.equal(facade.stats.mints, 2, 'the mount mint, then the renewal');
   });
 
-  it('stops a run that never answers at the façade limit of model calls', async () => {
+  it('ends an ask that never stops calling tools at the run cap: nine model calls, cap_reached, no tenth call (G7-12 run409)', async () => {
     const forever = mutate((r, ctx) => ({ toolCalls: [{ id: `call_${ctx.state.step}`, type: 'function', function: { name: 'read_range', arguments: '{}' } }] }));
-    const { docs } = await runWith({ ...only(readOnlyNumeric), model: forever }, 'limit');
-    const [ask] = docs[0].asks;
-    assert.equal(ask.modelTurns, MAX_STEPS);
-    assert.match(ask.error, /run_limit_reached/);
-    assert.equal(ask.status, 'fail');
+    const { docs, facade } = await runWith({ ...only(readOnlyNumeric), model: forever, threads: 1 }, 'limit');
+    assert.equal(docs[0].status, 'completed');
+    for (const ask of docs[0].asks) {
+      assert.equal(ask.modelTurns, MAX_STEPS, '1 question turn + 8 tool rounds');
+      assert.equal(ask.calls.length, MAX_STEPS, 'the tenth call of a run is never sent');
+      assert.deepEqual(ask.capReached, { kind: 'tool_rounds', step: 8, limit: 8, refused: false });
+      assert.equal(ask.errored, false, 'a cap-ended ask is not an error');
+      assert.equal(ask.error, null);
+      assert.equal(ask.status, 'fail', 'scored on what it produced: no final reply, no reporting line');
+    }
+    assert.equal(facade.requests.length, 2 * MAX_STEPS, 'nothing past the cap reached the façade');
+  });
+
+  it('reads the cap from every answer: a run whose limit is spent ends there, not at MAX_STEPS (G7-12 run409)', async () => {
+    const forever = mutate((r, ctx) => ({ toolCalls: [{ id: `call_${ctx.state.step}`, type: 'function', function: { name: 'read_range', arguments: '{}' } }] }));
+    const { docs, facade } = await runWith({ ...only(readOnlyNumeric), model: forever, threads: 1, toolRoundLimit: 2 }, 'limit-low');
+    for (const ask of docs[0].asks) {
+      assert.equal(ask.calls.length, 3, 'two tool rounds spent: the third call is the last of the run');
+      assert.deepEqual(ask.capReached, { kind: 'tool_rounds', step: 2, limit: 2, refused: false });
+      assert.equal(ask.errored, false);
+    }
+    assert.equal(facade.requests.length, 6, 'the stop follows the announced limit, not the ninth call');
+  });
+
+  it('treats a final answer that lands exactly on the cap as a natural finish: no cap metadata, no extra call, scored normally (G712-R13-1/2)', async () => {
+    // The model spends the announced cap on tool rounds and then answers for real on the last one (step == limit): no
+    // tool call is pending, so the cap did not cut the ask off - it ends by itself, exactly like a pre-cap final.
+    const roundsThenFinal = (rounds) => ({ body, state }) => {
+      if (state.step >= rounds) return { content: `${readOnlyNumeric.referenceAnswer.text}\n${referenceLine(readOnlyNumeric)}` };
+      const names = toolsToCall(readOnlyNumeric, body.tools ?? []);
+      return { toolCalls: names.map((name, i) => ({ id: `call_${state.step}_${i}`, type: 'function', function: { name, arguments: argumentsFor(readOnlyNumeric, name) } })) };
+    };
+    const atCap = await runWith({ ...only(readOnlyNumeric), model: roundsThenFinal(2), threads: 1, toolRoundLimit: 2 }, 'final-at-cap');
+    for (const ask of atCap.docs[0].asks) {
+      assert.equal(ask.calls.length, 3, 'limit + 1 calls: two tool rounds and the final answer at step == limit');
+      assert.equal(ask.modelTurns, 3);
+      assert.equal(ask.capReached, null, 'a final answer with no pending tool call is not a cap stop; the record keeps the field null');
+      assert.equal(ask.errored, false);
+      assert.equal(ask.status, 'pass', 'the final reply is scored like any other answer');
+      assert.ok(ask.checks.some((c) => c.id.startsWith('numeric:') && c.status === 'pass'), 'the numeric check ran on the final reply');
+    }
+    assert.equal(atCap.facade.requests.length, 6, 'nothing past the final answer: limit + 1 calls for each of the two asks');
+
+    const beforeCap = await runWith({ ...only(readOnlyNumeric), model: roundsThenFinal(1), threads: 1, toolRoundLimit: 2 }, 'final-before-cap');
+    for (const ask of beforeCap.docs[0].asks) {
+      assert.equal(ask.calls.length, 2, 'one tool round and the final answer, before the cap');
+      assert.equal(ask.capReached, null);
+      assert.equal(ask.errored, false);
+      assert.equal(ask.status, 'pass');
+    }
+  });
+
+  it('never sends a tenth call even when the answer carries no step/limit (G7-12 run409)', async () => {
+    const forever = mutate((r, ctx) => ({ toolCalls: [{ id: `call_${ctx.state.step}`, type: 'function', function: { name: 'read_range', arguments: '{}' } }] }));
+    const { docs, facade } = await runWith({ ...only(readOnlyNumeric), model: forever, threads: 1, announceSteps: false }, 'limit-unannounced');
+    for (const ask of docs[0].asks) {
+      assert.equal(ask.calls.length, MAX_STEPS);
+      assert.deepEqual(ask.capReached, { kind: 'tool_rounds', step: null, limit: null, refused: false }, 'no announced cap: the nine calls of a full run are the stop');
+    }
+    assert.equal(facade.requests.length, 2 * MAX_STEPS);
+  });
+
+  it('ends an ask at a 409 run_limit_reached: cap_reached with the refusal\'s limit, never an ask error (G7-12 run409)', async () => {
+    // Every second request is the tool-result turn of an ask: forced to the refusal the run409 report §2 shows on the wire.
+    const body = { error: { code: 'run_limit_reached', message: 'hết trần', fields: { limit: 'tool_rounds' } } };
+    const { docs, facade } = await runWith({
+      ...only(readOnlyNumeric), threads: 1, hooks: { before: (i) => (i % 2 === 1 ? { status: 409, body } : null) },
+    }, 'refused');
+    assert.equal(docs[0].status, 'completed', 'a refusal ends an ask, it never aborts the run');
+    assert.equal(docs[0].asks.filter((a) => a.errored).length, 0, 'a cap refusal is not counted as an error');
+    for (const ask of docs[0].asks) {
+      assert.deepEqual(ask.capReached, { kind: 'tool_rounds', step: 0, limit: 8, refused: true }, 'the refusal\'s fields.limit is the recorded cap');
+      assert.deepEqual(ask.calls.map((c) => c.status), [200, 409], 'the refusal is a call, not a retry');
+      assert.equal(ask.calls.at(-1).refusal, 'run_limit_reached');
+      assert.equal(ask.error, null);
+      assert.equal(ask.status, 'fail', 'scored on what the model produced before the refusal');
+    }
+    assert.equal(facade.requests.length, 4, 'a refusal is never retried');
+  });
+
+  it('keeps a 409 conversation_expired or run_expired a real ask error: only the cap ends an ask quietly (G7-12 run409)', async () => {
+    for (const code of ['conversation_expired', 'run_expired']) {
+      const body = { error: { code, message: 'hội thoại hoặc run đã hết' } };
+      const { docs } = await runWith({ ...only(readOnlyNumeric), threads: 1, hooks: { before: (i) => (i === 1 ? { status: 409, body } : null) } }, `refused-${code}`);
+      const [ask] = docs[0].asks;
+      assert.equal(ask.errored, true, code);
+      assert.equal(ask.capReached, null, code);
+      assert.equal(ask.status, 'fail', code);
+      assert.match(ask.error, new RegExp(`HTTP 409.*${code}`), code);
+      assert.equal(docs[0].status, 'completed', 'one errored ask does not abort the run');
+    }
   });
 
   it('replays setup.history before the question and runs the case through the same path', async () => {
@@ -911,6 +997,22 @@ describe('runner faults and failures', () => {
     ];
     assert.deepEqual([...fixtureEmails(synthetic)], ['ops@example.org'], 'every address-shaped value of the loaded case data is read');
     assert.deepEqual([...fixtureEmails([])], [], 'a case set without an address exempts nothing');
+  });
+
+  it('reports an address-shaped secret under its hard kind, so it still voids a run (G712-71)', async () => {
+    // The soft address rule (G712-62) runs last: a value that is also a key, a credential assignment or a private host
+    // keeps the hard kind, and with it the flag that keeps the run out of a pass.
+    assert.deepEqual(redactSecrets('key sk-abcdefgh1234@example.com').hits, [{ kind: 'key', count: 1 }], 'an address-shaped key is a key');
+    assert.deepEqual(redactSecrets('api_key=abc12345def67890@example.com').hits, [{ kind: 'credential', count: 1 }], 'an address-shaped credential assignment is a credential');
+    assert.deepEqual(redactSecrets('mail user@gw.corp.example:8443').hits, [{ kind: 'private_host', count: 1 }], 'a private host carrying an address is a private host');
+    assert.deepEqual(redactSecrets('ops@example.com').hits, [{ kind: 'email', count: 1 }], 'a bare address stays the soft kind');
+    assert.deepEqual(redactSecrets('write to ops@example.com today', { exemptEmails: new Set(['ops@example.com']) }), { text: 'write to ops@example.com today', hits: [] }, 'the exact-address exemption still holds');
+    // Through the runner: the run file lists the hard kind, which the report turns into "a flagged run cannot count as a pass".
+    const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'write to sk-abcdefgh1234@example.com\nUNIWORK_ANSWER') } : r));
+    const { docs, files } = await runWith({ ...only(readOnlyNumeric), model: leak }, 'secret-address');
+    assert.doesNotMatch(fs.readFileSync(files[0], 'utf8'), /sk-abcdefgh1234@example\.com/);
+    assert.deepEqual(docs[0].asks.map((a) => a.redactions.map((h) => h.kind)), [['key'], ['key']], 'the ask lists the hard kind, not the soft address kind');
+    assert.deepEqual(docs[0].asks.map((a) => a.status), ['pass', 'pass'], 'redaction happens after grading and never changes a verdict');
   });
 
   it('keeps the base64 guard\'s miss rate at or under the number its comment documents (G712-41)', () => {
@@ -1051,8 +1153,12 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
       assert.equal(facade.stats.uploads, 2, 'each fixture is uploaded once; a renewal mints for the document that still exists');
       assert.ok(facade.stats.mints > facade.stats.uploads, 'the renewals minted again');
       const notes = doc.asks.flatMap((a) => a.renewals);
-      assert.equal(notes.length, doc.renewals.session + doc.renewals.frame, 'the run summary counts every ask note');
-      assert.ok(notes.every((r) => ['session', 'frame'].includes(r.kind) && Number.isFinite(r.ms) && r.ms >= 0), JSON.stringify(notes));
+      assert.deepEqual(
+        ['session', 'frame'].map((kind) => notes.filter((r) => r.kind === kind).length),
+        [doc.renewals.session, doc.renewals.frame],
+        'the run summary counts the renewal notes, one per token minted (a shared-mount wait is not a renewal, G712-60, G712-70)',
+      );
+      assert.ok(notes.every((r) => ['session', 'frame', 'mount_wait'].includes(r.kind) && Number.isFinite(r.ms) && r.ms >= 0), JSON.stringify(notes));
       // The renewal time is not a call's latency: the retried call keeps its own clientMs, and the renewal is named on it.
       const retried = doc.asks.flatMap((a) => a.calls).filter((c) => c.renewed);
       assert.ok(retried.length >= 1);
@@ -1132,6 +1238,43 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
     } finally {
       await facade.close();
     }
+  });
+
+  it('leaves the shared-mount wait out of the joining ask\'s clean wall too (G712-70)', async () => {
+    const fixtureId = one.fixtures[0].id;
+    const modelSum = (a) => a.calls.filter((c) => c.status === 200).reduce((n, c) => n + c.clientMs, 0);
+    const cleanOverhead = (a) => a.wallMsNoRenewals - modelSum(a);
+    // One arm where both asks renew together (one mints the token, the other joins that mint) and one where neither
+    // renews; in both the mount is warmed first, so a wall carries only the ask's own work beside the shared mint.
+    const arm = async (dirName, hooks) => {
+      const facade = await startStubFacade({ model: scriptedModel(cases), hooks, mintDelayMs: 150 });
+      try {
+        const session = await createServerSession({ serverUrl: facade.url });
+        await session.mount(fixtureId);
+        const files = await runHoldout({
+          cases, runs: 1, threads: 2, outDir: path.join(tmpRoot, dirName), session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+          onlyIds: [one.id], sessionId: `s-${dirName}`, opts: { sleep: noSleep },
+        });
+        return JSON.parse(fs.readFileSync(files[0], 'utf8')).asks;
+      } finally {
+        await facade.close();
+      }
+    };
+    const [vi, en] = await arm('renew-join-wall', { before: (i) => (i < 2 ? { status: 401 } : null) });
+    assert.equal([vi, en].reduce((n, a) => n + a.renewals.filter((r) => r.kind === 'frame').length, 0), 1, 'one token was minted, so one frame note');
+    const [plainVi, plainEn] = await arm('renew-join-plain', {});
+    assert.deepEqual([plainVi, plainEn].map((a) => a.renewals), [[], []], 'an ask that renewed nothing records no note');
+    const baseline = Math.max(cleanOverhead(plainVi), cleanOverhead(plainEn));
+    // Whichever of the two asks joined the other's mint, its clean wall must read at the level of an ask that renewed
+    // nothing: before the note existed the joining ask held the whole held-back mint as "server overhead" (G712-70).
+    for (const ask of [vi, en]) {
+      assert.ok(cleanOverhead(ask) - baseline < 75, `every ask reads its server overhead at the level of an ask that renewed nothing: ${cleanOverhead(ask)} vs ${baseline} (the mint is held back 150 ms)`);
+    }
+    const minting = [vi, en].find((a) => a.renewals.some((r) => r.kind === 'frame'));
+    const joining = [vi, en].find((a) => a.renewals.some((r) => r.kind === 'mount_wait'));
+    assert.ok(minting && joining, `one ask mints the token and the other joins its mint: ${JSON.stringify([vi, en].map((a) => a.renewals))}`);
+    assert.ok(joining.renewals.find((r) => r.kind === 'mount_wait').ms >= 100, `the join wait is the held-back mint: ${joining.renewalMs} ms`);
+    assert.equal(joining.wallMsNoRenewals, Number((joining.wallMs - joining.renewalMs).toFixed(1)), 'the raw wall is kept beside the clean one');
   });
 
   it('redacts the test user\'s address when a renewal failure text carries it: run file and log lines stay clean (G712-62)', async () => {
@@ -1257,6 +1400,21 @@ describe('sessions, manifest and tool surface', () => {
     }
   });
 
+  it('redacts the test user\'s address in a session-setup failure before it reaches stderr (G712-72)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    const facade = await startStubFacade({ hooks: { register: (payload) => ({ status: 400, body: { error: { code: 'invalid', message: `email ${payload.email} is not allowed` } } }) } });
+    try {
+      await assert.rejects(createServerSession({ serverUrl: facade.url, email }), (err) => {
+        assert.match(err.message, /^\/api\/v1\/auth\/register failed: 400 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
+    } finally {
+      await facade.close();
+    }
+  });
+
   it('hashes the case set, not its content: a different set gives a different hash', async () => {
     const a = await runWith({ onlyIds: null, subset: cases.slice(0, 2), threads: 1 }, 'hash-a');
     const b = await runWith({ onlyIds: null, subset: cases.slice(0, 3), threads: 1 }, 'hash-b');
@@ -1340,9 +1498,19 @@ describe('usage rows and arguments', () => {
     assert.equal(parseArgs(['--server-url', 'http://localhost:1', '--anchors', 'lenient']).anchors, 'lenient');
   });
 
-  it('resolves symlinks before deciding an --out is outside the repo (G712-15)', () => {
+  it('resolves symlinks before deciding an --out is outside the repo (G712-15)', (t) => {
     const link = path.join(tmpRoot, 'link-into-repo');
-    fs.symlinkSync(path.join(repoRoot, 'docs'), link);
+    try {
+      fs.symlinkSync(path.join(repoRoot, 'docs'), link);
+    } catch (err) {
+      // G712-73: the sibling of the review export's symlink case - a host that refuses symlink creation (win32 without
+      // developer mode) skips this case with the reason instead of failing it, and a host that can create one runs it.
+      if (err?.code === 'EPERM' || err?.code === 'EACCES') {
+        t.skip(`this host does not permit creating a symlink (${err.code})`);
+        return;
+      }
+      throw err;
+    }
     assert.equal(isInsideRepo(path.join(link, 'runs')), true);
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--out', path.join(link, 'runs')]), /inside the repo/);
     assert.equal(isInsideRepo(path.join(tmpRoot, 'plain', 'runs')), false);

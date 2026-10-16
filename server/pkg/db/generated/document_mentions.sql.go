@@ -24,13 +24,22 @@ JOIN users u ON u.id = om.user_id
 WHERE om.organization_id = $1::text
   AND om.deactivated_at IS NULL
   AND (
-    om.role IN ('owner', 'admin')
-    OR u.id = $2::text
+    ($2::boolean
+      AND (om.role IN ('owner', 'admin')
+        OR EXISTS (
+          SELECT 1 FROM workspace_members wm
+          WHERE wm.workspace_id = $3::text
+            AND wm.user_id = u.id)))
+    OR u.id = $4::text
     OR EXISTS (
-      SELECT 1 FROM workspace_members wm
-      WHERE wm.workspace_id = $3::text
-        AND wm.user_id = u.id
-        AND (wm.role IN ('owner', 'admin') OR $4::boolean))
+      SELECT 1 FROM document_break_glass_grants bg
+      WHERE bg.organization_id = $1::text
+        AND bg.workspace_id = $3::text
+        AND bg.document_id = $5::text
+        AND bg.actor_id = u.id
+        AND bg.actor_kind = 'human'
+        AND bg.revoked_at IS NULL
+        AND bg.expires_at > now())
     OR EXISTS (
       SELECT 1 FROM document_shares ds
       WHERE ds.organization_id = $1::text
@@ -63,9 +72,9 @@ LIMIT $8::int
 
 type ListDocumentMentionCandidatesParams struct {
 	OrganizationID   string      `json:"organization_id"`
-	AclOwnerID       pgtype.Text `json:"acl_owner_id"`
-	WorkspaceID      string      `json:"workspace_id"`
 	WorkspaceVisible bool        `json:"workspace_visible"`
+	WorkspaceID      string      `json:"workspace_id"`
+	AclOwnerID       pgtype.Text `json:"acl_owner_id"`
 	DocumentID       string      `json:"document_id"`
 	Q                pgtype.Text `json:"q"`
 	SeeMembers       bool        `json:"see_members"`
@@ -80,16 +89,19 @@ type ListDocumentMentionCandidatesRow struct {
 	AvatarFileID pgtype.Text `json:"avatar_file_id"`
 }
 
-// Mention candidates for one document (G8-06, UNI-1401): the people who hold
-// at least view on it today, read from the same rows the document level rule
-// reads - effective workspace members (a workspace_members row; every member
-// when the document is workspace-visible, only its owner/admin when it is
-// restricted), the organization owners/admins RequireMember folds into
-// workspace admins, the ACL owner, and the live shares on the document (user,
-// workspace and organization principals). A deactivated organization member
-// is out: both membership gates refuse them (F-03). The caller is authorized
-// by the service before this runs, so the query only lists; a document whose
-// access is delegated to an owning product never reaches it.
+// Mention candidates for one document (G8-06, UNI-1401; G8-18, UNI-1413): the
+// people who hold at least view on it today, read from the same rows the
+// document level rule reads. On a workspace-visible document that is the
+// effective workspace members (a workspace_members row), the organization
+// owners/admins RequireMember folds into workspace admins, the ACL owner and
+// the live shares on the document (user, workspace and organization
+// principals). On a restricted document (workspace_visible = false) the
+// implicit owner/admin readers are gone (DOC-05): only the ACL owner, a live
+// share or a live break-glass grant makes someone a reader. A deactivated
+// organization member is out: both membership gates refuse them (F-03). The
+// caller is authorized by the service before this runs, so the query only
+// lists; a document whose access is delegated to an owning product never
+// reaches it.
 //
 // The search term arrives already folded (foldForSearch) and escaped, and is
 // matched against uw_fold_search of the display name and, only for a caller
@@ -98,9 +110,9 @@ type ListDocumentMentionCandidatesRow struct {
 func (q *Queries) ListDocumentMentionCandidates(ctx context.Context, arg ListDocumentMentionCandidatesParams) ([]ListDocumentMentionCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentMentionCandidates,
 		arg.OrganizationID,
-		arg.AclOwnerID,
-		arg.WorkspaceID,
 		arg.WorkspaceVisible,
+		arg.WorkspaceID,
+		arg.AclOwnerID,
 		arg.DocumentID,
 		arg.Q,
 		arg.SeeMembers,
@@ -119,6 +131,155 @@ func (q *Queries) ListDocumentMentionCandidates(ctx context.Context, arg ListDoc
 			&i.Email,
 			&i.AvatarUrl,
 			&i.AvatarFileID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentMentionCandidatesWithAccess = `-- name: ListDocumentMentionCandidatesWithAccess :many
+SELECT
+  c.user_id,
+  c.display_name,
+  c.email,
+  c.avatar_url,
+  c.avatar_file_id,
+  c.can_view
+FROM (
+  SELECT
+    u.id AS user_id,
+    u.display_name,
+    u.email,
+    u.avatar_url,
+    u.avatar_file_id,
+    (
+      ($1::boolean
+        AND (om.role IN ('owner', 'admin')
+          OR EXISTS (
+            SELECT 1 FROM workspace_members wm
+            WHERE wm.workspace_id = $2::text
+              AND wm.user_id = u.id)))
+      OR u.id = $3::text
+      OR EXISTS (
+        SELECT 1 FROM document_break_glass_grants bg
+        WHERE bg.organization_id = $4::text
+          AND bg.workspace_id = $2::text
+          AND bg.document_id = $5::text
+          AND bg.actor_id = u.id
+          AND bg.actor_kind = 'human'
+          AND bg.revoked_at IS NULL
+          AND bg.expires_at > now())
+      OR EXISTS (
+        SELECT 1 FROM document_shares ds
+        WHERE ds.organization_id = $4::text
+          AND ds.workspace_id = $2::text
+          AND ds.document_id = $5::text
+          AND ds.revoked_at IS NULL
+          AND (
+            (ds.principal_type = 'user' AND ds.principal_id = u.id)
+            OR (ds.principal_type = 'organization' AND ds.principal_id = ds.organization_id)
+            OR (ds.principal_type = 'workspace'
+                AND EXISTS (
+                  SELECT 1 FROM workspaces w
+                  WHERE w.id = ds.principal_id
+                    AND w.organization_id = ds.organization_id)
+                AND (om.role IN ('owner', 'admin')
+                  OR EXISTS (
+                    SELECT 1 FROM workspace_members wm2
+                    WHERE wm2.workspace_id = ds.principal_id
+                      AND wm2.user_id = u.id)))))
+    )::boolean AS can_view
+  FROM organization_members om
+  JOIN users u ON u.id = om.user_id
+  WHERE om.organization_id = $4::text
+    AND om.deactivated_at IS NULL
+    AND (
+      om.role IN ('owner', 'admin')
+      OR EXISTS (
+        SELECT 1 FROM workspace_members wm3
+        WHERE wm3.workspace_id = $2::text
+          AND wm3.organization_id = $4::text
+          AND wm3.user_id = u.id)
+      OR EXISTS (
+        SELECT 1 FROM document_shares dsu
+        WHERE dsu.organization_id = $4::text
+          AND dsu.workspace_id = $2::text
+          AND dsu.document_id = $5::text
+          AND dsu.revoked_at IS NULL
+          AND dsu.principal_type = 'user'
+          AND dsu.principal_id = u.id)
+    )
+    AND (
+      $6::text IS NULL
+      OR uw_fold_search(u.display_name) LIKE '%' || $6::text || '%'
+      OR ($7::boolean
+          AND uw_fold_search(u.email) LIKE '%' || $6::text || '%')
+    )
+) c
+ORDER BY c.can_view DESC, c.display_name, c.user_id
+LIMIT $8::int
+`
+
+type ListDocumentMentionCandidatesWithAccessParams struct {
+	WorkspaceVisible bool        `json:"workspace_visible"`
+	WorkspaceID      string      `json:"workspace_id"`
+	AclOwnerID       pgtype.Text `json:"acl_owner_id"`
+	OrganizationID   string      `json:"organization_id"`
+	DocumentID       string      `json:"document_id"`
+	Q                pgtype.Text `json:"q"`
+	SeeMembers       bool        `json:"see_members"`
+	RowLimit         int32       `json:"row_limit"`
+}
+
+type ListDocumentMentionCandidatesWithAccessRow struct {
+	UserID       string      `json:"user_id"`
+	DisplayName  string      `json:"display_name"`
+	Email        string      `json:"email"`
+	AvatarUrl    pgtype.Text `json:"avatar_url"`
+	AvatarFileID pgtype.Text `json:"avatar_file_id"`
+	CanView      bool        `json:"can_view"`
+}
+
+// The picker's include=no_access pool for an ordinary document (G8-18,
+// UNI-1413): the effective members of the document's workspace (a
+// workspace_members row, or an organization owner/admin RequireMember folds
+// into a workspace admin) plus the people with a live direct share, each with
+// can_view - the same predicate ListDocumentMentionCandidates reads, so a row
+// is can_view exactly when the default picker would have listed it. A
+// deactivated organization member is out. Readable rows first, then by name,
+// so a short page keeps the people who can open the document. The service
+// runs it only for a caller who may list the workspace's members (see_members)
+// and after authorizing the caller; the search term arrives folded and escaped.
+func (q *Queries) ListDocumentMentionCandidatesWithAccess(ctx context.Context, arg ListDocumentMentionCandidatesWithAccessParams) ([]ListDocumentMentionCandidatesWithAccessRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentMentionCandidatesWithAccess,
+		arg.WorkspaceVisible,
+		arg.WorkspaceID,
+		arg.AclOwnerID,
+		arg.OrganizationID,
+		arg.DocumentID,
+		arg.Q,
+		arg.SeeMembers,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentMentionCandidatesWithAccessRow{}
+	for rows.Next() {
+		var i ListDocumentMentionCandidatesWithAccessRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.DisplayName,
+			&i.Email,
+			&i.AvatarUrl,
+			&i.AvatarFileID,
+			&i.CanView,
 		); err != nil {
 			return nil, err
 		}

@@ -50,9 +50,16 @@ func docsCreatePageBody(t *testing.T, w *docsWorld, token string, body map[strin
 // invitation flow into the test workspace.
 func docsJoinWorkspace(t *testing.T, w *docsWorld, email string) (token, userID string) {
 	t.Helper()
+	return docsJoinWorkspaceAs(t, w, email, "member")
+}
+
+// docsJoinWorkspaceAs is docsJoinWorkspace with the workspace role the
+// invitation carries (member or admin).
+func docsJoinWorkspaceAs(t *testing.T, w *docsWorld, email, role string) (token, userID string) {
+	t.Helper()
 	token, userID = filesRegister(t, w.srv, email)
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/invitations", w.token,
-		map[string]any{"emails": []string{email}, "role": "member"})
+		map[string]any{"emails": []string{email}, "role": role})
 	if res.StatusCode != 200 {
 		t.Fatalf("invite %s: %d %v", email, res.StatusCode, out)
 	}

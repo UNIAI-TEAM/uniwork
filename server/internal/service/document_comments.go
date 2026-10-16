@@ -366,7 +366,7 @@ func validateDocumentCommentLegacyType(legacyType string) error {
 	return Invalid("type không hợp lệ")
 }
 
-// AddDocumentComment creates a threaded comment: edit level inside the
+// AddDocumentComment creates a threaded comment: comment level inside the
 // document lock, idempotent under Idempotency-Key in the
 // documents.comment_create scope.
 func (s *DocumentService) AddDocumentComment(ctx context.Context, actor Actor, documentID string, in AddCommentInput, idempotencyKey string) (db.DocumentComment, error) {
@@ -374,7 +374,7 @@ func (s *DocumentService) AddDocumentComment(ctx context.Context, actor Actor, d
 		return db.DocumentComment{}, err
 	}
 	var out db.DocumentComment
-	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelComment, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		ref := docCommentRef(doc)
 		// The anchor half of the create (G8-04): validate anchor + base
 		// version inside the document transaction before anything is claimed.
@@ -442,14 +442,14 @@ func (s *DocumentService) AddDocumentComment(ctx context.Context, actor Actor, d
 }
 
 // UpdateDocumentComment edits a body; author or manage, and only while the
-// actor still holds edit on the document.
+// actor still holds comment level on the document.
 func (s *DocumentService) UpdateDocumentComment(ctx context.Context, actor Actor, commentID string, in UpdateCommentInput) (db.DocumentComment, error) {
 	before, err := s.documentCommentByID(ctx, commentID)
 	if err != nil {
 		return db.DocumentComment{}, err
 	}
 	var out db.DocumentComment
-	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelComment, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		out, err = updateCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID, in)
 		if err != nil {
 			return err
@@ -469,7 +469,7 @@ func (s *DocumentService) DeleteDocumentComment(ctx context.Context, actor Actor
 		return "", err
 	}
 	var outcome string
-	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelComment, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		outcome, err = deleteDocumentCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID)
 		return err
 	})
@@ -593,12 +593,14 @@ func deleteDocumentCommentOn(ctx context.Context, q *db.Queries, ad documentComm
 	return DocumentCommentOutcomeRemoved, nil
 }
 
-// ResolveDocumentComment marks a comment resolved (edit level; idempotent).
+// ResolveDocumentComment marks a comment resolved (edit level, or comment
+// level when the caller authored the thread's root comment; idempotent).
 func (s *DocumentService) ResolveDocumentComment(ctx context.Context, actor Actor, commentID string) (db.DocumentComment, error) {
 	return s.setDocumentCommentResolved(ctx, actor, commentID, true)
 }
 
-// UnresolveDocumentComment clears resolution (edit level; idempotent).
+// UnresolveDocumentComment clears resolution (edit level, or comment level
+// when the caller authored the thread's root comment; idempotent).
 func (s *DocumentService) UnresolveDocumentComment(ctx context.Context, actor Actor, commentID string) (db.DocumentComment, error) {
 	return s.setDocumentCommentResolved(ctx, actor, commentID, false)
 }
@@ -609,34 +611,58 @@ func (s *DocumentService) setDocumentCommentResolved(ctx context.Context, actor 
 		return db.DocumentComment{}, err
 	}
 	var out db.DocumentComment
-	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
-		out, err = setCommentResolvedOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID, on)
+	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelComment, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+		ad := documentCommentAdapter{svc: s, access: access}
+		ref := docCommentRef(doc)
+		if !access.Level.AtLeast(DocumentLevelEdit) {
+			cur, err := loadInResource(ctx, q, ad, ref, commentID)
+			if err != nil {
+				return err
+			}
+			for cur.ParentCommentID.Valid {
+				parent, err := ad.tenantGet(ctx, q, ref, cur.ParentCommentID.String)
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrNotFound
+				}
+				if err != nil {
+					return err
+				}
+				if parent.DocumentID != ref.ResourceID {
+					return ErrNotFound
+				}
+				cur = parent
+			}
+			if cur.AuthorID != actor.ID || cur.AuthorKind != string(actor.Kind) {
+				return ErrForbidden
+			}
+		}
+		out, err = setCommentResolvedOn(ctx, q, ad, ref, actor, commentID, on)
 		return err
 	})
 	return out, err
 }
 
-// AddDocumentCommentReaction upserts an emoji on a comment (edit level).
+// AddDocumentCommentReaction upserts an emoji on a comment (comment level).
 func (s *DocumentService) AddDocumentCommentReaction(ctx context.Context, actor Actor, commentID, emoji string) (db.CommentReaction, error) {
 	before, err := s.documentCommentByID(ctx, commentID)
 	if err != nil {
 		return db.CommentReaction{}, err
 	}
 	var out db.CommentReaction
-	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelComment, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		out, err = reactToCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID, emoji)
 		return err
 	})
 	return out, err
 }
 
-// RemoveDocumentCommentReaction deletes the caller's emoji (edit level).
+// RemoveDocumentCommentReaction deletes the caller's emoji (comment level).
 func (s *DocumentService) RemoveDocumentCommentReaction(ctx context.Context, actor Actor, commentID, emoji string) error {
 	before, err := s.documentCommentByID(ctx, commentID)
 	if err != nil {
 		return err
 	}
-	return s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	return s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelComment, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		return unreactToCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID, emoji)
 	})
 }

@@ -1,6 +1,6 @@
 # Documents — Phụ lục: Thư mục nhiều cấp (UNI-1425)
 
-> **Trạng thái:** in-progress — hợp đồng v1.0 (đóng băng), 2026-10-13 — FD-D1..FD-D10 đã ký (FD-D2..FD-D10 ký ~19:05 UTC+7 đúng các khuyến nghị của decision packet `reports/plan-folders/decision-packet.md`, trạng thái signed); §4 là hợp đồng, đổi §4 chỉ qua `decision_required` của Advisor. Lịch sử: v0.1 soạn theo yêu cầu người dùng (~15:35 UTC+7: thêm spec + plan cho UNI-1425 theo cách đã làm với G8/UNI-1331); v0.2 xử lý review FE r1 + BE r1 (`reports/plan-folders/review-{fe,be}-1.md`, bản đối chiếu `reports/plan-folders/fix-r1.md` của Run); v0.3 review delta r2 (trần hàng thật cho CTE lưu trữ, `RepeatableRead` cho `archive-impact`, gate G8-17, dòng S18 của spine G8); v1.0 FD-01 (UNI-1461): ký FD-D2..FD-D10, §4 đóng băng, bỏ nhánh (b)/(c) của FD-D10 ở §3.8, gate G8-17 đóng.
+> **Trạng thái:** in-progress — hợp đồng v1.0 (đóng băng), 2026-10-13 — FD-D1..FD-D10 đã ký (FD-D2..FD-D10 ký ~19:05 UTC+7 đúng các khuyến nghị của decision packet `reports/plan-folders/decision-packet.md`, trạng thái signed); §4 là hợp đồng, đổi §4 chỉ qua `decision_required` của Advisor. Lịch sử: v0.1 soạn theo yêu cầu người dùng (~15:35 UTC+7: thêm spec + plan cho UNI-1425 theo cách đã làm với G8/UNI-1331); v0.2 xử lý review FE r1 + BE r1 (`reports/plan-folders/review-{fe,be}-1.md`, bản đối chiếu `reports/plan-folders/fix-r1.md` của Run); v0.3 review delta r2 (trần hàng thật cho CTE lưu trữ, `RepeatableRead` cho `archive-impact`, gate G8-17, dòng S18 của spine G8); v1.0 FD-01 (UNI-1461): ký FD-D2..FD-D10, §4 đóng băng, bỏ nhánh (b)/(c) của FD-D10 ở §3.8, gate G8-17 đóng; v1.1 (2026-10-16, U-APP1 của người dùng): **FD-D8 đổi** — FD-11 làm ngay và mở rộng thành cây thư mục UniWork hai chiều trong app (§3.8), thêm FD-13 (hai khu vực của app) và FD-14 (bộ chọn tệp chỉ hiện định dạng mở được).
 
 **Issue:** UNI-1425 "Quản lý Folder trong Documents" (FR-01..FR-09, BR-01..BR-10, AC-01..AC-12), cha UNI-923 (FD-D1).
 **Quan hệ với thiết kế có sẵn:** Documents C-01 (cây trang, UNI-675) và thư mục `kind=folder` (migration
@@ -33,7 +33,7 @@ giá trị bên dưới (2026-10-13 ~19:05 UTC+7).
 | FD-D5 | Trùng khi tạo/đổi tên vs khi di chuyển/khôi phục | Đã ký 2026-10-13 ~19:05: **thư mục — tạo/đổi tên: từ chối** 409 `folder_name_taken`, lỗi tại trường. **Di chuyển (thư mục và tài liệu) và khôi phục: tự đổi tên** "Tên (n)", n nhỏ nhất ≥ 2 còn trống, báo tên mới | FD-02, FD-08, FD-09 |
 | FD-D6 | Xóa | Đã ký 2026-10-13 ~19:05: **giữ lưu trữ** (thùng rác, khôi phục 30 ngày, worker xóa thật sau đó); chữ trên UI là "Xóa" / "Chuyển vào thùng rác"; cảnh báo ghi **riêng** số thư mục con và số tài liệu, đếm ở server | FD-04, FD-09 |
 | FD-D7 | Phạm vi tìm kiếm | Đã ký 2026-10-13 ~19:05: **workspace đang mở**, khớp **theo tên** trong ô tìm của Documents (bảng lệnh ⌘K giữ tìm cả nội dung); mọi tài liệu người dùng đọc được trong workspace đó. Thu hẹp FR-08 ("toàn bộ Document được phân quyền") là đổi phạm vi, chỉ đạt khi ký | FD-05, FD-10 |
-| FD-D8 | Desktop cùng phase? | Đã ký 2026-10-13 ~19:05: **hoãn** duyệt thư mục trong hộp thoại UniWork của app (FD-11 làm sau) | FD-11 |
+| FD-D8 | Desktop cùng phase? | Ký 2026-10-13 ~19:05: hoãn. **Đổi 2026-10-16 10:35 (người dùng, U-APP1): làm ngay**, mở rộng: khu vực UniWork của app hiện cùng cây thư mục với Documents trên web, hai chiều qua server (§3.8). Đồng bộ thư mục trên ổ đĩa máy kiểu Drive Desktop: ngoài phạm vi (backlog) | FD-11, FD-13, FD-14 |
 | FD-D9 | Trang Documents gốc (không `?folder`) | Đã ký 2026-10-13 ~19:05: **giữ thư viện hiện tại** (gần đây, nhóm theo thư mục); "nội dung trực tiếp" + thư mục trước + sắp xếp chỉ áp khi mở một thư mục; thư mục gốc thấy ở sidebar | FD-08 |
 | FD-D10 | Trùng tên **tài liệu** (trang/tệp) khi tạo, tải lên, đổi tên — gồm G8-17/S18 | Đã ký 2026-10-13 ~19:05: **cho phép trùng** (server không bao giờ trả `folder_name_taken` cho trang/tệp); G8-17 bỏ ca "tên trùng → lỗi tại trường" cho tài liệu, giữ "rỗng/quá dài"; "(n)" chỉ khi di chuyển/khôi phục; dòng S18 của EXPERIENCE-G8 và mockup đã sửa trong FD-01 (§3.8) | FD-02 (G8-17 hết gate) |
 
@@ -245,9 +245,16 @@ tổ hợp treo ở cuối).
 
 ### 3.8 Desktop (FD-D8) và G8-17
 
-Hoãn duyệt: hộp thoại UniWork của app vẫn chỉ tệp (`client.ts:230`, `parse.ts:127`). Khi làm (FD-11, lane L23 sau G8-17): bỏ
-`kind=file`, duyệt theo `parent_id` + breadcrumb, hiện đường dẫn trong kết quả tìm (trường `path` của §3.5), tạo tài liệu vào thư
-mục đang mở. Không đổi frame protocol.
+FD-D8 đổi 2026-10-16 (U-APP1, người dùng): **làm ngay** (FD-11, G8-16/G8-17 đã xong). Khu vực UniWork của app hiện **cùng cây thư
+mục** với Documents trên web và đi **hai chiều** qua server (server là nguồn duy nhất): tạo / đổi tên / di chuyển thư mục, và Mới /
+Tải lên / Lưu bản sao / Lưu lên UniWork **vào thư mục người dùng chọn**, đều hiện đúng thư mục đó trên web; thay đổi trên web tới app
+qua feed G5 (`document.moved/archived/restored`) và làm mới khi focus. Bỏ `kind=file` trong danh sách, duyệt theo `parent_id` +
+breadcrumb, đường dẫn trong kết quả tìm (trường `path` của §3.5), lỗi `folder_name_taken` và "(n)" theo §4. Lưu bản sao (G5-12) hôm nay
+đặt bản sao vào thư mục cha của tài liệu nguồn, không cho chọn: FD-11 thêm chọn thư mục. Không đổi frame protocol. **Ngoài phạm vi:**
+đồng bộ một thư mục trên ổ đĩa máy với UniWork (kiểu Drive Desktop) — backlog phase sau. FD-13 tách màn hình chính của app thành hai
+khu vực "UniWork" / "Trên máy này" (en "UniWork" / "On this device"; không còn chữ "cục bộ" trên shell); cây ở trên nằm trong khu vực
+UniWork. FD-14: bộ chọn tệp chỉ hiện định dạng app mở được (bỏ bộ lọc "Mọi tệp" của Tải lên UniWork, ẩn tệp không hỗ trợ như ảnh
+trong "Mở từ UniWork").
 
 G8-17 (tạo/tải lên/đổi tên tài liệu từ app) **không** là người dùng `folder_name_taken`: G8-17 chỉ ghi trang/tệp, và theo FD-D10 (a, đã ký)
 server cho trùng tên tài liệu. Hợp đồng chéo (plan G5-G7 thẻ G8-17, không còn gate): tên rỗng → lỗi tại trường (`uwDocNameEmpty`), quá 500 → lỗi tại trường (`uwDocNameTooLong`, khóa đã ship ở G8-17); tên trùng tài
@@ -290,13 +297,14 @@ không thành xung đột nội dung (§3.3, không tăng `content_revision`).
 | BR-06, AC-11 | FD-02 (DB + service), FD-06, FD-08 |
 | Mục 4 UX (thông báo kết quả, cuộn, không bắt tạo thư mục) | FD-07, FD-08, FD-09 |
 | Thay đổi của người khác hiện ngay (cộng tác) | FD-06 (realtime), FD-12 (hai phiên) |
-| Desktop parity | FD-11 (hoãn theo FD-D8) |
+| Desktop parity | FD-11 (v1.1: làm ngay, mở rộng theo U-APP1), FD-13, FD-14 |
 
 ## 6. Hoãn (có lý do)
 
 - **Tìm toàn tổ chức** (mọi workspace): route và URL của D theo workspace; tìm chéo workspace cần một route mới + cổng quyền
   theo nhiều workspace. Hoãn tới khi Product cần (FD-D7).
-- **Duyệt thư mục trên desktop** (FD-11): không chặn web; G8-16/G8-17 đang sửa cùng file fork (lane L23).
+- **Đồng bộ thư mục trên ổ đĩa máy với UniWork** (kiểu Drive Desktop): ngoài phạm vi theo U-APP1 (2026-10-16); backlog phase sau.
+  Duyệt thư mục UniWork trên desktop không còn hoãn (FD-11, v1.1).
 - **Phân quyền thư mục, thừa kế quyền, chia sẻ chéo workspace**: SRS mục 6 ngoài phạm vi; giữ luật hiện tại (không thừa kế, chỉ
   chép `visibility` khi tạo).
 - **Xóa cứng ngay**: giữ thùng rác 30 ngày (FD-D6).

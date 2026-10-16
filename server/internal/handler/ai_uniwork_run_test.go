@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -212,5 +213,70 @@ func TestAIUniworkRunRejectsForeignRunID(t *testing.T) {
 	status, _, _, out = uniworkRunTurn(t, w, path, tn.token, otherConv, run, uniworkQuestion("bốn"))
 	if status != http.StatusConflict || uniworkErrorCode(t, out) != "run_expired" {
 		t.Fatalf("another conversation's run id: %d %v; want 409 run_expired", status, out)
+	}
+}
+
+// The G7-12 official session's 409 (2026-10-16), reproduced end to end: a
+// model that answers with a tool call on every turn spends the eight tool
+// rounds of A3, and the ninth tool round — the run's tenth model call — is
+// refused 409 run_limit_reached with fields.limit = tool_rounds. The run is
+// still there, so the refusal answers as that run: it names the conversation
+// and the run (A12, design §2.1), and the turn that was refused spent
+// nothing — the next question opens a new run in the same conversation
+// (design §4.3), which is what the session's runner did 20 ms later.
+func TestAIUniworkRunToolRoundCapRefusesTheNinthRound(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	// The same call on every turn, so its answer can be handed back: the
+	// session's runner (holdout-run.mjs) walks exactly this way.
+	w.uniworkProvider.Reply = func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: "", ToolCalls: []provider.ToolCall{
+			{ID: "call_cap_1", Name: "read_cells", Input: json.RawMessage(`{"range":"A1"}`)},
+		}}
+	}
+	readCells := []any{map[string]any{
+		"type":     "function",
+		"function": map[string]any{"name": "read_cells", "description": "read_cells", "parameters": map[string]any{"type": "object"}},
+	}}
+	// A tool-result turn still offers the module's tool (the runner sends its
+	// tools on every call), so the call the model answers with is kept and the
+	// next turn can answer that one.
+	toolTurn := func(content string) map[string]any {
+		body := uniworkToolResult("sheets", "call_cap_1", content)
+		body["tools"] = readCells
+		return body
+	}
+
+	path := tn.uniworkOrgPath()
+	status, conv, run, out := uniworkRunTurn(t, w, path, tn.token, "", "",
+		uniworkModuleQuestion("đọc ô A1", "sheets", "read_cells"))
+	if status != http.StatusOK || conv == "" || run == "" {
+		t.Fatalf("question turn: %d conv=%q run=%q %v; want 200 with both ids", status, conv, run, out)
+	}
+	for round := 1; round <= ai.UniworkRunToolRoundMax; round++ {
+		status, _, named, out := uniworkRunTurn(t, w, path, tn.token, conv, run, toolTurn("42"))
+		if status != http.StatusOK {
+			t.Fatalf("tool round %d: %d %v; want 200", round, status, out)
+		}
+		if named != run {
+			t.Fatalf("tool round %d named run %q, want %q", round, named, run)
+		}
+	}
+
+	status, namedConv, namedRun, out := uniworkRunTurn(t, w, path, tn.token, conv, run, toolTurn("42"))
+	if status != http.StatusConflict || uniworkErrorCode(t, out) != "run_limit_reached" {
+		t.Fatalf("the ninth tool round: %d %v; want 409 run_limit_reached (A3)", status, out)
+	}
+	if fields, _ := out["error"].(map[string]any)["fields"].(map[string]any); fields["limit"] != ai.UniworkRunLimitToolRounds {
+		t.Fatalf("fields.limit = %v; want %q (D-3, §2.3)", fields["limit"], ai.UniworkRunLimitToolRounds)
+	}
+	if namedConv != conv || namedRun != run {
+		t.Fatalf("the refusal named conv=%q run=%q; want the live conversation %q and the refused run %q (A12)",
+			namedConv, namedRun, conv, run)
+	}
+
+	status, sameConv, nextRun, out := uniworkRunTurn(t, w, path, tn.token, conv, "", uniworkModuleQuestion("đọc ô B2", "sheets", "read_cells"))
+	if status != http.StatusOK || sameConv != conv || nextRun == "" || nextRun == run {
+		t.Fatalf("the next question: %d conv=%q run=%q %v; want a new run in %q (design §4.3)", status, sameConv, nextRun, out, conv)
 	}
 }
