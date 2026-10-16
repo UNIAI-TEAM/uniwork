@@ -432,6 +432,44 @@ func TestDocumentSourceListPagesAcrossSources(t *testing.T) {
 	}
 }
 
+// UNI-1814: a chat file names the message it sits in, so "go to source" can
+// open the room at that message; the other sources name none.
+func TestDocumentSourceListNamesTheChatMessage(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+	svc, _ := sourceService(t, env)
+	tn := env.tn
+	taskA := s.task(tn, tn.wsA)
+	onTask := s.attachment(tn, tn.wsA, taskA, "", "on-task.pdf")
+	commentID := util.NewID()
+	s.exec(`INSERT INTO task_comments (id, organization_id, workspace_id, task_id, author_id, body, updated_at)
+		VALUES ($1, $2, $3, $4, $5, 'c', now())`, commentID, tn.orgID, tn.wsA, taskA, tn.owner.ID)
+	onComment := s.attachment(tn, tn.wsA, "", commentID, "on-comment.pdf")
+	public := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	msgID := s.fileMessage(tn.orgID, tn.wsA, public, tn.owner.ID, "in-chat.pdf", false)
+
+	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, it := range page.Items {
+		got[it.ID] = it.Parent.MessageID
+	}
+	if got["chat:"+msgID] != msgID {
+		t.Errorf("chat file parent message id = %q, want the message %s", got["chat:"+msgID], msgID)
+	}
+	for _, id := range []string{"task:" + onTask, "task:" + onComment} {
+		v, ok := got[id]
+		if !ok {
+			t.Fatalf("%s is not listed", id)
+		}
+		if v != "" {
+			t.Errorf("%s parent message id = %q, want empty", id, v)
+		}
+	}
+}
+
 func TestDocumentSourceSaveCopiesTheBytesIntoANewDocument(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
