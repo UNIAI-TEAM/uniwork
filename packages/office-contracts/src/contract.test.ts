@@ -175,6 +175,41 @@ describe("validateEnvelope", () => {
     });
   });
 
+  it("refuses a declared input_length over a host inputByteBound before the bytes are read", async () => {
+    // fix8 (SIZE-S1): the engine hands its configured cap to the validator,
+    // so a declared length over it is the typed 413 before the checksum, the
+    // string check or the decode touch input_bytes — proven by an alphabet-
+    // invalid body that must never reach the base64 checks.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_bytes = "%%%not-base64%%%";
+    envelope.payload.input_length = 128;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync, inputByteBound: 64 })).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "upload_bounds",
+      fields: { max_input_bytes: 64 },
+    });
+  });
+
+  it("refuses decoded bytes over a host inputByteBound with the measured length", async () => {
+    // fix8 (SIZE-S1): the same host bound applies after decode. A declared
+    // length inside the cap whose actual bytes cross it reaches the
+    // post-decode bound check (before the declared-vs-measured comparison):
+    // the fixture's real tuple is 5 bytes, declared as 4 against a 4-byte cap.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = 4;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync, inputByteBound: 4 })).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "upload_bounds",
+      fields: { measured_length: 5, max_input_bytes: 4 },
+    });
+  });
+
   it("lets a declared input_length at exactly the ceiling reach the checksum/length check, never upload_bounds", async () => {
     // R4-1 pin (size-cap:005): the boundary is strict - declared == ceiling
     // is NOT over, so a short real payload fails as upload_checksum_mismatch

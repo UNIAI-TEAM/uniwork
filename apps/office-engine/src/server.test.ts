@@ -318,10 +318,13 @@ describe("input byte bounds (SIZE-S1)", () => {
     max_bytes: 200 * MiB,
   });
 
-  it("accepts an input above the old 50 MiB bound and completes end to end", async () => {
+  it("accepts an input above the old 50 MiB bound and completes end to end", { timeout: 120_000 }, async () => {
     // A document the server now accepts (50 MiB < size <= DOCUMENT_MAX_BYTES)
     // must get past the body cap, the envelope bound and the service gate,
-    // and its output must PUT un-truncated past the 64 MiB read buffer.
+    // and its output must PUT un-truncated past the 64 MiB read buffer. This
+    // is the suite's only big upload (~70 MB on the wire plus a real worker),
+    // so it keeps an explicit timeout above its waitTerminal budget instead
+    // of the 30 s default.
     const bytes = Buffer.alloc(50 * MiB + 1, "a");
     const job = makeJob(h.target, { bytes, operation: "serialize", format: "md" });
     job.grant.output = bigGrant(h.target, job.grant.job_id);
@@ -335,11 +338,22 @@ describe("input byte bounds (SIZE-S1)", () => {
   });
 
   it("refuses an input over the document cap with upload_bounds and no job", async () => {
-    const bytes = Buffer.alloc(200 * MiB + 1, "a");
-    const job = makeJob(h.target, { bytes, operation: "serialize", format: "md" });
+    // The declared input_length is refused before the base64 decode reads a
+    // character (fix8): proving it needs the real DOCUMENT_MAX_BYTES cap,
+    // not 200 MiB of bytes on the wire — that cost used to exceed the 30 s
+    // default timeout on a 2-CPU VM because the refusal decoded and hashed
+    // the whole body against the 383 MiB transport ceiling first.
+    const job = makeJob(h.target, { text: "x" });
     job.grant.output = bigGrant(h.target, job.grant.job_id);
     job.token = signGrant(job.grant, GRANT_KEY);
-    const res = await submit(h, job);
+    const envelope = {
+      ...job.envelope,
+      payload: {
+        ...(job.envelope.payload as object),
+        input_length: 200 * MiB + 1,
+      },
+    };
+    const res = await submit(h, { token: job.token, envelope });
     expect(res.status).toBe(413);
     expect(errorCode(res)).toBe("upload_bounds");
     const err = res.body.error;
@@ -347,6 +361,33 @@ describe("input byte bounds (SIZE-S1)", () => {
     expect(maxBytes).toBe(200 * MiB);
     const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
     expect(status.status).toBe(404);
+  });
+
+  it("refuses decoded bytes over the configured cap as measured upload_bounds, no job", async () => {
+    // fix8: the measured bound is the configured cap too. A declared length
+    // inside the cap with actual bytes past it reaches the post-decode bound
+    // check (before the declared-vs-measured comparison), which answers the
+    // same typed 413 — pinned cheaply on a 64 KiB harness.
+    const h2 = await startHarness({ limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
+    try {
+      const bytes = Buffer.alloc(64 * 1024 + 1, "a");
+      const job = makeJob(h2.target, { bytes, operation: "serialize", format: "md" });
+      const envelope = {
+        ...job.envelope,
+        payload: {
+          ...(job.envelope.payload as object),
+          input_length: 64 * 1024,
+        },
+      };
+      const res = await submit(h2, { token: job.token, envelope });
+      expect(res.status).toBe(413);
+      expect(errorCode(res)).toBe("upload_bounds");
+      expect(res.body.error).toMatchObject({ measured_length: bytes.length, max_input_bytes: 64 * 1024 });
+      const status = await call(h2, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
+      expect(status.status).toBe(404);
+    } finally {
+      await h2.close();
+    }
   });
 
   it("refuses a body over the base64 envelope cap before buffering it", async () => {
@@ -359,8 +400,10 @@ describe("input byte bounds (SIZE-S1)", () => {
   });
 
   it("refuses a declared input_length over the transport ceiling with the typed 413, no job created", async () => {
-    // size-cap:005: a body under the wire cap but declaring more than the
-    // 383 MiB engine ceiling gets upload_bounds, not contract_violation.
+    // size-cap:005 + fix8: a body under the wire cap but declaring more than
+    // the 383 MiB engine ceiling gets upload_bounds, not contract_violation.
+    // The answer names the bound it was measured against — since fix8 that is
+    // the configured cap, which is below the ceiling.
     const job = makeJob(h.target, { text: "x" });
     const envelope = {
       ...job.envelope,
@@ -375,22 +418,23 @@ describe("input byte bounds (SIZE-S1)", () => {
     expect(errorCode(res)).toBe("upload_bounds");
     const err = res.body.error;
     const maxBytes = err !== null && typeof err === "object" && "max_input_bytes" in err ? err.max_input_bytes : undefined;
-    expect(maxBytes).toBe(ENGINE_LIMITS.max_input_bytes);
+    expect(maxBytes).toBe(200 * MiB);
     const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
     expect(status.status).toBe(404);
   });
 
-  it("lets a declared input_length at exactly the ceiling reach the checksum check - 409, never upload_bounds", async () => {
-    // R4-1 pin (size-cap:005): the comparison is strict, so declaring the
-    // 383 MiB ceiling itself is NOT a 413 - the one-byte real payload then
-    // fails as upload_checksum_mismatch, and no job exists.
+  it("lets a declared input_length at exactly the configured cap reach the checksum check - 409, never upload_bounds", async () => {
+    // R4-1 pin (size-cap:005), re-anchored by fix8 to the effective bound:
+    // the comparison is strict, so declaring the configured cap itself is
+    // NOT a 413 — the one-byte real payload then fails as
+    // upload_checksum_mismatch, and no job exists.
     const job = makeJob(h.target, { text: "x" });
     const envelope = {
       ...job.envelope,
       payload: {
         ...(job.envelope.payload as object),
         input_bytes: Buffer.from("x").toString("base64"),
-        input_length: ENGINE_LIMITS.max_input_bytes,
+        input_length: 200 * MiB,
       },
     };
     const res = await submit(h, { token: job.token, envelope });
