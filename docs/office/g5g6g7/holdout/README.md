@@ -244,7 +244,9 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
 - **Token hết hạn giữa lần chạy là chuyện bình thường, và bộ chạy tự gia hạn** (điểm chặn của phi công G7-12). Token truy cập
   của máy chủ sống 15 phút và token khung 10 phút, còn một lần chạy ở 1 luồng kéo dài khoảng 100 phút, nên lần nào cũng đi qua cả
   hai cửa sổ. Bộ chạy giữ thông tin đăng nhập của người dùng thử **trong tiến trình** — mật khẩu, cookie refresh và token truy cập
-  không bao giờ vào `run-NN.json`, `manifest.json`, `report.md` hay dòng log — và gia hạn theo cách ứng dụng web làm: `POST
+  không bao giờ vào `run-NN.json`, `manifest.json`, `report.md` hay dòng log, kể cả khi một bước dựng phiên (đăng ký, tạo tổ chức, tải
+  fixture, mint token khung) thất bại và thân lỗi của máy chủ nhắc lại địa chỉ: văn bản lỗi cũng đi qua bộ che trước khi ra stderr
+  (G712-72) — và gia hạn theo cách ứng dụng web làm: `POST
   /api/v1/auth/refresh` khi còn cookie refresh của lần đăng nhập, không thì `POST /api/v1/auth/login`. Gia hạn trước khi dùng khi
   token truy cập cũ hơn 12 phút và token khung cũ hơn 8 phút, rồi gia hạn thêm một lần khi một lượt gọi trả 401; 401 thứ hai liên
   tiếp làm lượt hỏi lỗi như trước. Gia hạn token khung chỉ **mint lại cho đúng tài liệu đã gắn**, không tải lại fixture (chỉ tải

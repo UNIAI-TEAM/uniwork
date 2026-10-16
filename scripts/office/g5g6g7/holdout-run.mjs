@@ -649,13 +649,15 @@ const FLAGS = [
 const ULID_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const newId = () => Array.from({ length: 26 }, () => ULID_ALPHABET[Math.floor(Math.random() * 32)]).join('');
 
-async function postJson(serverUrl, route, body, token) {
+async function postJson(serverUrl, route, body, token, { exemptEmails = null } = {}) {
   const res = await fetch(`${serverUrl}${route}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${route} failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  // A setup failure is a server body: it can echo the address the test user signed up with, so it is redacted here
+  // like every other text the runner throws (G712-72).
+  if (!res.ok) throw new Error(redactSecrets(`${route} failed: ${res.status} ${(await res.text()).slice(0, 200)}`, { exemptEmails }).text);
   return res.json();
 }
 
@@ -697,13 +699,17 @@ export function refreshCookieOf(header) {
  */
 export async function createServerSession({
   serverUrl, dbUrl, sql = execPsql, fixturesRel = FIXTURES_REL, email = `g712-holdout-${Date.now()}@example.com`,
-  password = `Holdout-${Date.now()}-Pw!`, nowMs = Date.now, sessionRenewAfterMs = SESSION_RENEW_AFTER_MS,
+  password = `Holdout-${Date.now()}-Pw!`, nowMs = Date.now, sessionRenewAfterMs = SESSION_RENEW_AFTER_MS, exemptEmails = null,
 }) {
   const stamp = Date.now();
   const credentials = { email, password, cookie: null };
   const session = { token: '', userId: '', orgId: '', wsId: '' };
   let issuedAtMs = nowMs();
   let renewal = null;
+  // Every text this closure throws is a server body and can echo the address the run signed up with, so it is redacted
+  // before it reaches the operator's stderr, the way the abort reason and the ask errors are (G712-72). `exemptEmails`
+  // keeps the exact addresses the case set carries, as everywhere else.
+  const setupFailed = (text) => new Error(redactSecrets(text, { exemptEmails }).text);
 
   const adopt = (body) => {
     session.token = body.access_token || body.token || '';
@@ -722,7 +728,7 @@ export async function createServerSession({
         viaRefresh = false;
         out = await postJsonRaw(serverUrl, '/api/v1/auth/login', { email: credentials.email, password: credentials.password });
       }
-      if (!out.ok) throw new Error(`session renewal via ${viaRefresh ? 'refresh' : 'login'} failed: ${out.status} ${out.text.slice(0, 160)}`);
+      if (!out.ok) throw setupFailed(`session renewal via ${viaRefresh ? 'refresh' : 'login'} failed: ${out.status} ${out.text.slice(0, 160)}`);
       if (out.cookie) credentials.cookie = out.cookie;
       adopt(JSON.parse(out.text));
       return out;
@@ -746,7 +752,7 @@ export async function createServerSession({
   };
 
   const reg = await postJsonRaw(serverUrl, '/api/v1/auth/register', { email: credentials.email, password: credentials.password, display_name: 'G7-12 Holdout Runner' });
-  if (!reg.ok) throw new Error(`/api/v1/auth/register failed: ${reg.status} ${reg.text.slice(0, 200)}`);
+  if (!reg.ok) throw setupFailed(`/api/v1/auth/register failed: ${reg.status} ${reg.text.slice(0, 200)}`);
   if (reg.cookie) credentials.cookie = reg.cookie;
   adopt(JSON.parse(reg.text));
   session.userId = JSON.parse(reg.text).user?.id ?? '';
@@ -756,9 +762,9 @@ export async function createServerSession({
       INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind) VALUES ${values}
       ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = EXCLUDED.enabled;`]);
   }
-  const org = await postJson(serverUrl, '/api/v1/orgs', { name: 'G7-12 Org', slug: `g712-org-${stamp}` }, session.token);
+  const org = await postJson(serverUrl, '/api/v1/orgs', { name: 'G7-12 Org', slug: `g712-org-${stamp}` }, session.token, { exemptEmails });
   session.orgId = org.organization?.id || org.id;
-  const ws = await postJson(serverUrl, `/api/v1/orgs/${session.orgId}/workspaces`, { name: 'G7-12 Workspace', slug: `g712-ws-${stamp}` }, session.token);
+  const ws = await postJson(serverUrl, `/api/v1/orgs/${session.orgId}/workspaces`, { name: 'G7-12 Workspace', slug: `g712-ws-${stamp}` }, session.token, { exemptEmails });
   session.wsId = ws.workspace?.id || ws.id;
   if (dbUrl) sql(dbUrl, ['-v', 'ON_ERROR_STOP=1', '-c', `UPDATE subscriptions SET overrides = '{"office.ai_cloud": true, "ai.tokens": 100000000}'::jsonb WHERE organization_id = '${session.orgId}';`]);
 
@@ -780,7 +786,7 @@ export async function createServerSession({
       });
       return { ok: res.ok, status: res.status, text: await res.text() };
     }, renewals);
-    if (!out.ok) throw new Error(`upload file ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
+    if (!out.ok) throw setupFailed(`upload file ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
     const body = JSON.parse(out.text);
     return body.document?.id || body.file?.document_id || body.file?.id || body.id;
   };
@@ -796,7 +802,7 @@ export async function createServerSession({
       return { ok: res.ok, status: res.status, text: await res.text() };
     }, renewals);
     if (out.status === 404) return null;
-    if (!out.ok) throw new Error(`mint frame token for ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
+    if (!out.ok) throw setupFailed(`mint frame token for ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
     const body = JSON.parse(out.text);
     return { docId, frameToken: body.token, aiGrant: body.ai, mintedAt: nowMs() };
   };
@@ -932,7 +938,7 @@ async function main() {
   const { cases } = loadCases(args.cases);
   const sessionId = newSessionId();
   const outDir = path.join(args.out, sessionId);
-  const session = await createServerSession({ serverUrl: args.serverUrl, dbUrl: args.dbUrl });
+  const session = await createServerSession({ serverUrl: args.serverUrl, dbUrl: args.dbUrl, exemptEmails: fixtureEmails(cases) });
   const files = await runHoldout({
     cases, runs: args.runs, threads: args.threads, outDir, sessionId, transport: httpTransport(args.serverUrl), session,
     usageReader: createUsageReader({ dbUrl: args.dbUrl }), redis: args.redis, serverSha: args.serverSha ?? '', onlyIds: args.only ?? null, limit: args.limit ?? 0,

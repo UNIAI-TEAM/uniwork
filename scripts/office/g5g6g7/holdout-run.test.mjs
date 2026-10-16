@@ -1314,6 +1314,21 @@ describe('sessions, manifest and tool surface', () => {
     }
   });
 
+  it('redacts the test user\'s address in a session-setup failure before it reaches stderr (G712-72)', async () => {
+    const email = 'g712-holdout-test@example.com';
+    const facade = await startStubFacade({ hooks: { register: (payload) => ({ status: 400, body: { error: { code: 'invalid', message: `email ${payload.email} is not allowed` } } }) } });
+    try {
+      await assert.rejects(createServerSession({ serverUrl: facade.url, email }), (err) => {
+        assert.match(err.message, /^\/api\/v1\/auth\/register failed: 400 /);
+        assert.equal(err.message.includes(email), false, `the thrown text carries the address: ${err.message}`);
+        assert.match(err.message, /\[redacted:email\]/);
+        return true;
+      });
+    } finally {
+      await facade.close();
+    }
+  });
+
   it('hashes the case set, not its content: a different set gives a different hash', async () => {
     const a = await runWith({ onlyIds: null, subset: cases.slice(0, 2), threads: 1 }, 'hash-a');
     const b = await runWith({ onlyIds: null, subset: cases.slice(0, 3), threads: 1 }, 'hash-b');

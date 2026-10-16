@@ -87,8 +87,10 @@ export function scriptedModel(cases) {
  * that has served that many chat calls, answers 401 with error_class session until it is renewed. `setRefreshCookie:
  * false` models a sign-in that left no refresh cookie, so the runner has to renew through POST /api/v1/auth/login.
  * `hooks.mint(docId, mintIndex)` may answer a frame-token request with a status instead (404 says the document is gone,
- * G712-63). `mintDelayMs` holds a frame-token answer back, so a test can widen the window in which a second ask's
- * renewal joins the first one's mint (G712-60). Returns { url, requests, stats, close }.
+ * G712-63). `hooks.register(payload)` may refuse the sign-in with `{ status, body }`, the way a server answers a bad
+ * sign-up and echoes the address it was given (G712-72). `mintDelayMs` holds a frame-token answer back, so a test can
+ * widen the window in which a second ask's renewal joins the first one's mint (G712-60). Returns { url, requests, stats,
+ * close }.
  */
 export async function startStubFacade({
   model, hooks = {}, model_name = 'stub-model', delayMs = 0, mintDelayMs = 0,
@@ -126,7 +128,12 @@ export async function startStubFacade({
     req.on('end', () => {
       const raw = Buffer.concat(chunks).toString('utf8');
       const url = req.url ?? '';
-      if (url === '/api/v1/auth/register') { stats.registers += 1; return issueSession(res); }
+      if (url === '/api/v1/auth/register') {
+        stats.registers += 1;
+        const forced = hooks.register?.(raw ? JSON.parse(raw) : {});
+        if (forced) return json(res, forced.status, forced.body ?? { error: `forced ${forced.status}` });
+        return issueSession(res);
+      }
       if (url === '/api/v1/auth/login') { stats.logins += 1; return issueSession(res); }
       if (url === '/api/v1/auth/refresh') {
         stats.refreshes += 1;
