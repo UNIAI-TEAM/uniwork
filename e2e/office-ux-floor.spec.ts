@@ -405,11 +405,17 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
         await audit(frame, PICKER_POP, "S7 picker", mode);
         await shot(frame, `s7-picker-${mode}-${locale}`);
         await uniworkOption(frame).click();
-        // S9: one UniWork AI turn against the fake provider; the finished reply is detected by its action toolbar (or the error line) and measured.
+        // S9: one UniWork AI turn (disclosure acknowledged first) against the fake provider; the finished reply is detected by its action toolbar (or the error line) and measured.
         const composer = frame.locator(COMPOSER).first();
         await composer.click();
         await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
-        await page.keyboard.press("Enter");
+        // The first UniWork AI turn shows the S8 disclosure and Send stays aria-disabled until it is acknowledged; Enter would never send.
+        const disclosure = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|What UniWork AI receives/i });
+        await expect(disclosure).toBeVisible({ timeout: 10_000 });
+        await frame.getByRole("button", { name: /Đã hiểu|Got it/i }).first().click();
+        const sendBtn = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
+        await expect(sendBtn, "S9: Send is enabled after the disclosure acknowledgement").not.toHaveAttribute("aria-disabled", "true");
+        await sendBtn.click();
         await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
         await audit(frame, ".ai-chat", "S9 result/error", mode);
         await shot(frame, `s9-result-${mode}-${locale}`);
