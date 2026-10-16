@@ -10,7 +10,12 @@ package service
 //	     and folders, on one mixed fixture;
 //	LF-3 an unknown format/access, format with kind=page, and manage/edit on
 //	     the trash are 400 invalid_filter;
-//	LF-4 recent, shared-with-me, the trash and shared_by_me take the filters.
+//	LF-4 recent, shared-with-me, the trash and shared_by_me take the filters,
+//	     and on each the filtered answer is exactly the unfiltered rows whose
+//	     own my_level + visibility satisfy it (LF-2's rule per sibling list);
+//	LF-5 a file_version_id pointing at a version of another workspace's
+//	     document answers no format from that version (the title's extension
+//	     still applies).
 //
 // The mimes below are the wire contract (what an upload stores), written out
 // rather than read from the server table so a typo in the table cannot make
@@ -212,6 +217,57 @@ func TestDocumentListFormatFilter(t *testing.T) {
 	for _, format := range []string{"docx", "pdf"} {
 		if containsID(listFilterIDs(listFilterPages(t, f, member, tn.wsA, ListDocumentsInput{Format: format})), page.ID) {
 			t.Fatalf("format=%s returned the page %s", format, page.ID)
+		}
+	}
+}
+
+// TestDocumentListFormatFilterForeignVersion is BE-LF-1's case: a
+// file_version_id pointing at a version of ANOTHER document in another
+// workspace of the same organization must not lend that version's MIME to
+// the row - not to the format= predicate, not to the format the row reports.
+// The title's own extension still answers.
+func TestDocumentListFormatFilterForeignVersion(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "lf5")
+	member := Human(tn.member.ID)
+
+	// A pdf version of a document in wsB - foreign to the row below on both
+	// halves the join now adds: workspace_id and document_id.
+	foreign := f.listFilterFile(t, tn, tn.wsB, "ngoai.pdf", listFilterMimes["pdf"])
+	poisoned := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		kind: DocumentKindFile, title: "tam-lai.md",
+	})
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE documents SET file_version_id = $1, current_version = 1 WHERE id = $2`,
+		foreign.FileVersionID.String, poisoned.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// format= on the foreign version's MIME does not match the row...
+	for _, it := range listFilterPages(t, f, member, tn.wsA, ListDocumentsInput{Format: "pdf", Limit: 100}) {
+		if it.Document.ID == poisoned.ID {
+			t.Fatalf("format=pdf matched %s through another document's version", poisoned.ID)
+		}
+	}
+	// ...while the title's extension still does.
+	found := false
+	for _, it := range listFilterPages(t, f, member, tn.wsA, ListDocumentsInput{Format: "md", Limit: 100}) {
+		if it.Document.ID != poisoned.ID {
+			continue
+		}
+		found = true
+		if it.Facts.Format != "md" {
+			t.Fatalf("row reports format %q, want the title's md", it.Facts.Format)
+		}
+	}
+	if !found {
+		t.Fatalf("format=md lost the row %s whose title names md", poisoned.ID)
+	}
+	// The reported format answers the title too - never the foreign MIME.
+	for _, it := range listFilterPages(t, f, member, tn.wsA, ListDocumentsInput{Limit: 100}) {
+		if it.Document.ID == poisoned.ID && it.Facts.Format != "md" {
+			t.Fatalf("unfiltered row reports format %q, want md from the title", it.Facts.Format)
 		}
 	}
 }

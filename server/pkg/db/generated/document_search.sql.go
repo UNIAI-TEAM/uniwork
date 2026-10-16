@@ -16,6 +16,8 @@ SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -301,6 +303,8 @@ SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -559,6 +563,8 @@ SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.organization_id = $5
   AND d.workspace_id = $6
@@ -804,8 +810,9 @@ type ListDocumentsPageRow struct {
 // Flat "all" page and folded-text search share one cursor: (updated_at, id)
 // descending. q is already folded by the caller and escaped for LIKE.
 // UNI-1868: the current version of a file document, for the format filter and
-// the format each row reports. Joined on the document's own tenant pair, so a
-// version of another tenant can never answer for the row.
+// the format each row reports. Joined on the document's own tenant pair and
+// the document itself, so a version of another tenant or document can never
+// answer for the row.
 func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPageParams) ([]ListDocumentsPageRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsPage,
 		arg.Query,
@@ -902,6 +909,8 @@ SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2

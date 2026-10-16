@@ -79,6 +79,8 @@ JOIN documents d
  AND d.id = c.document_id
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.archived_at IS NULL
   AND d.owner_id IS NULL

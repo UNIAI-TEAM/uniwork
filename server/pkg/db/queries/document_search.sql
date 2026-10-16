@@ -62,10 +62,13 @@ SELECT d.*,
                      ELSE left(d.content_text, 160)::text END, '')::text AS snippet
 FROM documents d
 -- UNI-1868: the current version of a file document, for the format filter and
--- the format each row reports. Joined on the document's own tenant pair, so a
--- version of another tenant can never answer for the row.
+-- the format each row reports. Joined on the document's own tenant pair and
+-- the document itself, so a version of another tenant or document can never
+-- answer for the row.
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
@@ -204,6 +207,8 @@ SELECT d.*
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
@@ -317,6 +322,8 @@ SELECT d.*
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
@@ -465,6 +472,8 @@ SELECT d.*
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)

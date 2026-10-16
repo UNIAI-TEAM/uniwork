@@ -209,6 +209,8 @@ SELECT d.id,
 FROM documents d
 LEFT JOIN document_versions cur
   ON cur.organization_id = d.organization_id
+  AND cur.workspace_id = d.workspace_id
+  AND cur.document_id = d.id
   AND cur.id = d.file_version_id
 LEFT JOIN document_versions first
   ON first.organization_id = d.organization_id
