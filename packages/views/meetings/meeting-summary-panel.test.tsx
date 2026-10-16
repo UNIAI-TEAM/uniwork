@@ -652,6 +652,30 @@ describe("MeetingSummaryPanel › action items to tasks", () => {
     expect(screen.getByRole("checkbox", { name: "Gửi biên bản", hidden: true })).toBeChecked();
   });
 
+  it("closes the review, says why and returns focus to the call to action when the summary is replaced", async () => {
+    let current: unknown = base;
+    respond({ summary: () => current });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />, undefined, client));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
+    const cta = screen.getByRole("button", { name: "Tạo 1 việc" });
+    cta.focus();
+    fireEvent.click(cta);
+    await screen.findByRole("dialog");
+
+    current = { ...base, id: "s2" };
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["meeting-summary", "m1"] });
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("summary-live-region")).toHaveTextContent(
+      "Tóm tắt vừa được tạo lại. Chọn lại việc trong bản mới.",
+    );
+    const fresh = screen.getByRole("button", { name: "Tạo 0 việc" });
+    expect(fresh).toBe(cta);
+    await waitFor(() => expect(document.activeElement).toBe(cta));
+  });
+
   it("drops the selection when the summary is replaced", async () => {
     let current: unknown = base;
     respond({ summary: () => current });

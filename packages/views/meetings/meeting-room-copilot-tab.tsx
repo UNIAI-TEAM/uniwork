@@ -18,6 +18,7 @@ import {
 } from "./meeting-summary/summary-generate-controls";
 import { summarySourceFacts, summarySourceList } from "./meeting-summary/summary-sources";
 import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
+import type { SummarySelection } from "./meeting-summary/use-summary-task-creation";
 import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
@@ -40,6 +41,9 @@ export function MeetingRoomCopilotTab({
 }) {
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState<CopilotSection>("insights");
+  // The host's ticks outlive the Actions section, so a look at the transcript
+  // does not cost them; they are tagged with the summary they were made on.
+  const actionSelection = useState<SummarySelection | null>(null);
   const gen = useSummaryGeneration({ workspaceId, meetingId, canHost });
   const { summary, summaryQuery, transcriptQuery, chatQuery, notesQuery } = gen;
   const transcript = transcriptQuery.data;
@@ -237,7 +241,6 @@ export function MeetingRoomCopilotTab({
             ) : null}
             {summary && actionItems.length > 0 ? (
               <SummaryActionItems
-                key={summary.id}
                 summary={summary}
                 workspaceId={workspaceId}
                 meetingId={meetingId}
@@ -245,6 +248,7 @@ export function MeetingRoomCopilotTab({
                 projectId={project?.id}
                 variant="copilot"
                 announce={gen.announce}
+                selection={actionSelection}
               />
             ) : (
               <p className="text-label text-muted-foreground">{t("meetings.actionItemsEmpty")}</p>

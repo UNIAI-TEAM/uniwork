@@ -101,7 +101,6 @@ export function MeetingSummaryPanel({
               <div>
                 <h3 className="mb-2 text-overline text-muted-foreground">{t("meetings.actionItems")}</h3>
                 <SummaryActionItems
-                  key={summary.id}
                   summary={summary}
                   workspaceId={workspaceId}
                   meetingId={meetingId}

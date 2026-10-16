@@ -14,7 +14,7 @@ import { AppLink } from "../../navigation";
 import { AiSummaryTasksDialog, type AiSummaryTaskSeed } from "../../tasks/ai-summary-tasks-dialog";
 import { meetingLocale } from "../meeting-datetime";
 import { useMemberIndex } from "../use-member-index";
-import { useSummaryTaskCreation } from "./use-summary-task-creation";
+import { useSummaryTaskCreation, type SummarySelectionState } from "./use-summary-task-creation";
 
 type Variant = "panel" | "copilot";
 
@@ -121,7 +121,8 @@ function ActionItemRow({
  * (assignee, due date, priority, project; the server's suggestions are the
  * starting point and the host's choices are final), create. The call to
  * action stays rendered (aria-disabled with a reason when nothing is picked),
- * so the focus the dialog hands back on close has somewhere to land.
+ * also across a regenerated summary, so the focus the dialog hands back on
+ * close has somewhere to land.
  */
 function SelectableActionItems({
   summary,
@@ -130,6 +131,7 @@ function SelectableActionItems({
   projectId,
   variant,
   announce,
+  selection,
 }: {
   summary: MeetingSummary;
   workspaceId: string;
@@ -137,10 +139,11 @@ function SelectableActionItems({
   projectId?: string;
   variant: Variant;
   announce: (message: string) => void;
+  selection?: SummarySelectionState;
 }) {
   const { t } = useTranslation();
   const reasonId = useId();
-  const flow = useSummaryTaskCreation({ workspaceId, meetingId, summary, announce });
+  const flow = useSummaryTaskCreation({ workspaceId, meetingId, summary, announce, selection });
   const { memberOf } = useMemberIndex(workspaceId);
   const count = flow.pickedOpen.length;
   const seeds = useMemo<AiSummaryTaskSeed[]>(
@@ -226,9 +229,10 @@ function SelectableActionItems({
 
 /**
  * A summary's action items, shared by the meeting detail panel and the
- * in-room Copilot. Mount it under `key={summary.id}`: the selection belongs
- * to one summary. Without a workspace (a guest) or host rights it is a
- * read-only list, and the create mutation is never mounted.
+ * in-room Copilot. The selection belongs to one summary: a regenerated one
+ * starts with no ticks, without remounting the list. Without a workspace (a
+ * guest) or host rights it is a read-only list, and the create mutation is
+ * never mounted.
  */
 export function SummaryActionItems({
   summary,
@@ -238,6 +242,7 @@ export function SummaryActionItems({
   projectId,
   variant,
   announce,
+  selection,
 }: {
   summary: MeetingSummary;
   workspaceId?: string;
@@ -247,6 +252,8 @@ export function SummaryActionItems({
   projectId?: string;
   variant: Variant;
   announce: (message: string) => void;
+  /** Ticks held by a screen that unmounts this list (the Copilot's sections); else kept here. */
+  selection?: SummarySelectionState;
 }) {
   const workspace = useOptionalWorkspace()?.workspace;
   const items = summary.action_items ?? [];
@@ -259,6 +266,7 @@ export function SummaryActionItems({
         projectId={projectId}
         variant={variant}
         announce={announce}
+        selection={selection}
       />
     );
   }

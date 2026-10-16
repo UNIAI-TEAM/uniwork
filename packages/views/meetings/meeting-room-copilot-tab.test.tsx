@@ -306,6 +306,20 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     expect(screen.getByRole("button", { name: "Tạo việc trong UniWork (0)" })).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("keeps the host's ticks while they look at another section", async () => {
+    respond();
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Báo khách hàng" }));
+    expect(screen.getByRole("button", { name: "Tạo việc trong UniWork (1)" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Lời thoại" }));
+    expect(screen.queryByRole("checkbox", { name: "Báo khách hàng" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Việc cần làm" }));
+    expect(await screen.findByRole("checkbox", { name: "Báo khách hàng" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Tạo việc trong UniWork (1)" })).toBeInTheDocument();
+  });
+
   it("says why it cannot generate yet, keeping the button reachable", async () => {
     respond({ summary: null });
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
