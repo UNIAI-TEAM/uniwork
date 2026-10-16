@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1811-fd-14-app-pickers; git log --oneline -3
+e3978944535d21b7bc9d70579b7031e6c27bce9a
+e3978944535d21b7bc9d70579b7031e6c27bce9a
+e3978944 merge: FD-14 fix1 FE (FE14-R1-01..06, C1-F2..F7) into the FD-14 branch
+1769197c fix(shell): picker never dead-ends when every loaded row is hidden but more pages exist
+12a24bc1 fix(shell): drop the redundant isNavigable check in the picker's list-loaded reducer
