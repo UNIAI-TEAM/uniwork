@@ -224,7 +224,7 @@ export function LibraryRowView({
       variant="outline"
       size="xs"
       aria-label={t(sourceLinkNamedLabelKey(source.parent), { title })}
-      onClick={() => handlers.onGoToSource(row)}
+      onClick={() => row.type === "source" && handlers.onGoToSource(row)}
     >
       <ExternalLink aria-hidden />
       {t(sourceLinkLabelKey(source.parent))}

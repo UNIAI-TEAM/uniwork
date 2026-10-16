@@ -203,7 +203,7 @@ describe("file from another module", () => {
     route({ sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })] });
     downloadBlob.mockResolvedValue(new Blob(["docx"]));
     const adapter = renderView();
-    const { clicked, restore } = stubDownload();
+    const { clicked, revokeUrl, restore } = stubDownload();
     try {
       const row = await rowOf("Kế hoạch.docx");
       fireEvent.click(sourceNameButton(row));
@@ -211,6 +211,10 @@ describe("file from another module", () => {
       expect(clicked[0]).toBe("Kế hoạch.docx|blob:budget");
       expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Ad9/download`);
       expect(adapter.push).not.toHaveBeenCalled();
+      // The download revokes its object URL a second later (documents-page-view
+      // onDownloadSource); let that timer land on THIS stub so it cannot leak
+      // into a later test's.
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
     } finally {
       restore();
     }
@@ -220,13 +224,14 @@ describe("file from another module", () => {
     route({ sources: () => [source({ id: "chat:z1", name: "Mã nguồn.zip", mime_type: "application/zip", extension: "zip" })] });
     downloadBlob.mockResolvedValue(new Blob(["zip"]));
     const adapter = renderView();
-    const { clicked, restore } = stubDownload();
+    const { clicked, revokeUrl, restore } = stubDownload();
     try {
       const row = await rowOf("Mã nguồn.zip");
       fireEvent.click(sourceNameButton(row));
       await waitFor(() => expect(clicked).toHaveLength(1));
       expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Az1/download`);
       expect(adapter.push).not.toHaveBeenCalled();
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
     } finally {
       restore();
     }
@@ -282,8 +287,8 @@ describe("file from another module", () => {
 
   it("drops a blob that resolves after the preview was closed", async () => {
     route({ sources: () => [source({ id: "chat:i4", name: "Chậm.png", mime_type: "image/png", extension: "png" })] });
-    const gate = Promise.withResolvers<Blob>();
-    downloadBlob.mockImplementation(() => gate.promise);
+    let release!: (blob: Blob) => void;
+    downloadBlob.mockImplementation(() => new Promise<Blob>((resolve) => { release = resolve; }));
     renderView();
     const { createUrl, revokeUrl, restore } = stubDownload();
     try {
@@ -293,10 +298,8 @@ describe("file from another module", () => {
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
       await act(async () => {
-        gate.resolve(new Blob(["png"], { type: "image/png" }));
-        const settle = Promise.withResolvers<void>();
-        setTimeout(settle.resolve, 0);
-        await settle.promise;
+        release(new Blob(["png"], { type: "image/png" }));
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
       });
       // The closed preview never became an object URL and never reopened.
       expect(createUrl).not.toHaveBeenCalled();
@@ -392,7 +395,7 @@ describe("file from another module", () => {
     route({ sources: () => [source({ parent: { kind: "unknown", id: "x", title: "?" } })] });
     downloadBlob.mockResolvedValue(new Blob(["pdf"]));
     const adapter = renderView();
-    const { clicked, restore } = stubDownload();
+    const { clicked, revokeUrl, restore } = stubDownload();
     try {
       const row = await rowOf("Đề xuất ngân sách.pdf");
       fireEvent.click(sourceNameButton(row));
@@ -404,6 +407,7 @@ describe("file from another module", () => {
       expect(await screen.findByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
       expect(screen.queryByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeNull();
       expect(adapter.push).not.toHaveBeenCalled();
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
     } finally {
       restore();
     }
