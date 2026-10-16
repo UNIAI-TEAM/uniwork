@@ -122,12 +122,14 @@ ORDER BY version DESC
 LIMIT sqlc.arg(max_rows);
 
 -- What a list row shows beside the metadata, for one page of file documents:
--- the size of the version the document points at and whether version 1 came
--- from the Office engine (a blank create or a converted copy) rather than
+-- the size of the version the document points at, the MIME that version was
+-- verified as (the library format of the row, UNI-1868) and whether version 1
+-- came from the Office engine (a blank create or a converted copy) rather than
 -- uploaded bytes. Pages and folders have no file versions and are left out.
 -- name: ListDocumentFileListFacts :many
 SELECT d.id,
   COALESCE(cur.size_bytes, 0)::bigint AS size_bytes,
+  cur.mime_type,
   (COALESCE(first.engine_name, '') <> '')::boolean AS engine_made
 FROM documents d
 LEFT JOIN document_versions cur
