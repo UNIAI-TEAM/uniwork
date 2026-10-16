@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -360,6 +361,49 @@ func TestCreateTasksFromSummaryIgnoresADeletedMeetingProject(t *testing.T) {
 	_, err = s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0, ProjectID: &gone}}})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("named deleted project: %v, want not found", err)
+	}
+}
+
+// UNI-1853 review: two conversions of the same item running at once make one
+// task. The titles differ, so the duplicate-title guard cannot be what stops
+// the second; only the summary lock and the re-read of the links can.
+func TestCreateTasksFromSummaryConcurrentConversionsMakeOneTask(t *testing.T) {
+	s, ua, _, w, m := summaryTasksFixture(t)
+	ctx := context.Background()
+	sum := seedSummary(t, s, m, ua.ID, ai.ActionItem{Title: "Gửi báo cáo"})
+	titles := []string{"Gửi báo cáo bản A", "Gửi báo cáo bản B"}
+	errs := make([]error, len(titles))
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i, title := range titles {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, errs[i] = s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0, Title: title}}})
+		}()
+	}
+	close(start)
+	wg.Wait()
+	ok, refused := 0, 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			ok++
+		case codedIs(err, "summary_item_already_converted"):
+			refused++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if ok != 1 || refused != 1 {
+		t.Fatalf("succeeded %d, refused %d; want one of each", ok, refused)
+	}
+	if n := countRows(t, s, `SELECT count(*) FROM tasks WHERE workspace_id = $1 AND origin_id = $2`, w.ID, m.ID); n != 1 {
+		t.Fatalf("tasks = %d, want 1", n)
+	}
+	if n := countRows(t, s, `SELECT count(*) FROM meeting_summary_task_links WHERE summary_id = $1`, sum.ID); n != 1 {
+		t.Fatalf("links = %d, want 1", n)
 	}
 }
 
