@@ -865,6 +865,9 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 	if doc.ParentID.Valid {
 		out.ParentID = &doc.ParentID.String
 	}
+	if doc.SystemKind.Valid && doc.SystemKind.String != "" {
+		out.SystemKind = &doc.SystemKind.String
+	}
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		out.Icon = &doc.Icon.String
 	}

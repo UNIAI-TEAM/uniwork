@@ -316,6 +316,9 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 	if doc.ParentID.Valid {
 		out.ParentID = &doc.ParentID.String
 	}
+	if doc.SystemKind.Valid && doc.SystemKind.String != "" {
+		out.SystemKind = &doc.SystemKind.String
+	}
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		out.Icon = &doc.Icon.String
 	}
@@ -362,6 +365,10 @@ func documentTreeDTOs(nodes []service.DocumentTreeNode) []sdo.DocumentTreeNodeDT
 		if n.ParentID != "" {
 			parent := n.ParentID
 			dto.ParentID = &parent
+		}
+		if n.SystemKind != "" {
+			sys := n.SystemKind
+			dto.SystemKind = &sys
 		}
 		if n.Icon != "" {
 			icon := n.Icon

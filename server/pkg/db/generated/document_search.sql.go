@@ -18,8 +18,9 @@ WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NOT NULL
-  AND ($3
-       OR ($4 AND d.acl_owner_id = $5)
+  AND (($3
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4))
+       OR ($5 AND d.acl_owner_id = $4)
        OR ($6 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
@@ -27,7 +28,7 @@ WHERE d.organization_id = $1
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
               AND s.level = 'manage'
-              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+              AND ((s.principal_type = 'user' AND s.principal_id = $4)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($7::text[]))))))
@@ -40,14 +41,14 @@ WHERE d.organization_id = $1
        OR (NOT $14::boolean
            AND (NOT $3::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
                                  AND rs.principal_id = ANY($7::text[]))))
@@ -56,21 +57,21 @@ WHERE d.organization_id = $1
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $5
+                        AND g.actor_id = $4
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $13::text || '%' ESCAPE '\')
        OR (($14::boolean OR NOT (NOT $3::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
                                  AND rs.principal_id = ANY($7::text[]))))
@@ -79,7 +80,7 @@ WHERE d.organization_id = $1
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $5
+                        AND g.actor_id = $4
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
@@ -94,8 +95,8 @@ type ListArchivedDocumentsPageParams struct {
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	SeeAll          interface{}        `json:"see_all"`
-	AclOwner        interface{}        `json:"acl_owner"`
 	ActorID         pgtype.Text        `json:"actor_id"`
+	AclOwner        interface{}        `json:"acl_owner"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
@@ -117,8 +118,8 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.SeeAll,
-		arg.AclOwner,
 		arg.ActorID,
+		arg.AclOwner,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 		arg.Kind,
@@ -281,18 +282,19 @@ WHERE d.organization_id = $1
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND d.parent_id IS NOT DISTINCT FROM $3
-  AND ($4
-       OR ($5 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($6::text[]))
-       OR ($7 AND d.acl_owner_id = $8)
+  AND (($4
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $5))
+       OR ($6 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($7::text[]))
+       OR ($8 AND d.acl_owner_id = $5)
        OR ($9 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($6::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $8)
+              AND s.level = ANY($7::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $5)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($10::text[]))))))
@@ -305,14 +307,14 @@ WHERE d.organization_id = $1
        OR (NOT $17::boolean
            AND (NOT $4::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
                                  AND rs.principal_id = ANY($10::text[]))))
@@ -321,21 +323,21 @@ WHERE d.organization_id = $1
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $8
+                        AND g.actor_id = $5
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $16::text || '%' ESCAPE '\')
        OR (($17::boolean OR NOT (NOT $4::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
                                  AND rs.principal_id = ANY($10::text[]))))
@@ -344,7 +346,7 @@ WHERE d.organization_id = $1
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $8
+                        AND g.actor_id = $5
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
@@ -360,10 +362,10 @@ type ListDocumentsByParentPageParams struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	ParentID        pgtype.Text        `json:"parent_id"`
 	SeeAll          interface{}        `json:"see_all"`
+	ActorID         pgtype.Text        `json:"actor_id"`
 	MemberVisible   interface{}        `json:"member_visible"`
 	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
-	ActorID         pgtype.Text        `json:"actor_id"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
@@ -386,10 +388,10 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.WorkspaceID,
 		arg.ParentID,
 		arg.SeeAll,
+		arg.ActorID,
 		arg.MemberVisible,
 		arg.ShareLevels,
 		arg.AclOwner,
-		arg.ActorID,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 		arg.Kind,
@@ -496,7 +498,8 @@ WHERE d.organization_id = $5
   AND d.workspace_id = $6
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND ($2
+  AND (($2
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3))
        OR ($7 AND d.visibility = 'workspace'
            AND d.workspace_level = ANY($8::text[]))
        OR ($9 AND d.acl_owner_id = $3)
@@ -773,7 +776,8 @@ WHERE d.organization_id = $1
               AND a.workspace_id = d.workspace_id
               AND a.document_id = d.id
               AND a.actor_id = $3))
-  AND ($4
+  AND (($4
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3))
        OR ($5 AND d.visibility = 'workspace'
            AND d.workspace_level = ANY($6::text[]))
        OR ($7 AND d.acl_owner_id = $3)
@@ -893,17 +897,18 @@ WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND ($3
-       OR ($4 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($5::text[]))
-       OR ($6 AND d.acl_owner_id = $7)
+  AND (($3
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4))
+       OR ($5 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($6::text[]))
+       OR ($7 AND d.acl_owner_id = $4)
        OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND ((s.principal_type = 'user' AND s.principal_id = $7)
+              AND ((s.principal_type = 'user' AND s.principal_id = $4)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($9::text[]))))))
@@ -914,10 +919,10 @@ type ListTreeDocumentsParams struct {
 	OrganizationID  string      `json:"organization_id"`
 	WorkspaceID     string      `json:"workspace_id"`
 	SeeAll          interface{} `json:"see_all"`
+	ActorID         pgtype.Text `json:"actor_id"`
 	MemberVisible   interface{} `json:"member_visible"`
 	ShareLevels     []string    `json:"share_levels"`
 	AclOwner        interface{} `json:"acl_owner"`
-	ActorID         pgtype.Text `json:"actor_id"`
 	AllowShares     interface{} `json:"allow_shares"`
 	ShareWorkspaces []string    `json:"share_workspaces"`
 }
@@ -929,10 +934,10 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.SeeAll,
+		arg.ActorID,
 		arg.MemberVisible,
 		arg.ShareLevels,
 		arg.AclOwner,
-		arg.ActorID,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 	)

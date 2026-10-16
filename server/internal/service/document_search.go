@@ -579,7 +579,7 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 	return db.Document{
 		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
-		Kind: r.Kind, Title: r.Title, Icon: r.Icon, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		Kind: r.Kind, SystemKind: r.SystemKind, Title: r.Title, Icon: r.Icon, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
 		Content:     r.Content,
 		ContentText: r.ContentText, SearchText: r.SearchText, ContentBytes: r.ContentBytes,
 		CurrentVersion: r.CurrentVersion, FileVersionID: r.FileVersionID, Revision: r.Revision,

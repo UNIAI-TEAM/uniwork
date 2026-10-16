@@ -115,3 +115,106 @@ func TestCreateWithMyFolderDestinationRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestMyFolderSystemKindAndAdminHideRoutes(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, _ := docsJoinWorkspace(t, w, "member-mf-vis@example.com")
+	docsBase := "/api/v1/workspaces/" + w.wsID + "/documents"
+
+	// Member ensures their My Folder and creates a regular root folder.
+	resMF, outMF := doJSON(t, w.srv, "POST", docsBase+"/my-folder", memberTok, nil)
+	if resMF.StatusCode != 200 {
+		t.Fatalf("member POST /my-folder = %d %v", resMF.StatusCode, outMF)
+	}
+	mfDoc, _ := outMF["document"].(map[string]any)
+	mfID, _ := mfDoc["id"].(string)
+	if mfDoc["system_kind"] != "my_folder" {
+		t.Fatalf("DocumentDTO.system_kind = %v, want my_folder", mfDoc["system_kind"])
+	}
+
+	resReg, outReg := doJSON(t, w.srv, "POST", docsBase, memberTok, map[string]any{
+		"kind":       "folder",
+		"title":      "Regular Folder",
+		"visibility": "workspace",
+	})
+	if resReg.StatusCode != 201 {
+		t.Fatalf("member POST regular folder = %d %v", resReg.StatusCode, outReg)
+	}
+	regDoc, _ := outReg["document"].(map[string]any)
+	regID, _ := regDoc["id"].(string)
+	if _, has := regDoc["system_kind"]; has {
+		t.Fatalf("regular DocumentDTO should omit system_kind, got %v", regDoc["system_kind"])
+	}
+
+	// Member tree: My Folder carries system_kind="my_folder", regular folder omits system_kind.
+	resTreeM, outTreeM := doJSON(t, w.srv, "GET", docsBase+"/tree", memberTok, nil)
+	if resTreeM.StatusCode != 200 {
+		t.Fatalf("member GET /tree = %d %v", resTreeM.StatusCode, outTreeM)
+	}
+	nodesM, _ := outTreeM["documents"].([]any)
+	var sawMFInTree, sawRegInTree bool
+	for _, raw := range nodesM {
+		n, _ := raw.(map[string]any)
+		switch n["id"] {
+		case mfID:
+			sawMFInTree = true
+			if n["system_kind"] != "my_folder" {
+				t.Fatalf("tree node system_kind = %v, want my_folder", n["system_kind"])
+			}
+		case regID:
+			sawRegInTree = true
+			if _, has := n["system_kind"]; has {
+				t.Fatalf("regular tree node should omit system_kind, got %v", n["system_kind"])
+			}
+		}
+	}
+	if !sawMFInTree || !sawRegInTree {
+		t.Fatalf("member tree sawMF=%v sawReg=%v", sawMFInTree, sawRegInTree)
+	}
+
+	// Member root list: My Folder carries system_kind="my_folder", regular folder omits system_kind.
+	resListM, outListM := doJSON(t, w.srv, "GET", docsBase+"?parent_id=", memberTok, nil)
+	if resListM.StatusCode != 200 {
+		t.Fatalf("member GET ?parent_id= = %d %v", resListM.StatusCode, outListM)
+	}
+	itemsM, _ := outListM["documents"].([]any)
+	for _, raw := range itemsM {
+		it, _ := raw.(map[string]any)
+		switch it["id"] {
+		case mfID:
+			if it["system_kind"] != "my_folder" {
+				t.Fatalf("summary DTO system_kind = %v, want my_folder", it["system_kind"])
+			}
+		case regID:
+			if _, has := it["system_kind"]; has {
+				t.Fatalf("regular summary DTO should omit system_kind, got %v", it["system_kind"])
+			}
+		}
+	}
+
+	// Workspace owner (w.token) does NOT see member's My Folder in tree or root list, and gets 403 document_restricted on GET /documents/{mfID}.
+	resTreeAdmin, outTreeAdmin := doJSON(t, w.srv, "GET", docsBase+"/tree", w.token, nil)
+	if resTreeAdmin.StatusCode != 200 {
+		t.Fatalf("admin GET /tree = %d %v", resTreeAdmin.StatusCode, outTreeAdmin)
+	}
+	for _, raw := range outTreeAdmin["documents"].([]any) {
+		n, _ := raw.(map[string]any)
+		if n["id"] == mfID {
+			t.Fatalf("admin tree leaked member's My Folder: %v", n)
+		}
+	}
+	resListAdmin, outListAdmin := doJSON(t, w.srv, "GET", docsBase+"?parent_id=", w.token, nil)
+	if resListAdmin.StatusCode != 200 {
+		t.Fatalf("admin GET ?parent_id= = %d %v", resListAdmin.StatusCode, outListAdmin)
+	}
+	for _, raw := range outListAdmin["documents"].([]any) {
+		it, _ := raw.(map[string]any)
+		if it["id"] == mfID {
+			t.Fatalf("admin root list leaked member's My Folder: %v", it)
+		}
+	}
+	resGetAdmin, outGetAdmin := doJSON(t, w.srv, "GET", "/api/v1/documents/"+mfID, w.token, nil)
+	if code, class := errCodeClass(outGetAdmin); resGetAdmin.StatusCode != 403 || code != "document_restricted" || class != "permission" {
+		t.Fatalf("admin GET member's My Folder = %d code=%q class=%q, want 403 document_restricted/permission", resGetAdmin.StatusCode, code, class)
+	}
+}

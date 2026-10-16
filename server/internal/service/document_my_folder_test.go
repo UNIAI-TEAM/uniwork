@@ -476,3 +476,174 @@ func TestCreateWithMyFolderDestination(t *testing.T) {
 	})
 	wantCode(t, err, "idempotency_payload_mismatch")
 }
+
+// MF-6 + Decision B: Member A's My Folder is hidden from Member B AND from
+// workspace owner/admin in tree, root list, flat list, and search; workspace
+// admin sees only their own My Folder when ensured, sees restricted child items
+// inside A's My Folder in flat list/search as admin_scope metadata-only rows
+// with empty Path (not exposing A's My Folder), and gets 403 document_restricted
+// on direct GetDocument(A's My Folder). Sharing a child inside A's My Folder
+// with Member B lets B open and list the child while A's My Folder stays hidden.
+func TestMyFolderVisibilityAndAdminHide(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	ctx := env.f.ctx
+	memberA := human(env.tn.member)
+	memberB := human(env.tn.creator)
+	admin := human(env.tn.owner) // workspace owner (seeAll = true)
+
+	mfA, _, err := env.svc.EnsureMyFolder(ctx, memberA, env.tn.wsA)
+	if err != nil {
+		t.Fatalf("EnsureMyFolder(memberA): %v", err)
+	}
+	privateChild, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "Secret Inside My Folder", Destination: DocumentSystemKindMyFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(privateChild): %v", err)
+	}
+	sharedChild, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "Shared Inside My Folder", Destination: DocumentSystemKindMyFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(sharedChild): %v", err)
+	}
+	if _, err := env.svc.ShareDocument(ctx, memberA, sharedChild.Document.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: memberB.ID, Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("ShareDocument(sharedChild -> memberB): %v", err)
+	}
+
+	containsTreeID := func(nodes []DocumentTreeNode, wantID string) bool {
+		var walk func([]DocumentTreeNode) bool
+		walk = func(ns []DocumentTreeNode) bool {
+			for _, n := range ns {
+				if n.ID == wantID || walk(n.Children) {
+					return true
+				}
+			}
+			return false
+		}
+		return walk(nodes)
+	}
+	containsListID := func(page DocumentListPage, wantID string) (*DocumentListItem, bool) {
+		for i := range page.Items {
+			if page.Items[i].Document.ID == wantID {
+				return &page.Items[i], true
+			}
+		}
+		return nil, false
+	}
+
+	// 1. Member A sees their own My Folder (with SystemKind="my_folder") in tree and root list.
+	treeA, err := env.svc.DocumentTree(ctx, memberA, env.tn.wsA, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsTreeID(treeA, mfA.Document.ID) || !containsTreeID(treeA, privateChild.Document.ID) {
+		t.Fatalf("memberA tree missing own My Folder or child: %+v", treeA)
+	}
+	for _, n := range treeA {
+		if n.ID == mfA.Document.ID && n.SystemKind != DocumentSystemKindMyFolder {
+			t.Fatalf("memberA tree My Folder SystemKind = %q, want %q", n.SystemKind, DocumentSystemKindMyFolder)
+		}
+	}
+
+	// 2. Member B does NOT see A's My Folder or privateChild in tree, root list, flat list, or search;
+	// Member B DOES see sharedChild in SharedWithMe and flat list/search, with no breadcrumbs/path to A's My Folder.
+	treeB, err := env.svc.DocumentTree(ctx, memberB, env.tn.wsA, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsTreeID(treeB, mfA.Document.ID) || containsTreeID(treeB, privateChild.Document.ID) || containsTreeID(treeB, sharedChild.Document.ID) {
+		t.Fatalf("memberB tree leaked A's My Folder or children: %+v", treeB)
+	}
+	rootStr := ""
+	rootsB, err := env.svc.ListDocuments(ctx, memberB, env.tn.wsA, ListDocumentsInput{ParentID: &rootStr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(rootsB, mfA.Document.ID); ok {
+		t.Fatal("memberB root list leaked A's My Folder")
+	}
+	searchMFByB, err := env.svc.ListDocuments(ctx, memberB, env.tn.wsA, ListDocumentsInput{Query: "My Folder"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(searchMFByB, mfA.Document.ID); ok {
+		t.Fatal("memberB search leaked A's My Folder")
+	}
+	sharedViewB, err := env.svc.GetDocument(ctx, memberB, sharedChild.Document.ID)
+	if err != nil {
+		t.Fatalf("memberB GetDocument(sharedChild): %v", err)
+	}
+	if len(sharedViewB.Breadcrumbs) != 0 {
+		t.Fatalf("memberB sharedChild breadcrumbs = %+v, want empty (My Folder hidden)", sharedViewB.Breadcrumbs)
+	}
+	searchSharedByB, err := env.svc.ListDocuments(ctx, memberB, env.tn.wsA, ListDocumentsInput{Query: "Shared Inside"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item, ok := containsListID(searchSharedByB, sharedChild.Document.ID); !ok || len(item.Path) != 0 {
+		t.Fatalf("memberB search sharedChild = %v path=%+v, want present with empty path", ok, item)
+	}
+
+	// 3. Workspace admin/owner (seeAll=true): does NOT see A's My Folder in tree, root list, flat list, or search;
+	// sees only their own My Folder when ensured.
+	mfAdmin, _, err := env.svc.EnsureMyFolder(ctx, admin, env.tn.wsA)
+	if err != nil {
+		t.Fatalf("EnsureMyFolder(admin): %v", err)
+	}
+	treeAdmin, err := env.svc.DocumentTree(ctx, admin, env.tn.wsA, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsTreeID(treeAdmin, mfA.Document.ID) || containsTreeID(treeAdmin, privateChild.Document.ID) {
+		t.Fatalf("admin tree leaked A's My Folder or its unshared child: %+v", treeAdmin)
+	}
+	if !containsTreeID(treeAdmin, mfAdmin.Document.ID) {
+		t.Fatalf("admin tree missing admin's own My Folder: %+v", treeAdmin)
+	}
+	rootsAdmin, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{ParentID: &rootStr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(rootsAdmin, mfA.Document.ID); ok {
+		t.Fatal("admin root list leaked A's My Folder")
+	}
+	if _, ok := containsListID(rootsAdmin, mfAdmin.Document.ID); !ok {
+		t.Fatal("admin root list missing admin's own My Folder")
+	}
+	flatAdmin, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(flatAdmin, mfA.Document.ID); ok {
+		t.Fatal("admin flat list leaked A's My Folder")
+	}
+	if item, ok := containsListID(flatAdmin, privateChild.Document.ID); !ok || !item.Access.AdminScope || item.Access.Level != DocumentLevelNone {
+		t.Fatalf("admin flat list privateChild = %v access=%+v, want AdminScope/LevelNone", ok, item)
+	}
+	searchMFAdmin, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{Query: "My Folder"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(searchMFAdmin, mfA.Document.ID); ok {
+		t.Fatal("admin search leaked A's My Folder")
+	}
+	if _, ok := containsListID(searchMFAdmin, mfAdmin.Document.ID); !ok {
+		t.Fatal("admin search missing admin's own My Folder")
+	}
+	searchChildAdmin, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{Query: "Secret Inside"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item, ok := containsListID(searchChildAdmin, privateChild.Document.ID); !ok || !item.Access.AdminScope || len(item.Path) != 0 {
+		t.Fatalf("admin search privateChild = %v item=%+v, want AdminScope with empty Path", ok, item)
+	}
+
+	// Direct GetDocument(A's My Folder) by non-owner workspace admin -> 403 document_restricted (not 200).
+	_, err = env.svc.GetDocument(ctx, admin, mfA.Document.ID)
+	if ce := wantCode(t, err, "document_restricted"); ce.Status != 403 {
+		t.Fatalf("admin GetDocument(mfA) = %+v, want 403 document_restricted", ce)
+	}
+}

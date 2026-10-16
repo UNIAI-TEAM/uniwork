@@ -65,7 +65,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -148,7 +149,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND d.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -230,7 +232,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NOT NULL
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
        OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -337,7 +340,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -369,7 +373,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND a.workspace_id = d.workspace_id
               AND a.document_id = d.id
               AND a.actor_id = sqlc.arg(actor_id)))
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
