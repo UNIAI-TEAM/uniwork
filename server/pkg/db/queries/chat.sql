@@ -28,7 +28,13 @@ INSERT INTO chat_room_members (
   id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
-) RETURNING *;
+)
+ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING
+RETURNING *;
+
+-- name: LockChatRoom :exec
+-- tenant: by-id
+SELECT id FROM chat_rooms WHERE id = $1 FOR UPDATE;
 
 -- name: ListChatRoomMemberUserIDs :many
 -- tenant: parent room_id

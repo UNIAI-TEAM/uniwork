@@ -938,7 +938,9 @@ INSERT INTO chat_room_members (
   id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
-) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted
+)
+ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING
+RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted
 `
 
 type InsertChatRoomMemberParams struct {
@@ -2277,6 +2279,16 @@ func (q *Queries) ListDefaultChatRoomMissingMembers(ctx context.Context, workspa
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockChatRoom = `-- name: LockChatRoom :exec
+SELECT id FROM chat_rooms WHERE id = $1 FOR UPDATE
+`
+
+// tenant: by-id
+func (q *Queries) LockChatRoom(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, lockChatRoom, id)
+	return err
 }
 
 const markChatThreadRead = `-- name: MarkChatThreadRead :exec

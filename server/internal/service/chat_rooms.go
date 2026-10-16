@@ -225,6 +225,13 @@ func (s *ChatService) ResolveDM(ctx context.Context, userID, workspaceID, target
 			name = peer.Email
 		}
 		room, err = s.createChatRoom(ctx, userID, w.OrganizationID, workspaceID, chatRoomKindDM, name, key, []string{userID, targetUserID})
+		if isUniqueViolation(err) {
+			room, err = s.q.GetChatRoomByKindAndMemberSet(ctx, db.GetChatRoomByKindAndMemberSetParams{
+				OrganizationID: w.OrganizationID,
+				Kind:           chatRoomKindDM,
+				MemberSetKey:   pgtype.Text{String: key, Valid: true},
+			})
+		}
 		if err != nil {
 			return ChatRoomSummary{}, err
 		}
@@ -294,6 +301,13 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 			name = defaultGroupNameFromUsers(ctx, s.q, memberIDs)
 		}
 		room, err = s.createChatRoom(ctx, userID, w.OrganizationID, workspaceID, chatRoomKindGroup, name, key, allIDs)
+		if isUniqueViolation(err) && key != "" {
+			room, err = s.q.GetChatRoomByKindAndMemberSet(ctx, db.GetChatRoomByKindAndMemberSetParams{
+				OrganizationID: w.OrganizationID,
+				Kind:           chatRoomKindGroup,
+				MemberSetKey:   pgtype.Text{String: key, Valid: true},
+			})
+		}
 		if err != nil {
 			return ChatRoomSummary{}, err
 		}
@@ -326,16 +340,13 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	if len(ids) > chatInviteMaxIDs {
 		return ChatRoomSummary{}, Invalid("mời tối đa 100 thành viên mỗi lần")
 	}
-	var size int // the group's member count once the invite lands
+	var size int // approximate until LockChatRoom recounts inside the invite tx
 	if room.Kind == chatRoomKindGroup {
 		current, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
 		if err != nil {
 			return ChatRoomSummary{}, err
 		}
 		size = len(uniqueUserIDs(append(slices.Clip(current), ids...)))
-		if size > maxChatGroupMembers {
-			return ChatRoomSummary{}, errChatGroupTooLarge()
-		}
 	}
 	// Every added member is an event fanned out to every member. A channel's
 	// moderators decide who joins it; in a group anyone may add people while
@@ -368,6 +379,19 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if room.Kind == chatRoomKindGroup {
+		if err := q.LockChatRoom(ctx, roomID); err != nil {
+			return ChatRoomSummary{}, err
+		}
+		current, err := q.ListChatRoomMemberUserIDs(ctx, room.ID)
+		if err != nil {
+			return ChatRoomSummary{}, err
+		}
+		size = len(uniqueUserIDs(append(slices.Clip(current), ids...)))
+		if size > maxChatGroupMembers {
+			return ChatRoomSummary{}, errChatGroupTooLarge()
+		}
+	}
 	// One event for the whole invite, on the first member's audit row: the
 	// consumer reads the room's members when it delivers, so each member hears
 	// it once instead of once per person added.

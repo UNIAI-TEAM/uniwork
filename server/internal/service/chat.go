@@ -167,6 +167,9 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 			return WorkspaceChat{}, wErr
 		}
 		room, err = s.createWorkspaceRoom(ctx, userID, w)
+		if isUniqueViolation(err) {
+			room, err = s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
+		}
 		if err != nil {
 			return WorkspaceChat{}, err
 		}
@@ -290,6 +293,9 @@ func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, room db.
 		Status:         "active",
 		OrganizationID: room.OrganizationID,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
 	return err == nil, err
 }
 
