@@ -55,7 +55,7 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx`); err != nil {
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx, idx_documents_folder_name_user_uidx`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -218,7 +218,7 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx`); err != nil {
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx, idx_documents_folder_name_user_uidx`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -353,6 +353,7 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 	for _, glob := range []string{
 		"*_documents_folder_name_dedupe.up.sql",
 		"*_documents_folder_name_uidx.up.sql",
+		"*_documents_folder_name_user_uidx.up.sql",
 	} {
 		matches, err := filepath.Glob(glob)
 		if err != nil || len(matches) != 1 {
