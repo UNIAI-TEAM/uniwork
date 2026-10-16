@@ -1,0 +1,5 @@
+$ echo "--- ss unprivileged (LISTEN on 3000/18555/18553)"; ss -ltn 2>/dev/null | grep -E ':(3000|18555|18553)[^0-9]' || echo "ss: none of 3000/18555/18553 listening"; ss -ltn 2>/dev/null | grep -qE ':3000[^0-9]'; rc=$?; echo; echo "SS_3000_EXIT=$rc"
+--- ss unprivileged (LISTEN on 3000/18555/18553)
+ss: none of 3000/18555/18553 listening
+
+SS_3000_EXIT=1

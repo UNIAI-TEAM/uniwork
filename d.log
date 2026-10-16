@@ -1,0 +1,9 @@
+$ echo "--- sudo ss -ltnp:"; sudo -n ss -ltnp 2>&1 | grep -E ':(3000|18555)' || echo "sudo ss: no match or sudo refused"; echo "--- sudo ps (next/pnpm):"; sudo -n ps -eo pid,ppid,user,etimes,cmd 2>&1 | grep -iE 'next-server|next start|pnpm' | grep -v grep | head -20; sudo -n ss -ltnp 2>/dev/null | grep -qE ':3000'; rc=$?; echo; echo "SUDO_SS_3000_EXIT=$rc"
+--- sudo ss -ltnp:
+sudo ss: no match or sudo refused
+--- sudo ps (next/pnpm):
+  26826       1 ubuntu      2252 node /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm --filter @uniwork/web start
+  26838   26826 ubuntu      2251 sh -c next start
+  26839   26838 ubuntu      2251 next-server (v16.3.8)
+
+SUDO_SS_3000_EXIT=1

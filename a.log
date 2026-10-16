@@ -1,0 +1,4 @@
+$ git rev-parse HEAD; rc=$?; echo; echo "GIT_EXIT=$rc"
+8b456e07ef2278903fd8ccdb3dd5280d86a1eb6a
+
+GIT_EXIT=0

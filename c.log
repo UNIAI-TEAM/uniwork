@@ -1,0 +1,5 @@
+$ lsof -ti tcp:3000 >/dev/null 2>&1; rc=$?; echo "lsof -ti tcp:3000 -> exit $rc"; lsof -ti tcp:18555 >/dev/null 2>&1; rc2=$?; echo "lsof -ti tcp:18555 -> exit $rc2"; echo; echo "LSOF_3000_EXIT=$rc"
+lsof -ti tcp:3000 -> exit 1
+lsof -ti tcp:18555 -> exit 1
+
+LSOF_3000_EXIT=1

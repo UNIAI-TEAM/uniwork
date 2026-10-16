@@ -1,0 +1,5 @@
+$ curl -s -o /dev/null -w 'HTTP=%{http_code}\n' --max-time 10 http://localhost:3000/login; echo "--- served app inline API urls:"; curl -s --max-time 10 http://localhost:3000/login | grep -oE 'localhost:18[0-9]{3}' | sort | uniq -c | head -5; curl -s -o /dev/null --max-time 10 http://localhost:3000/login; rc=$?; echo; echo "SERVE_EXIT=$rc"
+HTTP=200
+--- served app inline API urls:
+
+SERVE_EXIT=0

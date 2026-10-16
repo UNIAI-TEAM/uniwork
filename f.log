@@ -1,0 +1,25 @@
+$ echo "--- /tmp/gb2-web.log first 200 bytes:"; head -c 200 /tmp/gb2-web.log 2>/dev/null; echo; echo "--- /tmp/*.log:"; ls -la /tmp/*.log 2>/dev/null; test -f /tmp/gb2-web.log; rc=$?; echo; echo "TMPLOGS_EXIT=$rc"
+--- /tmp/gb2-web.log first 200 bytes:
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3000
+    at <unknown> (Error: listen EADDRINUSE: address al
+--- /tmp/*.log:
+-rw-r--r-- 1 ubuntu ubuntu    4110 Oct 16 10:14 /tmp/agent-store-fuse.log
+-rw-r--r-- 1 ubuntu ubuntu    3892 Oct 16 09:25 /tmp/container-init.log
+-rw-r--r-- 1 ubuntu ubuntu     221 Oct 16 09:24 /tmp/dbus-daemon-system.log
+-rw-r--r-- 1 ubuntu ubuntu    4976 Oct 16 09:41 /tmp/gb1-e2e.log
+-rw-r--r-- 1 ubuntu ubuntu 1764881 Oct 16 09:41 /tmp/gb1-server.log
+-rw-r--r-- 1 ubuntu ubuntu     217 Oct 16 09:38 /tmp/gb1-web.log
+-rw-r--r-- 1 ubuntu ubuntu     755 Oct 16 10:13 /tmp/gb2-e2e.log
+-rw-r--r-- 1 ubuntu ubuntu    1010 Oct 16 10:13 /tmp/gb2-server.log
+-rw-r--r-- 1 ubuntu ubuntu     460 Oct 16 10:12 /tmp/gb2-web.log
+-rw-r--r-- 1 ubuntu ubuntu     715 Oct 16 09:28 /tmp/minio.log
+-rw-r--r-- 1 ubuntu ubuntu   34201 Oct 16 09:28 /tmp/runner-install.log
+-rw-r--r-- 1 ubuntu ubuntu       0 Oct 16 10:13 /tmp/runner-push.log
+-rw-r--r-- 1 ubuntu ubuntu     375 Oct 16 10:15 /tmp/runner-start.log
+
+TMPLOGS_EXIT=0
