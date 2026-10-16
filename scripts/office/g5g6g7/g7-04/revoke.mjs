@@ -201,6 +201,13 @@ export function capabilityOffBlocker(capability) {
  */
 export const TURN_1_PRECONDITION_REASON = "the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)";
 
+/**
+ * Why a capability that turns off BETWEEN the two turns is not a revoke result
+ * (D2-03). Long text: it belongs to the record's `details.why`, never to the
+ * 240-char-capped reason.
+ */
+export const CAPABILITY_FLIP_REASON = "the capability turned off between turn 1 and turn 2 (D2-03, service/ai_uniwork.go:498-514): a deployment change after a turn 1 that DID work, so the row FAILs as that flip and never as a revoke result";
+
 const AI_TURN_2_PROMPT = "Tiếp tục sau khi quyền bị thu hồi.";
 const AI_TURN_1_PROMPT = "Mở đầu bản nháp cho tài liệu này.";
 
@@ -260,7 +267,7 @@ function safe(text) {
   return redactSignInError(String(text ?? ""));
 }
 
-/** `403 member_deactivated` / `401 unauthorized error_class=session` for a reason line. */
+/** `403 member_deactivated` / `401 unauthorized error_class=session` / `0 timeout` for a reason line. */
 function answerOf(answer) {
   if (!answer) return "none";
   const code = answer.code ? ` ${answer.code}` : "";
@@ -269,13 +276,47 @@ function answerOf(answer) {
 }
 
 /**
- * The MEASURED answers of one row, for a BLOCKED reason (BE-704-204): what each
- * route really answered, never the expectation. Kept short on purpose — the
- * reason is redacted and cut at 240 chars (`redactSignInError`), so the facts a
- * reader must see come before anything that only restates a blocker.
+ * The compact MEASURED tuple every BLOCKED/FAIL reason is built from
+ * (BE-704-350, BE-704-351, BE-704-352): turn 1 and turn 2 status/code per route,
+ * the version counts before and after the revoke, and BOTH Save answers. A route
+ * that produced no HTTP answer carries its own transport code instead
+ * (`timeout`, `transport`, or `http_<status>` for a 5xx the call refused), never
+ * a server code. A part the run never reached is left out, so even a
+ * prerequisite or driver failure reads as one tuple. Compact codes only — never
+ * prose, never an expectation interpolated as an observation — because the whole
+ * reason must survive the record's own 240-char redaction
+ * (`redactSignInError`).
  */
-function measuredTurnsOf(aiTurn1, aiTurn2, versionsBefore, versionsAfterRevoke) {
-  return `AI turn 1 session ${answerOf(aiTurn1?.session)}/frame ${answerOf(aiTurn1?.frame)}; AI turn 2 session ${answerOf(aiTurn2?.session)}/frame ${answerOf(aiTurn2?.frame)}; versions ${versionsBefore} -> ${versionsAfterRevoke}`;
+export function measuredTupleOf(measured) {
+  const { aiTurn1, aiTurn2, versionsBefore, versionsAfterRevoke, save } = measured ?? {};
+  const parts = [];
+  if (aiTurn1) parts.push(`t1 ${routePairOf(aiTurn1)}`);
+  if (aiTurn2) parts.push(`t2 ${routePairOf(aiTurn2)}`);
+  if (versionsBefore != null || versionsAfterRevoke != null) parts.push(`v ${versionsBefore ?? "none"}->${versionsAfterRevoke ?? "none"}`);
+  if (save) parts.push(`save up ${answerOf(save.upload)}/cm ${answerOf(save.commit)}`);
+  return parts.length ? parts.join(" ") : "no measurement";
+}
+
+/**
+ * `s<session>/f<frame>`, the measured status and CODE of both routes — no
+ * error_class and no transport message: those are evidence for the record's
+ * `details`, and every character here is spent inside the reason's 240-char
+ * redaction.
+ */
+function routePairOf(turn) {
+  const codeAnswer = (answer) => (answer ? `${answer.status ?? "none"}${answer.code ? ` ${answer.code}` : ""}` : "none");
+  return `s${codeAnswer(turn?.session)}/f${codeAnswer(turn?.frame)}`;
+}
+
+/**
+ * The ONE builder of a row reason (BE-704-350): the verdict as a compact code,
+ * then the measured tuple. Every BLOCKED and FAIL verdict goes through it, so no
+ * reason can outgrow the record's 240-char redaction or print an expectation
+ * where a measurement belongs; the long text — the expectation, the blocker, the
+ * file:line why, the mismatch prose — belongs to `details` and to `blocker`.
+ */
+export function verdictReasonOf(verdict, measured) {
+  return `${verdict}; ${measuredTupleOf(measured)}`;
 }
 
 /**
@@ -307,9 +348,13 @@ export function turn1MissesOf(aiTurn1) {
  * capability named, or a fake deployment's 503 `ai_disabled` — and a turn 1 that
  * answered 200 but whose own CONTENT step is BLOCKED (`aiTurn1Step`, the row's
  * recorded step) is BLOCKED too, never PASS (BE-704-202).
+ *
+ * Every verdict's reason is `verdictReasonOf` over the MEASURED tuple
+ * (BE-704-350): a compact code plus measurements, never prose, so it survives
+ * the record's 240-char redaction. The expectation it was read against, the
+ * mismatch prose, the blocker and the file:line why go to `details`.
  */
 export function decideRevokeOutcome({
-  caseName,
   expectations,
   versionsBefore,
   versionsAfterRevoke,
@@ -322,6 +367,29 @@ export function decideRevokeOutcome({
   aiTurn1Step = null,
 }) {
   const x = expectations;
+  const measured = { aiTurn1, aiTurn2, versionsBefore, versionsAfterRevoke, save };
+  // The expectation side of the row: long text, never a reason.
+  const expected = {
+    aiTurn1: { session: answerOf({ status: 200 }), frame: answerOf({ status: 200 }) },
+    aiTurn2: { session: answerOf(x.aiTurn2.session), frame: answerOf(x.aiTurn2.frame) },
+    save: { upload: answerOf(x.saveUpload), commit: answerOf(x.saveCommit) },
+    revoke: x.revoke,
+  };
+  const fail = (verdict, { why = "", mismatch = [] } = {}) => ({
+    status: "FAIL",
+    exitCode: 1,
+    owner: REVOKE_OWNER,
+    reason: verdictReasonOf(verdict, measured),
+    details: { verdict, expected, why, mismatch },
+  });
+  const blocked = (verdict, blocker, owner, why = "", mismatch = []) => ({
+    status: "BLOCKED",
+    exitCode: BLOCKED_EXIT,
+    owner,
+    blocker,
+    reason: verdictReasonOf(verdict, measured),
+    details: { verdict, expected, why, mismatch },
+  });
   // Under a fake deployment the turn-1 CONTENT claim cannot be proven; the turn
   // answers 503 `ai_disabled` (contract-p0 §8). Derived from the turn itself so a
   // caller cannot forget to pass the flag.
@@ -342,44 +410,34 @@ export function decideRevokeOutcome({
   const turn1ContentBlocked =
     aiTurn1Step?.status === "BLOCKED" && !turn1Disabled && !turn1CapabilityOff;
   if (versionsAfterRevoke !== versionsBefore) {
-    return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `G7-A02 violation: version count changed across the revoke (${versionsBefore} -> ${versionsAfterRevoke})` };
+    return fail("version_delta");
   }
   if (commitIntent?.hasCommitted) {
-    return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `G7-A02 violation: a commit intent is committed after the revoke (${commitIntent.outcome})` };
+    return fail("commit_intent_committed", { why: COMMIT_INTENT_READ_REASON });
   }
   const saveMisses = [
     answerMismatch("the upload", x.saveUpload, save?.upload),
     answerMismatch("the commit", x.saveCommit, save?.commit),
   ].filter(Boolean);
   if (saveMisses.length) {
-    return {
-      status: "FAIL",
-      exitCode: 1,
-      owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: the revoked user's Save was not refused: ${saveMisses.join("; ")}`,
-    };
+    return fail("save_not_refused", { mismatch: saveMisses });
   }
   if (revoke?.status !== x.revoke) {
-    return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `the ${caseName} revoke answered ${revoke?.status ?? "nothing"}, want ${x.revoke}` };
+    return fail(`revoke_status ${revoke?.status ?? "none"}`);
   }
   // D2-02: the capability off at turn 1 blocks the row whatever turn 2 says —
   // but only after every revoke assertion held, so a real defect still FAILs.
   if (turn1CapabilityOff) {
-    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: CAPABILITY_OFF_OWNER, blocker: capabilityOffBlocker(turn1Capability), reason: `${capabilityOffBlocker(turn1Capability)}; the revoke assertion ran (versions ${versionsBefore} -> ${versionsAfterRevoke}, AI turn 2 session ${answerOf(aiTurn2?.session)} frame ${answerOf(aiTurn2?.frame)}, Save refused ${answerOf(save?.commit)})` };
+    return blocked(`capability_off ${turn1Capability}`, capabilityOffBlocker(turn1Capability), CAPABILITY_OFF_OWNER, TURN_1_PRECONDITION_REASON);
   }
   if (turn1Disabled) {
-    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: AI_DISABLED_OWNER, blocker: AI_DISABLED_BLOCKER, reason: `${AI_DISABLED_BLOCKER}; the revoke held (${measuredTurnsOf(aiTurn1, aiTurn2, versionsBefore, versionsAfterRevoke)})` };
+    return blocked("ai_disabled", AI_DISABLED_BLOCKER, AI_DISABLED_OWNER, AI_DISABLED_BLOCKER);
   }
   // D2-02: the row may PASS only after a turn 1 that answered 200 on both
   // routes; anything else but the fake deployment's 503 is a FAIL naming both.
   const turn1Misses = turn1MissesOf(aiTurn1);
   if (turn1Misses.length) {
-    return {
-      status: "FAIL",
-      exitCode: 1,
-      owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: AI turn 1 did not answer 200 on both routes, so the revoke can never be shown: ${turn1Misses.join("; ")}`,
-    };
+    return fail("turn1_not_200", { why: TURN_1_PRECONDITION_REASON, mismatch: turn1Misses });
   }
   // D2-03: turn 1 worked and the capability turned off before turn 2 — a
   // deployment change, not the revoke, so it is named as that flip.
@@ -388,24 +446,14 @@ export function decideRevokeOutcome({
     (aiTurn2?.frame?.status === 403 && aiTurn2?.frame?.code === CAPABILITY_OFF_CODE);
   if (turn2CapabilityOff) {
     const flipped = aiTurn2?.session?.capability || aiTurn2?.frame?.capability || "ai_uniwork";
-    return {
-      status: "FAIL",
-      exitCode: 1,
-      owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: the capability ${flipped} turned off between turn 1 and turn 2 (turn 1 session ${answerOf(aiTurn1?.session)}/frame ${answerOf(aiTurn1?.frame)}, turn 2 session ${answerOf(aiTurn2?.session)}/frame ${answerOf(aiTurn2?.frame)}): a capability flip, not a revoke result`,
-    };
+    return fail(`capability_flip ${flipped}`, { why: CAPABILITY_FLIP_REASON });
   }
   const turn2Misses = [
     answerMismatch("the session route", x.aiTurn2.session, aiTurn2?.session),
     answerMismatch("the frame route", x.aiTurn2.frame, aiTurn2?.frame),
   ].filter(Boolean);
   if (turn2Misses.length) {
-    return {
-      status: "FAIL",
-      exitCode: 1,
-      owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: AI turn 2 after the ${caseName} revoke: ${turn2Misses.join("; ")}`,
-    };
+    return fail("turn2_not_refused", { mismatch: turn2Misses });
   }
   // BE-704-202: every revoke assertion held and turn 1 did answer 200 on both
   // routes, but the CONTENT of that turn is BLOCKED (a fake provider's 200), so
@@ -413,9 +461,9 @@ export function decideRevokeOutcome({
   // assertion stays PASS in the record so the artifact still shows the revoke
   // itself was proven. Deliberately after every FAIL check: any FAIL still wins.
   if (turn1ContentBlocked) {
-    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: AI_CONTENT_OWNER, blocker: AI_CONTENT_BLOCKER, reason: `${AI_CONTENT_BLOCKER}; the revoke held (${measuredTurnsOf(aiTurn1, aiTurn2, versionsBefore, versionsAfterRevoke)})` };
+    return blocked("content_not_verifiable", AI_CONTENT_BLOCKER, AI_CONTENT_OWNER, AI_CONTENT_BLOCKER);
   }
-  return { status: "PASS", exitCode: 0, reason: `${caseName}: revoke refused the next AI turn (session ${answerOf(aiTurn2?.session)}, frame ${answerOf(aiTurn2?.frame)}), the Save (upload ${answerOf(save?.upload)}, commit ${answerOf(save?.commit)}) and left versions at ${versionsAfterRevoke}` };
+  return { status: "PASS", exitCode: 0, reason: verdictReasonOf("revoke_held", measured), details: { verdict: "revoke_held", expected } };
 }
 
 // ---- transport -------------------------------------------------------------
@@ -535,21 +583,53 @@ async function versionsCount({ apiOrigin, fetchImpl, world }) {
   return { status: res.status, count: (res.body?.versions ?? []).length, by: "owner" };
 }
 
-/** One AI turn on both hosts, with the status, code and error_class the answer carries. */
+/**
+ * The measured record of a route whose call produced no usable HTTP answer
+ * (BE-704-352): a distinct code that can never be mistaken for a server code —
+ * `http_<status>` when the route did answer with a status the call refuses (a
+ * 5xx), `timeout` when the request never came back, `transport` for any other
+ * failure. `raw.ok` is false, so `classifyAiResponse` BLOCKs that route's content
+ * claim instead of reading a 200 that never happened.
+ */
+function routeErrorOf(error) {
+  const status = Number(error?.status) || 0;
+  const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError" || error?.code === "ABORT_ERR";
+  const code = status ? `http_${status}` : timedOut ? "timeout" : "transport";
+  return {
+    status,
+    code,
+    errorClass: "",
+    capability: "",
+    error: error instanceof Error ? error.message : String(error),
+    raw: { ok: false, status, data: null },
+  };
+}
+
+/**
+ * One AI turn on both hosts, with the status, code and error_class the answer
+ * carries. Each route captures its OWN transport/status error and both routes are
+ * ALWAYS tried (BE-704-352): a session 500 or timeout must still carry the frame
+ * route's measurement in the turn-1 FAIL, never end as a generic exception FAIL.
+ */
 async function aiTurnOnBothRoutes({ apiOrigin, fetchImpl, world, frameToken, prompt }) {
   const allowed = [400, 401, 403, 404, 409, 429, 503];
-  const session = await call({
+  const measure = async (request) => {
+    try {
+      const res = await request();
+      return { status: res.status, code: errorCodeOf(res), errorClass: errorClassOf(res), capability: capabilityOf(res), error: "", raw: { ok: res.ok, status: res.status, data: res.body } };
+    } catch (error) {
+      return routeErrorOf(error);
+    }
+  };
+  const session = await measure(() => call({
     apiOrigin, fetchImpl, name: "aiUniworkDocumentChatCompletions", params: { documentID: world.documentId }, token: world.member.token,
     body: { messages: [{ role: "user", content: prompt }] }, allowStatuses: allowed,
-  });
-  const frame = await call({
+  }));
+  const frame = await measure(() => call({
     apiOrigin, fetchImpl, name: "aiUniworkFrameChatCompletions", params: { documentID: world.documentId }, token: frameToken,
     body: { messages: [{ role: "user", content: prompt }] }, allowStatuses: allowed,
-  });
-  return {
-    session: { status: session.status, code: errorCodeOf(session), errorClass: errorClassOf(session), capability: capabilityOf(session), raw: { ok: session.ok, status: session.status, data: session.body } },
-    frame: { status: frame.status, code: errorCodeOf(frame), errorClass: errorClassOf(frame), capability: capabilityOf(frame), raw: { ok: frame.ok, status: frame.status, data: frame.body } },
-  };
+  }));
+  return { session, frame };
 }
 
 /** The capability a refused turn names (`error.fields.capability`), or "". */
@@ -628,20 +708,28 @@ export async function runRevokeCase({
 
   const gate = startGate(readStartStatus(runDir));
   if (gate.gate !== "proceed") {
-    steps.start = { status: gate.gate === "blocked" ? "BLOCKED" : "FAIL", reason: gate.reason };
-    return finish(gate.gate === "blocked"
-      ? { status: "BLOCKED", exitCode: BLOCKED_EXIT, reason: gate.reason, blocker: gate.reason, owner: REVOKE_OWNER }
-      : { status: "FAIL", exitCode: 1, reason: gate.reason, owner: REVOKE_OWNER });
+    // A prerequisite failure was never measured: the reason is still the ONE
+    // helper's compact code (BE-704-350), and the long start.sh text lives in
+    // `blocker`, `details.gate` and the run's own log.
+    const blockedGate = gate.gate === "blocked";
+    steps.start = { status: blockedGate ? "BLOCKED" : "FAIL", reason: gate.reason };
+    if (log) log(`${blockedGate ? "BLOCKED" : "FAIL"}: ${gate.reason}`);
+    return finish(blockedGate
+      ? { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: REVOKE_OWNER, blocker: gate.reason, reason: verdictReasonOf("start_blocked", null), details: { verdict: "start_blocked", gate: gate.reason } }
+      : { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: verdictReasonOf("start_failed", null), details: { verdict: "start_failed", gate: gate.reason } });
   }
 
   const expectations = CASE_EXPECTATIONS[caseName];
   if (!expectations) {
     steps.args = { status: "FAIL", reason: `unknown case ${caseName}` };
-    return finish({ status: "FAIL", exitCode: 1, reason: `unknown case ${caseName}`, owner: REVOKE_OWNER });
+    return finish({ status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: verdictReasonOf(`unknown_case ${caseName}`, null), details: { verdict: `unknown_case ${caseName}` } });
   }
 
   let world = null;
   let frameToken = "";
+  // The measured tuple every verdict reason is built from (BE-704-350): filled as
+  // the run progresses, so even a driver failure reports what was measured.
+  const measured = { aiTurn1: null, aiTurn2: null, versionsBefore: null, versionsAfterRevoke: null, save: null };
   const key = `g7-04-revoke-${caseName}-${Date.now()}`;
   try {
     const seeded = await seedRevokeWorld({ apiOrigin, fetchImpl, fixtureId, repoRoot, runDir });
@@ -649,6 +737,7 @@ export async function runRevokeCase({
     steps.seed = { status: "PASS", documentId: world.documentId, workspaceId: world.workspaceId, memberId: world.member.userId };
 
     const before = await versionsCount({ apiOrigin, fetchImpl, world });
+    measured.versionsBefore = before.count;
     steps.versionsBefore = { status: "PASS", count: before.count, by: before.by };
 
     // The web host opens through a frame token the member mints.
@@ -657,6 +746,7 @@ export async function runRevokeCase({
     steps.frameOpen = { status: frameToken ? "PASS" : "FAIL", canEdit: minted.body?.can_edit ?? null };
 
     const aiTurn1 = await aiTurnOnBothRoutes({ apiOrigin, fetchImpl, world, frameToken, prompt: AI_TURN_1_PROMPT });
+    measured.aiTurn1 = aiTurn1;
     const aiSegment = classifyAiResponse(aiTurn1.session.raw, null, {
       allowRealUpstream: Boolean(fetchImpl?.allowRealAiUpstream || process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1"),
     });
@@ -668,18 +758,20 @@ export async function runRevokeCase({
     const turn1Capability = aiTurn1.session.capability || aiTurn1.frame.capability || "ai_uniwork";
     // A turn 1 that answered something other than 200 (and is not one of the two
     // environment refusals) is the FAIL the verdict names, so the step says FAIL
-    // too — the artifact never reads BLOCKED where the row FAILed.
+    // too — the artifact never reads BLOCKED where the row FAILed. The step reason
+    // is the same compact code the verdict uses; the measurements are its own
+    // session/frame fields and the row's measured tuple.
     const turn1Misses = turn1MissesOf(aiTurn1);
     steps.aiTurn1 = {
       status: aiDisabled || turn1CapabilityOff ? "BLOCKED" : turn1Misses.length ? "FAIL" : aiSegment.status,
       session: { status: aiTurn1.session.status, code: aiTurn1.session.code, capability: aiTurn1.session.capability },
       frame: { status: aiTurn1.frame.status, code: aiTurn1.frame.code, capability: aiTurn1.frame.capability },
       reason: aiDisabled
-        ? AI_DISABLED_BLOCKER
+        ? "ai_disabled"
         : turn1CapabilityOff
-          ? capabilityOffBlocker(turn1Capability)
+          ? `capability_off ${turn1Capability}`
           : turn1Misses.length
-            ? turn1Misses.join("; ")
+            ? "turn1_not_200"
             : aiSegment.reason ?? "",
     };
 
@@ -687,6 +779,7 @@ export async function runRevokeCase({
     steps.revoke = { status: revoke.status === expectations.revoke ? "PASS" : "FAIL", route: revoke.via, httpStatus: revoke.status, code: revoke.code, shareLevel: revoke.shareLevel ?? "" };
 
     const aiTurn2 = await aiTurnOnBothRoutes({ apiOrigin, fetchImpl, world, frameToken, prompt: AI_TURN_2_PROMPT });
+    measured.aiTurn2 = aiTurn2;
     const turn2Misses = [
       answerMismatch("session", expectations.aiTurn2.session, aiTurn2.session),
       answerMismatch("frame", expectations.aiTurn2.frame, aiTurn2.frame),
@@ -695,17 +788,19 @@ export async function runRevokeCase({
       status: turn2Misses.length ? "FAIL" : "PASS",
       session: { status: aiTurn2.session.status, code: aiTurn2.session.code },
       frame: { status: aiTurn2.frame.status, code: aiTurn2.frame.code, errorClass: aiTurn2.frame.errorClass },
-      reason: turn2Misses.join("; "),
+      reason: turn2Misses.length ? "turn2_not_refused" : "",
     };
 
     const save = await saveAttempt({ apiOrigin, fetchImpl, world, key });
+    measured.save = save;
     const saveMisses = [
       answerMismatch("upload", expectations.saveUpload, save.upload),
       answerMismatch("commit", expectations.saveCommit, save.commit),
     ].filter(Boolean);
-    steps.saveRefused = { status: saveMisses.length ? "FAIL" : "PASS", upload: save.upload, commit: save.commit, reason: saveMisses.join("; ") };
+    steps.saveRefused = { status: saveMisses.length ? "FAIL" : "PASS", upload: save.upload, commit: save.commit, reason: saveMisses.length ? "save_not_refused" : "" };
 
     const after = await versionsCount({ apiOrigin, fetchImpl, world });
+    measured.versionsAfterRevoke = after.count;
     steps.versionsAfter = { status: after.count === before.count ? "PASS" : "FAIL", count: after.count, by: after.by };
 
     // The lookup reads the OWNER's token (the revoked member's own read is refused
@@ -726,23 +821,35 @@ export async function runRevokeCase({
     ].filter((note) => note.why);
 
     const verdict = decideRevokeOutcome({
-      caseName, expectations, versionsBefore: before.count, versionsAfterRevoke: after.count, aiTurn1, aiTurn2, revoke, save, commitIntent,
+      expectations, versionsBefore: before.count, versionsAfterRevoke: after.count, aiTurn1, aiTurn2, revoke, save, commitIntent,
       // the row's own recorded turn-1 step decides the content claim (BE-704-202)
       aiTurn1Step: steps.aiTurn1,
     });
-    const trim = (turn) => ({ session: { status: turn.session.status, code: turn.session.code, errorClass: turn.session.errorClass, capability: turn.session.capability }, frame: { status: turn.frame.status, code: turn.frame.code, errorClass: turn.frame.errorClass, capability: turn.frame.capability } });
-    const details = { aiTurn1: trim(aiTurn1), aiTurn2: trim(aiTurn2), save, revoke, commitIntent, routeNotes, prepared: { restricted: caseName === "downgrade", shareLevel: revoke.shareLevel ?? "" } };
+    const trim = (turn) => ({
+      session: { status: turn.session.status, code: turn.session.code, errorClass: turn.session.errorClass, capability: turn.session.capability, error: turn.session.error ?? "" },
+      frame: { status: turn.frame.status, code: turn.frame.code, errorClass: turn.frame.errorClass, capability: turn.frame.capability, error: turn.frame.error ?? "" },
+    });
+    // The verdict's own details (verdict code, expectation, why, mismatch prose)
+    // come first: they are the long text its 240-char-capped reason left out.
+    const details = { ...(verdict.details ?? {}), aiTurn1: trim(aiTurn1), aiTurn2: trim(aiTurn2), save, revoke, commitIntent, routeNotes, prepared: { restricted: caseName === "downgrade", shareLevel: revoke.shareLevel ?? "" } };
     if (log) {
       log(`case ${caseName} (${fixtureId}): versions before ${before.count} (read by ${before.by}), AI turn 1 session ${answerOf(aiTurn1.session)}/frame ${answerOf(aiTurn1.frame)}`);
       log(`  revoke ${revoke.via} -> ${revoke.status}${revoke.code ? ` ${revoke.code}` : ""}`);
       log(`  AI turn 2 session ${answerOf(aiTurn2.session)}/frame ${answerOf(aiTurn2.frame)}; Save upload ${answerOf(save.upload)}/commit ${answerOf(save.commit)}`);
       log(`  versions after ${after.count} (read by ${after.by}); commit intent ${commitIntent.outcome} (http ${commitIntent.httpStatus}); verdict ${verdict.status}`);
+      log(`  reason ${verdict.reason}`);
       for (const note of routeNotes) log(`  expected ${note.route} ${note.expect} — ${note.why}`);
     }
     return finish({ ...verdict, versionCounts: { versionsBefore: before.count, versionsAfterRevoke: after.count }, details });
   } catch (error) {
-    steps.exception = { status: "FAIL", reason: safe(error instanceof Error ? error.message : String(error)) };
-    return finish({ status: "FAIL", exitCode: 1, reason: safe(error instanceof Error ? error.message : String(error)), owner: REVOKE_OWNER });
+    // A driver failure has no measurement of its own where it stopped, so the
+    // reason is the ONE helper over what WAS measured and the message — long text
+    // — goes to `details.error`, the step record and the run's own log
+    // (BE-704-350: never a prose reason cut at 240).
+    const message = safe(error instanceof Error ? error.message : String(error));
+    steps.exception = { status: "FAIL", reason: message };
+    if (log) log(`driver error: ${message}`);
+    return finish({ status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: verdictReasonOf("driver_error", measured), details: { verdict: "driver_error", error: message, measured } });
   } finally {
     if (world) await cleanupWorld({ apiOrigin, fetchImpl, world });
   }
