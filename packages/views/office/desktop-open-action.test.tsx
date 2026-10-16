@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
+import type { OfficeLaunchOptions } from "@uniwork/core/office";
 import type { OfficeSaveCoordinatorLike } from "./desktop-open-action";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
@@ -124,7 +125,7 @@ describe("DesktopOpenAction", () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" apiOrigin="https://api.test" channel="dev" savedVersion={2} createSession={async () => session} launch={launch} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     await waitFor(() => expect(launch).toHaveBeenCalledOnce());
-    expect(launch).toHaveBeenCalledWith(`uniwork-office-dev://open?ticket=${ticket}&deploymentId=dep&apiOrigin=https%3A%2F%2Fapi.test&clientId=uniwork-office-dev&channel=dev`);
+    expect(launch).toHaveBeenCalledWith(`uniwork-office-dev://open?ticket=${ticket}&deploymentId=dep&apiOrigin=https%3A%2F%2Fapi.test&clientId=uniwork-office-dev&channel=dev`, expect.anything());
   });
   it("opens the committed version without leaking document metadata", async () => {
     const createSession = vi.fn(async (_id: string, body: { version?: number }) => { expect(body).toEqual(expect.objectContaining({ operation: "edit" })); expect(body).not.toHaveProperty("version"); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });
@@ -132,7 +133,7 @@ describe("DesktopOpenAction", () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={createSession} launch={launch} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     await waitFor(() => expect(createSession).toHaveBeenCalled());
-    expect(launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`);
+    expect(launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`, expect.anything());
   });
 
   it("offers save/open-saved/cancel for a dirty editor and waits for Save", async () => {
@@ -228,6 +229,29 @@ describe("DesktopOpenAction", () => {
     expect(await screen.findByText("Get UniWork Office for desktop")).toBeInTheDocument();
     act(() => { window.dispatchEvent(new Event("blur")); });
     await waitFor(() => expect(screen.queryByText("Get UniWork Office for desktop")).not.toBeInTheDocument());
+  });
+
+  it("closes the install prompt when the launcher reports a late hand-off (UNI-1649)", async () => {
+    let late: (() => void) | undefined;
+    const launch = vi.fn(async (_url: string, options?: OfficeLaunchOptions) => { late = options?.onLateHandoff; return "not-installed" as const; });
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={async () => session} launch={launch} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    expect(await screen.findByText("Get UniWork Office for desktop")).toBeInTheDocument();
+    act(() => late?.());
+    await waitFor(() => expect(screen.queryByText("Get UniWork Office for desktop")).not.toBeInTheDocument());
+  });
+
+  it("never opens the install prompt when the late hand-off lands while the installers load (UNI-1649)", async () => {
+    let late: (() => void) | undefined;
+    let release: () => void = () => undefined;
+    const launch = vi.fn(async (_url: string, options?: OfficeLaunchOptions) => { late = options?.onLateHandoff; return "not-installed" as const; });
+    const loadInstallers = vi.fn(() => new Promise<{ installers: [] }>((resolve) => { release = () => resolve({ installers: [] }); }));
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={async () => session} launch={launch} loadInstallers={loadInstallers} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    await waitFor(() => expect(loadInstallers).toHaveBeenCalled());
+    act(() => late?.());
+    await act(async () => { release(); });
+    expect(screen.queryByText("Get UniWork Office for desktop")).not.toBeInTheDocument();
   });
 
   it("keeps the Download prompt open when the page loses focus", async () => {

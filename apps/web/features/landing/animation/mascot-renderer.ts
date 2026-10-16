@@ -61,7 +61,10 @@ export function createMascotRenderer(host: HTMLElement, onFailure: (failed: bool
   };
   const tick = (time: number) => {
     if (disposed || lost || !loaded || !visible || paused || document.hidden) return;
-    const delta = last ? Math.min((time - last) / 1000, .05) : 0;
+    // Wall-clock step: the wave is one 2.4 s gesture whatever the frame rate.
+    // `sync` re-anchors `last` on every resume (offscreen, hidden tab), so a
+    // long gap here is a slow frame, not time spent away.
+    const delta = last ? (time - last) / 1000 : 0;
     last = time; gestureAge += delta; gesture = Math.max(0, gesture - delta);
     draw();
     if (gesture === 0) sync();

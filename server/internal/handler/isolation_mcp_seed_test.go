@@ -21,14 +21,17 @@ func (w *isoWorld) buildMcp(t *testing.T, tn *isoTenant) {
 	if _, err := svc.SetPolicy(ctx, tn.userID, tn.orgID, true); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := svc.SetWritePolicy(ctx, tn.userID, tn.orgID, true); err != nil {
+		t.Fatal(err)
+	}
 	reg, err := svc.Register(ctx, service.McpRegistration{ClientName: "iso-" + tn.tag, RedirectURIs: []string{mcpTestRedirect}, TokenEndpointAuthMethod: "none"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	start := func() string {
+	start := func(scope string) string {
 		to, err := svc.Start(ctx, service.McpAuthorizeInput{
 			ResponseType: "code", ClientID: reg.Client.ClientID, RedirectURI: mcpTestRedirect,
-			CodeChallenge: mcpTestChallenge, CodeChallengeMethod: "S256",
+			CodeChallenge: mcpTestChallenge, CodeChallengeMethod: "S256", Scope: scope,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -37,12 +40,13 @@ func (w *isoWorld) buildMcp(t *testing.T, tn *isoTenant) {
 		return u.Query().Get("attempt")
 	}
 
-	first := start()
+	// The first grant holds write, so the later phases can aim write tools at it.
+	first := start("read write")
 	consent, err := svc.Consent(ctx, tn.userID, first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	back, err := svc.Approve(ctx, tn.userID, first, consent.CSRFToken, tn.orgID)
+	back, err := svc.Approve(ctx, tn.userID, first, consent.CSRFToken, tn.orgID, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +69,7 @@ func (w *isoWorld) buildMcp(t *testing.T, tn *isoTenant) {
 	// reading or deciding it must be told nothing. The owner's live CSRF token
 	// is kept so the matrix can send it from the wrong account: the token is
 	// genuine, so the refusal has to come from the claim, not from a guess.
-	pending := start()
+	pending := start("")
 	claimed, err := svc.Consent(ctx, tn.userID, pending)
 	if err != nil {
 		t.Fatal(err)

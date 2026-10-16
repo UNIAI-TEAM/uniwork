@@ -1,5 +1,4 @@
-import { EnterprisePage } from "../../features/landing/marketing-overview-pages";
-import { marketingMetadata } from "../../platform/feature-metadata";
-
-export function generateMetadata() { return marketingMetadata("enterprise", "/enterprise"); } // plan-literal-ok: the /enterprise route
-export default function Page() { return <EnterprisePage />; }
+import { publicPage } from "../../platform/public-page";
+import { seoMetadata } from "../../platform/seo";
+export function generateMetadata() { return seoMetadata("/enterprise"); }
+export default function Page() { return publicPage("/enterprise"); }

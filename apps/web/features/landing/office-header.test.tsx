@@ -41,12 +41,12 @@ afterEach(() => {
 });
 
 describe("the landing header's Office menu", () => {
-  it("is a directory group between Solutions and Learn in the desktop navigation, with Pricing the only plain link", async () => {
+  it("is a directory group between Solutions and Learn, followed by Pricing and Changelog", async () => {
     await render();
     const nav = container.querySelector(".header-navigation");
     expect(nav).not.toBeNull();
     expect(toggles()).toEqual(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu"]);
-    expect(links(nav!)).toEqual([["Bảng giá", "/pricing"]]);
+    expect(links(nav!)).toEqual([["Bảng giá", "/pricing"], ["Nhật ký cập nhật", "/changelog"]]);
   });
 
   it("opens the Office directory with the business edition link and the personal edition note", async () => {
@@ -63,11 +63,11 @@ describe("the landing header's Office menu", () => {
     expect(directory?.querySelector("[data-office-personal]")?.textContent).toContain("Đang phát triển");
   });
 
-  it("keeps the changelog in the Learn directory instead of the top bar", async () => {
+  it("shows the changelog in the top bar without repeating it in Learn", async () => {
     await render();
     await act(async () => { toggleButtons()[3]?.click(); });
-    expect(container.querySelector("#header-directory-learn a[href='/changelog']")?.textContent).toContain("Nhật ký cập nhật");
-    expect(container.querySelector(".header-navigation > a[href='/changelog']")).toBeNull();
+    expect(container.querySelector("#header-directory-learn a[href='/changelog']")).toBeNull();
+    expect(container.querySelector(".header-navigation > a[href='/changelog']")?.textContent).toBe("Nhật ký cập nhật");
   });
 
   it("is in the mobile menu in the same place, and closes the menu when followed", async () => {
@@ -77,6 +77,7 @@ describe("the landing header's Office menu", () => {
     expect(menu).not.toBeNull();
     expect([...menu!.querySelectorAll("details > summary")].map((summary) => summary.textContent)).toEqual(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu"]);
     expect([...menu!.querySelectorAll<HTMLAnchorElement>(":scope > a.mobile-route-link")][0]?.getAttribute("href")).toBe("/pricing");
+    expect(menu!.querySelector(":scope > a[href='/changelog']")?.textContent).toBe("Nhật ký cập nhật");
     const office = menu!.querySelectorAll("details")[2];
     expect(office?.querySelector("a")?.getAttribute("href")).toBe("/office#office-business");
     expect(office?.querySelector("[data-office-personal]")).not.toBeNull();

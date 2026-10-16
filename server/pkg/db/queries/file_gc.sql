@@ -182,3 +182,10 @@ WHERE v.file_id = ANY(sqlc.arg('file_ids')::text[]);
 SELECT a.file_id, a.organization_id
 FROM document_assets a
 WHERE a.file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: FileGCWorkspaceIconRefTenants :many
+-- tenant: system
+-- workspaces.icon_file_id: the uploaded workspace icon (spec 2026-10-14 §5.4).
+SELECT w.icon_file_id AS file_id, w.organization_id
+FROM workspaces w
+WHERE w.icon_file_id = ANY(sqlc.arg('file_ids')::text[]);

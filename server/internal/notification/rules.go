@@ -146,7 +146,7 @@ func changedFields(ctx context.Context, q *db.Queries, ev outbox.Row, action, re
 		return nil, nil
 	}
 	row, err := q.GetAuditEventByCorrelation(ctx, db.GetAuditEventByCorrelationParams{
-		CorrelationID: ev.CorrelationID.String, Action: action, ResourceID: resourceID,
+		CorrelationID: ev.CorrelationID.String, Action: action, ResourceID: resourceID, Before: ev.CreatedAt,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -725,6 +725,9 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 	}
 	if err != nil {
 		return nil, err
+	}
+	if room.ArchivedAt.Valid {
+		return nil, nil // archived after the worker emitted: the room is closed
 	}
 	members, err := e.q.ListChatRoomMemberUserIDs(ctx, msg.RoomID)
 	if err != nil {

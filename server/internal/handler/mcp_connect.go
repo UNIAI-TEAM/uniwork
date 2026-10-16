@@ -31,13 +31,13 @@ func mcpTimePtr(t *time.Time) *string {
 func consentSDO(c service.McpConsent) sdo.McpConsentSDO {
 	out := sdo.McpConsentSDO{
 		AttemptID: c.AttemptID, Status: c.Status, RedirectHost: c.RedirectHost, Scope: c.Scope,
-		CSRFToken: c.CSRFToken, Organizations: []sdo.McpConsentOrgSDO{},
+		CSRFToken: c.CSRFToken, WriteRequested: c.WriteRequested, Organizations: []sdo.McpConsentOrgSDO{},
 	}
 	if c.Client.ClientID != "" { // an attempt that has ended names no client
 		out.Client = &sdo.McpConsentClientSDO{ClientID: c.Client.ClientID, Name: c.Client.Name, LogoURI: c.Client.LogoURI, Verified: c.Client.Verified}
 	}
 	for _, o := range c.Organizations {
-		out.Organizations = append(out.Organizations, sdo.McpConsentOrgSDO{ID: o.ID, Slug: o.Slug, Name: o.Name, Enabled: o.Enabled, Reason: o.Reason})
+		out.Organizations = append(out.Organizations, sdo.McpConsentOrgSDO{ID: o.ID, Slug: o.Slug, Name: o.Name, Enabled: o.Enabled, WriteEnabled: o.WriteEnabled, Reason: o.Reason})
 	}
 	return out
 }
@@ -56,7 +56,10 @@ func (h *handlers) grantsSDO(gs []service.McpGrantView) sdo.McpGrantListSDO {
 }
 
 func (h *handlers) policySDO(p service.McpPolicy) sdo.McpPolicySDO {
-	return sdo.McpPolicySDO{Enabled: p.Enabled, Available: p.Available, EnabledAt: mcpTimePtr(p.EnabledAt), EnabledBy: p.EnabledBy, McpURL: h.McpAuth.ResourceURL()}
+	return sdo.McpPolicySDO{
+		Enabled: p.Enabled, Available: p.Available, EnabledAt: mcpTimePtr(p.EnabledAt), EnabledBy: p.EnabledBy, McpURL: h.McpAuth.ResourceURL(),
+		WriteEnabled: p.WriteEnabled, WriteAvailable: p.WriteAvailable, WriteEnabledAt: mcpTimePtr(p.WriteEnabledAt), WriteEnabledBy: p.WriteEnabledBy,
+	}
 }
 
 // mcpConsent shows an attempt and issues a fresh CSRF token. Reading never
@@ -97,7 +100,7 @@ func (h *handlers) mcpConsentCommand(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusBadRequest, "invalid_request", "organization_id is required to approve")
 			return
 		}
-		to, err = h.McpAuth.Approve(r.Context(), userID, attempt, in.CSRFToken, orgID)
+		to, err = h.McpAuth.Approve(r.Context(), userID, attempt, in.CSRFToken, orgID, in.Write)
 		status = "approved"
 	case "cancel": // the organization is not read
 		to, err = h.McpAuth.Cancel(r.Context(), userID, attempt, in.CSRFToken)
@@ -197,6 +200,26 @@ func (h *handlers) setOrgMcpPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := h.McpAuth.SetPolicy(r.Context(), middleware.UserID(r.Context()), orgID, in.Enabled)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, h.policySDO(p))
+}
+
+func (h *handlers) setOrgMcpWritePolicy(w http.ResponseWriter, r *http.Request) {
+	if !h.mcpReady(w) {
+		return
+	}
+	orgID, ok := h.orgIDFromSlug(w, r)
+	if !ok {
+		return
+	}
+	var in sdi.McpWritePolicySDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	p, err := h.McpAuth.SetWritePolicy(r.Context(), middleware.UserID(r.Context()), orgID, in.Enabled)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

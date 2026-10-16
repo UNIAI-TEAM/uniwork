@@ -16,21 +16,21 @@ export function mergeRoomMemberPermissions(
   return { ...DEFAULT_CHAT_ROOM_MEMBER_PERMISSIONS, ...permissions };
 }
 
-/** Room admins and workspace moderators bypass member permission flags. */
+/** `bypasses` is true for whoever chat_room_permissions.go memberCanPerformRoomAction lets past the flags. */
 export function canUseRoomPermission(
   permissions: ChatRoomMemberPermissions,
-  isModerator: boolean,
+  bypasses: boolean,
   key: ChatRoomPermissionKey,
 ): boolean {
-  if (isModerator) return true;
+  if (bypasses) return true;
   return permissions[key];
 }
 
 export function isRoomSendBlocked(
   permissions: ChatRoomMemberPermissions,
-  isModerator: boolean,
+  bypasses: boolean,
   sendRestricted: boolean,
 ): boolean {
   if (sendRestricted) return true;
-  return !canUseRoomPermission(permissions, isModerator, "allow_send_messages");
+  return !canUseRoomPermission(permissions, bypasses, "allow_send_messages");
 }

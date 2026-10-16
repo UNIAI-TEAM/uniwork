@@ -272,7 +272,7 @@ func switchOutOf(t *testing.T, l emailHubLifecycle, orgID string) error {
 		t.Fatal(err)
 	}
 	l.members.SetMail(mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
-	invs, _, err := l.members.InviteToOrg(ctx, founder.ID, target.ID, []string{l.member.Email}, OrgRoleMember)
+	invs, _, err := l.members.InviteToOrg(ctx, founder.ID, target.ID, []string{l.member.Email}, OrgRoleMember, nil)
 	if err != nil || len(invs) != 1 {
 		t.Fatalf("invite: %v", err)
 	}

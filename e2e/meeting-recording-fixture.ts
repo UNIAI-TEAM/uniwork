@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { VERIFICATION_CODE } from "./auth-nav";
 
 const PASSWORD = "password123";
@@ -31,8 +31,13 @@ function authHeader(token: string): Record<string, string> {
   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
 }
 
-/** Registers a verified account that owns one organization and one workspace. */
-export async function createRecordingAccount(page: Page, api: string, tag: string): Promise<RecordingAccount> {
+/**
+ * Registers a verified account that owns one organization and one workspace.
+ * Registering sets the account's refresh cookie in the request context's jar;
+ * `page.request` shares that jar with the browser, so a spec that must stay
+ * signed in as someone else passes the `request` fixture instead of the page.
+ */
+export async function createRecordingAccount(page: { request: APIRequestContext }, api: string, tag: string): Promise<RecordingAccount> {
   const stamp = Date.now();
   const email = `${tag}-${stamp}@example.com`;
   const registered = await page.request.post(`${api}/api/v1/auth/register`, {

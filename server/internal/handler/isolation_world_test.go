@@ -187,6 +187,8 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
 	d.McpAuth.SetFlags(mcpTestFlags(true))
 	d.McpTools = service.NewMcpToolService(q, d.AskUNI, d.Home, d.Workspaces, d.Cfg.FrontendOrigin)
+	d.McpTools.SetDocuments(docs)
+	d.McpTools.SetFlags(mcpTestFlags(true))
 	preview, err := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
 		Documents: docs, Origin: isoPreviewOrigin, Secret: "isolation-matrix-preview-secret-0123456789",
 		TTL: 5 * time.Minute, MaxBytes: 1 << 20,
@@ -493,6 +495,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildOfficeFrame(t, tn)
 	w.buildSeeded(t, tn)
 	w.buildActivity(t, tn)
+	w.buildWorkspaceAliases(t, tn)
 	// The isolation world runs no outbox dispatcher; project the tenant's graph
 	// the way an operator would, so every graph table holds a row of A's.
 	if _, err := projector.RebuildOrg(context.Background(), w.pool, w.q, tn.orgID, projector.RebuildOptions{}); err != nil {
@@ -739,9 +742,12 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	out := w.call(t, "POST", org+"/departments", tn.token, map[string]any{"name": m + " Department"})
 	tn.ids["department"] = isoID(t, out, "department")
 	// A pending invitation to someone outside both tenants: its id for the
-	// revoke route, its token for the accept route.
+	// revoke route, its token for the accept route. It grants the tenant's
+	// workspace, so invitation_workspaces holds a row of each tenant.
 	invitee := strings.ToLower(m) + "-invitee@example.com"
-	w.call(t, "POST", org+"/invitations", tn.token, map[string]any{"emails": []string{invitee}, "org_role": "member"})
+	w.call(t, "POST", org+"/invitations", tn.token, map[string]any{
+		"emails": []string{invitee}, "org_role": "member", "workspace_ids": []string{tn.wsID},
+	})
 	out = w.call(t, "GET", org+"/invitations", tn.token, nil)
 	for _, inv := range isoList(t, out, "invitations") {
 		tn.ids["orgInvitation"] = inv["id"].(string)
@@ -943,6 +949,22 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		tn.ids["aiUniworkRun"], tn.orgID, tn.ids["aiUniworkConversation"], tn.userID); err != nil {
 		t.Fatalf("uniwork ai run: %v", err)
 	}
+}
+
+// buildWorkspaceAliases leaves an old task prefix and an old slug on record and
+// the current ones unchanged, so workspace_aliases holds a row of each tenant's.
+func (w *isoWorld) buildWorkspaceAliases(t *testing.T, tn *isoTenant) {
+	t.Helper()
+	ws := "/api/v1/workspaces/" + tn.wsID
+	out := w.call(t, "GET", "/api/v1/orgs/"+tn.orgSlug+"/workspaces/"+tn.wsSlug, tn.token, nil)
+	prefix, _ := out["workspace"].(map[string]any)["task_prefix"].(string)
+	if prefix == "" {
+		t.Fatal("workspace has no task_prefix")
+	}
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"task_prefix": "ISO" + strings.ToUpper(tn.tag[:1]) + "OLD"})
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"task_prefix": prefix})
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"slug": tn.wsSlug + "-old"})
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"slug": tn.wsSlug})
 }
 
 // buildActivity leaves the traces people leave by using the product - a

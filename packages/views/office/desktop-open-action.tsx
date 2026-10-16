@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { ChevronDown, Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOutcome, type OfficeState } from "@uniwork/core/office";
+import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOptions, type OfficeLaunchOutcome, type OfficeState } from "@uniwork/core/office";
 import {
   createOfficeLaunchSession,
   type OfficeLaunchSessionResponse,
@@ -83,7 +83,7 @@ export interface DesktopOpenActionProps {
    * keeps the editor open because a ticket must never target an unproven one. */
   versionAfterSave?: (outcome: OfficeSaveOutcome) => number | null | Promise<number | null>;
   createSession?: OfficeLaunchSessionFactory;
-  launch?: (url: string) => Promise<OfficeLaunchOutcome>;
+  launch?: (url: string, options?: OfficeLaunchOptions) => Promise<OfficeLaunchOutcome>;
   installers?: OfficeInstallerOption[];
   supportedPlatforms?: readonly DesktopPlatform[];
   platformHint?: DesktopPlatformGuess;
@@ -170,6 +170,9 @@ export function DesktopOpenAction({
     resolve?.(outcome);
   };
   const launchedAt = useRef(0);
+  // The launcher saw the app take the focus after it had already answered "not-installed".
+  const lateHandoff = useRef(false);
+  const onLateHandoff = () => { lateHandoff.current = true; setInstallOpen(false); };
   const headerSlot = useHeaderActionsSlotAvailable();
   const inline = placement !== "header";
   const inPageHeader = headerSlot && !inline;
@@ -209,7 +212,7 @@ export function DesktopOpenAction({
       loadInstallers ? loadInstallers().then((profile) => { setResolvedInstallers(profile.installers); setResolvedPlatforms(profile.supportedPlatforms ?? DESKTOP_PLATFORMS); }).catch(() => { setResolvedInstallers([]); }) : Promise.resolve(),
       loadPlatformHint ? loadPlatformHint().then(setResolvedHint).catch(() => { setResolvedHint(UNKNOWN_PLATFORM); }) : Promise.resolve(),
     ]);
-    setInstallOpen(true);
+    if (!(reason === "not-installed" && lateHandoff.current)) setInstallOpen(true);
   };
 
   const startHandoff = async (version: number): Promise<DesktopOpenOutcome> => {
@@ -240,10 +243,11 @@ export function DesktopOpenAction({
         return "unavailable";
       }
       launchedAt.current = Date.now();
-      const outcome = launch ? await launch(url) : "not-installed";
+      lateHandoff.current = false;
+      const outcome = launch ? await launch(url, { onLateHandoff }) : "not-installed";
       if (outcome === "launched") return "launched";
       await openInstallPrompt(outcome === "expired" ? "expired" : outcome === "error" ? "error" : "not-installed");
-      return "installer";
+      return lateHandoff.current ? "launched" : "installer";
     } catch {
       setError(t("ticket_failed"));
       return "unavailable";

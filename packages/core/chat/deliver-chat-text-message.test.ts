@@ -115,7 +115,7 @@ describe("flushChatSendOutbox", () => {
 
     const deliver = vi.fn().mockResolvedValue({ id: "m1" });
     const result = await flushChatSendOutbox("ws1", "u1", deliver);
-    expect(result).toEqual({ sent: 1, failed: 0 });
+    expect(result).toEqual({ sent: 1, failed: 0, dropped: 0 });
     expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u1")).toEqual([]);
   });
 
@@ -131,11 +131,50 @@ describe("flushChatSendOutbox", () => {
       queued_at: new Date().toISOString(),
     });
 
-    const deliver = vi.fn().mockRejectedValue(new Error("down"));
+    const deliver = vi.fn().mockRejectedValue(new ApiError("down", "internal", 503));
     const result = await flushChatSendOutbox("ws1", "u1", deliver);
-    expect(result).toEqual({ sent: 0, failed: 1 });
+    expect(result).toEqual({ sent: 0, failed: 1, dropped: 0 });
     expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u1")).toHaveLength(1);
     expect(usePendingChatMessagesStore.getState().listForRoom("ws1", "room1")).toEqual([]);
+  });
+
+  it("drops an entry the server refuses for good and counts it", async () => {
+    resetChatSendOutboxForTests();
+    resetPendingChatMessagesForTests();
+    useChatSendOutboxStore.getState().enqueue({
+      workspaceId: "ws1",
+      senderId: "u1",
+      roomId: "room1",
+      body: "removed from room",
+      client_msg_id: "cmid-403",
+      queued_at: new Date().toISOString(),
+    });
+
+    const deliver = vi.fn().mockRejectedValue(new ApiError("forbidden", "forbidden", 403));
+    const result = await flushChatSendOutbox("ws1", "u1", deliver);
+
+    expect(result).toEqual({ sent: 0, failed: 0, dropped: 1 });
+    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u1")).toEqual([]);
+    expect(usePendingChatMessagesStore.getState().listForRoom("ws1", "room1")).toEqual([]);
+  });
+
+  it("keeps an entry when the session, not the message, was refused", async () => {
+    resetChatSendOutboxForTests();
+    resetPendingChatMessagesForTests();
+    useChatSendOutboxStore.getState().enqueue({
+      workspaceId: "ws1",
+      senderId: "u1",
+      roomId: "room1",
+      body: "signed out",
+      client_msg_id: "cmid-401",
+      queued_at: new Date().toISOString(),
+    });
+
+    const deliver = vi.fn().mockRejectedValue(new ApiError("unauthorized", "unauthorized", 401));
+    const result = await flushChatSendOutbox("ws1", "u1", deliver);
+
+    expect(result).toEqual({ sent: 0, failed: 1, dropped: 0 });
+    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u1")).toHaveLength(1);
   });
 
   it("never sends another user's queued entries", async () => {
@@ -154,7 +193,7 @@ describe("flushChatSendOutbox", () => {
     const deliver = vi.fn().mockResolvedValue({ id: "m1" });
     const result = await flushChatSendOutbox("ws1", "u-b", deliver);
 
-    expect(result).toEqual({ sent: 0, failed: 0 });
+    expect(result).toEqual({ sent: 0, failed: 0, dropped: 0 });
     expect(deliver).not.toHaveBeenCalled();
     expect(usePendingChatMessagesStore.getState().listForRoom("ws1", "room1")).toEqual([]);
     expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u-a")).toHaveLength(1);
@@ -175,7 +214,7 @@ describe("flushChatSendOutbox", () => {
     const deliver = vi.fn().mockResolvedValue({ id: "m1" });
     const result = await flushChatSendOutbox("ws1", "u1", deliver);
 
-    expect(result).toEqual({ sent: 0, failed: 0 });
+    expect(result).toEqual({ sent: 0, failed: 0, dropped: 0 });
     expect(deliver).not.toHaveBeenCalled();
     expect(useChatSendOutboxStore.getState().entries).toEqual([]);
   });

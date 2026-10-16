@@ -624,6 +624,64 @@ func (q *Queries) MeetingWorkspaceStatistics(ctx context.Context, arg MeetingWor
 	return i, err
 }
 
+const restoreMeeting = `-- name: RestoreMeeting :one
+UPDATE meetings SET
+  status = 'SCHEDULED',
+  canceled_by = NULL,
+  canceled_at = NULL,
+  cancel_reason = NULL,
+  updated_by = $1,
+  updated_at = now(),
+  version = version + 1
+WHERE id = $2 AND status = 'CANCELED' AND version = $3 AND ends_at > now()
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id
+`
+
+type RestoreMeetingParams struct {
+	UpdatedBy pgtype.Text `json:"updated_by"`
+	ID        string      `json:"id"`
+	Version   int32       `json:"version"`
+}
+
+// tenant: by-id
+// Undo of a cancellation while the meeting's window is still ahead (ADR 0033).
+func (q *Queries) RestoreMeeting(ctx context.Context, arg RestoreMeetingParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, restoreMeeting, arg.UpdatedBy, arg.ID, arg.Version)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.RoomName,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.MeetingType,
+		&i.HostUserID,
+		&i.ActualStartAt,
+		&i.ActualEndAt,
+		&i.Timezone,
+		&i.AllowJoinRequest,
+		&i.PreferredProviderKey,
+		&i.Version,
+		&i.UpdatedBy,
+		&i.CanceledBy,
+		&i.CanceledAt,
+		&i.CancelReason,
+		&i.ProjectID,
+		&i.CreatedByKind,
+		&i.QuorumPercent,
+		&i.AttendanceFinalizedAt,
+		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const startMeeting = `-- name: StartMeeting :one
 UPDATE meetings SET
   status = 'IN_PROGRESS',

@@ -25,6 +25,7 @@ export interface ChatMessage {
     recording_id?: string;
     recording_status?: string;
     recording_url?: string;
+    video?: boolean;
   };
   voiceCallSummary?: {
     call_id: string;
@@ -38,15 +39,22 @@ export interface ChatMessage {
       source_message_id: string;
     }[];
   };
+  /** url* are signed storage URLs (UNI-1633), empty when unsigned, dead after url_expires_at. */
   voice?: {
     duration_ms: number;
     content_type: string;
     size_bytes: number;
+    url?: string;
+    url_expires_at?: string;
   };
   file?: {
     filename: string;
     content_type: string;
     size_bytes: number;
+    url?: string;
+    download_url?: string;
+    thumb_url?: string;
+    url_expires_at?: string;
   };
   poll?: {
     question: string;

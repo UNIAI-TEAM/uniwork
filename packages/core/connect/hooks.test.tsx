@@ -11,6 +11,7 @@ import {
   useRevokeMyConnectedApp,
   useRevokeOrgConnectedApp,
   useSetMcpPolicy,
+  useSetMcpWritePolicy,
 } from "./hooks";
 
 vi.mock("../api/endpoints/connect");
@@ -34,6 +35,10 @@ const policy: endpoints.McpPolicy = {
   available: true,
   enabled_at: null,
   enabled_by: "",
+  write_enabled: false,
+  write_available: true,
+  write_enabled_at: null,
+  write_enabled_by: "",
   mcp_url: "https://api.example.test/mcp",
 };
 
@@ -146,5 +151,27 @@ describe("connect hooks", () => {
       await expect(result.current.mutateAsync(false)).rejects.toThrow("mcp policy response did not parse");
     });
     expect(qc.getQueryData<endpoints.McpPolicy>(connectKeys.policy("acme"))?.enabled).toBe(true);
+  });
+
+  it("switching the write policy writes the answer into the cache", async () => {
+    vi.mocked(endpoints.setMcpWritePolicy).mockResolvedValue({ ...policy, write_enabled: true });
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useSetMcpWritePolicy("acme"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(true);
+    });
+    expect(endpoints.setMcpWritePolicy).toHaveBeenCalledWith("acme", true);
+    expect(qc.getQueryData<endpoints.McpPolicy>(connectKeys.policy("acme"))?.write_enabled).toBe(true);
+  });
+
+  it("a write policy answer that does not parse fails the switch and leaves the cache alone", async () => {
+    vi.mocked(endpoints.setMcpWritePolicy).mockResolvedValue(null);
+    const { qc, wrapper } = setup();
+    qc.setQueryData(connectKeys.policy("acme"), policy);
+    const { result } = renderHook(() => useSetMcpWritePolicy("acme"), { wrapper });
+    await act(async () => {
+      await expect(result.current.mutateAsync(true)).rejects.toThrow("mcp write policy response did not parse");
+    });
+    expect(qc.getQueryData<endpoints.McpPolicy>(connectKeys.policy("acme"))?.write_enabled).toBe(false);
   });
 });

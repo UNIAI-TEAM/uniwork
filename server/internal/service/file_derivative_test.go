@@ -94,6 +94,64 @@ func TestFileThumbnailIsServedAsAVariantOfItsSource(t *testing.T) {
 	}
 }
 
+// ResolveInput.Variant signs the derivative in place of the source (UNI-1633,
+// chat thumbnails read straight from storage), batch-wide and under the same
+// rules as Open: before the derivative exists the variant is the original,
+// File stays the requested source, and a foreign scope learns nothing.
+func TestResolveManySignsTheVariantOfEachSource(t *testing.T) {
+	h := newFileHarness(t, localFileBackend(), nil)
+	ctx := context.Background()
+	photo := chatPhoto(t, h, "resolve-thumb", encodeJPEG(t, testPhoto(1600, 1200)))
+	plain := chatPhoto(t, h, "resolve-plain", encodePNG(t, testPhoto(200, 100)))
+
+	resolve := func(scope files.Scope, variant files.Variant, ids ...files.FileID) []files.Resolved {
+		t.Helper()
+		got, err := h.svc.ResolveMany(ctx, files.ResolveInput{
+			Scope: scope, Mode: files.ReadPresign, Disposition: files.DispositionInline, Variant: variant, FileIDs: ids,
+		})
+		if err != nil {
+			t.Fatalf("ResolveMany: %v", err)
+		}
+		return got
+	}
+
+	originals := resolve(t3Scope, "", photo, plain)
+	before := resolve(t3Scope, files.VariantThumb, photo, plain)
+	for i := range originals {
+		if originals[i].Err != nil || before[i].URL != originals[i].URL {
+			t.Fatalf("variant before generation [%d] = %+v, want the original %+v", i, before[i], originals[i])
+		}
+	}
+
+	for _, id := range []files.FileID{photo, plain} {
+		if err := h.svc.CreateThumbnail(ctx, t3Org, id); err != nil {
+			t.Fatalf("CreateThumbnail: %v", err)
+		}
+	}
+	after := resolve(t3Scope, files.VariantThumb, photo, plain)
+	if after[0].Err != nil || after[0].URL == "" || after[0].URL == originals[0].URL {
+		t.Fatalf("photo thumb = %+v, want a URL of its own", after[0])
+	}
+	if after[0].File.ID != photo {
+		t.Fatalf("photo thumb File = %s, want the requested source %s", after[0].File.ID, photo)
+	}
+	// A file the thumbnailer cannot improve has no derivative: the original.
+	if after[1].Err != nil || after[1].URL != originals[1].URL {
+		t.Fatalf("plain thumb = %+v, want the original", after[1])
+	}
+
+	for _, scope := range []files.Scope{
+		{OrganizationID: t3OrgB, WorkspaceID: t3WS},
+		{OrganizationID: t3Org},
+	} {
+		got := resolve(scope, files.VariantThumb, photo)
+		if got[0].URL != "" {
+			t.Fatalf("scope %+v resolved a URL: %+v", scope, got[0])
+		}
+		t3Code(t, got[0].Err, files.CodeNotFound)
+	}
+}
+
 func TestFileThumbnailSkipsFilesItCannotImprove(t *testing.T) {
 	h := newFileHarness(t, localFileBackend(), nil)
 	ctx := context.Background()

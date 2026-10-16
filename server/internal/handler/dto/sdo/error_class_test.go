@@ -44,7 +44,8 @@ func TestErrorClassTable(t *testing.T) {
 	}
 
 	unclassified := []string{
-		"internal", "invalid_request", "invalid_json", "invalid_credentials",
+		"internal", "invalid_request", "invalid_json", "invalid_credentials", "password_incorrect",
+		"mfa_code_incorrect", "email_confirmation_mismatch",
 		"rate_limited", "conflict", "version_conflict", "last_owner",
 		"owner_must_transfer", "invalid_meeting_state", "email_unverified",
 		"mfa_required", "feature_disabled", "capability_unavailable",

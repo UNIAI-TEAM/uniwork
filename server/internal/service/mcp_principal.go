@@ -12,10 +12,19 @@ import (
 )
 
 // McpPrincipal is who a /mcp request acts for: the person who consented,
-// inside the one organization the grant names.
+// inside the one organization the grant names, through one AI app.
 type McpPrincipal struct {
 	UserID, OrganizationID, GrantID, ClientID string
+	ClientName                                string
+	Scope                                     string // the grant's scope at this call
+	// WriteOpen is the write flag and the organization's write switch,
+	// read on this request (ADR 0033).
+	WriteOpen bool
 }
+
+// CanWrite is all three conditions for a write tool: both switches and a
+// grant that holds write.
+func (p McpPrincipal) CanWrite() bool { return p.WriteOpen && mcpScopeHasWrite(p.Scope) }
 
 // ToolContext is the actor every MCP tool runs as: the human who consented,
 // inside the grant's organization. The workspace comes from tool input.
@@ -48,7 +57,7 @@ func (s *McpAuthService) Authenticate(ctx context.Context, raw string) (McpPrinc
 	if err != nil {
 		return McpPrincipal{}, err
 	}
-	enabled, err := s.orgEnabled(ctx, grant.UserID, grant.OrganizationID)
+	enabled, writeOpen, err := s.orgAccess(ctx, grant.UserID, grant.OrganizationID)
 	if err != nil {
 		return McpPrincipal{}, err
 	}
@@ -65,8 +74,17 @@ func (s *McpAuthService) Authenticate(ctx context.Context, raw string) (McpPrinc
 		}
 		return McpPrincipal{}, err
 	}
+	client, err := s.q.GetMcpClientByClientID(ctx, grant.ClientID)
+	if err != nil {
+		// A grant keeps its client alive (DeleteAbandonedMcpClients needs no
+		// grant), so a missing one is not a token problem.
+		return McpPrincipal{}, err
+	}
 	// Best effort: both statements are throttled to one write per five minutes.
 	_ = s.q.TouchMcpGrant(ctx, grant.ID)
 	_ = s.q.TouchMcpClient(ctx, grant.ClientID)
-	return McpPrincipal{UserID: grant.UserID, OrganizationID: grant.OrganizationID, GrantID: grant.ID, ClientID: grant.ClientID}, nil
+	return McpPrincipal{
+		UserID: grant.UserID, OrganizationID: grant.OrganizationID, GrantID: grant.ID, ClientID: grant.ClientID,
+		ClientName: client.ClientName, Scope: grant.Scope, WriteOpen: writeOpen,
+	}, nil
 }

@@ -8,8 +8,8 @@ import (
 )
 
 // Tool registry (spec §3.4). The registry is source code: no tool is loaded
-// from the database, and a write tool is refused for any request that is
-// not an agent run with AllowWrite — which no caller in phase F is.
+// from the database. Ask UNI's tools only read (TestAskUniToolsAreReadOnly);
+// the MCP connector's write tools run as the human who consented (ADR 0033).
 type ToolKind string
 
 const (
@@ -47,6 +47,12 @@ type Tool struct {
 	Risk        RiskLevel
 	Schema      json.RawMessage
 	Handle      func(ctx context.Context, tc ToolContext, input json.RawMessage) (json.RawMessage, error)
+	// Destructive marks a write that overwrites or removes what was there
+	// (MCP destructiveHint). Additive writes leave it false.
+	Destructive bool
+	// Undo says, in one sentence for the model, how a person reverses this
+	// write. Every MCP write tool has one (TestMCPWriteToolsDeclareUndo).
+	Undo string
 }
 
 type Registry []Tool

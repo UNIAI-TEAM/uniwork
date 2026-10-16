@@ -92,7 +92,9 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
 /* Onboarding: chỉ đổi opacity — transform trên root h-full bị tính vào
    scrollable overflow của parent → nháy scrollbar mỗi bước (bài học usf). */
 @keyframes onboarding-enter { from { opacity: 0; } }
-.animate-onboarding-enter { animation: onboarding-enter 0.4s ease both; }
+/* Replays on every step / screen change, so it is a routine transition: the
+   standard duration and the quartic ease-out, not a 0.4s literal. */
+.animate-onboarding-enter { animation: onboarding-enter var(--duration-standard) var(--ease-out-quart) both; }
 
 /* Dấu UniWork đến sau khi hộp đã yên: một nhịp thứ hai nói "workspace xong
    rồi", không phải một màn ăn mừng. Bản cũ nảy bốn nhịp trong 0.7s — vừa là
@@ -113,10 +115,6 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
 }
 .animate-reaction-pop { animation: reaction-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-/* Backstop cho toàn hệ, thay vì liệt kê từng class — mọi animation mới đều được
-   bọc sẵn. Chủ ý là GIẢM chứ không TẮT: rút ngắn thời lượng và cắt vòng lặp vô
-   hạn, nhưng giữ lại chuyển đổi opacity/màu vì chúng mang thông tin trạng thái.
-   Đặt animation về 0.01ms sẽ xoá luôn phản hồi cho biết thao tác đã ăn. */
 /* Base UI marks orientation as data-orientation="…"; the registry primitives
    (separator, tabs, slider, toggle-group, …) style it through the shorthand
    variants below. Without these two lines the variants match nothing and a
@@ -174,13 +172,32 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   pointer-events: none;
 }
 
+/* A system-wide backstop rather than a per-class list, so every new
+   animation is covered. The intent is to REDUCE, not to switch off: cut
+   durations and infinite loops, but keep opacity and colour changes, which
+   carry state. Zeroing everything would also erase the feedback that says an
+   action registered. */
 @media (prefers-reduced-motion: reduce) {
   /* A single truncated blink would end on the invisible frame; keep it lit. */
   .animate-caret-blink { animation: none; }
+  /* Transitions default to instant. The initial transition-property is
+     `all`, so a duration forced on every element would turn each property
+     change — height, padding, font-size — into a slide on elements that never
+     asked for one. */
   *, *::before, *::after {
     animation-duration: var(--duration-fast) !important;
     animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+  }
+  /* An element that declares a transition (every Tailwind `transition*`
+     utility) keeps a short fade of opacity and colour — hover, press, a popup
+     appearing — and loses whatever moved or resized the box. `transition-none`
+     stays instant. */
+  [class*="transition"]:not([class*="transition-none"]),
+  [class*="transition"]:not([class*="transition-none"])::before,
+  [class*="transition"]:not([class*="transition-none"])::after {
+    transition-property: opacity, color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, box-shadow !important;
     transition-duration: var(--duration-fast) !important;
   }
   html { scroll-behavior: auto !important; }

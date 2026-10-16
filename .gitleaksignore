@@ -26,3 +26,13 @@ fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/service/ai_credentials_
 # Neither is a credential. The introducing commit stays in history.
 249f15303fa7080a4fa3d0cc489d88baee2584e2:server/internal/handler/ai_uniwork_test.go:generic-api-key:28
 249f15303fa7080a4fa3d0cc489d88baee2584e2:server/internal/handler/ai_uniwork_test.go:generic-api-key:279
+# PR #279 (850c91de) reintroduced that conversation id on the same line as
+# the word token. Still a test ULID, not a credential.
+850c91de8bfa831de1dc9a0848d4d6003131d161:server/internal/handler/ai_uniwork_test.go:generic-api-key:287
+# G712-10 redaction fixtures in scripts/office/g5g6g7/holdout-run.test.mjs (b52c195fb,
+# UNI-1384 holdout eval). Fixed example JWT, AWS id and api_key strings for
+# assert-only tests; not credentials. File lives on feature branches; gitleaks
+# git scans all refs in CI.
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:aws-access-token:820
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:jwt:821
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:generic-api-key:832

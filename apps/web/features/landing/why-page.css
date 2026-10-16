@@ -62,11 +62,6 @@
 .why-proof-ai .why-proof-copy { order: 2; }
 .why-proof-ai { grid-template-columns: minmax(0,1.3fr) minmax(0,.7fr); }
 .why-proof-output { --feature-tone: var(--landing-mint); }
-.why-decision { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 28px; padding-block: 32px 48px; }
-.why-decision h2 { max-width: 30ch; }
-.why-decision p { margin-top: 16px; max-width: 64ch; }
-.why-decision a { min-height: 52px; gap: 12px; }
-.why-decision a > svg { width: 18px; height: 18px; }
 .why-page ::selection { color: var(--brand-foreground); background: var(--brand); }
 @media (min-width: 768px) {
   .why-chat .feature-art-messages > div:nth-child(2) { display: none; }
@@ -114,6 +109,4 @@
   .why-proof-row { grid-template-columns: 1fr; gap: 24px; padding-block: 32px; }
   .why-proof-ai .why-proof-copy { order: 0; }
   .why-proof-figure .feature-art { padding: 16px; }
-  .why-decision { grid-template-columns: 1fr; gap: 20px; padding-block: 20px 40px; }
-  .why-decision a { justify-self: start; }
 }

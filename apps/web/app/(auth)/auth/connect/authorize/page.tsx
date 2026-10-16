@@ -66,13 +66,13 @@ export default function ConnectAuthorizePage() {
       state={state}
       errorCode={errorCode || undefined}
       onRetry={errorCode ? undefined : () => void load()}
-      onDecision={async (decision, organizationId) => {
+      onDecision={async (decision, organizationId, write) => {
         if (!consent) {
           setState("error");
           return;
         }
         try {
-          const result = await api.connect.decideConnectConsent(consent.attempt_id, { decision, csrf_token: consent.csrf_token, organization_id: organizationId });
+          const result = await api.connect.decideConnectConsent(consent.attempt_id, { decision, csrf_token: consent.csrf_token, organization_id: organizationId, write });
           if (!result || !isHttpUrl(result.redirect_to)) {
             setState("error");
             return;

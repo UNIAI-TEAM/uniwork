@@ -57,6 +57,7 @@ type Routes struct {
 	RevokeOrgConnectedApp http.HandlerFunc
 	OrgMcpPolicy          http.HandlerFunc
 	SetOrgMcpPolicy       http.HandlerFunc
+	SetOrgMcpWritePolicy  http.HandlerFunc
 
 	Register              http.HandlerFunc
 	Login                 http.HandlerFunc
@@ -126,6 +127,8 @@ type Routes struct {
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc
+	UploadWorkspaceIcon http.HandlerFunc
+	RemoveWorkspaceIcon http.HandlerFunc
 	GetWorkspaceMe      http.HandlerFunc
 	ListMembers         http.HandlerFunc
 	PatchMember         http.HandlerFunc
@@ -348,6 +351,7 @@ type Routes struct {
 	EndMeeting                     http.HandlerFunc
 	ExtendMeeting                  http.HandlerFunc
 	CancelMeeting                  http.HandlerFunc
+	RestoreMeeting                 http.HandlerFunc
 	TransferHost                   http.HandlerFunc
 	ListNotes                      http.HandlerFunc
 	CreateNote                     http.HandlerFunc
@@ -453,6 +457,8 @@ type Routes struct {
 	RemoveChatRoomMember             http.HandlerFunc
 	LeaveChatRoom                    http.HandlerFunc
 	MarkChatRoomRead                 http.HandlerFunc
+	MuteChatRoom                     http.HandlerFunc
+	UnmuteChatRoom                   http.HandlerFunc
 	ListWorkspaceChatMessages        http.HandlerFunc
 	SendWorkspaceChatMessage         http.HandlerFunc
 	ListChatRoomMessages             http.HandlerFunc
@@ -461,9 +467,7 @@ type Routes struct {
 	ListChatRoomMessagesAround       http.HandlerFunc
 	SendChatRoomMessage              http.HandlerFunc
 	SendChatVoiceMessage             http.HandlerFunc
-	StreamChatVoiceMessage           http.HandlerFunc
 	SendChatFileMessage              http.HandlerFunc
-	StreamChatFileMessage            http.HandlerFunc
 	VoteChatPollMessage              http.HandlerFunc
 	ToggleChatMessageReaction        http.HandlerFunc
 	EditChatMessage                  http.HandlerFunc

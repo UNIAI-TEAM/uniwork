@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
@@ -206,18 +207,19 @@ func New(d Deps) http.Handler {
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	if d.McpAuth != nil && d.McpTools != nil {
-		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), d.Log)
+		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), mw.NewCounter(d.Redis, "mcp-write", 30, time.Minute), d.Log)
 	}
 	aiMount := h.aiMountable(sessionAIActor)
 	frameAI := h.aiMountable(h.frameAIActor)
 	return rt.New(rt.Deps{
-		Cfg:           d.Cfg,
-		Minter:        d.Minter,
-		Redis:         d.Redis,
-		Storage:       d.Storage,
-		HTTPMetrics:   d.HTTPMetrics,
-		PlatformRoles: platformRoles(d.Admin),
-		FeatureFlags:  d.FeatureFlags,
+		Cfg:                  d.Cfg,
+		Minter:               d.Minter,
+		Redis:                d.Redis,
+		Storage:              d.Storage,
+		HTTPMetrics:          d.HTTPMetrics,
+		PlatformRoles:        platformRoles(d.Admin),
+		FeatureFlags:         d.FeatureFlags,
+		DocumentOrganization: h.documentFlagOrganization,
 		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
 			if d.DesktopAuth == nil {
 				return nil
@@ -275,6 +277,7 @@ func New(d Deps) http.Handler {
 		RevokeOrgConnectedApp: h.revokeOrgConnectedApp,
 		OrgMcpPolicy:          h.orgMcpPolicy,
 		SetOrgMcpPolicy:       h.setOrgMcpPolicy,
+		SetOrgMcpWritePolicy:  h.setOrgMcpWritePolicy,
 
 		Register:              h.register,
 		Login:                 h.login,
@@ -344,6 +347,8 @@ func New(d Deps) http.Handler {
 		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
 		ListWorkspaces:      h.listWorkspaces,
 		PatchWorkspace:      h.patchWorkspace,
+		UploadWorkspaceIcon: h.uploadWorkspaceIcon,
+		RemoveWorkspaceIcon: h.removeWorkspaceIcon,
 		GetWorkspaceMe:      h.getWorkspaceMe,
 		ListMembers:         h.listMembers,
 		PatchMember:         h.patchMember,
@@ -561,6 +566,7 @@ func New(d Deps) http.Handler {
 		EndMeeting:                     h.endMeeting,
 		ExtendMeeting:                  h.extendMeeting,
 		CancelMeeting:                  h.cancelMeeting,
+		RestoreMeeting:                 h.restoreMeeting,
 		TransferHost:                   h.transferHost,
 		ListNotes:                      h.listNotes,
 		CreateNote:                     h.createNote,
@@ -666,6 +672,8 @@ func New(d Deps) http.Handler {
 		RemoveChatRoomMember:             h.removeWorkspaceChatRoomMember,
 		LeaveChatRoom:                    h.leaveChatRoom,
 		MarkChatRoomRead:                 h.markChatRoomRead,
+		MuteChatRoom:                     h.muteChatRoom,
+		UnmuteChatRoom:                   h.unmuteChatRoom,
 		ListWorkspaceChatMessages:        h.listWorkspaceChatMessages,
 		SendWorkspaceChatMessage:         h.sendWorkspaceChatMessage,
 		ListChatRoomMessages:             h.listChatRoomMessages,
@@ -674,9 +682,7 @@ func New(d Deps) http.Handler {
 		ListChatRoomMessagesAround:       h.listChatRoomMessagesAround,
 		SendChatRoomMessage:              h.sendChatRoomMessage,
 		SendChatVoiceMessage:             h.sendChatVoiceMessage,
-		StreamChatVoiceMessage:           h.streamChatVoiceMessage,
 		SendChatFileMessage:              h.sendChatFileMessage,
-		StreamChatFileMessage:            h.streamChatFileMessage,
 		VoteChatPollMessage:              h.voteChatPollMessage,
 		ToggleChatMessageReaction:        h.toggleChatMessageReaction,
 		EditChatMessage:                  h.editChatMessage,

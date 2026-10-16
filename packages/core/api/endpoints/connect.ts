@@ -15,6 +15,7 @@ const ConsentOrgSchema = z.object({
   name: z.string(),
   enabled: z.boolean(),
   reason: z.string().optional().default(""),
+  write_enabled: z.boolean().optional().default(false),
 });
 
 const ConnectConsentSchema = z.object({
@@ -23,6 +24,7 @@ const ConnectConsentSchema = z.object({
   client: ConsentClientSchema.nullable().optional().default(null),
   redirect_host: z.string().optional().default(""),
   scope: z.string().optional().default(""),
+  write_requested: z.boolean().optional().default(false),
   organizations: z.array(ConsentOrgSchema).optional().default([]),
   csrf_token: z.string().optional().default(""),
 });
@@ -57,6 +59,10 @@ const McpPolicySchema = z.object({
   available: z.boolean(),
   enabled_at: z.string().nullable().optional().default(null),
   enabled_by: z.string().optional().default(""),
+  write_enabled: z.boolean().optional().default(false),
+  write_available: z.boolean().optional().default(false),
+  write_enabled_at: z.string().nullable().optional().default(null),
+  write_enabled_by: z.string().optional().default(""),
   mcp_url: z.string(),
 });
 export type McpPolicy = z.infer<typeof McpPolicySchema>;
@@ -72,7 +78,7 @@ export async function getConnectConsent(attemptId: string): Promise<ConnectConse
 /** Approves (with an organization) or cancels; returns where to send the browser. */
 export async function decideConnectConsent(
   attemptId: string,
-  body: { decision: "approve" | "cancel"; csrf_token: string; organization_id?: string },
+  body: { decision: "approve" | "cancel"; csrf_token: string; organization_id?: string; write?: boolean },
 ): Promise<ConnectResult | null> {
   const raw = await request(`/api/v1/auth/connect/attempts/${enc(attemptId)}`, { method: "POST", body });
   return parseWithFallback<ConnectResult | null>(raw, ConnectResultSchema, null, { endpoint: "POST /api/v1/auth/connect/attempts/{attemptID}" });
@@ -104,4 +110,10 @@ export async function getMcpPolicy(orgSlug: string): Promise<McpPolicy | null> {
 export async function setMcpPolicy(orgSlug: string, enabled: boolean): Promise<McpPolicy | null> {
   const raw = await request(`/api/v1/orgs/${enc(orgSlug)}/mcp-policy`, { method: "PUT", body: { enabled } });
   return parseWithFallback<McpPolicy | null>(raw, McpPolicySchema, null, { endpoint: "PUT /api/v1/orgs/{org}/mcp-policy" });
+}
+
+/** Lets connected AI apps create and edit (ADR 0033); needs the connector on. */
+export async function setMcpWritePolicy(orgSlug: string, enabled: boolean): Promise<McpPolicy | null> {
+  const raw = await request(`/api/v1/orgs/${enc(orgSlug)}/mcp-policy/write`, { method: "PUT", body: { enabled } });
+  return parseWithFallback<McpPolicy | null>(raw, McpPolicySchema, null, { endpoint: "PUT /api/v1/orgs/{org}/mcp-policy/write" });
 }

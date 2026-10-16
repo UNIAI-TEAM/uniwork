@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -193,19 +193,73 @@ export function useEmailHubThread(
     // List rows carry snippet-only metadata; never hydrate the detail cache from them.
     placeholderData: (previous) => (previous?.id === threadId ? previous : undefined),
     staleTime: EMAIL_HUB_THREAD_STALE_TIME_MS,
-    refetchOnMount: "always",
-    retry: 2,
+    // Prefetch can land snippet-only while still "fresh"; force a real open fetch.
+    refetchOnMount: (query) =>
+      emailHubHasReadableBody(query.state.data ?? undefined) ? false : "always",
+    retry: (failureCount, error) => failureCount < 2 && error != null,
   });
   const data = detail.data?.id === threadId ? detail.data : undefined;
+  const bodyRetryRef = useRef({ threadId: "", attempts: 0 });
+  const [bodyAutoRetrying, setBodyAutoRetrying] = useState(false);
+  const [bodyAutoRetriesExhausted, setBodyAutoRetriesExhausted] = useState(false);
+  useEffect(() => {
+    if (!accountId || !threadId) return;
+    if (threadId !== bodyRetryRef.current.threadId) {
+      bodyRetryRef.current = { threadId, attempts: 0 };
+      setBodyAutoRetrying(false);
+      setBodyAutoRetriesExhausted(false);
+    }
+    if (emailHubHasReadableBody(data)) {
+      setBodyAutoRetrying(false);
+      setBodyAutoRetriesExhausted(false);
+      return;
+    }
+    if (detail.isFetching || detail.isPending) return;
+    if (!detail.isFetched && !detail.isError) return;
+    if (bodyRetryRef.current.attempts >= 2) {
+      setBodyAutoRetrying(false);
+      setBodyAutoRetriesExhausted(true);
+      return;
+    }
+    bodyRetryRef.current.attempts += 1;
+    setBodyAutoRetrying(true);
+    const delayMs = bodyRetryRef.current.attempts * 350;
+    const timer = window.setTimeout(() => {
+      void detail.refetch().finally(() => {
+        setBodyAutoRetrying(false);
+      });
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [
+    accountId,
+    data,
+    detail.isError,
+    detail.isFetched,
+    detail.isFetching,
+    detail.isPending,
+    detail.refetch,
+    threadId,
+  ]);
   useEffect(() => {
     if (!accountId || !threadId || !data?.is_read) return;
     patchEmailHubThreadInLists(qc, wsId, accountId, threadId, { is_read: true });
   }, [accountId, threadId, data?.is_read, qc, wsId]);
   const awaitingBody = !!threadId && !emailHubHasReadableBody(data);
   const isBodyLoading =
-    awaitingBody && (detail.isFetching || detail.isLoading || detail.isPending);
+    awaitingBody &&
+    (detail.isFetching || detail.isLoading || detail.isPending || bodyAutoRetrying);
   const isBodyLoadFailed =
-    awaitingBody && !isBodyLoading && (detail.isFetched || detail.isError);
+    awaitingBody &&
+    !isBodyLoading &&
+    bodyAutoRetriesExhausted &&
+    (detail.isFetched || detail.isError);
+
+  const refetchBody = () => {
+    bodyRetryRef.current.attempts = 0;
+    setBodyAutoRetriesExhausted(false);
+    setBodyAutoRetrying(false);
+    return detail.refetch();
+  };
 
   return {
     ...detail,
@@ -215,6 +269,7 @@ export function useEmailHubThread(
     isBodyLoadFailed,
     isError: detail.isError,
     error: detail.error,
+    refetchBody,
   };
 }
 
@@ -225,13 +280,21 @@ export function prefetchEmailHubThread(
   threadId: string,
   fetchBody = true,
 ) {
-  void qc.prefetchQuery({
-    queryKey: threadDetailKey(wsId, accountId, threadId),
-    queryFn: ({ signal }) =>
-      api.getEmailHubThread(wsId, accountId, threadId, fetchBody, false, signal),
-    staleTime: EMAIL_HUB_THREAD_STALE_TIME_MS,
-    retry: 1,
-  });
+  const key = threadDetailKey(wsId, accountId, threadId);
+  void qc
+    .prefetchQuery({
+      queryKey: key,
+      queryFn: ({ signal }) =>
+        api.getEmailHubThread(wsId, accountId, threadId, fetchBody, false, signal),
+      staleTime: EMAIL_HUB_THREAD_STALE_TIME_MS,
+      retry: 1,
+    })
+    .then(() => {
+      const cached = qc.getQueryData<EmailHubThread | null>(key);
+      if (cached && !emailHubHasReadableBody(cached)) {
+        qc.invalidateQueries({ queryKey: key, refetchType: "none" });
+      }
+    });
 }
 
 export function useConnectEmailHubAccount(wsId: string) {

@@ -1,0 +1,2111 @@
+{
+  "schemaVersion": 1,
+  "version": "1.3.0",
+  "date": "2026-10-14",
+  "ready": true,
+  "sourceRef": "6750c9ca0f82ca5acebc7c32f98f149c31f84197",
+  "previousSourceRef": "f4e2bb9643a298fd11584f44f1cd6a61ba0efc2a",
+  "title": {
+    "vi": "Một tổ chức cho mỗi tài khoản, lời mời kèm workspace, bình luận trong tài liệu Office và nhiều bản sửa thanh toán",
+    "en": "One organization per account, invitations that carry workspaces, comments in Office documents and a batch of billing fixes"
+  },
+  "summary": {
+    "vi": "Mỗi tài khoản thuộc một tổ chức đang hoạt động; trang lời mời xem trước rồi đưa bạn qua tổ chức mới trong một bước, và lời mời có thể kèm sẵn các workspace bạn được vào. Chủ sở hữu duy nhất đóng được tổ chức, tài khoản chưa có tổ chức có trang Bắt đầu riêng. Tài liệu Office trong workspace có bình luận, nhắc tên và thanh đồng bộ; tệp và tin nhắn thoại trong chat mở nhanh hơn. Trang giới thiệu cùng trang UniWork Office được làm lại kèm biểu mẫu đăng ký dùng thử. Kèm theo là các bản sửa cho hoàn tiền, hạn mức gói và chỗ ngồi thành viên.",
+    "en": "Each account belongs to one active organization; the invitation page previews the invitation and then moves you across in a single step, and an invitation can carry the workspaces you get access to. A sole owner can close an organization, and an account with no organization gets its own Get started page. Office documents in a workspace gained comments, @mentions and a sync bar, and chat files and voice messages open faster. The introduction and UniWork Office pages were rebuilt with a request-a-demo form. Alongside are fixes for refunds, plan quotas and member seats."
+  },
+  "note": {
+    "vi": "Quy tắc một tổ chức áp dụng cho các thao tác mới: tài khoản đang thuộc nhiều tổ chức từ trước vẫn giữ nguyên. Đóng tổ chức cần bạn là chủ sở hữu và là thành viên hoạt động duy nhất, phải gõ lại slug để xác nhận; tổ chức đã đóng chưa có thao tác khôi phục. Chủ sở hữu chỉ đăng nhập bằng Google (chưa đặt mật khẩu) chưa chuyển quyền sở hữu được. Workspace kèm theo lời mời do quản trị viên của tổ chức chọn; ai chưa được cấp workspace nào vẫn vào được tổ chức nhưng chưa thấy nội dung cho tới khi được cấp. Bình luận và đồng bộ trong tài liệu Office cần tổ chức bật trình soạn Office; phần AI của UniWork trong Office và thư viện ngoại tuyến vẫn đang tắt. Kết nối trợ lý AI vẫn là tính năng thử nghiệm, chỉ đọc, và phải được bật cho tổ chức.",
+    "en": "The one-organization rule applies to new actions: accounts that already belong to several organizations are left as they are. Closing an organization requires you to be its owner and only active member and to retype the slug to confirm; a closed organization has no restore action yet. An owner who only signs in with Google (no password set) cannot transfer ownership yet. The workspaces attached to an invitation are picked by the organization's admins; someone granted none still joins the organization but sees no content until they are granted some. Comments and sync in Office documents need the organization to have the Office editors enabled; UniWork's AI inside Office and the offline library are still switched off. AI assistant connections remain a read-only pilot and must be enabled for the organization."
+  },
+  "changes": [
+    {
+      "commit": "f32bc6febcbeb9950a6e2cea84edcab99fd535d6",
+      "subject": "fix(billing): keep a refund pending when VNPay's answer is unknown",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khi VNPay không trả lời hoặc trả lời không có chữ ký hợp lệ, yêu cầu hoàn tiền giữ trạng thái chờ thay vì đánh dấu hóa đơn đã thanh toán trở lại, nên lần thử sau không hoàn tiền hai lần. Một lời từ chối có chữ ký vẫn đưa hóa đơn về đã thanh toán và ghi lại việc đảo trạng thái.",
+        "en": "When VNPay does not answer or the answer is not properly signed, a refund now stays pending instead of marking the invoice paid again, so a later attempt no longer refunds twice. A signed refusal still returns the invoice to paid and records the revert."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/267"
+      }
+    },
+    {
+      "commit": "41036366d2f1d8ef62593e87cd7d23e1eec31cfd",
+      "subject": "fix(billing): refuse a second VNPay refund and do not settle status 05",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hóa đơn VNPay đã hoàn tiền một lần không nhận thêm lệnh hoàn tự động mà phải được xử lý thủ công. Khi cổng thanh toán trả trạng thái 05 (vẫn đang xử lý), hóa đơn ở lại trạng thái chờ và gói đang dùng được giữ nguyên.",
+        "en": "A VNPay invoice that already has money refunded no longer accepts a second automatic refund and must be finished by hand. When the gateway answers status 05 (still processing), the invoice stays pending and the current plan is kept."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/269"
+      }
+    },
+    {
+      "commit": "23708f9f585b8ca6232132d44fd93fb4ff862b0c",
+      "subject": "fix(billing): a manual invoice can only be refunded in full",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hóa đơn thanh toán thủ công chỉ hoàn được toàn bộ: số tiền một phần, bằng 0 hoặc âm bị từ chối, nên không còn trường hợp hoàn một phần lại hoàn cả hóa đơn và hạ gói. Khi hai lệnh hoàn chạy cùng lúc, lệnh thua báo xung đột để tải lại danh sách.",
+        "en": "A hand-paid invoice can only be refunded in full: partial, zero and negative amounts are refused, so a partial refund no longer refunds the whole invoice and drops the plan. When two refunds run at once, the losing one reports a conflict so the list can be reloaded."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/admin_billing_refund.go",
+          "server/internal/handler/admin_billing.go",
+          "server/internal/service/admin_billing_refund_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "936c0301e9464116feee322d97ed825abf8f0f77",
+      "subject": "fix(ui): sync the accent picker from <html>, not storage",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Màu nhấn đang dùng hiện đúng trong Cài đặt › Tùy chọn cả khi trình duyệt chặn bộ nhớ cục bộ (Safari riêng tư, \"chặn mọi cookie\"), nên bạn chọn lại được màu mặc định mà không phải tải lại trang. Mọi tab đang mở cũng đổi màu theo tab vừa chọn.",
+        "en": "The accent colour in use now shows correctly in Settings › Preferences even when the browser blocks local storage (private Safari, \"block all cookies\"), so you can pick the default again without reloading. Every open tab also follows the tab that just changed it."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/265"
+      }
+    },
+    {
+      "commit": "54da6607e7fd65692bd696633573b69e37fd76a1",
+      "subject": "fix(ui): follow another tab's accent on every page",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Cùng PR #265 với 936c0301e9; gộp vào mục đó để trang không lặp.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/265"
+      }
+    },
+    {
+      "commit": "c1a6c2402534b4aa00e13bff06590ba4c52704eb",
+      "subject": "docs(changelog): review and publish v1.2.0 — Việt/Anh",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: PR công bố Changelog v1.2.0, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/268"
+      }
+    },
+    {
+      "commit": "22b13feea46318ee4812daa43cec8d39cc311b6a",
+      "subject": "docs(changelog): refresh v1.2.0 to develop d100b3dd8 and review the delta",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: làm mới bản nháp Changelog v1.2.0 theo develop.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/268"
+      }
+    },
+    {
+      "commit": "74df150981c7744d15cc6d44c457c97212471f08",
+      "subject": "docs(changelog): refresh v1.2.0 to develop f4e2bb964",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: làm mới bản nháp Changelog v1.2.0 theo develop.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/268"
+      }
+    },
+    {
+      "commit": "345cfe2bda271e6ac79e24c3e25fc54aebdc47c3",
+      "subject": "feat(mcp): give every tool a title clients show the person",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trong kết nối trợ lý AI, mỗi công cụ hiện tên dễ đọc — \"List workspaces\", \"My work\", \"Search UniWork\", \"Get task\", \"Get meeting\" — thay cho tên kỹ thuật viết liền bằng gạch dưới.",
+        "en": "In an AI assistant connection, each tool now shows a readable title — \"List workspaces\", \"My work\", \"Search UniWork\", \"Get task\", \"Get meeting\" — instead of its snake_case technical name."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/271"
+      }
+    },
+    {
+      "commit": "2e6158c63da279579f2c0ba4ed0baac2e6ac9d84",
+      "subject": "docs(spec): one organization per account, leave, close and switch via invitation",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ tài liệu: spec một tổ chức cho mỗi tài khoản. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "83481fdf4af208ac30036fc6e7456599ad7f4925",
+      "subject": "docs(spec): leave resolves the slug without the suspended gate",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ tài liệu: cập nhật spec. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "576fa5d068535d3ae598adee131306fd18d59650",
+      "subject": "docs: ADR 0032 one active organization per account",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ tài liệu: ADR 0032. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "317521eedb704bb64491be34bc99bbeab0b53c3c",
+      "subject": "feat(orgs): hold one active organization per account",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Mỗi tài khoản thuộc một tổ chức đang hoạt động, và máy chủ giữ quy tắc này nên mở nhiều tab hay thao tác song song cũng không lách được. Khi bạn nhận lời mời sang tổ chức khác, trang lời mời xem trước lời mời rồi đưa bạn qua rời tổ chức cũ, chuyển quyền sở hữu rồi rời, hoặc đóng tổ chức cũ — tất cả trong một bước. Nếu lời mời đã hết hạn hoặc bị thu hồi, bạn vẫn giữ nguyên tổ chức hiện tại.",
+        "en": "Each account belongs to one active organization, and the server keeps the rule, so several tabs or parallel actions cannot slip past it. When you are invited to another organization, the invitation page previews it and then walks you through leaving your current one, transferring ownership and leaving, or closing it — all in a single step. If the invitation has expired or been revoked, you keep your current organization."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "e8301b51c2195a5cea1be42775ee5755ea01b25e",
+      "subject": "fix(orgs): resolve the leave route without the suspended gate",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Thuộc quy tắc một tổ chức của PR #272; gộp vào mục 317521eedb.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "42b1d55cbd34a928e5d29e5e316f0976f06d44b8",
+      "subject": "feat(orgs): close an organization as its sole owner",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chủ sở hữu là thành viên hoạt động duy nhất có thể đóng tổ chức ngay trong Cài đặt › Tổ chức, sau khi gõ lại slug để xác nhận. Dữ liệu được giữ nguyên, các lời mời đang chờ bị thu hồi và gói đăng ký bị hủy, nên chủ sở hữu duy nhất không còn bị kẹt trong tổ chức của mình.",
+        "en": "An owner who is the only active member can close the organization from Settings › Organization after retyping its slug to confirm. The data is kept, pending invitations are revoked and the subscription is cancelled, so a sole owner is no longer stuck inside their own organization."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "7caeb3ae6a4f0b94715183d2df48090196b26384",
+      "subject": "feat(orgs): POST /api/v1/orgs/{org}/close",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Endpoint của tính năng đóng tổ chức, PR #272; gộp vào mục 42b1d55cbd.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "aa1ee9be8b29a22e6948901a66e57fc0470dd8b8",
+      "subject": "feat(orgs): closeOrganization endpoint and useCloseOrganization hook",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Client của tính năng đóng tổ chức, PR #272; gộp vào mục 42b1d55cbd.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "173593062806e40335ddc24ab5d013f19801ed72",
+      "subject": "feat(orgs): canCloseOrg rule mirroring OrganizationMemberService.Close",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Rule quyền của tính năng đóng tổ chức, PR #272; gộp vào mục 42b1d55cbd.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "86ea7aff6ce6bfbf839a3ccec1d955b65e55b447",
+      "subject": "fix(orgs): keep organization-level invitations in GET /me/invitations",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Một lời mời cấp tổ chức không còn làm biến mất cả danh sách lời mời của bạn.",
+        "en": "An organization-level invitation no longer makes your whole invitation list disappear."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "2e3a0de44df835cf5efd76fcfe59a9948191f1ec",
+      "subject": "feat(orgs): send a person with no organization to /get-started",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Thuộc trang Bắt đầu của PR #272; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "27365bb7963a34f933819623d6e9b537bd918f38",
+      "subject": "feat(orgs): refresh lists and session when the user's own membership changes",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Làm mới danh sách và phiên khi tư cách thành viên đổi, PR #272; gộp vào mục 317521eedb.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "e843570c789bbf4c6540f6b3691fdc07ae107944",
+      "subject": "feat(orgs): read the one-organization 409 details from ApiError.fields",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Đọc chi tiết lỗi 409 của quy tắc một tổ chức, PR #272; gộp vào mục 317521eedb.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "19e5144e0fd30eebdb46c28602e0520d2d6e06c6",
+      "subject": "feat(orgs): close the organization from Settings as its last member",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Lối đóng tổ chức trong Cài đặt, PR #272; gộp vào mục 42b1d55cbd.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "342307d9f5222db6fe8c9269527923974cb0b379",
+      "subject": "feat(orgs): /get-started for an account with no organization",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài khoản chưa thuộc tổ chức nào được đưa tới trang Bắt đầu để tạo tổ chức mới hoặc mở một lời mời đang chờ. Trong danh sách lời mời và ở thanh bên của chat, mỗi lời mời mở trang riêng của nó thay vì một nút tham gia tất cả.",
+        "en": "An account that belongs to no organization is sent to a Get started page to create one or open a pending invitation. In the invitation list and in the chat sidebar, each invitation now opens its own page instead of a join-everything button."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "d4f66b70fd89046735c9e375e9a2d9468db54cd6",
+      "subject": "feat(orgs): onboarding offers no second organization",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Onboarding không mời tạo tổ chức thứ hai, PR #272; gộp vào mục 317521eedb.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "19a2c03af06e7bc5568b2d8d1ed1c4a163e474c7",
+      "subject": "feat(orgs): entry pages hand the organization list to the resolver",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Các trang vào ứng dụng dùng chung bộ giải quyết tổ chức, PR #272; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "eba02f36c62a83461af76064298dce5b4f2fb0c5",
+      "subject": "feat(orgs): a closed organization's screens send the person on",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Màn hình của tổ chức đã đóng, PR #272; gộp vào mục 1e15e45c39.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "a59d184212dadf80caaca158643727f0bbb428f9",
+      "subject": "fix(account): scrub member profiles with empty strings, not NULL",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Xóa tài khoản không còn thất bại khi dọn hồ sơ thành viên, và một tổ chức đã đóng cũng không còn chặn việc xóa tài khoản.",
+        "en": "Deleting an account no longer fails while scrubbing the member profiles, and a closed organization no longer blocks account deletion either."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "16843c145200af3c1252c29fb738838dea237f24",
+      "subject": "fix(orgs): a closed organization no longer blocks account deletion",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Cùng kết quả xóa tài khoản với a59d184212, PR #272; gộp vào mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "74675772d6399e44e31f1a74800916266a87d3e1",
+      "subject": "fix(orgs): serialize Close against an acceptance into the same organization",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Khóa đồng thời giữa đóng tổ chức và nhận lời mời, PR #272; gộp vào mục 42b1d55cbd.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "d8c00806697eac65b704e3e5fbd4d9b5a30efeba",
+      "subject": "fix(admin): suspend and unsuspend leave an archived organization archived",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Thao tác của quản trị viên nền tảng với tổ chức đã đóng, PR #272; gộp vào mục 1e15e45c39.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "1e15e45c393de7c54cc985ffd33b51237d63c853",
+      "subject": "fix(orgs): a closed organization's workspaces leave the workspace list",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tổ chức đã đóng không còn để lại workspace của nó trong danh sách của bạn, màn hình của tổ chức đã đóng đưa bạn sang nơi phù hợp thay vì báo \"tạm ngưng\", và một tư cách thành viên đã tắt không còn bị tính là bạn vẫn đang thuộc tổ chức.",
+        "en": "A closed organization no longer leaves its workspaces in your list, its screens send you on instead of reporting the organization as suspended, and a switched-off membership no longer counts as you still belonging to it."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "956e35ff0f97b1974b43323078a210bb48eec7a0",
+      "subject": "fix(orgs): a switched-off membership does not count as belonging on the client",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Tư cách thành viên đã tắt trên client, PR #272; gộp vào mục 1e15e45c39.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "2a35b03ec5a462c716f2fac257282e589bbfb245",
+      "subject": "fix(orgs): /get-started offers no create to someone a suspended organization holds",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Trang Bắt đầu với tổ chức bị tạm ngưng, PR #272; gộp vào mục 1e15e45c39.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "a4b85f7dcb9758eb777ba71a1e4ad7167e85e2f0",
+      "subject": "feat(orgs): preview an invitation and switch organization when accepting it",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Xem trước lời mời và chuyển tổ chức, PR #272; gộp vào mục 317521eedb.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "5d00565dcf866769efa6c60eb53e8e94550f0360",
+      "subject": "refactor(settings): share the transfer-ownership candidate and password fields",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Refactor nội bộ: dùng chung các trường của hộp thoại chuyển quyền sở hữu. Không đổi hành vi người dùng thấy.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "f30b50d0592c00bf603744338088cdce01f1fdab",
+      "subject": "feat(invitations): read an invitation's preview and accept it with a resolve",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Client đọc và nhận lời mời kèm resolve, PR #272; gộp vào mục 317521eedb.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "13cf8b4880391f78051b48e9658e81b404480a5e",
+      "subject": "feat(invitations): every invitation in the list opens its own page",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Mỗi lời mời mở trang riêng, PR #272; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "30bdd651f4f47ecca318fcd4a252f5a9cee47166",
+      "subject": "feat(invitations): the invitation page previews first and switches organization",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Trang lời mời xem trước rồi chuyển tổ chức, PR #272; gộp vào mục 317521eedb.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "ec4470aadb2499adc7bd7b0ea641e1fbdbd65a52",
+      "subject": "test(e2e): join invitations through the invitation's own page",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test e2e. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "b239cb1385a2834ccde3e7a1a0147a35e189ba9e",
+      "subject": "test(e2e): switch organization through an invitation, close and start over",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test e2e. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "1b17953364593d417e2e6eb1e78cb96e8d4d65e9",
+      "subject": "fix(invitations): say an organization being deleted takes nobody new",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Cùng nội dung với 9396e4f00e, PR #272; gộp vào mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "37dc12104e657fb0205061f4e10b543c7a151f10",
+      "subject": "fix(chat): sidebar invitations open the invitation page",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Lời mời ở thanh bên chat mở trang riêng, PR #272; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "a885949c7befc0fd233ccdedb166fb4c80c9e2c4",
+      "subject": "fix(invitations): the invitation page accepts once",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trang lời mời chỉ nhận lời mời một lần và không còn kẹt ở vòng quay sau khi bạn bấm đồng ý; trong lúc đang gửi, nút \"Để sau\" được ẩn đi. Khi một lời mời không dùng được nữa, trang nói rõ lý do.",
+        "en": "The invitation page accepts an invitation once and no longer hangs on a spinner after you confirm; while the request is being sent, the \"Later\" button is hidden. When an invitation has stopped working, the page says why."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "5cc7b096061a86795c10b504ca29662514409ad9",
+      "subject": "fix(invitations): no \"Để sau\" once the join or switch is being sent",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Ẩn nút \"Để sau\" khi đang gửi, PR #272; gộp vào mục a885949c7b.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "dc3b3b7163e63384dfb3ee0342e499adab5f2e80",
+      "subject": "fix(invitations): tell an owner without a password the transfer cannot be confirmed",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chủ sở hữu chỉ đăng nhập bằng Google và chưa đặt mật khẩu được báo rõ là không xác nhận được việc chuyển quyền sở hữu, kèm hướng dẫn liên hệ hỗ trợ. Ô chọn người nhận quyền giải thích ngay tại chỗ khi chưa có ai để chọn và phân biệt được những người trùng tên.",
+        "en": "An owner who only signs in with Google and has no password is told plainly that an ownership transfer cannot be confirmed, with a pointer to support. The field that picks the new owner explains in place when there is nobody to choose and tells namesakes apart."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "9396e4f00e2b6b840ef8513a0a29731e1642c88f",
+      "subject": "fix(orgs): an invitation into an organization being deleted admits nobody",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Lời mời vào một tổ chức đang chờ xóa không nhận thêm ai và nói rõ lý do, thay vì đưa người mới vào một tổ chức sắp biến mất.",
+        "en": "An invitation into an organization that is being deleted admits nobody and says so, instead of adding someone to an organization that is about to disappear."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "22176f10729931988104c0672575bf3a01694449",
+      "subject": "feat(views): the transfer candidate field explains an empty list in place",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Ô chọn người nhận quyền giải thích danh sách rỗng, PR #272; gộp vào mục dc3b3b7163.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "c51ea0749ffbe14a51713e253a253999a70cc1c3",
+      "subject": "feat(views): make the invitation page and the organization switch legible at a glance",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Các màn hình lời mời, chuyển tổ chức và vùng nguy hiểm của tổ chức dễ đọc hơn: tên tổ chức dài xuống dòng thay vì bị cắt, tiêu đề lời mời vừa màn hình điện thoại, và thông báo về quyền truy cập cuộn được trên cửa sổ thấp kèm lối đăng xuất.",
+        "en": "The invitation, organization switch and organization danger-zone screens read better: long organization names wrap instead of clipping, invitation titles fit a phone screen, and access notices scroll on short windows and offer a way to sign out."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "661243489260dd6a78ebd24372c76960022dbcbc",
+      "subject": "refactor(views): move roleLabel out of the switch wizard",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Refactor nội bộ: tách nhãn vai trò khỏi wizard. Không đổi hành vi người dùng thấy.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "69bca6e1dc6a75a29de20c4a0bcf37abc4f1b194",
+      "subject": "feat(views): compose /get-started and /invitations around one invitation list",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Dựng trang Bắt đầu và danh sách lời mời quanh một thành phần chung, PR #272; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "ba1452a5bf4bc0cdb26c4854cd4cffecb8a270d9",
+      "subject": "fix(views): access notices scroll on short windows and offer sign-out",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Thông báo truy cập cuộn được và có lối đăng xuất, PR #272; gộp vào mục c51ea0749f.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "6707f8b3fb020cf767bd9b9da131f6bfd36699d7",
+      "subject": "feat(views): make the org danger zone and the one-organization stop read as intentional",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Vùng nguy hiểm của tổ chức và thông báo một tổ chức, PR #272; gộp vào mục c51ea0749f.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "6e00cda7b87f3c10827dbf7187c18096fa6f6f10",
+      "subject": "fix(views): long organization names wrap instead of clipping in the switch and invitation screens",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Tên tổ chức dài xuống dòng, PR #272; gộp vào mục c51ea0749f.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "946a0fbc9092814b8315973b66d17a8367348496",
+      "subject": "fix(views): say why an invitation stopped working, and prompt the empty owner picker",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nói rõ vì sao lời mời ngừng dùng được, PR #272; gộp vào mục a885949c7b.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "02d222eb9f63f704cc54eb0fdf2de43bda153f48",
+      "subject": "fix(views): named invitation titles fit a phone, and the close notice has one marker",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Tiêu đề lời mời vừa màn hình điện thoại, PR #272; gộp vào mục c51ea0749f.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "c916a2f2250c2a2369c48df67295f7baf5d724be",
+      "subject": "chore(server): raise the Go coverage floor to 74",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: nâng ngưỡng coverage của backend. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "d9f3376a8f59e2ec93bb6c10cdf2ee4260b95b51",
+      "subject": "test(orgs): poll lock waiters on the barrier, not the pool",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: sửa bộ khung test để không cạn kết nối trong CI. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/272"
+      }
+    },
+    {
+      "commit": "95cf1e18a6dfe79f4931e15aa176a76e7533005c",
+      "subject": "docs: spec and ADR 0033 for MCP write tools",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ tài liệu: spec và ADR 0033 cho bộ tool ghi của MCP. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/273"
+      }
+    },
+    {
+      "commit": "611c5cf75edea54315ad5f2d49fceb44001ec6c6",
+      "subject": "fix(invitations): retry a failed accept instead of stranding the page",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khi lần chấp nhận lời mời thất bại, trang đưa ra nút thử lại dùng được thay vì kẹt lại; lỗi tạm thời (mạng, 5xx, quá nhiều yêu cầu) khi chuyển tổ chức không còn làm mất các lựa chọn bạn đã điền trong các bước. Wizard gửi được bằng phím Enter và nói rõ vì sao nó quay lại bước trước.",
+        "en": "When accepting an invitation fails, the page now offers a retry that works instead of stranding you; a temporary error (network, 5xx, too many requests) while switching organization no longer loses the choices you already made in the steps. The wizard submits with Enter and says why it stepped back."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "8f28bfcc0bc6a39cadd9aa0ab2abba490777a900",
+      "subject": "fix(orgs): a drifted organization list no longer hides live workspaces",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Danh sách tổ chức lệch nhịp không còn giấu mất workspace đang dùng hay đẩy bạn sang trang Bắt đầu, và thông báo \"tạm ngưng\" không còn chớp lên khi tổ chức thật ra đã đóng.",
+        "en": "An out-of-date organization list no longer hides the workspaces you are using or pushes you to the Get started page, and a \"suspended\" notice no longer flashes up when the organization has actually been closed."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "b940a6207d0b2d06985666abbc223fcfc45c4fe9",
+      "subject": "fix(orgs): the old organization's audit row names nothing of the new one",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khi bạn chuyển sang tổ chức khác, dòng nhật ký kiểm toán của tổ chức cũ chỉ ghi lý do chuyển tổ chức, không còn ghi mã của tổ chức mới.",
+        "en": "When you switch to another organization, the old organization's audit row now records only the reason for the switch and no longer names the new organization."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "09d515323c7162116cd98e97609e8d4fe52e5b24",
+      "subject": "fix(billing): refuse a self-serve switch onto a contact-only plan",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Gói không niêm yết giá (liên hệ để báo giá) không còn bị coi là miễn phí: chủ sở hữu không tự chuyển sang được mà phải liên hệ, nên thuê bao không còn rơi vào trạng thái quá hạn vì bỏ qua bước thanh toán.",
+        "en": "A plan with no list price (contact us for a quote) is no longer treated as free: an owner cannot switch to it alone and has to get in touch, so the subscription no longer ages into past due after skipping checkout."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/278"
+      }
+    },
+    {
+      "commit": "aca841c7749de9e69bc7d0f2e48e413728d53d1e",
+      "subject": "fix(billing): keep usage when the plan does not change",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chọn lại đúng gói đang dùng không còn đặt lại kỳ đo hạn mức, nên hạn mức của gói miễn phí không thể được làm đầy lại theo yêu cầu.",
+        "en": "Re-selecting the plan already in force no longer resets the metering period, so a free plan's quotas can no longer be refilled on demand."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/281"
+      }
+    },
+    {
+      "commit": "2638850ca2a145e3110f7b0937949a379b01a6a9",
+      "subject": "docs: implementation plan for MCP write tools",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ tài liệu: kế hoạch triển khai tool ghi MCP. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/273"
+      }
+    },
+    {
+      "commit": "c6ea1591b460e9232960b5aba194bea83bb3e163",
+      "subject": "fix(billing): meter free plans by the calendar month",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Gói không có kỳ thanh toán, như Starter, tính hạn mức cộng dồn theo tháng dương lịch giờ Việt Nam: dùng hết token AI trong tháng này thì tháng sau đếm lại từ đầu. Thuê bao có kỳ trả phí vẫn đếm theo kỳ của gói.",
+        "en": "A plan with no billing period, such as Starter, now meters its accumulating quota by the calendar month in Vietnam time: running out of AI tokens this month starts over next month. Subscriptions with a paid period still meter by that period."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/276"
+      }
+    },
+    {
+      "commit": "98ec32ffe4a7e2deae280fb84e37e31672c5d96a",
+      "subject": "fix(billing): count a reactivated member once against the last seat",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Kích hoạt lại một thành viên đã tắt chỉ tính một chỗ ngồi, nên chỗ trống cuối cùng không còn bị đếm hai lần và thành viên được bật lại thật sự.",
+        "en": "Reactivating a deactivated member now counts one seat, so the last open seat is no longer counted twice and the member really is reactivated."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/283"
+      }
+    },
+    {
+      "commit": "6cc1ad746d8df35124096621e22c1301b2e5c1df",
+      "subject": "fix(ui): measure the destructive button on every plane it lands on",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Tương phản nút nguy hiểm, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "d224aeb50b06dcbe24a6230e34166c7a72ba641c",
+      "subject": "fix(ui): reduced motion no longer creates transitions nobody declared",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Chế độ giảm chuyển động, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "af6593ee5734e412579b8083548857efc2ce9b11",
+      "subject": "fix(views): show keyboard users where programmatic focus lands",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Hiển thị vị trí focus do mã đặt, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "76a9d10bc06d399026c1f9ec6a20eccf9679933f",
+      "subject": "fix(views): shared dialog actions stay in the tab order while held",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Thứ tự tab của nút trong hộp thoại, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "4fd6460b969899aa64365a98458e210a332c089a",
+      "subject": "fix(ui): a Stepper used as progress stops claiming tab and nav semantics",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Ngữ nghĩa ARIA của thanh bước, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "5e76c24566611095fde9857240d877bded396dba",
+      "subject": "feat(ui): Alert carries the soft notice tones with measured pairs",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Biến thể màu của Alert dùng chung, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "cefe3322829f6ff1f84f6a78c1c3df30ed808e3d",
+      "subject": "fix(views): the changed-situation notice no longer cuts off the step heading",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Thông báo không cắt tiêu đề bước, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "d7492b4d333b1df9186b02a47852db13daf6737a",
+      "subject": "refactor(views): invite notices share the Alert tones and say their role",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Refactor nội bộ: thông báo lời mời dùng chung biến thể Alert.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "f167b7a47c7d8361e53469c7c531221537115702",
+      "subject": "style(views): drop the eyebrow pill above the auth rail statement",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Chỉnh kiểu nhỏ trên màn đăng nhập, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "7575aee911609467c156af58073ad257185d274d",
+      "subject": "test(ui): keep the contrast helper's internals private",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ sửa test của helper đo tương phản. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "56859490fd29e8b8ac1f2f3e63e98180c9e7aafe",
+      "subject": "fix(invitations): the error screen's actions show their wait and ask once",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Màn hình lỗi của lời mời, PR #287; gộp vào mục 611c5cf75.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "0176437c7870d37aeceab05950b109b1eccb3e53",
+      "subject": "fix(views): the new-owner picker tells namesakes apart and never opens empty",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Ô chọn chủ sở hữu mới, PR #287; gộp vào mục dc3b3b7163.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "d95c9fe14681711d109556f4cff0976c03d692c6",
+      "subject": "change AI_PROVIDER",
+      "kind": "review",
+      "include": false,
+      "excludeReason": "Cấu hình triển khai (biến môi trường AI_PROVIDER), đẩy thẳng lên develop, không có PR. Hạ tầng, không thuộc nội dung công khai.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app/env/uniwork-be.env"
+        ]
+      }
+    },
+    {
+      "commit": "cd948ced6a4e7230dd2941519439c653584021e8",
+      "subject": "fix(invitations): the switch wizard submits on Enter and says why it went back",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Wizard chuyển tổ chức gửi bằng Enter, PR #287; gộp vào mục 611c5cf75.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "7375eaf4150a37f6f81405ced1b8f4e9f10e5b55",
+      "subject": "feat(mcp): accept the write scope in authorization requests",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "0f5483e33a63c60dca24ed0c270dc44e8155e10e",
+      "subject": "style(invitations): names wrap anywhere, and the step row fits a phone",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Tên dài xuống dòng và hàng bước vừa điện thoại, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "78e441abd9f861ea0cc1d19fae35c47129b31239",
+      "subject": "(deploy): change AI_PROVIDER",
+      "kind": "review",
+      "include": false,
+      "excludeReason": "Cấu hình triển khai Kubernetes cho AI_PROVIDER, đẩy thẳng lên develop, không có PR. Hạ tầng, không thuộc nội dung công khai.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app/uniwork/templates/deployment-be.yaml",
+          "deploy/app/uniwork/values.yaml"
+        ]
+      }
+    },
+    {
+      "commit": "35a7d147d5799ad78d542e3be8211e390b028bea",
+      "subject": "feat(mcp): organization switch and flag for write access",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "1db89ed8a5fd9efc9d95d0d9bd5c93fb5f20be9c",
+      "subject": "fix(onboarding): /get-started commits to a title only once it knows which",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Tiêu đề trang Bắt đầu, PR #287; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "a7f84c8eea6b70a62b8342f7f82b25ef9486213a",
+      "subject": "fix(invitations): open on the list sign-in already fetched, without the blank wait",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Danh sách lời mời mở không chờ trắng, PR #287; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "aaa75f383222b2ef870ebb5fa2ebc772e8cb1393",
+      "subject": "fix(views): access notices are entry screens that name the organization and the owner's way out",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Màn thông báo quyền truy cập, PR #287; gộp vào mục c51ea0749f.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "d6c5701bca72d8759a382038cdb8c7c4fb19a312",
+      "subject": "fix(invitations): rows read the place in words, wrap the inviter and survive an empty one",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Hàng lời mời trong danh sách, PR #287; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "6d6971934801ebdc80f09dafc4408698baa7ad18",
+      "subject": "fix(chat): sidebar invitations use the shared row and say what they are",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Lời mời ở thanh bên chat dùng chung hàng lời mời, PR #287; gộp vào mục 342307d9f5.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "8f8254b536c6e77e0608b87d4c12553b3f7b8de6",
+      "subject": "fix(onboarding): sign-out holds after the first press",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nút đăng xuất trên màn thông báo truy cập, PR #287; gộp vào mục c51ea0749f.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "b53f564c9f0fce21f790350d3e174c789fd1d889",
+      "subject": "feat(mcp): the consent page decides whether a grant may write",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "ef15a401910758a397e45fbafae68debce20e420",
+      "subject": "test(e2e): open an invitation by the link's new name",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ sửa test e2e. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "12cdeb25e3592d01742b66f3f66aee92ca02f523",
+      "subject": "test(mcp): the platform write flag keeps write out of the grant",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "0adc1b5c101e9415abe0ec9826e80e85ba8f3f0f",
+      "subject": "feat(mcp): audit rows name the AI app; the principal knows if it may write",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "56e8a0bfc326d4a82bcecf08c03bd49f6e990a34",
+      "subject": "fix(mcp): pin the via precedence and the scope half of CanWrite",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "41f1101caec59e59555b6775ee04d063b827fc89",
+      "subject": "feat(mcp): /mcp gates write tools and names the app on every audit row",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "e7a0fc11386fc4c532a72f8763176241f5535f97",
+      "subject": "feat(mcp): typed tool helpers and the four rules of ADR 0033",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "8d3d9b2bd4d7ea16f93304f8f70027d1f5466b8a",
+      "subject": "fix(mcp): decodeInto refuses a stray closing brace; name the via tests",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "a56ba0bc29ea8ee7ab217cc110efc7d8bd463207",
+      "subject": "feat(marketing): refine landing and Office with demo intake",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trang giới thiệu và trang UniWork Office trên website được dựng lại: điều hướng gọn hơn, ảnh trình soạn thảo theo giao diện sáng/tối, phần xem trước đủ chiều cao và nội dung giới thiệu được gom lại cho dễ theo dõi. Trang Đăng ký dùng thử mới gửi yêu cầu thẳng cho quản trị viên UniWork xử lý trong console, và phần tải UniWork Office đưa đúng các bản cài đặt mà hệ thống đang cấu hình.",
+        "en": "The introduction and UniWork Office pages on the website were rebuilt: tighter navigation, editor imagery that follows light and dark mode, a full-height preview and introduction content consolidated so it is easier to follow. A new Request a demo page sends the request straight to UniWork administrators to handle in the console, and the UniWork Office download section offers exactly the installers the deployment is configured with."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/app/request-demo/page.tsx",
+          "apps/web/features/landing/request-demo-page.tsx",
+          "apps/web/app/admin/demo-requests/page.tsx",
+          "server/internal/service/demo_requests.go",
+          "server/migrations/9991791885621356_demo_requests.up.sql",
+          "apps/web/features/landing/office-page.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "af764c568f252cb73abf44544ea530b4c17a2d09",
+      "subject": "feat(mcp): consent offers write, admins switch it, history names the app",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "cf2e8b41b6569f5c0706ab0606b1682aa2f60735",
+      "subject": "test(mcp): pin the write tick reaching the POST and the write-switch guards",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "b9550c114f0020415ba41c13d1164a5f5b07c15f",
+      "subject": "fix(server): a wrong re-entered password answers 403 password_incorrect",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Nhập sai mật khẩu khi xác nhận lại — lúc chuyển quyền sở hữu, chấp nhận lời mời hay xóa tài khoản — được báo là sai mật khẩu ngay trong hộp thoại, thay vì bị hiểu nhầm là phiên đăng nhập hết hạn và gửi lại yêu cầu.",
+        "en": "Entering the wrong password when confirming again — transferring ownership, accepting an invitation or deleting your account — is now reported as a wrong password right in the dialog, instead of being mistaken for an expired session and resent."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "707bdd9b7116b7e39765767efd49466f1d3a9af8",
+      "subject": "fix(invitations): read a refused owner password through one helper, new code first",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Client đọc mã lỗi mật khẩu mới, PR #287; gộp vào mục b9550c114.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "b2219aeef18b1b553f7a77d723c069c924a6c3b5",
+      "subject": "fix(orgs): a transfer refreshes what the role decides, not the whole cache",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nội bộ: thu hẹp phạm vi làm mới cache sau khi chuyển quyền. Không đổi hành vi người dùng thấy.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "50c55ce68d65dafd859c3198dd4bf224706e728c",
+      "subject": "fix(settings): the owner's danger zone answers refusals in place and keeps focus",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Vùng nguy hiểm trả lời từ chối tại chỗ, PR #287; gộp vào mục b9550c114.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "040e5a5947d8b287c4fc50ceb37980cfc9ba9338",
+      "subject": "fix(ui): a tab panel shows keyboard focus",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Focus bàn phím trên tab panel, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "b9fa64f42c46cbad7e2bb3910c9562139e7df7c1",
+      "subject": "fix(ui): the command palette's title stops standing in the page while closed",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Tiêu đề bảng lệnh khi đang đóng, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "8b722e08c2d39ea3af1e61948e097428fbe50409",
+      "subject": "fix(onboarding): the organization step says when it was refused and fits 200% text",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Bước tạo tổ chức ở mức chữ 200%, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "58c307d0958cad9dd44e5b3556e434cf7965566b",
+      "subject": "fix(invitations): the first read of an invitation keeps focus where the page opened",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Giữ focus khi mở trang lời mời, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "f753b7efa6db310f33f37577504128238d8d3679",
+      "subject": "fix(views): the email chips field fits a phone at 200% text",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Ô nhập email ở mức chữ 200%, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "7bd8d5d1fda74272a637dd802817cc473f552403",
+      "subject": "refactor(office): Discard uses the destructive variant without an override",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Refactor nội bộ: nút Hủy bỏ trong Office dùng biến thể dùng chung.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "662293944f7f5c1ce32f20730a6719c1c6eddddf",
+      "subject": "fix(mcp): the call gate refuses every tool that tools/list hides",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "ce6a4c97bb94f440204b42e169f302935161a10a",
+      "subject": "docs: the MCP runbook query parses and the plan says Phase 0 is done",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "40a90ef12e38a966c39a064f892ef97381b00d59",
+      "subject": "docs(mcp): the write Counter's comment says its in-flight cap is its own",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "c8b6a6379a8a07f79148d9185503160a75517c5d",
+      "subject": "fix(mcp): the consent hint promises nothing UniWork cannot guarantee",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "f31af51270991c173ae9f785ad51613ee0ac1157",
+      "subject": "fix(mcp): no connector hint on the write row while the platform has not opened it",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "4f627659a6a9e96f17f0359c78566a4e0990b23b",
+      "subject": "test(mcp): Authenticate closes write when the platform write flag is off",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nền cho tool ghi của connector MCP (PR #282, Phase 0 của ADR 0033): chưa có tool ghi nào và flag nền tảng mcp_connector_write đang tắt, nên chưa có thay đổi nào người dùng thấy. Để lại cho phiên bản công bố tool ghi đầu tiên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/282"
+      }
+    },
+    {
+      "commit": "cec502219fdaba98b58e7ea89e51e87dc8a5b5f2",
+      "subject": "fix(views): the top bar reflows at large text instead of running off a phone",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Giao diện giữ được bố cục khi bạn phóng to chữ và rõ hơn khi dùng bàn phím: thanh trên cùng cùng các màn hình tổ chức, lời mời và onboarding vừa khung ở mức chữ 200%; nút thao tác nguy hiểm ở chế độ tối đạt chuẩn tương phản AA; vị trí con trỏ bàn phím luôn nhìn thấy được; và chế độ giảm chuyển động không còn tự sinh hiệu ứng.",
+        "en": "The interface keeps its layout when you enlarge text and reads better from the keyboard: the top bar and the organization, invitation and onboarding screens fit at 200% text; destructive buttons meet AA contrast in dark mode; the keyboard focus position is always visible; and reduced motion no longer creates transitions nobody declared."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "5f77e3c2d5df7f885d6126bbcf827bca7a78724e",
+      "subject": "fix(onboarding): the welcome step fits a phone at 200% text",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Bước chào mừng ở mức chữ 200%, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "850c91de8bfa831de1dc9a0848d4d6003131d161",
+      "subject": "UNI-923: Office G5/G6/G7 sync, AI, comments and folders client into develop for the internal dev test (#279)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu Office mở trong workspace có luồng bình luận, nhắc tên bằng @ và hộp thư bình luận kèm thông báo, nên góp ý nằm ngay cạnh nội dung thay vì ở chỗ khác. Thanh đồng bộ cho biết bản lưu của bạn đã lên workspace hay còn trong hàng đợi.",
+        "en": "Office documents opened in a workspace now have comment threads, @mentions and a comment inbox with notifications, so feedback sits next to the content instead of somewhere else. A sync bar shows whether your save has reached the workspace or is still queued."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/279"
+      }
+    },
+    {
+      "commit": "97a109b8e61735008b1b72231307b096dc0085e0",
+      "subject": "fix(settings): a refused account deletion is answered in the dialog's words",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Hộp thoại xóa tài khoản trả lời từ chối tại chỗ, PR #287; gộp vào mục b9550c114.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "a1872814d95636e7bab3090273c2dea7b7c3e978",
+      "subject": "fix(server): a wrong proof at account deletion is never 401",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Mã lỗi khi xóa tài khoản, PR #287; gộp vào mục b9550c114.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "be7d3fd43337e14508491518337a4ba2e3204819",
+      "subject": "fix(onboarding): show keyboard users where the step heading took focus",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Focus tiêu đề bước onboarding, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "0701c60591381b6b86a5b03d270ae615e347648f",
+      "subject": "fix(onboarding): the organization card shows the whole name at 200% text",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Thẻ tổ chức ở mức chữ 200%, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "cbdca8b23d8bd78cd9d699ba3f275ed735f2138b",
+      "subject": "fix(views): form dialog actions fill a phone's width again",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nút hộp thoại trên điện thoại, PR #287; gộp vào mục cec502219.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "89f485c857a554690d53fb121dd57bf92bb33d0b",
+      "subject": "UNI-923: Office dev.13 installer links + frame re-pin + develop CI green after #279 (#280)",
+      "kind": "review",
+      "include": false,
+      "excludeReason": "Hạ tầng phát hành: đổi liên kết bản cài đặt UniWork Office sang bản dev kế tiếp, ghim lại bundle khung Office và sửa các check CI đỏ. Không phải nội dung công khai.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/280"
+      }
+    },
+    {
+      "commit": "d62eba07c6caf11db86430d6ca5500445f398d70",
+      "subject": "feat(invitations): an organization invitation grants the workspaces an admin picks",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Lời mời vào tổ chức có thể kèm sẵn workspace: quản trị viên chọn workspace ngay khi mời, và người nhận được cấp quyền vào đúng các workspace đó khi chấp nhận, kể cả khi đang chuyển từ tổ chức khác sang. Nhận lời mời xong là vào thẳng workspace của tổ chức mới thay vì màn hình tạo mới. Người chưa được cấp workspace nào thấy màn hình nói rõ điều đó, thay vì bị đưa đi tạo workspace.",
+        "en": "An organization invitation can now carry workspaces: an admin picks them while inviting, and the person is granted access to exactly those workspaces when they accept, including while switching over from another organization. Accepting an invitation lands you straight in the new organization's workspace instead of a create screen. Someone granted no workspace sees a screen that says so, instead of being sent to create one."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "e2c9926499bb6e85b41fe540015d2827458cd750",
+      "subject": "feat(invitations): admins pick the workspaces of an organization invitation",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Màn hình quản trị viên chọn workspace khi mời, PR #287; gộp vào mục d62eba07c.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "69d5b700e1dcdf4bcc574f65de585a31602969ed",
+      "subject": "fix(invitations): a member with no workspace is told so, not sent to create one",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Màn hình cho người chưa được cấp workspace, PR #287; gộp vào mục d62eba07c.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "35e8710e5a83ff32c3d8ed7ed96c92988c1554c0",
+      "subject": "test(e2e): an organization invitation lands the switched person in B",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test e2e. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "78bd10f6922e1440081640f712abd8e493eab7d2",
+      "subject": "docs: the one-organization spec records workspace grants and /no-workspace",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ tài liệu: cập nhật spec một tổ chức. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "ea658ac498dc0e4418af36920ad9473c59dbd2bf",
+      "subject": "ci: ignore the reintroduced conversation-id gitleaks hit",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: cấu hình quét secret trong CI. Không đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/283"
+      }
+    },
+    {
+      "commit": "dc5e44d123f1e127ce8a18160c91d54a533c9d28",
+      "subject": "fix(billing): keep platform admins off customer plan routes",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Vai trò quản trị viên nền tảng không còn đủ để đổi, hủy, tiếp tục hay thanh toán gói của một tổ chức mà người đó không phải chủ sở hữu, và đường đi đó cũng không còn bỏ qua các điều kiện của gói trả phí. Nhân viên UniWork gán gói qua console quản trị, nơi lý do được ghi lại.",
+        "en": "A platform role is no longer enough to change, cancel, resume or check out the plan of an organization the person does not own, and that path no longer skips the paid-plan gates. UniWork staff assign a plan through the admin console, where the reason is recorded."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/286"
+      }
+    },
+    {
+      "commit": "88e47976a573a1ad7873091c9af94efd7730efcd",
+      "subject": "fix(onboarding): a random workspace name follows the interface language",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Tên workspace ngẫu nhiên theo ngôn ngữ giao diện, PR #287; gộp vào mục 84572b6d1.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "84572b6d1daa128be83cc20704a700948b1a5ee9",
+      "subject": "fix(onboarding): creating a workspace no longer asks which organization",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tạo workspace không còn hỏi chọn tổ chức, vì mỗi tài khoản chỉ thuộc một tổ chức đang hoạt động. Tên workspace gợi ý ngẫu nhiên cũng theo ngôn ngữ giao diện bạn đang dùng.",
+        "en": "Creating a workspace no longer asks which organization, because each account belongs to just one active organization. The randomly suggested workspace name now follows the interface language you are using."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/287"
+      }
+    },
+    {
+      "commit": "d8ceb27765dfba86ac22d5b636832c8dd556a2ff",
+      "subject": "refactor(marketing): consolidate introduction content",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Cùng đợt làm lại trang giới thiệu UNI-504 với a56ba0bc29, đẩy thẳng lên develop, không có PR; gộp vào mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/marketing-overview-pages.tsx",
+          "apps/web/features/landing/office-page.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "2a60ef2f12c13a9527b65cfd03ca991dff658eb8",
+      "subject": "UNI-1633: Chat file đọc trực tiếp từ storage qua URL presign (bỏ proxy BE) (#285)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tệp, ảnh và tin nhắn thoại trong chat tải thẳng từ kho lưu trữ qua liên kết có chữ ký thay vì đi vòng qua máy chủ, nên mở nhanh hơn và tận dụng được bộ nhớ đệm của trình duyệt; ảnh JPEG và PNG có thêm bản thu nhỏ. Liên kết sắp hết hạn hoặc tải lỗi được làm mới tự động.",
+        "en": "Chat files, images and voice messages now load straight from storage through signed links instead of going through the server, so they open faster and can use the browser cache; JPEG and PNG images also get a thumbnail. A link that is about to expire or fails to load is refreshed automatically."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/285"
+      }
+    }
+  ]
+}

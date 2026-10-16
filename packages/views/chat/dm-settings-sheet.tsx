@@ -78,7 +78,7 @@ export function DmSettingsSheet({
   const { t } = useTranslation();
   const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
   const contactOnline = Boolean(onlineUserIds[normalizeTypingUserId(contact.user_id)]);
-  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(roomId);
+  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, roomId);
   const [bulletinOpen, setBulletinOpen] = useState(false);
   const [nicknameOpen, setNicknameOpen] = useState(false);
   const [selfNicknameOpen, setSelfNicknameOpen] = useState(false);

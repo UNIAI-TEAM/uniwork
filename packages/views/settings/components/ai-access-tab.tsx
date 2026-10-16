@@ -5,13 +5,14 @@ import { useTranslation } from "react-i18next";
 import { Plug, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import type { ConnectedApp } from "@uniwork/core/api/endpoints/connect";
-import { useMcpPolicy, useOrgConnectedApps, useRevokeOrgConnectedApp, useSetMcpPolicy } from "@uniwork/core/connect";
+import { useMcpPolicy, useOrgConnectedApps, useRevokeOrgConnectedApp, useSetMcpPolicy, useSetMcpWritePolicy } from "@uniwork/core/connect";
 import { useOrgMembership } from "@uniwork/core/organizations";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
+import { AssistantMark, AssistantMarks } from "./assistant-mark";
 import { CopyAddress } from "./copy-address";
 import {
   SettingsBadge,
@@ -44,6 +45,7 @@ export function AiAccessTab() {
   const isAdmin = !!membership.data && ADMIN_ROLES.has(membership.data.role);
   const policy = useMcpPolicy(org, { enabled: isAdmin });
   const setPolicy = useSetMcpPolicy(org);
+  const setWrite = useSetMcpWritePolicy(org);
   const grants = useOrgConnectedApps(org, { enabled: isAdmin });
   const revoke = useRevokeOrgConnectedApp(org);
   const [pending, setPending] = useState<ConnectedApp | null>(null);
@@ -107,6 +109,20 @@ export function AiAccessTab() {
             }}
           />
         </SettingsRow>
+        <SettingsRow label={t("writeLabel")} description={t("writeDescription")}>
+          <Switch
+            aria-label={t("writeLabel")}
+            checked={state.write_enabled}
+            aria-busy={setWrite.isPending || undefined}
+            aria-disabled={setWrite.isPending || (!state.write_enabled && (!state.enabled || !state.write_available)) || undefined}
+            className="aria-busy:opacity-60 pointer-coarse:after:-inset-y-[13px]"
+            onCheckedChange={(next) => {
+              // Off is always allowed; on needs the connector and the platform.
+              if (setWrite.isPending || (next === true && (!state.enabled || !state.write_available))) return;
+              void setWrite.mutateAsync(next === true).catch(() => undefined);
+            }}
+          />
+        </SettingsRow>
       </SettingsCard>
     );
   }
@@ -116,6 +132,9 @@ export function AiAccessTab() {
       <SettingsSection>
         {toggle}
         {state && !state.available ? <p className="px-1 pt-2 text-caption text-muted-foreground">{t("unavailable")}</p> : null}
+        {state?.available && !state.enabled ? <p className="px-1 pt-2 text-caption text-muted-foreground">{t("writeNeedsConnector")}</p>
+          : state && !state.write_available ? <p className="px-1 pt-2 text-caption text-muted-foreground">{t("writeUnavailable")}</p> : null}
+        {setWrite.isError ? <p role="alert" className="px-1 pt-2 text-caption text-destructive">{t("saveFailed")}</p> : null}
         {setPolicy.isError ? (
           <p role="alert" className="px-1 pt-2 text-caption text-destructive">
             {t("saveFailed")}
@@ -126,7 +145,15 @@ export function AiAccessTab() {
       {state?.available && state.mcp_url ? (
         // Under an organization-level pilot a member's own settings may not
         // show the address yet (Ruling 50), so the admin can hand it over.
-        <SettingsSection title={i18n.t("settings.connectedApps.connectTitle")} description={t("addressBody")}>
+        <SettingsSection
+          title={
+            <span className="flex items-center gap-2">
+              {i18n.t("settings.connectedApps.connectTitle")}
+              <AssistantMarks />
+            </span>
+          }
+          description={t("addressBody")}
+        >
           <SettingsCard>
             <CopyAddress value={state.mcp_url} />
           </SettingsCard>
@@ -149,8 +176,14 @@ export function AiAccessTab() {
             {rows.map((g) => (
               <SettingsListItem
                 key={g.id}
+                leading={<AssistantMark client={g.client_name} verified={g.verified} />}
                 title={g.client_name}
-                badge={g.verified ? <SettingsBadge tone="success">{i18n.t("settings.connectedApps.verified")}</SettingsBadge> : null}
+                badge={
+                  <span className="flex items-center gap-1.5">
+                    {g.verified ? <SettingsBadge tone="success">{i18n.t("settings.connectedApps.verified")}</SettingsBadge> : null}
+                    <SettingsBadge tone="muted">{t(g.scope.split(" ").includes("write") ? "scopeWrite" : "scopeRead")}</SettingsBadge>
+                  </span>
+                }
                 meta={metaLine(g)}
                 actions={
                   <Button

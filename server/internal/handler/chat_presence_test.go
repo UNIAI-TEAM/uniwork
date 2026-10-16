@@ -40,8 +40,10 @@ func TestChatPresenceBeatAnswersWithTheOnlineMembers(t *testing.T) {
 	if _, has := out["online_user_ids"]; res.StatusCode != http.StatusOK || has {
 		t.Fatalf("leave b: %d %v", res.StatusCode, out)
 	}
+	// b's leave only shortens b's entry (another tab of b's may still beat),
+	// so b stays in the snapshot until the leave grace runs out.
 	res, out = doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]string{"state": "online"})
-	if res.StatusCode != http.StatusOK || !slices.Equal(onlineIDs(out), []string{f.ids["a"]}) {
-		t.Fatalf("beat a after b left: %d %v", res.StatusCode, out)
+	if res.StatusCode != http.StatusOK || !slices.Equal(onlineIDs(out), want) {
+		t.Fatalf("beat a after b left: %d %v, want %v", res.StatusCode, out, want)
 	}
 }

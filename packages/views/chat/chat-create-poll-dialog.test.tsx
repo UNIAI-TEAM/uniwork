@@ -54,6 +54,7 @@ describe("ChatCreatePollDialog", () => {
       expect(mutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           roomId: "room1",
+          client_msg_id: expect.stringMatching(/\S/),
           poll: expect.objectContaining({
             question: "Ăn trưa ở đâu?",
             options: ["Canteen", "Quán ngoài"],

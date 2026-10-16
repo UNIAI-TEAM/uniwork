@@ -1,5 +1,9 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
+import {
+  displayLabelForChatContact,
+  isPlaceholderChatDisplayName,
+  resolveChatNicknameForUser,
+} from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { buildMemberAvatarUrlMap, lookupMemberAvatarUrl, memberAvatarUrl } from "./chat-member-avatar";
@@ -14,6 +18,7 @@ export type ChatNameContextEntry = {
   user_id: string;
   display_name: string;
   avatar_url?: string;
+  email?: string;
 };
 
 export type WorkspaceMemberLike = {
@@ -36,18 +41,31 @@ function pushNameEntry(
   user_id: string,
   display_name: string,
   avatar_url?: string,
+  email?: string,
 ) {
-  const existing = entries.find((entry) => entry.user_id === user_id);
+  const key = user_id.trim().toUpperCase();
+  const trimmedEmail = email?.trim();
+  const existing = entries.find((entry) => entry.user_id.trim().toUpperCase() === key);
   if (existing) {
     if (avatar_url) existing.avatar_url = avatar_url;
+    if (trimmedEmail && !existing.email) existing.email = trimmedEmail;
+    const next = display_name.trim();
+    if (
+      next &&
+      isPlaceholderChatDisplayName(existing.display_name, existing.user_id) &&
+      !isPlaceholderChatDisplayName(next, user_id)
+    ) {
+      existing.display_name = next;
+    }
     return;
   }
-  if (seen.has(user_id)) return;
-  seen.add(user_id);
+  if (seen.has(key)) return;
+  seen.add(key);
   entries.push({
     user_id,
     display_name: display_name.trim() || user_id,
     ...(avatar_url ? { avatar_url } : {}),
+    ...(trimmedEmail ? { email: trimmedEmail } : {}),
   });
 }
 
@@ -116,6 +134,7 @@ export function buildChatNameContext(
       c.user_id,
       displayLabelForChatContact(c, nicknamesByUserId),
       lookupMemberAvatarUrl(avatarByUserId, c.user_id),
+      c.email,
     );
   }
   if (activeContact) {
@@ -125,11 +144,12 @@ export function buildChatNameContext(
       activeContact.user_id,
       displayLabelForChatContact(activeContact, nicknamesByUserId),
       lookupMemberAvatarUrl(avatarByUserId, activeContact.user_id),
+      activeContact.email,
     );
   }
   if (activeGroup) {
     for (const memberId of activeGroup.member_user_ids) {
-      if (seen.has(memberId)) continue;
+      if (seen.has(memberId.trim().toUpperCase())) continue;
       const profile = groupMemberProfiles[memberId];
       if (profile) {
         pushNameEntry(
@@ -138,6 +158,7 @@ export function buildChatNameContext(
           profile.user_id,
           resolveChatNicknameForUser(nicknamesByUserId, profile.user_id) || profile.display_name,
           lookupMemberAvatarUrl(avatarByUserId, profile.user_id),
+          profile.email,
         );
         continue;
       }
@@ -149,6 +170,7 @@ export function buildChatNameContext(
           contact.user_id,
           displayLabelForChatContact(contact, nicknamesByUserId),
           lookupMemberAvatarUrl(avatarByUserId, contact.user_id),
+          contact.email,
         );
       }
     }
@@ -161,6 +183,7 @@ export function buildChatNameContext(
       member.user_id,
       nickname || displayLabelForWorkspaceMember(member),
       memberAvatarUrl(member.avatar_url),
+      member.email,
     );
   }
   return nameContext;

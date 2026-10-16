@@ -157,6 +157,7 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 		if f.reply != nil && f.reply(w, tag, cmd) {
 			_ = w.Flush()
 			if f.resetAfterReply != nil && f.resetAfterReply(cmd) {
+				awaitClientConsumed(conn, r)
 				resetTCPConnection(conn)
 				return
 			}
@@ -199,6 +200,23 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 		}
 		_ = w.Flush()
 	}
+}
+
+// resetAfterReplyWait bounds how long the fake waits for the client to consume
+// the reply before resetting anyway.
+const resetAfterReplyWait = 2 * time.Second
+
+// awaitClientConsumed blocks until the client has consumed the reply the fake
+// just flushed: it closes the connection (a failed dial terminates it) or sends
+// its next command. Either signal proves the reply was read, and only then may
+// the reset land — one that beats the read can discard the reply in flight, and
+// go-imap's command execution can report its reader goroutine shutting down
+// instead of the status it already parsed, which no client can recover from.
+// The reset then still races the client's own teardown, like a host that
+// rejects and resets in the same breath.
+func awaitClientConsumed(conn net.Conn, r *bufio.Reader) {
+	_ = conn.SetReadDeadline(time.Now().Add(resetAfterReplyWait))
+	_, _ = r.ReadByte()
 }
 
 func resetTCPConnection(conn net.Conn) {

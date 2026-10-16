@@ -27,6 +27,18 @@ type McpPolicy struct {
 	Available bool // the platform flag; false means the switch cannot turn on yet
 	EnabledAt *time.Time
 	EnabledBy string
+	// The write half (ADR 0033): WriteAvailable is the write flag.
+	WriteEnabled   bool
+	WriteAvailable bool
+	WriteEnabledAt *time.Time
+	WriteEnabledBy string
+}
+
+func mcpPolicyOf(enabledAt pgtype.Timestamptz, enabledBy pgtype.Text, writeAt pgtype.Timestamptz, writeBy pgtype.Text, available, writeAvailable bool) McpPolicy {
+	return McpPolicy{
+		Enabled: enabledAt.Valid, Available: available, EnabledAt: optTime(enabledAt), EnabledBy: enabledBy.String,
+		WriteEnabled: writeAt.Valid, WriteAvailable: writeAvailable, WriteEnabledAt: optTime(writeAt), WriteEnabledBy: writeBy.String,
+	}
 }
 
 func errMcpConnectorUnavailable() error {
@@ -143,7 +155,7 @@ func (s *McpAuthService) Policy(ctx context.Context, actorID, orgID string) (Mcp
 	if err != nil {
 		return McpPolicy{}, err
 	}
-	return McpPolicy{Enabled: row.McpEnabledAt.Valid, Available: s.flagOn(ctx, actorID, orgID), EnabledAt: optTime(row.McpEnabledAt), EnabledBy: row.McpEnabledBy.String}, nil
+	return mcpPolicyOf(row.McpEnabledAt, row.McpEnabledBy, row.McpWriteEnabledAt, row.McpWriteEnabledBy, s.flagOn(ctx, actorID, orgID), s.flag(ctx, mcpWriteFlagKey, actorID, orgID)), nil
 }
 
 func (s *McpAuthService) SetPolicy(ctx context.Context, actorID, orgID string, enabled bool) (McpPolicy, error) {
@@ -151,6 +163,7 @@ func (s *McpAuthService) SetPolicy(ctx context.Context, actorID, orgID string, e
 		return McpPolicy{}, err
 	}
 	available := s.flagOn(ctx, actorID, orgID)
+	writeAvailable := s.flag(ctx, mcpWriteFlagKey, actorID, orgID)
 	if enabled && !available {
 		return McpPolicy{}, errMcpConnectorUnavailable()
 	}
@@ -171,7 +184,7 @@ func (s *McpAuthService) SetPolicy(ctx context.Context, actorID, orgID string, e
 		if err := tx.Commit(ctx); err != nil {
 			return McpPolicy{}, err
 		}
-		return McpPolicy{Enabled: enabled, Available: available, EnabledAt: optTime(before.McpEnabledAt), EnabledBy: before.McpEnabledBy.String}, nil
+		return mcpPolicyOf(before.McpEnabledAt, before.McpEnabledBy, before.McpWriteEnabledAt, before.McpWriteEnabledBy, available, writeAvailable), nil
 	}
 	row, err := q.SetOrganizationMcpPolicy(ctx, db.SetOrganizationMcpPolicyParams{ID: orgID, Enabled: enabled, ActorID: actorID})
 	if err != nil {
@@ -180,14 +193,65 @@ func (s *McpAuthService) SetPolicy(ctx context.Context, actorID, orgID string, e
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID, Actor: audit.User(actorID), Action: audit.ActionOrganizationMcpPolicyChanged,
 		ResourceType: "organization", ResourceID: orgID,
-		Changes: audit.Diff(map[string]any{"mcp_enabled": before.McpEnabledAt.Valid}, map[string]any{"mcp_enabled": enabled}),
+		Changes: audit.Diff(
+			map[string]any{"mcp_enabled": before.McpEnabledAt.Valid, "mcp_write_enabled": before.McpWriteEnabledAt.Valid},
+			map[string]any{"mcp_enabled": enabled, "mcp_write_enabled": row.McpWriteEnabledAt.Valid},
+		),
 	}); err != nil {
 		return McpPolicy{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return McpPolicy{}, err
 	}
-	return McpPolicy{Enabled: row.McpEnabledAt.Valid, Available: available, EnabledAt: optTime(row.McpEnabledAt), EnabledBy: row.McpEnabledBy.String}, nil
+	return mcpPolicyOf(row.McpEnabledAt, row.McpEnabledBy, row.McpWriteEnabledAt, row.McpWriteEnabledBy, available, writeAvailable), nil
+}
+
+// SetWritePolicy turns write access for connected AI apps on or off (ADR
+// 0033). It needs the connector on and the write flag open; turning it off
+// is always allowed.
+func (s *McpAuthService) SetWritePolicy(ctx context.Context, actorID, orgID string, enabled bool) (McpPolicy, error) {
+	if err := s.requireOrgAdmin(ctx, orgID, actorID); err != nil {
+		return McpPolicy{}, err
+	}
+	available := s.flagOn(ctx, actorID, orgID)
+	writeAvailable := s.flag(ctx, mcpWriteFlagKey, actorID, orgID)
+	if enabled && !writeAvailable {
+		return McpPolicy{}, errMcpWriteUnavailable()
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return McpPolicy{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	before, err := q.GetOrganizationMcpPolicyForUpdate(ctx, orgID)
+	if err != nil {
+		return McpPolicy{}, err
+	}
+	if enabled && !before.McpEnabledAt.Valid {
+		return McpPolicy{}, errMcpConnectorOff()
+	}
+	if before.McpWriteEnabledAt.Valid == enabled {
+		if err := tx.Commit(ctx); err != nil {
+			return McpPolicy{}, err
+		}
+		return mcpPolicyOf(before.McpEnabledAt, before.McpEnabledBy, before.McpWriteEnabledAt, before.McpWriteEnabledBy, available, writeAvailable), nil
+	}
+	row, err := q.SetOrganizationMcpWritePolicy(ctx, db.SetOrganizationMcpWritePolicyParams{ID: orgID, Enabled: enabled, ActorID: actorID})
+	if err != nil {
+		return McpPolicy{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: orgID, Actor: audit.User(actorID), Action: audit.ActionOrganizationMcpWritePolicyChanged,
+		ResourceType: "organization", ResourceID: orgID,
+		Changes: audit.Diff(map[string]any{"mcp_write_enabled": before.McpWriteEnabledAt.Valid}, map[string]any{"mcp_write_enabled": enabled}),
+	}); err != nil {
+		return McpPolicy{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return McpPolicy{}, err
+	}
+	return mcpPolicyOf(row.McpEnabledAt, row.McpEnabledBy, row.McpWriteEnabledAt, row.McpWriteEnabledBy, available, writeAvailable), nil
 }
 
 func (s *McpAuthService) requireOrgAdmin(ctx context.Context, orgID, userID string) error {

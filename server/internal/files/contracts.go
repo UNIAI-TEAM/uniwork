@@ -138,6 +138,11 @@ type ResolveInput struct {
 	Mode        ReadMode
 	Disposition Disposition
 	FileIDs     []FileID
+	// Variant signs a derivative of each id instead of the original, under
+	// the same rules as OpenInput.Variant: authorized as its source, and a
+	// file without that derivative signs the original. Resolved.File stays
+	// the requested file; only the URL names the derivative.
+	Variant Variant
 }
 
 // Resolved is one entry of a batch resolve. Err is per id: a file that is out

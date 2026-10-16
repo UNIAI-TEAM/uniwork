@@ -131,6 +131,16 @@ func (s *ChatService) loadMessageForLink(
 	return room, msg, nil
 }
 
+// requireLinkWriter: reading a room is enough to see its links and synced
+// threads, but changing them changes what everyone in the room sees, so it
+// needs the same standing as writing there: an active member who may send.
+func (s *ChatService) requireLinkWriter(ctx context.Context, userID, workspaceID string, room db.ChatRoom) error {
+	if _, err := s.authorizeRoom(ctx, userID, workspaceID, room.ID); err != nil {
+		return err
+	}
+	return s.requireCanSendInRoom(ctx, userID, room.ID, room)
+}
+
 func chatMessageLinkRow(row db.ChatMessageLink) ChatMessageLinkRow {
 	return ChatMessageLinkRow{
 		ID: row.ID, MessageID: row.MessageID, TargetType: row.TargetType,
@@ -148,6 +158,9 @@ func (s *ChatService) CreateTaskFromMessage(
 	}
 	room, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
 	if err != nil {
+		return db.Task{}, err
+	}
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
 		return db.Task{}, err
 	}
 	// Refused before the task exists, so a refusal leaves nothing behind.
@@ -233,6 +246,9 @@ func (s *ChatService) LinkChatMessage(
 	}
 	room, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
 	if err != nil {
+		return ChatMessageLinkRow{}, err
+	}
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
 		return ChatMessageLinkRow{}, err
 	}
 	task, err := s.tasks.Get(ctx, userID, targetID)
@@ -321,9 +337,7 @@ func (s *ChatService) ListRoomMessageLinks(
 	return out, nil
 }
 
-// UnlinkChatMessage removes a link from a message. Reading a room is enough to
-// see its links, but taking one away changes what everyone sees, so it needs
-// the same standing as writing in the room: an active member who may send.
+// UnlinkChatMessage removes a link from a message (requireLinkWriter).
 func (s *ChatService) UnlinkChatMessage(
 	ctx context.Context, userID, workspaceID, messageID, linkID string,
 ) error {
@@ -331,10 +345,7 @@ func (s *ChatService) UnlinkChatMessage(
 	if err != nil {
 		return err
 	}
-	if _, err := s.authorizeRoom(ctx, userID, workspaceID, room.ID); err != nil {
-		return err
-	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
 		return err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -434,6 +445,9 @@ func (s *ChatService) SyncThreadTask(
 	if err != nil {
 		return db.ChatThreadTaskLink{}, err
 	}
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
+		return db.ChatThreadTaskLink{}, err
+	}
 	if !threadAllowedOnRoom(room) {
 		return db.ChatThreadTaskLink{}, errChatThreadNotFound()
 	}
@@ -499,8 +513,11 @@ func (s *ChatService) SyncThreadTask(
 // chat.thread.unlinked event in one transaction (ADR 0009); the Work Graph
 // closes the task's DISCUSSED_IN edge from that event (C-11 §5.2).
 func (s *ChatService) UnsyncThreadTask(ctx context.Context, userID, workspaceID, threadRootID string) error {
-	_, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
+	room, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
 	if err != nil {
+		return err
+	}
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
 		return err
 	}
 	tx, err := s.pool.Begin(ctx)

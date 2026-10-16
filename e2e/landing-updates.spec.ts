@@ -3,10 +3,12 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 test("new product stories are local demos with truthful availability", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   const writes: string[] = [];
   page.on("request", (request) => {
@@ -39,7 +41,8 @@ for (const size of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobi
       await context.addCookies([{ name: "uniwork-locale", value: locale, url: baseURL! }]);
       await page.setViewportSize(size);
       await page.emulateMedia({ reducedMotion: "reduce" });
-      await page.goto("/");
+      await gotoLanding(page, "/");
+      await landingReady(page);
       await page.waitForLoadState("networkidle");
       for (const theme of ["light", "dark"]) {
         await page.evaluate((value) => document.documentElement.classList.toggle("dark", value === "dark"), theme);
@@ -61,7 +64,8 @@ for (const size of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobi
 
 test("workspace finishes revealing without extra scrolling and respect reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   for (const id of ["platform"]) {
     const surface = page.locator(`#${id} > div`);

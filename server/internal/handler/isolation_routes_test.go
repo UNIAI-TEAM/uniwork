@@ -231,6 +231,11 @@ var isoRoutes = map[string]isoSpec{
 		body: func(w *isoWorld, tn *isoTenant) isoBody {
 			return isoBody{json: map[string]any{"enabled": tn != w.alpha}}
 		}},
+	"PUT /api/v1/orgs/{org}/mcp-policy/write": {
+		reason: "the attack on A sends enabled false, which would switch A's write access off, so A's tenant digest catches a breach; every other tenant's own call sends true, a repeated enable (buildMcp turns write on) that answers 200",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"enabled": tn != w.alpha}}
+		}},
 
 	"GET /uploads/*": {class: isoPublic, reason: "legacy local-disk objects by unguessable key; FileService objects (v1/) are refused - TestServeFileRefusesFileServiceObjects and the uploads subtest"},
 
@@ -491,6 +496,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/tasks/{taskID}/reactions":                                                    {body: isoJSON(map[string]any{"emoji": "👍"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                             {body: isoJSON(map[string]any{"question": "what is overdue?"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up":                                   {body: isoWith(map[string]string{"room_id": "room"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/icon":                                               {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/attachments":                                        {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/dm":                                            {body: isoWith(map[string]string{"user_id": "peer"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages":                                      {body: isoJSON(map[string]any{"body": "hello"})},
@@ -538,6 +544,8 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
 		"plan_code": "starter", "success_path": "/billing/ok", "cancel_path": "/billing/cancel",
 	})},
+	"POST /api/v1/meetings/{meetingID}/restore": {control: []int{http.StatusConflict},
+		reason: "the tenant's own fixture meeting was never cancelled, so its owner's restore answers 409 invalid_meeting_state; the cross-tenant call must still be refused 403/404 and A's digest catches a restore"},
 	"PATCH /api/v1/orgs/{orgID}/billing/plan":                         {body: isoJSON(map[string]any{"plan_code": "starter", "row_version": 1})},
 	"POST /api/v1/meetings/{meetingID}/host-transfer":                 {body: isoWith(map[string]string{"new_host_user_id": "peer"}, nil)},
 	"POST /api/v1/orgs/{org}/transfer-ownership":                      {body: isoWith(map[string]string{"to_user_id": "third"}, map[string]any{"password": "password123"})},

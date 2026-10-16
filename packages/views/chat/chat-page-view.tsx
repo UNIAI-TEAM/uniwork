@@ -24,12 +24,12 @@ import {
   useSendChatThreadMessage,
   useSendChatVoiceMessage,
   useSendChatFileMessage,
-  useChatSendOutboxFlush,
   useChatSendOutboxCount,
   useSyncChatRoomsOnAuth,
 } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
 import { refreshRoomTimelineOnOpen } from "@uniwork/core/chat/room-timeline";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
@@ -48,6 +48,7 @@ import {
 } from "./chat-member-avatar";
 import { buildChatNameContext, chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
 import { buildChatMentionCandidates } from "./chat-mention-utils";
+import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";
 import { ChatPageContent } from "./chat-page-content";
@@ -55,6 +56,7 @@ import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
 import { useChatBlockActions } from "./use-chat-block-actions";
 import { useChatMediaSend } from "./use-chat-media-send";
+import { useChatSendOutboxToast } from "./use-chat-send-outbox-toast";
 import { useChatPageSignals } from "./use-chat-page-signals";
 import { useChatVoiceCall } from "./chat-voice-call-host";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
@@ -99,7 +101,6 @@ export function ChatPageView({
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
   const sendVoiceMessage = useSendChatVoiceMessage(workspaceId);
   const sendFileMessage = useSendChatFileMessage(workspaceId);
-  useChatSendOutboxFlush(workspaceId, currentUserId);
   const pendingOutboxCount = useChatSendOutboxCount(workspaceId, currentUserId);
 
   const { workspaceRoom, contacts: roomContacts, groups, channels } = useMemo(
@@ -111,7 +112,7 @@ export function ChatPageView({
   const workspaceRoomName = workspaceRoomTitle(workspaceRoom?.name, workspaceName, t("chat.workspace_room"));
   const unreadByRoomId = useMemo(() => unreadMapFromRooms(rooms), [rooms]);
   const mentionUnreadByRoomId = useMemo(() => mentionUnreadMapFromRooms(rooms), [rooms]);
-  const roomPreviewsByRoomId = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
+  const rawRoomPreviews = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
   const unreadBadgesReady = roomsLoaded;
 
   const [target, setTarget] = useState<ChatSidebarTarget>({ kind: "workspace" });
@@ -131,6 +132,7 @@ export function ChatPageView({
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  useChatSendOutboxToast(workspaceId, currentUserId);
 
   const currentMember = useCurrentMember(workspaceId);
 
@@ -223,7 +225,7 @@ export function ChatPageView({
     refreshRoomTimelineOnOpen(queryClient, workspaceId, activeRoomId);
   }, [workspaceId, activeRoomId, queryClient]);
 
-  useChatMentionNotify({ currentUserId, activeRoomId });
+  useChatMentionNotify({ workspaceId, currentUserId, activeRoomId });
 
   const { data: activeRoomMembers = [] } = useChatRoomMembers(
     workspaceId,
@@ -282,9 +284,11 @@ export function ChatPageView({
         currentUserId,
         workspaceMembers,
         groupMemberProfiles,
-        memberDisplayLabel,
+        (member) => resolveChatNicknameForUser(nicknamesByUserId, member.user_id) || memberDisplayLabel(member),
+        // A channel's members are the profiles above, read from its room roster.
+        target.kind === "group" ? activeGroup?.member_user_ids : undefined,
       ),
-    [currentUserId, groupMemberProfiles, target.kind, workspaceMembers],
+    [activeGroup, currentUserId, groupMemberProfiles, nicknamesByUserId, target.kind, workspaceMembers],
   );
   const mentionAllLabel = t("chat.mention_all");
   // The draft lives in the composer's store, keyed by conversation: typing
@@ -367,6 +371,10 @@ export function ChatPageView({
         authUser?.avatar_url,
       ),
     [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId, authUser?.avatar_url, authUser?.id],
+  );
+  const roomPreviewsByRoomId = useMemo(
+    () => applyKnownPeopleToRoomPreviews(rawRoomPreviews, nameContext),
+    [nameContext, rawRoomPreviews],
   );
 
   const { startCall, acceptCall, declineCall, inCall } = useChatVoiceCall();
@@ -509,6 +517,7 @@ export function ChatPageView({
         chatSendRestricted={chatSendRestricted}
         chatSendMutedByModerator={chatSendMutedByModerator}
         canPinMessages={canPinMessages}
+        canModerate={roomPermissions.isModerator}
         canCreatePolls={canCreatePolls}
         canCreateNotes={canCreateNotes}
         peerLastReadAt={peerLastReadAt}

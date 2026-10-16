@@ -30,7 +30,7 @@ func (f *orgMembersFixture) inviteToOrg(t *testing.T, orgID, inviterID, email st
 	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"members.max": null}'::jsonb WHERE organization_id = $1`, orgID); err != nil {
 		t.Fatal(err)
 	}
-	invs, _, err := f.svc.InviteToOrg(f.ctx, inviterID, orgID, []string{email}, OrgRoleMember)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, inviterID, orgID, []string{email}, OrgRoleMember, nil)
 	if err != nil || len(invs) != 1 {
 		t.Fatalf("invite %s: %v %d", email, err, len(invs))
 	}
