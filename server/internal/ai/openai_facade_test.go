@@ -1033,7 +1033,7 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 	pinned := map[string]uniworkModuleTools{
 		"docs": {
 			Read: []string{
-				"analyze_media", "ask_clarification", "get_document_context", "image_search", "list_styles",
+				"analyze_media", "ask_clarification", "generate_mindmap", "get_document_context", "image_search", "list_styles",
 				"read_attachment", "read_blocks", "read_comments", "read_notes", "read_revisions", "web_search",
 			},
 			Write: []string{
@@ -1049,7 +1049,7 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 			Write: []string{"apply_ops", "plan_page", "write_document"},
 		},
 		"markdown": {
-			Read:  []string{"ask_clarification", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
+			Read:  []string{"ask_clarification", "generate_mindmap", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
 			Write: []string{"apply_ops", "generate_image", "insert_image", "write_document"},
 		},
 		"pdf": {
@@ -1087,6 +1087,19 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 		got := officeUniworkModulesV1[module]
 		facadeAssertExactNames(t, module, "read", got.Read, want.Read)
 		facadeAssertExactNames(t, module, "write", got.Write, want.Write)
+	}
+
+	// G6-09d / REPIN-1 (Advisor msg_f4b50f24445b): generate_mindmap in docs and
+	// markdown is a read-only display tool (editor_write=no), so a view-only
+	// turn keeps it in the offered allowlist while dropping write_document.
+	for _, module := range []string{"docs", "markdown"} {
+		ro := UniworkModuleAllowlist(module, facadeSpecs("generate_mindmap", "write_document"), true)
+		if got := strings.Join(ro.Tools.Names(), ","); got != "generate_mindmap" {
+			t.Errorf("%s view-only allowlist = %q, want generate_mindmap kept", module, got)
+		}
+		if slices.Contains(ro.WriteNames, "generate_mindmap") {
+			t.Errorf("%s WriteNames still lists generate_mindmap", module)
+		}
 	}
 }
 
