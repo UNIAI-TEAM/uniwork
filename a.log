@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+fdcfad4be395fe1987f90ade8425bf5c54f655a2
+b65535f35b0323882aabfed168974cb95299b5a0
+fdcfad4be chore(merge): G5-G7 root b65535f35 into VERHIST-01
+85a4be31c chore(merge): G5-G7 root 9863ca89b into VERHIST-01
+b65535f35 chore: merge REPIN-1 (UNI-1825, 712c8e467) into the G5-G7 root
+9863ca89b chore: merge SRC-02a (UNI-1815, 54a24d6c6) into the G5-G7 root
+91ede2c4e test(e2e): match the named share dialog title from SH-S1
+c16236ae8 chore(merge): G5-G7 root 549906774 into VERHIST-01
+54a24d6c6 test(e2e): keep the library row lookup off the go-to-source button
+40265f41f fix(documents): compact go-to-source on every row width, keep the preview close off the image
+cb6b6db57 chore: merge root 549906774 (S2V-1 fix) into SRC-02
+549906774 fix(documents): unescape the source file id in its routes
