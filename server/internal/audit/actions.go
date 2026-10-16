@@ -249,6 +249,11 @@ const (
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
 
+	// A host turned action items of a meeting summary into tasks: one row
+	// for the batch, beside the task.created row of each task
+	// (MeetingService.CreateTasksFromSummary, UNI-1853).
+	ActionMeetingSummaryTasksCreated = "meeting_summary.tasks_created"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

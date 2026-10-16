@@ -11,12 +11,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -1420,6 +1422,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-1853: the host turns action items of a meeting summary into tasks.
+		audit.ActionMeetingSummaryTasksCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			svc.Tasks = f.tasks
+			m, err := svc.CreateInstant(f.ctx, f.owner.ID, w.ID, "Giao ban")
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum := seedSummary(t, svc, m, f.owner.ID, ai.ActionItem{Title: "Gửi báo cáo"})
+			if _, err := svc.CreateTasksFromSummary(f.ctx, f.owner.ID, m.ID, SummaryTasksInput{
+				SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1132: the owner connects a mailbox.
 		audit.ActionEmailHubAccountConnected: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -1606,6 +1624,7 @@ func auditActions() []string {
 		audit.ActionMcpGrantScopeChanged,
 		audit.ActionMcpTokenFamilyRevoked,
 		audit.ActionMeetingRestored,
+		audit.ActionMeetingSummaryTasksCreated,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
 	}
