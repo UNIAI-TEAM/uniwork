@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -5; node -p "require('./apps/web/platform/office-frame/docs.pin.json').version"
+3f2f7de0646daf64de20ba79e584e3a3493f6120
+3f2f7de06 test(e2e): UXF-03/04/05/07/10 pass on frame pin 0.1.0-5a72c13
+78f4e2863 chore(office): re-pin the six office frames to web-0.1.0-5a72c13
+5ff8d1031 chore: merge G5-G7 root 94801c4ac (G7-04 round 1, develop sync) into the REPIN-1 branch (UNI-1825)
+1bafe89f0 docs(office): fix RBT2-1..3 in genoffice-tool-schemas.README.md and genoffice-tools.md
+94801c4ac chore: merge G7-04 round 1 (UNI-1386, b5d0c4703) into the G5-G7 root
+0.1.0-5a72c13

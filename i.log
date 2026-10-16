@@ -1,0 +1,4 @@
+$ export OFFICE_FORK_SHA=5a72c13 OFFICE_FORK_DIR="$HOME/.cache/uniwork-office-harness/uniwork-office-5a72c13"; node scripts/office/g5g6g7/evidence.mjs verify; rc=$?; echo; echo "G706_EVIDENCE_EXIT=$rc"; true
+evidence verify: OK (1 records)
+
+G706_EVIDENCE_EXIT=0

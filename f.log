@@ -1,0 +1,5 @@
+$ F="$HOME/.cache/uniwork-office-harness/uniwork-office-5a72c13"; ls -d "$F" && git -C "$F" rev-parse HEAD && ls -la "$F/scripts/genoffice-tools-extract.mjs" && sha256sum "$F/scripts/genoffice-tools-extract.mjs"
+/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-5a72c13
+5a72c131369a4b6f2e5a24d64228144d6da8eba4
+-rw-r--r-- 1 ubuntu ubuntu 98788 Oct 16 13:56 /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-5a72c13/scripts/genoffice-tools-extract.mjs
+47c1f44ce475b77677923d48377ea50fd507e171007d5225850a4c71987dd648  /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-5a72c13/scripts/genoffice-tools-extract.mjs
