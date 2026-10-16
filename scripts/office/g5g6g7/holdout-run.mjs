@@ -109,7 +109,8 @@ const HOST_PORT_URL_RE = /\bhttps?:\/\/[^\s"'<>]+:\d+\b/gi;
 const USERINFO_URL_RE = /\b[a-z][a-z0-9+.-]{1,15}:\/\/[^\s/@"'<>]+@[^\s"'<>]+/gi;
 // An email address (G712-62): the test user's own address is a credential like the password, but an address the case set
 // or a fixture legitimately carries is content - the caller exempts exactly those strings (see fixtureEmails), never a
-// pattern like a whole domain.
+// pattern like a whole domain. It is applied AFTER the hard kinds (G712-71), so an address-shaped value that is also a
+// key, a credential assignment or a private host keeps its hard kind.
 const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}\b/g;
 // Provider-style keys (sk-, ak-, xai-, AIza, AKIA, ghp_/gho_/ghs_, github_pat_, sk_live_/pk_live_, xox*-) and a bearer token of any case.
 const KEY_RE = /\b(?:(?:sk|ak|xai|rk|pk)-[A-Za-z0-9_-]{8,}|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}|AIza[0-9A-Za-z_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|bearer\s+[A-Za-z0-9._~+/=-]{16,})\b/gi;
@@ -153,6 +154,8 @@ function looksEncoded(run) {
  * `exemptEmails` (a Set of exact addresses) is the G712-62 escape for content: an address the holdout cases or their
  * fixtures really carry is legitimate data and is kept, while any other address is redacted as the soft kind `email`.
  * The exemption is the exact string, never a pattern, so a credential-shaped address of another domain still goes.
+ * The hard kinds run before the soft address rule (G712-71): a value that is both address-shaped and a key, a
+ * credential assignment or a private host is reported under that hard kind and still voids the run.
  */
 export function redactSecrets(text, { exemptEmails = null } = {}) {
   const found = new Map();
@@ -161,11 +164,6 @@ export function redactSecrets(text, { exemptEmails = null } = {}) {
   let out = String(text);
   swap(USERINFO_URL_RE, 'userinfo_url');
   swap(HOST_PORT_URL_RE, 'host_port_url');
-  out = out.replace(EMAIL_RE, (match) => {
-    if (exemptEmails?.has(match)) return match;
-    note('email');
-    return '[redacted:email]';
-  });
   swap(PRIVATE_HOST_RE, 'private_host');
   swap(IPV6_RE, 'ipv6');
   out = out.replace(IPV4_RE, (match, offset, whole) => {
@@ -182,6 +180,13 @@ export function redactSecrets(text, { exemptEmails = null } = {}) {
   swap(KEY_RE, 'key');
   swap(JWT_RE, 'jwt');
   swap(CREDENTIAL_ASSIGNMENT_RE, 'credential');
+  // The soft address rule comes last (G712-71), after every hard kind: an address-shaped key, credential assignment or
+  // private host was already redacted under its own kind, so it keeps the flag that keeps the run out of a pass.
+  out = out.replace(EMAIL_RE, (match) => {
+    if (exemptEmails?.has(match)) return match;
+    note('email');
+    return '[redacted:email]';
+  });
   swap(HEX_RUN_RE, 'hex_run');
   out = out.replace(BASE64_RUN_RE, (run) => {
     if (!looksEncoded(run)) return run;

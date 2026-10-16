@@ -170,7 +170,8 @@ như bí mật ngay trong từng lượt hỏi thay vì bỏ cả lần chạy: 
 không thể là kết luận đạt. Ngoại lệ: loại `base64_run` / `hex_run` (chuỗi dài trông như mã hóa, có thể chỉ là một định danh dài) và loại
 `email` (địa chỉ trong câu trả lời có thể là nội dung hợp lệ) vẫn được liệt kê trong `redactions` để người đọc xem, nhưng không làm mất
 hiệu lực lần chạy; các loại khoá, token, userinfo, host:port, IPv4 vẫn làm mất hiệu lực. Địa chỉ mà **bộ ca mang sẵn** (đọc lúc chạy) là ngoại lệ theo đúng chuỗi đó, không theo mẫu rộng: một địa chỉ
-khác trong cùng câu trả lời vẫn bị che (G712-62). Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
+khác trong cùng câu trả lời vẫn bị che (G712-62). Luật địa chỉ chạy **sau** các loại cứng (G712-71): một giá trị vừa có dạng địa chỉ vừa là khoá, là phép gán
+thông tin đăng nhập hay là host nội bộ thì được báo theo loại cứng đó và vẫn làm lần chạy không thể là đạt. Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
 khi đứng cạnh dấu hiệu tiền tệ (`đồng`, `VNĐ`, `₫`) hoặc sau chữ "số" — đứng một mình, làm host của URL không cổng, hay đứng trước cổng thì bị che và đánh dấu (G712-40). Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
 (mã phiên, hash bộ ca, sha256 của từng file run); báo cáo chỉ tính đúng các lần chạy mà manifest liệt kê.
 

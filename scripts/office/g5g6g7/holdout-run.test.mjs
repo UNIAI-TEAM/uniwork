@@ -913,6 +913,22 @@ describe('runner faults and failures', () => {
     assert.deepEqual([...fixtureEmails([])], [], 'a case set without an address exempts nothing');
   });
 
+  it('reports an address-shaped secret under its hard kind, so it still voids a run (G712-71)', async () => {
+    // The soft address rule (G712-62) runs last: a value that is also a key, a credential assignment or a private host
+    // keeps the hard kind, and with it the flag that keeps the run out of a pass.
+    assert.deepEqual(redactSecrets('key sk-abcdefgh1234@example.com').hits, [{ kind: 'key', count: 1 }], 'an address-shaped key is a key');
+    assert.deepEqual(redactSecrets('api_key=abc12345def67890@example.com').hits, [{ kind: 'credential', count: 1 }], 'an address-shaped credential assignment is a credential');
+    assert.deepEqual(redactSecrets('mail user@gw.corp.example:8443').hits, [{ kind: 'private_host', count: 1 }], 'a private host carrying an address is a private host');
+    assert.deepEqual(redactSecrets('ops@example.com').hits, [{ kind: 'email', count: 1 }], 'a bare address stays the soft kind');
+    assert.deepEqual(redactSecrets('write to ops@example.com today', { exemptEmails: new Set(['ops@example.com']) }), { text: 'write to ops@example.com today', hits: [] }, 'the exact-address exemption still holds');
+    // Through the runner: the run file lists the hard kind, which the report turns into "a flagged run cannot count as a pass".
+    const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'write to sk-abcdefgh1234@example.com\nUNIWORK_ANSWER') } : r));
+    const { docs, files } = await runWith({ ...only(readOnlyNumeric), model: leak }, 'secret-address');
+    assert.doesNotMatch(fs.readFileSync(files[0], 'utf8'), /sk-abcdefgh1234@example\.com/);
+    assert.deepEqual(docs[0].asks.map((a) => a.redactions.map((h) => h.kind)), [['key'], ['key']], 'the ask lists the hard kind, not the soft address kind');
+    assert.deepEqual(docs[0].asks.map((a) => a.status), ['pass', 'pass'], 'redaction happens after grading and never changes a verdict');
+  });
+
   it('keeps the base64 guard\'s miss rate at or under the number its comment documents (G712-41)', () => {
     // The comment on looksEncoded documents the measurement (2.2% of 40-character blobs missed on 100000 random blobs, 2026-10-16).
     // This is a deterministic sample of the same population: same blobs every run, so a guard that got worse fails here and an
