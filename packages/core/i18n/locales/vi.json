@@ -8963,6 +8963,8 @@
     },
     "share": {
       "title": "Chia sẻ tài liệu",
+      "title_named": "Chia sẻ “{{title}}”",
+      "stored_in": "Lưu tại: {{workspace}}",
       "description": "Cấp quyền cho người, workspace hoặc tổ chức. Danh sách bên dưới là quyền thật đang có.",
       "manage_only": "Bạn cần quyền quản lý để chia sẻ tài liệu này.",
       "loading": "Đang tải quyền truy cập…",
@@ -8992,9 +8994,9 @@
       "via_share": "chia sẻ trực tiếp",
       "via_link": "liên kết công khai",
       "via_ai_context": "ngữ cảnh AI",
-      "level_view": "Xem",
+      "level_view": "Chỉ xem",
       "level_comment": "Bình luận",
-      "level_edit": "Sửa",
+      "level_edit": "Chỉnh sửa",
       "level_manage": "Quản lý",
       "inactive": "Không còn hiệu lực",
       "effective": "Mức hiệu lực: {{level}}",
@@ -9014,6 +9016,7 @@
       "people_empty": "Không có thành viên phù hợp.",
       "people_loading": "Đang tải thành viên…",
       "person_unknown": "Thành viên không xác định",
+      "workspace_unknown": "Workspace khác",
       "members_error_first": "Không tải được danh sách thành viên.",
       "members_error_partial": "Chưa tải hết thành viên nên có thể thiếu người.",
       "members_error_limit": "Danh sách quá dài nên chỉ hiển thị một phần thành viên.",
@@ -9154,9 +9157,9 @@
       "source_workspace": "Thành viên workspace",
       "source_break_glass": "Truy cập khẩn cấp",
       "source_other": "Khác",
-      "level_view": "Xem",
+      "level_view": "Chỉ xem",
       "level_comment": "Bình luận",
-      "level_edit": "Sửa",
+      "level_edit": "Chỉnh sửa",
       "level_manage": "Quản lý",
       "level_none": "Không có",
       "level_other": "Khác",
@@ -9531,9 +9534,9 @@
         "restricted": "Hạn chế"
       },
       "access": {
-        "view": "Xem",
+        "view": "Chỉ xem",
         "comment": "Bình luận",
-        "edit": "Sửa",
+        "edit": "Chỉnh sửa",
         "manage": "Quản lý"
       },
       "visibility": {
@@ -9680,7 +9683,8 @@
       "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
       "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa lưu trữ được một lần. Hãy lưu trữ từng phần bên trong trước.",
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
-      "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác."
+      "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
+      "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn."
     }
   },
   "squads": {

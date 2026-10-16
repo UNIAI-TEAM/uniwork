@@ -374,7 +374,8 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 func accessReportCandidate(r db.ListDocumentAccessReportSubtreeCandidatesRow) db.Document {
 	return db.Document{
 		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
-		Kind: r.Kind, Title: r.Title, Visibility: r.Visibility, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
+		Kind: r.Kind, Title: r.Title, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
 		AclOwnerID: r.AclOwnerID, ArchivedAt: r.ArchivedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -437,7 +438,7 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 		item.Rows = append(item.Rows, DocumentAccessReportRow{
 			Source: AccessReportSourceWorkspace, Via: string(DocumentViaMember),
 			PrincipalType: DocumentPrincipalWorkspace, PrincipalID: doc.WorkspaceID,
-			Level:          string(DocumentLevelEdit),
+			Level:          string(DocumentLevel(doc.WorkspaceLevel)),
 			EffectiveLevel: accessReportLevel(groupLevel(DocumentPrincipalWorkspace, doc.WorkspaceID)), Active: true,
 		})
 	}
@@ -534,13 +535,14 @@ func (r *accessReportRun) rowReachesPerson(doc db.Document, row DocumentAccessRe
 
 // groupFloorLevel is the level every member of a workspace or organization
 // principal gets from one document: the highest active row that reaches all
-// of them - its own shares, the organization share, and edit for the
-// document's own workspace on a workspace-visible document (resolveLevel's
-// member path). One member may hold more through their own rows.
+// of them - its own shares, the organization share, and the home row's stored
+// level for the document's own workspace on a workspace-visible document
+// (resolveLevel's member path). One member may hold more through their own
+// rows.
 func groupFloorLevel(doc db.Document, principalType, principalID string, shares []db.ListLiveDocumentSharesForReportRow, active []bool) DocumentLevel {
 	best := DocumentLevelNone
 	if principalType == DocumentPrincipalWorkspace && principalID == doc.WorkspaceID && doc.Visibility != documentVisibilityRestricted {
-		best = DocumentLevelEdit
+		best = DocumentLevel(doc.WorkspaceLevel)
 	}
 	for i, sh := range shares {
 		if !active[i] {

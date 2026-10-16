@@ -46,14 +46,16 @@ func TestDocumentCopy(t *testing.T) {
 		t.Run("copy keeps the source acl snapshot, bytes and provenance", func(t *testing.T) {
 			src := env.createFile(t, member, "snapshot.md", []byte("# Nguon sao chep\n"))
 			// The source is restricted and owned by another member's ACL slot,
-			// with one live share: the copy must inherit all three.
+			// with one live share: the copy must inherit all three. The share
+			// names another workspace - one naming the source's own workspace
+			// merges into its home row (SH-S1) and leaves no row to inherit.
 			if _, err := env.f.pool.Exec(ctx,
 				`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
 				src.Document.ID, env.tn.aclOwner.ID); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := env.svc.ShareDocument(ctx, aclOwner, src.Document.ID, DocumentShareInput{
-				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: env.tn.wsA, Level: DocumentLevelView,
+				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: env.tn.wsB, Level: DocumentLevelView,
 			}); err != nil {
 				t.Fatalf("share: %v", err)
 			}
@@ -329,9 +331,14 @@ func TestDocumentCopyPristineArchive(t *testing.T) {
 
 		// copyOf makes a workspace-visible source whose ACL owner is aclOwner
 		// and lets member copy it: member edits the copy, does not manage it.
+		// The source's home row is re-levelled to edit because a root create
+		// that asks for the workspace toggle lands on the row's view default
+		// (Q-S3, SH-S1 T3) - a member who holds only view may read it but not
+		// copy it.
 		copyOf := func(t *testing.T, name string) DocumentFileResult {
 			t.Helper()
 			src := env.createFile(t, aclOwner, name, []byte("# Nguon\n"))
+			setWorkspaceLevel(t, env.f, src.Document, string(DocumentLevelEdit))
 			copied, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
 			mustf(t, err, "copy")
 			if copied.Access.Level != DocumentLevelEdit {

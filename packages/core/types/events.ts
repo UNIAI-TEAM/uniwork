@@ -75,6 +75,7 @@ export const WS_EVENT_TYPES = [
   "document.shared",
   "document.updated",
   "document.version_created",
+  "document.workspace_access_changed",
   "document.unfavorited",
   "email_hub.inbox_changed",
   "email_hub.new_mail",

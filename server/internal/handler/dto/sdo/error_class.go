@@ -127,6 +127,11 @@ var errorClassByCode = map[string]string{
 //     and document_link_limit, which stay unclassified: "quota" would read as a
 //     usage meter and "conflict" as a reload-and-retry; the picker keeps its
 //     selection and shows the cap from fields.max instead.
+//   level_not_allowed     (422, fields.max) a share for the document's own
+//     workspace carried manage, which the home row never takes (Q-S1,
+//     SH-S1). The caller may share (so not permission) and nothing needs a
+//     reload (so not conflict): the dialog keeps its selection and lowers
+//     the level to fields.max.
 //   access_report_too_large (422, fields.max_rows) an access report export
 //     over 10,000 rows or folder nodes (UNI-1643), refused before any byte.
 //     The same count-limit reasoning as share_batch_too_large: the page asks

@@ -5,6 +5,7 @@
 -- name: InsertDocument :one
 INSERT INTO documents (
   id, organization_id, workspace_id, parent_id, kind, title, icon, visibility,
+  workspace_level,
   content, content_text, search_text, content_bytes,
   current_version, file_version_id, revision, content_revision, position,
   owner_kind, owner_id, acl_owner_id,
@@ -17,6 +18,7 @@ INSERT INTO documents (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
   sqlc.arg(parent_id), sqlc.arg(kind), sqlc.arg(title), sqlc.arg(icon),
   sqlc.arg(visibility),
+  sqlc.arg(workspace_level),
   sqlc.arg(content), sqlc.arg(content_text), sqlc.arg(search_text),
   sqlc.arg(content_bytes),
   sqlc.arg(current_version), sqlc.arg(file_version_id), sqlc.arg(revision),
@@ -100,6 +102,7 @@ UPDATE documents
 SET title = sqlc.arg(title),
     icon = sqlc.arg(icon),
     visibility = sqlc.arg(visibility),
+    workspace_level = sqlc.arg(workspace_level),
     content = sqlc.arg(content),
     content_text = sqlc.arg(content_text),
     search_text = sqlc.arg(search_text),
@@ -114,6 +117,27 @@ WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND revision = sqlc.arg(expected_revision)
+RETURNING *;
+
+-- The home-row move (SH-S1, UNI-1780): visibility and, while it is
+-- 'workspace', the level the row grants every effective member of the
+-- document's workspace. Every caller runs it inside the transaction that
+-- already holds the row lock, so no revision is expected here; the write
+-- bumps the revision like any other access-relevant change unless the caller
+-- asks to keep it (keep_revision): one successful command bumps the revision
+-- once, so a PATCH that already wrote the document's fields in the same
+-- request moves the home row to that same revision (C-01 §9.1 item 3).
+-- name: UpdateDocumentHomeRow :one
+UPDATE documents
+SET visibility = sqlc.arg(visibility),
+    workspace_level = sqlc.arg(workspace_level),
+    revision = revision + CASE WHEN sqlc.arg(keep_revision)::boolean THEN 0 ELSE 1 END,
+    updated_by = sqlc.arg(updated_by),
+    updated_by_kind = sqlc.arg(updated_by_kind),
+    updated_at = now()
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
 RETURNING *;
 
 -- A new page goes after its live siblings in the workspace tree; the first

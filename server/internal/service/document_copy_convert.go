@@ -159,6 +159,7 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 			ID: docID, OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
 			ParentID: nullText(in.ParentID), Kind: DocumentKindFile, Title: title,
 			Visibility:     locked.Visibility,
+			WorkspaceLevel: locked.WorkspaceLevel,
 			SearchText:     documentSearchText(title, ""),
 			CurrentVersion: 1, FileVersionID: pgtype.Text{String: versionID, Valid: true},
 			Revision:   1,

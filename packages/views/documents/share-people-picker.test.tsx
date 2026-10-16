@@ -47,7 +47,25 @@ describe("SharePeoplePicker", () => {
     expect(duc).not.toHaveAttribute("aria-disabled", "true");
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "m3@acme" } });
-    expect(await screen.findByRole("option", { name: /Chi/ })).toBeInTheDocument();
+    const chi = await screen.findByRole("option", { name: /Chi/ });
+    expect(chi).toBeInTheDocument();
+    expect(chi).not.toHaveTextContent(t("documents.share.people_already_shared"));
+  });
+
+  it("marks the caller or ACL owner passed in alreadySharedUserIds as already having access (VIS-SHS1-16)", async () => {
+    render(
+      <SharePeoplePicker
+        id="p"
+        members={[member(1, "An"), member(2, "Bình")]}
+        shares={[]}
+        alreadySharedUserIds={["m1"]}
+        people={people([])}
+      />,
+    );
+
+    openWith("an");
+    const an = await screen.findByRole("option", { name: /An/ });
+    expect(an).toHaveTextContent(t("documents.share.people_already_shared"));
   });
 
   it("adds a picked person to the selection", async () => {

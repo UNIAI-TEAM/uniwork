@@ -13,7 +13,10 @@ import (
 // parity test below proves the list agrees with effectiveLevel for each
 // shape of viewer.
 func TestListRowAccessRules(t *testing.T) {
-	doc := db.Document{ID: "d", OrganizationID: "org", Visibility: "workspace"}
+	// The home row's stored level (SH-S1): 'edit' is what the migration's
+	// DEFAULT gives every row that predates the column.
+	doc := db.Document{ID: "d", OrganizationID: "org", Visibility: "workspace", WorkspaceLevel: "edit"}
+	viewRow := db.Document{ID: "v", OrganizationID: "org", Visibility: "workspace", WorkspaceLevel: "view"}
 	restricted := db.Document{ID: "r", OrganizationID: "org", Visibility: documentVisibilityRestricted}
 	owned := restricted
 	owned.AclOwnerID = nullText("me")
@@ -36,6 +39,9 @@ func TestListRowAccessRules(t *testing.T) {
 		{"workspace admin holds nothing on a restricted row", documentListScope{actorID: "me", seeAll: true, allowShares: true}, false, restricted, nil, DocumentLevelNone, ""},
 		{"acl owner manages a restricted row", member, false, owned, nil, DocumentLevelManage, DocumentViaMember},
 		{"member edits a workspace row", member, false, doc, nil, DocumentLevelEdit, DocumentViaMember},
+		{"member reads a view home row", member, false, viewRow, nil, DocumentLevelView, DocumentViaMember},
+		{"view home row outranks nothing: a view share cannot lower it", member, false, viewRow, []db.ListLiveSharesForDocumentsRow{share("user", "me", "view")}, DocumentLevelView, DocumentViaMember},
+		{"view home row upgraded by an edit share", member, false, viewRow, []db.ListLiveSharesForDocumentsRow{share("user", "me", "edit")}, DocumentLevelEdit, DocumentViaShare},
 		{"member with a view share still edits", member, false, doc, []db.ListLiveSharesForDocumentsRow{share("user", "me", "view")}, DocumentLevelEdit, DocumentViaMember},
 		{"member upgraded by a manage share", member, false, doc, []db.ListLiveSharesForDocumentsRow{share("user", "me", "manage")}, DocumentLevelManage, DocumentViaShare},
 		{"restricted row, view share only", member, false, restricted, []db.ListLiveSharesForDocumentsRow{share("user", "me", "view")}, DocumentLevelView, DocumentViaShare},
