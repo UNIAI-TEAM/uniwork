@@ -148,7 +148,7 @@ func TestPresenceRepeatedBeatsPublishOnce(t *testing.T) {
 	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, pub *presenceRecorder, clock *presenceClock) {
 		ctx := context.Background()
 		for i := 0; i < 10; i++ {
-			if _, err := tr.beat(ctx, "WS1", "U1"); err != nil {
+			if _, err := tr.beat(ctx, "WS1", "U1", true); err != nil {
 				t.Fatalf("beat %d: %v", i, err)
 			}
 			clock.advance(15 * time.Second)
@@ -165,7 +165,7 @@ func TestPresenceBackgroundTabBeatingOnceAMinuteStaysOnline(t *testing.T) {
 	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, pub *presenceRecorder, clock *presenceClock) {
 		ctx := context.Background()
 		for i := 0; i < 5; i++ {
-			if _, err := tr.beat(ctx, "WS1", "U1"); err != nil {
+			if _, err := tr.beat(ctx, "WS1", "U1", true); err != nil {
 				t.Fatalf("beat %d: %v", i, err)
 			}
 			// A minute-aligned wake-up plus a slow request.
@@ -182,7 +182,7 @@ func TestPresenceTransitionsArePerWorkspaceAndUser(t *testing.T) {
 	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, pub *presenceRecorder, _ *presenceClock) {
 		ctx := context.Background()
 		for _, b := range [][2]string{{"WS1", "U1"}, {"WS2", "U1"}, {"WS1", "U2"}, {"WS1", "U1"}} {
-			if _, err := tr.beat(ctx, b[0], b[1]); err != nil {
+			if _, err := tr.beat(ctx, b[0], b[1], true); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -197,7 +197,7 @@ func TestPresenceBeatReturnsTheOnlineSnapshot(t *testing.T) {
 		ctx := context.Background()
 		mustBeat := func(ws, user string) []string {
 			t.Helper()
-			online, err := tr.beat(ctx, ws, user)
+			online, err := tr.beat(ctx, ws, user, true)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -225,7 +225,7 @@ func TestPresenceBeatReturnsTheOnlineSnapshot(t *testing.T) {
 func TestPresenceLeaveWithAnotherTabOpenStaysOnline(t *testing.T) {
 	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, pub *presenceRecorder, clock *presenceClock) {
 		ctx := context.Background()
-		if _, err := tr.beat(ctx, "WS1", "U1"); err != nil {
+		if _, err := tr.beat(ctx, "WS1", "U1", true); err != nil {
 			t.Fatal(err)
 		}
 		pub.take()
@@ -236,7 +236,7 @@ func TestPresenceLeaveWithAnotherTabOpenStaysOnline(t *testing.T) {
 		wantFrames(t, pub.take())
 
 		clock.advance(10 * time.Second)
-		online, err := tr.beat(ctx, "WS1", "U1")
+		online, err := tr.beat(ctx, "WS1", "U1", true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -279,7 +279,7 @@ func TestPresenceExpiryAndLeavePublishOffline(t *testing.T) {
 	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, pub *presenceRecorder, clock *presenceClock) {
 		ctx := context.Background()
 		for _, u := range []string{"U1", "U2", "U3"} {
-			if _, err := tr.beat(ctx, "WS1", u); err != nil {
+			if _, err := tr.beat(ctx, "WS1", u, true); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -300,7 +300,7 @@ func TestPresenceExpiryAndLeavePublishOffline(t *testing.T) {
 
 		// U2 keeps beating, U1 stops. Nothing expires before the TTL.
 		clock.advance(presenceTTL - presenceLeaveGrace - time.Second)
-		if _, err := tr.beat(ctx, "WS1", "U2"); err != nil {
+		if _, err := tr.beat(ctx, "WS1", "U2", true); err != nil {
 			t.Fatal(err)
 		}
 		wantFrames(t, pub.take())
@@ -311,7 +311,7 @@ func TestPresenceExpiryAndLeavePublishOffline(t *testing.T) {
 		wantFrames(t, pub.take(), offlineFrame("WS1", "U1"))
 
 		// Back after the expiry: online again, once.
-		if _, err := tr.beat(ctx, "WS1", "U1"); err != nil {
+		if _, err := tr.beat(ctx, "WS1", "U1", true); err != nil {
 			t.Fatal(err)
 		}
 		wantFrames(t, pub.take(), onlineFrame("WS1", "U1"))
@@ -326,7 +326,7 @@ func TestPresenceBeatSweepsAtMostOncePerInterval(t *testing.T) {
 		ctx := context.Background()
 		mustBeat := func(user string) {
 			t.Helper()
-			if _, err := tr.beat(ctx, "WS1", user); err != nil {
+			if _, err := tr.beat(ctx, "WS1", user, true); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -369,10 +369,10 @@ func TestPresenceRedisTransitionsAreSharedAcrossReplicas(t *testing.T) {
 	a.now, b.now = clock.Now, clock.Now
 	ctx := context.Background()
 
-	if _, err := a.beat(ctx, "WS1", "U1"); err != nil {
+	if _, err := a.beat(ctx, "WS1", "U1", true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.beat(ctx, "WS1", "U1"); err != nil {
+	if _, err := b.beat(ctx, "WS1", "U1", true); err != nil {
 		t.Fatal(err)
 	}
 	wantFrames(t, append(pubA.take(), pubB.take()...), onlineFrame("WS1", "U1"))
@@ -388,7 +388,7 @@ func TestPresenceRedisTransitionsAreSharedAcrossReplicas(t *testing.T) {
 func TestPresenceStoreErrorDegradesQuietly(t *testing.T) {
 	pub := &presenceRecorder{}
 	tr := newPresenceTracker(failingPresenceStore{}, pub)
-	online, err := tr.beat(context.Background(), "WS1", "U1")
+	online, err := tr.beat(context.Background(), "WS1", "U1", true)
 	if err != nil || online != nil {
 		t.Fatalf("beat = %v, %v; want nil, nil", online, err)
 	}
@@ -403,7 +403,7 @@ type failingPresenceStore struct{}
 
 var errPresenceDown = errors.New("presence store down")
 
-func (failingPresenceStore) beat(context.Context, string, string, time.Time) (bool, error) {
+func (failingPresenceStore) beat(context.Context, string, string, time.Time, bool) (bool, error) {
 	return false, errPresenceDown
 }
 
@@ -432,20 +432,20 @@ func TestSignalPresenceRequiresMembershipAndReturnsSnapshot(t *testing.T) {
 	pub := &presenceRecorder{}
 	s.pub = pub
 
-	if _, err := s.SignalPresence(ctx, ub.ID, w.ID, "online"); !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) {
+	if _, err := s.SignalPresence(ctx, ub.ID, w.ID, "online", true); !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) {
 		t.Fatalf("non-member beat: err = %v, want forbidden/not found", err)
 	}
-	if _, err := s.SignalPresence(ctx, ua.ID, w.ID, "away"); err == nil {
+	if _, err := s.SignalPresence(ctx, ua.ID, w.ID, "away", true); err == nil {
 		t.Fatal("unknown state accepted")
 	}
 	wantFrames(t, pub.take())
 
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
-	if _, err := s.SignalPresence(ctx, ua.ID, w.ID, ""); err != nil {
+	if _, err := s.SignalPresence(ctx, ua.ID, w.ID, "", true); err != nil {
 		t.Fatal(err)
 	}
-	online, err := s.SignalPresence(ctx, ub.ID, w.ID, "online")
+	online, err := s.SignalPresence(ctx, ub.ID, w.ID, "online", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,54 +455,48 @@ func TestSignalPresenceRequiresMembershipAndReturnsSnapshot(t *testing.T) {
 	if !slices.Equal(online, want) {
 		t.Fatalf("snapshot = %v, want %v", online, want)
 	}
-	if _, err := s.SignalPresence(ctx, ub.ID, w.ID, "online"); err != nil {
+	if _, err := s.SignalPresence(ctx, ub.ID, w.ID, "online", true); err != nil {
 		t.Fatal(err)
 	}
-	gone, err := s.SignalPresence(ctx, ub.ID, w.ID, "offline")
+	gone, err := s.SignalPresence(ctx, ub.ID, w.ID, "offline", true)
 	if err != nil || gone != nil {
 		t.Fatalf("leave = %v, %v; want nil snapshot", gone, err)
 	}
 	wantFrames(t, pub.take(), onlineFrame(w.ID, ua.ID), onlineFrame(w.ID, ub.ID))
 }
 
-// The push consumer asks when a person last beat anywhere: the latest beat
-// wins across workspaces, and one person's beat is never another's.
+// The push consumer asks when a person last beat anywhere: the latest visible
+// beat wins across workspaces, one person's beat is never another's, and a
+// tab left open in the background keeps presence without counting as here.
 func TestPresenceLastBeatIsPerUserAcrossWorkspaces(t *testing.T) {
-	build := map[string]func(t *testing.T) presenceStore{
-		"memory": func(*testing.T) presenceStore { return newMemoryPresenceStore() },
-		"redis": func(t *testing.T) presenceStore {
-			rdb := presenceRedis(t)
-			prefix := "test:presence:" + util.NewID() + ":"
-			t.Cleanup(func() {
-				keys, err := rdb.Keys(context.Background(), prefix+"*").Result()
-				if err == nil && len(keys) > 0 {
-					_ = rdb.Del(context.Background(), keys...).Err()
-				}
-			})
-			return newRedisPresenceStore(rdb, prefix)
-		},
-	}
-	for _, name := range []string{"memory", "redis"} {
-		t.Run(name, func(t *testing.T) {
-			store := build[name](t)
-			ctx := context.Background()
-			if _, ok, err := store.lastBeat(ctx, "u1"); err != nil || ok {
-				t.Fatalf("never beat: ok=%v err=%v", ok, err)
-			}
-			t0 := time.Now().Truncate(time.Millisecond)
-			if _, err := store.beat(ctx, "ws-a", "u1", t0); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := store.beat(ctx, "ws-b", "u1", t0.Add(5*time.Second)); err != nil {
-				t.Fatal(err)
-			}
-			got, ok, err := store.lastBeat(ctx, "u1")
-			if err != nil || !ok || !got.Equal(t0.Add(5*time.Second)) {
-				t.Fatalf("lastBeat = %v ok=%v err=%v", got, ok, err)
-			}
-			if _, ok, _ := store.lastBeat(ctx, "u2"); ok {
-				t.Fatal("another user must not inherit the beat")
-			}
-		})
-	}
+	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, _ *presenceRecorder, _ *presenceClock) {
+		store := tr.store
+		ctx := context.Background()
+		if _, ok, err := store.lastBeat(ctx, "u1"); err != nil || ok {
+			t.Fatalf("never beat: ok=%v err=%v", ok, err)
+		}
+		t0 := time.Now().Truncate(time.Millisecond)
+		if _, err := store.beat(ctx, "ws-a", "u1", t0, true); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.beat(ctx, "ws-b", "u1", t0.Add(5*time.Second), true); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.beat(ctx, "ws-a", "u1", t0.Add(20*time.Second), false); err != nil {
+			t.Fatal(err)
+		}
+		got, ok, err := store.lastBeat(ctx, "u1")
+		if err != nil || !ok || !got.Equal(t0.Add(5*time.Second)) {
+			t.Fatalf("lastBeat = %v ok=%v err=%v, want the last visible beat", got, ok, err)
+		}
+		if _, ok, _ := store.lastBeat(ctx, "u2"); ok {
+			t.Fatal("another user must not inherit the beat")
+		}
+		if _, err := store.beat(ctx, "ws-a", "u3", t0, false); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok, _ := store.lastBeat(ctx, "u3"); ok {
+			t.Fatal("a hidden tab's beat must not count as at the keyboard")
+		}
+	})
 }

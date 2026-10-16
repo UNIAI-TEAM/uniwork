@@ -28,7 +28,8 @@ export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): v
     const beat = () => {
       if (cancelled) return;
       const sentAt = Date.now();
-      void beatChatPresence(workspaceId)
+      // A hidden tab still beats (presence), but must not hold back mobile pushes.
+      void beatChatPresence(workspaceId, document.visibilityState === "visible")
         .then((online) => {
           const self = useAuthStore.getState().user?.id;
           if (cancelled || online === null || !self) return;

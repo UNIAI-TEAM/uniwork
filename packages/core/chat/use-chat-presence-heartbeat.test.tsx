@@ -5,13 +5,13 @@ import type { User } from "../types/user";
 import { usePresenceStore } from "./presence-store";
 import { useChatPresenceHeartbeat } from "./use-chat-presence-heartbeat";
 
-const beatChatPresence = vi.fn<(workspaceId: string) => Promise<string[] | null>>();
+const beatChatPresence = vi.fn<(workspaceId: string, visible: boolean) => Promise<string[] | null>>();
 const signalChatPresence = vi.fn<
   (workspaceId: string, state: "online" | "offline", opts?: { keepalive?: boolean }) => Promise<boolean>
 >();
 
 vi.mock("../api/endpoints/chat-presence", () => ({
-  beatChatPresence: (workspaceId: string) => beatChatPresence(workspaceId),
+  beatChatPresence: (workspaceId: string, visible: boolean) => beatChatPresence(workspaceId, visible),
 }));
 vi.mock("../api/endpoints/chat", () => ({
   signalChatPresence: (
@@ -54,7 +54,7 @@ describe("useChatPresenceHeartbeat", () => {
       .mockResolvedValueOnce(["USER_A", "USER_C"]);
     renderHook(() => useChatPresenceHeartbeat("ws1"));
     await act(async () => {});
-    expect(beatChatPresence).toHaveBeenCalledWith("ws1");
+    expect(beatChatPresence).toHaveBeenCalledWith("ws1", true);
     expect(online()).toEqual({ USER_B: true });
 
     await act(async () => {
@@ -101,6 +101,14 @@ describe("useChatPresenceHeartbeat", () => {
     renderHook(() => useChatPresenceHeartbeat("ws1"));
     window.dispatchEvent(new Event("pagehide"));
     expect(signalChatPresence).toHaveBeenCalledWith("ws1", "offline", { keepalive: true });
+  });
+
+  it("marks a beat from a hidden tab as not visible", () => {
+    beatChatPresence.mockResolvedValue([]);
+    const state = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    renderHook(() => useChatPresenceHeartbeat("ws1"));
+    expect(beatChatPresence).toHaveBeenCalledWith("ws1", false);
+    state.mockRestore();
   });
 
   it("does nothing when disabled or without a workspace", () => {

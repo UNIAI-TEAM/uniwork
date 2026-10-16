@@ -15,7 +15,7 @@ import (
 //
 //	<prefix>ws:<workspace_id>  ZSET user_id → expiry (unix ms), one per workspace
 //	<prefix>expiry             ZSET "<workspace_id>|<user_id>" → expiry, for the sweep
-//	<prefix>user:<user_id>     STRING last beat (unix ms), any workspace
+//	<prefix>user:<user_id>     STRING last visible beat (unix ms), any workspace
 //
 // Each script touches both under one call, so a beat and a sweep never see a
 // half-written entry. Ids are ULIDs and never contain '|'. The scripts build
@@ -31,15 +31,15 @@ const redisPresenceKeyTTL = 2 * presenceTTL
 // consumer's two-minute window; an expired key reads as never beaten.
 const presenceLastBeatTTL = 10 * time.Minute
 
-// KEYS[1] workspace set, KEYS[2] expiry index, KEYS[3] user's last beat;
-// ARGV user, member, now, expires, key ttl, last-beat ttl.
+// KEYS[1] workspace set, KEYS[2] expiry index, KEYS[3] user's last visible
+// beat; ARGV user, member, now, expires, key ttl, last-beat ttl, visible (1|0).
 // Returns 1 when the user was not online (no entry, or one already lapsed).
 var presenceBeatScript = redis.NewScript(`
 local prev = redis.call('ZSCORE', KEYS[1], ARGV[1])
 redis.call('ZADD', KEYS[1], ARGV[4], ARGV[1])
 redis.call('PEXPIRE', KEYS[1], ARGV[5])
 redis.call('ZADD', KEYS[2], ARGV[4], ARGV[2])
-redis.call('SET', KEYS[3], ARGV[3], 'PX', ARGV[6])
+if ARGV[7] == '1' then redis.call('SET', KEYS[3], ARGV[3], 'PX', ARGV[6]) end
 if prev and tonumber(prev) > tonumber(ARGV[3]) then return 0 end
 return 1
 `)
@@ -93,12 +93,16 @@ func (r *redisPresenceStore) userKey(userID string) string { return r.prefix + "
 
 func presenceMember(workspaceID, userID string) string { return workspaceID + "|" + userID }
 
-func (r *redisPresenceStore) beat(ctx context.Context, workspaceID, userID string, now time.Time) (bool, error) {
+func (r *redisPresenceStore) beat(ctx context.Context, workspaceID, userID string, now time.Time, visible bool) (bool, error) {
+	shown := 0
+	if visible {
+		shown = 1
+	}
 	n, err := presenceBeatScript.Run(ctx, r.rdb,
 		[]string{r.workspaceKey(workspaceID), r.expiryKey(), r.userKey(userID)},
 		userID, presenceMember(workspaceID, userID),
 		now.UnixMilli(), now.Add(presenceTTL).UnixMilli(), redisPresenceKeyTTL.Milliseconds(),
-		presenceLastBeatTTL.Milliseconds(),
+		presenceLastBeatTTL.Milliseconds(), shown,
 	).Int()
 	if err != nil {
 		return false, fmt.Errorf("presence beat: %w", err)
