@@ -9232,7 +9232,9 @@
       "days_left": "{{count}} days",
       "read_only_hint": "View only · manager can restore",
       "footer_note": "Per-item restore: documents return to their previous folder if it still exists, otherwise to the workspace root. Restoring a folder only brings back child items you manage. Document owners are notified when someone else moves their document to the trash.",
-      "pending_deleted_by": "Not available yet"
+      "pending_deleted_by": "Not available yet",
+      "row_in_folder": "In folder “{{folder}}”",
+      "row_from_root": "From the workspace Documents"
     },
     "public": {
       "loading": "Loading the document…",

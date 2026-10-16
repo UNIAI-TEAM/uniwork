@@ -9226,7 +9226,9 @@
       "days_left": "{{count}} ngày",
       "read_only_hint": "Chỉ xem · người quản lý khôi phục",
       "footer_note": "Khôi phục từng mục: tài liệu về lại thư mục cũ nếu thư mục còn, nếu không thì về gốc workspace. Khôi phục một thư mục chỉ mang theo những mục con bạn quản lý. Chủ tài liệu nhận thông báo khi người khác chuyển tài liệu của họ vào thùng rác.",
-      "pending_deleted_by": "Chưa có dữ liệu"
+      "pending_deleted_by": "Chưa có dữ liệu",
+      "row_in_folder": "Trong thư mục “{{folder}}”",
+      "row_from_root": "Từ Tài liệu của workspace"
     },
     "public": {
       "loading": "Đang tải tài liệu…",
