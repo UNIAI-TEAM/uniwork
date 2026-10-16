@@ -8937,6 +8937,7 @@
       "empty": "Chưa có phiên bản nào. Tạo mốc đầu tiên từ bản đang làm việc.",
       "load_more": "Tải thêm",
       "row_version": "Phiên bản {{no}}",
+      "author_system": "Hệ thống",
       "current_badge": "Bản hiện tại",
       "view": "Xem nội dung",
       "preview_title": "Nội dung phiên bản {{no}}",

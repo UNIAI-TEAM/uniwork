@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
@@ -58,8 +58,13 @@ const versionRows = [
   },
 ];
 
+const members = [
+  { workspace_id: WS, user_id: "u1", role: "member", email: "lan@example.com", display_name: "Lan Nguyễn" },
+];
+
 function mockApi(overrides: { rows?: unknown[]; onPost?: (path: string, opts: any) => unknown } = {}) {
   requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+    if (path === `/api/v1/workspaces/${WS}/members`) return Promise.resolve({ members });
     if (path.startsWith("/api/v1/documents/d1/versions") && !opts?.method) {
       return Promise.resolve({ versions: overrides.rows ?? versionRows, next_cursor: null });
     }
@@ -293,5 +298,79 @@ describe("VersionHistorySheet", () => {
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
     fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
     await waitFor(() => expect(onOpenChange.mock.calls.some((call) => call[0] === false)).toBe(true));
+  });
+
+  describe("author line", () => {
+    const rowOf = (no: number) =>
+      screen.getByText(t("documents.versions.row_version", { no })).closest("li") as HTMLElement;
+
+    it("shows the member's display name for a human author", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      expect(await within(rowOf(2)).findByText("Lan Nguyễn")).toBeInTheDocument();
+    });
+
+    it("resolves names through one members request, not one per row", async () => {
+      mockApi({
+        rows: [
+          { ...versionRows[0], created_by: "u1" },
+          { ...versionRows[1], created_by: "u1" },
+        ],
+      });
+      renderSheet();
+      await waitFor(() => expect(screen.getAllByText("Lan Nguyễn").length).toBe(2));
+      const memberCalls = requestMock.mock.calls.filter(([path]) => String(path).endsWith("/members"));
+      expect(memberCalls.length).toBe(1);
+    });
+
+    it("marks an agent author with the agent badge", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "agent-9", created_by_kind: "agent" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      const row = rowOf(2);
+      // The member list does not name this agent: the badge is its one label.
+      expect(await within(row).findByText(t("agents.badge"))).toBeInTheDocument();
+      expect(within(row).getAllByText(t("documents.home.editor_agent")).length).toBe(1);
+    });
+
+    it("labels a system author", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "sys", created_by_kind: "system" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      expect(await within(rowOf(2)).findByText(t("documents.versions.author_system"))).toBeInTheDocument();
+    });
+
+    it("falls back to the former-member label for an id outside the workspace", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "gone", created_by_kind: "human" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      expect(await within(rowOf(2)).findByText(t("documents.comments.former_member"))).toBeInTheDocument();
+    });
+
+    it("draws no author line for an old row without created_by", async () => {
+      mockApi({ rows: [versionRows[1]] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 1 }));
+      await waitFor(() => expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/members"))).toBe(true));
+      expect(screen.queryByTestId("version-author")).toBeNull();
+      expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
+    });
+  });
+
+  // Pins today's label per reason: the editor save goes out as "upload", so the
+  // server fix (e6-server) shows up here as a visible change.
+  it.each([
+    ["upload", "documents.file.reason_upload"],
+    ["manual", "documents.file.reason_manual"],
+    ["auto", "documents.file.reason_auto"],
+    ["restore", "documents.file.reason_restore"],
+    ["agent", "documents.file.reason_agent"],
+    ["something_new", "documents.file.unknown_reason"],
+  ])("labels reason %s with %s", async (reason, key) => {
+    mockApi({ rows: [{ ...versionRows[1], reason, label: undefined }] });
+    renderSheet();
+    const row = (await screen.findByText(t("documents.versions.row_version", { no: 1 }))).closest("li") as HTMLElement;
+    expect(within(row).getByText(new RegExp(t(key)))).toBeInTheDocument();
   });
 });
