@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+1632d61f65ebd20c47cb00e85c06676bcecf3d33
+1632d61f6 chore(merge): SIZE-S1 engine fix3+fix4 (UNI-1859, 6e3eb8e87) into the size-cap lane
+6e3eb8e87 fix(office): hold the submit body slot through validation to the job hand-off
+f7bef2493 fix(office): bound the shared document cap and clamp engine input to the transport ceiling
+06c656b99 chore(merge): G5-G7 root 549906774 (S2V-1) into the size-cap lane
+549906774 fix(documents): unescape the source file id in its routes
+eda4669a5 docs(documents): size-cap addendum names the 383 MiB engine input ceiling
+6740119a4 fix(office): bound in-flight submit bodies in the engine supervisor
+34b9fd360 docs(office): runbook names the configured document cap, not 64/50 MiB
