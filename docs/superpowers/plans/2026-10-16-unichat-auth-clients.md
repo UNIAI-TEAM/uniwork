@@ -1,6 +1,6 @@
 # UniChat N1 — Client PKCE native, scheme callback theo server, rate limit refresh theo thiết bị — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — issue UNI-1827, nhánh `feature/UNI-1827-unichat-n1-client-pkce-native-uniwork-ch`.
+> **Trạng thái:** shipped — issue UNI-1827, nhánh `feature/UNI-1827-unichat-n1-client-pkce-native-uniwork-ch`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -291,13 +291,13 @@ it.each([
 
 - [ ] **Step 3: Chạy, mong đợi FAIL** (`isDesktopCallbackUrl` chưa export; page còn danh sách cứng nên `uniworkchat` bị từ chối):
 
-Run: `pnpm --filter @uniwork/views test -- desktop-consent && pnpm --filter @uniwork/web test -- desktop-consent-page`
+Run: `pnpm --filter @uniwork/views exec vitest run auth/desktop-consent.test.tsx && pnpm --filter @uniwork/web exec vitest run platform/auth/desktop-consent-page.test.tsx`
 
 - [ ] **Step 4: Cài đặt** — thêm `isDesktopCallbackUrl` vào cuối `packages/views/auth/desktop-consent.tsx` (hàm thuần, không hook); trong `page.tsx` xoá hàm cục bộ, import từ `@uniwork/views/auth/desktop-consent`, và truyền `value.redirect_uri` / `consent.redirect_uri` ở ba chỗ gọi (callback đã lưu khi reload, `onOpenDesktop`, kết quả approve).
 
 - [ ] **Step 5: Chạy lại + lint/typecheck hai gói**
 
-Run: `pnpm --filter @uniwork/views test -- desktop-consent && pnpm --filter @uniwork/web test -- desktop-consent-page && pnpm --filter @uniwork/views --filter @uniwork/web lint && pnpm --filter @uniwork/views --filter @uniwork/web typecheck`
+Run: `pnpm --filter @uniwork/views exec vitest run auth/desktop-consent.test.tsx && pnpm --filter @uniwork/web exec vitest run platform/auth/desktop-consent-page.test.tsx && pnpm --filter @uniwork/views --filter @uniwork/web lint && pnpm --filter @uniwork/views --filter @uniwork/web typecheck`
 Expected: PASS, 0 warning.
 
 - [ ] **Step 6: Commit**
@@ -319,7 +319,7 @@ git commit -m "feat(web): trang consent desktop kiểm callback theo redirect_ur
 
 - [ ] **Step 2: Chạy lệnh của issue**
 
-Run: `make test-go` (hoặc hẹp: `cd server && go test ./internal/config/ ./internal/service/ ./internal/handler/router/ -count=1` với env của Makefile) và `pnpm --filter @uniwork/views test -- desktop-consent && pnpm --filter @uniwork/web test -- desktop-consent-page` và `node --test scripts/governance.test.mjs scripts/env-example.test.mjs`
+Run: `make test-go` (hoặc hẹp: `cd server && go test ./internal/config/ ./internal/service/ ./internal/handler/router/ -count=1` với env của Makefile) và `pnpm --filter @uniwork/views exec vitest run auth/desktop-consent.test.tsx && pnpm --filter @uniwork/web exec vitest run platform/auth/desktop-consent-page.test.tsx` và `node --test scripts/governance.test.mjs scripts/env-example.test.mjs`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**

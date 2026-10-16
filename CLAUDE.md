@@ -467,14 +467,15 @@ database and never reveal whether an id exists to a non-member.
   checks the bearer token itself, the in-room meeting limiters use the
   `OptionalAuth` user or an HMAC-signed guest session, the chat
   presence/typing limiter uses the bearer user, and anything unverified falls
-  back to the IP. Each limiter Redis call gives up after
-  100ms and fails open. The LiveKit webhook, `/mcp` and
-  `/api/v1/auth/desktop/refresh` skip the global limiter; refresh is
-  budgeted per device (`desktop-refresh`, 60/min, keyed by the unverified
-  `X-UniWork-Device` header) under an address ceiling
+  back to the IP, or, under an address ceiling, to an unverified key. Each
+  limiter Redis call gives up after 100ms and fails open. The LiveKit
+  webhook, `/mcp` and `/api/v1/auth/desktop/refresh` skip the global
+  limiter; refresh is budgeted per device (`desktop-refresh`, 60/min, keyed
+  by the unverified `X-UniWork-Device` header) under an address ceiling
   (`desktop-refresh-ip`, 600/min):
-  `TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling`. `/mcp` is budgeted per access-token hash (`mcp`, 120/min; the
-  router reads no database, so the token is not verified there) under a
+  `TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling`. `/mcp` is
+  budgeted per access-token hash (`mcp`, 120/min; the router reads no
+  database, so the token is not verified there) under a
   per-address ceiling (`mcp-ip`, 1200/min):
   `TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter` and
   `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry
