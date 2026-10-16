@@ -82,7 +82,10 @@ func (f *Fake) Upload(_ context.Context, in files.UploadInput) (files.Upload, er
 		return files.Upload{}, fmt.Errorf("%w: %v", errBodyUnreadable, err)
 	}
 
-	contentType := spec.Policy.Canonical(files.DetectContentType(body, in.Filename))
+	// Same bytes, same rule as the real validator: the head of the body, then
+	// the whole body for a zip the head leaves untyped.
+	head := body[:min(len(body), files.DetectHeadBytes)]
+	contentType := spec.Policy.Canonical(files.DetectBodyContentType(head, in.Filename, bytes.NewReader(body), int64(len(body))))
 	if !spec.Policy.Allows(contentType) {
 		failure := files.TypeRejected(contentType)
 		f.uploads[in.IdempotencyKey] = &uploadAttempt{fingerprint: fingerprint, failure: failure}
