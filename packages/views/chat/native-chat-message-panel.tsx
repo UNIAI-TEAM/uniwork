@@ -345,6 +345,11 @@ export function NativeChatMessagePanel({
 
   const highlightTimerRef = useRef<number | null>(null);
   useEffect(() => {
+    if (!highlightMessageId) return;
+    highlightTimerRef.current = window.setTimeout(() => {
+      highlightTimerRef.current = null;
+      setHighlightMessageId((current) => (current === highlightMessageId ? null : current));
+    }, 5000);
     return () => {
       if (highlightTimerRef.current !== null) {
         window.clearTimeout(highlightTimerRef.current);

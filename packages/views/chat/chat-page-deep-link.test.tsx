@@ -325,4 +325,31 @@ describe("ChatPageView ?room=&message= deep link", () => {
     expect(screen.queryByText("Đang xem vị trí tin nhắn đã tìm")).toBeNull();
     expect(document.getElementById("chat-msg-r-dm-a29")).not.toBeNull();
   });
+
+  it("clears the highlight after the fallback timeout when the anchor target is missing from the around rows, restoring the bottom pin", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      open("room=r-dm&message=m-missing");
+      expect(await screen.findByText("Đang xem vị trí tin nhắn đã tìm")).toBeInTheDocument();
+      await flushFramesAndObservers();
+
+      const log = screen.getByRole("log");
+      act(() => {
+        log.scrollTop = 2900;
+      });
+      expect(log.scrollTop).toBe(2900);
+
+      act(() => {
+        vi.advanceTimersByTime(2600);
+      });
+      expect(log.scrollTop).toBe(2900);
+
+      act(() => {
+        vi.advanceTimersByTime(2500);
+      });
+      expect(log.scrollTop).toBe(2950);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
