@@ -1,0 +1,4 @@
+$ git checkout -q --detach 9863ca89b && git rev-parse HEAD; rc=$?; echo; echo "ROOT_CHECKOUT_EXIT=$rc"
+9863ca89bd4c5c1fb3f8546001e72a60be818c3c
+
+ROOT_CHECKOUT_EXIT=0
