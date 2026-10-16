@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+8d71f8aa6d31c01e2f6710ac24b9b7c8f64636ba
+8d71f8aa6 chore(merge): SIZE-W1a frame-comments test fix (UNI-1860, ee1c7701e) into the size-cap lane
+ee1c7701e test(office): answer /api/v1/config in the frame-comments transport mock
+c0f1250db chore(merge): SIZE-S1 boundary pins fix7 (UNI-1859, b9c68d453) into the size-cap lane
+b9c68d453 test(office): pin the declared input_length boundary and the Go upload_bounds mapping
+e8a97a61e chore(merge): G5-G7 root 10b16375a (MYFOLDER/SHAREDBYME/LISTFILTER) into the size-cap lane
+10b16375a chore: merge LISTFILTER-01 server + core (UNI-1868, 7a8154623) into the G5-G7 root
+d273efb38 chore: merge MYFOLDER-01 + SHAREDBYME-01 server (UNI-1850/1851, 8a1f0a97e) into the G5-G7 root
+0e3d91d45 chore(merge): G5-G7 root b65535f35 (REPIN-1, SRC-02a) into the size-cap lane
