@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { EDIT_DRIVERS } from "../g8-19/anchors.mjs";
 import { TRACER_API_CALLS } from "../g7-10/tracer.mjs";
 import {
+  ANNOUNCE_OPEN_TOLERANCE_MS,
   BLOCKED_EXIT,
   CROSS_HOST_API_CALLS,
   DEFAULT_STEP_TIMEOUT_MS,
@@ -38,10 +39,14 @@ import {
   REAL_AI_BLOCKER,
   ROW_IDS,
   ROW_REQUIRED_STEPS,
+  announceGuardVerdict,
   decideCrossHostOutcome,
   dependentSteps,
   exitCodeFor,
+  frameRemoteState,
+  freshOpensAfter,
   installFrameRecorder,
+  isDecimalRevisionText,
   makeAppDirty,
   newerBarReport,
   parseCrossHostArgs,
@@ -49,6 +54,7 @@ import {
   readFrameMessagesBounded,
   readRemoteNewerSurface,
   remoteNewerMissReason,
+  revisionOfFile,
   runCrossHostRow,
   signOutPreviousSession,
   summarizeFrameRecordings,
@@ -660,6 +666,7 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
 function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
   const web = {
     calls: [],
+    reloadWindow: null,
     async open() {
       web.calls.push("open");
       return knobs.frameFailed
@@ -687,7 +694,29 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
       if (knobs.webSees === false) return [];
       return mock.state.commits
         .filter((c) => c.at >= sinceMs && c.source !== "web")
-        .map((c) => ({ versionId: c.versionId, version: c.version, revision: c.revision, at: c.at }));
+        .map((c) => ({
+          kind: "event",
+          type: "doc.remoteVersion",
+          ns: "uniwork.office.docs",
+          v: 1,
+          versionId: c.versionId,
+          version: c.version,
+          // the D host announces the DOCUMENT revision, a decimal string (its `doc.revision`
+          // after the commit); the fake carried the mock's revision id here, which is no
+          // decimal at all — the measurement would then name a guard the real wire never fails
+          revision: String(c.version),
+          revisionType: "string",
+          documentId: documentId,
+          documentIdType: typeof documentId,
+          versionIdType: typeof c.versionId,
+          savedAt: "2026-10-16T00:00:00Z",
+          savedAtType: "string",
+          href: "http://localhost:36009/office-frame/docs/index.html",
+          origin: "http://localhost:36009",
+          fromParent: true,
+          at: c.at,
+          ...(knobs.announce ?? {}),
+        }));
     },
     /**
      * The reload action INSIDE the frame (D4-01): the real one is a click on the
@@ -699,8 +728,9 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
       if (knobs.reloadClickUnavailable) return { clicked: false, reason: "the frame carries no reload action" };
       return { clicked: true, versionId, frame: "docs", label: "Reload latest…" };
     },
-    async waitForReload({ versionId, timeoutMs = 1000 }) {
+    async waitForReload({ versionId, sinceMs = null, timeoutMs = 1000 }) {
       web.calls.push("waitForReload");
+      web.reloadWindow = sinceMs;
       if (knobs.webSees === false || knobs.webReloadFails) {
         return { reloaded: false, elapsedMs: timeoutMs, reason: "the frame never reloaded the announced version" };
       }
@@ -741,6 +771,31 @@ function createFakeWeb({ mock, documentId, kind = "sheets", knobs = {} }) {
           error: knobs.frameSurfaceError ?? "",
         },
       ];
+    },
+    /**
+     * What the frame's own realm held and heard (D5-01), built from `knobs.frameRealm` and run
+     * through the driver's own helpers — the way the real controller reads it off Playwright's
+     * frames. The default realm is the editor frame holding the seeded version 1 and receiving
+     * the announce the mock recorded.
+     */
+    async frameEvidence({ versionId = null } = {}) {
+      web.calls.push("frameEvidence");
+      const announcements = await web.announcements({ sinceMs: 0 });
+      const realm =
+        typeof knobs.frameRealm === "function" ? knobs.frameRealm({ documentId, announcements, versionId }) : knobs.frameRealm;
+      const reports = realm ?? [
+        { url: `http://localhost:36009/acme/ws/documents/${documentId}`, messages: [], readError: "" },
+        {
+          url: "http://localhost:36009/office-frame/docs/index.html",
+          messages: [
+            { kind: "request", type: "open", file: { fileId: documentId, versionId: "v-seeded", revision: "1", etag: null }, at: 1 },
+            ...announcements,
+          ],
+          readError: "",
+        },
+      ];
+      const state = frameRemoteState(reports, { versionId });
+      return { ...state, verdict: announceGuardVerdict(state) };
     },
     async close() {},
   };
@@ -1465,11 +1520,25 @@ describe("G7-04 cross-host D3-01: the web announce is read from every document's
   // Playwright builds them: from their own source, with no module scope in reach.
   const asPageSeesIt = (fn) => new Function("return (" + String(fn) + ")")();
   /** A document that ran the recorder (addInitScript) and then received `messages`. */
-  const received = (messages) => {
+  const received = (messages, realm = {}) => {
+    const url = realm.url ?? "http://localhost:36009/office-frame/docs/index.html";
     const handlers = [];
-    const win = { addEventListener: (name, fn) => handlers.push([name, fn]) };
+    const win = {
+      addEventListener: (name, fn) => handlers.push([name, fn]),
+      location: { href: url },
+      parent: "parent" in realm ? realm.parent : { parent: true },
+    };
     asPageSeesIt(installFrameRecorder)(win);
-    for (const data of messages) for (const [name, fn] of handlers) if (name === "message") fn({ data });
+    for (const message of messages) {
+      // a bare envelope is wrapped the way the page receives it (from the parent window); an
+      // explicit event (with its own `source`/`origin`) is passed through, which is how the
+      // D5-01 fields are measured
+      const event =
+        message && typeof message === "object" && "data" in message
+          ? { origin: new URL(url).origin, source: win.parent, ...message }
+          : { data: message, origin: new URL(url).origin, source: win.parent };
+      for (const [name, fn] of handlers) if (name === "message") fn(event);
+    }
     return win;
   };
   const read = (win) => asPageSeesIt(readFrameMessages)(win);
@@ -1480,9 +1549,66 @@ describe("G7-04 cross-host D3-01: the web announce is read from every document's
     assert.equal(list.length, 2, "only protocol envelopes are recorded");
     assert.deepEqual(
       { ...list[0], at: undefined },
-      { kind: "event", type: "doc.remoteVersion", versionId: "v3", version: null, revision: "10", reason: null, at: undefined },
+      {
+        kind: "event",
+        type: "doc.remoteVersion",
+        ns: "uniwork.office.docs",
+        v: 1,
+        versionId: "v3",
+        versionIdType: "string",
+        version: null,
+        revision: "10",
+        revisionType: "string",
+        documentId: DOC_ID,
+        documentIdType: "string",
+        savedAt: "2026-10-16T00:00:00Z",
+        savedAtType: "string",
+        reason: null,
+        file: null,
+        href: "http://localhost:36009/office-frame/docs/index.html",
+        origin: "http://localhost:36009",
+        fromParent: true,
+        at: undefined,
+      },
     );
     assert.ok(Number.isInteger(list[0].at));
+  });
+
+  it("records the announce's own JS types, its realm and whether the parent sent it (D5-01)", () => {
+    // the round-5 wording ("the frame's own guard needs a DECIMAL revision") asserted a type
+    // nobody had read: these are the fields that measure it, and a message that did NOT come
+    // from the parent window is recorded as such instead of being counted as delivered
+    const stranger = { stranger: true };
+    const win = received(
+      [
+        { data: remote("v3", "10"), origin: "http://evil.example", source: stranger },
+        remote("v4", 11),
+      ],
+      { url: "http://localhost:36009/office-frame/docs/index.html" },
+    );
+    const [dropped, numeric] = read(win);
+    assert.equal(dropped.fromParent, false, "a message from another window is measured, not assumed");
+    assert.equal(dropped.origin, "http://evil.example");
+    assert.equal(dropped.revisionType, "string");
+    assert.equal(numeric.revision, 11);
+    assert.equal(numeric.revisionType, "number");
+    // the frame's own window: the recorder says which realm recorded the announce
+    assert.equal(numeric.href, "http://localhost:36009/office-frame/docs/index.html");
+  });
+
+  it("records the file a host open push or an api.open / api.save reply carried (D5-01)", () => {
+    const file = (over = {}) => ({ fileId: DOC_ID, versionId: "v1", revision: "1", etag: null, ...over });
+    const win = received([
+      envelope("request", "open", { file: file(), source: { kind: "bytes" } }),
+      envelope("response", "api.save", { ok: true, file: file({ versionId: "v2", revision: "2" }), versionId: "v2" }),
+      envelope("response", "api.saveAs", { save: { ok: true, file: file({ versionId: "v9" }) }, rebind: {} }),
+      envelope("event", "theme", { theme: "dark" }),
+    ]);
+    const list = read(win);
+    assert.deepEqual(list[0].file, { fileId: DOC_ID, versionId: "v1", revision: "1", etag: null });
+    assert.deepEqual(list[1].file, { fileId: DOC_ID, versionId: "v2", revision: "2", etag: null });
+    assert.equal(list[2].file.versionId, "v9", "an api.saveAs reply's file is read from its `save`");
+    assert.equal(list[3].file, null, "a message without a file records none");
   });
 
   it("finds the announce in the FRAME that received it, not in the top page (the D3-01 miss)", () => {
@@ -1644,6 +1770,207 @@ describe("G7-04 cross-host D4-01: the frame's own S6 reload is driven and measur
       assert.match(step.reason, /frame surface: /);
       assert.match(step.reason, /bar="A newer version is on UniWork/);
       assert.match(step.reason, /"action":"reload"/);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host D5-01: the drop is named from measured values, and the window is the announce's", () => {
+  /** The protocol envelope the vendored host posts (packages/core/office/docs-frame-protocol.ts). */
+  const envelope = (kind, type, payload) => ({ ns: "uniwork.office.docs", v: 1, kind, type, payload });
+  const file = (over = {}) => ({ fileId: DOC_ID, versionId: "v3", revision: "3", etag: null, ...over });
+  const announce = (over = {}) => envelope("event", "doc.remoteVersion", { document_id: DOC_ID, revision: "3", version_id: "v3", saved_at: "2026-10-16T00:00:00Z", ...over });
+  /** One document's records, built by the page-style recorder — the shape `frameRemoteState` reads. */
+  const records = (messages, { url = "http://localhost:36009/office-frame/docs/index.html", parent = {} } = {}) => {
+    const handlers = [];
+    const win = { addEventListener: (name, fn) => handlers.push([name, fn]), location: { href: url }, parent };
+    new Function("return (" + String(installFrameRecorder) + ")")()(win);
+    for (const message of messages) {
+      const event =
+        message && typeof message === "object" && "data" in message
+          ? { origin: new URL(url).origin, source: parent, ...message }
+          : { data: message, origin: new URL(url).origin, source: parent };
+      for (const [name, fn] of handlers) if (name === "message") fn(event);
+    }
+    return new Function("return (" + String(readFrameMessages) + ")")()(win);
+  };
+  const reported = (messages, { url = "http://localhost:36009/office-frame/docs/index.html", parent = {} } = {}) => [
+    { url: `http://localhost:36009/acme/ws/documents/${DOC_ID}`, messages: [], readError: "" },
+    { url, messages: records(messages, { url, parent }), readError: "" },
+  ];
+  const open = (over = {}) => envelope("request", "open", { file: file(over), source: { kind: "bytes" } });
+
+  it("the pin's decimal predicate and its revisionOf are mirrored, not re-invented", () => {
+    assert.equal(isDecimalRevisionText("3"), true);
+    assert.equal(isDecimalRevisionText(3), false, "a JSON number is not the wire's revision");
+    assert.equal(isDecimalRevisionText("03"), false);
+    assert.equal(revisionOfFile({ revision: "3", etag: '"9"' }), "3", "the file's own revision wins");
+    assert.equal(revisionOfFile({ revision: undefined, etag: '"9"' }), "9", "else its etag, quotes stripped");
+    assert.equal(revisionOfFile({ etag: "not-a-number" }), null);
+    assert.equal(revisionOfFile(null), null);
+  });
+
+  it("reads the frame's held file out of the realm that RECEIVED the announce", () => {
+    const reports = [
+      { url: `http://localhost:36009/acme/ws/documents/${DOC_ID}`, messages: records([open({ revision: "1" })], { url: "http://localhost:36009/acme/ws/documents/" + DOC_ID }), readError: "" },
+      {
+        url: "http://localhost:36009/office-frame/sheets/index.html",
+        messages: records([
+          open({ revision: "2", versionId: "v2" }),
+          announce(),
+          envelope("response", "api.save", { ok: true, file: file({ revision: "2", versionId: "v2", etag: '"2"' }), versionId: "v2" }),
+        ]),
+        readError: "",
+      },
+    ];
+    const state = frameRemoteState(reports, { versionId: "v3" });
+    assert.equal(state.announceRealm.isTop, false);
+    assert.equal(state.announceRealm.url, "http://localhost:36009/office-frame/sheets/index.html");
+    assert.equal(state.announce.revision, "3");
+    assert.deepEqual(state.held, { fileId: DOC_ID, versionId: "v2", revision: "2", etag: '"2"', revisionOf: "2", at: state.held.at, envelope: "response:api.save" });
+    assert.equal(state.documents.length, 2);
+    assert.deepEqual(state.documents.map((d) => [d.isTop, d.messages]), [[true, 1], [false, 3]], "the page first (Playwright's frame order), then the frame");
+  });
+
+  it("names the guard the measured values fail, in the pin's own order (D5-01)", () => {
+    const state = frameRemoteState(reported([open({ revision: "2" }), announce()]), { versionId: "v3" });
+    // the values pass every guard: the driver must say so instead of inventing a guard
+    assert.equal(announceGuardVerdict(state).guard, null);
+    assert.match(announceGuardVerdict(state).detail, /no guard at the pin explains the drop/);
+    // a revision that is not a decimal string: the one guard the round-5 wording guessed at,
+    // now named only because the type was MEASURED
+    const numeric = frameRemoteState(reported([open({ revision: "2" }), announce({ revision: 3 })]), { versionId: "v3" });
+    assert.match(announceGuardVerdict(numeric).guard, /remote-version\.ts:443/);
+    assert.match(announceGuardVerdict(numeric).detail, /3 \(number\)/);
+    // the frame's fileId is another document's
+    const other = frameRemoteState(reported([open({ fileId: "01JOTHER0000000000000000001", revision: "2" }), announce()]), { versionId: "v3" });
+    assert.match(announceGuardVerdict(other).guard, /remote-version\.ts:445/);
+    // the frame is already at (or past) the announced revision
+    const ahead = frameRemoteState(reported([open({ revision: "3" }), announce()]), { versionId: "v3" });
+    assert.match(announceGuardVerdict(ahead).guard, /remote-version\.ts:448/);
+  });
+
+  it("names the envelope-level drops too: the wrong window, the wrong source, the wrong ns", () => {
+    // the announce was recorded in the TOP page: the frame never received it at all
+    const topOnly = frameRemoteState(
+      [
+        { url: `http://localhost:36009/acme/ws/documents/${DOC_ID}`, messages: records([announce()], { url: "http://localhost:36009/acme/ws/documents/" + DOC_ID }), readError: "" },
+        { url: "http://localhost:36009/office-frame/docs/index.html", messages: records([]), readError: "" },
+      ],
+      { versionId: "v3" },
+    );
+    assert.match(announceGuardVerdict(topOnly).guard, /post target/);
+    // a message that did not come from the parent window is dropped by the endpoint's own check
+    const stranger = frameRemoteState(
+      reported([
+        { data: announce(), origin: "http://evil.example", source: { stranger: true } },
+        open({ revision: "2" }),
+      ]),
+      { versionId: "v3" },
+    );
+    assert.match(announceGuardVerdict(stranger).guard, /endpoint\.ts:264-275/);
+    assert.match(announceGuardVerdict(stranger).detail, /origin "http:\/\/evil\.example", fromParent false/);
+    // a foreign namespace never reaches a handler
+    const foreign = frameRemoteState(
+      reported([{ ...announce(), ns: "uniwork.office.other" }, open({ revision: "2" })]),
+      { versionId: "v3" },
+    );
+    assert.match(announceGuardVerdict(foreign).guard, /types\.ts:1758-1760/);
+    // and an unmeasured held file is reported as unmeasured, never as a guard
+    const unmeasured = frameRemoteState(reported([announce()]), { versionId: "v3" });
+    assert.equal(announceGuardVerdict(unmeasured).guard, null);
+    assert.match(announceGuardVerdict(unmeasured).detail, /host\.current\(\) could not be measured/);
+  });
+
+  it("the reload window is the ANNOUNCE's own timestamp, so a reload recorded before the wait still counts (D5-01)", () => {
+    const announceAt = 10_000;
+    // the reload landed 40 ms after the announce and 900 ms before the driver started waiting:
+    // round 5's window (the wait's own clock) filtered exactly this GET out
+    const opens = [
+      { at: announceAt - 5_000, pathname: "/api/v1/office-frame/documents/x", versionId: "v1" },
+      { at: announceAt + 40, pathname: "/api/v1/office-frame/documents/x", versionId: "v3" },
+      { at: announceAt + 3_000, pathname: "/api/v1/office-frame/documents/x", versionId: "v3" },
+    ];
+    assert.deepEqual(freshOpensAfter(opens, announceAt).map((o) => o.at), [announceAt + 40, announceAt + 3_000]);
+    assert.deepEqual(freshOpensAfter(opens, announceAt + 900).map((o) => o.at), [announceAt + 3_000], "the old window, for contrast");
+    assert.deepEqual(freshOpensAfter(opens, null).map((o) => o.at), opens.map((o) => o.at), "no anchor: everything recorded is fresh");
+  });
+
+  it("hands the announce's own timestamp to the wait, and reports the GETs that landed before it", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const { result, web } = await runChain({
+        row: "G7-A01",
+        fixture: "fx-docx-report-vi",
+        mock,
+        scratch,
+        knobs: { web: { webReloadFails: true } },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const step = result.record.steps["web-sees"];
+      assert.equal(step.status, "FAIL");
+      // the window is the announce's own `at` (minus the postMessage->request hop's tolerance),
+      // not the instant the step started waiting
+      const announcedAt = result.record.details.webSeesMiss.announced.at;
+      assert.equal(web.reloadWindow, Math.max(0, announcedAt - ANNOUNCE_OPEN_TOLERANCE_MS));
+      // and the miss carries the frame's own realm, measured
+      const miss = result.record.details.webSeesMiss;
+      assert.equal(miss.held.fileId, mock.state.docId);
+      assert.equal(miss.announceTypes.revision, "string");
+      assert.match(step.reason, /the guard the measured values fail: /);
+      assert.doesNotMatch(step.reason, /needs a DECIMAL revision/, "the unmeasured round-5 wording is gone");
+      assert.match(step.reason, /received in a frame/);
+      assert.doesNotMatch(step.reason, /received in the TOP page/);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("names the measured guard in the miss reason when a value actually fails one (D5-01)", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+      const { result } = await runChain({
+        row: "G7-A01",
+        fixture: "fx-docx-report-vi",
+        mock,
+        scratch,
+        knobs: {
+          web: {
+            webReloadFails: true,
+            // the frame's own realm: the announce arrived with a JSON NUMBER revision (the one
+            // guard the round-5 wording guessed at, here measured) and the frame holds THIS
+            // document at revision 1 — so the fileId guard passes and 443 is the one that fires
+            frameRealm: ({ documentId, announcements }) => [
+              { url: `http://localhost:36009/acme/ws/documents/${documentId}`, messages: [], readError: "" },
+              {
+                url: "http://localhost:36009/office-frame/docs/index.html",
+                readError: "",
+                messages: [
+                  { kind: "request", type: "open", file: { fileId: documentId, versionId: "v-seeded", revision: "1", etag: null }, at: 1 },
+                  { ...announcements[0], revision: 2, revisionType: "number", at: 2 },
+                ],
+              },
+            ],
+          },
+        },
+        stepTimeoutMs: 300,
+      });
+      assert.equal(result.status, "FAIL");
+      const reason = result.record.steps["web-sees"].reason;
+      assert.match(reason, /dropped by .*remote-version\.ts:443/);
+      assert.match(reason, /the frame holds fileId \S+ at revision "1"/);
+      assert.equal(result.record.details.webSeesMiss.verdict.guard.includes("remote-version.ts:443"), true);
+      assert.equal(result.record.details.webSeesMiss.announceTypes.revision, "number");
     } finally {
       delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
       scratch.cleanup();

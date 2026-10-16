@@ -639,8 +639,21 @@ const FRAME_DOC_GET_PATH = /\/api\/v1\/office-frame\/documents\/[^/]+/;
  * (`use-docs-frame-session.ts:216`) — so the round-2 capture, which patched
  * `postMessage` and then read `window.__crossHostFrameMessages` in the TOP page,
  * could never see it: the announce is recorded where it is delivered. Reading
- * `readFrameMessages` in every document and merging with
+ * (`readFrameMessages` in every document and merging with
  * `summarizeFrameRecordings` sees it whichever realm the call resolved in.
+ *
+ * Since D5-01 a record carries what a GUARD comparison needs, measured rather
+ * than guessed: the receiving realm (`href`), whether the parent window sent the
+ * message (`fromParent`) and its `origin`, the envelope's `ns` / `v`, the
+ * announce's own `document_id` / `revision` / `version_id` / `saved_at` with the
+ * JS `typeof` each one arrived as, and the `file` a host `open` push or a
+ * frame-visible `api.open` / `api.save` / `api.saveAs` reply carried
+ * (`fileId`, `versionId`, `revision`, `etag`). That file is the frame's own held
+ * copy: the pin derives `host.current()` from it
+ * (`web/modules/shared/remote-version.ts:617` -> `revisionOf`,
+ * `web/modules/shared/conflict-dialog.ts:135-140`), so the driver can name the
+ * guard that dropped an announce instead of asserting one (the round-5 wording
+ * "the frame's own guard needs a DECIMAL revision" was never measured).
  *
  * This function is serialized into the page: keep it self-contained (no
  * module-scope constants), the way `readRemoteNewerSurface` now is.
@@ -650,19 +663,59 @@ export function installFrameRecorder(target = window) {
   // the newest 1000 envelopes: a run's frame traffic is far below it, and the document is
   // replaced when the frame reloads
   const limit = 1000;
+  const realm = (() => {
+    try {
+      return target?.location?.href ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  const parentWindow = (() => {
+    try {
+      return target?.parent ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  // the file meta a frame-visible envelope carried, in the pin's own field names
+  // (`web/docs/protocol/types.ts:326-346`: the wire `FileMeta` is camelCase)
+  const fileOf = (payload) => {
+    const raw = payload?.save?.file ?? payload?.file;
+    if (!raw || typeof raw !== "object" || typeof raw.fileId !== "string") return null;
+    return {
+      fileId: raw.fileId,
+      versionId: typeof raw.versionId === "string" ? raw.versionId : null,
+      revision: typeof raw.revision === "string" ? raw.revision : null,
+      etag: typeof raw.etag === "string" ? raw.etag : null,
+    };
+  };
   Object.defineProperty(target, "__crossHostFrameMessages", { value: list, configurable: true });
   target.addEventListener("message", (event) => {
     try {
       const data = event?.data;
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
       const payload = data.payload ?? {};
+      const seen = (key) => (key in payload ? payload[key] : null);
       list.push({
         kind: typeof data.kind === "string" ? data.kind : null,
         type: data.type,
-        versionId: payload.version_id ?? null,
-        version: payload.version ?? null,
-        revision: payload.revision ?? null,
-        reason: payload.reason ?? null,
+        ns: typeof data.ns === "string" ? data.ns : null,
+        v: typeof data.v === "number" ? data.v : null,
+        versionId: seen("version_id"),
+        versionIdType: typeof payload.version_id,
+        version: seen("version"),
+        revision: seen("revision"),
+        revisionType: typeof payload.revision,
+        documentId: seen("document_id"),
+        documentIdType: typeof payload.document_id,
+        savedAt: seen("saved_at"),
+        savedAtType: typeof payload.saved_at,
+        reason: seen("reason"),
+        file: fileOf(payload),
+        href: realm,
+        origin: typeof event?.origin === "string" ? event.origin : null,
+        // a synthetic event (a unit test's fake) has no `source`: unmeasured, never "not the parent"
+        fromParent: event != null && "source" in event ? event.source === parentWindow : null,
         at: Date.now(),
       });
       if (list.length > limit) list.shift();
@@ -807,6 +860,181 @@ export function summarizeFrameRecordings(reports = [], sinceMs = 0) {
   };
 }
 
+/** The docs frame protocol's namespace and version, as the INSTALLED pin defines them
+ * (`web/docs/protocol/types.ts:25-27` at the frame pin): a mismatch drops the envelope as
+ * `foreign` / `version_mismatch` before any handler runs. */
+export const FRAME_PROTOCOL_NS = "uniwork.office.docs";
+export const FRAME_PROTOCOL_VERSION = 1;
+
+/**
+ * The pin's decimal-revision predicate (`web/docs/protocol/types.ts:521-523`): `revision` is a
+ * decimal STRING on this wire, never a JSON number. Mirrored here so the driver can measure
+ * whether an announce would survive the guard instead of asserting which guard dropped it.
+ */
+export function isDecimalRevisionText(x) {
+  return typeof x === "string" && x.length <= 20 && /^(0|[1-9][0-9]*)$/.test(x);
+}
+
+/**
+ * `revisionOf` of the pinned frame (`web/modules/shared/conflict-dialog.ts:135-140`): the file's
+ * own `revision` when that is a decimal, else an `etag` that is one (quotes stripped), else null.
+ * This is what `host.current().revision` returns for the frame's held copy
+ * (`web/docs/bridge/webapi.ts:616-617`), and therefore what the announce guards compare against.
+ */
+export function revisionOfFile(file) {
+  if (!file) return null;
+  if (isDecimalRevisionText(file.revision)) return file.revision;
+  const etag = typeof file.etag === "string" ? file.etag.replace(/^"|"$/g, "") : null;
+  return isDecimalRevisionText(etag) ? etag : null;
+}
+
+/**
+ * What the web frame itself held and heard, measured inside its own realm (D5-01): the announce
+ * envelope it received with the JS type of every field, the realm that recorded it, and the last
+ * `file` a host `open` push or an `api.open` / `api.save` / `api.saveAs` reply carried — the
+ * frame's held copy, which `revisionOfFile` turns into the `revision` the guards compare with.
+ *
+ * Playwright lists the main frame FIRST (`page.frames()`), so `isTop: true` on the first report is
+ * the page and every other one is an embedded document: an announce recorded in the top page was
+ * never delivered to the frame at all.
+ */
+export function frameRemoteState(reports = [], { versionId = null } = {}) {
+  const docs = (reports ?? []).map((report, index) => ({
+    url: report?.url ?? null,
+    isTop: index === 0,
+    messages: Array.isArray(report?.messages) ? report.messages : null,
+    readError: typeof report?.readError === "string" ? report.readError : "",
+  }));
+  const announcesIn = (doc) =>
+    (doc.messages ?? []).filter(
+      (m) => m && m.kind === "event" && m.type === "doc.remoteVersion" && (versionId === null || m.versionId === versionId),
+    );
+  const lastFileIn = (doc) => {
+    const files = (doc.messages ?? []).filter((m) => m?.file && typeof m.file.fileId === "string");
+    return files.length > 0 ? files[files.length - 1] : null;
+  };
+  const realm = docs.find((doc) => announcesIn(doc).length > 0) ?? null;
+  const holder = realm ?? docs.find((doc) => lastFileIn(doc) !== null) ?? null;
+  const announce = realm ? announcesIn(realm).at(-1) : null;
+  const file = holder ? lastFileIn(holder) : null;
+  return {
+    announce: announce ?? null,
+    announceRealm: realm ? { url: realm.url, isTop: realm.isTop } : null,
+    held: file
+      ? { ...file.file, revisionOf: revisionOfFile(file.file), at: file.at, envelope: `${file.kind}:${file.type}` }
+      : null,
+    heldRealm: holder ? { url: holder.url, isTop: holder.isTop } : null,
+    documents: docs.map((doc) => ({
+      url: doc.url,
+      isTop: doc.isTop,
+      recorder: doc.messages !== null,
+      messages: (doc.messages ?? []).length,
+      readError: doc.readError,
+    })),
+  };
+}
+
+/**
+ * Which of the pin's guards drops the announce, EVALUATED over measured values (D5-01) — the
+ * guard is named (with its file:line) only when the values actually fail it; `guard: null` means
+ * no guard explains the drop and the remaining surface is the delivery/handler wiring. The order
+ * is the pin's own: the envelope reaches a handler only after
+ * `web/docs/protocol/endpoint.ts:264-293` (origin, source, `parseEnvelope`), then
+ * `web/docs/protocol/client.ts:489-493` filters by document, then the handler's chain at
+ * `web/modules/shared/remote-version.ts:442-452`.
+ */
+export function announceGuardVerdict({ announce = null, held = null, announceRealm = null, heldRealm = null } = {}) {
+  const described = (value, type) => `${JSON.stringify(value)} (${type ?? (typeof value)})`;
+  if (!announce) return { guard: null, detail: "no doc.remoteVersion envelope was recorded in any document of the page" };
+  const values = `document_id ${described(announce.documentId, announce.documentIdType)}, revision ${described(
+    announce.revision,
+    announce.revisionType,
+  )}, version_id ${described(announce.versionId, announce.versionIdType)}`;
+  const where = announceRealm ? `${announceRealm.isTop ? "the top page" : "a frame"}` : "an unrecorded document";
+  if (announceRealm?.isTop) {
+    return {
+      guard: "the D host's post target (packages/core/office/docs-frame-endpoint.ts:236-238, peer = iframe.contentWindow)",
+      detail: `the announce was recorded in ${where} and never in the frame, so no frame handler could run: ${values}`,
+    };
+  }
+  if (announce.fromParent === false) {
+    return {
+      guard: "the frame endpoint's source/origin check (web/docs/protocol/endpoint.ts:264-275)",
+      detail: `the announce reached ${where} but not from the parent window (origin ${JSON.stringify(
+        announce.origin,
+      )}, fromParent false): ${values}`,
+    };
+  }
+  if (announce.ns !== FRAME_PROTOCOL_NS) {
+    return {
+      guard: "parseEnvelope isOwnTraffic (web/docs/protocol/types.ts:1758-1760)",
+      detail: `the announce's ns ${JSON.stringify(announce.ns)} is not ${JSON.stringify(FRAME_PROTOCOL_NS)}, so the frame drops it as foreign: ${values}`,
+    };
+  }
+  if (announce.v !== FRAME_PROTOCOL_VERSION) {
+    return {
+      guard: "parseEnvelope version check (web/docs/protocol/types.ts:1801)",
+      detail: `the announce's v ${JSON.stringify(announce.v)} is not ${FRAME_PROTOCOL_VERSION}: ${values}`,
+    };
+  }
+  if (!isDecimalRevisionText(announce.revision)) {
+    return {
+      guard: "!isDecimalRevision(p.revision) (web/modules/shared/remote-version.ts:443)",
+      detail: `the announced revision arrived as ${described(announce.revision, announce.revisionType)}, which that guard drops silently: ${values}`,
+    };
+  }
+  if (!held) {
+    return {
+      guard: null,
+      detail: `the frame's own host.current() could not be measured: no host open push or api.open/api.save reply was recorded in ${
+        heldRealm?.isTop ? "the top page" : "the frame's realm"
+      }, so the fileId / revision guards cannot be evaluated (${values})`,
+    };
+  }
+  if (held.fileId !== announce.documentId) {
+    return {
+      guard: "cur.fileId !== p.document_id (web/modules/shared/remote-version.ts:445)",
+      detail: `the frame holds fileId ${JSON.stringify(held.fileId)} (${held.envelope}), the announce names document_id ${JSON.stringify(
+        announce.documentId,
+      )}`,
+    };
+  }
+  const open = held.revisionOf;
+  if (open !== null && BigInt(announce.revision) <= BigInt(open)) {
+    return {
+      guard: "rev <= open (web/modules/shared/remote-version.ts:448)",
+      detail: `the frame already holds revision ${JSON.stringify(open)} (${held.envelope}) and the announce carries ${JSON.stringify(announce.revision)}`,
+    };
+  }
+  return {
+    guard: null,
+    detail: `no guard at the pin explains the drop from these measured values: the frame holds fileId ${JSON.stringify(
+      held.fileId,
+    )} at revision ${JSON.stringify(open)} (${held.envelope}), the announce is ${values} and reached ${where} from the parent window`,
+  };
+}
+
+/**
+ * The slack between the announce a frame RECEIVED (its `at` is taken in the frame's own realm,
+ * in the message listener) and the HTTP GET that announce causes (recorded in the driver's
+ * process, once the frame's `load` has crossed postMessage -> host -> `api.open`): the reload
+ * window opens this much before the announce so a same-hop round trip on a busy VM is not read
+ * as "the frame never fetched" (D5-01). It is far too small for a stale open (the boot open is
+ * minutes earlier) to sneak in.
+ */
+export const ANNOUNCE_OPEN_TOLERANCE_MS = 50;
+
+/**
+ * The recorded `office-frame` GETs at or after `sinceMs` (D5-01). The reload window is anchored at
+ * the ANNOUNCE's own timestamp, not at the instant the driver starts waiting: the frame reloads
+ * the moment the announce lands, and round 5's window began after the driver's poll noticed the
+ * announce — so a reload that had already happened was counted as "0 GET(s) after the announce".
+ */
+export function freshOpensAfter(opens, sinceMs) {
+  const floor = Number.isFinite(sinceMs) && sinceMs > 0 ? sinceMs - 1 : 0;
+  return (opens ?? []).filter((entry) => Number(entry?.at ?? 0) >= floor);
+}
+
 /**
  * The web half on Playwright: signs the seeded account in at `/login`, opens
  * the document URL the D Inbox builds, waits for the Office frame host
@@ -875,27 +1103,56 @@ async function createPlaywrightWebCtrl({
   try {
     web = await webLogin(browser, user, { webOrigin, locale: "en", timeoutMs: stepTimeoutMs });
     await web.context.addInitScript(installFrameRecorder);
+    // Every GET of this document's office-frame route is recorded when it is ISSUED, and its
+    // answer filled in when it lands (D5-01). Two round-5 defects are answered here:
+    //   * a GET that never answers was invisible (the old record was pushed from the response
+    //     body only), so "0 office-frame GET(s)" could not be told from "one that hung";
+    //   * the reply's fields were read as `file.version_id` / `file.checksum_sha256`, but the
+    //     pinned wire `FileMeta` is CAMELCASE (`fileId`, `versionId`, `revision`, `etag` —
+    //     `web/docs/protocol/types.ts:326-346`), so every open this recorder saw was filed as
+    //     "no version id" and the announced-version match could never succeed.
+    const openEntryFor = (request) => {
+      if (request.method() !== "GET") return null;
+      const url = new URL(request.url());
+      if (!FRAME_DOC_GET_PATH.test(url.pathname) || !url.pathname.includes(documentId)) return null;
+      return { at: Date.now(), pathname: url.pathname, answered: false, failed: false, versionId: null, version: null, revision: null, checksum: null, fileId: null, etag: null };
+    };
+    const openEntries = new Map();
+    web.page.on("request", (request) => {
+      try {
+        const entry = openEntryFor(request);
+        if (!entry) return;
+        opens.push(entry);
+        openEntries.set(request, entry);
+      } catch {
+        // a malformed URL is not a frame open
+      }
+    });
+    web.page.on("requestfailed", (request) => {
+      const entry = openEntries.get(request);
+      if (entry) entry.failed = true;
+    });
     web.page.on("response", (response) => {
       try {
-        const url = new URL(response.url());
-        if (response.request().method() !== "GET" || !FRAME_DOC_GET_PATH.test(url.pathname)) return;
-        if (!url.pathname.includes(documentId)) return;
-        const at = Date.now();
-        const pathname = url.pathname;
+        const request = response.request();
+        const entry = openEntries.get(request) ?? openEntryFor(request);
+        if (!entry) return;
+        if (!openEntries.has(request)) opens.push(entry);
+        entry.status = response.status();
         response
           .json()
           .then((body) => {
-            opens.push({
-              at,
-              pathname,
-              versionId: body?.file?.version_id ?? null,
-              version: body?.file?.version ?? null,
-              checksum: body?.file?.checksum_sha256 ?? null,
-              revision: body?.revision ?? null,
-            });
+            const file = body?.file ?? null;
+            entry.answered = true;
+            entry.fileId = file?.fileId ?? null;
+            entry.versionId = file?.versionId ?? file?.version_id ?? null;
+            entry.version = file?.version ?? body?.version ?? null;
+            entry.revision = file?.revision ?? body?.revision ?? null;
+            entry.etag = file?.etag ?? null;
+            entry.checksum = file?.checksum_sha256 ?? null;
           })
           .catch(() => {
-            opens.push({ at, pathname, versionId: null, version: null, checksum: null, revision: null });
+            entry.answered = true;
           });
       } catch {
         // a malformed URL is not a frame open
@@ -1009,31 +1266,71 @@ async function createPlaywrightWebCtrl({
       async frameAudit() {
         return summarizeFrameRecordings(await frameReports(), 0);
       },
-      async waitForReload({ versionId, timeoutMs = stepTimeoutMs }) {
-        const startedAt = Date.now();
+      /**
+       * The fresh `office-frame` open of the announced version. The window is anchored at the
+       * ANNOUNCE's own timestamp (`sinceMs`, the recorder's `at` in the frame's realm), never at
+       * the instant this call starts (D5-01): a CLEAN frame reloads the moment the announce
+       * lands, and the announce poll can notice it afterwards — round 5's window began after the
+       * reload had already been recorded, so a reload that HAPPENED was counted as
+       * "0 office-frame GET(s) after the announce".
+       */
+      async waitForReload({ versionId, sinceMs = null, timeoutMs = stepTimeoutMs }) {
+        const floor = Number.isFinite(sinceMs) && sinceMs > 0 ? Math.min(sinceMs, Date.now()) : Date.now();
         const settled = await pollUntil(
-          async () => opens.filter((o) => o.at >= startedAt - 1),
+          async () => freshOpensAfter(opens, floor),
           (list) => list.some((o) => o.versionId === versionId),
           { boundMs: timeoutMs, intervalMs: pollMs },
         );
         const fresh = settled.value ?? [];
         const hit = fresh.find((o) => o.versionId === versionId) ?? null;
         if (!hit) {
-          // What the frame actually fetched, measured (D4-01): the old reason said only
+          // What the frame actually fetched, measured (D4-01/D5-01): the old reason said only
           // "no fresh open", which read the same whether the frame never fetched, fetched
-          // another route, or fetched another version.
+          // another route, fetched another version, or fetched and never got an answer.
+          const described = (o) => {
+            if (o.versionId) return o.versionId;
+            if (o.failed) return "the GET failed";
+            if (o.answered) return `a GET with no versionId (${o.status ?? "no status"})`;
+            return "a GET with no answer yet";
+          };
           const seen = fresh
             .slice(0, 4)
-            .map((o) => `${o.versionId ?? "no version id"}${o.pathname ? ` @${o.pathname}` : ""}`)
+            .map((o) => `${described(o)}${o.pathname ? ` @${o.pathname}` : ""}`)
+            .join(", ");
+          const before = opens.filter((o) => Number(o?.at ?? 0) < floor - 1);
+          const beforeSeen = before
+            .slice(-4)
+            .map((o) => `${o.versionId ?? "no version id"} @${o.pathname ?? "no path"} (${Math.max(0, floor - Number(o.at ?? 0))} ms before the announce)`)
             .join(", ");
           return {
             reloaded: false,
             elapsedMs: settled.elapsedMs,
             opensSeen: fresh.length,
-            reason: `the web frame made no fresh office-frame open for ${versionId} within ${timeoutMs} ms (${fresh.length} office-frame GET(s) of this document after the announce: ${seen || "none"})`,
+            opensBefore: before.length,
+            reason: `the web frame made no fresh office-frame open for ${versionId} within ${timeoutMs} ms (${fresh.length} office-frame GET(s) of this document at/after the announce: ${
+              seen || "none"
+            }; ${before.length} of its GET(s) landed before the announce${beforeSeen ? `: ${beforeSeen}` : ""})`,
           };
         }
         return { reloaded: true, versionId: hit.versionId, version: hit.version, checksum: hit.checksum, revision: hit.revision, elapsedMs: settled.elapsedMs };
+      },
+      /**
+       * What the frame itself held and heard, measured in its own realm (D5-01): the announce
+       * envelope with the JS type of every field, the realm that received it, the frame's held
+       * file (`host open` push / `api.open` / `api.save`), and which of the pin's guards those
+       * values fail. The guard is NAMED from the measurement — never assumed.
+       */
+      async frameEvidence({ versionId = null } = {}) {
+        const state = frameRemoteState(await frameReports(), { versionId });
+        return {
+          ...state,
+          verdict: announceGuardVerdict({
+            announce: state.announce,
+            held: state.held,
+            announceRealm: state.announceRealm,
+            heldRealm: state.heldRealm,
+          }),
+        };
       },
       /**
        * The frame's OWN S6 reload action (D4-01). At the fork pin a CLEAN frame reloads
@@ -2073,7 +2370,13 @@ export async function runCrossHostRow({
         typeof web.clickReload === "function"
           ? await web.clickReload({ versionId: reconnectVersionId }).catch((err) => ({ clicked: false, reason: err.message }))
           : null;
-      const reload = await web.waitForReload({ versionId: reconnectVersionId, timeoutMs: stepTimeout });
+      // The window opens at the ANNOUNCE's own timestamp, not at this instant (D5-01): a clean
+      // frame reloads as soon as the announce lands, and the poll above can notice it after that.
+      const reload = await web.waitForReload({
+        versionId: reconnectVersionId,
+        sinceMs: Math.max(0, Number(match.at ?? 0) - ANNOUNCE_OPEN_TOLERANCE_MS),
+        timeoutMs: stepTimeout,
+      });
       if (!reload?.reloaded) {
         // what the frame SHOWED, measured: the bar it left un-clicked, the dialog waiting
         const surface = typeof web.frameSurface === "function" ? await web.frameSurface().catch(() => null) : null;
@@ -2090,11 +2393,46 @@ export async function runCrossHostRow({
             }`;
           })
           .join("; ");
+        // What the frame HELD and HEARD, measured in its own realm (D5-01), and which of the
+        // pin's guards those values fail. Round 5 asserted "the frame's own guard needs a
+        // DECIMAL revision" without measuring anything; the announce's own JS type is recorded
+        // now, so the reason names only what the values prove.
+        const evidence = typeof web.frameEvidence === "function" ? await web.frameEvidence({ versionId: reconnectVersionId }).catch(() => null) : null;
+        const verdict = evidence?.verdict ?? null;
+        const realm = evidence?.announceRealm
+          ? `received in ${evidence.announceRealm.isTop ? "the TOP page" : "a frame"}`
+          : "recorded in no document";
+        const held = evidence?.held
+          ? `the frame holds fileId ${evidence.held.fileId} at revision ${JSON.stringify(evidence.held.revisionOf ?? null)} (${evidence.held.envelope})`
+          : "the frame's held file was not measured";
+        const verdictText = verdict
+          ? verdict.guard
+            ? `dropped by ${verdict.guard} — ${verdict.detail}`
+            : verdict.detail
+          : "the frame's own realm was not read";
+        if (evidence) {
+          record.details.webSeesMiss = {
+            announced: match,
+            announceRealm: evidence.announceRealm,
+            announceTypes: evidence.announce
+              ? {
+                  document_id: evidence.announce.documentIdType,
+                  revision: evidence.announce.revisionType,
+                  version_id: evidence.announce.versionIdType,
+                  saved_at: evidence.announce.savedAtType,
+                }
+              : null,
+            held: evidence.held,
+            verdict,
+            documents: evidence.documents,
+            opens: { seen: reload?.opensSeen ?? 0, beforeTheAnnounce: reload?.opensBefore ?? 0 },
+          };
+        }
         return {
           status: "FAIL",
           reason: `the web frame did not reload the announced version: ${reload?.reason ?? "no reload"} (announced version_id ${match.versionId} revision ${
             match.revision ?? "none"
-          } — the frame's own guard needs a DECIMAL revision; S6 reload click: ${
+          }${match.revisionType ? ` as ${match.revisionType}` : ""}, ${realm}; ${held}; the guard the measured values fail: ${verdictText}; S6 reload click: ${
             reloadClick?.clicked ? `clicked "${reloadClick.label ?? ""}" in the ${reloadClick.frame} frame` : reloadClick?.reason ?? "not attempted"
           }${shown ? `; frame surface: ${shown}` : ""})`,
         };
@@ -2109,6 +2447,7 @@ export async function runCrossHostRow({
       record.checksums.webContent = head.sha256;
       record.details.webSees = {
         announced: match,
+        reloadWindowFrom: Math.max(0, Number(match.at ?? 0) - ANNOUNCE_OPEN_TOLERANCE_MS),
         reloadClick,
         reload: { versionId: reload.versionId, version: reload.version },
         webContentSha256: head.sha256,
