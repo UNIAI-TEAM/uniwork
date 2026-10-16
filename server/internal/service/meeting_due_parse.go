@@ -2,6 +2,7 @@ package service
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -23,15 +24,21 @@ import (
 //     means a week later. With "tuần sau" / "tuần tới" / "next week" it is that
 //     day of the following Monday-based week; with "tuần này" / "this week" it
 //     is that day of the anchor's week, and nil if already past.
-//   - "cuối tuần" / "weekend" / "end of week": the coming Saturday (the anchor
-//     day itself on a Saturday, six days on from a Sunday), or the Saturday
-//     of the following Monday-based week with "tuần sau".
+//   - "cuối tuần" / "weekend" / "end of (this) week": the coming Saturday (the
+//     anchor day itself on a Saturday, six days on from a Sunday), or the
+//     Saturday of the following Monday-based week with "tuần sau" / "end of
+//     next week".
 //     Saturday is the last day many Vietnamese teams still work.
 //   - "cuối tháng" / "end of month": the last day of the anchor's month, or of
 //     the next month with "tháng sau".
 //   - "ngày mai" / "tomorrow"; "ngày kia" / "ngày mốt" / "day after tomorrow";
 //     "hôm nay" / "today".
 //   - "tuần sau" / "next week" alone: seven days after the anchor day.
+//
+// Refused (nil) before any of the week rules: a past week ("tuần trước",
+// "tuần rồi", "last week"), and a week phrase with a qualifier the rules do
+// not model ("đầu/giữa/hết tuần sau", "tuần sau nữa", "early/mid/late next
+// week", "beginning/middle of next week").
 //
 // Weekdays and phrases are matched on whole words, so "thủ tục" is not "thứ
 // tư" and "thứ 20" is not "thứ 2".
@@ -55,6 +62,9 @@ func parseMeetingDueSpoken(spoken string, anchor time.Time) *string {
 	tokens := strings.Fields(normalizePersonName(spoken))
 	nextWeek := hasPhrase(tokens, "tuan sau") || hasPhrase(tokens, "tuan toi") || hasPhrase(tokens, "next week")
 	thisWeek := hasPhrase(tokens, "tuan nay") || hasPhrase(tokens, "this week")
+	if namesPastWeek(tokens) || hasUnmodelledWeekQualifier(tokens) {
+		return nil
+	}
 
 	if wd, ok := findWeekday(tokens); ok {
 		switch {
@@ -70,7 +80,9 @@ func parseMeetingDueSpoken(spoken string, anchor time.Time) *string {
 			return formatDatePtr(nextWeekdayAfter(day, wd))
 		}
 	}
-	if hasPhrase(tokens, "cuoi tuan") || hasPhrase(tokens, "weekend") || hasPhrase(tokens, "end of week") || hasPhrase(tokens, "end of the week") {
+	if hasPhrase(tokens, "cuoi tuan") || hasPhrase(tokens, "weekend") || hasPhrase(tokens, "end of week") ||
+		hasPhrase(tokens, "end of the week") || hasPhrase(tokens, "end of this week") ||
+		hasPhrase(tokens, "end of next week") || hasPhrase(tokens, "end of the next week") {
 		if nextWeek {
 			return formatDatePtr(weekdayOfWeek(mondayOf(day).AddDate(0, 0, 7), time.Saturday))
 		}
@@ -218,6 +230,56 @@ func findWeekday(tokens []string) (time.Weekday, bool) {
 		}
 	}
 	return 0, false
+}
+
+// namesPastWeek reports a phrase naming a week already gone ("tuần trước",
+// "cuối tuần rồi", "last week"): no due date can be read from it.
+func namesPastWeek(tokens []string) bool {
+	for _, p := range []string{"tuan truoc", "tuan roi", "last week", "previous week", "past week"} {
+		if hasPhrase(tokens, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// weekPhrases name a week relative to the anchor.
+var weekPhrases = []string{"tuan sau", "tuan toi", "tuan nay", "next week", "this week"}
+
+// weekQualifiersBefore shift a week phrase they precede ("đầu tuần sau",
+// "middle of next week") to a part of the week the parser does not model.
+var weekQualifiersBefore = map[string]struct{}{
+	"dau": {}, "giua": {}, "het": {},
+	"early": {}, "late": {}, "mid": {}, "middle": {}, "beginning": {}, "start": {},
+}
+
+// hasUnmodelledWeekQualifier reports a week phrase with a qualifier the
+// parser does not model: one of weekQualifiersBefore before it (skipping an
+// English "of" / "of the"), or "nữa" after it ("tuần sau nữa", the week after
+// next). Such text is refused rather than read as the plain week. "cuối tuần
+// sau" and "end of next week" are modelled and handled by the weekend rule.
+func hasUnmodelledWeekQualifier(tokens []string) bool {
+	for i := 0; i+1 < len(tokens); i++ {
+		if !slices.Contains(weekPhrases, tokens[i]+" "+tokens[i+1]) {
+			continue
+		}
+		if i+2 < len(tokens) && tokens[i+2] == "nua" {
+			return true
+		}
+		j := i - 1
+		if j >= 0 && tokens[j] == "the" {
+			j--
+		}
+		if j >= 0 && tokens[j] == "of" {
+			j--
+		}
+		if j >= 0 {
+			if _, ok := weekQualifiersBefore[tokens[j]]; ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // isTomorrowShort accepts "mai" said alone or after a part of the day

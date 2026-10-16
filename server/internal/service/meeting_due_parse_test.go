@@ -76,9 +76,33 @@ func TestParseMeetingDueSpoken(t *testing.T) {
 		{"cuối tháng", "2026-09-30"},
 		{"cuối tháng sau", "2026-10-31"},
 		{"end of month", "2026-09-30"},
+		{"end of next week", "2026-09-12"},
+		{"by end of next week", "2026-09-12"},
+		{"end of the next week", "2026-09-12"},
+		{"end of this week", "2026-09-05"},
 		// Next week alone.
 		{"tuần sau", "2026-09-10"},
+		{"hạn tuần sau", "2026-09-10"},
 		{"next week", "2026-09-10"},
+		// A week phrase with a qualifier the parser does not model, or a past
+		// week, is refused rather than read as a plain week.
+		{"đầu tuần sau", ""},
+		{"giữa tuần sau", ""},
+		{"hết tuần sau", ""},
+		{"tuần sau nữa", ""},
+		{"tuần tới nữa", ""},
+		{"thứ 6 tuần sau nữa", ""},
+		{"cuối tuần sau nữa", ""},
+		{"early next week", ""},
+		{"beginning of next week", ""},
+		{"start of next week", ""},
+		{"middle of next week", ""},
+		{"mid next week", ""},
+		{"late next week", ""},
+		{"tuần trước", ""},
+		{"thứ 6 tuần trước", ""},
+		{"Friday last week", ""},
+		{"cuối tuần rồi", ""},
 		// Words that only look like weekdays.
 		{"thủ tục", ""},
 		{"xong thủ tục", ""},
@@ -161,6 +185,18 @@ func TestParseMeetingDueSpokenYearlessDate(t *testing.T) {
 		case tc.want != "" && (got == nil || *got != tc.want):
 			t.Errorf("%q at %s: got %v, want %s", tc.in, tc.anchor.Format("2006-01-02"), got, tc.want)
 		}
+	}
+}
+
+func TestParseMeetingDueSpokenEndOfNextWeekFromOtherDays(t *testing.T) {
+	vn := meetingLocation("Asia/Ho_Chi_Minh")
+	monday := time.Date(2026, 10, 12, 10, 0, 0, 0, vn)
+	if got := parseMeetingDueSpoken("end of next week", monday); got == nil || *got != "2026-10-24" {
+		t.Fatalf("end of next week from a Monday: %v", got)
+	}
+	friday := time.Date(2026, 10, 16, 10, 0, 0, 0, vn)
+	if got := parseMeetingDueSpoken("đầu tuần sau", friday); got != nil {
+		t.Fatalf("đầu tuần sau from a Friday: got %s, want nil", *got)
 	}
 }
 
