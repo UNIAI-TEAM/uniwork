@@ -47,7 +47,7 @@ func TestDocumentSourceSaveable(t *testing.T) {
 		{"parameters are ignored", "pdf", "application/pdf; charset=binary", 100, true},
 	}
 	for _, c := range cases {
-		if got := documentSourceSaveable(c.ext, c.mime, c.size); got != c.want {
+		if got := documentSourceSaveable(documentFilePolicyFor(nil), c.ext, c.mime, c.size); got != c.want {
 			t.Errorf("%s: documentSourceSaveable(%q, %q, %d) = %v, want %v", c.name, c.ext, c.mime, c.size, got, c.want)
 		}
 	}

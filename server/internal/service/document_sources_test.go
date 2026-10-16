@@ -545,13 +545,13 @@ func TestDocumentSourceChatParentIncludesMessageID(t *testing.T) {
 		MimeType:    "application/pdf",
 		SizeBytes:   100,
 	}
-	item := documentSourceItem(DocumentSourceChat, row)
+	item := documentSourceItem(DocumentSourceChat, row, documentFilePolicyFor(nil))
 	if item.Parent.MessageID != "01MSG" {
 		t.Fatalf("MessageID = %q, want 01MSG", item.Parent.MessageID)
 	}
 	taskRow := row
 	taskRow.ParentKind = "task"
-	item = documentSourceItem(DocumentSourceTask, taskRow)
+	item = documentSourceItem(DocumentSourceTask, taskRow, documentFilePolicyFor(nil))
 	if item.Parent.MessageID != "" {
 		t.Fatalf("task parent MessageID = %q, want empty", item.Parent.MessageID)
 	}
