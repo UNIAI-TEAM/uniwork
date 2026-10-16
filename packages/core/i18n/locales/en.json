@@ -181,6 +181,17 @@
           "c13087a29b3cb2ad63dc7a132870cbb4b3018c836": "In Documents, going to the source of a file that came from chat now opens the right room and highlights the message that carries the file, instead of just opening Chat.",
           "c8d3b953959e51a40d91645de8e49a89fa4e7a9a2": "Chat notifications are more reliable: editing a message to add an @mention notifies the newly mentioned people, a missed call in a DM notifies the recipient, followers of a thread in a public channel get its replies even before joining the channel, and notifications are retried after a temporary failure instead of being lost. Editing a message keeps its priority and other message data, and resending a message that was deleted now gets a clear error instead of a server error."
         }
+      },
+      "v1_5_1": {
+        "title": "Product menu opens each feature page, and demos use new sample data",
+        "summary": "A patch for the marketing site: each entry in the Product menu opens that feature's own page, the Watch demo button on a feature page opens the demo right there, and the demos use a new sample workspace. The Calendar demo follows the current Calendar screen.",
+        "note": "This patch only changes the marketing site; the UniWork app itself is unchanged.",
+        "improvements": {
+          "c31a87b6e474f69e33cd44093e483d24dfe1a4f39": "The demos on the marketing site use a new sample workspace, members and tasks in both Vietnamese and English. The Calendar demo has the same search box as the current Calendar screen and opens at 08:00."
+        },
+        "fixes": {
+          "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d": "On the marketing site, each entry in the Product menu now opens that feature's own page, and the Watch demo button on a feature page opens the demo right there. The illustration at the end of the home page uses the product's current interface."
+        }
       }
     }
   },

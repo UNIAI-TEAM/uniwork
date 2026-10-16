@@ -181,6 +181,17 @@
           "c13087a29b3cb2ad63dc7a132870cbb4b3018c836": "Trong Tài liệu, lệnh tới nguồn của một tệp lấy từ chat nay mở đúng phòng và làm nổi tin nhắn chứa tệp, thay vì chỉ mở trang Chat.",
           "c8d3b953959e51a40d91645de8e49a89fa4e7a9a2": "Thông báo chat chắc chắn hơn: sửa tin để thêm @nhắc tên thì người mới được nhắc nhận thông báo, cuộc gọi nhỡ trong DM tạo thông báo cho người nhận, người theo dõi thread trong kênh công khai nhận trả lời dù chưa vào kênh, và thông báo được thử lại khi hệ thống tạm lỗi thay vì bị mất. Sửa tin giữ nguyên mức ưu tiên và các dữ liệu khác của tin, còn gửi lại một tin đã bị xóa nhận báo lỗi rõ ràng thay vì lỗi máy chủ."
         }
+      },
+      "v1_5_1": {
+        "title": "Menu Sản phẩm mở đúng trang tính năng và demo dùng dữ liệu mẫu mới",
+        "summary": "Bản vá cho trang giới thiệu: mỗi mục trong menu Sản phẩm mở trang riêng của tính năng, nút Xem demo trên trang tính năng mở bản demo ngay tại trang, và các bản demo dùng một không gian làm việc mẫu mới. Demo Lịch bám theo màn hình Lịch hiện tại.",
+        "note": "Bản vá này chỉ thay đổi trang giới thiệu; ứng dụng UniWork không thay đổi.",
+        "improvements": {
+          "c31a87b6e474f69e33cd44093e483d24dfe1a4f39": "Các bản demo trên trang giới thiệu dùng một không gian làm việc, thành viên và task mẫu mới ở cả tiếng Việt và tiếng Anh. Demo Lịch có ô tìm kiếm như màn hình Lịch hiện tại và mở sẵn ở khung 08:00."
+        },
+        "fixes": {
+          "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d": "Trên trang giới thiệu, mỗi mục trong menu Sản phẩm nay mở trang riêng của tính năng đó, và nút Xem demo trên trang tính năng mở bản demo ngay tại trang. Hình minh họa cuối trang chủ dùng giao diện sản phẩm hiện tại."
+        }
       }
     }
   },
