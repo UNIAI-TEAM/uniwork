@@ -110,6 +110,13 @@ export const paths = {
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
+      /** Opens a room (and optionally scrolls to a message) on the chat page. */
+      chatConversation: (roomId: string, messageId?: string) => {
+        const params = new URLSearchParams();
+        params.set("room", roomId);
+        if (messageId) params.set("message", messageId);
+        return `${base}/chat?${params.toString()}`;
+      },
       inbox: () => `${base}/inbox`,
       email: () => `${base}/email`,
       members: () => `${base}/members`,

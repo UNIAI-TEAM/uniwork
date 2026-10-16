@@ -110,10 +110,11 @@ type DocumentSourceFilter struct {
 // DocumentSourceParent is where a source file lives. Ref is internal: the
 // task id of a comment attachment, the mailbox of an email attachment.
 type DocumentSourceParent struct {
-	Kind  string
-	ID    string
-	Title string
-	Ref   string
+	Kind      string
+	ID        string
+	Title     string
+	Ref       string
+	MessageID string // chat file: the message that carries the attachment
 }
 
 // DocumentSourceOwner is who put the file there; nil for email.
@@ -421,6 +422,9 @@ func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow) Documen
 	// A task comment's file links to its task: the comment is read there.
 	if item.Parent.Kind == "task_comment" && r.ParentRef != "" {
 		item.Parent.ID = r.ParentRef
+	}
+	if src == DocumentSourceChat && r.RowID != "" {
+		item.Parent.MessageID = r.RowID
 	}
 	if r.OwnerID != "" {
 		item.Owner = &DocumentSourceOwner{ID: r.OwnerID, Kind: documentSourceOwnerKind(r.OwnerKind), Name: r.OwnerName}

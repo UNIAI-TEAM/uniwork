@@ -44,15 +44,18 @@ func chatMessageRule(kind string) rule {
 		if ev.OrganizationID.Valid && room.OrganizationID != ev.OrganizationID.String {
 			return nil, nil
 		}
+		// A public channel's thread can be followed without joining (authorizeRoomRead);
+		// the send-time follower query admits those readers too (UNI-1721).
+		publicThread := kind == KindChatThreadReplied && room.Kind == "channel" && room.Visibility == "public"
 		mem, err := e.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: room.ID, UserID: userID})
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		if err != nil {
+			if !publicThread {
+				return nil, nil
+			}
+		} else if err != nil {
 			return nil, err
-		}
-		// Read at delivery, so a mute set after the send still holds (UNI-1697).
-		if mem.NotificationsMuted {
+		} else if mem.NotificationsMuted {
+			// Read at delivery, so a mute set after the send still holds (UNI-1697).
 			return nil, nil
 		}
 		wsID, err := chatRecipientWorkspace(ctx, e, room, userID)
@@ -71,7 +74,7 @@ func chatMessageRule(kind string) rule {
 		r := newRecipients(ctx, e, ev, wsID)
 		r.add(userID)
 		params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name}
-		return r.drafts(room.OrganizationID, kind, groupKey, "chat_message", msg.ID, params), nil
+		return r.drafts(room.OrganizationID, kind, groupKey, "chat_message", msg.ID, params)
 	}
 }
 
@@ -88,6 +91,8 @@ func chatRecipientWorkspace(ctx context.Context, e env, room db.ChatRoom, userID
 	if anchor != "" {
 		if _, err := e.members.RequireMember(ctx, anchor, userID); err == nil {
 			return anchor, nil
+		} else if err != nil && !refused(err) {
+			return "", err
 		}
 	}
 	return userWorkspaceIn(ctx, e.q, userID, room.OrganizationID)

@@ -74,13 +74,13 @@ for (const sample of [
       }
     }
     const moved = player.locator('[data-status="done"] [data-demo-item="design"]');
-    await expect(moved).toContainText("HA");
+    await expect(moved).toContainText("Hoàng Anh");
     await expect(moved).toHaveAttribute("data-demo-result", "task-moved");
     const keyframes = JSON.parse((await moved.getAttribute("data-observed-motion"))!);
     expect(keyframes[0].transform).not.toBe("translate(0px, 0px)");
     expect(keyframes[1].transform).toBe("translate(0, 0)");
     await expect(player.locator('[data-demo-item="design"]')).toHaveCount(1);
-    await expect(player.locator('.lovable-task-stats > div').nth(2)).toContainText("4");
+    await expect(player.locator('[data-status="done"] [data-slot="status-heading"]')).toContainText("1");
     await player.locator("[data-action='toggle-playback']").click();
     await expect(player).toHaveAttribute("data-running", "false");
     expect(await player.locator(".action-stage").evaluate(element => element.getAnimations({ subtree: true }).filter(animation => animation.playState === "running").length)).toBe(0);

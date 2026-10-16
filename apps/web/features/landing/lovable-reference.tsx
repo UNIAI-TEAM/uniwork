@@ -1,5 +1,5 @@
 "use client";
-import { ArrowDownToLine, ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock3, FileText, Funnel, Folder, Hash, RotateCcwClock, List, LockKeyhole, MessageSquare, Ellipsis, Plus, Search, Share2, ShieldCheck, SlidersHorizontal, Sparkles, Star, Upload, Users, Video, Workflow } from "lucide-react";
+import { ArrowDownToLine, ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, FileText, Funnel, Folder, RotateCcwClock, List, Ellipsis, Plus, Search, Share2, ShieldCheck, Upload, Users, Workflow } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DEMO_FEATURES as PRODUCT_FEATURES, type ProductFeature } from "./showcase";
 import { LovableControl, LovableFrame, LovablePageHeading, usePreviewLabels } from "./lovable-frame";
@@ -16,19 +16,6 @@ export function LovableReference({ feature }: { feature: ProductFeature }) {
   return <LovableFrame feature={feature} label={`${t(item.label)} — ${t("landing.lovable.sample")}`}>
     {feature === "dashboard" ? <LovableDashboard /> : feature === "today" ? <LovableMySpace /> : feature === "calendar" ? <LovableCalendar /> : feature === "projects" ? <LovableProjects /> : feature === "documents" ? <LovableDocuments /> : feature === "workflows" || feature === "automation" ? <LovableWorkflows /> : ["outputs", "approvals", "knowledge"].includes(feature) ? <LovableLibrary feature={feature} /> : feature === "organization" ? <LovablePeople /> : feature === "audit" ? <div className="lovable-page"><AuditPreview /></div> : <LovableIntelligence feature={feature} />}
   </LovableFrame>;
-}
-
-export function LovableTaskHeading({ completed }: { completed: boolean }) {
-  const copy = usePreviewLabels();
-  return <div className="lovable-task-heading"><div className="lovable-project-tabs"><span className="lovable-workspace-pill"><i>G</i>General<ChevronDown /></span>{["overview", "board", "list", "timeline", "calendar", "reports", "files"].map(key => <span key={key} data-active={key === "board"}>{copy(key)}</span>)}<Ellipsis /></div><div className="lovable-breadcrumb">{copy("home")} › {copy("tasks")} › {copy("all")}</div><h2>{copy("allTasks")}</h2><LovablePageHeading title="General" subtitle={copy("taskSummary", { completed: completed ? 4 : 3 })}><LovableControl>General<ChevronDown /></LovableControl><LovableControl><SlidersHorizontal />{copy("projectSettings")}<ChevronDown /></LovableControl></LovablePageHeading>
-    <div className="action-board-summary lovable-task-stats">{[["progress", completed ? "6%" : "5%"], ["tasks", "64"], ["done", completed ? "4" : "3"], ["inProgress", completed ? "8" : "9"], ["todo", "43"], ["blocked", "9"]].map(([key, value]) => <div key={key}><span>{copy(key!)}</span><strong>{value}</strong>{key === "progress" && <progress value={completed ? 4 : 3} max={64} />}{key === "tasks" && <small>{copy("overdue27")}</small>}</div>)}</div>
-    <div className="lovable-saved-filter"><span>{copy("savedFilters")}<small>{copy("noSavedView")}</small></span><LovableControl><Plus />{copy("saveFilter")}</LovableControl></div><div className="lovable-task-filter"><span>{copy("filter")}</span><LovableControl>{copy("allPriorities")}<ChevronDown /></LovableControl><span>{copy("sort")}</span><LovableControl>{copy("default")}<ChevronDown /></LovableControl><span>{copy("noLabels")}</span></div>
-  </div>;
-}
-
-export function LovableChatChannels() {
-  const copy = usePreviewLabels();
-  return <aside className="lovable-chat-channels"><header><strong>{copy("channels")}</strong><MessageSquare /><Plus /></header><div className="lovable-search-field"><Search />{copy("filterChannels")}</div><small>{copy("myChannels")}</small>{["product-launch", "general", "design", "engineering"].map((name, index) => <div className="lovable-channel" data-active={index === 0} key={name}><Hash />{name}</div>)}<small>{copy("otherChannels")}</small>{["operations", "people", "leadership"].map(name => <div className="lovable-channel" key={name}><LockKeyhole />{name}</div>)}</aside>;
 }
 
 function LovableCalendar() {

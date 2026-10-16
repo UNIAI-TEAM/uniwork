@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Clock, FolderTree, House, Plus, Star, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -53,6 +53,8 @@ export interface DocumentsSidebarProps {
   onFolder: (folderId: string) => void;
   onNewFolder: (title?: string) => Promise<boolean | void> | boolean | void;
   className?: string;
+  /** A host may supply its own folder tree while reusing the collection navigation. */
+  folderTree?: ReactNode;
 }
 
 function NavItem({
@@ -113,6 +115,7 @@ export function DocumentsSidebar({
   onFolder,
   onNewFolder,
   className,
+  folderTree,
 }: DocumentsSidebarProps) {
   const { t } = useTranslation();
   const [createOpen, setCreateOpen] = useState(false);
@@ -149,7 +152,7 @@ export function DocumentsSidebar({
       >
         {t("documents.home.sidebar.folders")}
       </SectionLabel>
-      <DocumentTree
+      {folderTree ?? <DocumentTree
         wsId={wsId}
         folders
         visible={open}
@@ -157,7 +160,7 @@ export function DocumentsSidebar({
         onOpen={onFolder}
         emptyLabel={t("documents.home.folders.empty")}
         className="shrink-0 overflow-visible p-0"
-      />
+      />}
 
       {sourcesAvailable ? (
         <>
