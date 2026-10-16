@@ -25,22 +25,29 @@
 //     reason `real-AI upstream required, acceptance.md l.87`; it never closes
 //     the row.
 //   * Any checksum divergence between the hosts FAILs (exit 1), never a delay.
-//   * The dirty editor row is driven through the app's own editor (CDP); when
-//     that cannot be driven the row is BLOCKED, never PASS.
+//   * The dirty editor is driven through the app's own editor (CDP) in the
+//     G5-A03 chain only; when that cannot be driven the row is BLOCKED, never
+//     PASS.
 //   * Reuse, not copies (BE-704-05): the harness drivers (`harness/web.mjs`,
 //     `harness/app.mjs`, `harness/app-steps.mjs`, `harness/lib.mjs`), the tracer
 //     helpers (`g7-10/tracer.mjs`) and the G8-19 desktop helpers
-//     (`g8-19/anchors.mjs`: `pageAction` and `EDIT_DRIVERS`) are imported; the
-//     driver's only redactor is `redactSignInError` from
-//     `harness/app-steps.mjs`. The one thing this file still owns is the
-//     `DIRTY_EDIT_PLANS` NAMES its record prints (insert-row / split-block): the
-//     ACTIONS come from `EDIT_DRIVERS`. The CLI writes exactly one artifact per
-//     (row, fixture) plus the evidence line `evidence.mjs` wraps.
+//     (`g8-19/anchors.mjs`: the `runEditPlan` editor-action driver and its
+//     `EDIT_DRIVERS` plans) are imported; the driver's only redactor is
+//     `redactSignInError` from `harness/app-steps.mjs`. What stays local is the
+//     plan NAMES the record prints (`DIRTY_EDIT_PLANS`: insert-row /
+//     split-block) and this driver's own record fields. The CLI writes exactly
+//     one artifact per (row, fixture) plus the evidence line `evidence.mjs`
+//     wraps.
 //   * The dirty-editor half of the chain is G5-A03.3 ONLY (D1-04): the G7-A01
 //     chain runs no `app-dirty` / `web-save-2` / `dirty-kept` / `app-reload` step.
-//   * A BLOCKED step stops only the steps that consume its result; a FAILed step
-//     always stops the chain (see `STEP_DEPENDENCIES`).
+//   * A BLOCKED step stops only the steps that consume its result (they are
+//     recorded SKIPPED); a FAILed step always stops the chain and wins over
+//     BLOCKED (see `STEP_DEPENDENCIES`).
 //   * A BLOCKED step with no named blocker is a FAIL (BE-704-10).
+//   * `uiEdits` on the record says, per edit step (dirty, offlineSave, aiSave),
+//     whether the run drove that edit through the app's own editor UI (`real`)
+//     or not (`standin`: a harness stand-in write, or the step did not run)
+//     (BE-704-08).
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -85,10 +92,11 @@ import {
   seedFixtureDocument,
 } from "../g7-10/tracer.mjs";
 // The desktop editor action + the per-format structural edit plans (G8-19).
-// `pageAction` is the awaited implementation the old local `appPageAction` copied
-// (BE-704-07: the copies dropped the `await` on `wait(250)`); `EDIT_DRIVERS` holds
-// the plans this row drives (BE-704-05). Both are imported, never re-declared.
-import { EDIT_DRIVERS, pageAction } from "../g8-19/anchors.mjs";
+// `runEditPlan` drives `EDIT_DRIVERS`' actions through the shared `pageAction`,
+// the awaited implementation the old local `appPageAction` copied (BE-704-07:
+// the copy dropped the `await` on `wait(250)`, so its 40 x 250 ms retry budget
+// collapsed to one microtask turn). Both are imported, never re-declared.
+import { EDIT_DRIVERS, runEditPlan } from "../g8-19/anchors.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = resolve(HERE, "../../../..");
@@ -241,11 +249,17 @@ export const ROW_REQUIRED_STEPS = Object.freeze({
  * Which step's RESULT each later step consumes (D1-04), written producer ->
  * consumers. A BLOCKED producer therefore skips exactly its consumers, and the
  * skip is transitive (a consumer of a skipped step is skipped too), so a BLOCKED
- * dirty step in the G5-A03 chain skips `dirty-kept` (it asserts the dirty bytes
- * survived) and `app-reload` (it discards the dirty edit) while the INDEPENDENT
- * desktop half still runs: `app-offline-save` -> `app-reconnect` -> `web-sees`
- * -> `final-shas` (G5-A03.2). A FAILed step is different: it always stops the
- * chain, because a FAIL is a product divergence, not a missing precondition.
+ * dirty step in the G5-A03 chain skips `web-save-2` (a web Save landing on a
+ * dirty app proves nothing without the dirty app), `dirty-kept` (it asserts the
+ * dirty bytes survived) and `app-reload` (it discards the dirty edit) while the
+ * INDEPENDENT desktop half still runs: `app-offline-save` -> `app-reconnect` ->
+ * `web-sees` -> `final-shas` (G5-A03.2). Skipping the whole dirty cluster is also
+ * what keeps the version accounting honest: a second web Save with no reload
+ * after it would leave the app bound one version behind the server, and
+ * `app-offline-save` would FAIL on its `baseVersion` check instead of the row
+ * ending BLOCKED (77) with the named blocker, as D1-04 requires. A FAILed step
+ * is different: it always stops the chain, because a FAIL is a product
+ * divergence, not a missing precondition.
  *
  * The rule in one line: a BLOCKED step stops the chain only for the steps that
  * depend on its result; a FAIL always stops it; a PASS never does.
@@ -334,13 +348,14 @@ export function decideCrossHostOutcome(record = {}) {
     };
   }
   if (blocked.length > 0) {
-    const blockers = [...new Set(blocked.map(([, s]) => s?.blocker || ""))].filter(Boolean);
+    // every BLOCKED step here names its blocker: an unnamed one already FAILed above
+    const blockers = [...new Set(blocked.map(([, s]) => s.blocker))];
     const owners = [...new Set(blocked.map(([, s]) => s?.owner || ""))].filter(Boolean);
     return {
       status: "BLOCKED",
       exitCode: BLOCKED_EXIT,
-      reason: safe(blocked.map(([name, s]) => `${name}: ${s?.blocker || s?.reason || "no blocker"}`).join("; ")),
-      blocker: safe(blockers.join("; ") || `BLOCKED without a named blocker (${blocked.map(([n]) => n).join(", ")})`),
+      reason: safe(blocked.map(([name, s]) => `${name}: ${s.blocker || s.reason || "no blocker"}`).join("; ")),
+      blocker: safe(blockers.join("; ")),
       owner: owners.join(", ") || BLOCKED_OWNER,
     };
   }
@@ -404,6 +419,39 @@ export const DIRTY_EDIT_PLANS = Object.freeze({
   sheets: Object.freeze({ name: "insert-row", actions: EDIT_DRIVERS.xlsx.shift }),
   docs: Object.freeze({ name: "split-block", actions: EDIT_DRIVERS.docx.shift }),
 });
+
+/**
+ * Drives the format's dirty-edit plan through the editor page the CDP controller
+ * picked: `{ edited: true, source: "app-ui", plan }` when the editor's own
+ * controls made the edit, else `{ edited: false, source: "none", reason }`.
+ *
+ * The plan's actions are the shared G8-19 `EDIT_DRIVERS` ones and they run
+ * through the shared `runEditPlan` (anchors.mjs), so this file owns only the plan
+ * NAMES (BE-704-05) and the awaited 250 ms retry budget of the editor control is
+ * the shared `pageAction`'s (BE-704-07). Exported so a test can drive exactly the
+ * code path the CDP controller runs.
+ */
+export async function makeAppDirty({ ctrl, kind, path = null, documentId = null }) {
+  const plan = DIRTY_EDIT_PLANS[kind];
+  let page;
+  try {
+    page = await ctrl.editorPage(kind, { path, documentId });
+  } catch (err) {
+    if (err?.isAppStepTimeout) throw err;
+    return { edited: false, source: "none", reason: `no ${kind} editor page for the working copy: ${err.message}` };
+  }
+  let ran;
+  try {
+    ran = await runEditPlan(ctrl, page, plan.actions);
+  } catch (err) {
+    if (err?.isAppStepTimeout) throw err;
+    ran = { status: "error", reason: err.message };
+  }
+  if (ran?.status !== "ok") {
+    return { edited: false, source: "none", reason: `the ${kind} editor refused the ${plan.name} plan: ${ran?.reason ?? "no answer"}` };
+  }
+  return { edited: true, source: "app-ui", plan: plan.name };
+}
 
 /**
  * The S6 surface on one app page: any element whose text carries the
@@ -852,25 +900,9 @@ async function createCdpAppCtrl({
       }
       return { opened: true, path: wc.workingCopyFilePath, kind: editorKindOfFormat(wc.binding?.format) ?? kind, binding: wc.binding, sha256: wc.sha256 };
     },
+    /** The shared dirty-edit plan driver (see `makeAppDirty`), page picked for this working copy. */
     async makeDirty({ path }) {
-      const plan = DIRTY_EDIT_PLANS[kind];
-      let page;
-      try {
-        page = await ctrl.editorPage(kind, { path, documentId });
-      } catch (err) {
-        if (err?.isAppStepTimeout) throw err;
-        return { edited: false, source: "none", reason: `no ${kind} editor page for the working copy: ${err.message}` };
-      }
-      for (const action of plan.actions) {
-        const res = await ctrl.evalBounded(page, pageAction, action, `edit:${action.type}`).catch((err) => {
-          if (err?.isAppStepTimeout) throw err;
-          return { status: "error", reason: err.message };
-        });
-        if (res?.status !== "ok") {
-          return { edited: false, source: "none", reason: `the ${kind} editor refused the ${plan.name} plan: ${res?.reason ?? "no answer"}` };
-        }
-      }
-      return { edited: true, source: "app-ui", plan: plan.name };
+      return makeAppDirty({ ctrl, kind, path, documentId });
     },
     async remoteNewerBar({ version }) {
       const { page, probe } = await findRemoteNewerPage(version);
@@ -994,8 +1026,9 @@ function emptyRecord({ row, fixture, kind }) {
     // BE-704-08: which of the three edit steps this run drove through the app's
     // OWN editor UI. "real" = the editor itself made the edit; "standin" = the
     // harness wrote the format's deterministic bytes into the working copy (a
-    // working-copy write, never claimed as a UI edit). G7-A01 runs no dirty step
-    // (D1-04), so its `dirty` entry is always "standin".
+    // working-copy write, never claimed as a UI edit) — or the step never ran,
+    // which drove no UI edit either. G7-A01 runs no dirty step (D1-04), so its
+    // `dirty` entry is always "standin".
     uiEdits: { dirty: "standin", offlineSave: "standin", aiSave: "standin" },
     steps: {},
     versionCounts: {},
@@ -1123,15 +1156,6 @@ export async function runCrossHostRow({
     return record.steps[name];
   };
   /**
-   * Whether a recorded step's outcome must stop the whole chain (D1-04). A FAIL
-   * always stops it; a BLOCKED stops it only for the steps that consume its
-   * result (see `dependentSteps`); a PASS never does.
-   */
-  const stop = (name) => {
-    const s = record.steps[name];
-    return Boolean(s) && s.status !== "PASS";
-  };
-  /**
    * Whether a recorded step's outcome must END the chain right now (D1-04).
    * A FAIL always does. A BLOCKED does NOT: the later steps that consume its
    * result are recorded SKIPPED instead (see `runStep`), so the row still ends
@@ -1165,7 +1189,7 @@ export async function runCrossHostRow({
 
   const runChain = async () => {
     // --- seed one document for this fixture --------------------------------
-    const seed = await step("seed", "protocol", async () => {
+    const seed = await runStep("seed", "protocol", async () => {
       seeded = await seedFixtureDocument({ apiOrigin, runDir, fetchImpl, fixtureId: fixture, repoRoot });
       const fixtureFile = loadVerifiedFixture(fixture, repoRoot);
       record.details.documentId = seeded.documentId;
@@ -1176,7 +1200,7 @@ export async function runCrossHostRow({
       record.versionCounts.v1 = 1;
       return { sha256: fixtureFile.sha256, documentId: seeded.documentId };
     });
-    if (stop("seed")) return;
+    if (aborts("seed")) return;
     const { token, email, password, userId, organizationSlug, workspaceSlug, documentId } = seeded;
     const kind = FIXTURE_KIND[fixture];
     const user = { key: "cross-host-seeded", id: userId, email, password, token };
@@ -1191,7 +1215,7 @@ export async function runCrossHostRow({
     const nextVersion = async () => (await listVersions({ apiOrigin, fetchImpl, documentId, token })) + 1;
 
     // --- 1. web edit + Save (G7-A01.1 / G5-A03.1 source) --------------------
-    const webOpen = await step("web-open", "web", async () => {
+    const webOpen = await runStep("web-open", "web", async () => {
       web = await webFactory({
         webOrigin: portsEnv.WEB_ORIGIN ?? "",
         apiOrigin,
@@ -1214,9 +1238,9 @@ export async function runCrossHostRow({
       }
       return { where: portsEnv.WEB_ORIGIN };
     });
-    if (stop("web-open")) return;
+    if (aborts("web-open")) return;
 
-    const webSave1 = await step("web-save-1", "web", async () => {
+    const webSave1 = await runStep("web-save-1", "web", async () => {
       const saved = await web.editAndSave({ marker: `web-1-${Date.now().toString(36)}` });
       if (!saved.saved) {
         return saved.drivable === false
@@ -1239,10 +1263,10 @@ export async function runCrossHostRow({
       hooks?.afterWebSave?.({ version: head.version, versionId: head.versionId, revision: head.revision, checksum: head.checksum, source: "web" });
       return { versionId: head.versionId, version: head.version, checksum: head.checksum, dirtyObserved: saved.dirtyObserved ?? null };
     });
-    if (stop("web-save-1")) return;
+    if (aborts("web-save-1")) return;
 
     // --- 2. open in the app from web (deep link) ----------------------------
-    const appOpen = await step("app-open", "app", async () => {
+    const appOpen = await runStep("app-open", "app", async () => {
       app = await appFactory({
         portsEnv,
         runDir,
@@ -1290,7 +1314,7 @@ export async function runCrossHostRow({
       record.details.appPath = opened.path;
       return { versionId: wc.binding.baseVersionId, version: wc.binding.baseVersion, checksum: wc.binding.baseChecksum };
     });
-    if (stop("app-open")) return;
+    if (aborts("app-open")) return;
 
     // --- 3. the app is dirty, a web Save lands (G5-A03.3 ONLY, D1-04) ------
     // G5-A03.3 is the only row that drives the dirty editor; G7-A01 runs no
@@ -1311,12 +1335,13 @@ export async function runCrossHostRow({
         record.uiEdits.dirty = "real";
         return { source: dirty.source, plan: dirty.plan ?? "", workingCopySha256: wc?.sha256 ?? "" };
       });
-      // A BLOCKED dirty step must NOT stop the later steps that can still run
-      // (D1-04): `web-save-2` -> `app-offline-save` -> `app-reconnect` ->
-      // `web-sees` -> `final-shas` read nothing the dirty step produced, so only
-      // `dirty-kept` (which asserts the dirty bytes survived) is skipped, and
-      // the row still ends BLOCKED (77) with the named blocker. A FAIL still
-      // wins and stops the chain.
+      // A BLOCKED dirty step must NOT end the chain (D1-04): `runStep` records
+      // the steps that read the dirty edit's result as SKIPPED (`web-save-2` ->
+      // `dirty-kept` -> `app-reload`, see `STEP_DEPENDENCIES`) while the steps
+      // that read nothing it produced still run: `app-offline-save` ->
+      // `app-reconnect` -> `web-sees` -> `final-shas` (G5-A03.2). The row then
+      // ends BLOCKED (77) with the dirty step's named blocker. A FAIL still wins
+      // and stops the chain.
       if (aborts("app-dirty")) return;
 
       const webSave2 = await runStep("web-save-2", "web", async () => {
