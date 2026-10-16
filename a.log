@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1809-fd-11-app-folder-tree; git log --oneline -3
+26b4c27d46749e82bd918b801952110c3b8989da
+26b4c27d46749e82bd918b801952110c3b8989da
+26b4c27d merge: FD-11 W5 fix4 e2e (fd11-fix-e2e4 9389377c0) into the FD-11 branch
+9389377c test(shell): assert web-side folder rename via change feed in FD-11 e2e
+3d60526a merge: FD-11 W5 fix3 e2e (fd11-fix-e2e3 b112d30bb) into the FD-11 branch
