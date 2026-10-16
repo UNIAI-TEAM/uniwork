@@ -1,0 +1,14 @@
+$ git checkout -q 9d9764b32 -- server/internal/ai/openai_facade.go; cd server && unset OPENAI_API_KEY OPENAI_BASE_URL; AI_PROVIDER=fake go test -count=1 ./internal/ai/ -run 'TestAIUniworkTableDropsUniworkHiddenSlidesTools' 2>&1 | grep -E '^(--- FAIL|FAIL|ok|panic)|_test.go:[0-9]+' | head -12; a=${PIPESTATUS[0]}; cd ..; git checkout -q HEAD -- server/internal/ai/openai_facade.go; echo; echo "RED_N1D ai=$a"; [ $a -ne 0 ] && echo RED_OK
+--- FAIL: TestAIUniworkTableDropsUniworkHiddenSlidesTools (0.00s)
+    openai_facade_test.go:953: slides table still lists "generate_deck"
+    openai_facade_test.go:953: slides table still lists "insert_web_image"
+    openai_facade_test.go:953: slides table still lists "regenerate_slide"
+    openai_facade_test.go:953: slides table still lists "replace_image"
+    openai_facade_test.go:953: slides table still lists "save_style_template"
+    openai_facade_test.go:962: slides allowlist = "apply_ops,read_slide,generate_deck,insert_web_image,regenerate_slide,replace_image,save_style_template", want only the tools UniWork AI keeps
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/ai	0.004s
+FAIL
+
+RED_N1D ai=1
+RED_OK

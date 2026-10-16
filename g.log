@@ -1,0 +1,5 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1; AI_PROVIDER=fake go test -count=1 ./internal/ai/... 2>&1 | grep -E '^(--- FAIL|FAIL|ok|panic)' | tail -30; rc=${PIPESTATUS[0]}; echo; echo "AI_PKG_EXIT=$rc"; [ $rc -eq 0 ]
+ok  	github.com/unicomhub/uniwork/server/internal/ai	6.786s
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.379s
+
+AI_PKG_EXIT=0

@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+2be5d20a8a6e4bcc873583fee772e7e47721f567
+c91af525a2437bd5c699cefb639110b199f8255b
+2be5d20a8 test(ai): pin the slides module tool names by exact set (G6-09a fix r2)
+828b1d433 chore: merge the D root 4b87247c1 into the G6-09a modules-server lane branch
+c91af525a chore: merge G7-03a integration fault queue (908053854) into the G5-G7 root
+4b87247c1 chore: merge G7-12 holdout harness follow-up (2a738ede8) into the G5-G7 root
+908053854 fix(office): G7-03a FQ-51 reads the signed-out lock where the fork records it
+
+SYNCED_EXIT=0
