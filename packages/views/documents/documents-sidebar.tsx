@@ -91,7 +91,9 @@ function NavItem({
       {module ? (
         <IconTile icon={MODULE_ICONS[module]} size="xs" variant="solid" tone={moduleTone(module)} />
       ) : Icon ? (
-        <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        <span className="flex size-5 shrink-0 items-center justify-center">
+          <Icon aria-hidden className="size-4 text-muted-foreground" />
+        </span>
       ) : null}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {typeof count === "number" && count > 0 ? (
