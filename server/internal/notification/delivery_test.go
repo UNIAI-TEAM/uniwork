@@ -372,4 +372,23 @@ func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 	if spy, _, _ := run(nil); len(spy.sent) != 1 {
 		t.Fatal("no presence wired must push")
 	}
+
+	// A subscription no sender can reach (web while VAPID is off) is counted
+	// as skipped, never as sent, and does not hold the row back.
+	m2 := &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+	pc := NewPushConsumer(f.q, &spySender{err: ErrPushSkipped}, "http://app.test")
+	pc.SetMetrics(m2)
+	ev = send()
+	if err := pc.Handle(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	if m2.sent["skipped"] != 1 || m2.sent["sent"] != 0 {
+		t.Fatalf("skipped send counted as %v", m2.sent)
+	}
+	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := f.q.GetNotification(f.ctx, p["notification_id"]); err != nil || !n.PushedAt.Valid {
+		t.Fatalf("skipped row not marked pushed: %+v err=%v", n, err)
+	}
 }

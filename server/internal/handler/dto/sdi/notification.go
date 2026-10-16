@@ -20,10 +20,11 @@ type NotificationPreferencesSDI struct {
 	Preferences []NotificationPreferenceSDI `json:"preferences"`
 }
 
-// PushKeysSDI is the browser's PushSubscription.keys; left empty for an Expo token.
+// PushKeysSDI is the browser's PushSubscription.keys; left empty for an Expo
+// token, so the service (not the schema) requires them for https endpoints.
 type PushKeysSDI struct {
-	P256dh string `json:"p256dh" minLength:"1" example:"BNcRd…"`
-	Auth   string `json:"auth" minLength:"1" example:"tBHI…"`
+	P256dh string `json:"p256dh" description:"Bắt buộc với endpoint https; để rỗng với token Expo" example:"BNcRd…"`
+	Auth   string `json:"auth" description:"Bắt buộc với endpoint https; để rỗng với token Expo" example:"tBHI…"`
 }
 
 // PushSubscribeSDI is POST /api/v1/me/push-subscriptions.

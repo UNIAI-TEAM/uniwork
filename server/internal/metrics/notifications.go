@@ -25,7 +25,7 @@ func NewNotifications() *Notifications {
 		}),
 		Push: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_push_sent_total",
-			Help: "Web push attempts by result: sent, gone (subscription revoked), failed.",
+			Help: "Push attempts (Web Push and Expo) by result: sent, gone (subscription revoked), failed, skipped (no sender, e.g. web while VAPID is off).",
 		}, []string{"result"}),
 		Digest: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "uniwork_digest_sent_total",

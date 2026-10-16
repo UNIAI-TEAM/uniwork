@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -26,6 +27,9 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 			_, _ = io.WriteString(w, `{"data":[{"status":"error","message":"x","details":{"error":"MessageTooBig"}}]}`)
 		case "ExponentPushToken[busy]":
 			w.WriteHeader(http.StatusTooManyRequests)
+		case "ExponentPushToken[unauth]":
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, `{"errors":[{"code":"UNAUTHORIZED","message":"bad access token"}]}`+"\n")
 		case "ExponentPushToken[down]":
 			w.WriteHeader(http.StatusBadGateway)
 		default:
@@ -49,6 +53,11 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 			t.Fatalf("%s → %v, want a retryable error", to, err)
 		}
 	}
+	// A 4xx carries Expo's reason into the error, so a wrong EXPO_ACCESS_TOKEN
+	// is visible in the dead-letter log rather than just "401".
+	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[unauth]"}, msg); err == nil || !strings.Contains(err.Error(), "bad access token") {
+		t.Fatalf("401 → %v, want Expo's message in the error", err)
+	}
 	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[ok]"}, PushMessage{Title: "t"}); err != nil || got[0]["body"] != nil {
 		t.Fatalf("empty body must be omitted: %v %v", got[0]["body"], err)
 	}
@@ -65,8 +74,8 @@ func TestPrefixSenderRoutesByEndpoint(t *testing.T) {
 	if len(expo.sent) != 2 || len(web.sent) != 1 || web.sent[0].Title != "https://fcm.googleapis.com/fcm/send/x" {
 		t.Fatalf("expo=%d web=%d", len(expo.sent), len(web.sent))
 	}
-	if err := NewPrefixSender(expo, nil).Send(context.Background(), db.PushSubscription{Endpoint: "https://x"}, PushMessage{}); err != nil {
-		t.Fatal("nil web sender must acknowledge, not fail")
+	if err := NewPrefixSender(expo, nil).Send(context.Background(), db.PushSubscription{Endpoint: "https://x"}, PushMessage{}); !errors.Is(err, ErrPushSkipped) {
+		t.Fatalf("nil web sender = %v, want ErrPushSkipped", err)
 	}
 	for ep, want := range map[string]bool{"ExponentPushToken[abc]": true, "ExpoPushToken[abc]": true, "ExponentPushToken[]": false, "ExponentPushToken[a b]": false, "xExponentPushToken[a]": false, "https://a": false} {
 		if isExpoPushToken(ep) != want {

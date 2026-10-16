@@ -119,6 +119,8 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		switch {
 		case err == nil:
 			c.count("sent")
+		case errors.Is(err, ErrPushSkipped):
+			c.count("skipped")
 		case errors.Is(err, ErrSubscriptionGone):
 			c.count("gone")
 			_ = c.q.RevokePushSubscription(ctx, sub.ID)

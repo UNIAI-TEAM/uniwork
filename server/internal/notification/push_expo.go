@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"time"
@@ -83,7 +85,10 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("expo push: %s", resp.Status)
+		// Read (and so drain) a bounded snippet: it keeps the connection
+		// reusable and puts Expo's reason (bad token, bad request) in the log.
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+		return fmt.Errorf("expo push: %s: %s", resp.Status, bytes.TrimSpace(snippet))
 	}
 	var out expoResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -103,6 +108,10 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 	}
 }
 
+// ErrPushSkipped means the subscription was acknowledged without sending:
+// a web subscription while VAPID is off.
+var ErrPushSkipped = errors.New("push: skipped, no sender for this subscription")
+
 // NewPrefixSender routes Expo tokens to expo and every other endpoint to web.
 func NewPrefixSender(expo, web PushSender) PushSender { return prefixSender{expo, web} }
 
@@ -112,9 +121,9 @@ func (s prefixSender) Send(ctx context.Context, sub db.PushSubscription, msg Pus
 	if isExpoPushToken(sub.Endpoint) {
 		return s.expo.Send(ctx, sub, msg)
 	}
-	// A web subscription cannot validly exist while VAPID is off: acknowledge it.
+	// A web subscription cannot be sent while VAPID is off: acknowledge it.
 	if s.web == nil {
-		return nil
+		return ErrPushSkipped
 	}
 	return s.web.Send(ctx, sub, msg)
 }

@@ -498,5 +498,13 @@ func TestPresenceLastBeatIsPerUserAcrossWorkspaces(t *testing.T) {
 		if _, ok, _ := store.lastBeat(ctx, "u3"); ok {
 			t.Fatal("a hidden tab's beat must not count as at the keyboard")
 		}
+		// Spec §3.5: the per-user key expires (10 min), the only bound on
+		// how many of them Redis holds.
+		if r, isRedis := store.(*redisPresenceStore); isRedis {
+			ttl, err := r.rdb.PTTL(ctx, r.userKey("u1")).Result()
+			if err != nil || ttl <= 0 || ttl > presenceLastBeatTTL {
+				t.Fatalf("user key PTTL = %v err=%v, want (0, %v]", ttl, err, presenceLastBeatTTL)
+			}
+		}
 	})
 }
