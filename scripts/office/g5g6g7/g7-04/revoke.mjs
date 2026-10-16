@@ -56,9 +56,13 @@
 //     deployment) is a FAIL naming both routes. A capability that turns off
 //     between the two turns (turn 1 200, turn 2 `office_capability_off`) is a
 //     FAIL named as that flip, not as a revoke result (D2-03).
-//   * Under `AI_PROVIDER=fake` the turn-1 CONTENT claim is BLOCKED
-//     (exit 77, `no real upstream on this runner; contract-p0 §8`), but the
-//     revoke assertion still runs and its verdict wins over the BLOCKED.
+//   * Under `AI_PROVIDER=fake` the turn-1 CONTENT claim cannot be verified
+//     (`classifyAiResponse` BLOCKs a 200 whose provider/model/content is labelled
+//     fake), so the row must not end PASS while its own record says that step is
+//     BLOCKED (BE-704-202): when every revoke assertion held the row is BLOCKED
+//     (exit 77) naming `AI_CONTENT_BLOCKER`, and the record keeps every revoke
+//     assertion as PASS so the evidence shows the revoke itself was proven. A
+//     failing revoke assertion still wins over that BLOCKED.
 //   * Every HTTP status and version count lands in the artifact log.
 //
 // Each (case, fixture) run seeds its OWN owner/member/workspace, and no world is
@@ -164,6 +168,16 @@ export const CASE_EXPECTATIONS = Object.freeze({
 /** BLOCKED reason under a fake deployment (contract-p0 §8). */
 export const AI_DISABLED_BLOCKER = "no real upstream on this runner; contract-p0 §8";
 export const AI_DISABLED_OWNER = "g7-qa";
+
+/**
+ * The named blocker of a turn-1 CONTENT that was never verifiable (BE-704-202):
+ * turn 1 answered 200 on both routes but the answer carried the fake provider, so
+ * `classifyAiResponse` BLOCKs the content step. Every revoke assertion may hold
+ * and the row is still BLOCKED — the same rule the cross-host driver applies to a
+ * BLOCKED step — and this text is what the artifact names, never a PASS.
+ */
+export const AI_CONTENT_BLOCKER = "turn-1 AI content not verifiable under the fake provider (real-AI round)";
+export const AI_CONTENT_OWNER = AI_DISABLED_OWNER;
 export const REVOKE_OWNER = "g7-qa";
 
 /** The 403 a flag hides a UniWork capability with (service/ai_uniwork.go:498-514). */
@@ -255,6 +269,16 @@ function answerOf(answer) {
 }
 
 /**
+ * The MEASURED answers of one row, for a BLOCKED reason (BE-704-204): what each
+ * route really answered, never the expectation. Kept short on purpose — the
+ * reason is redacted and cut at 240 chars (`redactSignInError`), so the facts a
+ * reader must see come before anything that only restates a blocker.
+ */
+function measuredTurnsOf(aiTurn1, aiTurn2, versionsBefore, versionsAfterRevoke) {
+  return `AI turn 1 session ${answerOf(aiTurn1?.session)}/frame ${answerOf(aiTurn1?.frame)}; AI turn 2 session ${answerOf(aiTurn2?.session)}/frame ${answerOf(aiTurn2?.frame)}; versions ${versionsBefore} -> ${versionsAfterRevoke}`;
+}
+
+/**
  * "" when the measured answer is exactly the expected one — status first, then
  * the code and the error_class when the expectation names them. One rule, used
  * by the step record and by the verdict, so a route's answer is never widened.
@@ -279,8 +303,10 @@ export function turn1MissesOf(aiTurn1) {
  * The pure verdict of one case. Hard rules first: a new version, a committed
  * intent or a per-route AI/Save answer that is not the code's is a FAIL. Only
  * when every revoke assertion passed may a turn 1 that refused the whole turn
- * downgrade the result to BLOCKED — 403 `office_capability_off` (D2-02) with
- * the capability named, or a fake deployment's 503 `ai_disabled`.
+ * downgrade the result to BLOCKED — 403 `office_capability_off` (D2-02) with the
+ * capability named, or a fake deployment's 503 `ai_disabled` — and a turn 1 that
+ * answered 200 but whose own CONTENT step is BLOCKED (`aiTurn1Step`, the row's
+ * recorded step) is BLOCKED too, never PASS (BE-704-202).
  */
 export function decideRevokeOutcome({
   caseName,
@@ -293,6 +319,7 @@ export function decideRevokeOutcome({
   save,
   commitIntent,
   aiDisabled = null,
+  aiTurn1Step = null,
 }) {
   const x = expectations;
   // Under a fake deployment the turn-1 CONTENT claim cannot be proven; the turn
@@ -307,6 +334,13 @@ export function decideRevokeOutcome({
     (aiTurn1?.session?.status === 403 && aiTurn1?.session?.code === CAPABILITY_OFF_CODE) ||
     (aiTurn1?.frame?.status === 403 && aiTurn1?.frame?.code === CAPABILITY_OFF_CODE);
   const turn1Capability = aiTurn1?.session?.capability || aiTurn1?.frame?.capability || "ai_uniwork";
+  // BE-704-202: the row's own turn-1 step is the source of truth for the content
+  // claim. A 200 whose content `classifyAiResponse` BLOCKed leaves that step
+  // BLOCKED, and a row must never end PASS while a step inside it is BLOCKED —
+  // the rule the cross-host driver applies. The two environment refusals carry
+  // their own blockers and are excluded here.
+  const turn1ContentBlocked =
+    aiTurn1Step?.status === "BLOCKED" && !turn1Disabled && !turn1CapabilityOff;
   if (versionsAfterRevoke !== versionsBefore) {
     return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `G7-A02 violation: version count changed across the revoke (${versionsBefore} -> ${versionsAfterRevoke})` };
   }
@@ -334,7 +368,7 @@ export function decideRevokeOutcome({
     return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: CAPABILITY_OFF_OWNER, blocker: capabilityOffBlocker(turn1Capability), reason: `${capabilityOffBlocker(turn1Capability)}; the revoke assertion ran (versions ${versionsBefore} -> ${versionsAfterRevoke}, AI turn 2 session ${answerOf(aiTurn2?.session)} frame ${answerOf(aiTurn2?.frame)}, Save refused ${answerOf(save?.commit)})` };
   }
   if (turn1Disabled) {
-    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: AI_DISABLED_OWNER, blocker: AI_DISABLED_BLOCKER, reason: `${AI_DISABLED_BLOCKER}; the revoke assertion ran (versions ${versionsBefore} -> ${versionsAfterRevoke}, AI turn 2 session ${answerOf(x.aiTurn2.session)} frame ${answerOf(x.aiTurn2.frame)}, Save refused ${answerOf(x.saveCommit)})` };
+    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: AI_DISABLED_OWNER, blocker: AI_DISABLED_BLOCKER, reason: `${AI_DISABLED_BLOCKER}; the revoke held (${measuredTurnsOf(aiTurn1, aiTurn2, versionsBefore, versionsAfterRevoke)})` };
   }
   // D2-02: the row may PASS only after a turn 1 that answered 200 on both
   // routes; anything else but the fake deployment's 503 is a FAIL naming both.
@@ -358,7 +392,7 @@ export function decideRevokeOutcome({
       status: "FAIL",
       exitCode: 1,
       owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: the capability ${flipped} turned off between turn 1 and turn 2 (turn 1 answered 200 on both routes): a capability flip, not a revoke result`,
+      reason: `G7-A02 violation: the capability ${flipped} turned off between turn 1 and turn 2 (turn 1 session ${answerOf(aiTurn1?.session)}/frame ${answerOf(aiTurn1?.frame)}, turn 2 session ${answerOf(aiTurn2?.session)}/frame ${answerOf(aiTurn2?.frame)}): a capability flip, not a revoke result`,
     };
   }
   const turn2Misses = [
@@ -373,7 +407,15 @@ export function decideRevokeOutcome({
       reason: `G7-A02 violation: AI turn 2 after the ${caseName} revoke: ${turn2Misses.join("; ")}`,
     };
   }
-  return { status: "PASS", exitCode: 0, reason: `${caseName}: revoke refused the next AI turn (session ${answerOf(x.aiTurn2.session)}, frame ${answerOf(x.aiTurn2.frame)}), the Save (upload ${answerOf(x.saveUpload)}, commit ${answerOf(x.saveCommit)}) and left versions at ${versionsAfterRevoke}` };
+  // BE-704-202: every revoke assertion held and turn 1 did answer 200 on both
+  // routes, but the CONTENT of that turn is BLOCKED (a fake provider's 200), so
+  // the row is BLOCKED — never PASS — naming that blocker, while every revoke
+  // assertion stays PASS in the record so the artifact still shows the revoke
+  // itself was proven. Deliberately after every FAIL check: any FAIL still wins.
+  if (turn1ContentBlocked) {
+    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: AI_CONTENT_OWNER, blocker: AI_CONTENT_BLOCKER, reason: `${AI_CONTENT_BLOCKER}; the revoke held (${measuredTurnsOf(aiTurn1, aiTurn2, versionsBefore, versionsAfterRevoke)})` };
+  }
+  return { status: "PASS", exitCode: 0, reason: `${caseName}: revoke refused the next AI turn (session ${answerOf(aiTurn2?.session)}, frame ${answerOf(aiTurn2?.frame)}), the Save (upload ${answerOf(save?.upload)}, commit ${answerOf(save?.commit)}) and left versions at ${versionsAfterRevoke}` };
 }
 
 // ---- transport -------------------------------------------------------------
@@ -685,6 +727,8 @@ export async function runRevokeCase({
 
     const verdict = decideRevokeOutcome({
       caseName, expectations, versionsBefore: before.count, versionsAfterRevoke: after.count, aiTurn1, aiTurn2, revoke, save, commitIntent,
+      // the row's own recorded turn-1 step decides the content claim (BE-704-202)
+      aiTurn1Step: steps.aiTurn1,
     });
     const trim = (turn) => ({ session: { status: turn.session.status, code: turn.session.code, errorClass: turn.session.errorClass, capability: turn.session.capability }, frame: { status: turn.frame.status, code: turn.frame.code, errorClass: turn.frame.errorClass, capability: turn.frame.capability } });
     const details = { aiTurn1: trim(aiTurn1), aiTurn2: trim(aiTurn2), save, revoke, commitIntent, routeNotes, prepared: { restricted: caseName === "downgrade", shareLevel: revoke.shareLevel ?? "" } };
