@@ -38,7 +38,7 @@ ESLint `no-restricted-imports`: cấm `@uniwork/views*`, `@uniwork/ui*`, `next/*
 `ws-client.ts` (copy thiết kế multica): một socket, frame đầu `{"type":"auth","payload":{"token"}}`, chờ `auth_ack`, `subscribe`/`unsubscribe` scope `chat`, xử lý `subscribe_ack`/`subscribe_error(lookup_failed)` với backoff như `packages/core/realtime/use-chat-room-scopes.ts`, `{"type":"ping"}` mỗi 25 giây, backoff jitter, ba trạng thái idle/active/paused theo AppState, NetInfo; socket đóng `CloseSessionEnded` → refresh → reconnect → replay scope; giới hạn 25 scope chat. `realtime-provider.tsx` mount theo auth + workspace. `use-<feature>-realtime.ts` là tầng ba (M2a). Mọi frame chỉ mang id (ADR 0015): patch bằng fetch theo id, rồi invalidate hẹp.
 
 ### 3.5 Push
-Sau đăng nhập lần đầu hỏi quyền; `getExpoPushTokenAsync({projectId})` → đăng ký qua tuyến push hiện có với `platform` (lát N2). Android: kênh `chat` (importance high). Chạm thông báo → mở `data.url` qua bộ parse deep link. Hủy đăng ký khi tắt trong Cài đặt hoặc đăng xuất.
+Sau đăng nhập lần đầu hỏi quyền; `getExpoPushTokenAsync({projectId})` → đăng ký qua tuyến push hiện có với `platform` (lát N2). Android: kênh `chat` (importance high). Chạm thông báo → mở `data.url` qua bộ parse deep link. Hủy đăng ký khi tắt trong Cài đặt hoặc đăng xuất. Nhịp presence chat (`POST` heartbeat, lát N2 §3.5) mang `visible: AppState.currentState === "active"`; thiếu trường này nhịp bị coi là ẩn và push không bao giờ được chặn khi app đang mở.
 
 ### 3.6 Deep link
 `expo-linking`: universal/app link `https://app.uniworkos.com/{org}/{ws}/chat?room=&message=` và `uniworkchat://open?url=`; `lib/deep-link.ts` parse bằng cùng tham số web (`room`, `message`, `dm`), có test; app chưa đăng nhập → lưu rồi mở sau.

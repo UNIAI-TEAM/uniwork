@@ -22,6 +22,7 @@ type Metrics interface {
 	IncNotificationMerged()
 	IncPushSent(result string)
 	IncDigestSent()
+	IncPushSuppressed(kind string)
 }
 
 // Consumer is the single source of notifications: it reads committed events

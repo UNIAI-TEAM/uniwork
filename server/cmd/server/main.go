@@ -475,12 +475,14 @@ func main() {
 	}
 	notifConsumer.SetDocumentReaders(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
-	var pushSender notification.PushSender
+	var webSender notification.PushSender
 	if cfg.PushEnabled() {
-		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
+		webSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
 		log.Info("web push enabled", "subject", cfg.VAPIDSubject)
 	}
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken}, webSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
+	pushConsumer.SetPresence(chatSvc)
 	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	// The inbox list marks a document row's resource_access_lost /

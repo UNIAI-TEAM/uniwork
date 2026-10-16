@@ -103,6 +103,7 @@ func (h *handlers) signalChatPresence(w http.ResponseWriter, r *http.Request) {
 		middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"),
 		in.State,
+		in.Visible,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
