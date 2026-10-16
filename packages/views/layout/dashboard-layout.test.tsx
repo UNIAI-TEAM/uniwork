@@ -27,7 +27,9 @@ vi.mock("./workspace-realtime-sync", () => ({ WorkspaceRealtimeSync: () => null 
 vi.mock("./workspace-chat-presence", () => ({ WorkspaceChatPresence: () => null }));
 vi.mock("./workspace-chat-attention", () => ({ WorkspaceChatAttention: () => null }));
 vi.mock("./entitlement-gate-toast", () => ({ EntitlementGateToastHost: () => null }));
-vi.mock("./app-sidebar", () => ({ AppSidebar: () => null }));
+vi.mock("./app-sidebar", () => ({
+  AppSidebar: (p: { variant?: string }) => <div data-testid="app-sidebar" data-variant={p.variant ?? "full"} />,
+}));
 vi.mock("./navigation-progress", () => ({ NavigationProgress: () => null }));
 vi.mock("./workspace-top-bar", () => ({ WorkspaceChrome: ({ children }: { children: ReactNode }) => children }));
 
@@ -76,5 +78,25 @@ describe("DashboardLayout workspace storage scope", () => {
       state: { surfaces: Record<string, { state: { viewMode: string } }> };
     };
     expect(parsed.state.surfaces["workspace:tasks"]?.state.viewMode).toBe("table");
+  });
+});
+
+describe("DashboardLayout variant", () => {
+  it("renders the full sidebar by default", () => {
+    render(
+      <DashboardLayout orgSlug="acme" wsSlug="team">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-variant", "full");
+  });
+
+  it("hands a chat-only variant to the sidebar", () => {
+    render(
+      <DashboardLayout orgSlug="acme" wsSlug="team" variant="chat-only">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-variant", "chat-only");
   });
 });

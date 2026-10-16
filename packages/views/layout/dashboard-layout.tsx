@@ -24,6 +24,8 @@ interface DashboardLayoutProps {
   /** Rendered inside the content inset, above the page (dialogs, overlays). */
   extra?: ReactNode;
   loadingFallback?: ReactNode;
+  /** `chat-only` is the UniChat shell: the sidebar keeps the switcher and account menu, drops the module nav. */
+  variant?: "full" | "chat-only";
 }
 
 /**
@@ -40,7 +42,7 @@ const MAIN_CONTENT_ID = "main-content";
  * bar. Web and any future host compose their route params into this and
  * nothing else.
  */
-export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallback }: DashboardLayoutProps) {
+export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallback, variant }: DashboardLayoutProps) {
   const { t } = useTranslation();
   return (
     <DashboardGuard orgSlug={orgSlug} wsSlug={wsSlug} loadingFallback={loadingFallback ?? <WorkspaceLoader />}>
@@ -68,7 +70,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
                   >
                     {t("nav.skip_to_content")}
                   </a>
-                  <AppSidebar />
+                  <AppSidebar variant={variant} />
                   <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
                     <NavigationProgress />
                     <WorkspaceChrome>{children}</WorkspaceChrome>

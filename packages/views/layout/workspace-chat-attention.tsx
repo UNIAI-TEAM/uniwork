@@ -5,14 +5,14 @@ import { useTranslation } from "react-i18next";
 import { useChatUnreadBadge } from "@uniwork/core/chat";
 import { useNotifications } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
-import { getWebNotificationPermission, showWebNotification } from "@uniwork/core/platform";
+import { getWebNotificationPermission, showWebNotification, useHostFocus } from "@uniwork/core/platform";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { notificationTitleKey } from "../notifications/notification-title";
 import { resourceHref } from "../notifications/resource-href";
 import { useWorkspace } from "./workspace-context";
 
 const TITLE_COUNT = /^\(\d+\) /;
-/** Kinds worth a banner over whatever the person is doing in another tab (H1). */
+/** Kinds worth a banner over whatever the person is doing in another tab or window (H1). */
 const BANNER_KINDS = new Set(["chat_dm", "chat_mentioned"]);
 
 /** Prefixes the tab title with the count, and keeps it there when the router rewrites the title. */
@@ -36,7 +36,8 @@ function useTitleCount(count: number) {
 /**
  * Chat reaching a person who is not looking at Chat: the unread count in the
  * tab title, and a browser banner for a new DM or mention while the tab is
- * hidden. The banner needs permission already granted (never prompted here)
+ * hidden (inside UniChat: while the shell window is not focused). The banner
+ * needs permission already granted (never prompted here)
  * and stays off while this browser has Web Push, which shows the same thing.
  * It watches the unread notifications the realtime sync already refetches on
  * notification.created, so the rows, titles and preferences are the inbox's;
@@ -50,6 +51,7 @@ export function WorkspaceChatAttention() {
   const workspacesLoading = workspaceList.isPending;
   useTitleCount(useChatUnreadBadge(workspace.id));
 
+  const focused = useHostFocus();
   const push = usePush();
   const banners = getWebNotificationPermission() === "granted" && !push.subscribed;
   const recent = useNotifications({ unreadOnly: true, limit: 20, enabled: banners });
@@ -63,8 +65,8 @@ export function WorkspaceChatAttention() {
     const stamp = (n: (typeof rows)[number]) => Date.parse(n.updated_at ?? n.created_at) || 0;
     const before = newestSeen.current;
     newestSeen.current = Math.max(before ?? -Infinity, ...rows.map(stamp));
-    // The first load is the backlog, not news; a visible tab has the inbox.
-    if (before === null || document.visibilityState !== "hidden") return;
+    // The first load is the backlog, not news; a focused app has the inbox.
+    if (before === null || focused) return;
     for (const n of rows) {
       // Only what is newer than anything seen: an old row the top-20 window
       // pulls in once newer ones are read is not news (UNI-1074).
@@ -79,6 +81,6 @@ export function WorkspaceChatAttention() {
         body: "",
       });
     }
-  }, [recent.data, t, workspace, workspaces, workspacesLoading]);
+  }, [focused, recent.data, t, workspace, workspaces, workspacesLoading]);
   return null;
 }
