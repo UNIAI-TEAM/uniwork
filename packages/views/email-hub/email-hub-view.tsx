@@ -155,8 +155,7 @@ export function EmailHubView() {
     [debouncedSearch, selectedLabel, unreadOnly, hasAttachmentsOnly],
   );
   const threads = useEmailHubThreads(wsId, accountId, mailFolder, filters, !isScheduledFolder);
-  const lazySyncFolder =
-    isScheduledFolder || folder === "STARRED" ? "" : folder === "SNOOZED" ? "SNOOZED" : mailFolder;
+  const lazySyncFolder = isScheduledFolder ? "" : folder === "STARRED" || folder === "SNOOZED" ? folder : mailFolder;
   const folderSyncing = useEmailHubLazyFolderSync(wsId, accountId, lazySyncFolder, {
     listFetched: threads.isFetched,
     listTotal: threads.data?.pages[0]?.counts.total ?? 0,

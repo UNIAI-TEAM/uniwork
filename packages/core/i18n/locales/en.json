@@ -1629,6 +1629,8 @@
       "subject_placeholder": "What is this about?",
       "body": "Message",
       "body_placeholder": "Write your message…",
+      "paste_image_attached_one": "Pasted image added as an attachment.",
+      "paste_image_attached_other": "{{count}} pasted images added as attachments.",
       "send": "Send",
       "sending": "Sending…",
       "schedule_send": "Schedule send",
@@ -1904,14 +1906,14 @@
     },
     "empty": {
       "inbox": "Your inbox is empty. New mail shows up here after the next sync.",
-      "starred": "No starred email. Star the ones you want to come back to.",
-      "snoozed": "Nothing snoozed. Snoozed email returns to your inbox at the time you pick.",
+      "starred": "No starred email yet. Opening this folder pulls starred mail from your mailbox; you can also star mail here.",
+      "snoozed": "Nothing snoozed in UniWork. Snooze hides mail from Inbox until the time you pick (provider snooze is not synced).",
       "sent": "No sent email in this mailbox yet.",
-      "scheduled": "Nothing scheduled. When writing, use the arrow beside Send to schedule.",
+      "scheduled": "Nothing scheduled in UniWork. Use the arrow beside Send to schedule — Gmail/Outlook Scheduled is not synced here.",
       "drafts": "No drafts from Gmail.",
       "archive": "No archived email.",
-      "spam": "Spam is empty. Refresh to pull spam from Gmail.",
-      "trash": "Trash is empty."
+      "spam": "Spam is empty. UniWork syncs spam in the background; open this folder or refresh to pull the latest.",
+      "trash": "Trash is empty. Deleted mail is synced from your mailbox — refresh if you just emptied it on the provider."
     },
     "onboarding": {
       "title": "Connect a mailbox to get started",

@@ -1628,6 +1628,8 @@
       "subject_placeholder": "Email này về việc gì?",
       "body": "Nội dung",
       "body_placeholder": "Viết nội dung email…",
+      "paste_image_attached_one": "Đã thêm ảnh dán vào đính kèm.",
+      "paste_image_attached_other": "Đã thêm {{count}} ảnh dán vào đính kèm.",
       "send": "Gửi",
       "sending": "Đang gửi…",
       "schedule_send": "Hẹn giờ gửi",
@@ -1713,13 +1715,13 @@
       "trash": "Đã xóa",
       "scheduled": "Đã lên lịch",
       "spam": "Thư rác",
-      "snoozed": "Tạm hoãn",
+      "snoozed": "Đã tạm ẩn",
       "more": "Thêm",
       "starred": "Gắn sao",
       "less": "Thu gọn"
     },
     "snooze": {
-      "action": "Tạm hoãn",
+      "action": "Tạm ẩn",
       "tomorrow": "Ngày mai (9:00)",
       "next_week": "Tuần sau (9:00)",
       "unsnooze": "Hiện lại trong Hộp đến",
@@ -1903,14 +1905,14 @@
     },
     "empty": {
       "inbox": "Hộp đến trống. Email mới sẽ hiện ở đây sau lần đồng bộ tới.",
-      "starred": "Chưa có email gắn sao. Gắn sao cho email cần quay lại để tìm nhanh.",
-      "snoozed": "Không có email tạm hoãn. Email tạm hoãn sẽ quay về Hộp đến đúng giờ đã chọn.",
+      "starred": "Chưa có email gắn sao. Mở thư mục này sẽ kéo thư gắn sao từ hộp thư; bạn cũng có thể gắn sao ngay tại đây.",
+      "snoozed": "Không có email đã tạm ẩn trong UniWork. Tạm ẩn giấu thư khỏi Hộp đến đến giờ đã chọn (tạm hoãn trên Gmail/Outlook không được đồng bộ).",
       "sent": "Chưa có email đã gửi trong hộp thư này.",
-      "scheduled": "Chưa có email hẹn giờ. Khi soạn, bấm mũi tên cạnh Gửi để hẹn giờ.",
+      "scheduled": "Chưa có email hẹn giờ trong UniWork. Bấm mũi tên cạnh Gửi để hẹn giờ — thư Đã lên lịch trên Gmail/Outlook không được đồng bộ vào đây.",
       "drafts": "Không có bản nháp nào từ Gmail.",
       "archive": "Chưa có email lưu trữ.",
-      "spam": "Thư rác trống. Bấm làm mới để kéo thư rác từ Gmail.",
-      "trash": "Không có email trong Đã xóa."
+      "spam": "Thư rác trống. UniWork đồng bộ thư rác nền; mở thư mục này hoặc làm mới để kéo bản mới nhất.",
+      "trash": "Không có email trong Đã xóa. Thư đã xóa được đồng bộ từ hộp thư — làm mới nếu bạn vừa xóa bên nhà cung cấp."
     },
     "onboarding": {
       "title": "Kết nối hộp thư để bắt đầu",
