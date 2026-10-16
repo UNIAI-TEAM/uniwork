@@ -104,7 +104,7 @@ func (s *RunStorePG) TakeTurn(ctx context.Context, in TakeRunTurn) (Run, error) 
 	if err != nil {
 		return Run{}, err
 	}
-	return Run{}, runTurnRefusal(live, in.ToolRound, now)
+	return runTurnRefusal(live, in.ToolRound, now)
 }
 
 // AddCredits implements RunStore. A run already swept is a no-op: the usage
@@ -117,21 +117,23 @@ func (s *RunStorePG) AddCredits(ctx context.Context, runID, conversationID strin
 
 // runTurnRefusal classifies a turn that reserved nothing (design §4.2): past
 // its window or gone is run_expired, a spent cap is run_limit_reached with the
-// cap in fields.limit. The final branch is the lost race - a sweep or the
-// expiry boundary moved between the UPDATE and the read, leaving a live row
-// under both caps - and a turn that reserved nothing is answered "ask again",
-// which opens a new run in the same conversation.
-func runTurnRefusal(row db.AiUniworkRun, toolRound bool, now time.Time) error {
+// cap in fields.limit — and the run itself beside it, because that refusal is
+// an answer of a live run and the wire names it (A12, design §2.1). The final
+// branch is the lost race - a sweep or the expiry boundary moved between the
+// UPDATE and the read, leaving a live row under both caps - and a turn that
+// reserved nothing is answered "ask again", which opens a new run in the same
+// conversation: no run is named there, so the client drops the id it holds.
+func runTurnRefusal(row db.AiUniworkRun, toolRound bool, now time.Time) (Run, error) {
 	if !row.ExpiresAt.Time.After(now) {
-		return ErrRunExpired
+		return Run{}, ErrRunExpired
 	}
 	if row.ModelCalls >= UniworkRunModelCallMax {
-		return RunLimitReached(UniworkRunLimitModelCalls)
+		return runFromRow(row), RunLimitReached(UniworkRunLimitModelCalls)
 	}
 	if toolRound && row.ToolRounds >= UniworkRunToolRoundMax {
-		return RunLimitReached(UniworkRunLimitToolRounds)
+		return runFromRow(row), RunLimitReached(UniworkRunLimitToolRounds)
 	}
-	return ErrRunExpired
+	return Run{}, ErrRunExpired
 }
 
 func runFromRow(row db.AiUniworkRun) Run {
