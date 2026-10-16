@@ -1,4 +1,6 @@
 "use client";
+
+import { DEMO_PROFILE } from "./product-demo-data";
 import { MousePointer2, Pause, Play } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -68,7 +70,7 @@ export function ProductPlayback({ featureKey }: { featureKey: PlaybackFeature; o
     return () => { observer.disconnect(); clearTimeout(timer); surface.removeEventListener("scroll", measure, true); };
   }, [featureKey, step, i18n.language, surface]);
   const playbackControl = <Button variant="ghost" size="icon" data-action="toggle-playback" onClick={toggle} aria-label={t(playing ? "landing.playback.pause" : "landing.playback.play")}>{playing ? <Pause aria-hidden /> : <Play aria-hidden />}</Button>;
-  const cursorContent = <div ref={cursor} className="action-cursor" aria-hidden><i className="action-click-ring" /><MousePointer2 /><div className="action-cursor-label"><Logo variant="mark" size={22} decorative /><span><strong>Đạt Đặng</strong><small>{t(`landing.actionDemo.pointer.${TARGETS[featureKey][step] ?? "task-row"}`)}</small></span></div></div>;
+  const cursorContent = <div ref={cursor} className="action-cursor" aria-hidden><i className="action-click-ring" /><MousePointer2 /><div className="action-cursor-label"><Logo variant="mark" size={22} decorative /><span><strong>{DEMO_PROFILE.name}</strong><small>{t(`landing.actionDemo.pointer.${TARGETS[featureKey][step] ?? "task-row"}`)}</small></span></div></div>;
   if (featureKey === "tasks") return <div ref={host} className="product-playback product-current-task-player" data-feature-preview={featureKey} data-step={step} data-beat-count={beatCount} data-running={running} data-reduced={reduced} data-pressing={pressing}>
     <div className="product-demo-playback-control">{playbackControl}</div>
     <div ref={attachStage} className="action-stage demo-stage product-task-stage" data-scene-kind="tasks" role="img" aria-label={t(`landing.actionDemo.steps.tasks${step}`)}><div inert aria-hidden="true"><ProductTaskScene step={step} /></div>{cursorContent}</div>

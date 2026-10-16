@@ -8,15 +8,20 @@ import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
+import { DEMO_PROFILE } from "./product-demo-data";
 
-export function ProductDemoHome({ onTask, onMeeting }: { onTask: (title: string) => void; onMeeting: (title: string, startsAt: string) => void }) {
+export function ProductDemoHome({ onTask, onMeeting, onOpenTask, onOpenMeetings }: { onTask: (title: string) => void; onMeeting: (title: string, startsAt: string) => void; onOpenTask: () => void; onOpenMeetings: () => void }) {
   const { t, i18n } = useTranslation();
   const [creating, setCreating] = useState<"task" | "meeting" | null>(null);
   const [title, setTitle] = useState("");
   const [startsAt, setStartsAt] = useState("2026-10-16T14:00");
   return <div className="product-demo-home">
     <time dateTime="2026-10-16">{new Intl.DateTimeFormat(i18n.language.startsWith("vi") ? "vi-VN" : "en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date("2026-10-16T08:00:00Z"))}</time>
-    <h2>{t("home.greeting.morning", { name: "Đạt" })}</h2><p>{t("home.headline.clear")}</p>
+    <h2>{t("home.greeting.morning", { name: DEMO_PROFILE.firstName })}</h2><p>{t("landing.lovable.todayAttention")}</p>
+    <section className="product-demo-start"><header><h3>{t("tasks.title")}</h3><p>{t("landing.lovable.sample")}</p></header>
+      {["brief", "handoff"].map(key => <button type="button" key={key} onClick={onOpenTask}><IconTile icon={MODULE_ICONS.tasks} tone="green" /><span><strong>{t(`landing.productDemo.board.tasks.${key}`)}</strong><small>{DEMO_PROFILE.name}</small></span><ChevronRight aria-hidden /></button>)}
+      <button type="button" onClick={onOpenMeetings}><IconTile icon={MODULE_ICONS.meetings} tone="violet" /><span><strong>{t("landing.lovable.sync")}</strong><small>09:30 · Demo Studio</small></span><ChevronRight aria-hidden /></button>
+    </section>
     <section className="product-demo-start"><header><h3>{t("home.start.title")}</h3><p>{t("home.start.description")}</p></header>
       {(["task", "meeting"] as const).map(kind => <button type="button" key={kind} aria-haspopup="dialog" onClick={() => { setTitle(""); setCreating(kind); }}>
         <IconTile icon={kind === "task" ? MODULE_ICONS.tasks : MODULE_ICONS.meetings} tone={kind === "task" ? "green" : "violet"} />
