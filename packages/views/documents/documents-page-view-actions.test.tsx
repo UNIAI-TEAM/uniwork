@@ -266,6 +266,32 @@ describe("starring a document", () => {
     expect(await rowOf("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Khác")).toBeNull();
   });
+
+  it("shows the star marker on the row after starring and removes it after unstarring", async () => {
+    let starred = false;
+    const fav = { document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" };
+    route({
+      list: () => [summary()],
+      favorites: () => (starred ? [fav] : []),
+      post: (path) => {
+        if (path === "/api/v1/documents/d1/favorite") starred = true;
+        return { favorite: fav };
+      },
+      del: (path) => {
+        if (path === "/api/v1/documents/d1/favorite") starred = false;
+        return { status: "ok" };
+      },
+    });
+    renderView();
+    const row = await rowOf("Kế hoạch Q4");
+    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.star"));
+    expect(await within(row).findByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.unstar"));
+    await waitFor(() => expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull());
+  });
 });
 
 describe("library views", () => {
