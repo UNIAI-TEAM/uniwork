@@ -189,21 +189,29 @@ export function DocumentDetailView({
   );
   const knownGrantId = activeGrant?.id ?? adminSummary.data?.my_grant?.id;
 
+  const canBreakGlass = error && isDocumentRestrictedError(error) ? canBreakGlassFromError(error) : true;
+  // One predicate for the card's "Manage access" button and the deep link.
+  const canManageAccess = canBreakGlass && !!adminSummary.data;
+  // The member 404 card has no Share to open: it only consumes the parameter.
+  const memberLocked = !query.data && errorClass === "missing" && !fromInbox;
+
   // The pure admin's entry for `?access=requests` (access addendum §2.5, N-02):
   // once the summary answered, an unarchived, unowned document opens Share at
-  // the requests section; a refusal or an archived one drops the parameter.
-  // Only the locked card consumes it: a readable document leaves it to the
-  // actions menu.
+  // the requests section when the card offers Manage access; a refusal or an
+  // archived one drops the parameter. The locked cards (admin and member)
+  // consume it: a readable document leaves it to the actions menu.
   useAccessRequestsDeepLink({
-    allowed: !!adminSummary.data && !adminSummary.data.document.archived_at && !adminSummary.data.document.owner_kind,
-    ready: gate === "on" && !query.isPending && showLockedAdmin && (adminSummary.isSuccess || adminSummary.isError),
+    allowed:
+      canManageAccess && !adminSummary.data?.document.archived_at && !adminSummary.data?.document.owner_kind,
+    ready:
+      gate === "on" &&
+      !query.isPending &&
+      ((showLockedAdmin && (adminSummary.isSuccess || adminSummary.isError)) || memberLocked),
     onOpen: () => {
       setFocusRequests(true);
       setShareOpen(true);
     },
   });
-
-  const canBreakGlass = error && isDocumentRestrictedError(error) ? canBreakGlassFromError(error) : true;
 
   const backAction = (
     <Button type="button" variant="outline" size="sm" onClick={onBackToList}>
@@ -311,7 +319,7 @@ export function DocumentDetailView({
           onRetryOpen={() => void refreshAfterGrant()}
           isSubmitting={grantBreakGlass.isPending}
           onGrantBreakGlass={handleGrantBreakGlass}
-          onManageAccess={canBreakGlass && adminRef && adminSummary.data ? () => setShareOpen(true) : undefined}
+          onManageAccess={canManageAccess ? () => setShareOpen(true) : undefined}
           onOpenAccessLog={canBreakGlass && adminRef ? () => setAccessLogOpen(true) : undefined}
         />
         {adminRef ? (

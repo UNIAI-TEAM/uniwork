@@ -1071,4 +1071,46 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     expect(screen.queryByRole("button", { name: t("documents.share.admin_manage_button") })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("shows the admin card for a document read that carries admin_scope without a level", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") {
+        return Promise.resolve({
+          document: { id: "d1", workspace_id: WS, kind: "page", title: "Kế hoạch Q3", visibility: "restricted", revision: "3", admin_scope: true },
+        });
+      }
+      if (path === "/api/v1/documents/d1/admin-summary") return Promise.resolve(summaryBody());
+      return Promise.resolve({});
+    });
+    renderWithNav(fakeNav("/acme/team/documents/d1"));
+    expect(await screen.findByTestId("document-locked-card")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") })).toBeInTheDocument();
+  });
+
+  it("opens no Share from ?access=requests when the card offers no Manage access (can_break_glass false)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") {
+        return Promise.reject(
+          new ApiError("restricted", "document_restricted", 403, undefined, { can_break_glass: false }, "permission"),
+        );
+      }
+      if (path === "/api/v1/documents/d1/admin-summary") return Promise.resolve(summaryBody());
+      return Promise.resolve({ requests: [] });
+    });
+    const nav = fakeNav("/acme/team/documents/d1?access=requests&x=1");
+    renderWithNav(nav);
+    expect(await screen.findByTestId("document-locked-card")).toBeInTheDocument();
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1?x=1"));
+    expect(screen.queryByRole("button", { name: t("documents.share.admin_manage_button") })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: t("documents.share.title") })).toBeNull();
+  });
+
+  it("consumes ?access=requests on the member 404 card too", async () => {
+    requestMock.mockImplementation(() => Promise.reject(new ApiError("not found", "not_found", 404)));
+    const nav = fakeNav("/acme/team/documents/d1?access=requests&x=1");
+    renderWithNav(nav);
+    expect(await screen.findByRole("button", { name: t("documents.access_request.send") })).toBeInTheDocument();
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1?x=1"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
 });
