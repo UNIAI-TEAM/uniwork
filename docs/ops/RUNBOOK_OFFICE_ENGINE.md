@@ -39,7 +39,7 @@ only to an origin listed in `OFFICE_ENGINE_OUTPUT_ORIGINS`. The service never fe
 | `OFFICE_ENGINE_GRANT_KEY` | — (required, ≥ 32 chars, ≠ token) | Grant signing key, shared with Go |
 | `OFFICE_ENGINE_OUTPUT_ORIGINS` | empty (no output allowed) | Comma list of bare origins of the object store |
 | `OFFICE_ENGINE_HOST` / `OFFICE_ENGINE_PORT` | `0.0.0.0` / `8090` | Listen address |
-| `OFFICE_ENGINE_MAX_WORKERS` | `2` | Worker processes at once (max 64) |
+| `OFFICE_ENGINE_MAX_WORKERS` | `2` | Worker processes at once (max 64); also the bound on submit bodies being read and parsed at once — a submit beyond it answers `503 engine_overloaded` + `Retry-After: 2` before its body is read (the refusal that bounds peak supervisor memory) |
 | `OFFICE_ENGINE_MAX_QUEUE` | `16` | Accepted jobs waiting for a worker; beyond it `503 engine_overloaded` |
 | `OFFICE_ENGINE_MAX_JOB_MS` | `120000` | Wall-clock ceiling per job (contract max 600000) |
 | `OFFICE_ENGINE_CPU_MS` | `60000` | CPU time per job tree |

@@ -1,11 +1,13 @@
 // Private HTTP surface of the engine service. Go is the only caller: every
 // route except /healthz needs the service credential, and every job route
 // also needs the job's grant. Request order for a submit:
-//   credential -> body cap -> JSON -> grant signature -> envelope schema ->
-//   operation bound? -> grant binding -> job.
-// Convert jobs (Q7, G2-07b) follow the same order: the pair's binding
-// (convert:xls, convert:odt) is checked with every other operation, and the
-// target format rides the job payload into the worker.
+//   credential -> declared body cap -> body slot -> JSON -> grant signature ->
+//   envelope schema -> operation bound? -> grant binding -> job.
+// The body slot bound (config.maxWorkers) caps how many submit bodies are read
+// and parsed at once: a base64 body costs several times its wire size in
+// transient supervisor memory, and only this count bounds peak usage. A submit
+// over the bound answers 503 engine_overloaded with Retry-After before a byte
+// of its body is read.
 // No route takes a URL or a path from the caller as something to fetch: input
 // bytes arrive in the envelope (bound to the grant's checksum), and the only
 // place output goes is the write target inside the signed grant.
@@ -63,6 +65,23 @@ function authenticated(req: IncomingMessage, token: string): boolean {
 
 class BodyTooLarge extends Error {}
 
+/** Bounded count of submit bodies being read+parsed. One slot = one request
+    memory spike, so maxWorkers bounds peak supervisor RAM the same way it
+    bounds concurrent jobs. Released only after the body is fully buffered and
+    parsed (or the read failed). */
+class BodySlots {
+  private held = 0;
+  constructor(private readonly max: number) {}
+  tryAcquire(): boolean {
+    if (this.held >= this.max) return false;
+    this.held++;
+    return true;
+  }
+  release(): void {
+    this.held--;
+  }
+}
+
 function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const declared = Number(req.headers["content-length"] ?? 0);
@@ -70,19 +89,42 @@ function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
       reject(new BodyTooLarge());
       return;
     }
+    // A declared length buffers once into a single allocation — the chunks +
+    // concat path would copy the whole body a second time. Chunked bodies keep
+    // the chunk list because no length is known up front.
+    const fixed = Number.isInteger(declared) && declared > 0 ? Buffer.allocUnsafe(declared) : null;
     const chunks: Buffer[] = [];
     let size = 0;
-    req.on("data", (chunk: Buffer) => {
+    const done = (error: Error | null, body?: Buffer) => {
+      req.off("data", onData);
+      req.off("end", onEnd);
+      req.off("error", done);
+      req.off("close", onClose);
+      if (error) reject(error);
+      else resolve(body!);
+    };
+    const onData = (chunk: Buffer) => {
       size += chunk.length;
-      if (size > limit) {
-        reject(new BodyTooLarge());
-        req.destroy();
+      if (size > limit || (fixed !== null && size > fixed.length)) {
+        // More bytes than declared, or more than the cap: stop reading so the
+        // kernel buffer backs up on the client, not in our heap.
+        req.pause();
+        done(new BodyTooLarge());
         return;
       }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+      if (fixed !== null) chunk.copy(fixed, size - chunk.length);
+      else chunks.push(chunk);
+    };
+    const onEnd = () => done(null, fixed !== null && size === fixed.length ? fixed : Buffer.concat(chunks));
+    // The client went away mid-body: no 'end' is coming, so without this the
+    // read (and the body slot) leaks until requestTimeout kills the socket.
+    const onClose = () => {
+      if (!req.complete) done(new Error("request body aborted"));
+    };
+    req.on("data", onData);
+    req.on("end", onEnd);
+    req.on("error", done);
+    req.on("close", onClose);
   });
 }
 
@@ -103,26 +145,56 @@ function buildJobPayload(operation: string, payload: Record<string, unknown>): R
   return Object.keys(job).length > 0 ? job : null;
 }
 
-async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDeps): Promise<void> {
+async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDeps, slots: BodySlots): Promise<void> {
   const { config } = deps;
   // Base64 inflates by 4/3; the envelope around it is small.
   const bodyLimit = Math.ceil((config.limits.maxInputBytes * 4) / 3) + 64 * 1024;
-  let raw: Buffer;
-  try {
-    raw = await readBody(req, bodyLimit);
-  } catch (error) {
-    if (error instanceof BodyTooLarge) {
-      deps.metrics.rejected("upload_bounds");
-      fail(res, boundaryFailure("upload_bounds", { max_input_bytes: config.limits.maxInputBytes }));
-      return;
-    }
-    throw error;
+  // A body declared over the cap fails before it competes for a read slot:
+  // refusal costs nothing and this upload can never succeed anyway.
+  const declared = Number(req.headers["content-length"] ?? 0);
+  if (declared > bodyLimit) {
+    deps.metrics.rejected("upload_bounds");
+    fail(res, boundaryFailure("upload_bounds", { max_input_bytes: config.limits.maxInputBytes }));
+    return;
+  }
+  // Read slots bound peak memory: maxWorkers bodies being buffered + parsed at
+  // once, no more. Refusal precedes any read and frees the socket instead of
+  // draining an upload the answer already refuses.
+  if (!slots.tryAcquire()) {
+    deps.metrics.rejected("engine_overloaded");
+    res.setHeader("Retry-After", 2);
+    fail(res, boundaryFailure("engine_overloaded", { reason: "submit_bodies_full", max: config.maxWorkers }));
+    res.once("finish", () => req.socket.end());
+    return;
   }
   let envelope: unknown;
   try {
-    envelope = JSON.parse(raw.toString("utf8"));
-  } catch {
-    throw new EngineContractViolation("envelope", "json_required", "body is not JSON");
+    let raw: Buffer | undefined;
+    try {
+      raw = await readBody(req, bodyLimit);
+    } catch (error) {
+      if (error instanceof BodyTooLarge) {
+        // A streamed over-cap refusal stops reading and closes the socket once
+        // the 413 is on the wire — its remaining bytes are never buffered.
+        deps.metrics.rejected("upload_bounds");
+        fail(res, boundaryFailure("upload_bounds", { max_input_bytes: config.limits.maxInputBytes }));
+        res.once("finish", () => req.socket.end());
+        return;
+      }
+      throw error;
+    }
+    try {
+      // Buffer + string end at this block; before parse they are the two
+      // largest live objects of the request, so the buffer's reference goes
+      // first — it is collectable while the parser builds the envelope.
+      const text = raw.toString("utf8");
+      raw = undefined;
+      envelope = JSON.parse(text);
+    } catch {
+      throw new EngineContractViolation("envelope", "json_required", "body is not JSON");
+    }
+  } finally {
+    slots.release();
   }
   if (isDict(envelope) && envelope.operation === "convert") {
     // Convert is a normal job now (G2-07b): validateEnvelope enforces the
@@ -187,7 +259,7 @@ function jobRoute(req: IncomingMessage, res: ServerResponse, deps: ServerDeps, j
   send(res, 200, { ...jobView(job), previous_state: previous, linearized_at: Date.now() });
 }
 
-async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps): Promise<void> {
+async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps, slots: BodySlots): Promise<void> {
   const url = new URL(req.url ?? "/", "http://engine.invalid");
   const path = url.pathname;
   if (req.method === "GET" && path === "/healthz") {
@@ -233,7 +305,7 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     return;
   }
   if (req.method === "POST" && path === "/v1/jobs") {
-    await submit(req, res, deps);
+    await submit(req, res, deps, slots);
     return;
   }
   const match = JOB_ROUTE.exec(path);
@@ -245,8 +317,9 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
 }
 
 export function createHttpServer(deps: ServerDeps): Server {
+  const slots = new BodySlots(deps.config.maxWorkers);
   return createServer((req, res) => {
-    route(req, res, deps).catch((error: unknown) => {
+    route(req, res, deps, slots).catch((error: unknown) => {
       const failure = toFailure(error);
       const code = (failure.body.error as { code?: string } | undefined)?.code ?? "unknown";
       deps.metrics.rejected(code);
