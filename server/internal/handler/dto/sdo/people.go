@@ -111,6 +111,9 @@ type OrgInvitationDTO struct {
 	InvitedByName string `json:"invited_by_name,omitempty" example:"Đỗ Thị Hà"`
 	ExpiresAt     string `json:"expires_at" example:"2026-09-14T09:00:00Z"`
 	CreatedAt     string `json:"created_at" example:"2026-09-07T09:00:00Z"`
+	// Workspaces is what accepting grants (UNI-1582): the workspaces chosen
+	// for an organization invitation, or the one an invitation was sent from.
+	Workspaces []InvitationWorkspaceDTO `json:"workspaces" description:"Workspace người được mời sẽ vào khi chấp nhận; rỗng khi chưa cấp"`
 }
 
 // OrgInvitationListSDO is GET and POST /api/v1/orgs/{org}/invitations.

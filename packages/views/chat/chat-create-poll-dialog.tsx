@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import {
   canSubmitPoll,
   DEFAULT_ROOM_POLL_SETTINGS,
@@ -127,6 +128,7 @@ export function ChatCreatePollDialog({
     void sendMessage
       .mutateAsync({
         roomId,
+        client_msg_id: newChatClientMsgId(),
         poll: {
           question: question.trim(),
           options: optionValues.map((option) => option.trim()).filter(Boolean),

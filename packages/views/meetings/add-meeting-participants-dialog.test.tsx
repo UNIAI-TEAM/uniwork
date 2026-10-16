@@ -31,10 +31,10 @@ describe("AddMeetingParticipantsDialog", () => {
   it("says why Invite waits until someone is picked", async () => {
     requestMock.mockResolvedValue({ members });
     const dialog = renderDialog();
-    expect(within(dialog).getByRole("button", { name: "Mời thành viên" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Mời thành viên" })).toHaveAttribute("aria-disabled", "true");
     expect(within(dialog).getByText("Chọn ít nhất một người để mời")).toBeInTheDocument();
     fireEvent.click(await within(dialog).findByText("An"));
-    expect(within(dialog).getByRole("button", { name: "Mời thành viên" })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: "Mời thành viên" })).not.toHaveAttribute("aria-disabled");
   });
 
   it("shows the pending label while inviting", async () => {
@@ -44,7 +44,7 @@ describe("AddMeetingParticipantsDialog", () => {
     const dialog = renderDialog();
     fireEvent.click(await within(dialog).findByText("An"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Mời thành viên" }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang mời…" })).toBeDisabled());
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang mời…" })).toHaveAttribute("aria-disabled", "true"));
   });
 
   it("keeps only the people who failed, names them, and refreshes the roster at once", async () => {

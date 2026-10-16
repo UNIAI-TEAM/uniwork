@@ -192,3 +192,19 @@ func TestGrantCacheRevokeForgetsEveryWorkspaceOfTheUser(t *testing.T) {
 		t.Fatal("an empty scope must forget all of the user's grants")
 	}
 }
+
+func TestGrantCacheRevokeWithoutAUserForgetsEveryUsersGrantOnTheScope(t *testing.T) {
+	g := newGrantCache(time.Minute)
+	g.remember(scopeGrantKey{userID: "u1", workspaceID: "ws1", scopeID: "r1"})
+	g.remember(scopeGrantKey{userID: "u2", workspaceID: "ws2", scopeID: "r1"})
+	g.remember(scopeGrantKey{userID: "u1", workspaceID: "ws1", scopeID: "r2"})
+
+	g.RevokeScope("", ScopeChat, "r1")
+	if g.cached(scopeGrantKey{userID: "u1", workspaceID: "ws1", scopeID: "r1"}) ||
+		g.cached(scopeGrantKey{userID: "u2", workspaceID: "ws2", scopeID: "r1"}) {
+		t.Fatal("r1 grants survived")
+	}
+	if !g.cached(scopeGrantKey{userID: "u1", workspaceID: "ws1", scopeID: "r2"}) {
+		t.Fatal("the r2 grant was forgotten")
+	}
+}

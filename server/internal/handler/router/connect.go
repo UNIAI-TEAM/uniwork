@@ -17,6 +17,7 @@ import (
 //	DELETE /api/v1/orgs/{org}/connected-apps/{grantID}
 //	GET    /api/v1/orgs/{org}/mcp-policy
 //	PUT    /api/v1/orgs/{org}/mcp-policy
+//	PUT    /api/v1/orgs/{org}/mcp-policy/write
 func registerConnect(v1 api, h Routes) {
 	tags := []string{"connect"}
 	v1.Get("/auth/connect/attempts/{attemptID}", h.McpConsent, apiOp{
@@ -58,5 +59,10 @@ func registerConnect(v1 api, h Routes) {
 		summary:     "Turn the MCP connector on or off",
 		description: "Owner/admin bật/tắt connector; tắt chặn ngay, không xóa grant.",
 		tags:        tags, sdi: sdi.McpPolicySDI{}, sdo: sdo.McpPolicySDO{}, auth: true,
+	})
+	v1.Put("/orgs/{org}/mcp-policy/write", h.SetOrgMcpWritePolicy, apiOp{
+		summary:     "Turn write access for AI apps on or off",
+		description: "Owner/admin: cho phép ứng dụng AI đã kết nối tạo và sửa (ADR 0033). Cần connector đang bật.",
+		tags:        tags, sdi: sdi.McpWritePolicySDI{}, sdo: sdo.McpPolicySDO{}, auth: true,
 	})
 }

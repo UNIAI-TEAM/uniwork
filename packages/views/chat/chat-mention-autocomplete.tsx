@@ -1,7 +1,8 @@
 "use client";
 
 import { Users } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -14,12 +15,42 @@ export function mentionOptionId(listId: string, index: number): string {
   return `${listId}-opt-${index}`;
 }
 
+/** Place the list above the field, outside the conversation's overflow clip. */
+function useMentionListPosition(anchorRef: RefObject<HTMLElement | null>, open: boolean): CSSProperties | null {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      setStyle({
+        position: "fixed",
+        left: rect.left,
+        width: rect.width,
+        maxWidth: "24rem",
+        bottom: window.innerHeight - rect.top + 8,
+        zIndex: 50,
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [anchorRef, open]);
+  return open ? style : null;
+}
+
 export function ChatMentionAutocomplete({
   listId,
   candidates,
   selectedIndex,
   onSelect,
   onHover,
+  anchorRef,
   memberAvatarByUserId = {},
 }: {
   listId: string;
@@ -27,10 +58,12 @@ export function ChatMentionAutocomplete({
   selectedIndex: number;
   onSelect: (candidate: ChatMentionCandidate) => void;
   onHover: (index: number) => void;
+  anchorRef: RefObject<HTMLElement | null>;
   memberAvatarByUserId?: MemberAvatarUrlMap;
 }) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
+  const position = useMentionListPosition(anchorRef, true);
 
   // Arrow keys move the active option from the textarea; keep it in view.
   useEffect(() => {
@@ -39,25 +72,26 @@ export function ChatMentionAutocomplete({
   }, [listId, selectedIndex]);
 
   // No options is a message, not an empty list: a listbox with nothing in it
-  // reads as broken.
-  if (candidates.length === 0) {
-    return (
+  // reads as broken. The list is portaled so the conversation column's
+  // overflow does not clip it.
+  if (!position || typeof document === "undefined") return null;
+  const panel =
+    candidates.length === 0 ? (
       <div
         role="status"
-        className="absolute bottom-full left-0 z-20 mb-2 w-full max-w-sm rounded-lg bg-surface-raised p-2 shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
+        style={position}
+        className="rounded-lg bg-surface-raised p-2 shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
       >
         <p className="px-2 py-1.5 text-caption text-muted-foreground">{t("chat.mention_no_results")}</p>
       </div>
-    );
-  }
-
-  return (
+    ) : (
     <div
       ref={listRef}
       id={listId}
       role="listbox"
       aria-label={t("chat.mention_picker_label")}
-      className="absolute bottom-full left-0 z-20 mb-2 max-h-56 w-full max-w-sm overflow-y-auto rounded-lg bg-surface-raised p-1 shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
+      style={position}
+      className="max-h-56 overflow-y-auto rounded-lg bg-surface-raised p-1 shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
     >
       {candidates.map((candidate, index) => {
         const selected = index === selectedIndex;
@@ -112,5 +146,6 @@ export function ChatMentionAutocomplete({
         );
       })}
     </div>
-  );
+    );
+  return createPortal(panel, document.body);
 }

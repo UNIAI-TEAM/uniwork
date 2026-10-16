@@ -526,7 +526,8 @@ describe("DocumentsPageView", () => {
     const dialog = await screen.findByRole("dialog", { name: t("documents.home.folders.create_title_root") });
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
 
-    const crumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+    // Create, close, open and fetch the folder chain past the 1s default under the full CI run.
+    const crumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") }, { timeout: 5000 });
     expect(within(crumbs).getByText(t("documents.home.folders.default_name"))).toBeInTheDocument();
     expect((postCall("POST")?.[1] as { body?: unknown }).body).toEqual({
       kind: "folder",
@@ -747,7 +748,7 @@ describe("DocumentsPageView", () => {
       },
     });
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.open_office") }));
-    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://home"));
+    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://home", expect.anything()));
     expect(postCall("POST")).toBeUndefined();
   });
 

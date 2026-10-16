@@ -72,14 +72,33 @@ async function switchMode(mode: "table" | "board") {
   await page.getByTestId(`task-mode-${mode}`).click();
 }
 
-/** The main thread answers within 500 ms, three times over three seconds. */
+/**
+ * The page's main thread never stalls for 500 ms over a three-second window.
+ * Measured inside the page: a 50 ms timer chain records how late each tick
+ * runs, so only time the main thread was busy counts. A Date.now() around
+ * `page.evaluate` also times the runner ↔ browser round trip, which a loaded
+ * CI runner stretches past 500 ms with an idle page.
+ */
 async function expectResponsive() {
-  for (let i = 0; i < 3; i += 1) {
-    const started = Date.now();
-    await page.evaluate(() => 1);
-    expect(Date.now() - started).toBeLessThan(500);
-    if (i < 2) await page.waitForTimeout(1_000);
-  }
+  const worstStall = await page.evaluate(
+    (windowMs) =>
+      new Promise<number>((resolve) => {
+        const tickMs = 50;
+        const start = performance.now();
+        let due = start + tickMs;
+        let worst = 0;
+        const tick = () => {
+          const now = performance.now();
+          worst = Math.max(worst, now - due);
+          if (now - start >= windowMs) return resolve(worst);
+          due = now + tickMs;
+          setTimeout(tick, tickMs);
+        };
+        setTimeout(tick, tickMs);
+      }),
+    3_000,
+  );
+  expect(worstStall).toBeLessThan(500);
 }
 
 async function scrollTableTo(position: "top" | "bottom") {

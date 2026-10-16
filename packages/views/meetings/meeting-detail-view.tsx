@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Ban, CalendarX2, Pencil, PhoneOff } from "lucide-react";
+import { Ban, CalendarX2, Pencil, PhoneOff, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   displayMeetingStatus,
@@ -12,6 +12,7 @@ import {
   useMeeting,
   useMeetingActivity,
   useParticipants,
+  useRestoreMeeting,
   useStartMeeting,
 } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
@@ -72,6 +73,7 @@ export function MeetingDetailView({
   const start = useStartMeeting(workspaceId);
   const end = useEndMeeting(workspaceId);
   const cancel = useCancelMeeting(workspaceId);
+  const restore = useRestoreMeeting(workspaceId);
   const extend = useExtendMeeting(workspaceId);
   const [confirm, setConfirm] = useState<"cancel" | "end" | null>(null);
   // The summary reminder opens here (C-11 §9.1 V1); the panel exists only
@@ -170,6 +172,20 @@ export function MeetingDetailView({
                 label={t("meetings.cancel")}
                 variant="destructive"
                 onClick={() => setConfirm("cancel")}
+              />
+            ) : null}
+            {layout === "page" && canCancel.allowed && meeting.status === "CANCELED" && new Date(meeting.ends_at).getTime() > nowMs ? (
+              <CollectionPageHeaderAction
+                icon={RotateCcw}
+                label={t("meetings.restore")}
+                variant="outline"
+                aria-disabled={restore.isPending || undefined}
+                onClick={() =>
+                  restore.mutate(
+                    { meetingId, version: meeting.version },
+                    { onSuccess: () => toast.success(t("meetings.meetingRestoredToast")), onError },
+                  )
+                }
               />
             ) : null}
             {headerActions}

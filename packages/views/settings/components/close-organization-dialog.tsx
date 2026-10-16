@@ -1,18 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { errorCode } from "@uniwork/core/api";
 import { useCloseOrganization } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Dialog, DialogClose, DialogFooter } from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toast } from "sonner";
-import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../../common/form-dialog";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
 import { useOptionalNavigation } from "../../navigation";
 import { toastApiError } from "../../toast-api-error";
 import { SettingsFieldError } from "./settings-layout";
@@ -65,7 +64,17 @@ export function CloseOrganizationDialog({
   const showMismatch = value !== "" && !matches && (touched || !orgSlug.startsWith(value));
   // A refusal for other members cannot be fixed by pressing again; one for a
   // changed slug can, once the field is retyped (which clears it).
-  const ready = matches && !closeOrg.isPending && !refusal?.hasMembers;
+  const ids = useId();
+  const fieldId = `${ids}-confirm`;
+  const hintId = `${ids}-hint`;
+  const errorId = `${ids}-error`;
+  const refusalId = `${ids}-refusal`;
+  // Why the action is held back, in words on it: the refusal already on
+  // screen when other members are still active (said once, not twice),
+  // otherwise the slug still to type.
+  const blockedByMembers = refusal?.hasMembers === true;
+  const missing = blockedByMembers ? refusal.text : !matches ? t("org.close.reason_slug") : null;
+  const reasonId = blockedByMembers ? refusalId : `${ids}-reason`;
 
   const reset = () => {
     setTyped("");
@@ -88,7 +97,7 @@ export function CloseOrganizationDialog({
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!ready) return;
+    if (missing || closeOrg.isPending) return;
     setRefusal(null);
     closeOrg.mutate(value, {
       onSuccess: () => {
@@ -114,7 +123,7 @@ export function CloseOrganizationDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <FormDialogContent showCloseButton={!closeOrg.isPending}>
+      <FormDialogContent destructive showCloseButton={!closeOrg.isPending}>
         <form onSubmit={submit}>
           <FormDialogHeader
             title={t("org.close.confirm_title", { name: organizationName })}
@@ -126,11 +135,7 @@ export function CloseOrganizationDialog({
                 interrupt the reader with all four lines at once. The bullets
                 are its only markers: a leading icon beside the first one
                 read as two. */}
-            <Alert
-              variant="destructive"
-              role="note"
-              className="border-destructive/25 bg-destructive-soft *:data-[slot=alert-description]:text-destructive-soft-foreground"
-            >
+            <Alert variant="destructiveSoft" role="note">
               <AlertDescription>
                 <ul className="list-disc space-y-1 pl-4 text-pretty">
                   {CONSEQUENCES.map((key) => (
@@ -140,10 +145,10 @@ export function CloseOrganizationDialog({
               </AlertDescription>
             </Alert>
             <Field>
-              <FieldLabel htmlFor="close-org-confirm">{t("org.close.confirm_label")}</FieldLabel>
+              <FieldLabel htmlFor={fieldId}>{t("org.close.confirm_label")}</FieldLabel>
               {/* What to type sits between the label and the field, so it is
                   read before the caret lands, not discovered after. */}
-              <FieldDescription id="close-org-hint">
+              <FieldDescription id={hintId}>
                 <Trans
                   t={t}
                   i18nKey="org.close.confirm_prompt"
@@ -154,7 +159,7 @@ export function CloseOrganizationDialog({
                 />
               </FieldDescription>
               <Input
-                id="close-org-confirm"
+                id={fieldId}
                 value={typed}
                 onChange={(e) => {
                   setTyped(e.target.value);
@@ -166,17 +171,17 @@ export function CloseOrganizationDialog({
                 autoCorrect="off"
                 spellCheck={false}
                 aria-invalid={showMismatch || undefined}
-                aria-describedby={showMismatch ? "close-org-hint close-org-error" : "close-org-hint"}
+                aria-describedby={showMismatch ? `${hintId} ${errorId}` : hintId}
               />
-              {showMismatch ? (
-                <SettingsFieldError id="close-org-error">
-                  {t("org.close.confirm_mismatch", { slug: orgSlug })}
-                </SettingsFieldError>
-              ) : null}
+              <SettingsFieldError id={errorId}>
+                {showMismatch ? t("org.close.confirm_mismatch", { slug: orgSlug }) : null}
+              </SettingsFieldError>
             </Field>
             {refusal ? (
               <div role="alert" className="flex flex-col items-start gap-1">
-                <SettingsFieldError id="close-org-refusal">{refusal.text}</SettingsFieldError>
+                <SettingsFieldError id={refusalId} live={false}>
+                  {refusal.text}
+                </SettingsFieldError>
                 {refusal.hasMembers && transferInstead ? (
                   <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={transferInstead}>
                     {t("org.transfer.action")}
@@ -185,23 +190,23 @@ export function CloseOrganizationDialog({
               </div>
             ) : null}
           </FormDialogBody>
-          <DialogFooter className="px-5 py-3 sm:items-center">
-            <DialogClose
-              render={<Button type="button" variant="outline" aria-disabled={closeOrg.isPending || undefined} />}
-            >
-              {t("common.cancel")}
-            </DialogClose>
-            <Button
-              type="submit"
-              variant="destructive"
-              aria-disabled={!ready || undefined}
-              aria-busy={closeOrg.isPending || undefined}
-            >
-              {/* Decorative: aria-busy carries the state for assistive tech. */}
-              {closeOrg.isPending ? <Spinner data-icon="inline-start" /> : null}
-              {t("org.close.action")}
-            </Button>
-          </DialogFooter>
+          <FormDialogFooter
+            onCancel={() => changeOpen(false)}
+            submitType="submit"
+            destructive
+            submitLabel={t("org.close.action")}
+            submittingLabel={t("org.close.action_pending")}
+            submitting={closeOrg.isPending}
+            submitDisabled={missing !== null}
+            reasonId={reasonId}
+            leading={
+              missing && !blockedByMembers && !closeOrg.isPending ? (
+                <span id={reasonId} className="text-pretty">
+                  {missing}
+                </span>
+              ) : null
+            }
+          />
         </form>
       </FormDialogContent>
     </Dialog>

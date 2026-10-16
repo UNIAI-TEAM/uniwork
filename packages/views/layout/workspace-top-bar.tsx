@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
-import { Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
+import { Ellipsis, Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
@@ -11,8 +11,10 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@uniwork/ui/components/ui/sidebar";
@@ -84,6 +86,32 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
   );
 }
 
+/** An icon button that opens a menu, named by its tooltip and its label. */
+function TopBarMenuTrigger({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <DropdownMenuTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn("text-muted-foreground", className)}
+                aria-label={label}
+              />
+            }
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function WorkspaceTopBar({
   createOpen,
   onCreateOpenChange,
@@ -115,24 +143,73 @@ export function WorkspaceTopBar({
     { value: "en", label: t("settings.preferences.languageEn") },
   ];
 
+  const chooseTheme = (next: unknown) => {
+    if (!next || next === themeValue) return;
+    setTheme(next as ThemeValue);
+    notifySaved("theme");
+  };
+
+  const chooseLocale = (next: unknown) => {
+    if (!next || next === currentLocale) return;
+    const locale = next as SupportedLocale;
+    localeAdapter.persist(locale);
+    document.documentElement.lang = locale;
+    // The toast text resolves after the language switched, in the new language.
+    void setLocale(locale).then(() => {
+      notifySaved("language", locale);
+    });
+  };
+
   const ThemeIcon = THEME_ICONS[themeValue];
   const createLabel = t("topbar.createTask");
   const themeLabel = t("topbar.theme");
   const languageLabel = t("topbar.language");
 
+  // The folded menu names each group; a menu of one group needs no heading.
+  const themeItems = (label?: string) => (
+    <DropdownMenuRadioGroup value={themeValue} onValueChange={chooseTheme}>
+      {label ? <DropdownMenuLabel>{label}</DropdownMenuLabel> : null}
+      {themeOptions.map((option) => {
+        const Icon = THEME_ICONS[option.value];
+        return (
+          <DropdownMenuRadioItem key={option.value} value={option.value}>
+            <Icon aria-hidden className="size-4 text-muted-foreground" />
+            {option.label}
+          </DropdownMenuRadioItem>
+        );
+      })}
+    </DropdownMenuRadioGroup>
+  );
+  const languageItems = (label?: string) => (
+    <DropdownMenuRadioGroup value={currentLocale} onValueChange={chooseLocale}>
+      {label ? <DropdownMenuLabel>{label}</DropdownMenuLabel> : null}
+      {languageOptions.map((option) => (
+        <DropdownMenuRadioItem key={option.value} value={option.value}>
+          {option.label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+
   return (
+    // A query container in rem, so the bar answers to its own width and to
+    // the reader's text size alike: at 200% text a phone is half as wide.
+    // Search, AI, notifications and + New stay on the bar at every width
+    // (PRODUCT.md principle 8). Below 21rem, the width the full row needs at
+    // 44px touch targets, theme and language fold into one menu and the
+    // actions join the bar's own row, so they wrap one at a time, right
+    // aligned, instead of running off the edge. One row is 48px tall.
     <header
       className={cn(
-        "flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background",
+        "@container/topbar flex min-h-12 shrink-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5 border-b border-border bg-background py-0.5",
         PAGE_GUTTER,
       )}
     >
       <SidebarTrigger size="icon" className="text-muted-foreground" />
-      <SearchTrigger />
-      <div className="flex-1" />
+      <SearchTrigger className="mr-auto" />
       {/* One cluster, tight: 32px targets 2px apart, so the glyphs read as
           a toolbar rather than five loose buttons. Touch keeps 44px. */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 @max-[21rem]/topbar:contents">
         <AskUniButton />
         <NotificationBell />
         <Tooltip>
@@ -153,88 +230,29 @@ export function WorkspaceTopBar({
           <TooltipContent side="bottom">{createLabel}</TooltipContent>
         </Tooltip>
         <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground"
-                      aria-label={themeLabel}
-                    />
-                  }
-                />
-              }
-            >
-              <ThemeIcon aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{themeLabel}</TooltipContent>
-          </Tooltip>
+          <TopBarMenuTrigger label={themeLabel} className="hidden @min-[21rem]/topbar:inline-flex">
+            <ThemeIcon aria-hidden />
+          </TopBarMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuRadioGroup
-              value={themeValue}
-              onValueChange={(next) => {
-                if (!next || next === themeValue) return;
-                setTheme(next as ThemeValue);
-                notifySaved("theme");
-              }}
-            >
-              {themeOptions.map((option) => {
-                const Icon = THEME_ICONS[option.value];
-                return (
-                  <DropdownMenuRadioItem key={option.value} value={option.value}>
-                    <Icon aria-hidden className="size-4 text-muted-foreground" />
-                    {option.label}
-                  </DropdownMenuRadioItem>
-                );
-              })}
-            </DropdownMenuRadioGroup>
+            {themeItems()}
           </DropdownMenuContent>
         </DropdownMenu>
         <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground"
-                      aria-label={languageLabel}
-                    />
-                  }
-                />
-              }
-            >
-              <Languages aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{languageLabel}</TooltipContent>
-          </Tooltip>
+          <TopBarMenuTrigger label={languageLabel} className="hidden @min-[21rem]/topbar:inline-flex">
+            <Languages aria-hidden />
+          </TopBarMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuRadioGroup
-              value={currentLocale}
-              onValueChange={(next) => {
-                if (!next || next === currentLocale) return;
-                const locale = next as SupportedLocale;
-                localeAdapter.persist(locale);
-                document.documentElement.lang = locale;
-                // The toast text resolves after the language switched, in the new language.
-                void setLocale(locale).then(() => {
-                  notifySaved("language", locale);
-                });
-              }}
-            >
-              {languageOptions.map((option) => (
-                <DropdownMenuRadioItem key={option.value} value={option.value}>
-                  {option.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
+            {languageItems()}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <TopBarMenuTrigger label={t("topbar.preferences")} className="@min-[21rem]/topbar:hidden">
+            <Ellipsis aria-hidden />
+          </TopBarMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            {themeItems(themeLabel)}
+            <DropdownMenuSeparator />
+            {languageItems(languageLabel)}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

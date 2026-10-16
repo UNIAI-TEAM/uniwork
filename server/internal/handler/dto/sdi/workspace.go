@@ -6,9 +6,19 @@ type CreateWorkspaceSDI struct {
 	Slug string `json:"slug" minLength:"1" description:"Slug trên URL, không trùng trong cùng tổ chức" example:"team"`
 }
 
-// PatchWorkspaceSDI is PATCH /api/v1/workspaces/{workspaceID}.
+// PatchWorkspaceSDI is PATCH /api/v1/workspaces/{workspaceID}. A field left
+// out keeps its value.
 type PatchWorkspaceSDI struct {
-	Name *string `json:"name" description:"Tên workspace mới" example:"Team"`
+	Name        *string `json:"name" description:"Tên workspace mới" example:"Team"`
+	Description *string `json:"description" description:"Mô tả ngắn, tối đa 500 ký tự; chuỗi rỗng để xóa" example:"Nhóm làm sản phẩm"`
+	IconEmoji   *string `json:"icon_emoji" description:"Emoji làm icon; chuỗi rỗng để xóa. Đặt emoji sẽ bỏ ảnh icon" example:"🚀"`
+	TaskPrefix  *string `json:"task_prefix" description:"Tiền tố mã task mới, 2–10 ký tự A-Z/0-9, bắt đầu bằng chữ; mã cũ vẫn tra được" example:"MKT"`
+	Slug        *string `json:"slug" description:"Slug mới trên URL, 2–40 ký tự a-z, 0-9, gạch ngang; slug cũ tự chuyển sang slug mới" example:"team-moi"`
+}
+
+// UploadWorkspaceIconSDI is POST /api/v1/workspaces/{workspaceID}/icon (multipart).
+type UploadWorkspaceIconSDI struct {
+	File []byte `formData:"file" description:"Ảnh PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB"`
 }
 
 // PatchMemberSDI is PATCH /api/v1/workspaces/{workspaceID}/members/{userID}.

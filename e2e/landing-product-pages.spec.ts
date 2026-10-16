@@ -1,30 +1,32 @@
 import { expect, test } from "@playwright/test";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
 
 test("product menu opens real introduction routes, with demo explicitly separate", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const product = page.locator(".header-directory-toggle").nth(0);
   await product.click();
   const menu = page.locator("#header-directory-products");
   await expect(menu).toBeVisible();
-  await expect(menu.locator('a[href^="/features/"]')).toHaveCount(18);
-  await expect(menu.locator('a[href="/#platform"]')).toHaveText(/Xem demo/);
+  await expect(menu.locator('a[href*="/features/"]')).toHaveCount(18);
+  await expect(menu.locator('a[href$="#platform"]')).toHaveText(/Xem demo/);
   await page.screenshot({ path: ".impeccable/review/product-menu-desktop.png", animations: "disabled" });
   await page.keyboard.press("Escape");
   await expect(product).toBeFocused();
   await expect(menu).not.toBeVisible();
   await page.keyboard.press("ArrowDown");
   await expect(menu.locator("a").first()).toBeFocused();
-  await menu.locator('a[href="/features/tasks"]').click();
+  await menu.locator('a[href$="/features/tasks"]').click();
   await expect(page).toHaveURL(/\/features\/tasks$/, { timeout: 20000 });
   await expect(page.locator("h1")).toContainText("Rõ việc");
-  await expect(page.locator('.marketing-actions a[href="/#du-an"]')).toBeVisible();
+  await expect(page.locator('.marketing-actions a[href$="#du-an"]')).toBeVisible();
   await expect(page.locator("main")).not.toContainText("landing.productPages");
   await product.click();
-  await expect(menu.locator('a[href="/features/agents"]')).toHaveText("Nhân sự AI");
+  await expect(menu.locator('a[href$="/features/agents"]')).toHaveText("Nhân sự AI");
 });
 
 test("all feature introductions have unique content, canonical URL and reference UI", async ({ page }) => {
@@ -32,18 +34,21 @@ test("all feature introductions have unique content, canonical URL and reference
   await page.emulateMedia({ reducedMotion: "reduce" });
   const headings = new Set<string>();
   for (const key of features) {
-    const response = await page.goto(`/features/${key}`);
+    const response = await gotoLanding(page, `/features/${key}`);
+    await landingReady(page);
     expect(response?.status()).toBe(200);
     const heading = page.getByRole("heading", { level: 1 });
     await expect(heading).toHaveCount(1);
     headings.add(await heading.innerText());
-    await expect(page.locator(".feature-page-details li")).toHaveCount(3);
+    await expect(page.locator(".feature-page-details").getByRole("tab")).toHaveCount(3);
+    await expect(page.locator('.feature-page-details .feature-art[role="img"]:visible')).toHaveCount(1);
     await expect(page.locator(".feature-page-visual .lovable-canvas")).toBeVisible();
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/features/${key}$`));
     expect(await page.locator("main").innerText()).not.toContain("landing.");
   }
   expect(headings.size).toBe(features.length);
-  await page.goto("/features/not-a-feature");
+  await gotoLanding(page, "/features/not-a-feature");
+  await landingReady(page);
   // Streamed App Router responses can already have sent 200 when notFound runs.
   // The app-wide not-found screen (apps/web/app/not-found.tsx) has no "404" heading.
   await expect(page.getByTestId("app-not-found")).toBeVisible();
@@ -57,7 +62,8 @@ for (const sample of [{ width: 1440, color: "light" }, { width: 390, color: "dar
     await page.setViewportSize({ width: sample.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.color });
     for (const route of ["features/tasks", "features", "solutions", "learn", "pricing", "enterprise"]) {
-      const response = await page.goto(`/${route}`);
+      const response = await gotoLanding(page, `/${route}`);
+      await landingReady(page);
       expect(response?.status()).toBe(200);
       await expect(page.locator("h1")).toHaveCount(1);
       expect(await page.locator("main").innerText()).not.toContain("landing.");
@@ -76,9 +82,9 @@ for (const sample of [{ width: 1440, color: "light" }, { width: 390, color: "dar
       await page.getByRole("button", { name: "Mở menu", exact: true }).click();
       const mobile = page.locator("#landing-mobile-menu");
       await mobile.locator("summary").first().click();
-      await expect(mobile.locator('a[href="/features/chat"]')).toBeVisible();
+      await expect(mobile.locator('a[href$="/features/chat"]')).toBeVisible();
       await page.screenshot({ path: ".impeccable/review/product-menu-mobile.png", animations: "disabled" });
-      await mobile.locator('a[href="/features/chat"]').click();
+      await mobile.locator('a[href$="/features/chat"]').click();
       await expect(page).toHaveURL(/\/features\/chat$/);
       await expect(mobile).toHaveCount(0);
     }
@@ -89,13 +95,15 @@ test("English introductions and solution/resources links remain usable", async (
   await context.addCookies([{ name: "uniwork-locale", value: "en", url: baseURL! }]);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/features/meetings");
+  await gotoLanding(page, "/features/meetings");
+  await landingReady(page);
   await expect(page.locator("h1")).toHaveText("Meet together. Keep the context.");
   await page.locator(".header-directory-toggle").nth(1).click();
-  await expect(page.locator('#header-directory-solutions a[href="/solutions/product"]')).toBeVisible();
-  await page.getByRole("banner").getByRole("button", { name: "Tìm hiểu", exact: true }).click();
+  await expect(page.locator('#header-directory-solutions a[href$="/solutions/product"]')).toBeVisible();
+  // This test runs in English, so the Learn directory toggle carries its English name.
+  await page.getByRole("banner").getByRole("button", { name: "Learn", exact: true }).click();
   await expect(page.locator("#header-directory-solutions")).toHaveCount(0);
-  await page.locator('#header-directory-learn a[href="/learn"]').first().click();
+  await page.locator('#header-directory-learn a[href$="/learn"]').first().click();
   await expect(page).toHaveURL(/\/learn$/);
   await expect(page.locator("h1")).toHaveText("Start with one working flow.");
 });

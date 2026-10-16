@@ -1,5 +1,4 @@
-import { SolutionPage } from "../../../features/landing/solution-page";
-import { solutionMetadata } from "../../../platform/feature-metadata";
-
-export function generateMetadata() { return solutionMetadata("operations"); }
-export default function Page() { return <SolutionPage solution="operations" />; }
+import { publicPage } from "../../../platform/public-page";
+import { seoMetadata } from "../../../platform/seo";
+export function generateMetadata() { return seoMetadata("/solutions/operations"); }
+export default function Page() { return publicPage("/solutions/operations"); }

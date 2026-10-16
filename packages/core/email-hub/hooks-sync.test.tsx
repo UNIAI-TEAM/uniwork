@@ -31,9 +31,10 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("useEmailHubLazyFolderSync", () => {
   it.each([
-    ["SPAM", "SPAM"],
-    ["SNOOZED", "INBOX"],
-  ])("clears syncing for %s when filters skip an in-flight request", async (folder, syncedFolder) => {
+    ["SPAM", "SPAM", true],
+    ["SNOOZED", "INBOX", false],
+    ["STARRED", "STARRED", true],
+  ] as const)("clears syncing for %s when filters skip an in-flight request", async (folder, syncedFolder, force) => {
     const pending = deferred<{ synced: boolean }>();
     vi.mocked(api.syncEmailHub).mockReturnValueOnce(pending.promise);
     const qc = new QueryClient();
@@ -44,7 +45,7 @@ describe("useEmailHubLazyFolderSync", () => {
     );
 
     expect(result.current).toBe(true);
-    expect(api.syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", syncedFolder, false, false, false);
+    expect(api.syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", syncedFolder, force, false, false);
 
     rerender({ skip: true });
     await act(async () => {

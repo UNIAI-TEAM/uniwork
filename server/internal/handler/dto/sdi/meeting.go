@@ -65,6 +65,11 @@ type CancelMeetingSDI struct {
 	Reason string `json:"reason" example:"trùng lịch"`
 }
 
+// RestoreMeetingSDI is POST /api/v1/meetings/{meetingID}/restore.
+type RestoreMeetingSDI struct {
+	Version *int32 `json:"version,omitempty" description:"Phiên bản người dùng đang xem; lệch thì 409 revision_conflict" example:"4"`
+}
+
 // ExtendMeetingSDI is POST /api/v1/meetings/{meetingID}/extend.
 type ExtendMeetingSDI struct {
 	Minutes int `json:"minutes" description:"Số phút gia hạn; mặc định 15, tối đa 120" example:"15"`

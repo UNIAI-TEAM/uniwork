@@ -9,6 +9,8 @@ import { useMyConnectedApps, useRevokeMyConnectedApp } from "@uniwork/core/conne
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { toastApiError } from "../../toast-api-error";
+import { ConnectAssistantDialog } from "./connect-assistant-dialog";
+import { AssistantMark, AssistantMarks } from "./assistant-mark";
 import { CopyAddress } from "./copy-address";
 import {
   SettingsBadge,
@@ -32,6 +34,8 @@ export function ConnectedAppsTab() {
   const apps = useMyConnectedApps();
   const revoke = useRevokeMyConnectedApp();
   const [pending, setPending] = useState<ConnectedApp | null>(null);
+  // The grants already there when the guide opened: a new one means it worked.
+  const [guideKnown, setGuideKnown] = useState<string[] | null>(null);
   // One formatter per render. A date the server drifted on ("" or garbage)
   // reads as "", never a RangeError that would unmount the whole tab.
   const dateFormat = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" });
@@ -78,8 +82,14 @@ export function ConnectedAppsTab() {
         {rows.map((g) => (
           <SettingsListItem
             key={g.id}
+            leading={<AssistantMark client={g.client_name} verified={g.verified} />}
             title={g.client_name}
-            badge={g.verified ? <SettingsBadge tone="success">{t("verified")}</SettingsBadge> : null}
+            badge={
+              <span className="flex items-center gap-1.5">
+                {g.verified ? <SettingsBadge tone="success">{t("verified")}</SettingsBadge> : null}
+                <SettingsBadge tone="muted">{t(g.scope.split(" ").includes("write") ? "scopeWrite" : "scopeRead")}</SettingsBadge>
+              </span>
+            }
             meta={metaLine(g)}
             actions={
               <Button variant="ghost" size="sm" aria-label={t("revokeAria", { client: g.client_name })} onClick={() => setPending(g)}>
@@ -95,10 +105,31 @@ export function ConnectedAppsTab() {
   return (
     <SettingsTab title={t("title")} description={t("description")}>
       {apps.data?.mcp_url ? (
-        <SettingsSection title={t("connectTitle")} description={t("connectBody")}>
+        <SettingsSection
+          title={
+            <span className="flex items-center gap-2">
+              {t("connectTitle")}
+              <AssistantMarks />
+            </span>
+          }
+          description={t("connectBody")}
+          action={
+            <Button type="button" onClick={() => setGuideKnown(rows.map((g) => g.id))}>
+              {t("guide.open")}
+            </Button>
+          }
+        >
           <SettingsCard>
             <CopyAddress value={apps.data.mcp_url} />
           </SettingsCard>
+          <ConnectAssistantDialog
+            mcpUrl={apps.data.mcp_url}
+            knownIds={guideKnown ?? []}
+            open={guideKnown !== null}
+            onOpenChange={(open) => {
+              if (!open) setGuideKnown(null);
+            }}
+          />
         </SettingsSection>
       ) : null}
       <SettingsSection title={t("section")}>{body}</SettingsSection>

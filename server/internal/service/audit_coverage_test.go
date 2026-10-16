@@ -50,10 +50,13 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionAuthDesktopTokenRotated:     "covered by desktop_auth_test.go",
 	audit.ActionAuthDesktopSessionRevoked:   "covered by desktop_auth_test.go",
 
-	audit.ActionMcpGrantCreated:              "covered by mcp_authorize_test.go",
-	audit.ActionMcpGrantRevoked:              "covered by mcp_grants_test.go",
-	audit.ActionMcpTokenFamilyRevoked:        "covered by mcp_tokens_test.go",
-	audit.ActionOrganizationMcpPolicyChanged: "covered by mcp_grants_test.go",
+	audit.ActionMcpGrantCreated:                   "covered by mcp_authorize_test.go",
+	audit.ActionMcpGrantRevoked:                   "covered by mcp_grants_test.go",
+	audit.ActionMcpGrantScopeChanged:              "covered by mcp_authorize_test.go",
+	audit.ActionMcpTokenFamilyRevoked:             "covered by mcp_tokens_test.go",
+	audit.ActionOrganizationMcpPolicyChanged:      "covered by mcp_grants_test.go",
+	audit.ActionOrganizationMcpWritePolicyChanged: "covered by mcp_grants_test.go",
+	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -154,7 +157,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionInvitationRevoked: func(t *testing.T, f *auditFixture) {
 			f.build(t)
-			invs, _, err := f.orgMem.InviteToOrg(f.ctx, f.owner.ID, f.orgID, []string{"revoke-me@example.com"}, OrgRoleMember)
+			invs, _, err := f.orgMem.InviteToOrg(f.ctx, f.owner.ID, f.orgID, []string{"revoke-me@example.com"}, OrgRoleMember, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -919,6 +922,31 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatRoomSettingsUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := "Kênh chung mới"
+			if _, err := f.chat.UpdateChatRoomSettings(f.ctx, f.owner.ID, w.ID, room.RoomID, UpdateChatRoomSettingsInput{
+				Name: &name,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatVoiceCallLogged: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			if err := f.chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call", false); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.SignalVoiceAccept(f.ctx, f.member.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatFollowUpDeleted: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
@@ -1558,6 +1586,8 @@ func auditActions() []string {
 		audit.ActionChatFollowUpDeleted,
 		audit.ActionChatMessageDeleted,
 		audit.ActionChatRoomMemberUpdated,
+		audit.ActionChatRoomSettingsUpdated,
+		audit.ActionChatVoiceCallLogged,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
@@ -1616,8 +1646,11 @@ func auditActions() []string {
 		audit.ActionEmailHubAccountAuthFailed,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
+		audit.ActionMcpGrantScopeChanged,
 		audit.ActionMcpTokenFamilyRevoked,
+		audit.ActionMeetingRestored,
 		audit.ActionOrganizationMcpPolicyChanged,
+		audit.ActionOrganizationMcpWritePolicyChanged,
 	}
 }
 

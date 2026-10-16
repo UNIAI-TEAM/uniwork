@@ -1,12 +1,14 @@
 import { selectWorkspaceFeature, workspaceGroups } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const locale of ["vi", "en"] as const) {
   test(`all explorer states and disclosures have translated text and labels: ${locale}`, async ({ page, context, baseURL }) => {
     await context.addCookies([{ name: "uniwork-locale", value: locale, url: baseURL! }]);
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/");
+    await gotoLanding(page, "/");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     await page.evaluate((lang) => document.documentElement.classList.toggle("dark", lang === "en"), locale);
     const checkKeys = async () => {
@@ -35,7 +37,8 @@ for (const locale of ["vi", "en"] as const) {
 
 test("grouped feature navigation supports keyboard selection", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   for (const [group, features] of Object.entries(workspaceGroups)) {
     const heading = page.locator(`[data-feature-group="${group}"]`);
     await heading.focus();
@@ -54,7 +57,8 @@ test("grouped feature navigation supports keyboard selection", async ({ page }) 
 
 test("security and roadmap details are available without overwhelming the default view", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const security = page.locator("#security");
   const mechanism = security.getByRole("button", { name: "Lịch sử thay đổi", exact: true });
   await expect(mechanism).toHaveAttribute("aria-expanded", "false");
@@ -69,7 +73,8 @@ test("security and roadmap details are available without overwhelming the defaul
 
 test("decision sections use prominent semantic icon anchors", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   await expect(page.locator("#security .security-mechanism-icon")).toHaveCount(3);
   await page.locator("#work-products [data-slot=accordion-trigger]").click();
   await expect(page.locator("#work-products .work-product-icon")).toHaveCount(4);
@@ -97,7 +102,8 @@ test("decision sections use prominent semantic icon anchors", async ({ page }) =
 
 test("trust band explains provider choice without repeating security claims", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const trust = page.locator(".trust-band");
   await expect(trust.locator(".trust-provider-mark")).toHaveCount(3);
   await expect(trust.locator(".trust-guarantees")).toHaveCount(0);
@@ -112,7 +118,8 @@ test("trust band explains provider choice without repeating security claims", as
 test("feature selector stays visible in reduced motion without a decorative rail", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   await page.locator("#platform").scrollIntoViewIfNeeded();
   await expect(page.locator(".workflow-progress, .landing-signal")).toHaveCount(0);
   await expect(page.locator(".workspace-group-button")).toHaveCount(6);

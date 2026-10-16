@@ -10,6 +10,8 @@ export default function InvitePage() {
   return (
     <AcceptInviteView
       token={token}
+      // No workspace to land in: the picker hands over to /no-workspace for a
+      // member, the create flow only for an owner or admin (UNI-1472).
       onAccepted={(ws) =>
         replace(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces())
       }

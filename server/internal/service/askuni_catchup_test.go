@@ -163,6 +163,43 @@ func TestCatchUpSummarisesTheBacklogSinceThePreOpenPointer(t *testing.T) {
 	}
 }
 
+// Opening a thread marks it read before the reader asks for a brief, so the
+// client sends the pointer MarkThreadRead replaced; the brief covers the
+// replies since then instead of finding nothing new.
+func TestCatchUpThreadSummarisesRepliesSinceThePreOpenPointer(t *testing.T) {
+	s, fake, ua, ub, w := askFixture(t)
+	ctx := context.Background()
+	addMember(t, s.meetings, w.ID, ub.ID)
+	room, err := s.chat.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.chat.SendRoomMessage(ctx, ub.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		if _, err := s.chat.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{Body: fmt.Sprintf("reply-%d", i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	prev, err := s.chat.MarkThreadRead(ctx, ua.ID, w.ID, root.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !prev.Equal(root.CreatedAt) {
+		t.Fatalf("never-read thread: previous=%v want root created %v", prev, root.CreatedAt)
+	}
+
+	brief, err := s.CatchUp(ctx, ua.ID, w.ID, CatchUpInput{RoomID: room.RoomID, ThreadRootID: root.ID, Since: &prev})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if brief.MessageCount != 5 || brief.Mode != "unread" || fake.Calls != 1 {
+		t.Fatalf("brief: %+v calls=%d", brief, fake.Calls)
+	}
+}
+
 func TestCatchUpRequiresMembershipAndEnabledGateway(t *testing.T) {
 	s, fake, ua, ub, w := askFixture(t)
 	ctx := context.Background()

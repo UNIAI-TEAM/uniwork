@@ -56,10 +56,11 @@ type DepartmentOrderSDI struct {
 }
 
 // OrgInviteSDI is POST /api/v1/orgs/{org}/invitations: an invitation to the
-// organization itself, with no workspace behind it.
+// organization itself, granting the workspaces chosen (UNI-1582).
 type OrgInviteSDI struct {
-	Emails  []string `json:"emails" description:"Tối đa 50 địa chỉ, không trùng nhau"`
-	OrgRole string   `json:"org_role,omitempty" enum:"admin,member" description:"Vai trò khi tham gia, mặc định member" example:"member"`
+	Emails       []string `json:"emails" description:"Tối đa 50 địa chỉ, không trùng nhau"`
+	OrgRole      string   `json:"org_role,omitempty" enum:"admin,member" description:"Vai trò khi tham gia, mặc định member" example:"member"`
+	WorkspaceIDs []string `json:"workspace_ids,omitempty" description:"ULID các workspace của tổ chức mà người được mời sẽ vào với vai trò member khi chấp nhận; bỏ trống = chưa cấp workspace. Workspace ngoài tổ chức → 400 workspace_not_in_organization. Mời lại địa chỉ đang chờ thì thay bằng lựa chọn mới" example:"[\"01J8X4WS0N1P2Q3R4S5T6U7V8\"]"`
 }
 
 // TransferOwnershipSDI is POST /api/v1/orgs/{org}/transfer-ownership. The

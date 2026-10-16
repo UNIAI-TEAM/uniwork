@@ -14,16 +14,20 @@ import (
 // Presence is state, not a stream of heartbeats. Every shell page beats every
 // 15s; the tracker records the beat with a TTL and publishes to the workspace
 // only when the caller's state changes: offline → online on the first beat,
-// online → offline on an explicit leave or when the entry expires. The beat
+// online → offline when the entry expires. The beat
 // answers with who is online, so a page that opens late learns its peers from
 // that answer rather than from a frame per peer per beat.
 const (
 	// presenceTTL outlives a beat from a backgrounded tab: Chrome wakes the
 	// timers of a tab hidden for five minutes once a minute, so its 15s beat
 	// arrives every ~60s, and a late request on top must not flap it offline.
-	// A closed tab says so (pagehide); only a crash or a lost network waits
-	// out the TTL.
+	// A closed tab says so (pagehide) and shortens the entry to
+	// presenceLeaveGrace; only a crash or a lost network waits out the TTL.
 	presenceTTL = 90 * time.Second
+	// presenceLeaveGrace: a closed tab shortens its person's entry instead of
+	// dropping it, so another open tab's next beat (every 15s) keeps them
+	// online without a frame; with no tab left the sweep announces the expiry.
+	presenceLeaveGrace = 20 * time.Second
 	// presenceSweepInterval bounds how often one process looks for expired
 	// entries; an expiry is published within TTL + interval + one beat.
 	presenceSweepInterval = 5 * time.Second
@@ -47,9 +51,10 @@ type presenceStore interface {
 	// beat marks the user online until now + presenceTTL; true when they
 	// were not (no entry, or one that lapsed before a sweep removed it).
 	beat(ctx context.Context, workspaceID, userID string, now time.Time) (bool, error)
-	// leave drops the user; true when an entry was there — expired or not,
-	// since an entry nobody swept yet was never announced as offline.
-	leave(ctx context.Context, workspaceID, userID string, now time.Time) (bool, error)
+	// leave brings an existing entry's expiry forward to until (never later,
+	// never creating one): presence is per person, so one tab closing must
+	// not end what another tab of theirs keeps alive.
+	leave(ctx context.Context, workspaceID, userID string, until time.Time) error
 	// online lists the users whose entry outlives now.
 	online(ctx context.Context, workspaceID string, now time.Time) ([]string, error)
 	// expire removes and returns the entries that lapsed by now.
@@ -110,16 +115,14 @@ func (t *presenceTracker) beat(ctx context.Context, workspaceID, userID string) 
 	return online, nil
 }
 
-// leave records an explicit leave (the page closed or left the workspace).
+// leave records an explicit leave (the page closed or left the workspace). It
+// publishes nothing: another tab of the same person beats within the grace
+// and keeps them online silently; otherwise the sweep announces the expiry.
 func (t *presenceTracker) leave(ctx context.Context, workspaceID, userID string) error {
 	now := t.now()
-	wasOnline, err := t.store.leave(ctx, workspaceID, userID, now)
-	if err != nil {
+	if err := t.store.leave(ctx, workspaceID, userID, now.Add(presenceLeaveGrace)); err != nil {
 		slog.WarnContext(ctx, "presence: leave not recorded", "error", err, "workspace_id", workspaceID, "user_id", userID)
 		return nil
-	}
-	if wasOnline {
-		t.publish(ctx, "user.offline", presenceEntry{workspaceID: workspaceID, userID: userID})
 	}
 	t.maybeSweep(ctx, now)
 	return nil
@@ -178,13 +181,14 @@ func (m *memoryPresenceStore) beat(_ context.Context, workspaceID, userID string
 	return !ok || !prev.After(now), nil
 }
 
-func (m *memoryPresenceStore) leave(_ context.Context, workspaceID, userID string, _ time.Time) (bool, error) {
+func (m *memoryPresenceStore) leave(_ context.Context, workspaceID, userID string, until time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	key := presenceEntry{workspaceID: workspaceID, userID: userID}
-	_, ok := m.entries[key]
-	delete(m.entries, key)
-	return ok, nil
+	if exp, ok := m.entries[key]; ok && exp.After(until) {
+		m.entries[key] = until
+	}
+	return nil
 }
 
 func (m *memoryPresenceStore) online(_ context.Context, workspaceID string, now time.Time) ([]string, error) {

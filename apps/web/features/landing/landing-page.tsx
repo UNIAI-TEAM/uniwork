@@ -1,4 +1,5 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { useTranslation } from "react-i18next";
 import { landingFont } from "../../platform/landing-font";
 import { AiWorkforce } from "./ai-workforce";
@@ -62,7 +63,7 @@ export function LandingPage() {
   return (
     <div data-design-contract="277f981e" className={`landing-site ${landingFont.variable} min-h-dvh bg-background text-foreground`}>
       <LandingMotion />
-      <a className="landing-skip" href="#landing-main">{t("landing.studio.skip")}</a>
+      <MarketingAnchor className="landing-skip" href="#landing-main">{t("landing.studio.skip")}</MarketingAnchor>
       <SiteHeader />
       <main id="landing-main">
         <Hero />

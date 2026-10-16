@@ -52,6 +52,8 @@ describe("meeting activity display", () => {
     expect(activityKind("SOMETHING_NEW")).toBe("other");
     expect(activityLabel("SUMMARY_CREATED")).toBe("meetings.activity_summary_created");
     expect(activityLabel("MEETING_STARTED")).toBe("meetings.activity_started");
+    expect(activityLabel("MEETING_RESTORED")).toBe("meetings.activity_restored");
+    expect(activityKind("MEETING_RESTORED")).toBe("canceled");
     expect(activityLabel("SOMETHING_NEW")).toBe("meetings.activity_generic");
   });
   it("files attendance and vote milestones under governance", () => {

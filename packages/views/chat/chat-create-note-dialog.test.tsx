@@ -47,6 +47,7 @@ describe("ChatCreateNoteDialog", () => {
       expect(mutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           roomId: "room1",
+          client_msg_id: expect.stringMatching(/\S/),
           note: {
             body: "Link tài liệu sprint",
             pin_to_top: false,

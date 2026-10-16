@@ -16,7 +16,9 @@
 .header-directory-footer > span { color: var(--muted-foreground); }
 .header-editorial-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding-bottom: 24px; }
 .header-office-links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.header-office-coming { padding: 16px; color: var(--muted-foreground); }
+.header-office-coming { display: flex; align-items: flex-start; gap: 14px; padding: 16px; color: var(--muted-foreground); }
+/* Display the user's native 32px Office icon, excluding its reference image padding. */
+.header-office-logo { width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px; object-fit: none; object-position: -19px -7px; }
 .header-editorial-links > a { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border-radius: 12px; }
 .header-editorial-links > a > svg { width: 20px; height: 20px; margin-top: 3px; color: var(--brand); }
 .header-editorial-links > a > svg:last-child { width: 16px; margin-left: auto; }
@@ -37,7 +39,7 @@
 @media (max-width: 1439px) {
   .site-header .header-nav-link { padding-inline: 8px; }
 }
-@media (max-width: 1099px) {
+@media (max-width: 1239px) {
   .site-header .header-navigation, .site-header .header-directory { display: none; }
   .site-header .header-mobile-toggle { display: inline-flex; }
 }

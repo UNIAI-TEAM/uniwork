@@ -509,7 +509,23 @@ func messageMeta(cl *client.Client, msg *imap.Message, section *imap.BodySection
 	meta.Snippet = sanitizeUTF8(meta.Snippet)
 	meta.ToAddrs = sanitizeAddrs(meta.ToAddrs)
 	meta.ImapLabels = parseGmailLabels(msg)
+	// Gmail may advertise starring only as the \Starred label (X-GM-LABELS),
+	// without \Flagged — treat either as starred so the STARRED virtual folder
+	// matches what the provider shows (UNI-1625).
+	if !meta.IsStarred && imapLabelsIncludeStarred(meta.ImapLabels) {
+		meta.IsStarred = true
+	}
 	return meta
+}
+
+func imapLabelsIncludeStarred(labels []string) bool {
+	for _, raw := range labels {
+		key := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(raw), "\\"))
+		if key == "starred" {
+			return true
+		}
+	}
+	return false
 }
 
 func bodyHasAttachments(bs *imap.BodyStructure) bool {

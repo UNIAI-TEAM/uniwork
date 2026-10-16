@@ -18,7 +18,7 @@ export type RoomMessagesPageParam = ReturnType<typeof olderThan> | null;
  */
 export type RoomTimeline = InfiniteData<ChatMessageRecord[], RoomMessagesPageParam>;
 
-function compareMessages(a: ChatMessageRecord, b: ChatMessageRecord): number {
+export function compareMessages(a: ChatMessageRecord, b: ChatMessageRecord): number {
   const byTime = Date.parse(a.created_at) - Date.parse(b.created_at);
   if (byTime !== 0) return byTime;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
@@ -197,7 +197,7 @@ async function readMissedMessages(qc: QueryClient, wsId: string, roomId: string)
 }
 
 /**
- * After a (re)subscribe or a reconnect, read the messages newer than the
+ * After a (re)subscribe, read the messages newer than the
  * newest loaded one and append them (H5). Frames sent while the socket was
  * down are gone; this closes that gap without refetching every loaded page.
  * An ask while one runs gets one read after it, shared by every ask made
@@ -235,10 +235,21 @@ export function catchUpOnChatSubscribeAck(
   return true;
 }
 
-/** After a reconnect: every room timeline loaded in this workspace catches up. */
-export function catchUpLoadedRoomTimelines(qc: QueryClient, wsId: string): void {
+/**
+ * After a reconnect: a shown timeline refreshes its newest page, one nobody
+ * shows is marked stale. A read `after` the newest message would miss the
+ * edits, deletes and reactions made to loaded ones while the socket was down
+ * (UNI-1662); older pages are dropped as on reopening the room. Room link
+ * caches are emptied too: they only fetch ids they lack, so invalidating them
+ * would hand back the same stale links.
+ */
+export function refreshLoadedRoomTimelines(qc: QueryClient, wsId: string): void {
+  qc.setQueriesData<Map<string, unknown[]>>({ queryKey: chatKeys.roomMessageLinksRoot(wsId) }, (links) =>
+    links?.size ? new Map() : links,
+  );
   for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
     const roomId = queryKey[3];
-    if (data !== undefined && typeof roomId === "string" && roomId) void catchUpRoomTimeline(qc, wsId, roomId);
+    if (data === undefined || typeof roomId !== "string" || !roomId) continue;
+    if (markStaleUnlessObserved(qc, chatKeys.roomMessages(wsId, roomId))) refreshRoomTimelineOnOpen(qc, wsId, roomId);
   }
 }

@@ -43,6 +43,8 @@ export type NativeChatMessageContext = {
   nameContext: NameContextEntry[];
   showSenderName: boolean;
   canPinMessages: boolean;
+  /** Room moderator: may delete someone else's reminder (the server's isChatRoomModerator). */
+  canModerate: boolean;
   actions: NativeChatMessageActions;
 };
 
@@ -133,14 +135,29 @@ function MessageBody({
   context: NativeChatMessageContext;
   highlighted: boolean;
 }) {
-  const { workspaceId, roomId, currentUserId, youLabel, nameContext, showSenderName, canPinMessages, actions } =
-    context;
+  const {
+    workspaceId,
+    roomId,
+    currentUserId,
+    youLabel,
+    nameContext,
+    showSenderName,
+    canPinMessages,
+    canModerate,
+    actions,
+  } = context;
   const { compactTop, showAvatar, senderLabel, senderAvatarUrl } = layout;
   const isOwn = message.sender === currentUserId;
   const cardProps = { senderLabel, senderId: message.sender, isOwn, ts: message.ts, showSenderName, compactTop };
 
   if (message.kind === "reminder" && message.reminder) {
-    return <ChatReminderMessageRow reminder={message.reminder} {...cardProps} />;
+    return (
+      <ChatReminderMessageRow
+        reminder={message.reminder}
+        {...cardProps}
+        onDelete={isOwn || canModerate ? () => actions.onDelete(message) : undefined}
+      />
+    );
   }
   if (message.kind === "note" && message.note) {
     return <ChatNoteMessageRow note={message.note} {...cardProps} />;
@@ -202,6 +219,7 @@ function MessageBody({
     onCreateTask: live ? actions.onCreateTask : undefined,
     onLinkTask: live ? actions.onLinkTask : undefined,
     onFollowUp: live ? actions.onFollowUp : undefined,
+    nameContext,
   };
 
   if (message.kind === "voice" && message.voice) {

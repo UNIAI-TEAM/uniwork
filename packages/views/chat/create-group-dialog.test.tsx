@@ -105,6 +105,8 @@ describe("CreateGroupDialog", () => {
     );
 
     // The name is optional, and the label says so (not the placeholder).
+    // The server refuses a name past 80 characters, the same cap as a rename.
+    expect(screen.getByLabelText("Tên nhóm (tùy chọn)")).toHaveAttribute("maxlength", "80");
     fireEvent.change(screen.getByLabelText("Tên nhóm (tùy chọn)"), { target: { value: "Squad" } });
     // "How many are missing" is said once, beside the submit button.
     expect(screen.getByText("Chọn thêm 2 người nữa để tạo nhóm.")).toBeInTheDocument();
@@ -113,7 +115,7 @@ describe("CreateGroupDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Binh" }));
 
     const startButton = screen.getByRole("button", { name: "Tạo nhóm chat" });
-    expect(startButton).not.toBeDisabled();
+    expect(startButton).not.toHaveAttribute("aria-disabled");
     fireEvent.click(startButton);
 
     expect(onCreate).toHaveBeenCalledWith(

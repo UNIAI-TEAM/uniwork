@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ApiError, errorCode } from "@uniwork/core/api";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
+import { CHAT_FILE_MAX_LABEL, isChatFileTooLarge } from "./chat-file-accept";
 
 type EnsureRoomResult = { room_id?: string } | null | undefined;
 
@@ -41,6 +43,8 @@ export function useChatMediaSend({
   clearReply: () => void;
 }) {
   const { t } = useTranslation();
+  // The recorder hands back the same Blob until the clip is sent or discarded.
+  const voiceMsgIds = useRef(new WeakMap<Blob, string>());
 
   const resolveRoomId = useCallback(async () => {
     let roomId = activeRoomId;
@@ -53,13 +57,19 @@ export function useChatMediaSend({
 
   const handleSendVoice = useCallback(
     async ({ blob, durationMs }: { blob: Blob; durationMs: number }) => {
+      // A retry of the same recording keeps its key, so the server replays instead of duplicating.
+      let clientMsgId = voiceMsgIds.current.get(blob);
+      if (!clientMsgId) {
+        clientMsgId = newChatClientMsgId();
+        voiceMsgIds.current.set(blob, clientMsgId);
+      }
       const roomId = await resolveRoomId();
       if (!roomId) throw new Error(t("chat.room_load_failed"));
       await sendVoiceMessage.mutateAsync({
         roomId,
         file: blob,
         duration_ms: durationMs,
-        client_msg_id: newChatClientMsgId(),
+        client_msg_id: clientMsgId,
         reply_to_message_id: replyToId,
       });
       clearReply();
@@ -74,6 +84,10 @@ export function useChatMediaSend({
         toast.error(t("chat.room_load_failed"));
         return;
       }
+      if (isChatFileTooLarge(file)) {
+        toast.error(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
+        return;
+      }
       try {
         await sendFileMessage.mutateAsync({
           roomId,
@@ -83,8 +97,9 @@ export function useChatMediaSend({
           reply_to_message_id: replyToId,
         });
         clearReply();
-      } catch {
-        toast.error(t("chat.file_upload_failed"));
+      } catch (err) {
+        const tooLarge = errorCode(err) === "too_large" || (err instanceof ApiError && err.status === 413);
+        toast.error(tooLarge ? t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }) : t("chat.file_upload_failed"));
       }
     },
     [clearReply, replyToId, resolveRoomId, sendFileMessage, t],

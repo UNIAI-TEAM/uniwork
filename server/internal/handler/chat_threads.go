@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,7 +15,7 @@ import (
 )
 
 func (h *handlers) listChatThreadMessages(w http.ResponseWriter, r *http.Request) {
-	in := service.ListChatMessagesInput{Limit: 50}
+	in := service.ListChatMessagesInput{Limit: 50, Cursor: strings.TrimSpace(r.URL.Query().Get("cursor"))}
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			in.Limit = n
@@ -94,16 +95,17 @@ func (h *handlers) unfollowChatThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) markChatThreadRead(w http.ResponseWriter, r *http.Request) {
-	if err := h.Chat.MarkThreadRead(
+	previous, err := h.Chat.MarkThreadRead(
 		r.Context(),
 		middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"),
 		chi.URLParam(r, "messageID"),
-	); err != nil {
+	)
+	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, map[string]any{"ok": true})
+	respondJSON(w, http.StatusOK, sdo.ChatThreadReadSDO{OK: true, PreviousReadAt: previous.UTC().Format(time.RFC3339Nano)})
 }
 
 func (h *handlers) listChatThreads(w http.ResponseWriter, r *http.Request) {

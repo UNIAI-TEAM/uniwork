@@ -222,6 +222,14 @@ export async function cancelMeeting(meetingId: string, reason?: string): Promise
   await request(`/api/v1/meetings/${enc(meetingId)}/cancel`, { method: "POST", body: { reason } });
 }
 
+/** Brings a cancelled meeting back while its time is still ahead. */
+export async function restoreMeeting(meetingId: string, version?: number): Promise<Meeting | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/restore`, { method: "POST", body: { version } });
+  return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
+    endpoint: "POST /api/v1/meetings/{id}/restore",
+  })?.meeting ?? null;
+}
+
 export async function listParticipants(meetingId: string): Promise<MeetingParticipant[]> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/participants`);
   return parseWithFallback<{ participants: MeetingParticipant[] }>(raw, ParticipantsResponse, { participants: [] }, {
