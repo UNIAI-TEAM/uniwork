@@ -1011,6 +1011,49 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     expect(requestMock.mock.calls.filter(([p]) => p === "/api/v1/documents/d1")).toHaveLength(1);
   });
 
+  it("excludes the admin-summary document workspace and offers the route workspace when they differ (BE-SHS1-41)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") return Promise.reject(restricted());
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve(summaryBody({ document: { ...summaryBody().document, workspace_id: "w2" } }));
+      }
+      if (path === "/api/v1/documents/d1/shares") {
+        return Promise.resolve({
+          my_level: "",
+          admin_scope: true,
+          acl_owner: { user_id: "01HOWNERULID", level: "none", via: "member" },
+          shares: [],
+          links: [],
+        });
+      }
+      if (path === "/api/v1/documents/d1/access-requests") return Promise.resolve({ requests: [] });
+      if (path === "/api/v1/orgs/org1/workspaces") {
+        return Promise.resolve({
+          workspaces: [
+            { id: WS, slug: "team", name: "Team", organization_id: "org1", organization_slug: "acme", organization_name: "Acme" },
+            { id: "w2", slug: "design", name: "Design", organization_id: "org1", organization_slug: "acme", organization_name: "Acme" },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderWithNav(fakeNav("/acme/team/documents/d1"));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") }));
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    await within(dialog).findByText(t("documents.share.add_title"));
+
+    fireEvent.click(within(dialog).getByRole("combobox", { name: t("documents.share.principal_label") }));
+    const wsOption = await screen.findByRole("option", { name: t("documents.share.principal_workspace") });
+    fireEvent.pointerDown(wsOption, { pointerType: "mouse" });
+    fireEvent.pointerUp(wsOption, { pointerType: "mouse" });
+    fireEvent.click(wsOption);
+    await waitFor(() => expect(screen.queryAllByRole("option")).toHaveLength(0));
+
+    fireEvent.click(within(dialog).getByRole("combobox", { name: t("documents.share.principal_placeholder") }));
+    expect(await screen.findByRole("option", { name: "Team" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Design" })).toBeNull();
+  });
+
   it("opens Share at the requests section from ?access=requests and drops the parameter", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === "/api/v1/documents/d1") return Promise.reject(restricted());
