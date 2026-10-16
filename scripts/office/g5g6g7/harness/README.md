@@ -611,11 +611,25 @@ pinned by the unit test (the fake's committed-answer mutation), and the artifact
 records both the read and the reason with its file:line. A 200 on the next turn
 where a case expects a refusal, any new version, or a committed commit intent is
 a **FAIL**, never a PASS — and so is a turn 1 that never answered `200` on both
-routes, since then the revoke was never shown. Under `AI_PROVIDER=fake` the
-turn-1 content claim cannot be proven: that step is **BLOCKED** (`no real
-upstream on this runner;
-contract-p0 §8`, owner `g7-qa`, exit 77) while the revoke assertion still runs,
-and a broken revoke assertion wins over the BLOCKED.
+routes, since then the revoke was never shown.
+
+Under `AI_PROVIDER=fake` the turn-1 content claim cannot be proven **even when
+turn 1 answered `200` on both routes** (`classifyAiResponse` BLOCKs any answer
+labelled fake, whatever the status): that step is **BLOCKED** (`no real upstream
+on this runner; contract-p0 §8`), and so is the **ROW** — exit 77, owner
+`g7-qa`, blocker `turn-1 AI content not verifiable under the fake provider
+(real-AI round)` — because a row may never end PASS while its own record marks a
+step inside it BLOCKED (BE-704-202; the cross-host driver answers the same
+question the same way). Every revoke assertion is still recorded as PASS, so the
+artifact still shows the revoke itself was proven, and a broken revoke assertion
+wins over that BLOCKED exactly as it wins over the other two.
+
+BLOCKED and FAIL reasons print the **measured** answers — the status and code
+each route really answered — never the expectations the case names (BE-704-204),
+and they are kept short enough to survive the record's own 240-char redaction.
+The unit tests pin the process environment they depend on (`AI_PROVIDER` and the
+real-upstream guard, BE-704-203), so a runner that exports `AI_PROVIDER=fake`
+decides none of them.
 
 **G7-A02.2 (a late AI result not applied to a newer base) is not implemented
 here.** It belongs to G7-03a (FQ-28/29/32); G7-04 records the cross-reference
