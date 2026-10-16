@@ -477,7 +477,10 @@ fork's own bar wording (`uwRemoteNewerDirty` plus the `uwRemoteReload` action)
 through a probe that is SERIALIZED into the app's page — `readRemoteNewerSurface`
 carries its own matchers, so it cannot depend on the driver's module scope
 (BE-704-201/D3-02) — and re-runs the app's feed nudge, spaced and capped, while
-the bar is missing. A probe that cannot run is reported as `the new-version probe
+the bar is missing. That probe matches ONLY a bar naming the version the step is
+waiting for (BE-704-303): another page's bar for an older version is the
+version-specific miss `no new-version bar naming version N on any app page`, never
+"the bar was seen". A probe that cannot run is reported as `the new-version probe
 could not run: <error>`, never as "no new-version bar": a harness crash must not
 read as a product gap; `G5-A03.2`/`G7-A01.4`
 the desktop's reconnect commit is announced to the web frame and reloaded (the
@@ -485,15 +488,47 @@ announced version id must be the desktop's). That announce is read from the
 recorder `addInitScript` installs in EVERY document of the web page — the D host
 posts `doc.remoteVersion` to the frame's window, not to the top page, so a read of
 the top page alone can never see it (D3-01) — and a miss reports what was read:
-how many documents the page had, how many carried the recorder, and which
-protocol envelopes the run saw at all; `G7-A01.3` the offline Save holds an
+how many documents the page had, how many carried the recorder, which protocol
+envelopes the run saw at all, and how many frame reads FAILED (each frame read has
+its own timeout, BE-704-304: `evalFrameBounded`, so a hung renderer is a measured
+miss inside the step bound, never a hang); `G7-A01.3` the offline Save holds a NEW
 intent with zero server versions (the step polls for the app's own receipt — a
-`.rec` intent file or an `offline`/`paused_offline` binding — within the step
-bound, because the fork writes it only after the module's own Save lands, so a
-read straight after `aiOffice.uniworkSave` can still be empty); `G7-A01.5` the AI
+`.rec` intent file that was NOT there before the Save, or an `offline`/
+`paused_offline` binding — within the step bound, because the fork writes it only
+after the module's own Save lands, so a read straight after `aiOffice.uniworkSave`
+can still be empty). An intent a previous parked row left behind does not count
+(BE-704-302), and a miss reports `intents`/`newIntents`, the binding state and the
+base version it measured; `G7-A01.5` the AI
 turn creates zero versions and the Save after it exactly one (polled the same way,
-until the server head and the app binding agree); `G7-A01.6` the three checksums
+until the server head and the app binding agree); a timeout there names both
+measured checksums beside the versions (BE-704-305), grouped with a `.` so the
+artifact's token redactor leaves them intact; `G7-A01.6` the three checksums
 agree and the tally is one version per user Save.
+
+The web reload is DRIVEN, not only awaited (D4-01). At the fork pin a CLEAN frame
+reloads itself on the announce, but a dirty frame (or one with an AI run live) only
+shows its own warn bar: the driver finds that bar's reload control INSIDE the frame
+(`section.uw-remote-bar button[data-action="reload"]`, the frame is an iframe and
+the top page never carries it) and, if the bar's Reload confirm comes up, clicks
+that dialog's own choice (`button[data-choice="discard"]`, "Discard changes and
+reload"). It then waits for a fresh `office-frame` GET of the announced version id.
+Every GET of that document's own route counts, whatever its path (the exact-path
+matcher turned a reload through another route into "no open at all"), and a miss
+reports the GETs it saw and what the frame SHOWED — its bar text and actions, the
+dialog's choices, the docs host's dirty flag. By the same rule the APP's S6 reload is driven through the fork's whole flow
+(D4-02), not one text-matched click: the bar's own action
+(`div.uw-remote-bar button.uw-remote-action[data-action="reload"]`) asks the main
+process for the reload, which opens the conflict dialog for the stored notice;
+that dialog's step 1 offers `Reload latest`
+(`button[data-conflict-action="reload"]`), and its reload step makes the user
+choose what happens to the local edits — "Keep my version as a draft" or "Discard
+my changes" (`input[type="radio"][value="discard"]`) — before its confirm
+(`button[data-conflict-action="reload-go"]`) becomes usable
+(`canSubmit = selectedKeep === 'discard' || …`, `uniwork-conflict-model.ts:326`).
+The driver clicks each of those in turn and reports the first one that refused
+(an `aria-disabled` bar action or confirm), so "the fork did not reload" never
+reads the same as "the driver never confirmed". The step records the click's own
+outcome (`details.appReload`).
 
 The rows share ONE app process, and both sides sign a previous session out with
 `accountLogout({ confirmed: true })` — the call the product's own account UI
