@@ -298,30 +298,35 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     counts: { rateLimited: 0, serverErrors: 0, retries: 0 }, renewals: [], modelTurns: 0, error: null,
   };
   const renewals = record.renewals;
-  const note = (kind, t0) => renewals.push({ kind, ms: Number((performance.now() - t0).toFixed(1)) });
+  // A credential wait the ask itself paid, as one note per wait: a renewal it ran (`session` / `frame`, one note per
+  // token minted) or the wait it spent on another ask's mount already in flight (`mount_wait`, G712-70). Every note is
+  // time that leaves `wallMsNoRenewals`; only the session and frame notes are token renewals the run summary counts.
+  const note = (kind, ms) => renewals.push({ kind, ms: Number(Number(ms).toFixed(1)) });
   const backend = (opts.backendFactory ?? createBackend)(caseDoc, { fixturesDir: opts.fixturesDir });
   const tools = offeredTools(caseDoc, catalogue);
   const offeredNames = new Set(tools.map((t) => t.function.name));
   record.unobtainableOps = unobtainableOps(caseDoc, tools);
   const fixtureId = caseDoc.fixtures[0].id;
-  let mount;
-  try {
-    mount = await session.mount(fixtureId);
-  } catch (err) {
-    throw new HarnessAbort(`cannot mount fixture ${fixtureId}: ${String(err?.message ?? err).slice(0, 160)}`);
-  }
-  renewals.push(...(mount.renewals ?? []));
-  // A fresh frame token for the SAME mounted document (the fixture is uploaded again only when the document is gone);
-  // the renewal is noted on the ask and its own time never lands in a call's latency. A mount that joined a renewal
-  // already in flight for this document minted no token, so it is not noted: the frame count follows the tokens
-  // actually minted, not the asks that asked for one (G712-60).
-  const remount = async () => {
+  // The mount of one ask. A fresh frame token for the SAME mounted document is a renewal (the fixture is uploaded again
+  // only when the document is gone); the first mount of a fixture is not. The renewal is noted on the ask and its own
+  // time never lands in a call's latency. A mount that joined a renewal already in flight for this document minted no
+  // token, so it is not noted as a frame renewal: the frame count follows the tokens actually minted, not the asks that
+  // asked for one (G712-60) - but the wait it spent is noted, so it leaves the clean wall too (G712-70).
+  const mountAsk = async (fixtureId0, { fresh = false } = {}) => {
     const t0 = performance.now();
-    const next = await session.mount(fixtureId, { fresh: true });
-    if (next.minted) note('frame', t0);
+    const next = await session.mount(fixtureId0, { fresh });
+    if (fresh && next.minted) note('frame', performance.now() - t0);
+    else if (next.waitedMs > 0) note('mount_wait', next.waitedMs);
     renewals.push(...(next.renewals ?? []));
     return next;
   };
+  let mount;
+  try {
+    mount = await mountAsk(fixtureId);
+  } catch (err) {
+    throw new HarnessAbort(`cannot mount fixture ${fixtureId}: ${String(err?.message ?? err).slice(0, 160)}`);
+  }
+  const remount = () => mountAsk(fixtureId, { fresh: true });
   let conversation = '';
   let run = '';
   let messages = firstMessages(caseDoc, lang);
@@ -687,7 +692,8 @@ export function refreshCookieOf(header) {
  * access token is older than SESSION_RENEW_AFTER_MS and once more when the answer is a 401 of class session; a second
  * 401 stays the caller's failure, as before. A fresh mount mints a new frame token for the SAME document and re-uploads
  * the fixture only when the document is gone (404). Every mount reports the renewals it caused as [{ kind, ms }] and
- * whether this call minted the frame token itself (`minted`), so two asks sharing one renewal count it once (G712-60).
+ * whether this call minted the frame token itself (`minted`), so two asks sharing one renewal count it once (G712-60),
+ * and how long it waited on another ask's mount already in flight (`waitedMs`, G712-70).
  */
 export async function createServerSession({
   serverUrl, dbUrl, sql = execPsql, fixturesRel = FIXTURES_REL, email = `g712-holdout-${Date.now()}@example.com`,
@@ -814,18 +820,24 @@ export async function createServerSession({
     orgId: session.orgId,
     // `minted` says this call minted a frame token itself; a call that read the cache or joined a mount already in
     // flight minted nothing, so the frame-renewal count stays the tokens minted (G712-60). `renewals` carries the
-    // session renewals the mount caused, reported by the call that ran it.
+    // session renewals the mount caused, reported by the call that ran it. `waitedMs` is the time this call spent on
+    // another ask's mount already in flight (0 for the call that ran the mount and for a cache read), so the joiner can
+    // record a wait it paid and leave it out of the clean wall a pilot measures server overhead with (G712-70).
     async mount(fixtureId, { fresh = false } = {}) {
       const cached = mounts.get(fixtureId);
-      if (!fresh && cached) return { ...cached, renewals: [], minted: false };
+      if (!fresh && cached) return { ...cached, renewals: [], minted: false, waitedMs: 0 };
       // One mount per fixture at a time: two lanes that start together must not upload the same fixture twice. The ask
       // that started the mount reports the renewals it caused; an ask that joined a shared mount reports none.
       const pending = inflight.get(fixtureId);
-      if (pending) return { ...(await pending.mount), renewals: [], minted: false };
+      if (pending) {
+        const t0 = performance.now();
+        const joined = await pending.mount;
+        return { ...joined, renewals: [], minted: false, waitedMs: Number((performance.now() - t0).toFixed(1)) };
+      }
       const renewals = [];
       const started = { mount: mountFixture(fixtureId, renewals).finally(() => inflight.delete(fixtureId)) };
       inflight.set(fixtureId, started);
-      return { ...(await started.mount), renewals, minted: true };
+      return { ...(await started.mount), renewals, minted: true, waitedMs: 0 };
     },
   };
 }

@@ -252,7 +252,9 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   `{ kind: session|frame, ms }` trên lượt hỏi, tổng hợp thành `renewals` của lần chạy và thành cột "Gia hạn token (phiên / khung)"
   ở mục 2 báo cáo; lượt gọi thử lại giữ độ trễ của chính nó (thời gian gia hạn không tính vào độ trễ model) và **một lần gia hạn
   không làm mất hiệu lực lần chạy**. Gia hạn token khung được đếm theo **token thật sự được mint**: hai lượt hỏi cùng một tài liệu
-  gia hạn cùng lúc thì chỉ mint một token và chỉ ghi một ghi chú (G712-60). `wallMs` mỗi lượt hỏi là thời gian thô, gồm cả thời
+  gia hạn cùng lúc thì chỉ mint một token và chỉ ghi một ghi chú (G712-60). Lượt hỏi **chờ** lần mount đang chạy của lượt khác ghi
+  lại thời gian chờ đó thành ghi chú `mount_wait` (G712-70): nó không phải một token được mint nên không vào cột đếm gia hạn, nhưng
+  vẫn được trừ khỏi `wallMsNoRenewals`. `wallMs` mỗi lượt hỏi là thời gian thô, gồm cả thời
   gian gia hạn đã ghi trên lượt đó; `wallMsNoRenewals` đã trừ phần gia hạn ấy — dùng nó cho phép đo "server overhead (wall − model
   sum)", còn báo cáo cộng cả hai theo từng lần chạy (`summaries[].wallMs` và `summaries[].wallMsNoRenewals`, G712-61).
   Hội thoại không đổi khi gia hạn token khung — cùng một mã hội thoại; còn nếu máy chủ trả 409 `conversation_expired` thì đó là

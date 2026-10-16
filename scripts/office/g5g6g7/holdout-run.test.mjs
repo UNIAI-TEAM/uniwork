@@ -676,7 +676,7 @@ describe('runner against a stub façade', () => {
     assert.ok(ask.toolCalls.length >= 1);
     assert.ok(ask.calls.every((c) => c.status === 200 && c.traceId && c.clientMs >= 0 && c.usage.latencyMs >= 100));
     assert.deepEqual(ask.counts, { rateLimited: 0, serverErrors: 0, retries: 0 });
-    assert.deepEqual(ask.renewals, [], 'a reference run renews nothing');
+    assert.deepEqual(ask.renewals.filter((r) => r.kind !== 'mount_wait'), [], 'a reference run renews nothing (waiting for a shared mount is not a renewal, G712-70)');
     assert.equal(ask.tokens.source, 'ai_usage_events');
     assert.equal(ask.tokens.input, 5 * ask.calls.length);
     assert.equal(ask.answer.tools.used.includes('compute'), true);
@@ -1067,8 +1067,12 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
       assert.equal(facade.stats.uploads, 2, 'each fixture is uploaded once; a renewal mints for the document that still exists');
       assert.ok(facade.stats.mints > facade.stats.uploads, 'the renewals minted again');
       const notes = doc.asks.flatMap((a) => a.renewals);
-      assert.equal(notes.length, doc.renewals.session + doc.renewals.frame, 'the run summary counts every ask note');
-      assert.ok(notes.every((r) => ['session', 'frame'].includes(r.kind) && Number.isFinite(r.ms) && r.ms >= 0), JSON.stringify(notes));
+      assert.deepEqual(
+        ['session', 'frame'].map((kind) => notes.filter((r) => r.kind === kind).length),
+        [doc.renewals.session, doc.renewals.frame],
+        'the run summary counts the renewal notes, one per token minted (a shared-mount wait is not a renewal, G712-60, G712-70)',
+      );
+      assert.ok(notes.every((r) => ['session', 'frame', 'mount_wait'].includes(r.kind) && Number.isFinite(r.ms) && r.ms >= 0), JSON.stringify(notes));
       // The renewal time is not a call's latency: the retried call keeps its own clientMs, and the renewal is named on it.
       const retried = doc.asks.flatMap((a) => a.calls).filter((c) => c.renewed);
       assert.ok(retried.length >= 1);
@@ -1148,6 +1152,43 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
     } finally {
       await facade.close();
     }
+  });
+
+  it('leaves the shared-mount wait out of the joining ask\'s clean wall too (G712-70)', async () => {
+    const fixtureId = one.fixtures[0].id;
+    const modelSum = (a) => a.calls.filter((c) => c.status === 200).reduce((n, c) => n + c.clientMs, 0);
+    const cleanOverhead = (a) => a.wallMsNoRenewals - modelSum(a);
+    // One arm where both asks renew together (one mints the token, the other joins that mint) and one where neither
+    // renews; in both the mount is warmed first, so a wall carries only the ask's own work beside the shared mint.
+    const arm = async (dirName, hooks) => {
+      const facade = await startStubFacade({ model: scriptedModel(cases), hooks, mintDelayMs: 150 });
+      try {
+        const session = await createServerSession({ serverUrl: facade.url });
+        await session.mount(fixtureId);
+        const files = await runHoldout({
+          cases, runs: 1, threads: 2, outDir: path.join(tmpRoot, dirName), session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+          onlyIds: [one.id], sessionId: `s-${dirName}`, opts: { sleep: noSleep },
+        });
+        return JSON.parse(fs.readFileSync(files[0], 'utf8')).asks;
+      } finally {
+        await facade.close();
+      }
+    };
+    const [vi, en] = await arm('renew-join-wall', { before: (i) => (i < 2 ? { status: 401 } : null) });
+    assert.equal([vi, en].reduce((n, a) => n + a.renewals.filter((r) => r.kind === 'frame').length, 0), 1, 'one token was minted, so one frame note');
+    const [plainVi, plainEn] = await arm('renew-join-plain', {});
+    assert.deepEqual([plainVi, plainEn].map((a) => a.renewals), [[], []], 'an ask that renewed nothing records no note');
+    const baseline = Math.max(cleanOverhead(plainVi), cleanOverhead(plainEn));
+    // Whichever of the two asks joined the other's mint, its clean wall must read at the level of an ask that renewed
+    // nothing: before the note existed the joining ask held the whole held-back mint as "server overhead" (G712-70).
+    for (const ask of [vi, en]) {
+      assert.ok(cleanOverhead(ask) - baseline < 75, `every ask reads its server overhead at the level of an ask that renewed nothing: ${cleanOverhead(ask)} vs ${baseline} (the mint is held back 150 ms)`);
+    }
+    const minting = [vi, en].find((a) => a.renewals.some((r) => r.kind === 'frame'));
+    const joining = [vi, en].find((a) => a.renewals.some((r) => r.kind === 'mount_wait'));
+    assert.ok(minting && joining, `one ask mints the token and the other joins its mint: ${JSON.stringify([vi, en].map((a) => a.renewals))}`);
+    assert.ok(joining.renewals.find((r) => r.kind === 'mount_wait').ms >= 100, `the join wait is the held-back mint: ${joining.renewalMs} ms`);
+    assert.equal(joining.wallMsNoRenewals, Number((joining.wallMs - joining.renewalMs).toFixed(1)), 'the raw wall is kept beside the clean one');
   });
 
   it('redacts the test user\'s address when a renewal failure text carries it: run file and log lines stay clean (G712-62)', async () => {
