@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1809-fd-11-app-folder-tree; git log --oneline -3
+3d60526a498dc48a2665784124cdf6aaa19123b1
+3d60526a498dc48a2665784124cdf6aaa19123b1
+3d60526a merge: FD-11 W5 fix3 e2e (fd11-fix-e2e3 b112d30bb) into the FD-11 branch
+b112d30b test(shell): cover FD-11 new/upload folder landing and web restore feed refresh
+39871cf4 merge: FD-11 fix round 4 FE (fd11-fix-fe4 ab2dc842d) into the FD-11 branch
