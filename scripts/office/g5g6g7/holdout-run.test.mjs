@@ -999,13 +999,16 @@ describe('runner faults and failures', () => {
     assert.deepEqual([...fixtureEmails([])], [], 'a case set without an address exempts nothing');
   });
 
-  it('reports an address-shaped secret under its hard kind, so it still voids a run (G712-71)', async () => {
+  it('reports an address-shaped secret under its hard kind, so it still voids a run (G712-71, G712-80)', async () => {
     // The soft address rule (G712-62) runs last: a value that is also a key, a credential assignment or a private host
     // keeps the hard kind, and with it the flag that keeps the run out of a pass.
     assert.deepEqual(redactSecrets('key sk-abcdefgh1234@example.com').hits, [{ kind: 'key', count: 1 }], 'an address-shaped key is a key');
     assert.deepEqual(redactSecrets('api_key=abc12345def67890@example.com').hits, [{ kind: 'credential', count: 1 }], 'an address-shaped credential assignment is a credential');
     assert.deepEqual(redactSecrets('mail user@gw.corp.example:8443').hits, [{ kind: 'private_host', count: 1 }], 'a private host carrying an address is a private host');
-    assert.deepEqual(redactSecrets('ops@example.com').hits, [{ kind: 'email', count: 1 }], 'a bare address stays the soft kind');
+    for (const addr of ['ops@acme.corp', 'ops@server.internal', 'ops@printer.local']) {
+      assert.deepEqual(redactSecrets(`contact ${addr} today`).hits, [{ kind: 'private_host', count: 1 }], `${addr}: a portless private-zone address is still hard (G712-80)`);
+    }
+    assert.deepEqual(redactSecrets('ops@example.com').hits, [{ kind: 'email', count: 1 }], 'a bare address stays the soft kind that never voids a run');
     assert.deepEqual(redactSecrets('write to ops@example.com today', { exemptEmails: new Set(['ops@example.com']) }), { text: 'write to ops@example.com today', hits: [] }, 'the exact-address exemption still holds');
     // Through the runner: the run file lists the hard kind, which the report turns into "a flagged run cannot count as a pass".
     const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'write to sk-abcdefgh1234@example.com\nUNIWORK_ANSWER') } : r));
