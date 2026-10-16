@@ -28,7 +28,7 @@ Một giới hạn dung lượng tài liệu duy nhất (200 MB) cho tải lên 
 | `files/registry.go` policy `document_file` | `MaxBytes: 50<<20` | `DocumentMaxBytes` (registry nhận giá trị lúc dựng, không đọc env trong package `files`) |
 | `service/document_office.go` `documentFileMaxBytes()` fallback | 50 MiB | đọc cùng policy; bỏ số 50 |
 | `handler/office_frame_export.go` `officeFrameExportMax` | 50 MiB | `DocumentMaxBytes` |
-| `files/registry.go` policy export (PDF/HTML xuất ra) | 100 MiB | `max(100 MiB, DocumentMaxBytes)` |
+| `files/registry.go` policy `audit_export`, `tenant_export` | 100 MiB | **không đổi** (r2b): không phải tài liệu; bản xuất Office (PDF/HTML) ghi vào `document_file`, nên đã theo `DocumentMaxBytes` |
 | `document/file_validation.go` `DefaultFileLimits.TextScanBytes` | 50 MiB | `DocumentMaxBytes` |
 | `service/office_frame_module.go` `OfficeFrameSheetsMaxBytes` (10 MiB, chặn xlsx lưu trữ) | 10 MiB | **bỏ** (BENCH-01 #2): Sheets không còn giới hạn riêng; chặn thật nằm trong frame (XML worksheet 512 MiB, SIZE-F1). `scripts/office-modules.test.mjs` cập nhật cùng commit |
 | quota tổ chức (`storage.bytes`) | starter 5 GiB, cao hơn 50/200 GiB | **không đổi**: gói nhỏ nhất = 25 × giới hạn; số theo gói là việc billing |
