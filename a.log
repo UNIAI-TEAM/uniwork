@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+1f9c0b57059f5a5a8a4317bc7aedae6b9fb9c588
+1f9c0b570 fix(documents): keep root folders out of "Not in a folder"
+89262b63b chore: merge DOC05-LOCKSTEP (UNI-1413 + UNI-1628, b102210f0) into the G5-G7 root
+cbcc2a66e chore: merge C-01 6.1 audit docs follow-up (4defebdfb) into the G5-G7 root
+4defebdfb docs(documents): an autosave writes its audit row (C-01 §6.1, ADR 0009)
+91bdd067a chore: merge G7-09 automated part (5acb20fd7) into the G5-G7 root
+5acb20fd7 docs: G7-09 checklist owners (UXF-FIX / REPIN-1) and S7-S9 blocked at the pin
+278ebb56f test(office): G7-09 r3 S7-S9 grant probe + runtime skip, pin-agnostic selectors, min contrast
+9b867eaba chore: merge G5-G7 root 1dcb78457 into the G7-09 lane

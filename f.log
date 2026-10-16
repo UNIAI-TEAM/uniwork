@@ -1,0 +1,10 @@
+$ pnpm knip; rc=$?; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+Unused exports (1)
+setOrgFlags  function  e2e/office-ux-floor-fixtures.ts:371:23
+ ELIFECYCLE  Command failed with exit code 1.
+
+KNIP_EXIT=1
