@@ -2,14 +2,12 @@
 import { useTranslation } from "react-i18next";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@uniwork/ui/components/ui/accordion";
 import { WorkflowFilm } from "./workflow-film";
-import { MeetingRoom } from "./meeting-room";
+import { ProductMeetingPreview } from "./product-meeting-preview";
 
 /** Meetings are one view inside the shared product stage, not another band. */
-export function MeetingPreview() {
+export function MeetingPreview({ onTask }: { onTask?: (title: string) => void }) {
   const { t } = useTranslation();
-  return <div className="meeting-preview">
-    <MeetingRoom />
-    <Accordion className="meeting-follow-up">
+  return <ProductMeetingPreview onTask={onTask} listFooter={<Accordion className="meeting-follow-up">
       <AccordionItem value="after-meeting">
         <AccordionTrigger>{t("landing.meeting.followUp")}</AccordionTrigger>
         <AccordionContent><div className="meeting-follow-up-layout">
@@ -17,6 +15,5 @@ export function MeetingPreview() {
           <WorkflowFilm />
         </div></AccordionContent>
       </AccordionItem>
-    </Accordion>
-  </div>;
+    </Accordion>} />;
 }

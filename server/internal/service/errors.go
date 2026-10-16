@@ -29,6 +29,39 @@ var (
 	ErrSubscriptionInactive = errors.New("subscription_inactive")
 )
 
+// ErrPasswordIncorrect: a signed-in caller re-entered their password to
+// confirm an action (handing an organization over) and it did not match.
+// It is not ErrInvalidCredentials on purpose: that one answers 401, which the
+// client reads as an expired session and answers by refreshing and replaying
+// the request — the password would be checked, and sent, twice. Login keeps
+// 401 invalid_credentials.
+var ErrPasswordIncorrect = errors.New("password_incorrect")
+
+func errPasswordIncorrect() error {
+	return CodedError{Code: "password_incorrect", Status: http.StatusForbidden, Msg: "mật khẩu không đúng", Err: ErrPasswordIncorrect}
+}
+
+// Account deletion asks someone already signed in to prove it is them
+// (DeleteAccount): the password, else a two-factor code, else the typed email
+// address. A wrong proof is refused with its own code and never 401, for the
+// reason ErrPasswordIncorrect gives. A wrong password reuses that code.
+//
+// ErrMfaCodeIncorrect is not ErrInvalidCode on purpose either: invalid_code
+// carries error_class "session" (an emailed verification code, a sign-in
+// step), which tells a client to run session recovery.
+var (
+	ErrMfaCodeIncorrect          = errors.New("mfa_code_incorrect")
+	ErrEmailConfirmationMismatch = errors.New("email_confirmation_mismatch")
+)
+
+func errMfaCodeIncorrect() error {
+	return CodedError{Code: "mfa_code_incorrect", Status: http.StatusForbidden, Msg: "mã xác thực hai lớp không đúng", Err: ErrMfaCodeIncorrect}
+}
+
+func errEmailConfirmationMismatch() error {
+	return CodedError{Code: "email_confirmation_mismatch", Status: http.StatusBadRequest, Msg: "địa chỉ email nhập lại không khớp", Err: ErrEmailConfirmationMismatch}
+}
+
 // Organization status values (F-11). Anything but active is closed to the
 // organization's own members; only /api/v1/admin reaches it.
 const (
@@ -237,6 +270,15 @@ func coded(status int, code, msg string) error {
 func codedIs(err error, code string) bool {
 	var ce CodedError
 	return errors.As(err, &ce) && ce.Code == code
+}
+
+// errMeetingVersionConflict is a meeting edit made against a version that is
+// no longer current (MCP, ADR 0033).
+func errMeetingVersionConflict(current int32) error {
+	return CodedError{
+		Code: "revision_conflict", Status: http.StatusConflict, Msg: "cuộc họp đã được người khác thay đổi; tải lại rồi thử lại",
+		Err: ErrConflict, Fields: map[string]any{"want": current},
+	}
 }
 
 func errInvalidState() error {

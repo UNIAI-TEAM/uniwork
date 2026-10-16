@@ -183,17 +183,14 @@ func (h *handlers) inviteToOrganization(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	invs, skipped, err := h.OrgMembers.InviteToOrg(r.Context(), middleware.UserID(r.Context()), orgID, in.Emails, in.OrgRole)
+	invs, skipped, err := h.OrgMembers.InviteToOrg(r.Context(), middleware.UserID(r.Context()), orgID, in.Emails, in.OrgRole, in.WorkspaceIDs)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	out := make([]sdo.OrgInvitationDTO, 0, len(invs))
 	for _, inv := range invs {
-		out = append(out, sdo.OrgInvitationDTO{
-			ID: inv.ID, Email: inv.Email, OrgRole: inv.OrgRole,
-			ExpiresAt: rfc3339(inv.ExpiresAt), CreatedAt: rfc3339(inv.CreatedAt),
-		})
+		out = append(out, toOrgInvitationDTO(inv))
 	}
 	if skipped == nil {
 		skipped = []string{}
@@ -213,13 +210,27 @@ func (h *handlers) listOrgInvitations(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.OrgInvitationDTO, 0, len(rows))
 	for _, inv := range rows {
-		out = append(out, sdo.OrgInvitationDTO{
-			ID: inv.ID, Email: inv.Email, OrgRole: inv.OrgRole,
-			InvitedByName: pgText(inv.InvitedByName),
-			ExpiresAt:     rfc3339(inv.ExpiresAt), CreatedAt: rfc3339(inv.CreatedAt),
-		})
+		out = append(out, toOrgInvitationDTO(inv))
 	}
 	respondJSON(w, http.StatusOK, sdo.OrgInvitationListSDO{Invitations: out, Skipped: []string{}})
+}
+
+func toOrgInvitationDTO(inv service.OrgInvitation) sdo.OrgInvitationDTO {
+	return sdo.OrgInvitationDTO{
+		ID: inv.ID, Email: inv.Email, OrgRole: inv.OrgRole,
+		InvitedByName: inv.InvitedByName,
+		ExpiresAt:     rfc3339(inv.ExpiresAt), CreatedAt: rfc3339(inv.CreatedAt),
+		Workspaces: toInvitationWorkspaceDTOs(inv.Workspaces),
+	}
+}
+
+// toInvitationWorkspaceDTOs is never nil: `workspaces` is always an array.
+func toInvitationWorkspaceDTOs(refs []service.WorkspaceRef) []sdo.InvitationWorkspaceDTO {
+	out := make([]sdo.InvitationWorkspaceDTO, 0, len(refs))
+	for _, w := range refs {
+		out = append(out, sdo.InvitationWorkspaceDTO{ID: w.ID, Slug: w.Slug, Name: w.Name})
+	}
+	return out
 }
 
 func (h *handlers) revokeOrgInvitation(w http.ResponseWriter, r *http.Request) {

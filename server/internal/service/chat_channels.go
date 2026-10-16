@@ -46,7 +46,6 @@ type UpdateChannelInput struct {
 type ListChannelsInput struct {
 	Scope     string // mine | discoverable
 	ProjectID string
-	Query     string
 }
 
 func errChatChannelNameInvalid() error {
@@ -176,13 +175,12 @@ func (s *ChatService) ListChannels(ctx context.Context, userID, workspaceID stri
 		scope = "mine"
 	}
 	proj := optionalText(strings.TrimSpace(in.ProjectID))
-	q := optionalText(strings.TrimSpace(in.Query))
 	ws := pgtype.Text{String: workspaceID, Valid: true}
 
 	switch scope {
 	case "mine":
 		rows, err := s.q.ListChatChannelsMine(ctx, db.ListChatChannelsMineParams{
-			UserID: userID, WorkspaceID: ws, ProjectID: proj, SearchQ: q,
+			UserID: userID, WorkspaceID: ws, ProjectID: proj,
 		})
 		if err != nil {
 			return nil, err
@@ -194,7 +192,7 @@ func (s *ChatService) ListChannels(ctx context.Context, userID, workspaceID stri
 		return out, nil
 	case "discoverable":
 		rows, err := s.q.ListChatChannelsDiscoverable(ctx, db.ListChatChannelsDiscoverableParams{
-			WorkspaceID: ws, UserID: userID, ProjectID: proj, SearchQ: q,
+			WorkspaceID: ws, UserID: userID, ProjectID: proj,
 		})
 		if err != nil {
 			return nil, err
@@ -362,16 +360,18 @@ func (s *ChatService) JoinChannel(ctx context.Context, userID, workspaceID, room
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	_ = q.ReactivateChatRoomMember(ctx, db.ReactivateChatRoomMemberParams{
+	// A fresh row, like a re-invite: reviving old 'left' rows breaks the
+	// one-active-row index once a user has left more than once.
+	added, err := s.addRoomMember(ctx, q, room, workspaceID, userID, "member")
+	if err != nil {
+		return ChatRoomSummary{}, err
+	}
+	if !added { // a concurrent join already added the row
+		return s.channelSummaryFromRoom(ctx, userID, room, 0)
+	}
+	if err := q.CarryOverChatRoomMemberSendRestricted(ctx, db.CarryOverChatRoomMemberSendRestrictedParams{
 		RoomID: roomID, UserID: userID,
-	})
-	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
-	}); errors.Is(err, pgx.ErrNoRows) {
-		if err := s.ensureRoomMemberTx(ctx, q, room, workspaceID, userID, "member"); err != nil {
-			return ChatRoomSummary{}, err
-		}
-	} else if err != nil {
+	}); err != nil {
 		return ChatRoomSummary{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -459,7 +459,14 @@ func (s *ChatService) UnarchiveChannel(ctx context.Context, userID, workspaceID,
 	}}); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	// chat.channel.updated is ephemeral: the outbox row above reaches no client.
+	s.publishChatRoomMembersEvent(ctx, roomID, Event{
+		Type: "chat.channel.updated", Payload: map[string]string{"room_id": roomID, "workspace_id": workspaceID},
+	})
+	return nil
 }
 
 // CreateChannelForProject creates a public channel linked to a project (optional CreateProject tick).
@@ -605,11 +612,12 @@ func (s *ChatService) channelSummaryFromRoom(ctx context.Context, userID string,
 func channelSummaryFromMineRow(row db.ListChatChannelsMineRow) ChatRoomSummary {
 	sum := ChatRoomSummary{
 		ID: row.ID, Kind: row.Kind, Name: row.Name, WorkspaceID: textOrEmpty(row.WorkspaceID),
-		MemberUserIDs: row.MemberUserIds, UnreadCount: int(row.UnreadCount),
+		MemberCount: int(row.MemberCount), UnreadCount: int(row.UnreadCount),
 		MentionUnreadCount: int(row.MentionUnreadCount),
 		MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
 		Visibility:         row.Visibility, Topic: row.Topic, IsDefault: row.IsDefault,
 		ProjectID: textOrEmpty(row.ProjectID), LastReadAt: timePtr(row.MyLastReadAt),
+		NotificationsMuted: row.NotificationsMuted,
 	}
 	if row.LastMessageAt.Valid {
 		t := row.LastMessageAt.Time

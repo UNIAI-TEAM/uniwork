@@ -148,6 +148,7 @@ func (s *EmailHubService) MoveThread(
 	}
 	toMailbox := s.mailboxFor(acc, targetFolder)
 	// shortcut: one IMAP connection per message; fine for conversation-sized sets.
+	moved := make([]db.EmailHubThread, 0, len(rows))
 	for _, r := range rows {
 		if err := imapclient.MoveMessage(creds.IMAP, s.mailboxFor(acc, r.Folder), uint32(r.ImapUid), toMailbox); err != nil {
 			if s.handleAuthError(ctx, acc, creds.Version, err) {
@@ -156,6 +157,16 @@ func (s *EmailHubService) MoveThread(
 			s.log.Warn("email hub move failed", "thread_id", r.ID, "target", targetFolder, "code", emailHubErrCode(err))
 			return redactEmailHubMailErr(err)
 		}
+		moved = append(moved, r)
+	}
+	// Pull the destination first so the UI can show the mail there. Only then
+	// drop the source rows — if sync fails the local copies stay until retry
+	// (UNI-1635 / UNI-1638).
+	_, _, syncErr := s.syncSingleFolder(ctx, acc, targetFolder, false, true, false, true)
+	if syncErr != nil {
+		return redactEmailHubMailErr(syncErr)
+	}
+	for _, r := range moved {
 		_ = s.q.DeleteEmailHubAttachmentsForThread(ctx, r.ID)
 		if err := s.q.DeleteEmailHubThread(ctx, db.DeleteEmailHubThreadParams{
 			ID: r.ID, AccountID: accountID, OrganizationID: ws.OrganizationID,
@@ -163,6 +174,5 @@ func (s *EmailHubService) MoveThread(
 			return err
 		}
 	}
-	_, _, err = s.syncSingleFolder(ctx, acc, targetFolder, false, true, false, true)
-	return redactEmailHubMailErr(err)
+	return nil
 }

@@ -34,17 +34,25 @@ export function buildMainTimelineMessages(input: {
   return threadsEnabled ? mergedLatest.filter((message) => !message.threadRootId) : mergedLatest;
 }
 
-/** Active thread panel: server thread rows + matching pending, root first. */
+/** Active thread panel: server thread rows + matching pending and queued sends, root first. */
 export function buildThreadViewMessages(input: {
   allMessages: ChatMessage[];
   threadRoot: ChatMessage;
   threadRows: ChatMessageRecord[] | undefined;
   pendingEntries: PendingChatMessage[];
+  outboxEntries: ChatSendOutboxEntry[];
   currentUserId: string;
   threadsEnabled: boolean;
 }): ChatMessage[] {
-  const { allMessages, threadRoot, threadRows, pendingEntries, currentUserId, threadsEnabled } =
-    input;
+  const {
+    allMessages,
+    threadRoot,
+    threadRows,
+    pendingEntries,
+    outboxEntries,
+    currentUserId,
+    threadsEnabled,
+  } = input;
   if (threadsEnabled) {
     const serverThread = (threadRows ?? []).map(toChatMessage);
     const threadPending = pendingEntries.filter(
@@ -53,7 +61,7 @@ export function buildThreadViewMessages(input: {
     const mergedThread = mergeOptimisticChatMessages(
       serverThread,
       threadPending,
-      [],
+      outboxEntries.filter((entry) => entry.thread_root_id === threadRoot.id),
       currentUserId,
     ) as ChatMessage[];
     const rootRow = allMessages.find((message) => message.id === threadRoot.id) ?? threadRoot;

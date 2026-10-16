@@ -62,8 +62,9 @@ func TestChatMediaRegistrySpecsMatchChatCaps(t *testing.T) {
 	if attach.Policy.MaxBytes != MaxChatFileMessageBytes {
 		t.Fatalf("chat_attachment policy cap = %d, want %d", attach.Policy.MaxBytes, int64(MaxChatFileMessageBytes))
 	}
-	if attach.Policy.ReadMode != files.ReadProxy {
-		t.Fatalf("chat_attachment read mode = %s, want proxy", attach.Policy.ReadMode)
+	// UNI-1633: chat files are read straight from storage.
+	if attach.Policy.ReadMode != files.ReadPresign {
+		t.Fatalf("chat_attachment read mode = %s, want presign", attach.Policy.ReadMode)
 	}
 	if attach.Scope != files.ScopeOrgWorkspaceOptional {
 		t.Fatalf("chat_attachment scope = %s, want org_workspace_optional", attach.Scope)

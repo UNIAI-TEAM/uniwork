@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatRoomRecord } from "../api/endpoints/chat";
+import { notificationKeys } from "../notifications/hooks";
 import { chatKeys } from "./chat-keys";
 import { useChatRoomReadSync } from "./use-chat-room-read-sync";
 
@@ -24,6 +25,7 @@ const room = (over: Partial<ChatRoomRecord>): ChatRoomRecord => ({
   name: "Bob",
   workspace_id: "ws1",
   member_user_ids: [],
+  member_count: 0,
   unread_count: 2,
   mention_unread_count: 1,
   ...over,
@@ -48,7 +50,10 @@ describe("useChatRoomReadSync", () => {
       unread_count: 0,
       mention_unread_count: 0,
     });
-    expect(invalidate).not.toHaveBeenCalled();
+    // UNI-1665: the read closed the room's inbox row server-side, so the bell refetches.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.unreadCount() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.lists() });
+    expect(invalidate).toHaveBeenCalledTimes(2);
   });
 
   // C3: every read by someone else refetched the whole sidebar for everyone.

@@ -3,6 +3,9 @@ package notification
 import (
 	"testing"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -34,6 +37,55 @@ func TestRuleTaskAssigned(t *testing.T) {
 	created := f.lastEvent(t, TopicCreated)
 	if created.Payload != `{"notification_id":"`+got[0].ID+`","user_id":"`+f.member.ID+`"}` {
 		t.Fatalf("notification.created payload = %s", created.Payload)
+	}
+}
+
+// One MCP update_task call is several commands under one correlation id: the
+// field update, then a label, each in its own transaction. The status change
+// of the first is still what its event reads, though the label's row is newer
+// and changes no field; the member hears of it.
+func TestChangedFieldsReadsTheRowOfItsOwnEvent(t *testing.T) {
+	f := newFixture(t)
+	task := f.newTask(t, "Một lệnh, nhiều bước")
+	f.assign(t, task.ID, f.member.ID)
+	label, err := f.tasks.CreateTaskLabel(f.ctx, f.ownerActor(), f.wsID, service.CreateTaskLabelInput{Name: "Khách hàng", Color: "#3b82f6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const corr = "mcp-call-0001"
+	ctx := audit.WithRequest(f.ctx, audit.RequestInfo{CorrelationID: corr})
+	status := "in_progress"
+	if _, err := f.tasks.Update(ctx, f.ownerActor(), task.ID, service.UpdateTaskInput{Status: &status}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.tasks.AttachTaskLabel(ctx, f.ownerActor(), task.ID, label.ID); err != nil {
+		t.Fatal(err)
+	}
+	var call []outbox.Row
+	for _, ev := range f.events(t, "task.updated") {
+		if ev.CorrelationID.String == corr {
+			call = append(call, ev)
+		}
+	}
+	if len(call) != 2 {
+		t.Fatalf("%d task.updated events under the call, want 2", len(call))
+	}
+	first, err := changedFields(f.ctx, f.q, call[0], audit.ActionTaskUpdated, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := first["status"]; !ok {
+		t.Fatalf("the field update's event reads %v, want the status change", first)
+	}
+	second, err := changedFields(f.ctx, f.q, call[1], audit.ActionTaskUpdated, task.ID)
+	if err != nil || len(second) != 0 {
+		t.Fatalf("the label's event reads %v (%v), want no field change", second, err)
+	}
+	if err := f.consumer.Handle(f.ctx, call[0]); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.inbox(t, f.member.ID); len(got) == 0 || got[0].Kind != KindTaskStatusChanged {
+		t.Fatalf("member inbox = %+v, want the status change", got)
 	}
 }
 

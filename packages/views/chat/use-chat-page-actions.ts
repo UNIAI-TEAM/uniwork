@@ -13,7 +13,6 @@ import { isChatSendRateLimited, isRetriableChatSendError } from "@uniwork/core/c
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type {
@@ -106,10 +105,12 @@ export function useChatPageActions({
 }) {
   const { t } = useTranslation();
 
+  // Sends one body (text, reply, sticker, GIF). It never touches the draft:
+  // the composer path below owns that. True when sent or queued.
   const sendMessageBody = useCallback(
-    async (text: string) => {
+    async (text: string): Promise<boolean> => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed) return false;
 
       let roomId = activeRoomId;
       if (target.kind === "workspace" && !roomId) {
@@ -120,7 +121,7 @@ export function useChatPageActions({
         const room = await resolveDM.mutateAsync(target.contact.user_id);
         roomId = room?.id ?? null;
       }
-      if (!roomId) return;
+      if (!roomId) return false;
 
       const threadsAllowed =
         target.kind === "channel" || target.kind === "group" || target.kind === "workspace";
@@ -141,14 +142,13 @@ export function useChatPageActions({
         usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
         useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, currentUserId, payload));
         setReplyTo(null);
-        setDraft("");
         setComposerPriority?.(null);
         setConnectError(t("chat.send_queued_offline"));
       };
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         queueForLater();
-        return;
+        return true;
       }
 
       usePendingChatMessagesStore.getState().upsert({
@@ -178,9 +178,9 @@ export function useChatPageActions({
           await sendRoomMessage.mutateAsync(payload);
         }
         setReplyTo(null);
-        setDraft("");
         setComposerPriority?.(null);
         setConnectError(null);
+        return true;
       } catch (err: unknown) {
         if (errorCode(err) === "chat_user_blocked") {
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
@@ -191,10 +191,12 @@ export function useChatPageActions({
           setConnectError(t("chat.send_rate_limited"));
         } else if (isRetriableChatSendError(err)) {
           queueForLater();
+          return true;
         } else {
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
           setConnectError(apiErrorMessage(err) ?? t("chat.send_failed"));
         }
+        return false;
       }
     },
     [
@@ -209,7 +211,6 @@ export function useChatPageActions({
       replyTo,
       setReplyTo,
       activeThreadRootId,
-      setDraft,
       setConnectError,
       composerPriority,
       setComposerPriority,
@@ -218,26 +219,33 @@ export function useChatPageActions({
   );
 
   const provisionAndSend = useCallback(async () => {
-    const text = serializeComposerDraftToMessageBody(
-      getDraft().trim(),
-      mentionCandidates,
-      mentionAllLabel,
-    );
+    const raw = getDraft().trim();
+    const text = serializeComposerDraftToMessageBody(raw, mentionCandidates, mentionAllLabel);
     if (!text) return;
-    await sendMessageBody(text);
-  }, [getDraft, mentionCandidates, mentionAllLabel, sendMessageBody]);
+    // Clear at once: a second Enter finds nothing to send, and text typed
+    // while the server answers is not wiped when it does.
+    setDraft("");
+    let sent = false;
+    try {
+      sent = await sendMessageBody(text);
+    } finally {
+      // Not sent and not queued: give the words back, ahead of anything typed since.
+      if (!sent) {
+        const typed = getDraft();
+        setDraft(typed ? `${raw}\n${typed}` : raw);
+      }
+    }
+  }, [getDraft, setDraft, mentionCandidates, mentionAllLabel, sendMessageBody]);
 
   const handleCreateGroup = useCallback(
     (members: ChatContact[], name: string) => {
       if (members.length < 2) return;
       setCreatingGroup(true);
       setConnectError(null);
-      const resolvedName =
-        name.trim() ||
-        members.map((member) => displayLabelForChatContact(member)).join(", ");
       void createGroup
         .mutateAsync({
-          name: resolvedName,
+          // Empty lets the server pick a short default from the members' names.
+          name: name.trim(),
           member_user_ids: members.map((member) => member.user_id),
         })
         .then((room) => {
@@ -295,7 +303,6 @@ export function useChatPageActions({
               channel: {
                 ...activeChannel,
                 ...room,
-                member_user_ids: room.member_user_ids,
               },
             });
           }

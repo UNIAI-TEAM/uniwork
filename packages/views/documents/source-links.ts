@@ -19,7 +19,9 @@ export function sourceParentPath(ws: WorkspacePaths, parent: DocumentSourceFile[
       return ws.meeting(parent.id);
     case "chat_channel":
     case "chat_dm":
-      return ws.chat();
+      return parent.message_id
+        ? ws.chatConversation(parent.id, parent.message_id)
+        : ws.chatConversation(parent.id);
     case "email_thread":
       return ws.email();
     default:
@@ -35,7 +37,7 @@ export function sourceLinkLabelKey(parent: DocumentSourceFile["parent"]): string
   switch (parent.kind) {
     case "chat_channel":
     case "chat_dm":
-      return "documents.home.row.open_chat";
+      return parent.message_id ? "documents.home.row.go_to_source" : "documents.home.row.open_chat";
     case "email_thread":
       return "documents.home.row.open_email";
     default:

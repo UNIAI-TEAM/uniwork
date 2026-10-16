@@ -37,7 +37,7 @@ func (h *handlers) mcpProtectedResource(w http.ResponseWriter, _ *http.Request) 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"resource":                 h.McpAuth.ResourceURL(),
 		"authorization_servers":    []string{h.McpAuth.Issuer()},
-		"scopes_supported":         []string{"read"},
+		"scopes_supported":         []string{"read", "write"},
 		"bearer_methods_supported": []string{"header"},
 		"resource_name":            "UniWork",
 	})
@@ -60,7 +60,7 @@ func (h *handlers) mcpAuthorizationServer(w http.ResponseWriter, _ *http.Request
 		"code_challenge_methods_supported":               []string{"S256"},
 		"token_endpoint_auth_methods_supported":          mcpAuthMethods,
 		"revocation_endpoint_auth_methods_supported":     mcpAuthMethods,
-		"scopes_supported":                               []string{"read"},
+		"scopes_supported":                               []string{"read", "write"},
 		"client_id_metadata_document_supported":          true,
 		"authorization_response_iss_parameter_supported": true,
 	})

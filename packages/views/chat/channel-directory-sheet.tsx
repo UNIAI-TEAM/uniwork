@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleAlert, Compass, Hash, Lock, Plus, Search } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
@@ -31,18 +31,6 @@ import { moduleTone } from "../layout/module-tones";
 import { toastChatError } from "./chat-error-message";
 import { ChatRoomMark } from "./chat-room-mark";
 import { foldedIncludes } from "./chat-search-fold";
-
-/** The server query waits for a pause in typing; the local filter does not. */
-const SERVER_QUERY_DELAY_MS = 250;
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-  return debounced;
-}
 
 /** Channels are loading: rows in their own shape — a mark, a name, a line. */
 function ChannelDirectorySkeleton({ label }: { label: string }) {
@@ -84,24 +72,11 @@ export function ChannelDirectorySheet({
   const [joiningIds, setJoiningIds] = useState<ReadonlySet<string>>(() => new Set());
   const joinChannel = useJoinChatChannel(workspaceId);
 
+  // A workspace's public channels are few: load them once and search only
+  // here, accent-insensitively ("phong" finds "Phòng") and with no wildcards.
+  const discoverQuery = useChatChannels(workspaceId, { scope: "discoverable" }, open);
+  const rooms = discoverQuery.data;
   const trimmedQuery = query.trim();
-  const serverQuery = useDebouncedValue(trimmedQuery, SERVER_QUERY_DELAY_MS);
-  const discoverQuery = useChatChannels(
-    workspaceId,
-    { scope: "discoverable", q: serverQuery || undefined },
-    open,
-  );
-
-  // Every keystroke is a new query key. Keep the last answer on screen and
-  // narrow it locally while the server catches up, instead of flashing the
-  // skeleton on each letter.
-  const [lastRooms, setLastRooms] = useState<ChatRoomRecord[] | undefined>(undefined);
-  if (discoverQuery.data && discoverQuery.data !== lastRooms) {
-    setLastRooms(discoverQuery.data);
-  }
-  const rooms = discoverQuery.data ?? lastRooms;
-  // Local narrowing answers every keystroke (accent-insensitive); the server
-  // query above follows once typing pauses.
   const localQuery = useDeferredValue(trimmedQuery);
   const filtered = useMemo(() => {
     const list = rooms ?? [];

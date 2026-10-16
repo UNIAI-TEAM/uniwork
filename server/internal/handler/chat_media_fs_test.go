@@ -1,10 +1,9 @@
 package handler
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -31,7 +30,7 @@ func setupChatFixtureFiles(t *testing.T, tag string) *chatFixture {
 	return setupChatFixtureOn(t, newTestServerWithFiles(t), tag)
 }
 
-func TestSendAndStreamChatFileMessageFS(t *testing.T) {
+func TestSendChatFileMessageFS(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LOCAL_UPLOAD_DIR", dir)
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
@@ -84,23 +83,9 @@ func TestSendAndStreamChatFileMessageFS(t *testing.T) {
 		t.Fatalf("conflicting reuse = %d %v, want 409 idempotency_conflict", res3.StatusCode, out3)
 	}
 
-	streamPath := "/api/v1/workspaces/" + f.wsID + "/chat/rooms/" + f.dmRoomID + "/messages/" + messageID + "/file"
-	req, _ := http.NewRequest("GET", f.srv.URL+streamPath, nil)
-	req.Header.Set("Authorization", "Bearer "+f.tokens["a"])
-	stream, err := f.srv.Client().Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stream.Body.Close()
-	if stream.StatusCode != http.StatusOK {
-		t.Fatalf("stream status = %d", stream.StatusCode)
-	}
-	got, _ := io.ReadAll(stream.Body)
-	if !bytes.Equal(got, tinyPNG) {
-		t.Fatalf("stream bytes = %d want %d", len(got), len(tinyPNG))
-	}
-	if cd := stream.Header.Get("Content-Disposition"); cd == "" {
-		t.Fatal("stream lost the content disposition")
+	// The send answer already carries the sender's signed URLs (UNI-1633).
+	if url, _ := fileMeta["url"].(string); !strings.HasPrefix(url, "fake://presign/") {
+		t.Fatalf("file url = %v", fileMeta)
 	}
 
 	resBad, _ := uploadChatFile(

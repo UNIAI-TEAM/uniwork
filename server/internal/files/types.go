@@ -38,6 +38,7 @@ const (
 	TenantExport          UploadPurpose = "tenant_export"
 	DocumentFile          UploadPurpose = "document_file"
 	DocumentAsset         UploadPurpose = "document_asset"
+	WorkspaceIcon         UploadPurpose = "workspace_icon"
 )
 
 // purposes is the enum in declaration order. The registry table is checked
@@ -56,6 +57,7 @@ var purposes = []UploadPurpose{
 	TenantExport,
 	DocumentFile,
 	DocumentAsset,
+	WorkspaceIcon,
 }
 
 // Purposes returns every declared purpose in declaration order. The slice is a

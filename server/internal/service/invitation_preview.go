@@ -23,9 +23,12 @@ type InvitationPreview struct {
 	ExpiresAt    time.Time
 	Organization OrganizationRef
 	Workspace    *WorkspaceRef
-	OrgRole      string
-	InviterName  string
-	Conflicts    []MembershipConflict
+	// Workspaces is every workspace accepting grants (UNI-1582): the
+	// invitation's own, or the ones the admin chose; empty when none.
+	Workspaces  []WorkspaceRef
+	OrgRole     string
+	InviterName string
+	Conflicts   []MembershipConflict
 }
 
 // PreviewInvitation reads an invitation for the account it was sent to, with
@@ -51,6 +54,9 @@ func (s *WorkspaceService) PreviewInvitation(ctx context.Context, userID, token 
 	}
 	if inv.WorkspaceID.Valid && inv.WorkspaceSlug.Valid {
 		p.Workspace = &WorkspaceRef{ID: inv.WorkspaceID.String, Name: inv.WorkspaceName.String, Slug: inv.WorkspaceSlug.String}
+	}
+	if p.Workspaces, err = grantedWorkspaces(ctx, s.q, inv.ID, inv.OrganizationID, p.Workspace); err != nil {
+		return InvitationPreview{}, err
 	}
 	if p.Status != InvitationPending {
 		return p, nil

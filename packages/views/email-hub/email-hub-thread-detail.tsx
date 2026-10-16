@@ -38,13 +38,23 @@ interface EmailHubThreadDetailProps {
   aiOpen: boolean;
 }
 
-function BodySkeleton({ refetchFromMailbox = false }: { refetchFromMailbox?: boolean }) {
+function BodySkeleton({
+  refetchFromMailbox = false,
+  snippet,
+}: {
+  refetchFromMailbox?: boolean;
+  snippet?: string;
+}) {
   const { t } = useTranslation();
+  const preview = snippet?.trim();
   return (
     <div className="space-y-3 rounded-lg border border-border p-5" aria-busy="true">
       <p className="text-caption text-muted-foreground" role="status">
         {refetchFromMailbox ? t("email_hub.body_refetch_from_mailbox") : t("email_hub.body_loading")}
       </p>
+      {preview ? (
+        <p className="text-body text-muted-foreground whitespace-pre-wrap">{preview}</p>
+      ) : null}
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-4 w-5/6" />
       <Skeleton className="h-4 w-2/3" />
@@ -167,7 +177,7 @@ export function EmailHubThreadDetail({
           </header>
 
           {conversation.isLoading && multiMessage ? (
-            <BodySkeleton refetchFromMailbox={refetchFromMailbox} />
+            <BodySkeleton refetchFromMailbox={refetchFromMailbox} snippet={thread.snippet} />
           ) : multiMessage ? (
             <div className="space-y-4">
               {messages.map((msg) => (
@@ -183,7 +193,7 @@ export function EmailHubThreadDetail({
               ))}
             </div>
           ) : showPrimarySkeleton ? (
-            <BodySkeleton refetchFromMailbox={refetchFromMailbox} />
+            <BodySkeleton refetchFromMailbox={refetchFromMailbox} snippet={thread.snippet} />
           ) : showBodyLoadFailed ? (
             <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-10 text-center">
               <p className="text-body text-muted-foreground">{t("email_hub.load_error")}</p>

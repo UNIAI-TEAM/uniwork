@@ -215,6 +215,27 @@ func (s *EmailHubService) recordBodyPrefetchFailure(threadID string, err error) 
 func (s *EmailHubService) fetchThreadBodyInteractive(
 	ctx context.Context, acc db.EmailHubAccount, row db.EmailHubThread,
 ) (imapclient.ThreadBody, error) {
+	var lastErr error
+	for attempt := range 2 {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return imapclient.ThreadBody{}, ctx.Err()
+			case <-time.After(400 * time.Millisecond):
+			}
+		}
+		body, err := s.fetchThreadBodyInteractiveOnce(ctx, acc, row)
+		if err == nil {
+			return body, nil
+		}
+		lastErr = err
+	}
+	return imapclient.ThreadBody{}, lastErr
+}
+
+func (s *EmailHubService) fetchThreadBodyInteractiveOnce(
+	ctx context.Context, acc db.EmailHubAccount, row db.EmailHubThread,
+) (imapclient.ThreadBody, error) {
 	ctx, cancel := context.WithTimeout(ctx, imapclient.InteractiveTimeout())
 	defer cancel()
 	sess, mailboxes, err := s.openIMAPInteractive(ctx, acc)

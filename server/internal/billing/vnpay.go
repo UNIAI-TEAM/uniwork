@@ -69,6 +69,10 @@ func (v *VNPay) CreateCheckout(_ context.Context, in CheckoutInput) (CheckoutSes
 	if ipAddr == "" {
 		ipAddr = "127.0.0.1"
 	}
+	created := in.CreatedAt
+	if created.IsZero() {
+		created = v.now()
+	}
 	params := map[string]string{
 		"vnp_Version":    "2.1.0",
 		"vnp_Command":    "pay",
@@ -81,7 +85,10 @@ func (v *VNPay) CreateCheckout(_ context.Context, in CheckoutInput) (CheckoutSes
 		"vnp_Locale":     "vn",
 		"vnp_ReturnUrl":  in.SuccessURL,
 		"vnp_IpAddr":     ipAddr,
-		"vnp_CreateDate": v.now().In(v.loc).Format("20060102150405"),
+		"vnp_CreateDate": created.In(v.loc).Format("20060102150405"),
+	}
+	if !in.ExpiresAt.IsZero() {
+		params["vnp_ExpireDate"] = in.ExpiresAt.In(v.loc).Format("20060102150405")
 	}
 	payURL, err := vnpBuildPaymentURL(v.cfg.PaymentURL, params, v.cfg.HashSecret)
 	if err != nil {

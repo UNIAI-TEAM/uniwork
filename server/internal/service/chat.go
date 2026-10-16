@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -83,6 +85,7 @@ type ChatMessageRow struct {
 	ReplyCount        int
 	LastReplyAt       *time.Time
 	ThreadUnread      bool
+	ThreadFollowing   bool // viewer follows the thread and has not muted it; set on the root by ListThreadMessages
 	CreatedAt         time.Time
 	Reactions         map[string]int
 	MyReactions       []string // emojis the viewer reacted with; empty without a viewer
@@ -213,7 +216,8 @@ func (s *ChatService) createWorkspaceRoom(ctx context.Context, userID string, w 
 
 // syncDefaultChatRoomMembers mirrors workspace_members into the workspace's
 // default channel in a fixed number of set-based statements: owners/admins
-// are raised to admin (never demoted), leavers marked left, the missing
+// are raised to admin (never demoted here: demoteDefaultChatRoomAdmin
+// handles a workspace demotion), leavers marked left, the missing
 // added. Workspace membership commands run it with q bound to their
 // transaction; it is a no-op until the channel exists.
 func syncDefaultChatRoomMembers(ctx context.Context, q *db.Queries, workspaceID string) error {
@@ -234,25 +238,20 @@ func syncDefaultChatRoomMembers(ctx context.Context, q *db.Queries, workspaceID 
 	return q.InsertChatRoomMembers(ctx, in)
 }
 
-// syncRoomMember adds the member when absent and raises an existing member to
-// admin when the workspace role demands it; it never demotes.
-func (s *ChatService) syncRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, floorRole string) error {
-	existing, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: room.ID, UserID: userID,
-	})
-	if err == nil {
-		if floorRole != "admin" || existing.Role == "admin" {
-			return nil
-		}
-		return s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-			RoomID: room.ID, UserID: userID, Role: "admin",
-		})
+// demoteDefaultChatRoomAdmin undoes the raise syncDefaultChatRoomMembers made
+// for a workspace admin who is now a member; only the demoted person moves, so
+// a member raised in the channel by hand keeps the role.
+func demoteDefaultChatRoomAdmin(ctx context.Context, q *db.Queries, workspaceID, userID string) error {
+	room, err := q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return err
 	}
-	_, err = s.addRoomMember(ctx, s.q, room, workspaceID, userID, floorRole)
-	return err
+	return q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+		RoomID: room.ID, UserID: userID, Role: "member",
+	})
 }
 
 func (s *ChatService) ensureRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, role string) error {
@@ -321,7 +320,7 @@ func (s *ChatService) ListRoomMessages(
 	if err != nil {
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, room, in)
+	return s.listSignedMessages(ctx, userID, room, in)
 }
 
 // GetRoomMessage returns one message in a room the caller may access.
@@ -346,7 +345,7 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
+	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID)), nil
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.
@@ -385,7 +384,19 @@ func (s *ChatService) ListWorkspaceMessages(
 		}
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, room, in)
+	return s.listSignedMessages(ctx, userID, room, in)
+}
+
+// listSignedMessages is listMessages with the media URLs signed.
+func (s *ChatService) listSignedMessages(
+	ctx context.Context, userID string, room db.ChatRoom, in ListChatMessagesInput,
+) ([]ChatMessageRow, error) {
+	rows, err := s.listMessages(ctx, userID, room, in)
+	if err != nil {
+		return nil, err
+	}
+	s.signChatMedia(ctx, room, rows)
+	return rows, nil
 }
 
 func (s *ChatService) listMessages(
@@ -434,7 +445,9 @@ func (s *ChatService) listMessages(
 	// SkipMarkRead is set (unread room open).
 	if !in.SkipMarkRead && !before.Valid && len(out) > 0 {
 		last := out[len(out)-1]
-		s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true})
+		if err := s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true}); err != nil {
+			slog.WarnContext(ctx, "chat: read pointer not moved", "error", err, "room_id", room.ID, "user_id", userID)
+		}
 	}
 	return out, nil
 }
@@ -483,8 +496,7 @@ func (s *ChatService) MarkRoomRead(ctx context.Context, userID, workspaceID, roo
 	if err != nil {
 		return err
 	}
-	s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
-	return nil
+	return s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
 }
 
 // SendWorkspaceMessage posts a text message to the workspace channel.
@@ -521,7 +533,7 @@ func (s *ChatService) sendMessage(
 	if err := validateClientMsgID(clientMsgID); err != nil {
 		return ChatMessageRow{}, err
 	}
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
@@ -561,6 +573,10 @@ func (s *ChatService) sendMessage(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	meta, err := buildChatTextMessageMetadata(mentions, in.Priority)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
@@ -571,6 +587,7 @@ func (s *ChatService) sendMessage(
 		Body:             body,
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      clientMsg,
+		Metadata:         meta,
 	})
 	if err != nil {
 		if clientMsgID != "" && isUniqueViolation(err) {
@@ -582,23 +599,7 @@ func (s *ChatService) sendMessage(
 		}
 		return ChatMessageRow{}, err
 	}
-	msg, err = s.persistMessageMentions(ctx, q, msg, mentions)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	if priority := normalizeMessagePriority(in.Priority); priority != "" {
-		meta, err := encodeMessagePriorityMetadata(msg.Metadata, priority)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-		msg, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-			ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: meta,
-		})
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-	}
-	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", mentions); err != nil {
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", mentions); err != nil {
 		return ChatMessageRow{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -613,9 +614,15 @@ func (s *ChatService) sendMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
-	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentions.Recipients)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, "")
+	s.publishMentionNotifications(ctx, room, userID, msg.ID, "", mentions.Recipients)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
+}
+
+// errClientMsgIDDeleted answers a resend after the original was soft-deleted:
+// the unique index still blocks a new row, so the client must drop the outbox entry.
+func errClientMsgIDDeleted() error {
+	return coded(http.StatusGone, "chat_message_deleted", "tin nhắn này đã bị xoá")
 }
 
 func (s *ChatService) existingMessageByClientMsgID(
@@ -631,6 +638,9 @@ func (s *ChatService) existingMessageByClientMsgID(
 	}
 	if err != nil {
 		return db.ChatMessage{}, false, err
+	}
+	if msg.DeletedAt.Valid {
+		return db.ChatMessage{}, false, errClientMsgIDDeleted()
 	}
 	return msg, true, nil
 }
@@ -666,7 +676,7 @@ func (s *ChatService) ToggleChatMessageReaction(
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
-	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(updated, u.DisplayName, userID)), nil
 }
 
 // mutateChatMessageMetadata rewrites a message's metadata under a row lock, so
@@ -805,12 +815,22 @@ func (s *ChatService) MintVoiceTokenRoom(ctx context.Context, userID, chatRoomID
 	if err != nil {
 		return "", err
 	}
-	if !room.WorkspaceID.Valid {
+	if room.ArchivedAt.Valid || !room.WorkspaceID.Valid {
 		return "", ErrNotFound
 	}
 	wsID := room.WorkspaceID.String
-	if _, err := s.ws.RequireMember(ctx, wsID, userID); err != nil {
-		return "", err
+	// DMs and groups belong to the organization: a member who is only in
+	// another of its workspaces answers the call too; room membership is
+	// checked by requireVoiceTokenAccess below.
+	switch room.Kind {
+	case chatRoomKindDM, chatRoomKindGroup:
+		if _, err := s.ws.orgs.RequireMember(ctx, room.OrganizationID, userID); err != nil {
+			return "", err
+		}
+	default:
+		if _, err := s.ws.RequireMember(ctx, wsID, userID); err != nil {
+			return "", err
+		}
 	}
 	if err := s.requireDMVoiceAllowed(ctx, room, userID); err != nil {
 		return "", err

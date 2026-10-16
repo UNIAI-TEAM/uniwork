@@ -1,4 +1,5 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { ArrowRight, Gauge, RotateCcwClock, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@uniwork/ui/components/ui/accordion";
@@ -32,19 +33,19 @@ export function Security() {
           <figcaption><RotateCcwClock aria-hidden />{t("landing.reference.auditSample")}</figcaption>
           <h3>{t("landing.studio.task_design")}</h3>
           <div className="security-record-heading">
-            <span className="preview-avatar" aria-hidden>ML</span>
-            <div><strong>{t("landing.reference.auditAction")}</strong><small>Minh Linh · human · <time>09:24</time></small></div>
+            <span className="preview-avatar" aria-hidden>AN</span>
+            <div><strong>{t("landing.reference.auditAction")}</strong><small>An Nhiên · human · <time>09:24</time></small></div>
           </div>
           <div className="security-record-diff">
             <div><small>{t("landing.reference.auditBefore")}</small><span>{t("landing.playback.unassigned")}</span></div>
             <ArrowRight aria-hidden />
-            <div><small>{t("landing.reference.auditAfter")}</small><span><span className="preview-avatar" aria-hidden>HA</span>Hoàng Anh</span></div>
+            <div><small>{t("landing.reference.auditAfter")}</small><span><span className="preview-avatar" aria-hidden>KV</span>Khánh Vy</span></div>
           </div>
           <dl>
             <div><dt>{t("landing.reference.auditScope")}</dt><dd>{t("landing.studio.productTeam")}</dd></div>
-            <div><dt>{t("landing.reference.auditTrace")}</dt><dd>task.updated · UW-102</dd></div>
+            <div><dt>{t("landing.reference.auditTrace")}</dt><dd>task.updated · DEMO-102</dd></div>
           </dl>
-          <a className="security-explore" href="#nhat-ky">{t("landing.reference.viewAudit")}<ArrowRight aria-hidden /></a>
+          <MarketingAnchor className="security-explore" href="#nhat-ky">{t("landing.reference.viewAudit")}<ArrowRight aria-hidden /></MarketingAnchor>
         </figure>
       </Container>
     </section>

@@ -5,36 +5,15 @@ import { Building2, Link2, ShieldCheck, UserRound, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
-import {
-  useDocumentShares,
-  useRevokeDocumentShare,
-  useShareDocument,
-} from "@uniwork/core/documents/hooks-sharing";
+import { useDocumentShares, useRevokeDocumentShare, useShareDocument } from "@uniwork/core/documents/hooks-sharing";
 import { useOrgWorkspaces } from "@uniwork/core/organizations";
 import { canAdministerDocument } from "@uniwork/core/permissions";
 import { paths } from "@uniwork/core/paths";
-import type {
-  DocumentAccess,
-  DocumentAccessLevel,
-  DocumentAccessVia,
-} from "@uniwork/core/types/document";
+import type { DocumentAccess, DocumentAccessLevel } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@uniwork/ui/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useOptionalWorkspace } from "../layout/workspace-context";
@@ -112,7 +91,9 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   const people = useSharePeople(wsId, doc.id, (id) => members.nameOf(id) ?? id, setAddError);
   const pending = share.isPending || people.isPending;
   const workspaceName = (id: string) =>
-    orgWorkspaces.data?.find((w) => w.id === id)?.name || id;
+    orgWorkspaces.data?.find((w) => w.id === id)?.name ||
+    (workspace.id === id && workspace.name ? workspace.name : "") ||
+    t("documents.share.workspace_unknown");
 
   const principalName = (row: AccessShare): string | null => {
     switch (row.principal_type) {
@@ -151,8 +132,11 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   }, [principalType, orgWorkspaces.data, doc.workspace_id, doc.organization_id, workspace.organization_name]);
 
   const submitShare = async () => {
-    if (principalType === "user") return people.submit(level);
-    if (!principalId || share.isPending) return;
+    if (principalType === "user") {
+      if (!people.ids.length || pending) return;
+      return people.submit(level);
+    }
+    if (!principalId || pending) return;
     setAddError(null);
     try {
       await share.mutateAsync({ principal_type: principalType, principal_id: principalId, level });
@@ -180,6 +164,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   };
 
   const shares = access.data?.shares ?? [];
+  const docTitle = doc.title?.trim() ?? "";
+  const storedWorkspace =
+    orgWorkspaces.data?.find((w) => w.id === doc.workspace_id)?.name.trim() ||
+    (doc.workspace_id && workspace.id === doc.workspace_id ? workspace.name.trim() : "") ||
+    "";
+  const describedBy =
+    [storedWorkspace ? descriptionId : "", adminOnly ? adminNoteId : ""].filter(Boolean).join(" ") || undefined;
 
   // Owned documents have no share surface at all: their access is delegated
   // through the owning work product, and the server refuses every grant route.
@@ -196,11 +187,17 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
       <DialogContent
         className="max-h-[85dvh] overflow-hidden sm:max-w-xl"
         closeLabel={t("common.close")}
-        aria-describedby={adminOnly ? `${descriptionId} ${adminNoteId}` : descriptionId}
+        aria-describedby={describedBy}
       >
         <DialogHeader>
-          <DialogTitle>{t("documents.share.title")}</DialogTitle>
-          <DialogDescription id={descriptionId}>{t("documents.share.description")}</DialogDescription>
+          <DialogTitle>
+            {docTitle ? t("documents.share.title_named", { title: docTitle }) : t("documents.share.title")}
+          </DialogTitle>
+          {storedWorkspace ? (
+            <DialogDescription id={descriptionId}>
+              {t("documents.share.stored_in", { workspace: storedWorkspace })}
+            </DialogDescription>
+          ) : null}
           {adminOnly ? (
             <p id={adminNoteId} className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
               {t("documents.share.admin_scope_note")}
@@ -232,21 +229,142 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
               {members.error ? (
                 <ShareMembersErrorLine error={members.error} retrying={members.retrying} onRetry={members.retry} />
               ) : null}
-              {!doc.archived_at ? <AccessRequestsSection wsId={wsId} documentId={doc.id} focusOnOpen={focusRequests} /> : null}
               <ShareDialogBreakGlassSection wsId={wsId} docId={doc.id} grants={access.data.break_glass} initialOpen={initialSection === "break_glass"} resolveName={memberName} />
+              <section aria-labelledby="share-add-title" className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <h3 id="share-add-title" className="text-label font-medium text-foreground">
+                  {t("documents.share.add_title")}
+                </h3>
+                {/* Person: picker on its own row, Level beside Principal (TV-6). */}
+                <div className="grid grid-cols-1 gap-2 sm:grid-flow-row-dense sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="share-principal-type">{t("documents.share.principal_label")}</Label>
+                    <Select
+                      items={PRINCIPAL_TYPES.map((value) => ({
+                        value,
+                        label: t(`documents.share.principal_${value}`),
+                      }))}
+                      value={principalType}
+                      onValueChange={(next) => {
+                        const picked = next as PrincipalType;
+                        setPrincipalType(picked);
+                        setPrincipalId(picked === "organization" ? doc.organization_id : "");
+                        if (picked !== "user") people.change([]);
+                        setAddError(null);
+                      }}
+                    >
+                      <SelectTrigger id="share-principal-type" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRINCIPAL_TYPES.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {t(`documents.share.principal_${value}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className={principalType === "user" ? "flex flex-col gap-1.5 sm:col-span-2" : "flex flex-col gap-1.5"}>
+                    <Label htmlFor="share-principal-id">{t("documents.share.principal_placeholder")}</Label>
+                    {principalType === "user" && members.loading ? (
+                      <p role="status" className="flex items-center gap-1.5 text-caption text-muted-foreground">
+                        <Spinner className="size-3.5" />
+                        {t("documents.share.people_loading")}
+                      </p>
+                    ) : null}
+                    {principalType === "user" ? (
+                      <SharePeoplePicker
+                        id="share-principal-id"
+                        members={members.rows}
+                        shares={shares}
+                        alreadySharedUserIds={[access.data.acl_owner?.user_id, user?.id]}
+                        people={people}
+                      />
+                    ) : (
+                      <Select
+                        items={principalItems}
+                        value={principalId || null}
+                        onValueChange={(next) => {
+                          setPrincipalId(typeof next === "string" ? next : "");
+                          setAddError(null);
+                        }}
+                      >
+                        <SelectTrigger id="share-principal-id" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {principalItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="share-level">{t("documents.share.level_label")}</Label>
+                    <Select
+                      items={LEVELS.map((value) => ({ value, label: levelLabel(value) }))}
+                      value={level}
+                      onValueChange={(next) => setLevel(next as DocumentAccessLevel)}
+                    >
+                      <SelectTrigger id="share-level" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LEVELS.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {levelLabel(value)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className={principalType === "user" ? "flex items-end sm:col-span-2" : "flex items-end"}>
+                    <Button
+                      type="button"
+                      className="w-full"
+                      aria-disabled={((principalType === "user" ? !people.ids.length : !principalId) || pending) || undefined}
+                      aria-busy={pending || undefined}
+                      onClick={() => void submitShare()}
+                    >
+                      {pending ? (
+                        <>
+                          <Spinner aria-hidden role="presentation" />
+                          {t("documents.share.submitting")}
+                        </>
+                      ) : (
+                        <>
+                          <Link2 aria-hidden className="size-3.5" />
+                          {t("documents.share.submit")}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                {addError ? (
+                  <p role="alert" className="text-caption text-destructive">
+                    {addError}
+                  </p>
+                ) : null}
+              </section>
+
               <section aria-labelledby="share-access-title" className="rounded-lg border border-border">
                 <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                   <h3 id="share-access-title" className="text-label font-medium text-foreground">
                     {t("documents.share.access_title")}
                   </h3>
-                  <span className="text-caption text-muted-foreground">
-                    {t("documents.share.my_level", { level: levelLabel(access.data.my_level) })}
-                  </span>
+                  {LEVELS.includes(access.data.my_level as DocumentAccessLevel) ? (
+                    <span className="text-caption text-muted-foreground">
+                      {t("documents.share.my_level", { level: levelLabel(access.data.my_level) })}
+                    </span>
+                  ) : null}
                 </div>
                 <ul className="divide-y divide-border">
                   {access.data.acl_owner ? (
-                    // Wraps below sm: the name and label keep their line and the level
-                    // and the transfer button drop under them, instead of the button
+                    // Wraps below sm: the name and label keep their line and the
+                    // transfer button drops under them, instead of the button
                     // squeezing the name to nothing at 390px.
                     <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
                       <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
@@ -257,7 +375,6 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
-                        {levelLabel(access.data.acl_owner.level)}
                         <OwnerTransferAction
                           wsId={wsId}
                           doc={doc}
@@ -324,119 +441,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                 </ul>
               </section>
 
-              <section aria-labelledby="share-add-title" className="flex flex-col gap-2 rounded-lg border border-border p-3">
-                <h3 id="share-add-title" className="text-label font-medium text-foreground">
-                  {t("documents.share.add_title")}
-                </h3>
-                {/* Person: picker on its own row, Level beside Principal (TV-6). */}
-                <div className="grid grid-cols-1 gap-2 sm:grid-flow-row-dense sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="share-principal-type">{t("documents.share.principal_label")}</Label>
-                    <Select
-                      items={PRINCIPAL_TYPES.map((value) => ({
-                        value,
-                        label: t(`documents.share.principal_${value}`),
-                      }))}
-                      value={principalType}
-                      onValueChange={(next) => {
-                        const picked = next as PrincipalType;
-                        setPrincipalType(picked);
-                        setPrincipalId(picked === "organization" ? doc.organization_id : "");
-                        if (picked !== "user") people.change([]);
-                        setAddError(null);
-                      }}
-                    >
-                      <SelectTrigger id="share-principal-type" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRINCIPAL_TYPES.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {t(`documents.share.principal_${value}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className={principalType === "user" ? "flex flex-col gap-1.5 sm:col-span-2" : "flex flex-col gap-1.5"}>
-                    <Label htmlFor="share-principal-id">{t("documents.share.principal_placeholder")}</Label>
-                    {principalType === "user" && members.loading ? (
-                      <p role="status" className="flex items-center gap-1.5 text-caption text-muted-foreground">
-                        <Spinner className="size-3.5" />
-                        {t("documents.share.people_loading")}
-                      </p>
-                    ) : null}
-                    {principalType === "user" ? (
-                      <SharePeoplePicker id="share-principal-id" members={members.rows} shares={shares} people={people} />
-                    ) : (
-                      <Select
-                        items={principalItems}
-                        value={principalId || null}
-                        onValueChange={(next) => {
-                          setPrincipalId(typeof next === "string" ? next : "");
-                          setAddError(null);
-                        }}
-                      >
-                        <SelectTrigger id="share-principal-id" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {principalItems.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>
-                              {item.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="share-level">{t("documents.share.level_label")}</Label>
-                    <Select
-                      items={LEVELS.map((value) => ({ value, label: levelLabel(value) }))}
-                      value={level}
-                      onValueChange={(next) => setLevel(next as DocumentAccessLevel)}
-                    >
-                      <SelectTrigger id="share-level" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LEVELS.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {levelLabel(value)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className={principalType === "user" ? "flex items-end sm:col-span-2" : "flex items-end"}>
-                    <Button
-                      type="button"
-                      className="w-full"
-                      disabled={(principalType === "user" ? !people.ids.length : !principalId) || pending}
-                      aria-busy={pending || undefined}
-                      onClick={() => void submitShare()}
-                    >
-                      {pending ? (
-                        <>
-                          <Spinner aria-hidden role="presentation" />
-                          {t("documents.share.submitting")}
-                        </>
-                      ) : (
-                        <>
-                          <Link2 aria-hidden className="size-3.5" />
-                          {t("documents.share.submit")}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                {addError ? (
-                  <p role="alert" className="text-caption text-destructive">
-                    {addError}
-                  </p>
-                ) : null}
-              </section>
+              {!doc.archived_at ? <AccessRequestsSection wsId={wsId} documentId={doc.id} focusOnOpen={focusRequests} /> : null}
 
               {doc.revision !== undefined ? (
                 <VisibilitySection
@@ -462,25 +467,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
 }
 
 function NameOrSkeleton({ name }: { name: string | null }) {
-  return name === null ? (
-    <Skeleton aria-hidden className="h-4 w-24" />
-  ) : (
-    <span className="truncate" title={name}>
-      {name}
-    </span>
-  );
+  return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="truncate" title={name}>{name}</span>;
 }
 
 function VisibilitySection({
-  doc,
-  pending,
-  error,
-  onSave,
+  doc, pending, error, onSave,
 }: {
-  doc: Pick<ShareDialogTarget, "visibility">;
-  pending: boolean;
-  error: string | null;
-  onSave: (next: "workspace" | "restricted") => void;
+  doc: Pick<ShareDialogTarget, "visibility">; pending: boolean; error: string | null; onSave: (next: "workspace" | "restricted") => void;
 }) {
   const { t } = useTranslation();
   const [choice, setChoice] = useState<"workspace" | "restricted" | null>(null);
@@ -489,9 +482,7 @@ function VisibilitySection({
 
   return (
     <section aria-labelledby="share-visibility-title" className="flex flex-col gap-2 rounded-lg border border-border p-3">
-      <h3 id="share-visibility-title" className="text-label font-medium text-foreground">
-        {t("documents.share.visibility_title")}
-      </h3>
+      <h3 id="share-visibility-title" className="text-label font-medium text-foreground">{t("documents.share.visibility_title")}</h3>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {(["workspace", "restricted"] as const).map((value) => (
           <button
@@ -506,39 +497,25 @@ function VisibilitySection({
                 : "rounded-lg border border-border px-3 py-2 text-left hover:bg-surface-hover"
             }
           >
-            <span className="block text-body font-medium text-foreground">
-              {t(`documents.share.visibility_${value}`)}
-            </span>
-            <span className="block text-caption text-muted-foreground">
-              {t(`documents.share.visibility_${value}_hint`)}
-            </span>
+            <span className="block text-body font-medium text-foreground">{t(`documents.share.visibility_${value}`)}</span>
+            <span className="block text-caption text-muted-foreground">{t(`documents.share.visibility_${value}_hint`)}</span>
           </button>
         ))}
       </div>
-      {error ? (
-        <p role="alert" className="text-caption text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p role="alert" className="text-caption text-destructive">{error}</p> : null}
       <div>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={!changed || pending}
+          aria-disabled={(!changed || pending) || undefined}
           aria-busy={pending || undefined}
           onClick={() => {
+            if (!changed || pending) return;
             if (current === "workspace" || current === "restricted") onSave(current);
           }}
         >
-          {pending ? (
-            <>
-              <Spinner aria-hidden role="presentation" />
-              {t("documents.share.visibility_saving")}
-            </>
-          ) : (
-            t("documents.share.visibility_save")
-          )}
+          {pending ? <><Spinner aria-hidden role="presentation" />{t("documents.share.visibility_saving")}</> : t("documents.share.visibility_save")}
         </Button>
       </div>
     </section>

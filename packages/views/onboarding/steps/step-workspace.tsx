@@ -177,7 +177,9 @@ export function StepWorkspace({
               <PickerCard
                 key={w.id}
                 selected={pickedId === w.id}
-                onSelect={() => setPickedId((p) => (p === w.id ? null : w.id))}
+                // A radio never unchecks on a second press; only the create
+                // card toggles, because it also folds its form away.
+                onSelect={() => setPickedId(w.id)}
                 title={w.name}
                 subtitle={`${host}/${organization.slug}/${w.slug}`}
                 avatar={avatarInitial(w.name)}

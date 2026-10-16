@@ -10,12 +10,15 @@ INSERT INTO chat_reminders (
 -- tenant: system
 -- The reminder worker's claim: due rows, oldest first, locked for the
 -- transaction that emits chat.reminder.due and advances them. SKIP LOCKED
--- lets a second pod take the next rows instead of waiting on these.
+-- lets a second pod take the next rows instead of waiting on these. An
+-- archived room keeps its schedule but stays quiet until unarchived.
 SELECT r.message_id, r.organization_id, r.workspace_id, r.room_id, r.repeat, r.timezone,
   r.remind_at, r.occurrence, r.next_fire_at,
-  (m.id IS NULL OR m.deleted_at IS NOT NULL)::boolean AS message_gone
+  (m.id IS NULL OR m.deleted_at IS NOT NULL OR cr.id IS NULL)::boolean AS message_gone,
+  (cr.archived_at IS NOT NULL)::boolean AS room_archived
 FROM chat_reminders r
 LEFT JOIN chat_messages m ON m.id = r.message_id
+LEFT JOIN chat_rooms cr ON cr.id = r.room_id
 WHERE r.next_fire_at IS NOT NULL AND r.next_fire_at <= $1
 ORDER BY r.next_fire_at
 LIMIT $2

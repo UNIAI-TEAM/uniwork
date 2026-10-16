@@ -118,7 +118,7 @@ describe("MeetingEditDialog", () => {
     const dialog = openDialog({ ...meeting, ends_at: meeting.starts_at });
     const error = within(dialog).getByText("Giờ kết thúc phải khác giờ bắt đầu.");
     const save = within(dialog).getByRole("button", { name: "Lưu thay đổi" });
-    expect(save).toBeEnabled();
+    expect(save).not.toHaveAttribute("aria-disabled");
     fireEvent.click(save);
     expect(requestMock).not.toHaveBeenCalledWith(expect.stringContaining("/meetings/m1"), expect.anything());
     expect(within(dialog).getByRole("group", { name: "Kết thúc" })).toHaveAttribute("aria-describedby", error.id);
@@ -130,7 +130,7 @@ describe("MeetingEditDialog", () => {
     const input = within(dialog).getByLabelText("Tiêu đề");
     fireEvent.change(input, { target: { value: " " } });
     const save = within(dialog).getByRole("button", { name: "Lưu thay đổi" });
-    expect(save).toBeEnabled();
+    expect(save).not.toHaveAttribute("aria-disabled");
     fireEvent.click(save);
     const error = within(dialog).getByText("Nhập tiêu đề để tiếp tục");
     expect(input).toHaveAttribute("aria-invalid", "true");
@@ -209,8 +209,8 @@ describe("MeetingEditDialog", () => {
     requestMock.mockReturnValue(new Promise(() => {}));
     const dialog = openDialog();
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang lưu…" })).toBeDisabled());
-    expect(within(dialog).getByRole("button", { name: "Hủy" })).toBeDisabled();
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang lưu…" })).toHaveAttribute("aria-disabled", "true"));
+    expect(within(dialog).getByRole("button", { name: "Hủy" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("clears the project with an empty string", async () => {

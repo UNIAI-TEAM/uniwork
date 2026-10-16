@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { useSession } from "@uniwork/core/auth";
 import { useOrganizations } from "@uniwork/core/organizations";
-import { paths, resolvePostAuthDestination } from "@uniwork/core/paths";
+import { paths, resolvePostAuthDestination, workspacelessDestination } from "@uniwork/core/paths";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { useNavigation } from "@uniwork/views/navigation";
 import { OnboardingFlow } from "@uniwork/views/onboarding/onboarding-flow";
@@ -14,11 +14,17 @@ export default function NewWorkspacePage() {
   const { data: workspaces = [], isFetched } = useWorkspaces();
   // Already read by the organization step; here it lets Cancel skip the
   // workspaces of an organization that was closed (ADR 0032).
-  const { data: organizations } = useOrganizations(status === "authed");
+  const { data: organizations, isFetched: orgsFetched } = useOrganizations(status === "authed");
+  // A member with no workspace waits to be given one (UNI-1472): the create
+  // flow, which opens on the organization step, is not their way in. With a
+  // workspace already, creating another stays theirs to choose.
+  const waitForGrant =
+    isFetched && orgsFetched && workspaces.length === 0 && workspacelessDestination(organizations) === paths.noWorkspace();
   useEffect(() => {
     if (status === "anon") replace(paths.login());
-  }, [status, replace]);
-  if (status !== "authed" || !isFetched) return null;
+    if (waitForGrant) replace(paths.noWorkspace());
+  }, [status, waitForGrant, replace]);
+  if (status !== "authed" || !isFetched || waitForGrant) return null;
   return (
     <div className="h-dvh overflow-y-auto bg-background">
       <OnboardingFlow

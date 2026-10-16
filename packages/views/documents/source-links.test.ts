@@ -12,10 +12,16 @@ describe("sourceParentPath", () => {
   });
 
   it("opens the module for chat and email, the meeting by id, and nothing for an unknown kind", () => {
-    expect(sourceParentPath(ws, { kind: "chat_dm", id: "c", title: "" })).toBe(ws.chat());
+    expect(sourceParentPath(ws, { kind: "chat_dm", id: "room1", title: "" })).toBe(ws.chatConversation("room1"));
+    expect(sourceParentPath(ws, { kind: "chat_channel", id: "room2", title: "", message_id: "msg9" })).toBe(
+      ws.chatConversation("room2", "msg9"),
+    );
     expect(sourceParentPath(ws, { kind: "email_thread", id: "e", title: "" })).toBe(ws.email());
     expect(sourceParentPath(ws, { kind: "meeting", id: "m1", title: "" })).toBe(ws.meeting("m1"));
     expect(sourceLinkLabelKey({ kind: "chat_channel", id: "c", title: "" })).toBe("documents.home.row.open_chat");
+    expect(sourceLinkLabelKey({ kind: "chat_channel", id: "c", title: "", message_id: "m1" })).toBe(
+      "documents.home.row.go_to_source",
+    );
     expect(sourceLinkLabelKey({ kind: "email_thread", id: "e", title: "" })).toBe("documents.home.row.open_email");
     expect(sourceLinkLabelKey({ kind: "task_comment", id: "t", title: "" })).toBe("documents.home.row.go_to_source");
     expect(sourceParentPath(ws, { kind: "fax", id: "x", title: "" } as unknown as DocumentSourceFile["parent"])).toBeNull();

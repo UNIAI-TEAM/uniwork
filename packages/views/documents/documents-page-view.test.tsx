@@ -320,14 +320,43 @@ describe("DocumentsPageView", () => {
 
   it("groups by folder by default and by file type on request", async () => {
     route({
-      tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
-      list: () => [summary(), file("f1", "Báo giá.docx", { parent_id: "fo1" })],
+      tree: () => [
+        treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" }),
+        treeNode({ id: "fo-empty", title: "Thư mục trống", kind: "folder" }),
+      ],
+      list: () => [
+        summary(),
+        summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }),
+        summary({ id: "fo-empty", kind: "folder", title: "Thư mục trống" }),
+        file("f1", "Báo giá.docx", { parent_id: "fo1" }),
+      ],
     });
     renderView(vi.fn());
     await screen.findByText("Báo giá.docx");
 
     const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((cell) => cell.textContent);
-    await waitFor(() => expect(groupHeaders()).toEqual([`${t("documents.home.groups.unfiled")}1`, "Dự án CCB1"]));
+    await waitFor(() =>
+      expect(groupHeaders()).toEqual([
+        `${t("documents.home.groups.type.folder")}2`,
+        `${t("documents.home.groups.unfiled")}1`,
+        "Dự án CCB1",
+      ]),
+    );
+    const groupBody = (headerText: string) => {
+      const header = Array.from(document.querySelectorAll("[data-library-group]")).find(
+        (cell) => cell.textContent === headerText,
+      );
+      const tbody = header?.closest("tbody");
+      if (!tbody) throw new Error(`no tbody for group ${headerText}`);
+      return tbody;
+    };
+    const foldersGroup = groupBody(`${t("documents.home.groups.type.folder")}2`);
+    const unfiledGroup = groupBody(`${t("documents.home.groups.unfiled")}1`);
+    expect(within(foldersGroup).getByText("Dự án CCB")).toBeInTheDocument();
+    expect(within(foldersGroup).getByText("Thư mục trống")).toBeInTheDocument();
+    expect(within(unfiledGroup).queryByText("Dự án CCB")).toBeNull();
+    expect(within(unfiledGroup).queryByText("Thư mục trống")).toBeNull();
+    expect(within(unfiledGroup).getByText("Kế hoạch Q4")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("combobox", { name: t("documents.home.group_by.label") }));
     const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.group_by.type"));
@@ -336,7 +365,11 @@ describe("DocumentsPageView", () => {
     fireEvent.click(option);
 
     await waitFor(() =>
-      expect(groupHeaders()).toEqual([`${t("documents.home.groups.type.page")}1`, `${t("documents.home.groups.type.docx")}1`]),
+      expect(groupHeaders()).toEqual([
+        `${t("documents.home.groups.type.page")}1`,
+        `${t("documents.home.groups.type.folder")}2`,
+        `${t("documents.home.groups.type.docx")}1`,
+      ]),
     );
   });
 
@@ -526,7 +559,8 @@ describe("DocumentsPageView", () => {
     const dialog = await screen.findByRole("dialog", { name: t("documents.home.folders.create_title_root") });
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
 
-    const crumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+    // Create, close, open and fetch the folder chain past the 1s default under the full CI run.
+    const crumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") }, { timeout: 5000 });
     expect(within(crumbs).getByText(t("documents.home.folders.default_name"))).toBeInTheDocument();
     expect((postCall("POST")?.[1] as { body?: unknown }).body).toEqual({
       kind: "folder",
@@ -693,8 +727,8 @@ describe("DocumentsPageView", () => {
     route({
       list: () => [
         summary({ id: "m1", title: "Báo cáo quản lý", my_level: "manage" }),
-        summary({ id: "e1", title: "Chỉnh sửa", my_level: "edit" }),
-        summary({ id: "v1", title: "Chỉ xem", my_level: "view" }),
+        summary({ id: "e1", title: "Tài liệu được sửa", my_level: "edit" }),
+        summary({ id: "v1", title: "Tài liệu chỉ đọc", my_level: "view" }),
         summary({ id: "n1", title: "Chưa rõ", my_level: undefined }),
       ],
     });
@@ -710,8 +744,8 @@ describe("DocumentsPageView", () => {
       return out;
     };
     expect(await menuItems("Báo cáo quản lý")).toEqual({ move: true, archive: true });
-    expect(await menuItems("Chỉnh sửa")).toEqual({ move: true, archive: false });
-    expect(await menuItems("Chỉ xem")).toEqual({ move: false, archive: false });
+    expect(await menuItems("Tài liệu được sửa")).toEqual({ move: true, archive: false });
+    expect(await menuItems("Tài liệu chỉ đọc")).toEqual({ move: false, archive: false });
     // A row the server sent no level for reads as view: nothing it would refuse.
     expect(await menuItems("Chưa rõ")).toEqual({ move: false, archive: false });
   });
@@ -747,7 +781,7 @@ describe("DocumentsPageView", () => {
       },
     });
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.open_office") }));
-    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://home"));
+    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://home", expect.anything()));
     expect(postCall("POST")).toBeUndefined();
   });
 

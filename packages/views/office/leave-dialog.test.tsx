@@ -108,9 +108,10 @@ describe("LeaveDialog", () => {
 describe("LeaveDialog discard", () => {
   it("paints Discard on the opaque soft destructive pair, not a translucent tint (visual V1 #3)", () => {
     // In dark the footer's raised fill under bg-destructive/20 measured 4.18:1; the soft pair holds 5.58.
+    // The destructive variant is that pair now, so the button needs no override of its own.
     render(<LeaveDialog open dirty onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} />);
     const discard = screen.getByRole("button", { name: "Discard changes" });
-    for (const name of ["bg-destructive-soft", "text-destructive-soft-foreground", "dark:bg-destructive-soft"]) expect(discard.className.split(" ")).toContain(name);
+    for (const name of ["bg-destructive-soft", "text-destructive-soft-foreground", "hover:bg-destructive-soft-hover"]) expect(discard.className.split(" ")).toContain(name);
     expect(discard.className).not.toMatch(/(^| )(dark:)?(hover:)?bg-destructive\/\d+/);
   });
 });

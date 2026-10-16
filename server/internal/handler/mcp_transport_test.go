@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,6 +20,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -55,7 +58,7 @@ func mcpTestPair(t *testing.T, srv *httptest.Server, d Deps, email, slug string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	back, err := d.McpAuth.Approve(ctx, userID, attempt, consent.CSRFToken, orgID)
+	back, err := d.McpAuth.Approve(ctx, userID, attempt, consent.CSRFToken, orgID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,6 +145,24 @@ func TestMcpTokenRejectedByREST(t *testing.T) {
 	}
 }
 
+// mcpReadToolCount is how many tools the router lists for a grant that cannot
+// write: the read tools of the registry it serves, so a new read tool does not
+// break the tests that count them. An empty registry is a wiring bug, not a
+// count to compare with.
+func mcpReadToolCount(t *testing.T, d Deps) int {
+	t.Helper()
+	n := 0
+	for _, tool := range service.McpTools(d.McpTools) {
+		if tool.Kind == ai.ToolRead {
+			n++
+		}
+	}
+	if n == 0 {
+		t.Fatal("the registry has no read tool")
+	}
+	return n
+}
+
 func TestMcpToolsOverHTTP(t *testing.T) {
 	srv, d := newMcpTestServer(t)
 	pair, wsID := mcpTestPair(t, srv, d, "mcp-http@example.com", "mcp-http")
@@ -153,8 +174,8 @@ func TestMcpToolsOverHTTP(t *testing.T) {
 		t.Fatalf("tools/list: %d %v", res.StatusCode, out)
 	}
 	tools := out["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 5 {
-		t.Fatalf("tools = %v", tools)
+	if want := mcpReadToolCount(t, d); len(tools) != want {
+		t.Fatalf("listed %d tools, want the %d read tools of the registry: %v", len(tools), want, tools)
 	}
 	for _, raw := range tools {
 		tool := raw.(map[string]any)
@@ -190,7 +211,11 @@ func TestMcpToolListCarriesAnnotationsAndSchemas(t *testing.T) {
 		tool := raw.(map[string]any)
 		names[tool["name"].(string)] = true
 		ann := tool["annotations"].(map[string]any)
-		if ann["readOnlyHint"] != true || ann["destructiveHint"] != false || ann["openWorldHint"] != false {
+		def, ok := service.McpTools(&service.McpToolService{}).Get(tool["name"].(string))
+		if !ok {
+			t.Fatalf("listed tool %v is not in the registry", tool["name"])
+		}
+		if ann["readOnlyHint"] != (def.Kind == ai.ToolRead) || ann["destructiveHint"] != def.Destructive || ann["openWorldHint"] != false {
 			t.Errorf("%v annotations = %v", tool["name"], ann)
 		}
 		// The title sits in both places a client looks for it: the tool's own
@@ -440,7 +465,7 @@ func (m *mcpRecordedMetrics) IncOAuth(e string) {
 	m.oauth = append(m.oauth, e)
 }
 
-func (m *mcpRecordedMetrics) ObserveTool(tool, outcome string, d time.Duration) {
+func (m *mcpRecordedMetrics) ObserveTool(tool, _, outcome string, d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.tools = append(m.tools, tool+"/"+outcome)
@@ -495,7 +520,7 @@ func TestMcpRequestSpanCarriesClientGrantAndTool(t *testing.T) {
 			continue
 		}
 		found = true
-		if !strings.HasPrefix(attrs["mcp.client_id"], "mcpc_") || attrs["mcp.grant_id"] == "" || attrs["uniwork.actor_kind"] != "human" || attrs["uniwork.organization_id"] == "" {
+		if !strings.HasPrefix(attrs["mcp.client_id"], "mcpc_") || attrs["mcp.grant_id"] == "" || attrs["mcp.scope"] != "read" || attrs["uniwork.actor_kind"] != "human" || attrs["uniwork.organization_id"] == "" {
 			t.Errorf("span attributes = %v", attrs)
 		}
 		for k, v := range attrs {
@@ -506,6 +531,33 @@ func TestMcpRequestSpanCarriesClientGrantAndTool(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("no span carries mcp.tool=my_work (%d spans)", len(sr.Ended()))
+	}
+}
+
+// Every tool call is counted with its kind: read for a read tool, write for
+// anything else, and a refused write still counts as a write (spec §9).
+func TestMcpToolMetricsCarryTheKind(t *testing.T) {
+	var ran []string
+	var via audit.Via
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	call := func(h http.Handler, tool string) {
+		mcpDirectCall(t, h, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"`+tool+`","arguments":{}}}`)
+	}
+
+	reader := service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1", Scope: "read", WriteOpen: true}
+	counts := &mcpToolCounts{}
+	h := mcpServeAs(newMcpHandler(writeRegistry(&ran, &via), counts, nil, quiet), reader)
+	call(h, "peek")
+	call(h, "poke")
+	if got := strings.Join(counts.kinds, ","); got != "peek/read/ok,poke/write/refused" {
+		t.Errorf("read grant metrics = %s", got)
+	}
+
+	counts = &mcpToolCounts{}
+	h = mcpServeAs(newMcpHandler(writeRegistry(&ran, &via), counts, nil, quiet), writer())
+	call(h, "poke")
+	if got := strings.Join(counts.kinds, ","); got != "poke/write/ok" {
+		t.Errorf("write grant metrics = %s", got)
 	}
 }
 

@@ -8,15 +8,16 @@ import { cn } from "@uniwork/ui/lib/utils"
 function Tabs({
   className,
   orientation = "horizontal",
+  unstyled = false,
   ...props
-}: TabsPrimitive.Root.Props) {
+}: TabsPrimitive.Root.Props & { unstyled?: boolean }) {
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
       orientation={orientation}
       data-orientation={orientation}
       className={cn(
-        "group/tabs flex gap-2 data-horizontal:flex-col",
+        !unstyled && "group/tabs flex gap-2 data-horizontal:flex-col",
         className
       )}
       {...props}
@@ -77,8 +78,11 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"
+      // No `outline-none`: the panel is a tab stop (tabIndex 0), so the
+      // global :focus-visible outline is how a keyboard user sees they
+      // reached it; rounded-md keeps that outline's corners soft.
       className={cn(
-        "flex-1 text-body outline-none",
+        "flex-1 rounded-md text-body",
         // Tailwind `flex` on a panel overrides the native `[hidden]` display rule.
         "[hidden]:!hidden",
         className,

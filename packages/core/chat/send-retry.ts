@@ -19,6 +19,14 @@ export function isRetriableChatSendError(err: unknown): boolean {
   return err.status >= 500;
 }
 
+/**
+ * True when the server refused this message for good (403 removed from the room,
+ * 404 room gone, 410 deleted, 422 invalid). 401 is the session, not the message.
+ */
+export function isPermanentChatSendRefusal(err: unknown): boolean {
+  return err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 401 && !isRetriableChatSendError(err);
+}
+
 /** The server refused for rate, not reachability: say so, never "saved for when online". */
 export function isChatSendRateLimited(err: unknown): boolean {
   return err instanceof ApiError && err.status === 429;

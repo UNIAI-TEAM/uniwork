@@ -11,6 +11,8 @@
   "exports": {
     "./auth/*": "./auth/*.tsx",
     "./admin/*": "./admin/*.tsx",
+    "./layout/module-icons": "./layout/module-icons.ts",
+    "./layout/module-tones": "./layout/module-tones.ts",
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
@@ -18,6 +20,7 @@
     "./tasks/detail/*": "./tasks/detail/*.tsx",
     "./tasks/surface/*": "./tasks/surface/*.tsx",
     "./tasks/modes/*": "./tasks/modes/*.tsx",
+    "./tasks/modes/status-config": "./tasks/modes/status-config.ts",
     "./tasks/views/*": "./tasks/views/*.tsx",
     "./my-tasks": "./my-tasks/index.ts",
     "./my-tasks/*": "./my-tasks/*.tsx",
@@ -35,6 +38,7 @@
     "./settings": "./settings/index.ts",
     "./people/*": "./people/*.tsx",
     "./documents": "./documents/index.ts",
+    "./documents/library-rows": "./documents/library-rows.ts",
     "./documents/*": "./documents/*.tsx",
     "./office": "./office/index.ts",
     "./office/*": "./office/*.tsx",
@@ -42,6 +46,7 @@
     "./navigation": "./navigation/index.ts",
     "./editor": "./editor/index.ts",
     "./common/*": "./common/*.tsx",
+    "./calendar/calendar-view-mode": "./calendar/calendar-view-mode.ts",
     "./calendar/*": "./calendar/*.tsx"
   },
   "dependencies": {

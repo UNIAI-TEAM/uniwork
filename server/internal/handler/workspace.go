@@ -15,7 +15,8 @@ import (
 
 func toWorkspaceDTO(w service.WorkspaceView) sdo.WorkspaceDTO {
 	return sdo.WorkspaceDTO{ID: w.ID, Slug: w.Slug, Name: w.Name, OrganizationID: w.OrganizationID,
-		OrganizationSlug: w.OrganizationSlug, OrganizationName: w.OrganizationName}
+		OrganizationSlug: w.OrganizationSlug, OrganizationName: w.OrganizationName,
+		Description: w.Description, IconEmoji: w.IconEmoji.String, IconURL: w.IconURL, TaskPrefix: w.TaskPrefix}
 }
 
 func toMemberDTO(m db.ListWorkspaceMembersRow) sdo.MemberDTO {
@@ -70,7 +71,7 @@ func (h *handlers) patchWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws, err := h.Workspaces.Update(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name})
+		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name, Description: in.Description, IconEmoji: in.IconEmoji, TaskPrefix: in.TaskPrefix, Slug: in.Slug})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -166,6 +167,7 @@ func (h *handlers) previewInvitation(w http.ResponseWriter, r *http.Request) {
 			ID: p.ID, Status: p.Status, ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339),
 			Organization: sdo.InvitationOrgDTO{ID: p.Organization.ID, Slug: p.Organization.Slug, Name: p.Organization.Name},
 			OrgRole:      p.OrgRole, InviterName: p.InviterName,
+			Workspaces: toInvitationWorkspaceDTOs(p.Workspaces),
 		},
 		Conflicts: make([]sdo.MembershipConflictDTO, 0, len(p.Conflicts)),
 	}
@@ -204,9 +206,9 @@ func (h *handlers) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	out := sdo.AcceptInviteSDO{Organization: sdo.OrganizationDTO{
 		ID: result.Organization.ID, Slug: result.Organization.Slug, Name: result.Organization.Name,
 	}}
-	// An organization-level invitation leaves the person in the company but in
-	// no team yet, so `workspace` is absent and the client sends them to the
-	// workspace picker rather than into a workspace they do not have.
+	// With nowhere to land - no workspace granted and none the person may
+	// open - `workspace` is absent and the client says so (UNI-1472) rather
+	// than sending them into a workspace they do not have.
 	if result.Workspace != nil {
 		dto := toWorkspaceDTO(*result.Workspace)
 		out.Workspace = &dto

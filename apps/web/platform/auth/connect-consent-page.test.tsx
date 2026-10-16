@@ -18,12 +18,12 @@ vi.mock("@uniwork/core", () => ({
 vi.mock("@uniwork/views/navigation", () => ({ useNavigation: () => ({ searchParams: new URLSearchParams(state.query), replace: state.replace }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@uniwork/views/auth/connect-consent", () => ({
-  ConnectConsentView: ({ consent, state: view, errorCode, onDecision }: { consent: { csrf_token: string } | null; state: string; errorCode?: string; onDecision: (decision: "approve" | "cancel", organizationId?: string) => Promise<void> }) => (
+  ConnectConsentView: ({ consent, state: view, errorCode, onDecision }: { consent: { csrf_token: string } | null; state: string; errorCode?: string; onDecision: (decision: "approve" | "cancel", organizationId?: string, write?: boolean) => Promise<void> }) => (
     <div>
       <div data-testid="consent-state">{view}</div>
       <div data-testid="csrf">{consent?.csrf_token ?? ""}</div>
       <div data-testid="error-code">{errorCode ?? ""}</div>
-      <button type="button" onClick={() => void onDecision("approve", "o1")}>approve</button>
+      <button type="button" onClick={() => void onDecision("approve", "o1", true)}>approve</button>
     </div>
   ),
 }));
@@ -122,14 +122,14 @@ it("reads again for a fresh token when the decision is refused as csrf_invalid, 
   expect(text("csrf")).toBe("stale");
 
   await act(async () => { container.querySelector("button")?.click(); });
-  expect(state.decide).toHaveBeenNthCalledWith(1, "attempt-1", { decision: "approve", csrf_token: "stale", organization_id: "o1" });
+  expect(state.decide).toHaveBeenNthCalledWith(1, "attempt-1", { decision: "approve", csrf_token: "stale", organization_id: "o1", write: true });
   expect(state.read).toHaveBeenCalledTimes(2);
   expect(text("consent-state")).toBe("pending");
   expect(text("csrf")).toBe("fresh");
   expect(assign).not.toHaveBeenCalled();
 
   await act(async () => { container.querySelector("button")?.click(); });
-  expect(state.decide).toHaveBeenNthCalledWith(2, "attempt-1", { decision: "approve", csrf_token: "fresh", organization_id: "o1" });
+  expect(state.decide).toHaveBeenNthCalledWith(2, "attempt-1", { decision: "approve", csrf_token: "fresh", organization_id: "o1", write: true });
   expect(text("consent-state")).toBe("approved");
   expect(assign).toHaveBeenCalledExactlyOnceWith("https://claude.ai/api/mcp/auth_callback?code=c");
 });

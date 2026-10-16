@@ -16,8 +16,8 @@ import { ChatExpressionPicker } from "./chat-expression-picker";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
-import { CHAT_FILE_ACCEPT, pickChatAcceptedFiles } from "./chat-file-accept";
+import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
+import { CHAT_FILE_ACCEPT, CHAT_FILE_MAX_LABEL, isChatFileTooLarge, pickChatAcceptedFiles } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
@@ -48,6 +48,8 @@ type ChatComposerProps = {
   onSendVoice?: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   onSendFile?: (file: File) => void | Promise<void>;
   showCreatePoll?: boolean;
+  /** A host may provide its own voice capture flow. */
+  onRecordVoice?: () => void;
   ref?: Ref<ChatComposerHandle>;
 };
 
@@ -69,10 +71,12 @@ export function ChatComposer({
   onSendVoice,
   onSendFile,
   showCreatePoll = true,
+  onRecordVoice,
   ref,
 }: ChatComposerProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const mentionListId = useId();
   const counterId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,12 +108,11 @@ export function ChatComposer({
     (files: File[]) => {
       if (disabled || !onSendFile) return;
       const accepted = pickChatAcceptedFiles(files);
-      if (accepted.length === 0) {
-        if (files.length > 0) toast.error(t("chat.file_type_unsupported"));
-        return;
-      }
+      const ready = accepted.filter((file) => !isChatFileTooLarge(file));
       if (accepted.length < files.length) toast.error(t("chat.file_type_unsupported"));
-      setStagedFiles((current) => [...current, ...accepted]);
+      if (ready.length < accepted.length) toast.error(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
+      if (ready.length === 0) return;
+      setStagedFiles((current) => [...current, ...ready]);
       textareaRef.current?.focus();
     },
     [disabled, onSendFile, t],
@@ -158,6 +161,12 @@ export function ChatComposer({
     textareaRef.current?.focus();
   };
 
+  // The server limits the sent body, where each @label is a longer mention
+  // token. UTF-16 length counts an emoji as 2, so this is never looser than it.
+  const remaining =
+    CHAT_MESSAGE_BODY_MAX_LENGTH -
+    serializeComposerDraftToMessageBody(draft, mentionCandidates ?? [], t("chat.mention_all")).length;
+
   const submit = () => {
     if (!canSend) return;
     if (stagedFiles.length > 0 && onSendFile) {
@@ -175,13 +184,13 @@ export function ChatComposer({
       })();
       setStagedFiles([]);
     }
-    if (draft.trim().length > 0) onSend();
+    // Over the limit the counter is already red; sending would only bounce.
+    if (draft.trim().length > 0 && remaining >= 0) onSend();
     // The send button disappears with the text; keep typing where you were
     // (and keep a phone's keyboard up).
     textareaRef.current?.focus();
   };
 
-  const remaining = CHAT_MESSAGE_BODY_MAX_LENGTH - draft.length;
   const showCounter = remaining <= COUNTER_THRESHOLD;
 
   return (
@@ -279,7 +288,7 @@ export function ChatComposer({
               />
             </div>
 
-            <div className="relative min-w-0 flex-1">
+            <div ref={mentionAnchorRef} className="relative min-w-0 flex-1">
               {mentions.open ? (
                 <ChatMentionAutocomplete
                   listId={mentionListId}
@@ -287,6 +296,7 @@ export function ChatComposer({
                   selectedIndex={mentions.activeIndex}
                   onSelect={mentions.insert}
                   onHover={mentions.setSelectedIndex}
+                  anchorRef={mentionAnchorRef}
                   memberAvatarByUserId={memberAvatarByUserId}
                 />
               ) : null}
@@ -359,7 +369,7 @@ export function ChatComposer({
                 <ComposerToolbarButton
                   label={t("chat.composer_state.record")}
                   disabled={disabled}
-                  onClick={() => void voiceRecorder.start()}
+                  onClick={() => { if (onRecordVoice) onRecordVoice(); else void voiceRecorder.start(); }}
                 >
                   <Mic aria-hidden className="size-5" />
                 </ComposerToolbarButton>
@@ -374,7 +384,9 @@ export function ChatComposer({
                 remaining <= 0 ? "text-destructive" : "text-muted-foreground",
               )}
             >
-              {t("chat.composer_state.chars_left", { count: Math.max(remaining, 0) })}
+              {remaining < 0
+                ? t("chat.composer_state.chars_over", { count: -remaining })
+                : t("chat.composer_state.chars_left", { count: remaining })}
             </p>
           ) : null}
         </form>

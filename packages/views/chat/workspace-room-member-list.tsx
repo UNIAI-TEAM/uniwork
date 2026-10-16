@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomMemberRecord } from "@uniwork/core/api/endpoints/chat";
-import { useWorkspacePermissions } from "@uniwork/core/permissions";
+import { useCurrentMember, useWorkspacePermissions } from "@uniwork/core/permissions";
 import type { Member } from "@uniwork/core/types/workspace";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -20,6 +20,7 @@ import {
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
 import { foldedIncludes } from "./chat-search-fold";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChatMemberRow } from "./chat-settings-ui";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 
@@ -27,6 +28,8 @@ import { useRoomMemberModeration } from "./use-room-member-moderation";
 const WORKSPACE_MEMBER_PAGE = 50;
 /** Below this a list is read at a glance and a search box is only noise. */
 const SEARCH_FROM = 9;
+/** This list only ever shows the workspace room, which the moderation rules treat as one. */
+const WORKSPACE_ROOM = { kind: "workspace" } as const;
 
 /**
  * The workspace room's members: searchable (accent-insensitive), shown a page
@@ -41,6 +44,7 @@ export function WorkspaceRoomMemberList({
   currentUserId,
   youLabel,
   isModerator,
+  onMessage,
 }: {
   workspaceId: string;
   roomId: string;
@@ -49,9 +53,11 @@ export function WorkspaceRoomMemberList({
   currentUserId: string;
   youLabel: string;
   isModerator: boolean;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
   const { decideRemove } = useWorkspacePermissions(workspaceId);
+  const wsRole = useCurrentMember(workspaceId).role;
   const moderation = useRoomMemberModeration({ workspaceId, roomId });
   const workspaceName = useOptionalWorkspace()?.workspace.name?.trim();
   const [query, setQuery] = useState("");
@@ -130,12 +136,29 @@ export function WorkspaceRoomMemberList({
                 }
                 name={label}
                 detail={detail}
+                profile={{
+                  userId: member.user_id,
+                  email: member.email,
+                  avatarUrl: memberAvatarUrl(wsMember?.avatar_url),
+                  onMessage:
+                    !isSelf && onMessage
+                      ? () =>
+                          onMessage({
+                            user_id: member.user_id,
+                            email: member.email,
+                            display_name: member.display_name?.trim() || member.email,
+                          })
+                      : undefined,
+                }}
                 actions={
                   !isSelf && isModerator ? (
                     <ChatRoomMemberActions
                       label={label}
                       canPromote={canPromoteChatMember(member, isModerator)}
-                      canDemote={canDemoteChatMember(member, currentUserId, isModerator)}
+                      canDemote={
+                        canDemoteChatMember(member, currentUserId, members, wsRole, WORKSPACE_ROOM) &&
+                        wsMember?.role !== "owner"
+                      }
                       canMute={canMuteChatMember(member, isModerator)}
                       canUnmute={canUnmuteChatMember(member, isModerator)}
                       canKick={wsMember ? decideRemove(wsMember).allowed && member.role !== "admin" : false}

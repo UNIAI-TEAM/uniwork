@@ -234,7 +234,12 @@ describe("ShareDialog", () => {
 
     expect(await screen.findByText(t("documents.share.access_title"))).toBeInTheDocument();
     expect(screen.getByText(t("documents.share.my_level", { level: t("documents.share.level_manage") }))).toBeInTheDocument();
-    expect(screen.getByText(t("documents.share.acl_owner"))).toBeInTheDocument();
+    const ownerBadge = screen.getByText(t("documents.share.acl_owner"));
+    expect(ownerBadge).toBeInTheDocument();
+    const ownerRow = ownerBadge.closest("li")!;
+    expect(ownerRow).not.toHaveTextContent(t("documents.share.level_manage"));
+    expect(t("documents.share.level_view")).toBe("Chỉ xem");
+    expect(t("documents.share.level_edit")).toBe("Chỉnh sửa");
     expect(screen.getByText("Bình")).toBeInTheDocument();
     expect(screen.getByText("Design")).toBeInTheDocument();
     // A revoked/dead grant is marked, not hidden.
@@ -245,6 +250,26 @@ describe("ShareDialog", () => {
     ).toBeGreaterThan(0);
     // One live link with its view count.
     expect(screen.getByText(/3 lượt xem/)).toBeInTheDocument();
+  });
+
+  it("renders Chia sẻ “{{title}}” and Lưu tại: {{workspace}} in the header, falling back when title or workspace name is absent (VIS-SHS1-01)", async () => {
+    const { unmount } = renderDialog(documentFixture({ title: "Báo cáo doanh thu Q3", workspace_id: "w2" }));
+
+    const namedDialog = await screen.findByRole("dialog", {
+      name: t("documents.share.title_named", { title: "Báo cáo doanh thu Q3" }),
+    });
+    expect(
+      await within(namedDialog).findByText(t("documents.share.stored_in", { workspace: "Design" })),
+    ).toBeInTheDocument();
+    expect(within(namedDialog).queryByText(t("documents.share.description"))).toBeNull();
+    unmount();
+
+    renderDialog(documentFixture({ title: "", workspace_id: "ws-unknown" }));
+    const fallbackDialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    await within(fallbackDialog).findByText(t("documents.share.access_title"));
+    expect(within(fallbackDialog).queryByText(/Lưu tại:/)).toBeNull();
+    expect(within(fallbackDialog).queryByText(/ws-unknown/)).toBeNull();
+    expect(fallbackDialog).not.toHaveAttribute("aria-describedby");
   });
 
   it("labels a live comment grant, mine and a row's, as Comment and never as View", async () => {
@@ -264,6 +289,15 @@ describe("ShareDialog", () => {
     expect(await screen.findByText(t("documents.share.my_level", { level: t("documents.share.level_comment") }))).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`^${t("documents.share.level_comment")}`))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.share.my_level", { level: t("documents.share.level_view") }))).toBeNull();
+  });
+
+  it("omits the my_level line when an admin-only caller has no document level (VIS-SHS1-06)", async () => {
+    serve({ access: { ...accessPayload, my_level: "" } });
+    renderDialog(documentFixture({ my_level: "", admin_scope: true }));
+
+    expect(await screen.findByText(t("documents.share.access_title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
+    expect(screen.queryByText(/Mức của bạn|Your level/)).toBeNull();
   });
 
   it("keeps a failed read with a retry", async () => {
@@ -439,7 +473,7 @@ describe("ShareDialog", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("share failed");
     expect(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Bình" }) })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeEnabled();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("shares three people at one level with ONE batch POST and lists the three grants", async () => {
@@ -485,7 +519,7 @@ describe("ShareDialog", () => {
     }
     // Success clears the selection for the next batch.
     expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("names the refused person on a 422 principal_not_in_organization and lists nothing new", async () => {
@@ -526,7 +560,7 @@ describe("ShareDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Chi" }) }));
 
     expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("drops the picked people when the principal type moves away from person", async () => {
@@ -538,7 +572,7 @@ describe("ShareDialog", () => {
     await pickOption(t("documents.share.principal_label"), t("documents.share.principal_user"));
 
     expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("drops the picked people when the dialog closes and opens again", async () => {
@@ -558,7 +592,7 @@ describe("ShareDialog", () => {
 
     await pickPerson("Chi");
     fireEvent.click(screen.getByRole("button", { name: t("common.close") }));
-    await waitFor(() => expect(screen.queryByText(t("documents.share.title"))).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "reopen" }));
     await screen.findByText(t("documents.share.access_title"));
 
@@ -662,7 +696,7 @@ describe("ShareDialog", () => {
 
     await waitFor(() => expect(posts.length).toBe(1));
     expect(posts[0]).toEqual({ principal_type: "organization", principal_id: ORG, level: "view" });
-    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.share.submit") })).not.toHaveAttribute("aria-disabled", "true"));
   });
 
   it("explains the link limit without leaving the dialog", async () => {
@@ -876,6 +910,89 @@ describe("ShareDialog", () => {
     const input = screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") });
     expect(input.closest(".sm\\:col-span-2")).not.toBeNull();
   });
+
+  it("keeps disabled submit and visibility-save buttons in the tab order via aria-disabled and blocks clicks (VIS-SHS1-11)", async () => {
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    const submitBtn = screen.getByRole("button", { name: t("documents.share.submit") });
+    const saveVisBtn = screen.getByRole("button", { name: t("documents.share.visibility_save") });
+
+    expect(submitBtn).not.toBeDisabled();
+    expect(submitBtn).toHaveAttribute("aria-disabled", "true");
+    expect(saveVisBtn).not.toBeDisabled();
+    expect(saveVisBtn).toHaveAttribute("aria-disabled", "true");
+
+    const callsBefore = requestMock.mock.calls.length;
+    fireEvent.click(submitBtn);
+    fireEvent.click(saveVisBtn);
+    expect(requestMock.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("marks the caller / ACL owner with people_already_shared in the people picker (VIS-SHS1-16)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1/shares") return Promise.resolve(accessPayload);
+      if (path.startsWith("/api/v1/orgs/acme/members")) {
+        return Promise.resolve({
+          members: [
+            { user_id: "u1", email: "an@acme.vn", display_name: "An Chủ Sở Hữu", role: "owner", created_at: "" },
+            ...membersPayload.members,
+          ],
+          next_cursor: "",
+        });
+      }
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    const input = screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") });
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.change(input, { target: { value: "An Chủ Sở Hữu" } });
+    const selfOption = await screen.findByRole("option", { name: /An Chủ Sở Hữu/ });
+    expect(selfOption).toHaveTextContent(t("documents.share.people_already_shared"));
+  });
+
+  it("translates an unverifiable link-create response via documents.share.link_create_failed instead of raw English (VIS-SHS1-17)", async () => {
+    serve({
+      // Missing token/url causes useCreateDocumentLink to throw DocumentNotVerifiableError("result not verifiable")
+      createLink: () => Promise.resolve({ link: { id: "l9", view_count: 0, created_at: "2026-09-28T03:00:00Z" } }),
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.link_create") }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(t("documents.share.link_create_failed"));
+    expect(alert).not.toHaveTextContent(/result not verifiable/i);
+  });
+
+  it("renders a generic translated label instead of a raw workspace id when a workspace share is missing from orgWorkspaces (VIS-SHS1-13)", async () => {
+    serve({
+      access: {
+        ...accessPayload,
+        shares: [
+          {
+            id: "s-unknown-ws",
+            principal_type: "workspace",
+            principal_id: "ws-ns",
+            level: "view",
+            active: true,
+            effective_level: "view",
+            granted_by: "u1",
+            granted_by_kind: "human",
+            created_at: "2026-09-26T03:00:00Z",
+          },
+        ],
+      },
+    });
+    renderDialog();
+    const access = await screen.findByRole("region", { name: t("documents.share.access_title") });
+    expect(await within(access).findByText(t("documents.share.workspace_unknown"))).toBeInTheDocument();
+    expect(within(access).queryByText("ws-ns")).toBeNull();
+  });
 });
 
 // DOC7-W02: the "Yêu cầu truy cập" section is the manager side of access
@@ -903,13 +1020,23 @@ describe("ShareDialog requests section (DOC7-W02)", () => {
   }
   const listed = () => requestMock.mock.calls.some(([path]) => path === LIST);
 
-  it("lists the pending requests above the access list for a manager", async () => {
+  it("orders dialog sections as add -> access list -> access requests -> visibility -> public links (VIS-SHS1-02)", async () => {
     serveRequests();
     renderDialog();
-    const heading = await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 1 }) });
+    const requestsHeading = await screen.findByRole("heading", {
+      name: t("documents.access_request.section_title", { count: 1 }),
+    });
     expect(await screen.findByText("Chi")).toBeInTheDocument();
-    const access = screen.getByRole("region", { name: t("documents.share.access_title") });
-    expect(heading.compareDocumentPosition(access) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const addSection = screen.getByRole("region", { name: t("documents.share.add_title") });
+    const accessSection = screen.getByRole("region", { name: t("documents.share.access_title") });
+    const requestsSection = requestsHeading.closest("section")!;
+    const visibilitySection = screen.getByRole("region", { name: t("documents.share.visibility_title") });
+    const linksSection = screen.getByRole("region", { name: t("documents.share.links_title") });
+
+    expect(addSection.compareDocumentPosition(accessSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(accessSection.compareDocumentPosition(requestsSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(requestsSection.compareDocumentPosition(visibilitySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(visibilitySection.compareDocumentPosition(linksSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("is there for a pure admin (admin_scope without a level)", async () => {

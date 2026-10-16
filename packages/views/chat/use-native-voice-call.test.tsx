@@ -183,6 +183,72 @@ describe("useNativeVoiceCall", () => {
     expect(result.current.voiceCall).toMatchObject({ status: "ended", reason: "connect_failed" });
   });
 
+  async function ringIn(roomId: string, callId: string, callKind: string) {
+    const hook = renderCall();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      wsHandlers.get("chat.voice.invite")?.({
+        room_id: roomId,
+        call_id: callId,
+        caller_id: "peer",
+        caller_name: "Long",
+        target_user_id: callKind === "dm" ? "me" : undefined,
+        call_kind: callKind,
+      });
+    });
+    expect(hook.result.current.voiceCall.status).toBe("incoming");
+    return hook;
+  }
+
+  // Our own frame, as another tab of ours sent it: it names the caller as target.
+  async function ownFrame(event: string, roomId: string, callId: string, callKind: string) {
+    await act(async () => {
+      wsHandlers.get(event)?.({
+        room_id: roomId,
+        call_id: callId,
+        user_id: "me",
+        target_user_id: callKind === "dm" ? "peer" : undefined,
+        call_kind: callKind,
+      });
+      await vi.advanceTimersByTimeAsync(VOICE_CALL_RING_TIMEOUT_MS);
+    });
+  }
+
+  it("stops ringing when this user answers in another tab", async () => {
+    const { result } = await ringIn("room-dm", "c1", "dm");
+    await ownFrame("chat.voice.accept", "room-dm", "c1", "dm");
+    expect(result.current.voiceCall.status).toBe("idle");
+    expect(paths("/voice/hangup")).toHaveLength(0);
+  });
+
+  it("stops ringing when this user declines in another tab", async () => {
+    const { result } = await ringIn("room-dm", "c1", "dm");
+    await ownFrame("chat.voice.hangup", "room-dm", "c1", "dm");
+    expect(result.current.voiceCall.status).toBe("idle");
+    expect(paths("/voice/hangup")).toHaveLength(0);
+  });
+
+  it("stops ringing for a group call this user joined in another tab", async () => {
+    const { result } = await ringIn("room-other", "g1", "group");
+    await ownFrame("chat.voice.accept", "room-other", "g1", "group");
+    expect(result.current.voiceCall.status).toBe("idle");
+    expect(paths("/voice/hangup")).toHaveLength(0);
+  });
+
+  it("keeps ringing when another tab of ours answers a different call", async () => {
+    const { result } = await ringIn("room-dm", "c1", "dm");
+    await act(async () => {
+      wsHandlers.get("chat.voice.accept")?.({
+        room_id: "room-dm",
+        call_id: "other-call",
+        user_id: "me",
+        target_user_id: "peer",
+        call_kind: "dm",
+      });
+    });
+    expect(result.current.voiceCall).toMatchObject({ status: "incoming", callId: "c1" });
+  });
+
   it("keeps the same API object between renders while nothing changes", () => {
     const { result, rerender } = renderCall();
     const first = result.current;
