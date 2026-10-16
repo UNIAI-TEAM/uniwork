@@ -95,11 +95,6 @@ func TestDocumentPoliciesMatchTheContract(t *testing.T) {
 	if file.Scope != ScopeOrgWorkspace {
 		t.Errorf("document_file scope = %q, want %q", file.Scope, ScopeOrgWorkspace)
 	}
-	for _, exp := range []UploadPurpose{AuditExport, TenantExport} {
-		if specs[exp].Policy.MaxBytes != 200<<20 {
-			t.Errorf("%s cap = %d, want max(100 MiB, 200 MiB)", exp, specs[exp].Policy.MaxBytes)
-		}
-	}
 
 	asset := specs[DocumentAsset]
 	if asset.Policy.MaxBytes != 10<<20 {
@@ -112,26 +107,12 @@ func TestDocumentPoliciesMatchTheContract(t *testing.T) {
 		t.Errorf("document_asset read mode = %q, want %q", asset.Policy.ReadMode, ReadProxy)
 	}
 
-	smallSpecs := map[UploadPurpose]PurposeSpec{}
+	customSpecs := map[UploadPurpose]PurposeSpec{}
 	for _, spec := range SpecsWithDocumentMaxBytes(25 << 20) {
-		smallSpecs[spec.Purpose] = spec
+		customSpecs[spec.Purpose] = spec
 	}
-	if smallSpecs[DocumentFile].Policy.MaxBytes != 25<<20 {
-		t.Errorf("SpecsWithDocumentMaxBytes(25 MiB) document_file cap = %d, want 25 MiB", smallSpecs[DocumentFile].Policy.MaxBytes)
-	}
-	if smallSpecs[AuditExport].Policy.MaxBytes != 100<<20 || smallSpecs[TenantExport].Policy.MaxBytes != 100<<20 {
-		t.Errorf("SpecsWithDocumentMaxBytes(25 MiB) export caps = %d/%d, want 100 MiB floor", smallSpecs[AuditExport].Policy.MaxBytes, smallSpecs[TenantExport].Policy.MaxBytes)
-	}
-
-	largeSpecs := map[UploadPurpose]PurposeSpec{}
-	for _, spec := range SpecsWithDocumentMaxBytes(500 << 20) {
-		largeSpecs[spec.Purpose] = spec
-	}
-	if largeSpecs[DocumentFile].Policy.MaxBytes != 500<<20 {
-		t.Errorf("SpecsWithDocumentMaxBytes(500 MiB) document_file cap = %d, want 500 MiB", largeSpecs[DocumentFile].Policy.MaxBytes)
-	}
-	if largeSpecs[AuditExport].Policy.MaxBytes != 500<<20 || largeSpecs[TenantExport].Policy.MaxBytes != 500<<20 {
-		t.Errorf("SpecsWithDocumentMaxBytes(500 MiB) export caps = %d/%d, want 500 MiB", largeSpecs[AuditExport].Policy.MaxBytes, largeSpecs[TenantExport].Policy.MaxBytes)
+	if customSpecs[DocumentFile].Policy.MaxBytes != 25<<20 {
+		t.Errorf("SpecsWithDocumentMaxBytes(25 MiB) document_file cap = %d, want 25 MiB", customSpecs[DocumentFile].Policy.MaxBytes)
 	}
 }
 
@@ -146,6 +127,8 @@ func TestCapsFollowThePublishedPipelines(t *testing.T) {
 		UserAvatar:     2 << 20,
 		TaskAttachment: 25 << 20,
 		ChatVoice:      4 << 20,
+		AuditExport:    100 << 20,
+		TenantExport:   100 << 20,
 	}
 	for purpose, want := range caps {
 		if got := specs[purpose].Policy.MaxBytes; got != want {

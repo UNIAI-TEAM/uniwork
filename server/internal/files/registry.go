@@ -249,10 +249,7 @@ var (
 
 // DefaultDocumentMaxBytes is the default byte ceiling for document_file when a
 // caller does not pass an explicit override (200 MiB; SIZE-S1 / UNI-1859).
-const (
-	DefaultDocumentMaxBytes int64 = 200 << 20
-	defaultExportMaxBytes   int64 = 100 << 20
-)
+const DefaultDocumentMaxBytes int64 = 200 << 20
 
 // DefaultSpecs is the declared registry table (FS-C1 section 8): prefix, scope
 // shape and policy per purpose. Caps follow what each pipeline publishes today
@@ -264,14 +261,12 @@ func DefaultSpecs() []PurposeSpec {
 }
 
 // SpecsWithDocumentMaxBytes builds the registry table with documentMaxBytes as
-// the document_file ceiling and max(100 MiB, documentMaxBytes) as the export
-// ceiling (SIZE-S1 / UNI-1859). A non-positive documentMaxBytes falls back to
-// DefaultDocumentMaxBytes.
+// the document_file ceiling (SIZE-S1 / UNI-1859). A non-positive
+// documentMaxBytes falls back to DefaultDocumentMaxBytes.
 func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
 	if documentMaxBytes <= 0 {
 		documentMaxBytes = DefaultDocumentMaxBytes
 	}
-	exportMaxBytes := max(defaultExportMaxBytes, documentMaxBytes)
 	return []PurposeSpec{
 		{
 			Purpose: UserAvatar,
@@ -327,13 +322,13 @@ func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
 			Purpose: AuditExport,
 			Prefix:  "audit/exports",
 			Scope:   ScopeOrg,
-			Policy:  Policy{MaxBytes: exportMaxBytes, MIMEAllowlist: exportMIMETypes, ReadMode: ReadProxy},
+			Policy:  Policy{MaxBytes: 100 << 20, MIMEAllowlist: exportMIMETypes, ReadMode: ReadProxy},
 		},
 		{
 			Purpose: TenantExport,
 			Prefix:  "privacy/exports",
 			Scope:   ScopeOrg,
-			Policy:  Policy{MaxBytes: exportMaxBytes, MIMEAllowlist: []string{"application/zip"}, ReadMode: ReadProxy},
+			Policy:  Policy{MaxBytes: 100 << 20, MIMEAllowlist: []string{"application/zip"}, ReadMode: ReadProxy},
 		},
 		{
 			Purpose: DocumentFile,

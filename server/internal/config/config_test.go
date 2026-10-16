@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/files"
 )
 
 func setRequired(t *testing.T) {
@@ -440,5 +442,11 @@ func TestLoadDocumentMaxBytes(t *testing.T) {
 				t.Fatalf("Load() with DOCUMENT_MAX_BYTES=%q = %v, want error mentioning DOCUMENT_MAX_BYTES", tc.val, err)
 			}
 		})
+	}
+}
+
+func TestDefaultDocumentMaxBytesMatchesFilesRegistry(t *testing.T) {
+	if DefaultDocumentMaxBytes != files.DefaultDocumentMaxBytes {
+		t.Fatalf("config.DefaultDocumentMaxBytes = %d, files.DefaultDocumentMaxBytes = %d", DefaultDocumentMaxBytes, files.DefaultDocumentMaxBytes)
 	}
 }
