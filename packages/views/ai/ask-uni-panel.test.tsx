@@ -47,10 +47,10 @@ function mockApi(opts: { enabled?: boolean; askError?: ApiError; conversations?:
   });
 }
 
-function mount() {
+function mount(ws: Workspace = workspace) {
   return render(
     wrapWithNav(
-      <WorkspaceProvider workspace={workspace} user={user}>
+      <WorkspaceProvider workspace={ws} user={user}>
         <AskUniButton />
         <AskUniPanel />
       </WorkspaceProvider>,
@@ -64,7 +64,7 @@ afterEach(async () => {
 
 beforeEach(() => {
   requestMock.mockReset();
-  useAiPanelStore.setState({ open: false, conversationId: null });
+  useAiPanelStore.setState({ open: false, conversationId: null, workspaceId: null });
 });
 
 describe("AskUniPanel", () => {
@@ -122,6 +122,68 @@ describe("AskUniPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Xóa hẳn" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/conversations/c1", expect.objectContaining({ method: "DELETE" })));
     await waitFor(() => expect(useAiPanelStore.getState().conversationId).toBeNull());
+  });
+
+  it("does not send while an IME composition is committing", async () => {
+    mockApi();
+    mount();
+    useAiPanelStore.getState().setOpen(true);
+    const box = await screen.findByRole("textbox", { name: /Hỏi UNI/ });
+    fireEvent.change(box, { target: { value: "x" } });
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/ask", expect.anything());
+  });
+
+  it.each([
+    ["ai_provider_timeout", "UNI trả lời quá lâu, thử lại nhé."],
+    ["ai_tool_not_allowed", "UNI vừa thử một thao tác không được phép, hãy hỏi lại."],
+  ])("maps %s to its own message", async (code, text) => {
+    mockApi({ askError: new ApiError("x", code, 502) });
+    mount();
+    useAiPanelStore.getState().setOpen(true);
+    fireEvent.change(await screen.findByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(text);
+  });
+
+  it("lets the sheet content take the full width on phones and 512px on desktop", async () => {
+    mockApi();
+    mount();
+    useAiPanelStore.getState().setOpen(true);
+    const cls = (await screen.findByRole("dialog")).className;
+    expect(cls).toContain("data-[side=right]:w-full");
+    expect(cls).toContain("data-[side=right]:sm:max-w-lg");
+    expect(cls).not.toContain("data-[side=right]:w-3/4");
+    expect(cls).not.toContain("data-[side=right]:sm:max-w-sm");
+  });
+
+  it("never requests the previous workspace's conversation after a remount in another workspace", async () => {
+    mockApi();
+    useAiPanelStore.setState({ open: true, workspaceId: "w1", conversationId: "c1" });
+    mount({ ...workspace, id: "w2", slug: "other" });
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/w2/ai/capabilities"));
+    await waitFor(() => expect(useAiPanelStore.getState().conversationId).toBeNull());
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/ai/conversations/c1/messages");
+  });
+
+  it("does not select a late answer's conversation after the workspace changed", async () => {
+    mockApi();
+    let resolveAsk: (v: unknown) => void = () => {};
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+      path === "/api/v1/workspaces/ws1/ai/ask" ? new Promise((r) => { resolveAsk = r; }) : base(path, init),
+    );
+    mount();
+    useAiPanelStore.getState().setOpen(true);
+    fireEvent.change(await screen.findByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/ask", expect.anything()));
+    useAiPanelStore.getState().bindWorkspace("w2");
+    resolveAsk(answer);
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/ask", expect.anything()));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(useAiPanelStore.getState().conversationId).toBeNull();
   });
   describe("notice", () => {
     function openWith(message: Record<string, unknown>) {
