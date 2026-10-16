@@ -322,7 +322,7 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
 
 export function createHttpServer(deps: ServerDeps): Server {
   const slots = new BodySlots(deps.config.maxWorkers);
-  return createServer((req, res) => {
+  const server = createServer((req, res) => {
     route(req, res, deps, slots).catch((error: unknown) => {
       const failure = toFailure(error);
       const code = (failure.body.error as { code?: string } | undefined)?.code ?? "unknown";
@@ -331,4 +331,15 @@ export function createHttpServer(deps: ServerDeps): Server {
       else res.destroy();
     });
   });
+  // Node's default 5s keep-alive expiry destroys an idle socket whenever the
+  // timer fires; it cannot see request bytes the kernel already holds but the
+  // event loop has not delivered yet. The close then goes out as a RST and an
+  // in-flight POST dies as ECONNRESET instead of getting its answer (a caller
+  // that shares or starves this loop — e.g. a big in-process upload — makes
+  // the window real). Idle reaping is the client's job: Go's transport and
+  // undici both run their own idle timeouts, so the server keeps an idle
+  // keep-alive connection until the client closes it. Shutdown is unaffected —
+  // service.close() already calls closeIdleConnections() itself.
+  server.keepAliveTimeout = 0;
+  return server;
 }

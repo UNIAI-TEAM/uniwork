@@ -415,7 +415,13 @@ function validateInputBytes(payload, fieldPath, { required = false, byteBound } 
   if (!(hasBytes && hasChecksum && hasLength)) {
     throw new ContractViolation(fieldPath, "checksum_tuple_incomplete", "input_bytes, input_checksum and input_length are validated together");
   }
-  const declaredLength = requireSafeInt(payload.input_length, fieldPath + ".input_length", { min: 0, max: LIMITS.max_input_bytes });
+  // A DECLARED length past the transport ceiling is the byte bound itself,
+  // not a schema slip (size-cap:005): typed 413 before decode, same as
+  // envelope.ts. Non-integer, negative or unsafe lengths stay violations.
+  const declaredLength = requireSafeInt(payload.input_length, fieldPath + ".input_length", { min: 0 });
+  if (declaredLength > bound) {
+    throw new BoundaryError("upload_bounds", { declared_length: declaredLength, max_input_bytes: bound });
+  }
   const declaredChecksum = requireHex64(payload.input_checksum, fieldPath + ".input_checksum");
   const text = requireString(payload.input_bytes, fieldPath + ".input_bytes", { minLength: 0, maxLength: LIMITS.max_output_bytes * 2 });
   const bytes = decodeStrictBase64(text, fieldPath + ".input_bytes");
@@ -1564,8 +1570,9 @@ export const FAULT_CASES = [
   },
   {
     id: "malformed-oversize-input",
-    requirement: "a DECLARED input_length above the byte bound is a schema violation before a job exists (actual bytes over the bound are upload_bounds)",
-    expect: { kind: "contract_violation", field_path: "envelope.payload.input_length", revision_delta: 0, jobs: 0 },
+    requirement:
+      "a DECLARED input_length above the engine byte ceiling is refused with the typed upload_bounds before a job exists (size-cap:005: it is a byte bound failure, not a schema violation)",
+    expect: { code: "upload_bounds", status: 413, error_class: "quota", retryable: false, jobs: 0, revision_delta: 0 },
     run: (b) => { const env = baseEnvelope(); env.payload.input_length = LIMITS.max_input_bytes + 1; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
   },
   {

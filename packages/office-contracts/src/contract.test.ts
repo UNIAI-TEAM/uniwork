@@ -160,15 +160,18 @@ describe("validateEnvelope", () => {
     expect(out.deadlineMs).toBeNull();
   });
 
-  it("rejects a declared input_length over the document-cap ceiling without reading the bytes", async () => {
+  it("refuses a declared input_length over the transport ceiling as upload_bounds, without reading the bytes", async () => {
+    // size-cap:005: an input above the engine ceiling is a typed 413, not a
+    // schema slip - the bytes never even reach decode.
     const fixture = loadFixture("envelope-open.v1.json") as {
       value: { payload: Record<string, unknown> };
     };
     const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
     envelope.payload.input_length = ENGINE_LIMITS.max_input_bytes + 1;
     await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
-      name: "EngineContractViolation",
-      field_path: "envelope.payload.input_length",
+      name: "EngineBoundaryError",
+      code: "upload_bounds",
+      fields: { max_input_bytes: ENGINE_LIMITS.max_input_bytes },
     });
   });
 

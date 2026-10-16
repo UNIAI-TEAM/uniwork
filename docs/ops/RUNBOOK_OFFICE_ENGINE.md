@@ -31,6 +31,11 @@ Input bytes travel inside the job envelope and must match the checksum/length th
 the write target inside the signed grant (the FileService provider-output URL from `RegisterProviderOutput`), and
 only to an origin listed in `OFFICE_ENGINE_OUTPUT_ORIGINS`. The service never fetches a URL or path a request names.
 
+Keep-alive is client-owned: the engine sets `keepAliveTimeout = 0` on its HTTP server, so it never initiates an idle
+close. Node's idle timer cannot see request bytes the kernel already holds, so firing it can reset a connection a
+caller has already pipelined a request onto (a 413 or 202 lost as ECONNRESET). Go's transport and every other
+caller run their own idle timeouts and close first; shutdown still reaps via `closeAllConnections()`.
+
 ## Configuration
 
 | Variable | Default | Meaning |
