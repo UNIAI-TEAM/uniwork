@@ -27,7 +27,7 @@ export const DocumentSourceFileSchema = z.object({
     kind: z.string(),
     id: z.string(),
     title: z.string(),
-    message_id: z.string().optional().default(""),
+    message_id: z.string().optional().default("").catch(""),
   }),
   name: z.string(),
   mime_type: z.string().optional().default(""),
