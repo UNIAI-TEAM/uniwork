@@ -142,6 +142,9 @@ describe("UniChatBadge", () => {
       captured.qc?.setQueryData(chatKeys.rooms("ws1"), [room("a", 0, 0), room("m", 5, 1, true)]);
     });
     await vi.waitFor(() => expect(bridge.setBadgeCount).toHaveBeenLastCalledWith(1));
+
+    act(() => root.unmount());
+    expect(bridge.setBadgeCount).toHaveBeenLastCalledWith(0);
   });
 });
 

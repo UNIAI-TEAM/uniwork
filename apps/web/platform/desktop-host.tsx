@@ -52,5 +52,7 @@ export function UniChatBadge(): null {
   useEffect(() => {
     getDesktopBridge()?.setBadgeCount(count);
   }, [count]);
+  // Separate from the count effect so a change never flashes 0 between two IPC calls.
+  useEffect(() => () => getDesktopBridge()?.setBadgeCount(0), []);
   return null;
 }
