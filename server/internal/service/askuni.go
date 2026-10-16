@@ -191,7 +191,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 		return AskResult{}, err
 	}
 	if !hasOwnSubject(question, w.TaskPrefix, in.Focus, sources) {
-		if sources, err = s.withPreviousQuestion(ctx, previousQuestion(rows), userID, w.OrganizationID, workspaceID, question, sources); err != nil {
+		if sources, err = s.withLastTopic(ctx, rows, userID, w.OrganizationID, workspaceID, question, sources); err != nil {
 			return AskResult{}, err
 		}
 	}
@@ -329,14 +329,17 @@ func previousQuestion(rows []db.AiMessage) string {
 	return topic + " " + last
 }
 
-// withPreviousQuestion appends the sources of "<previous question> <question>"
-// after the current ones, so a follow-up like "who owns that?" still finds what
-// the last turn was about. Focus is not repeated: the first lookup already carries it.
-func (s *AskUNIService) withPreviousQuestion(ctx context.Context, prev, userID, orgID, workspaceID, question string, sources []ai.Source) ([]ai.Source, error) {
-	if prev == "" {
-		return sources, nil
+// withLastTopic appends what the last turn was about after the current
+// sources, so a follow-up like "who owns that?" or a bare "Ai nhận?" keeps its
+// topic. That is the last answer's cited objects, read again as the asker;
+// when it cited none of them (a no-sources notice, a model that cited nothing,
+// an answer from chat or members alone), the sources of "<previous question>
+// <question>" stand in. Focus is not repeated: the first lookup already carries it.
+func (s *AskUNIService) withLastTopic(ctx context.Context, rows []db.AiMessage, userID, orgID, workspaceID, question string, sources []ai.Source) ([]ai.Source, error) {
+	more, err := s.citedTopic(ctx, ai.ToolContext{ActorID: userID, OrganizationID: orgID, WorkspaceID: workspaceID}, rows)
+	if prev := previousQuestion(rows); err == nil && len(more) == 0 && prev != "" {
+		more, err = s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: orgID, WorkspaceID: workspaceID, Question: prev + " " + question})
 	}
-	more, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: orgID, WorkspaceID: workspaceID, Question: prev + " " + question})
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
 			return nil, ai.ErrContextForbidden
@@ -354,6 +357,47 @@ func (s *AskUNIService) withPreviousQuestion(ctx context.Context, prev, userID, 
 		}
 	}
 	return sources, nil
+}
+
+// citedTopic reads again, through the asker's own services, the tasks, meetings
+// and documents the conversation's last answer cited. An object the asker can
+// no longer read is left out; chat and members are never a turn's subject, and
+// an email thread comes back only as focus.
+func (s *AskUNIService) citedTopic(ctx context.Context, tc ai.ToolContext, rows []db.AiMessage) ([]ai.Source, error) {
+	var cited []AskCitation
+	for i := len(rows) - 1; i >= 0; i-- {
+		if rows[i].Role == "assistant" {
+			_ = json.Unmarshal([]byte(rows[i].Citations), &cited) // a row that does not decode cites nothing
+			break
+		}
+	}
+	var out []ai.Source
+	seen := map[string]bool{}
+	for _, c := range cited {
+		if seen[c.Href] {
+			continue
+		}
+		seen[c.Href] = true
+		id := c.Href[strings.LastIndex(c.Href, "/")+1:]
+		var srcs []ai.Source
+		var err error
+		switch c.Kind {
+		case "task":
+			srcs, err = s.taskContext(ctx, tc, id)
+		case "meeting":
+			srcs, err = s.meetingContext(ctx, tc, id)
+		case "document":
+			srcs = s.documentContext(ctx, tc, id)
+		}
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, srcs...)
+	}
+	return out, nil
 }
 
 // history replays the conversation's last turns, wrapped as untrusted.

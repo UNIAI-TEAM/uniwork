@@ -415,6 +415,33 @@ func (s *AskUNIService) searchDocumentSources(ctx context.Context, tc ai.ToolCon
 	return out
 }
 
+// documentContext reads one document of the workspace as search shows it: the
+// `documents` flag on, a live page or file of this workspace that no work
+// product owns, readable by the asker, the first 160 characters of its text as
+// the excerpt. CanReadDocument leaves no view in the access log, as search does
+// not. Any failure drops it, as in search.
+func (s *AskUNIService) documentContext(ctx context.Context, tc ai.ToolContext, id string) []ai.Source {
+	if !s.documentsOn(ctx, tc) {
+		return nil
+	}
+	d, err := s.q.GetDocumentByID(ctx, id)
+	if err != nil || d.WorkspaceID != tc.WorkspaceID || d.ArchivedAt.Valid || d.Kind == DocumentKindFolder || d.OwnerID.Valid {
+		return nil
+	}
+	ok, err := s.docs.CanReadDocument(ctx, tc.ActorID, id)
+	if err != nil {
+		slog.Warn("ask uni: cited document skipped", "user_id", tc.ActorID, "document_id", id, "error", err)
+	}
+	if !ok {
+		return nil
+	}
+	base, err := s.base(ctx, tc.WorkspaceID)
+	if err != nil {
+		return nil
+	}
+	return []ai.Source{{Kind: "document", Title: d.Title, Href: base + "/documents/" + d.ID, Excerpt: capRunes(d.ContentText, 160, "")}}
+}
+
 var taskIdentifierRe = regexp.MustCompile(`(?i)\b([a-z][a-z0-9]{1,9})-(\d{1,9})\b`)
 
 // addIdentifierHits boosts (or adds) the task a PREFIX-N reference in the

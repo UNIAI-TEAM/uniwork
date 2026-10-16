@@ -731,6 +731,71 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 	}
 }
 
+// Vietnamese drops the pronoun: "Ai nhận?" neither names the task nor points
+// back at it, yet the turn after it is still about Banner Tết. The topic
+// travels in the last answer's citations, not in the words of the questions.
+func TestAskFollowUpWithoutAPronounKeepsTheTopic(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	onboarding := NewOnboardingService(s.q, s.ws, mail.Renderer{}, &fakeOutbox{})
+	if _, _, err := onboarding.SeedWelcomeTask(ctx, ua.ID, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, title := range []string{"Banner Tết", "Mua quà cho khách"} {
+		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: title}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	conv := ""
+	for i, q := range []string{"Banner Tết đến đâu rồi?", "Ai nhận?", "Hạn khi nào?"} {
+		res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: conv, Question: q, Locale: "vi"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		conv = res.ConversationID
+		if !citesTitle(res.Citations, "Banner Tết") {
+			t.Errorf("turn %d %q lost the topic: %+v / notice %q", i+1, q, res.Citations, res.Message.Notice.String)
+		}
+	}
+}
+
+// The last answer's citations are read again as the asker: a document they
+// could open when it was cited but no longer can does not come back with the
+// topic. The asker is member B (A owns the organization and reads everything).
+func TestAskFollowUpRereadsCitationsAsTheAsker(t *testing.T) {
+	s, fake, ua, ub, w := askFixture(t)
+	ctx := context.Background()
+	docs := askDocs(t, s, mcpFlags(true))
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addMember(t, s.meetings, w.ID, ub.ID)
+	page, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ask := func(conv, q string) AskResult {
+		res, err := s.Ask(ctx, ub.ID, w.ID, AskInput{ConversationID: conv, Question: q, Locale: "vi"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	first := ask("", "quy trình nghỉ phép")
+	// Control: while B may read it, the cited document carries to the next turn.
+	if res := ask(first.ConversationID, "Ai duyệt?"); !citesTitle(res.Citations, "Quy trình xin nghỉ phép") {
+		t.Fatalf("readable cited document did not carry: %+v", res.Citations)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, page.Document.ID); err != nil {
+		t.Fatal(err)
+	}
+	res := ask(first.ConversationID, "Khi nào?")
+	if citesTitle(res.Citations, "Quy trình xin nghỉ phép") {
+		t.Fatalf("a document B can no longer read came back: %+v", res.Citations)
+	}
+	if fake.Calls > 0 && strings.Contains(fake.Last.Messages[len(fake.Last.Messages)-1].Content, "Quy trình xin nghỉ phép") {
+		t.Fatal("a document B can no longer read reached the model")
+	}
+}
+
 // A follow-up that names its own subject is about that subject: the previous
 // question's sources are not appended to it.
 func TestAskFollowUpWithItsOwnSubjectKeepsToIt(t *testing.T) {
