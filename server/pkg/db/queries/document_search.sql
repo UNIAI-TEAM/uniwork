@@ -86,7 +86,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
-  -- MYFOLDER-01: also exclude system rows
+  -- System rows (My Folder) are never "shared by me": they refuse shares and visibility changes.
+  AND (NOT sqlc.arg(shared_by_me)::boolean OR d.system_kind IS NULL)
   AND (NOT sqlc.arg(shared_by_me)::boolean
        OR ((sqlc.arg(see_all)::boolean OR sqlc.arg(acl_owner)::boolean)
            AND d.acl_owner_id IS NOT NULL

@@ -519,7 +519,8 @@ WHERE d.organization_id = $5
   AND ($13::text IS NULL OR d.updated_by = $13)
   AND ($14::timestamptz IS NULL OR d.updated_at >= $14)
   AND ($15::timestamptz IS NULL OR d.updated_at < $15)
-  -- MYFOLDER-01: also exclude system rows
+  -- System rows (My Folder) are never "shared by me": they refuse shares and visibility changes.
+  AND (NOT $16::boolean OR d.system_kind IS NULL)
   AND (NOT $16::boolean
        OR (($2::boolean OR $9::boolean)
            AND d.acl_owner_id IS NOT NULL

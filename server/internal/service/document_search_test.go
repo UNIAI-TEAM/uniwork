@@ -405,6 +405,12 @@ func TestDocumentListSharedByMe(t *testing.T) {
 	})
 	f.breakGlass(t, tn, expiredGrantDoc.ID, tn.owner.ID, time.Now().Add(-time.Minute), false)
 
+	// The caller's own My Folder must not be listed (the strict id check below proves it);
+	// the predicate is defence in depth, since My Folder refuses shares and visibility changes.
+	if _, _, err := f.svc.EnsureMyFolder(f.ctx, Human(tn.aclOwner.ID), tn.wsA); err != nil {
+		t.Fatalf("EnsureMyFolder: %v", err)
+	}
+
 	page, err := f.svc.ListDocuments(f.ctx, Human(tn.aclOwner.ID), tn.wsA, ListDocumentsInput{
 		SharedByMe: true,
 		Limit:      100,

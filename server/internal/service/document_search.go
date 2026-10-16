@@ -366,7 +366,6 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		if cursor.At != nil {
 			cursorAt = pgtype.Timestamptz{Time: *cursor.At, Valid: true}
 		}
-		// MYFOLDER-01: also exclude system rows
 		rows, err := s.q.ListDocumentsPage(ctx, db.ListDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
