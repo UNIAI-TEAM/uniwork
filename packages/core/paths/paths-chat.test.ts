@@ -11,4 +11,11 @@ describe("paths.workspace().chatConversation", () => {
   it("scrolls to a message when given", () => {
     expect(ws.chatConversation("room1", "msg1")).toBe("/acme/team/chat?room=room1&message=msg1");
   });
+
+  it("encodes both ids and rides on the chat route", () => {
+    const href = ws.chatConversation("a/b?c", "x&y");
+    expect(href).toBe("/acme/team/chat?room=a%2Fb%3Fc&message=x%26y");
+    const url = new URL(href, "http://x.test");
+    expect(url.pathname).toBe(ws.chat());
+  });
 });

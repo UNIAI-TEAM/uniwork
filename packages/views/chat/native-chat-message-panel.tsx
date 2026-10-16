@@ -117,6 +117,7 @@ export function NativeChatMessagePanel({
   const {
     data: latestRows = [],
     isPending: latestPending,
+    isRefetching: latestRefetching = false,
     hasNextPage: roomHasMore,
     isFetchingNextPage: roomLoadingOlder,
     fetchNextPage: fetchOlderRoomPage,
@@ -145,18 +146,19 @@ export function NativeChatMessagePanel({
   );
   const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(workspaceId);
 
-  const allMessages = useMemo(
+  const latestMessages = useMemo(
     () =>
       buildMainTimelineMessages({
-        anchorMessages,
+        anchorMessages: null,
         latestRows,
         pendingEntries,
         outboxEntries,
         currentUserId,
         threadsEnabled,
       }),
-    [anchorMessages, currentUserId, latestRows, outboxEntries, pendingEntries, threadsEnabled],
+    [currentUserId, latestRows, outboxEntries, pendingEntries, threadsEnabled],
   );
+  const allMessages = anchorMessages ?? latestMessages;
 
   const messages = useMemo(() => {
     if (!threadRoot || !threadsEnabled) return allMessages;
@@ -235,19 +237,53 @@ export function NativeChatMessagePanel({
     onActiveThreadRootIdChange?.(threadRoot?.id ?? null);
   }, [onActiveThreadRootIdChange, threadRoot?.id]);
 
-  // Own optimistic / pending sends must keep the viewport on the newest row.
-  const lastTimelineMessage = messages[messages.length - 1];
+  const onClearAnchorRef = useRef(onClearAnchor);
+  onClearAnchorRef.current = onClearAnchor;
+
+  // The latest page replaces the anchor window; re-sticking lets the list pin
+  // it to the bottom and the room be marked read, as scrollToLatest does.
+  const clearAnchor = useCallback(() => {
+    stickToBottomRef.current = true;
+    programmaticScrollRef.current = false;
+    setAwayFromLatest(false);
+    setAnchorMessages(null);
+    setHighlightMessageId(null);
+    setLocalAnchor(null);
+    if (anchorMessageId) onClearAnchorRef.current?.();
+  }, [anchorMessageId]);
+
+  // Own optimistic / pending sends must keep the viewport on the newest row,
+  // and leave an open anchor window so the sent message is visible at the bottom.
+  const timelineMessages = threadRoot && threadsEnabled ? messages : latestMessages;
+  const lastTimelineMessage = timelineMessages[timelineMessages.length - 1];
+  const anchored = Boolean(anchorMessages);
+  const prevLastTimelineRef = useRef<{ roomId: string; anchored: boolean; id: string | undefined }>({
+    roomId,
+    anchored: false,
+    id: undefined,
+  });
   useEffect(() => {
+    const prev = prevLastTimelineRef.current;
+    const prevId = prev.roomId === roomId && prev.anchored === anchored ? prev.id : undefined;
+    prevLastTimelineRef.current = { roomId, anchored, id: latestRefetching ? undefined : lastTimelineMessage?.id };
     if (!lastTimelineMessage) return;
-    if (
+    const isPendingOrQueued =
       lastTimelineMessage.deliveryStatus === "sending" ||
       lastTimelineMessage.deliveryStatus === "queued" ||
-      isPendingChatMessageId(lastTimelineMessage.id) ||
-      lastTimelineMessage.sender === currentUserId
-    ) {
-      stickToBottomRef.current = true;
+      isPendingChatMessageId(lastTimelineMessage.id);
+    const isOwnMessage = isPendingOrQueued || lastTimelineMessage.sender === currentUserId;
+    if (!isOwnMessage) return;
+    if (anchorMessages || activeAnchorId) {
+      if (
+        prevId !== lastTimelineMessage.id &&
+        (isPendingOrQueued || (anchored && !latestRefetching && prevId !== undefined))
+      ) {
+        clearAnchor();
+      }
+      return;
     }
-  }, [currentUserId, lastTimelineMessage]);
+    stickToBottomRef.current = true;
+  }, [activeAnchorId, anchorMessages, anchored, clearAnchor, currentUserId, lastTimelineMessage, latestRefetching, roomId]);
 
   useEffect(() => {
     stickToBottomRef.current = true;
@@ -270,10 +306,24 @@ export function NativeChatMessagePanel({
       return;
     }
     let cancelled = false;
+    stickToBottomRef.current = false;
     setLoadingAnchor(true);
+    const failAnchorJump = (err: unknown) => {
+      stickToBottomRef.current = true;
+      programmaticScrollRef.current = false;
+      setAwayFromLatest(false);
+      setAnchorMessages(null);
+      setLocalAnchor(null);
+      onClearAnchorRef.current?.();
+      toastChatError(err, t, t("chat.message_list.jump_failed"));
+    };
     void listChatRoomMessagesAround(workspaceId, roomId, activeAnchorId)
       .then((rows) => {
         if (cancelled) return;
+        if (rows.length === 0) {
+          failAnchorJump(null);
+          return;
+        }
         setAnchorMessages(rows.map(toChatMessage));
         setHighlightMessageId(activeAnchorId);
         stickToBottomRef.current = false;
@@ -281,8 +331,7 @@ export function NativeChatMessagePanel({
       .catch((err: unknown) => {
         // The message is gone or unreachable: say so instead of doing nothing.
         if (cancelled) return;
-        setLocalAnchor(null);
-        toastChatError(err, t, t("chat.message_list.jump_failed"));
+        failAnchorJump(err);
       })
       .finally(() => {
         if (!cancelled) setLoadingAnchor(false);
@@ -294,11 +343,29 @@ export function NativeChatMessagePanel({
     };
   }, [activeAnchorId, roomId, t, workspaceId]);
 
+  const highlightTimerRef = useRef<number | null>(null);
   useEffect(() => {
     if (!highlightMessageId) return;
-    const timer = window.setTimeout(() => setHighlightMessageId(null), 2500);
-    return () => window.clearTimeout(timer);
+    highlightTimerRef.current = window.setTimeout(() => {
+      highlightTimerRef.current = null;
+      setHighlightMessageId((current) => (current === highlightMessageId ? null : current));
+    }, 5000);
+    return () => {
+      if (highlightTimerRef.current !== null) {
+        window.clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
+    };
   }, [highlightMessageId]);
+
+  const handleHighlightShown = useCallback((messageId: string) => {
+    focusChatMessage(messageId);
+    if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => {
+      highlightTimerRef.current = null;
+      setHighlightMessageId((current) => (current === messageId ? null : current));
+    }, 2500);
+  }, []);
 
   const loadOlder = useCallback(async () => {
     if (loadingOlder || !hasMore || (!threadRoot && anchorMessages)) return;
@@ -389,15 +456,6 @@ export function NativeChatMessagePanel({
     el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
   };
 
-  // The latest page replaces the anchor window; re-sticking lets the list pin
-  // it to the bottom and the room be marked read, as scrollToLatest does.
-  const clearAnchor = () => {
-    stickToBottomRef.current = true;
-    setAwayFromLatest(false);
-    setLocalAnchor(null);
-    if (anchorMessageId) onClearAnchor?.();
-  };
-
   // Older history loads in the message's own shape. When more exists, a
   // button offers it too — scrolling up is not the only way to ask.
   const canLoadOlder = hasMore && (!!threadRoot || !anchorMessages);
@@ -431,7 +489,9 @@ export function NativeChatMessagePanel({
           }}
         />
       ) : null}
-      {activeAnchorId && (onClearAnchor || localAnchorId) ? <ChatAnchorBar onBackToLatest={clearAnchor} /> : null}
+      {anchorMessages && activeAnchorId && (onClearAnchor || localAnchorId) ? (
+        <ChatAnchorBar onBackToLatest={clearAnchor} />
+      ) : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* A log, but a silent one: the virtual list mounts rows as it
             scrolls, and a live log would read each of them out. What is new
@@ -454,7 +514,7 @@ export function NativeChatMessagePanel({
               stickToBottomRef={stickToBottomRef}
               programmaticScrollRef={programmaticScrollRef}
               highlightMessageId={highlightMessageId}
-              onHighlightShown={focusChatMessage}
+              onHighlightShown={handleHighlightShown}
               header={listHeader}
               empty={
                 latestPending ? (

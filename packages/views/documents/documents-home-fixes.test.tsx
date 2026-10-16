@@ -268,4 +268,30 @@ describe("starred rows without a loaded copy (m1)", () => {
     renderRow({ id: "f1", organization_id: "org1", current_version: 2 });
     expect(screen.getByRole("button", { name: t("office.desktop.row_action") })).toBeInTheDocument();
   });
+
+  it("shows a star marker next to the title on a starred row and none on an unstarred row", () => {
+    const { unmount } = render(
+      <table>
+        <tbody>
+          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} archived={false} ladder={libraryLadder(false)} />
+        </tbody>
+      </table>,
+    );
+    expect(screen.getByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+    unmount();
+
+    render(
+      <table>
+        <tbody>
+          <LibraryRowView
+            row={documentRow(favoriteRow(fav))}
+            handlers={{ ...handlers, isStarred: () => false }}
+            archived={false}
+            ladder={libraryLadder(false)}
+          />
+        </tbody>
+      </table>,
+    );
+    expect(screen.queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+  });
 });

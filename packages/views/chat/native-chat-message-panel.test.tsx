@@ -16,6 +16,7 @@ const markRead = vi.fn();
 // What the mocked virtual list reports on scroll, and the stick ref it was handed.
 let nearBottom = true;
 let listStickRef: { current: boolean } | null = null;
+let listOnHighlightShown: ((messageId: string) => void) | undefined;
 
 type Row = {
   id: string;
@@ -84,8 +85,9 @@ vi.mock("./virtual-chat-message-list", () => ({
     ref.current = nearBottom;
     return nearBottom;
   },
-  VirtualChatMessageList: ({ messages, header, empty, renderMessage, stickToBottomRef }: any) => {
+  VirtualChatMessageList: ({ messages, header, empty, renderMessage, stickToBottomRef, onHighlightShown }: any) => {
     listStickRef = stickToBottomRef;
+    listOnHighlightShown = onHighlightShown;
     return (
       <>
         {header}
@@ -103,6 +105,7 @@ beforeEach(() => {
   rows = BASE_ROWS;
   nearBottom = true;
   listStickRef = null;
+  listOnHighlightShown = undefined;
   markRead.mockReset();
   requestMock.mockReset();
   deleteMessage.mockReset();
@@ -370,5 +373,100 @@ describe("NativeChatMessagePanel", () => {
     expect(listStickRef?.current).toBe(true);
     expect(markRead.mock.calls.at(-1)?.[3]).toBe(true);
     expect(screen.queryByRole("button", { name: "Về tin mới nhất" })).not.toBeInTheDocument();
+  });
+
+  it("stays on the anchor window when someone else sends, and leaves it when I send", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path.includes("/messages/around/m0")
+        ? Promise.resolve({
+            messages: [
+              {
+                id: "m0",
+                room_id: "room1",
+                workspace_id: "ws1",
+                sender_id: "u2",
+                sender_display_name: "Binh",
+                body: "Old one",
+                kind: "text",
+                created_at: "2025-12-01T10:00:00.000Z",
+                reactions: {},
+              },
+            ],
+          })
+        : Promise.resolve(undefined),
+    );
+    const onReplyToChange = vi.fn();
+    function Page() {
+      const [anchor, setAnchor] = useState<string | null>("m0");
+      return panel({ anchorMessageId: anchor, onClearAnchor: () => setAnchor(null), onReplyToChange });
+    }
+    const { rerender } = render(wrap(<Page />));
+    expect(await screen.findByText("Old one")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Về tin mới nhất" })).toBeInTheDocument();
+
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "From Binh", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    act(() => rerender(wrap(<Page />)));
+    expect(screen.getByText("Old one")).toBeInTheDocument();
+    expect(screen.queryByText("From Binh")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Về tin mới nhất" })).toBeInTheDocument();
+
+    rows = [
+      ...rows,
+      { id: "m4", sender_id: "self", body: "My new send", kind: "text", created_at: "2026-01-01T10:06:00.000Z", reactions: {} },
+    ];
+    act(() => rerender(wrap(<Page />)));
+
+    await waitFor(() => expect(screen.getByText("My new send")).toBeInTheDocument());
+    expect(listStickRef?.current).toBe(true);
+    expect(screen.queryByRole("button", { name: "Về tin mới nhất" })).not.toBeInTheDocument();
+  });
+
+  it("starts the 2500ms highlight timer only once onHighlightShown fires, not when around resolves", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      requestMock.mockImplementation((path: string) =>
+        path.includes("/messages/around/m0")
+          ? Promise.resolve({
+              messages: [
+                {
+                  id: "m0",
+                  room_id: "room1",
+                  workspace_id: "ws1",
+                  sender_id: "u2",
+                  sender_display_name: "Binh",
+                  body: "Old one",
+                  kind: "text",
+                  created_at: "2025-12-01T10:00:00.000Z",
+                  reactions: {},
+                },
+              ],
+            })
+          : Promise.resolve(undefined),
+      );
+      render(wrap(panel({ anchorMessageId: "m0" })));
+      await waitFor(() => expect(document.getElementById("chat-msg-m0")?.className).toMatch(/ring-brand/));
+
+      // Before the virtualizer has scrolled the row into view (onHighlightShown), 2500ms must not clear the highlight.
+      act(() => {
+        vi.advanceTimersByTime(2600);
+      });
+      expect(document.getElementById("chat-msg-m0")?.className).toMatch(/ring-brand/);
+
+      act(() => {
+        listOnHighlightShown?.("m0");
+        vi.advanceTimersByTime(2400);
+      });
+      expect(document.getElementById("chat-msg-m0")?.className).toMatch(/ring-brand/);
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(document.getElementById("chat-msg-m0")?.className).not.toMatch(/ring-brand/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
