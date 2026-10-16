@@ -23,6 +23,7 @@ import {
   listRecordings,
   meetingToken,
   resolveInviteLink,
+  restoreMeeting,
   setParticipantPublish,
   startRecording,
   stopRecording,
@@ -195,6 +196,17 @@ describe("meetings endpoints", () => {
     expect(JSON.parse(String(init.body))).toEqual({ minutes: 15 });
     vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: 1 }));
     await expect(extendMeeting("m1")).resolves.toBeNull();
+  });
+
+  it("restoreMeeting names the version it read and returns null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting }));
+    expect((await restoreMeeting("m1", 4))?.id).toBe("m1");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/restore");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ version: 4 });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: 1 }));
+    await expect(restoreMeeting("m1")).resolves.toBeNull();
   });
 });
 

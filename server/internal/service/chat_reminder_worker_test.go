@@ -168,3 +168,46 @@ func TestChatReminderWorkerRetiresDeletedMessage(t *testing.T) {
 		t.Fatalf("deleted reminder still due at %v", next.Time)
 	}
 }
+
+// An archived channel stays quiet when its reminder is due, but the
+// reminder keeps its schedule, so unarchiving brings it back on time.
+func TestChatReminderWorkerSkipsArchivedRoomAndResumes(t *testing.T) {
+	s, _, _, ua, ub, w := reminderFixture(t)
+	ctx := context.Background()
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "nhac-luu-tru", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remindAt := time.Now().Add(time.Minute).Truncate(time.Second)
+	msg, err := s.SendReminderMessage(ctx, ua.ID, w.ID, ch.ID, SendReminderMessageInput{
+		Body: "Standup", RemindAt: remindAt.Format(time.RFC3339), Repeat: "daily",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ArchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.NewChatReminderWorker().RunOnce(ctx, remindAt.Add(time.Second)); err != nil || n != 0 {
+		t.Fatalf("archived tick fired %d (err %v), want 0", n, err)
+	}
+	if n := chatReminderDueEvents(t, s, msg.ID); n != 0 {
+		t.Fatalf("chat.reminder.due events while archived = %d, want 0", n)
+	}
+	next := chatReminderNextFire(t, s, msg.ID)
+	if !next.Valid || !next.Time.After(remindAt) {
+		t.Fatalf("archived reminder next_fire_at = %+v, want the next day", next)
+	}
+
+	if err := s.UnarchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.NewChatReminderWorker().RunOnce(ctx, next.Time.Add(time.Second)); err != nil || n != 1 {
+		t.Fatalf("unarchived tick fired %d (err %v), want 1", n, err)
+	}
+	if n := chatReminderDueEvents(t, s, msg.ID); n != 1 {
+		t.Fatalf("chat.reminder.due events after unarchive = %d, want 1", n)
+	}
+}

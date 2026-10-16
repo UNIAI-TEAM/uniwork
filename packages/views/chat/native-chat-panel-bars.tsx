@@ -1,20 +1,50 @@
 "use client";
 
-import { ArrowDown, ArrowUp, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bell, BellOff, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useFollowChatThread, useUnfollowChatThread } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { toastChatError } from "./chat-error-message";
 
-/** Above the timeline while a thread is open: its name and the way out. */
-export function ChatThreadBar({ onClose }: { onClose: () => void }) {
+/** Above the timeline while a thread is open: its name, Follow / Unfollow and the way out. */
+export function ChatThreadBar({
+  workspaceId,
+  threadRootId,
+  following,
+  onClose,
+}: {
+  workspaceId: string;
+  threadRootId: string;
+  following: boolean;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
+  const follow = useFollowChatThread(workspaceId);
+  const unfollow = useUnfollowChatThread(workspaceId);
+  const toggle = following ? unfollow : follow;
   return (
     <div className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-1.5">
       <p className="min-w-0 truncate text-label font-semibold text-foreground">{t("chat.thread_title")}</p>
-      <Button type="button" variant="ghost" size="sm" className="shrink-0 text-muted-foreground" onClick={onClose}>
-        <X aria-hidden />
-        {t("chat.close_thread")}
-      </Button>
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground"
+          disabled={toggle.isPending}
+          onClick={() =>
+            toggle.mutate(threadRootId, { onError: (err) => toastChatError(err, t, t("chat.errors.internal")) })
+          }
+        >
+          {following ? <BellOff aria-hidden /> : <Bell aria-hidden />}
+          {following ? t("chat.thread_unfollow") : t("chat.thread_follow")}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onClose}>
+          <X aria-hidden />
+          {t("chat.close_thread")}
+        </Button>
+      </div>
     </div>
   );
 }

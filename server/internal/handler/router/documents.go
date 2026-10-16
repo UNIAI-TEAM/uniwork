@@ -11,7 +11,8 @@ import (
 
 // tag: documents — C-01 §5 + §14; UNI-679, G1-05a/G1-05b. Authenticated
 // routes sit behind the `documents` flag (default off -> 404
-// feature_disabled). The byte routes also serve HEAD; the api wrapper has no
+// feature_disabled), evaluated at the organization the path acts in
+// (mw.FlagOrganization, UNI-1800). The byte routes also serve HEAD; the api wrapper has no
 // Head method, so HEAD is bound on the inner chi router and catalogued by
 // hand, like the files proxy. The public link routes (registerPublicDocuments)
 // are unauthenticated and evaluate the flag at the document's own

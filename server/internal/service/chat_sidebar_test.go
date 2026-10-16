@@ -28,6 +28,57 @@ func mentionOf(u db.User) string {
 	return fmt.Sprintf("[@%s](mention://member/%s) ", u.DisplayName, u.ID)
 }
 
+// A channel row carries its size, not its roster: a 1,000-member channel would
+// otherwise put 1,000 ids in every sidebar load. Groups keep their ids, and
+// the channel shapes returned by create and invite match the sidebar's.
+func TestListChatRoomsCountsChannelMembersInsteadOfListingThem(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-count-c@example.com", "C")
+	ud := registerVerified(t, q, as, "chat-count-d@example.com", "D")
+	for _, u := range []db.User{ub, uc, ud} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "dem-thanh-vien", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ch.MemberCount != 3 || len(ch.MemberUserIDs) != 0 {
+		t.Fatalf("created channel: count %d ids %v; want 3 and no ids", ch.MemberCount, ch.MemberUserIDs)
+	}
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Trio", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rooms, err := s.ListChatRooms(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]ChatRoomSummary{}
+	for _, r := range rooms {
+		byID[r.ID] = r
+	}
+	if got := byID[ch.ID]; got.MemberCount != 3 || len(got.MemberUserIDs) != 0 {
+		t.Fatalf("channel row: count %d ids %v; want 3 (A, B, C) and no ids", got.MemberCount, got.MemberUserIDs)
+	}
+	if got := byID[group.ID]; len(got.MemberUserIDs) != 2 {
+		t.Fatalf("group row ids = %v, want the two other members", got.MemberUserIDs)
+	}
+
+	invited, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, ch.ID, []string{ud.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invited.MemberCount != 4 || len(invited.MemberUserIDs) != 0 {
+		t.Fatalf("invite response: count %d ids %v; want 4 and no ids", invited.MemberCount, invited.MemberUserIDs)
+	}
+}
+
 // The sidebar is a constant number of statements however many rooms the
 // caller is in (C3), and its badges still count right: unread capped at 100
 // (the client shows 99+), mentions by name and by @all, the DM peer joined in.

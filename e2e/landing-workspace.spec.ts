@@ -1,9 +1,11 @@
 import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 test("one workspace stage replaces the index and separate feature bands", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const stage = page.locator("#product-preview");
   await openManualPreview(page);
   await expect(page.locator(".product-index, .product-story-band, .meeting-section")).toHaveCount(0);
@@ -20,7 +22,8 @@ test("one workspace stage replaces the index and separate feature bands", async 
 test("feature deep links select the right panel and sidebar works with keyboard", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#email");
+  await gotoLanding(page, "/#email");
+  await landingReady(page);
   const stage = page.locator("#product-preview");
   await openManualPreview(page);
   await expect(stage.getByRole("tab", { name: "Email Hub", exact: true })).toHaveAttribute("aria-selected", "true");
@@ -36,7 +39,8 @@ test("feature deep links select the right panel and sidebar works with keyboard"
 
 test("local state survives view switches and the global reset clears every demo", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const stage = page.locator("#product-preview");
   await openManualPreview(page);
   await selectWorkspaceFeature(page, "chat");
@@ -64,7 +68,8 @@ test("local state survives view switches and the global reset clears every demo"
 test("tablet product stage stays readable and Starter keeps one honest action", async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const stage = page.locator("#product-preview");
   const selector = stage.locator(".workspace-selector");
   const display = stage.locator(".workspace-display");

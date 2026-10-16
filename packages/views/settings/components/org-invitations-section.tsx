@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { toastApiError } from "../../toast-api-error";
 import { InviteForm, type InviteRole, type InviteSendResult } from "./invite-form";
+import { InviteWorkspacePicker } from "./invite-workspace-picker";
 import {
   SettingsBadge,
   SettingsList,
@@ -34,8 +35,12 @@ function formatDay(iso: string, locale: string): string {
  * Inviting people into the organization and the invitations still waiting
  * for an answer. Only mounted for someone who may manage members, so the
  * list query never fires for a plain member.
+ *
+ * The invitation carries the workspaces the invitee joins (UNI-1582): the
+ * choice stays after a send, so a second batch for the same teams is one
+ * step, and every pending row says what it grants.
  */
-export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
+export function OrgInvitationsSection({ orgSlug, orgId }: { orgSlug: string; orgId: string }) {
   const { t, i18n } = useTranslation();
   const invite = useInviteToOrganization(orgSlug);
   const revoke = useRevokeOrgInvitation(orgSlug);
@@ -44,12 +49,13 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
   // address while the dialog animates out.
   const [revoking, setRevoking] = useState<OrgInvitation | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
+  const [workspaceIds, setWorkspaceIds] = useState<string[]>([]);
   const pending = data?.invitations ?? [];
   const now = Date.now();
 
   const send = async (emails: string[], role: InviteRole): Promise<InviteSendResult> => {
     try {
-      const result = await invite.mutateAsync({ emails, orgRole: role });
+      const result = await invite.mutateAsync({ emails, orgRole: role, workspaceIds });
       const count = result?.invitations.length ?? 0;
       // Every address skipped is not a success: no green toast for "sent 0".
       if (count === 0) toast.warning(t("org.invitations.none_sent"));
@@ -81,6 +87,15 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
           roleLabel={t("org.invitations.role")}
           pending={invite.isPending}
           onSend={send}
+          fields={
+            <InviteWorkspacePicker
+              id="org-invite-workspaces"
+              orgId={orgId}
+              value={workspaceIds}
+              onChange={setWorkspaceIds}
+              disabled={invite.isPending}
+            />
+          }
         />
       </SettingsSection>
 
@@ -104,6 +119,9 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
               const expires = formatDay(inv.expires_at, i18n.language);
               const parts = [
                 t(`people.role_${inv.org_role}`, { defaultValue: inv.org_role }),
+                inv.workspaces.length > 0
+                  ? t("org.invitations.grants", { list: inv.workspaces.map((w) => w.name).join(", ") })
+                  : t("org.invitations.grants_none"),
                 sent ? t("org.invitations.sent_on", { date: sent }) : "",
                 expires && !expired ? t("org.invitations.expires_on", { date: expires }) : "",
                 inv.invited_by_name ? t("org.invitations.invited_by", { name: inv.invited_by_name }) : "",

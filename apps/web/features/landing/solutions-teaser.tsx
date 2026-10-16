@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ArrowUpRight, BriefcaseBusiness, Check, ChevronRight, CodeXml, MessageSquareText, Workflow } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@uniwork/ui/brand";
 import { ANCHORS } from "./anchors";

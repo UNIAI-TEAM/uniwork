@@ -50,6 +50,10 @@ func registerMeetings(r api, h Routes) {
 		summary: "Cancel scheduled meeting", tags: []string{"meetings"},
 		sdi: sdi.CancelMeetingSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/restore", h.RestoreMeeting, apiOp{
+		summary: "Restore a cancelled meeting", tags: []string{"meetings"},
+		sdi: sdi.RestoreMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/host-transfer", h.TransferHost, apiOp{
 		summary: "Transfer host", tags: []string{"meetings"},
 		sdi: sdi.HostTransferSDI{}, sdo: sdo.MeetingSDO{}, auth: true,

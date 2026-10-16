@@ -529,3 +529,52 @@ func TestMcpOrgCommandsRefuseDeactivatedAdminAndSuspendedOrganization(t *testing
 	}
 	check(ErrOrganizationSuspended)
 }
+
+// The write switch needs the connector on and the write flag open; turning
+// the connector off takes write with it, and every real change is audited.
+func TestSetWritePolicy(t *testing.T) {
+	w := newMcpWorld(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); !codedIs(err, "connector_off") {
+		t.Fatalf("write on before the connector: %v, want connector_off", err)
+	}
+	w.enable(t)
+	p, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true)
+	if err != nil || !p.WriteEnabled || !p.WriteAvailable || p.WriteEnabledBy != w.owner.ID {
+		t.Fatalf("write on: %+v %v", p, err)
+	}
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	var rows int
+	if err := w.pool.QueryRow(w.ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'organization.mcp_write_policy_changed'`, w.org.ID).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 1 {
+		t.Fatalf("audit rows = %d, want 1 (a repeated enable writes none)", rows)
+	}
+	if _, err := w.svc.SetPolicy(w.ctx, w.owner.ID, w.org.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if p, err = w.svc.Policy(w.ctx, w.owner.ID, w.org.ID); err != nil || p.WriteEnabled {
+		t.Fatalf("connector off left write on: %+v %v", p, err)
+	}
+}
+
+func TestSetWritePolicyNeedsTheWriteFlagAndAnAdmin(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	w.svc.SetFlags(mcpFlagsExcept{off: mcpWriteFlagKey})
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); !codedIs(err, "write_unavailable") {
+		t.Fatalf("write flag off: %v, want write_unavailable", err)
+	}
+	p, err := w.svc.Policy(w.ctx, w.owner.ID, w.org.ID)
+	if err != nil || p.WriteAvailable || !p.Available {
+		t.Fatalf("policy with the write flag off = %+v %v", p, err)
+	}
+	w.svc.SetFlags(mcpFlags(true))
+	member := registerVerified(t, w.q, w.auth, "mcp-member-write@example.com", "Member")
+	addOrgMemberRole(t, w.q, w.org.ID, member.ID, OrgRoleMember)
+	if _, err := w.svc.SetWritePolicy(w.ctx, member.ID, w.org.ID, true); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("plain member: %v, want ErrForbidden", err)
+	}
+}

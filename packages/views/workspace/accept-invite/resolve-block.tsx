@@ -9,7 +9,11 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useTransferCandidates } from "../../settings/components/transfer-ownership-dialog";
-import { TransferCandidateField, TransferPasswordField } from "../../settings/components/transfer-owner-fields";
+import {
+  TransferCandidateField,
+  TransferPasswordField,
+  candidateLabel,
+} from "../../settings/components/transfer-owner-fields";
 import { SettingsFieldError } from "../../settings/components/settings-layout";
 import { cn } from "@uniwork/ui/lib/utils";
 import { RoleBadge } from "./org-mark";
@@ -67,13 +71,9 @@ export function ResolveBlock(props: BlockProps) {
  */
 function DestructiveNotice({ children }: { children: ReactNode }) {
   return (
-    <Alert
-      variant="destructive"
-      role="note"
-      className="border-destructive/25 bg-destructive-soft *:data-[slot=alert-description]:text-destructive-soft-foreground"
-    >
+    <Alert variant="destructiveSoft" role="note">
       <CircleAlert aria-hidden />
-      <AlertDescription className="text-pretty">{children}</AlertDescription>
+      <AlertDescription className="text-pretty [overflow-wrap:anywhere]">{children}</AlertDescription>
     </Alert>
   );
 }
@@ -91,7 +91,7 @@ function BlockBody(props: BlockProps) {
     case "blocked":
       return <DestructiveNotice>{t("invitations.switch.blocked", { name })}</DestructiveNotice>;
     default:
-      return <p className="text-body text-foreground">{t("invitations.switch.unknown", { name })}</p>;
+      return <p className="text-pretty text-body text-foreground [overflow-wrap:anywhere]">{t("invitations.switch.unknown", { name })}</p>;
   }
 }
 
@@ -101,7 +101,7 @@ function LeaveBlock({ conflict, draft, onChange }: BlockProps) {
   const id = `switch-${conflict.organization.id}-leave`;
   return (
     <>
-      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.leave_body", { name })}</p>
+      <p className="text-pretty text-body text-muted-foreground [overflow-wrap:anywhere]">{t("invitations.switch.leave_body", { name })}</p>
       {/* The whole row is the label, so the target is the row on a touch screen, not the 16px box. */}
       <Field orientation="horizontal" className="min-h-11">
         <Checkbox
@@ -109,7 +109,7 @@ function LeaveBlock({ conflict, draft, onChange }: BlockProps) {
           checked={draft.leaveConfirmed}
           onCheckedChange={(checked) => onChange({ leaveConfirmed: checked === true })}
         />
-        <FieldLabel htmlFor={id} className="min-h-11 items-center text-body">
+        <FieldLabel htmlFor={id} className="min-h-11 min-w-0 items-center text-body [overflow-wrap:anywhere]">
           {t("invitations.switch.leave_confirm", { name })}
         </FieldLabel>
       </Field>
@@ -122,14 +122,15 @@ function TransferBlock({ conflict, draft, onChange, passwordError, passwordless 
   const name = conflict.organization.name;
   const prefix = `switch-${conflict.organization.id}`;
   const { candidates, none, loading, isError, retry } = useTransferCandidates(conflict.organization.slug, true);
-  // The name rides along so the confirmation can say who receives the organization.
+  // The name rides along so the confirmation can say who receives the
+  // organization, with the email when another candidate shares the name.
   const pick = (userId: string) => {
     const member = candidates.find((m) => m.user_id === userId);
-    onChange({ toUserId: userId, toUserName: member?.display_name || member?.email || "" });
+    onChange({ toUserId: userId, toUserName: member ? candidateLabel(member, candidates) : "" });
   };
   return (
     <>
-      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.transfer_body", { name })}</p>
+      <p className="text-pretty text-body text-muted-foreground [overflow-wrap:anywhere]">{t("invitations.switch.transfer_body", { name })}</p>
       <TransferCandidateField
         id={`${prefix}-target`}
         candidates={candidates}
@@ -141,7 +142,7 @@ function TransferBlock({ conflict, draft, onChange, passwordError, passwordless 
         empty={none ? t("org.transfer.no_candidate") : undefined}
       />
       {passwordless ? (
-        <DestructiveNotice>{t("invitations.switch.no_password", { name })}</DestructiveNotice>
+        <DestructiveNotice>{t("org.transfer.no_password", { name })}</DestructiveNotice>
       ) : (
         <TransferPasswordField
           id={`${prefix}-password`}
@@ -162,7 +163,7 @@ function CloseBlock({ conflict, draft, onChange }: BlockProps) {
   const mismatch = typed !== "" && typed !== slug && !slug.startsWith(typed);
   return (
     <>
-      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.close_body", { name })}</p>
+      <p className="text-pretty text-body text-muted-foreground [overflow-wrap:anywhere]">{t("invitations.switch.close_body", { name })}</p>
       <DestructiveNotice>{t("org.close.confirm_body", { name })}</DestructiveNotice>
       <Field>
         <FieldLabel htmlFor={id}>{t("org.close.confirm_label")}</FieldLabel>
@@ -171,12 +172,14 @@ function CloseBlock({ conflict, draft, onChange }: BlockProps) {
           value={draft.slug}
           onChange={(e) => onChange({ slug: e.target.value })}
           autoComplete="off"
+          autoCapitalize="none"
+          autoCorrect="off"
           spellCheck={false}
           aria-invalid={mismatch || undefined}
           aria-describedby={mismatch ? `${id}-hint ${id}-error` : `${id}-hint`}
         />
         <FieldDescription id={`${id}-hint`}>{t("org.close.confirm_hint", { slug })}</FieldDescription>
-        {mismatch ? <SettingsFieldError id={`${id}-error`}>{t("org.close.confirm_mismatch", { slug })}</SettingsFieldError> : null}
+        <SettingsFieldError id={`${id}-error`}>{mismatch ? t("org.close.confirm_mismatch", { slug }) : null}</SettingsFieldError>
       </Field>
     </>
   );

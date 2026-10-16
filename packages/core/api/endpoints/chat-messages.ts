@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { request, requestBlob } from "../http";
+import { request } from "../http";
 import { parseWithFallback } from "../schema";
 import { ChatMessageEnvelopeSchema, ChatMessagesListSchema, enc } from "./chat-schemas";
 import type { ChatMessageRecord } from "./chat-schemas";
@@ -45,6 +45,18 @@ export async function markChatRoomRead(workspaceId: string, roomId: string): Pro
   );
   const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
     endpoint: "POST .../chat/rooms/{roomID}/read",
+  });
+  return parsed.status === "ok";
+}
+
+/** Mutes (or unmutes) the room's notifications and push for the caller only. */
+export async function setChatRoomMuted(workspaceId: string, roomId: string, muted: boolean): Promise<boolean> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/mute`,
+    { method: muted ? "POST" : "DELETE" },
+  );
+  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
+    endpoint: "POST|DELETE .../chat/rooms/{roomID}/mute",
   });
   return parsed.status === "ok";
 }
@@ -172,16 +184,6 @@ export async function sendChatVoiceMessage(
   return parsed.message ?? null;
 }
 
-export function loadChatVoiceBlob(
-  workspaceId: string,
-  roomId: string,
-  messageId: string,
-): Promise<Blob> {
-  return requestBlob(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/voice`,
-  );
-}
-
 export async function sendChatFileMessage(
   workspaceId: string,
   roomId: string,
@@ -206,21 +208,6 @@ export async function sendChatFileMessage(
     endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/file",
   });
   return parsed.message ?? null;
-}
-
-/** "thumb" is a photo's preview (longest side 640px); the server sends the original until one exists. */
-export type ChatFileVariant = "thumb";
-
-export function loadChatFileBlob(
-  workspaceId: string,
-  roomId: string,
-  messageId: string,
-  variant?: ChatFileVariant,
-): Promise<Blob> {
-  const query = variant ? `?variant=${variant}` : "";
-  return requestBlob(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/file${query}`,
-  );
 }
 
 export async function voteChatPollMessage(

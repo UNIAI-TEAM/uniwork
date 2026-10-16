@@ -34,9 +34,24 @@ func registerWorkspaces(r api, h Routes) {
 	})
 	r.Patch("/workspaces/{workspaceID}", h.PatchWorkspace, apiOp{
 		summary:     "Update workspace",
-		description: "Đổi tên workspace. Cần admin workspace (hoặc owner/admin tổ chức).",
+		description: "Đổi tên, mô tả, icon emoji, tiền tố mã task hoặc slug của workspace (mã và slug cũ vẫn tra được); trường không gửi giữ nguyên. Cần admin workspace (hoặc owner/admin tổ chức).",
 		tags:        []string{"workspaces"},
 		sdi:         sdi.PatchWorkspaceSDI{},
+		sdo:         sdo.WorkspaceSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/icon", h.UploadWorkspaceIcon, apiOp{
+		summary:     "Upload workspace icon",
+		description: "Đặt ảnh làm icon workspace, bỏ emoji nếu có. Tên field multipart là file. PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB. Cần admin workspace.",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.UploadWorkspaceIconSDI{},
+		sdo:         sdo.WorkspaceSDO{},
+		auth:        true,
+	})
+	r.Delete("/workspaces/{workspaceID}/icon", h.RemoveWorkspaceIcon, apiOp{
+		summary:     "Remove workspace icon",
+		description: "Bỏ icon workspace (emoji hoặc ảnh); workspace hiện lại chữ cái đầu của tên. Cần admin workspace.",
+		tags:        []string{"workspaces"},
 		sdo:         sdo.WorkspaceSDO{},
 		auth:        true,
 	})
@@ -90,10 +105,12 @@ func registerWorkspaces(r api, h Routes) {
 	})
 	r.Post("/invitations/{token}/accept", h.AcceptInvitation, apiOp{
 		summary: "Accept invitation",
-		description: "Vào tổ chức (và workspace nếu có) ghi trên token lời mời. Body tùy chọn: resolve phải khớp đúng conflicts " +
+		description: "Vào tổ chức và các workspace lời mời cấp (workspace gửi lời mời, hoặc các workspace admin đã chọn; " +
+			"workspace đã bị xóa thì bỏ qua). workspace trong kết quả là nơi hạ cánh, vắng mặt khi chưa có workspace nào. Body tùy chọn: resolve phải khớp đúng conflicts " +
 			"của bản xem trước; mọi bước rời / chuyển quyền / đóng tổ chức cũ và tham gia tổ chức mới chạy trong một transaction. " +
 			"409 organization_switch_required kèm conflicts mới nhất; 410 invitation_expired | invitation_revoked | invitation_accepted; " +
 			"403 organization_suspended | organization_deletion_scheduled khi tổ chức mời không nhận thêm người; " +
+			"bước chuyển quyền sai mật khẩu trả 403 password_incorrect, chưa có mật khẩu trả 403 password_required; " +
 			"gọi lại sau khi đã thành công trả 200 như lần đầu.",
 		tags: []string{"workspaces"},
 		sdi:  sdi.AcceptInvitationSDI{},

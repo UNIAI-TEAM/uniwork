@@ -6,6 +6,7 @@ export interface NameContextEntry {
   user_id: string;
   display_name: string;
   avatar_url?: string;
+  email?: string;
 }
 
 // React Query keeps an unchanged record the same object across refetches
@@ -52,6 +53,7 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
           recording_id: record.voice_call.recording_id,
           recording_status: record.voice_call.recording_status,
           recording_url: record.voice_call.recording_url,
+          ...(record.voice_call.video ? { video: true } : {}),
         }
       : undefined,
     voiceCallSummary: record.voice_call_summary
@@ -74,6 +76,10 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
           filename: record.file.filename,
           content_type: record.file.content_type,
           size_bytes: record.file.size_bytes,
+          url: record.file.url,
+          download_url: record.file.download_url,
+          thumb_url: record.file.thumb_url,
+          url_expires_at: record.file.url_expires_at,
         }
       : undefined,
     poll: record.poll
@@ -124,13 +130,21 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
   };
 }
 
+function sameSenderId(left: string, right: string): boolean {
+  return left.trim().toUpperCase() === right.trim().toUpperCase();
+}
+
 export function senderLabelFor(
   message: ChatMessage,
   currentUserId: string,
   youLabel: string,
   nameContext: NameContextEntry[],
 ): string {
-  if (message.sender === currentUserId) return youLabel;
-  const match = nameContext.find((entry) => entry.user_id === message.sender);
-  return match?.display_name?.trim() || message.sender;
+  if (sameSenderId(message.sender, currentUserId)) return youLabel;
+  const match = nameContext.find((entry) => sameSenderId(entry.user_id, message.sender));
+  const name = match?.display_name?.trim() ?? "";
+  if (name && !sameSenderId(name, message.sender)) return name;
+  const local = match?.email?.split("@")[0]?.trim() ?? "";
+  if (local && !sameSenderId(local, message.sender)) return local;
+  return name || message.sender;
 }

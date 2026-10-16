@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
   useDeleteChatMessage,
   useEditChatMessage,
-  useMarkChatThreadRead,
   useToggleChatMessagePin,
   useToggleChatReaction,
 } from "@uniwork/core/chat";
@@ -14,7 +13,7 @@ import { ConfirmDialog } from "../common/form-dialog";
 import { chatErrorMessage, toastChatError } from "./chat-error-message";
 import { parseChatMediaMessageBody } from "./chat-expression-utils";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { serializeComposerDraftToMessageBody } from "./chat-mention-utils";
+import { mentionCandidatesFromBody, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
 import { ChatMessageEditDialog } from "./chat-message-edit-dialog";
 import type { ChatMessage } from "./chat-messages";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
@@ -71,7 +70,6 @@ export function useNativeChatMessageActions({
   const editMessage = useEditChatMessage(workspaceId);
   const deleteMessage = useDeleteChatMessage(workspaceId);
   const togglePinAsync = useToggleChatMessagePin(workspaceId).mutateAsync;
-  const markThreadReadAsync = useMarkChatThreadRead(workspaceId).mutateAsync;
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
@@ -106,11 +104,10 @@ export function useNativeChatMessageActions({
     (message: ChatMessage) => {
       if (!threadsEnabled) return;
       onOpenThread(message);
+      // useChatCatchUpUi marks the open thread read and keeps the old pointer.
       onFocusComposer?.();
-      // Reading state is background bookkeeping; the thread is already open.
-      void markThreadReadAsync(message.id).catch(() => undefined);
     },
-    [markThreadReadAsync, onFocusComposer, onOpenThread, threadsEnabled],
+    [onFocusComposer, onOpenThread, threadsEnabled],
   );
 
   const onPin = useCallback(
@@ -162,11 +159,14 @@ export function useNativeChatMessageActions({
 
   const saveEdit = async (body: string) => {
     if (!editing) return;
-    const candidates: ChatMentionCandidate[] = nameContext.map((entry) => ({
-      kind: "member" as const,
-      userId: entry.user_id,
-      label: entry.display_name,
-    }));
+    const candidates: ChatMentionCandidate[] = [
+      ...mentionCandidatesFromBody(editing.body),
+      ...nameContext.map((entry) => ({
+        kind: "member" as const,
+        userId: entry.user_id,
+        label: entry.display_name,
+      })),
+    ];
     const text = serializeComposerDraftToMessageBody(body, candidates, t("chat.mention_all"));
     setEditError(null);
     try {

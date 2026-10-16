@@ -36,17 +36,18 @@ type McpFlags interface {
 // McpMetrics is the port metrics.Mcp implements; labels never carry ids.
 type McpMetrics interface {
 	IncOAuth(event string)
-	ObserveTool(tool, outcome string, d time.Duration)
+	ObserveTool(tool, kind, outcome string, d time.Duration)
 }
 
 type nopMcpMetrics struct{}
 
-func (nopMcpMetrics) IncOAuth(string)                           {}
-func (nopMcpMetrics) ObserveTool(string, string, time.Duration) {}
+func (nopMcpMetrics) IncOAuth(string)                                   {}
+func (nopMcpMetrics) ObserveTool(string, string, string, time.Duration) {}
 
 const (
 	mcpScopeRead     = "read"
 	mcpFlagKey       = "mcp_connector"
+	mcpWriteFlagKey  = "mcp_connector_write"
 	mcpCodeTTL       = 120 * time.Second
 	mcpAttemptTTL    = 10 * time.Minute
 	mcpAccessTTL     = time.Hour
@@ -102,6 +103,14 @@ var (
 	ErrMcpConnectorDisabled = errors.New("connector_disabled")
 	ErrMcpTokenInvalid      = errors.New("invalid_token")
 )
+
+func errMcpWriteUnavailable() error {
+	return CodedError{Code: "write_unavailable", Status: http.StatusForbidden, Msg: "quyền ghi cho trợ lý AI chưa mở cho tổ chức này", Err: ErrMcpConnectorDisabled}
+}
+
+func errMcpConnectorOff() error {
+	return CodedError{Code: "connector_off", Status: http.StatusConflict, Msg: "hãy bật kết nối trợ lý AI trước khi cho phép ghi"}
+}
 
 func mcpCSRFError() error {
 	return CodedError{Code: "csrf_invalid", Status: http.StatusBadRequest, Msg: "consent confirmation is invalid", Err: ErrMcpCSRF}

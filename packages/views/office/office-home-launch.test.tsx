@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import type { DesktopPlatformGuess, OfficeLaunchOutcome } from "@uniwork/core/office";
+import type { DesktopPlatformGuess, OfficeLaunchOptions, OfficeLaunchOutcome } from "@uniwork/core/office";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "./office-home-launch";
 
 initI18n();
@@ -28,7 +28,7 @@ describe("OfficeHomeLaunch", () => {
     const p = props();
     render(<OfficeHomeLaunch {...p} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open UniWork Office" }));
-    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office://home"));
+    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office://home", expect.anything()));
     expect(p.loadInstallers).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -37,14 +37,14 @@ describe("OfficeHomeLaunch", () => {
     const p = props({ channel: "dev" });
     render(<OfficeHomeLaunch {...p} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open UniWork Office" }));
-    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office-dev://home"));
+    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office-dev://home", expect.anything()));
   });
 
   it("carries the public deployment profile on the home link", async () => {
     const p = props({ channel: "dev", deploymentId: "dev-deploy", apiOrigin: "https://dev.uniwork.test" });
     render(<OfficeHomeLaunch {...p} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open UniWork Office" }));
-    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office-dev://home?deploymentId=dev-deploy&apiOrigin=https%3A%2F%2Fdev.uniwork.test&clientId=uniwork-office-dev&channel=dev"));
+    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office-dev://home?deploymentId=dev-deploy&apiOrigin=https%3A%2F%2Fdev.uniwork.test&clientId=uniwork-office-dev&channel=dev", expect.anything()));
   });
 
   it("falls back to the installer dialog when the app does not answer, and Open again launches again", async () => {
@@ -57,6 +57,29 @@ describe("OfficeHomeLaunch", () => {
     expect(p.loadInstallers).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Open again" }));
     await waitFor(() => expect(launch).toHaveBeenCalledTimes(2));
+  });
+
+  it("closes the installer dialog by itself when the app hands off late (UNI-1649)", async () => {
+    let late: (() => void) | undefined;
+    const launch = vi.fn(async (_url: string, options?: OfficeLaunchOptions): Promise<OfficeLaunchOutcome> => { late = options?.onLateHandoff; return "not-installed"; });
+    render(<OfficeHomeLaunch {...props({ launch })} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open UniWork Office" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    act(() => late?.());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("never opens the installer dialog when the hand-off lands while the installers load (UNI-1649)", async () => {
+    let late: (() => void) | undefined;
+    let release: () => void = () => undefined;
+    const launch = vi.fn(async (_url: string, options?: OfficeLaunchOptions): Promise<OfficeLaunchOutcome> => { late = options?.onLateHandoff; return "not-installed"; });
+    const loadInstallers = vi.fn(() => new Promise<{ installers: [] }>((resolve) => { release = () => resolve({ installers: [] }); }));
+    render(<OfficeHomeLaunch {...props({ launch, loadInstallers })} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open UniWork Office" }));
+    await waitFor(() => expect(loadInstallers).toHaveBeenCalled());
+    act(() => late?.());
+    await act(async () => { release(); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("treats a failed launch like a missing app", async () => {

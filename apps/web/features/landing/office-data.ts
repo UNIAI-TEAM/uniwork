@@ -13,15 +13,10 @@ export const OFFICE_EDITOR_ICONS: Record<OfficeEditorKey, LucideIcon> = {
   markdown: FileCodeCorner,
 };
 
-/** "From a task to a finished file": each card names the editor it starts in. */
-export const OFFICE_TASKS = [
-  { key: "draft", editor: "docs" },
-  { key: "data", editor: "sheets" },
-  { key: "slides", editor: "slides" },
-  { key: "pdf", editor: "pdf" },
-  { key: "html", editor: "html" },
-  { key: "notes", editor: "markdown" },
-] as const satisfies readonly { key: string; editor: OfficeEditorKey }[];
+/** Each selected editor carries its own example instead of a second selector. */
+export const OFFICE_EXAMPLES = {
+  docs: "draft", sheets: "data", slides: "slides", pdf: "pdf", html: "html", markdown: "notes",
+} as const satisfies Record<OfficeEditorKey, string>;
 
 export const OFFICE_EDITOR_ANCHOR = "office-editors";
 export const OFFICE_BUSINESS_ANCHOR = "office-business";
