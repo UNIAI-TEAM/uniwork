@@ -1,0 +1,16 @@
+$ grep -E 'panic|ERROR|messages/around' /tmp/src6b-server.log | tail -n 120; tail -n 30 /tmp/src6b-web.log; for p in 18551 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18551/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18551 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+15:46:54.840 INF http request method=OPTIONS path=/api/v1/workspaces/01M52PA2GK0K60EJSYR0YXP9HH/chat/rooms/01M52PA2M0TD9W109MW9FHDNAK/messages/around/01M52PA2MHDBDJTZAFRQVQJHPQ status=200 duration=8µs request_id=cursor/q47SROwJQ5-000674 correlation_id=2d23bbc9149487870a8f5c56216a1c0d trace_id=2d23bbc9149487870a8f5c56216a1c0d span_id=5fd269547ff8fb6c
+15:46:54.845 INF http request method=GET path=/api/v1/workspaces/01M52PA2GK0K60EJSYR0YXP9HH/chat/rooms/01M52PA2M0TD9W109MW9FHDNAK/messages/around/01M52PA2MHDBDJTZAFRQVQJHPQ status=200 duration=4.924ms request_id=cursor/q47SROwJQ5-000675 correlation_id=0f426cb427ff6205b3e75f5476309f3b trace_id=0f426cb427ff6205b3e75f5476309f3b span_id=91859888eed9b136 organization_id=01M52PA2GCHYVVR3GQKTPCAYQ3 workspace_id=01M52PA2GK0K60EJSYR0YXP9HH actor_id=01M52PA2JQ537066XZGZRP6KBS actor_kind=human
+15:47:17.999 INF http request method=OPTIONS path=/api/v1/workspaces/01M52PAS6QYX2T9BBYTT12J9JE/chat/rooms/01M52PASA6YN4T7751J3QQK3B1/messages/around/01M52PASASED10D37X23QJJDM4 status=200 duration=8µs request_id=cursor/q47SROwJQ5-001308 correlation_id=b92fc968e4d7d699871daf73cdfc2322 trace_id=b92fc968e4d7d699871daf73cdfc2322 span_id=4fd34aa4f640f494
+15:47:18.013 INF http request method=GET path=/api/v1/workspaces/01M52PAS6QYX2T9BBYTT12J9JE/chat/rooms/01M52PASA6YN4T7751J3QQK3B1/messages/around/01M52PASASED10D37X23QJJDM4 status=200 duration=12.872ms request_id=cursor/q47SROwJQ5-001309 correlation_id=6293addd838e8f3ad1bd967395464c78 trace_id=6293addd838e8f3ad1bd967395464c78 span_id=671534482dec299a organization_id=01M52PAS6GW1V84ZHXZWRX33A0 workspace_id=01M52PAS6QYX2T9BBYTT12J9JE actor_id=01M52PAS8XRQ1K6SAHZKAQCZXA actor_kind=human
+15:47:41.964 INF http request method=OPTIONS path=/api/v1/workspaces/01M52PBGNYFA6CYZ9XAEP5AN79/chat/rooms/01M52PBGS637HA89GEKQ41RR5C/messages/around/01M52PBGSRYDG4JTTE33NW20SC status=200 duration=8µs request_id=cursor/q47SROwJQ5-001975 correlation_id=f875fb717887431cbd6ef0358a7d14b8 trace_id=f875fb717887431cbd6ef0358a7d14b8 span_id=fb1f5c407da075e8
+15:47:41.972 INF http request method=GET path=/api/v1/workspaces/01M52PBGNYFA6CYZ9XAEP5AN79/chat/rooms/01M52PBGS637HA89GEKQ41RR5C/messages/around/01M52PBGSRYDG4JTTE33NW20SC status=200 duration=7.44ms request_id=cursor/q47SROwJQ5-001976 correlation_id=0a4cf005eb67abd2e44276b537c940be trace_id=0a4cf005eb67abd2e44276b537c940be span_id=d1dfbaf148dc1de1 organization_id=01M52PBGNRWYB5EAC8M20ENK66 workspace_id=01M52PBGNYFA6CYZ9XAEP5AN79 actor_id=01M52PBGR1W2XS0X6FHCG9ZAWD actor_kind=human
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.3.8
+- Local:         http://localhost:3000
+- Network:       http://172.30.0.2:3000
+✓ Ready in 102ms
+✓ Running next.config.mjs took 183ms
