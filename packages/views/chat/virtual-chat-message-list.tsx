@@ -41,8 +41,10 @@ export function pinChatScrollToBottom(
   apply();
   // measureElement grows the spacer after paint; keep pinning for two frames.
   requestAnimationFrame(() => {
+    if (!stickToBottomRef.current) return;
     apply();
     requestAnimationFrame(() => {
+      if (!stickToBottomRef.current) return;
       apply();
       programmaticScrollRef.current = false;
     });
@@ -108,15 +110,10 @@ export function VirtualChatMessageList({
       hadMessagesRef.current = false;
       return;
     }
-    const firstPaint = !hadMessagesRef.current;
     hadMessagesRef.current = true;
-    // First page for this mount / after empty → always land on newest.
-    if (firstPaint || stickToBottomRef.current) {
-      pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef, {
-        force: firstPaint,
-      });
-    }
-  }, [messages.length, lastMessageId, scrollRef, stickToBottomRef, programmaticScrollRef]);
+    if (highlightMessageId || !stickToBottomRef.current) return;
+    pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
+  }, [highlightMessageId, messages.length, lastMessageId, scrollRef, stickToBottomRef, programmaticScrollRef]);
 
   // Row measures + header ("load older") change height after layout.
   useEffect(() => {

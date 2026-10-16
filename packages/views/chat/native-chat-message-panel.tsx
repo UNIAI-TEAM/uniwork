@@ -220,7 +220,7 @@ export function NativeChatMessagePanel({
   }, [onActiveThreadRootIdChange, threadRoot?.id]);
 
   // Own optimistic / pending sends must keep the viewport on the newest row.
-  const lastTimelineMessage = messages[messages.length - 1];
+  const lastTimelineMessage = anchorMessages || activeAnchorId ? undefined : messages[messages.length - 1];
   useEffect(() => {
     if (!lastTimelineMessage) return;
     if (
@@ -246,6 +246,9 @@ export function NativeChatMessagePanel({
     return () => stopChatVoicePlayback();
   }, [roomId, onReplyToChange, onActiveThreadRootIdChange]);
 
+  const onClearAnchorRef = useRef(onClearAnchor);
+  onClearAnchorRef.current = onClearAnchor;
+
   useEffect(() => {
     if (!activeAnchorId) {
       setAnchorMessages(null);
@@ -254,10 +257,17 @@ export function NativeChatMessagePanel({
       return;
     }
     let cancelled = false;
+    stickToBottomRef.current = false;
     setLoadingAnchor(true);
     void listChatRoomMessagesAround(workspaceId, roomId, activeAnchorId)
       .then((rows) => {
         if (cancelled) return;
+        if (rows.length === 0) {
+          setAnchorMessages(null);
+          setLocalAnchor(null);
+          onClearAnchorRef.current?.();
+          return;
+        }
         setAnchorMessages(rows.map(toChatMessage));
         setHighlightMessageId(activeAnchorId);
         stickToBottomRef.current = false;
@@ -265,7 +275,9 @@ export function NativeChatMessagePanel({
       .catch((err: unknown) => {
         // The message is gone or unreachable: say so instead of doing nothing.
         if (cancelled) return;
+        setAnchorMessages(null);
         setLocalAnchor(null);
+        onClearAnchorRef.current?.();
         toastChatError(err, t, t("chat.message_list.jump_failed"));
       })
       .finally(() => {
@@ -373,6 +385,8 @@ export function NativeChatMessagePanel({
   };
 
   const clearAnchor = () => {
+    stickToBottomRef.current = true;
+    setAwayFromLatest(false);
     setLocalAnchor(null);
     if (anchorMessageId) onClearAnchor?.();
   };
@@ -407,7 +421,9 @@ export function NativeChatMessagePanel({
           }}
         />
       ) : null}
-      {activeAnchorId && (onClearAnchor || localAnchorId) ? <ChatAnchorBar onBackToLatest={clearAnchor} /> : null}
+      {anchorMessages && activeAnchorId && (onClearAnchor || localAnchorId) ? (
+        <ChatAnchorBar onBackToLatest={clearAnchor} />
+      ) : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* A log, but a silent one: the virtual list mounts rows as it
             scrolls, and a live log would read each of them out. What is new
