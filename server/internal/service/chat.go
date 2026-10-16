@@ -573,6 +573,10 @@ func (s *ChatService) sendMessage(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	meta, err := buildChatTextMessageMetadata(mentions, in.Priority)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
@@ -583,6 +587,7 @@ func (s *ChatService) sendMessage(
 		Body:             body,
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      clientMsg,
+		Metadata:         meta,
 	})
 	if err != nil {
 		if clientMsgID != "" && isUniqueViolation(err) {
@@ -593,22 +598,6 @@ func (s *ChatService) sendMessage(
 			}
 		}
 		return ChatMessageRow{}, err
-	}
-	msg, err = s.persistMessageMentions(ctx, q, msg, mentions)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	if priority := normalizeMessagePriority(in.Priority); priority != "" {
-		meta, err := encodeMessagePriorityMetadata(msg.Metadata, priority)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-		msg, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-			ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: meta,
-		})
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
 	}
 	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", mentions); err != nil {
 		return ChatMessageRow{}, err

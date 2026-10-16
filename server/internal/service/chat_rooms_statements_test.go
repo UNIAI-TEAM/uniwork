@@ -58,3 +58,30 @@ func TestListChatRoomsStatementCount(t *testing.T) {
 		t.Fatalf("GET /chat/rooms with %d rooms ran %d statements, bound is %d", len(rooms), n, maxStatements)
 	}
 }
+
+// TestSendRoomMessageStatementCount bounds how many DB round-trips one text
+// send with @mention and priority costs (UNI-1746).
+func TestSendRoomMessageStatementCount(t *testing.T) {
+	s, _, q, ua, ub, w, _ := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "send-perf", MemberUserIDs: []string{ub.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs, counter := countingChatService(t, s)
+	body := mentionOf(ub) + "xem giúp"
+	if _, err := cs.SendRoomMessage(ctx, ua.ID, w.ID, group.ID, SendChatMessageInput{
+		Body: body, Priority: chatMessagePriorityUrgent,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	n := int(counter.n.Load())
+	t.Logf("SendRoomMessage with @mention and priority: %d statements", n)
+	// One fewer GetActiveChatRoomMember and two metadata UPDATEs removed (UNI-1746).
+	const maxStatements = 18
+	if n > maxStatements {
+		t.Fatalf("send ran %d statements, want ≤ %d", n, maxStatements)
+	}
+}

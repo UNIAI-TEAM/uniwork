@@ -224,22 +224,22 @@ func messageMentionsCurrentUser(raw []byte, userID string) bool {
 	return false
 }
 
-func (s *ChatService) persistMessageMentions(
-	ctx context.Context,
-	q *db.Queries,
-	msg db.ChatMessage,
-	m chatMentions,
-) (db.ChatMessage, error) {
-	if len(m.Recipients) == 0 && !m.All {
-		return msg, nil
+func buildChatTextMessageMetadata(mentions chatMentions, priority string) ([]byte, error) {
+	var raw []byte
+	if len(mentions.Recipients) > 0 || mentions.All {
+		var err error
+		raw, err = encodeMentionsMetadata(nil, mentions)
+		if err != nil {
+			return nil, err
+		}
 	}
-	meta, err := encodeMentionsMetadata(msg.Metadata, m)
-	if err != nil {
-		return msg, err
+	if p := normalizeMessagePriority(priority); p != "" {
+		return encodeMessagePriorityMetadata(raw, p)
 	}
-	return q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: msg.ID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID, Metadata: meta,
-	})
+	if len(raw) == 0 {
+		return []byte("{}"), nil
+	}
+	return raw, nil
 }
 
 func (s *ChatService) publishMentionNotifications(

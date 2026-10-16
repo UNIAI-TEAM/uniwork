@@ -119,10 +119,10 @@ INSERT INTO chat_messages (
 -- name: CreateChatMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id,
-  organization_id
+  organization_id, metadata
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(thread_root_id),
-  sqlc.arg(organization_id)
+  sqlc.arg(organization_id), COALESCE(sqlc.narg(metadata)::jsonb, '{}'::jsonb)
 ) RETURNING *;
 
 -- name: CreateChatVoiceMessage :one

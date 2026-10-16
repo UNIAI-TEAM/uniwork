@@ -252,10 +252,10 @@ func (q *Queries) CreateChatKindMessage(ctx context.Context, arg CreateChatKindM
 const createChatMessage = `-- name: CreateChatMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id,
-  organization_id
+  organization_id, metadata
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6, $7, $8, $9,
-  $10
+  $10, COALESCE($11::jsonb, '{}'::jsonb)
 ) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
@@ -270,6 +270,7 @@ type CreateChatMessageParams struct {
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	ThreadRootID     pgtype.Text `json:"thread_root_id"`
 	OrganizationID   string      `json:"organization_id"`
+	Metadata         []byte      `json:"metadata"`
 }
 
 func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error) {
@@ -284,6 +285,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		arg.ClientMsgID,
 		arg.ThreadRootID,
 		arg.OrganizationID,
+		arg.Metadata,
 	)
 	var i ChatMessage
 	err := row.Scan(

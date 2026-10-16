@@ -301,7 +301,7 @@ func (s *ChatService) requireCanSendInRoom(ctx context.Context, userID, roomID s
 	if member.SendRestricted {
 		return Invalid("bạn bị cấm gửi tin trong phòng này")
 	}
-	if err := s.memberCanPerformRoomAction(ctx, userID, roomID, room, func(p ChatRoomMemberPermissions) bool {
+	if err := memberMayPerform(member, userID, room, func(p ChatRoomMemberPermissions) bool {
 		return p.AllowSendMessages
 	}); err != nil {
 		return err
