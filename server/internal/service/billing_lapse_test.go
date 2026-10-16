@@ -12,10 +12,7 @@ func TestSubscriptionLapseCancelToDefault(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
 		t.Fatal(err)
 	}
-	v := f.version(t)
-	if _, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "paid_team", v); err != nil {
-		t.Fatal(err)
-	}
+	f.assignPlan(t, admin.ID, "paid_team")
 	past := time.Now().UTC().Add(-24 * time.Hour)
 	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET
 		current_period_start = $1, current_period_end = $1, cancel_at = NULL, provider = 'vnpay'
@@ -47,10 +44,7 @@ func TestSubscriptionLapsePastDue(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
 		t.Fatal(err)
 	}
-	v := f.version(t)
-	if _, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "paid_team", v); err != nil {
-		t.Fatal(err)
-	}
+	f.assignPlan(t, admin.ID, "paid_team")
 	past := time.Now().UTC().Add(-time.Hour)
 	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET
 		current_period_start = $1, current_period_end = $1, cancel_at = NULL, provider = 'vnpay', status = 'active'

@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -44,6 +45,7 @@ type VoiceCallLogInfo struct {
 	RecordingStatus string
 	RecordingURL    string
 	Participants    []VoiceCallParticipant
+	Video           bool
 }
 
 type voiceCallSession struct {
@@ -53,6 +55,7 @@ type voiceCallSession struct {
 	callerName     string
 	callKind       string
 	roomName       string
+	video          bool
 	invitedAt      time.Time
 	acceptedAt     *time.Time
 	participantIDs []string
@@ -74,6 +77,9 @@ const (
 var (
 	voiceCallSessions  sync.Map // key: roomID|callID
 	lastVoiceCallSweep atomic.Int64
+	// voiceCallSessionsMu serialises read-modify-write on voiceCallSessions; a
+	// session holds a slice, so sync.Map.CompareAndSwap cannot compare it.
+	voiceCallSessionsMu sync.Mutex
 )
 
 func voiceCallSessionKey(roomID, callID string) string {
@@ -149,6 +155,8 @@ func appendVoiceCallParticipantID(ids []string, userID string) []string {
 
 func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 	key := voiceCallSessionKey(roomID, callID)
+	voiceCallSessionsMu.Lock()
+	defer voiceCallSessionsMu.Unlock()
 	sess, ok := loadVoiceCallSession(key)
 	if !ok {
 		return
@@ -157,7 +165,15 @@ func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 	voiceCallSessions.Store(key, sess)
 }
 
-func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string) {
+// trackVoiceCallInvite refuses a call_id that is still live: every room member
+// receives it in chat.voice.invite, so overwriting would hand them the call.
+func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string, video bool) error {
+	key := voiceCallSessionKey(room.ID, callID)
+	voiceCallSessionsMu.Lock()
+	defer voiceCallSessionsMu.Unlock()
+	if _, live := loadVoiceCallSession(key); live {
+		return ErrConflict
+	}
 	now := time.Now()
 	sess := voiceCallSession{
 		roomID:         room.ID,
@@ -166,11 +182,13 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 		callerName:     callerName,
 		callKind:       room.Kind,
 		roomName:       strings.TrimSpace(room.Name),
+		video:          video,
 		invitedAt:      now,
 		participantIDs: []string{callerID},
 	}
-	voiceCallSessions.Store(voiceCallSessionKey(room.ID, callID), sess)
+	voiceCallSessions.Store(key, sess)
 	sweepVoiceCallSessions(now)
+	return nil
 }
 
 // trackVoiceCallAccept starts the call clock when someone other than the
@@ -178,6 +196,8 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 // a later joiner does not restart it.
 func (s *ChatService) trackVoiceCallAccept(roomID, callID, userID string) {
 	key := voiceCallSessionKey(roomID, callID)
+	voiceCallSessionsMu.Lock()
+	defer voiceCallSessionsMu.Unlock()
 	sess, ok := loadVoiceCallSession(key)
 	if !ok || userID == sess.callerID || sess.acceptedAt != nil {
 		return
@@ -473,6 +493,8 @@ func (s *ChatService) publishVoiceRoomSignal(ctx context.Context, room db.ChatRo
 		if targetUserID := strings.TrimSpace(ev.Payload["target_user_id"]); targetUserID != "" {
 			s.pub.SendToUser(ctx, targetUserID, ev)
 		}
+		// The actor's other tabs ring too; an answer or a decline here stops them.
+		s.pub.SendToUser(ctx, actorID, ev)
 	} else if voiceCallMultiPartyKind(room.Kind) {
 		s.publishChatRoomMembersEvent(ctx, room.ID, ev)
 	}
@@ -524,7 +546,9 @@ func (s *ChatService) finalizeVoiceCall(
 	ctx context.Context, room db.ChatRoom, userID, callID string,
 ) error {
 	key := voiceCallSessionKey(room.ID, callID)
+	voiceCallSessionsMu.Lock()
 	raw, ok := voiceCallSessions.LoadAndDelete(key)
+	voiceCallSessionsMu.Unlock()
 	if !ok {
 		return nil
 	}
@@ -540,6 +564,9 @@ func (s *ChatService) finalizeVoiceCall(
 		"outcome":          outcome,
 		"duration_seconds": duration,
 		"caller_id":        sess.callerID,
+	}
+	if sess.video {
+		metaMap["video"] = true
 	}
 	if len(participants) > 0 {
 		rows := make([]map[string]string, 0, len(participants))
@@ -568,32 +595,14 @@ func (s *ChatService) finalizeVoiceCall(
 	anchorWS := roomAnchorWorkspaceID(room)
 	// Pre-create message id so recording metadata can reference it before insert.
 	msgID := util.NewID()
-	metaMap = s.attachVoiceRecordingToCallLog(ctx, room, callID, msgID, metaMap)
-	meta, err := json.Marshal(metaMap)
-	if err != nil {
-		return err
-	}
-	msg, err := s.q.CreateChatVoiceCallLog(ctx, db.CreateChatVoiceCallLogParams{
-		ID:             msgID,
-		RoomID:         room.ID,
-		OrganizationID: room.OrganizationID,
-		WorkspaceID:    anchorWS,
-		SenderID:       sess.callerID,
-		Metadata:       meta,
-	})
-	if err != nil {
-		return err
-	}
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
-
+	var emit []audit.Event
 	if queueSummary {
 		endedAt := time.Now().UTC()
 		startedAt := endedAt.Add(-time.Duration(duration) * time.Second)
 		if sess.acceptedAt != nil {
 			startedAt = sess.acceptedAt.UTC()
 		}
-		payload := map[string]string{
+		emit = append(emit, audit.Event{Topic: "chat.voice.call.completed", Version: 1, Payload: map[string]string{
 			"room_id":             room.ID,
 			"workspace_id":        anchorWS,
 			"organization_id":     room.OrganizationID,
@@ -605,11 +614,52 @@ func (s *ChatService) finalizeVoiceCall(
 			"duration_seconds":    fmt.Sprintf("%d", duration),
 			"duration_label":      formatVoiceCallDurationLabel(duration),
 			"participants":        formatVoiceCallParticipantNames(participants),
-		}
-		if emitErr := s.emitVoiceCallCompleted(ctx, room, payload); emitErr != nil {
-			return emitErr
+		}})
+	}
+	// The log, its audit row and its summary job commit together, so a log
+	// never says "summarising" without a job behind it (ADR 0009, UNI-1703).
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	metaMap = s.attachVoiceRecordingToCallLog(ctx, q, room, callID, msgID, metaMap)
+	meta, err := json.Marshal(metaMap)
+	if err != nil {
+		return err
+	}
+	msg, err := q.CreateChatVoiceCallLog(ctx, db.CreateChatVoiceCallLogParams{
+		ID:             msgID,
+		RoomID:         room.ID,
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		SenderID:       sess.callerID,
+		Metadata:       meta,
+	})
+	if err != nil {
+		return err
+	}
+	if err := q.TouchChatRoomUpdatedAt(ctx, room.ID); err != nil {
+		return err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID, WorkspaceID: anchorWS,
+		Actor: audit.User(userID), Action: audit.ActionChatVoiceCallLogged,
+		ResourceType: "chat_message", ResourceID: msg.ID,
+		Metadata: map[string]any{"room_id": room.ID, "call_id": callID, "outcome": outcome},
+	}, emit...); err != nil {
+		return err
+	}
+	if room.Kind == chatRoomKindDM && outcome == voiceCallOutcomeUnanswered {
+		if err := emitChatMessageNotifications(ctx, q, room, sess.callerID, msg.ID, "", "", chatMentions{}); err != nil {
+			return err
 		}
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, "")
 	return nil
 }
 
@@ -686,6 +736,7 @@ func voiceCallLogFromMetadata(kind string, raw []byte) *VoiceCallLogInfo {
 		RecordingID     string `json:"recording_id"`
 		RecordingStatus string `json:"recording_status"`
 		RecordingURL    string `json:"recording_url"`
+		Video           bool   `json:"video"`
 	}
 	if err := json.Unmarshal(raw, &meta); err != nil || meta.Outcome == "" {
 		return nil
@@ -698,6 +749,7 @@ func voiceCallLogFromMetadata(kind string, raw []byte) *VoiceCallLogInfo {
 		RecordingID:     meta.RecordingID,
 		RecordingStatus: meta.RecordingStatus,
 		RecordingURL:    meta.RecordingURL,
+		Video:           meta.Video,
 		Participants:    voiceCallParticipantsFromMetadata(raw),
 	}
 }

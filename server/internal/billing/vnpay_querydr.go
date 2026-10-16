@@ -68,7 +68,7 @@ func (v *VNPay) QueryTransaction(ctx context.Context, in QueryTransactionInput) 
 		return Event{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
+	res, err := vnpHTTP.Do(req)
 	if err != nil {
 		return Event{}, err
 	}

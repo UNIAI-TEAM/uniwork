@@ -4,14 +4,6 @@ import type { AssigneeOption, AssigneeRef } from "../tasks/pickers/assignee-pick
 
 export type OpenProject = (projectId: string, intent?: LinkClickIntent) => void;
 
-/** Fields a list row or card edits in place. */
-export type ProjectRowPatch = {
-  status?: string;
-  priority?: string;
-  lead_type?: string | null;
-  lead_id?: string | null;
-};
-
 export function getProjectTaskMetrics(
   project: Pick<Project, "task_count" | "done_count">,
 ) {

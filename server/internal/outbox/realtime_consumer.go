@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -119,6 +120,10 @@ func (c *RealtimeConsumer) Handle(ctx context.Context, ev Row) error {
 		ids, err := c.members.RoomMemberIDs(ctx, roomID)
 		if err != nil {
 			return fmt.Errorf("realtime: members of %s: %w", roomID, err)
+		}
+		// A removed member has left by delivery time; the row still names them, and they must hear it.
+		if uid := payload["user_id"]; uid != "" && !slices.Contains(ids, uid) {
+			ids = append(ids, uid)
 		}
 		c.pub.PublishUsers(ctx, ids, ev.Topic, payload)
 	}

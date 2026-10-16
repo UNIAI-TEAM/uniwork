@@ -33,7 +33,7 @@ func registerBilling(r api, h Routes) {
 	})
 	r.Patch("/orgs/{orgID}/billing/plan", h.ChangePlan, apiOp{
 		summary:     "Change plan",
-		description: "Owner tổ chức đổi giữa các gói miễn phí; gói trả phí trả 403 checkout_required; platform admin đổi bất kỳ. 409 version_conflict khi row_version lệch; 403 quota_exceeded khi usage hiện tại vượt gói đích.",
+		description: "Owner tổ chức đổi giữa các gói miễn phí; gói trả phí trả 403 checkout_required. 409 version_conflict khi row_version lệch; 403 quota_exceeded khi usage hiện tại vượt gói đích.",
 		tags:        []string{"billing"},
 		sdi:         sdi.ChangePlanSDI{},
 		sdo:         sdo.SubscriptionSDO{},

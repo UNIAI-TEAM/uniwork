@@ -14,23 +14,15 @@ export async function openManualPreview(page: Page) {
   await page.waitForLoadState("networkidle");
   const stage = page.locator("#product-preview");
   if (await stage.getAttribute("data-presentation") !== "watch") return;
-  const toggle = stage.locator('[data-action="toggle-presentation"]');
-  if (await toggle.count()) {
-    await toggle.click();
-    return;
-  }
-  // Static illustrations have no mode switch; enter exploration through Tasks.
-  const selected = await stage.locator('[role=tab][aria-selected=true]').getAttribute("data-feature");
-  await selectWorkspaceFeature(page, "tasks", false);
-  await toggle.click();
-  if (selected) await selectWorkspaceFeature(page, selected, false);
+  await stage.locator('[data-action="toggle-presentation"]').click();
 }
 
 export async function selectWorkspaceFeature(page: Page, key: string, manual = true) {
   const entry = Object.entries(workspaceGroups).find(([, values]) => (values as readonly string[]).includes(key));
   if (!entry) throw new Error(`Unknown workspace feature: ${key}`);
   const stage = page.locator("#product-preview");
-  await stage.locator(`[data-feature-group="${entry[0]}"]`).click();
+  const menu = stage.locator('[data-action="toggle-demo-menu"]');
+  if (await menu.isVisible() && await menu.getAttribute("aria-expanded") !== "true") await menu.click();
   await stage.locator(`[role=tab][data-feature="${key}"]`).click();
   if (manual) await openManualPreview(page);
 }

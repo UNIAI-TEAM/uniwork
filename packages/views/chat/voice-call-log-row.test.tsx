@@ -32,8 +32,24 @@ describe("VoiceCallLogRow", () => {
         />,
       ),
     );
-    // The log does not know whether it was a video call, so it says "Cuộc gọi".
     expect(screen.getByText(/^Cuộc gọi · 2:05/)).toBeInTheDocument();
+  });
+
+  it("labels a camera call as video", () => {
+    render(
+      wrap(
+        <VoiceCallLogRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={{
+            ...voiceMessage("completed"),
+            voiceCall: { outcome: "completed", duration_seconds: 125, caller_id: "peer", video: true },
+          }}
+          currentUserId="me"
+        />,
+      ),
+    );
+    expect(screen.getByText(/^Cuộc gọi video · 2:05/)).toBeInTheDocument();
   });
 
   it("shows participant names on completed calls", () => {

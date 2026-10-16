@@ -7,7 +7,7 @@ import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
 
 initI18n();
 
-const mocks = vi.hoisted(() => ({ catchUp: vi.fn(), markRead: vi.fn() }));
+const mocks = vi.hoisted(() => ({ catchUp: vi.fn(), markRead: vi.fn(), markThreadRead: vi.fn() }));
 
 vi.mock("@uniwork/core/ai", () => ({
   useAiCapabilities: () => ({ data: { enabled: true, ask_uni: true } }),
@@ -17,6 +17,7 @@ vi.mock("@uniwork/core/ai", () => ({
 vi.mock("@uniwork/core/chat", () => ({
   chatKeys: { rooms: (ws: string) => ["chat", "rooms", ws] },
   useMarkChatRoomRead: () => ({ mutateAsync: mocks.markRead }),
+  useMarkChatThreadRead: () => ({ mutateAsync: mocks.markThreadRead }),
 }));
 
 const brief = { summary: "Tóm tắt", highlights: [], action_items: [], message_count: 3, since: "", mode: "unread" };
@@ -30,6 +31,8 @@ describe("useChatCatchUpUi", () => {
     mocks.catchUp.mockReset();
     mocks.markRead.mockReset();
     mocks.markRead.mockResolvedValue(true);
+    mocks.markThreadRead.mockReset();
+    mocks.markThreadRead.mockResolvedValue(null);
   });
 
   it("marks the room read when the room opens", () => {
@@ -60,6 +63,22 @@ describe("useChatCatchUpUi", () => {
     expect(result.current.unreadSince).toBe("2026-09-05T00:00:00.123456Z");
     await act(async () => result.current.onCatchUp?.());
     expect(mocks.catchUp).toHaveBeenCalledWith(expect.objectContaining({ since: "2026-09-05T00:00:00.123456Z" }));
+  });
+
+  // Opening a thread marks it read, so the brief starts from the pointer the
+  // mark-read call replaced, not from the one it just wrote.
+  it("sends the thread's pre-open read pointer as since", async () => {
+    mocks.catchUp.mockResolvedValue(brief);
+    mocks.markThreadRead.mockResolvedValue("2026-09-05T00:00:00.123456Z");
+    const { result } = renderHook(() => useChatCatchUpUi("ws1", "room1", "t1"), {
+      wrapper: ({ children }) => wrap(<>{children}</>),
+    });
+    expect(mocks.markThreadRead).toHaveBeenCalledWith("t1");
+    await act(async () => {});
+    await act(async () => result.current.onCatchUp?.());
+    expect(mocks.catchUp).toHaveBeenCalledWith(
+      expect.objectContaining({ thread_root_id: "t1", since: "2026-09-05T00:00:00.123456Z" }),
+    );
   });
 
   it("does not mark read again on close when the summary failed", async () => {

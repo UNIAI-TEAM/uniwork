@@ -53,7 +53,15 @@ describe("toChatMessage", () => {
     const mapped = toChatMessage({
       ...base,
       voice_call: { outcome: "answered", duration_seconds: 12, caller_id: "u1" },
-      file: { filename: "a.pdf", content_type: "application/pdf", size_bytes: 10 },
+      file: {
+        filename: "a.pdf",
+        content_type: "application/pdf",
+        size_bytes: 10,
+        url: "https://storage.test/a",
+        download_url: "https://storage.test/a?dl=1",
+        thumb_url: "https://storage.test/a",
+        url_expires_at: "2026-03-27T21:00:00Z",
+      },
       poll: {
         question: "Lunch?",
         options: [{ id: "o1", label: "Pho", votes: 2 }],
@@ -81,6 +89,10 @@ describe("toChatMessage", () => {
       filename: "a.pdf",
       content_type: "application/pdf",
       size_bytes: 10,
+      url: "https://storage.test/a",
+      download_url: "https://storage.test/a?dl=1",
+      thumb_url: "https://storage.test/a",
+      url_expires_at: "2026-03-27T21:00:00Z",
     });
     expect(mapped.poll?.options[0]).toEqual({ id: "o1", label: "Pho", votes: 2 });
     expect(mapped.poll?.settings.pin_to_top).toBe(true);
@@ -139,5 +151,13 @@ describe("senderLabelFor", () => {
       "u1",
     );
     expect(senderLabelFor(message, "other", "Bạn", [])).toBe("u1");
+    expect(
+      senderLabelFor(message, "other", "Bạn", [{ user_id: "U1", display_name: "An" }]),
+    ).toBe("An");
+    expect(
+      senderLabelFor(message, "other", "Bạn", [
+        { user_id: "u1", display_name: "u1", email: "tramyd@example.com" },
+      ]),
+    ).toBe("tramyd");
   });
 });

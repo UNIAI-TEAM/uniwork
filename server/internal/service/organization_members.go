@@ -305,9 +305,6 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 	if target.Role == OrgRoleAdmin && actor.Role != OrgRoleOwner {
 		return db.OrganizationMember{}, ErrForbidden
 	}
-	if err := s.ent.CheckQuota(ctx, orgID, FeatureMembersMax, 1); err != nil {
-		return db.OrganizationMember{}, err
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.OrganizationMember{}, err
@@ -328,6 +325,14 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 			return db.OrganizationMember{}, errMemberInOtherOrganization()
 		}
 	}
+	// Count the seat while deactivated_at is still set. Clearing it first
+	// makes snapshotCount include this person, then Consume adds one more,
+	// so the last open seat is refused.
+	if err := s.ent.Consume(ctx, q, ConsumeInput{
+		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: 1, Actor: Human(actorID),
+	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	// Gives back the rooms Deactivate left; it reads deactivated_at, so it
 	// runs before the clear.
 	if err := q.RestoreChatRoomsLeftAtDeactivation(ctx, db.RestoreChatRoomsLeftAtDeactivationParams{
@@ -342,11 +347,6 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 		return db.OrganizationMember{}, ErrConflict
 	}
 	if err != nil {
-		return db.OrganizationMember{}, err
-	}
-	if err := s.ent.Consume(ctx, q, ConsumeInput{
-		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: 1, Actor: Human(actorID),
-	}); err != nil {
 		return db.OrganizationMember{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{

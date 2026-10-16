@@ -1,4 +1,5 @@
 import { runtimeConfig } from "../runtime-config";
+import { marketingHref, vietnamesePath } from "./marketing";
 
 export const paths = {
   root: () => "/",
@@ -26,6 +27,12 @@ export const paths = {
    * or join through an invitation (ADR 0032 D12). Hyphenated root, reserved.
    */
   getStarted: () => "/get-started",
+  /**
+   * Where a plain member of an organization lands while no workspace has been
+   * opened to them (UNI-1472, UNI-1582): they are told so and to ask an
+   * admin, never sent to create one. Hyphenated root, reserved.
+   */
+  noWorkspace: () => "/no-workspace",
   newWorkspace: () => "/workspaces/new",
   invitations: () => "/invitations",
   workspaces: () => "/workspaces",
@@ -53,6 +60,11 @@ export const paths = {
   requestDemo: () => "/request-demo",
   /** Public page of the UniWork Office desktop app (landing menu "Office"). */
   office: () => "/office",
+  about: () => "/about",
+  security: () => "/security",
+  guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
+  marketing: marketingHref,
+  vietnamese: vietnamesePath,
   /**
    * Positioning page: what the platforms a buyer already owns do not cover.
    * Hyphenated root, the third after forgot-password and reset-password; the
@@ -98,6 +110,13 @@ export const paths = {
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
+      /** Opens a room (and optionally scrolls to a message) on the chat page. */
+      chatConversation: (roomId: string, messageId?: string) => {
+        const params = new URLSearchParams();
+        params.set("room", roomId);
+        if (messageId) params.set("message", messageId);
+        return `${base}/chat?${params.toString()}`;
+      },
       inbox: () => `${base}/inbox`,
       email: () => `${base}/email`,
       members: () => `${base}/members`,
@@ -128,6 +147,7 @@ export const GLOBAL_PREFIXES = [
   "/auth/",
   "/onboarding",
   "/get-started",
+  "/no-workspace",
   "/invitations",
   "/workspaces",
   "/invite/",
@@ -144,6 +164,9 @@ export const GLOBAL_PREFIXES = [
   "/enterprise",
   "/request-demo",
   "/office",
+  "/vi",
+  "/about",
+  "/security",
 ] as const;
 
 export function isGlobalPath(path: string): boolean {

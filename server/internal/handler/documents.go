@@ -38,6 +38,17 @@ const (
 
 var errDocumentUploadTooLarge = errors.New("documents: upload exceeds the request cap")
 
+// documentFlagOrganization feeds mw.FlagOrganization on the authenticated
+// document routes: DocumentService names the organization of the path's
+// orgID, workspaceID or documentID when the caller is a member of it.
+func (h *handlers) documentFlagOrganization(r *http.Request) string {
+	if h.Documents == nil {
+		return ""
+	}
+	return h.Documents.FlagOrganization(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "orgID"), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "documentID"))
+}
+
 func documentTooLarge(w http.ResponseWriter) {
 	respondError(w, http.StatusRequestEntityTooLarge, "file_too_large", "tệp vượt quá dung lượng cho phép")
 }

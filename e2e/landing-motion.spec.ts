@@ -1,8 +1,10 @@
 import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 test("landing demo controls perform the actions they advertise without workspace writes", async ({ page }) => {
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const demo = page.locator("#product-preview");
   await openManualPreview(page);
   const writes: string[] = [];
@@ -26,7 +28,8 @@ test("landing demo controls perform the actions they advertise without workspace
 
 test("product showcase, cinematic playback and reduced motion remain usable", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const core = page.locator('.landing-hero');
   await expect(core).toBeVisible();
   await expect(core.locator('h1')).toBeVisible();
@@ -51,7 +54,8 @@ test("product showcase, cinematic playback and reduced motion remain usable", as
 
 test("hero offers registration and a demo request in a minimal opening", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const hero = page.locator(".landing-hero");
   await expect(hero.locator(".landing-hero-actions a")).toHaveCount(2);
   await expect(hero.locator('img')).toHaveCount(0);
@@ -69,7 +73,8 @@ test("hero offers registration and a demo request in a minimal opening", async (
 
 test("Starter and FAQ signals animate only while visible and respect reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   const pricing = page.locator("#bang-gia");
   const faq = page.locator(".landing-faq");
   await pricing.scrollIntoViewIfNeeded();
@@ -95,9 +100,10 @@ test("Starter and FAQ signals animate only while visible and respect reduced mot
 test("framed scenes arrive on scroll and remain readable after the entrance", async ({ page }) => {
   await page.setViewportSize({ width: 1294, height: 584 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   await expect(page.locator(".landing-signal, .landing-chapter-junction")).toHaveCount(0);
-  await expect(page.locator(".landing-product-story > section")).toHaveCount(3);
+  await expect(page.locator(".landing-product-story > section")).toHaveCount(4);
   await expect(page.locator(".landing-conversion-story > section")).toHaveCount(3);
 
   const chapter = page.locator(".landing-trust-story");
@@ -109,38 +115,42 @@ test("framed scenes arrive on scroll and remain readable after the entrance", as
   expect(frame!.x).toBeGreaterThan(20);
   expect(frame!.width).toBeLessThan(1294);
 
-  const platformSurface = page.locator("#platform > div");
-  await expect(platformSurface).toHaveAttribute("data-scroll-reveal", "pending");
-  const beforeOpacity = Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity));
-  const beforeTransform = await platformSurface.evaluate((element) => getComputedStyle(element).transform);
+  // The compact opening leaves #platform's top inside the 584px viewport, so
+  // it is revealed on load. The solutions chapter is the first one that only
+  // arrives on scroll.
+  const revealSurface = page.locator("#giai-phap > div");
+  await expect(revealSurface).toHaveAttribute("data-scroll-reveal", "pending");
+  const beforeOpacity = Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity));
+  const beforeTransform = await revealSurface.evaluate((element) => getComputedStyle(element).transform);
   expect(beforeOpacity).toBeLessThan(.5);
   expect(beforeTransform).not.toBe("none");
   await page.evaluate(() => {
-    const section = document.querySelector("#platform");
+    const section = document.querySelector("#giai-phap");
     if (!section) return;
     const top = section.getBoundingClientRect().top + window.scrollY;
     window.scrollTo({ top: top - window.innerHeight * .8, behavior: "instant" });
   });
   // A single wheel movement is enough: reading does not require more scrolling.
-  await expect(platformSurface).toHaveAttribute("data-scroll-reveal", "ready");
-  await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
-  await page.locator("#platform").scrollIntoViewIfNeeded();
-  await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBeGreaterThan(.98);
-  await expect.poll(() => platformSurface.evaluate((element) => getComputedStyle(element).transform)).not.toBe(beforeTransform);
+  await expect(revealSurface).toHaveAttribute("data-scroll-reveal", "ready");
+  await expect.poll(async () => Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
+  await page.locator("#giai-phap").scrollIntoViewIfNeeded();
+  await expect.poll(async () => Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity))).toBeGreaterThan(.98);
+  await expect.poll(() => revealSurface.evaluate((element) => getComputedStyle(element).transform)).not.toBe(beforeTransform);
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-  await page.locator("#platform").scrollIntoViewIfNeeded();
-  await expect(platformSurface).toHaveAttribute("data-scroll-reveal", "ready");
-  await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
+  await page.locator("#giai-phap").scrollIntoViewIfNeeded();
+  await expect(revealSurface).toHaveAttribute("data-scroll-reveal", "ready");
+  await expect.poll(async () => Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect.poll(() => platformSurface.evaluate((element) => getComputedStyle(element).transform)).toBe("none");
-  await expect.poll(() => platformSurface.evaluate((element) => getComputedStyle(element).clipPath)).toBe("none");
-  await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
+  await expect.poll(() => revealSurface.evaluate((element) => getComputedStyle(element).transform)).toBe("none");
+  await expect.poll(() => revealSurface.evaluate((element) => getComputedStyle(element).clipPath)).toBe("none");
+  await expect.poll(async () => Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
 });
 
 test("nonessential motion stops offscreen", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   await selectWorkspaceFeature(page, "meetings");
   await openManualPreview(page);
   await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
@@ -172,7 +182,8 @@ test("GPU unavailable leaves the product showcase and demo intact", async ({ pag
       return Reflect.apply(original, this, args);
     } as typeof original;
   });
-  await page.goto("/");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   await expect(page.locator('#landing-title')).toBeVisible();
   await selectWorkspaceFeature(page, "chat");
   await openManualPreview(page);

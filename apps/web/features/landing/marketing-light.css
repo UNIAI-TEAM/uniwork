@@ -25,7 +25,6 @@
 :root:not(.dark) .marketing-site .chapter-world :is(.chapter-hero, .feature-page-hero)::before { top: -120px; }
 :root:not(.dark) .marketing-site .chapter-world .chapter-hero { gap: 40px; padding-block: 32px 40px; }
 :root:not(.dark) .marketing-site .chapter-world .feature-page-hero { padding-bottom: 48px; }
-:root:not(.dark) .marketing-site .chapter-world .marketing-actions .chapter-link { margin-top: 0; }
 :root:not(.dark) .marketing-site .chapter-world :is(.chapter-scene-media, .feature-page-art > .feature-art, .feature-page-details.feature-examples .feature-art) {
   padding: 0;
   background: transparent;

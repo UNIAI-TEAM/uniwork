@@ -78,7 +78,8 @@ type ScopeReleaser interface {
 
 // ScopeRevoker is implemented by a ScopeAuthorizer that caches decisions:
 // RevokeScope forgets every decision held for userID on scopeID, whatever
-// workspace asked, or all of userID's when scopeID is "".
+// workspace asked, or all of userID's when scopeID is "", or every user's on
+// scopeID when userID is "".
 type ScopeRevoker interface {
 	RevokeScope(userID, scopeType, scopeID string)
 }
@@ -291,6 +292,10 @@ const (
 	// scopes joined at connect time included. The web client asks for at most
 	// 25 chat rooms plus the open task or meeting.
 	maxScopesPerSocket = 50
+
+	// maxSocketsPerUser caps the workspace sockets one user holds on this
+	// node: a tab per workspace plus the desktop app stays far below it.
+	maxSocketsPerUser = 20
 )
 
 var upgrader = websocket.Upgrader{
@@ -371,6 +376,7 @@ type SubscriptionCallback func(scopeType, scopeID string)
 type Hub struct {
 	rooms      map[scopeKey]map[*Client]bool
 	clients    map[*Client]bool // every connected client (used by global Broadcast and snapshots)
+	perUser    map[string]int   // workspace sockets held per user, guarded by mu
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
@@ -389,6 +395,7 @@ func NewHub() *Hub {
 	return &Hub{
 		rooms:      make(map[scopeKey]map[*Client]bool),
 		clients:    make(map[*Client]bool),
+		perUser:    make(map[string]int),
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
@@ -482,6 +489,41 @@ func (h *Hub) Run() {
 	}
 }
 
+// reserveUserSocket takes one of userID's maxSocketsPerUser workspace
+// socket slots, or reports that none is left.
+func (h *Hub) reserveUserSocket(userID string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.perUser[userID] >= maxSocketsPerUser {
+		return false
+	}
+	h.perUser[userID]++
+	return true
+}
+
+func (h *Hub) releaseUserSocket(userID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.releaseUserSocketLocked(userID)
+}
+
+// releaseUserSocketLocked expects h.mu held.
+func (h *Hub) releaseUserSocketLocked(userID string) {
+	if h.perUser[userID]--; h.perUser[userID] <= 0 {
+		delete(h.perUser, userID)
+	}
+}
+
+// forgetClientLocked takes c out of the global set and gives back its
+// socket slot; every path that drops a client goes through it. Expects h.mu held.
+func (h *Hub) forgetClientLocked(c *Client) {
+	delete(h.clients, c)
+	// Lobby sockets carry no workspace and never reserved a slot.
+	if c.workspaceID != "" {
+		h.releaseUserSocketLocked(c.userID)
+	}
+}
+
 // removeClient drops a client from all rooms and the global set.
 func (h *Hub) removeClient(client *Client) {
 	h.mu.Lock()
@@ -489,7 +531,7 @@ func (h *Hub) removeClient(client *Client) {
 		h.mu.Unlock()
 		return
 	}
-	delete(h.clients, client)
+	h.forgetClientLocked(client)
 	subs := client.subscriptions
 	client.subscriptions = nil
 	emptied := make([]scopeKey, 0, len(subs))
@@ -777,7 +819,7 @@ func (h *Hub) evictSlow(slow []*Client) {
 		if !h.clients[c] {
 			continue
 		}
-		delete(h.clients, c)
+		h.forgetClientLocked(c)
 		held := heldScopes{client: c, keys: make([]scopeKey, 0, len(c.subscriptions))}
 		for key := range c.subscriptions {
 			held.keys = append(held.keys, key)
@@ -917,7 +959,8 @@ func (h *Hub) closeWhere(code int, text string, match func(*Client) bool) []*Cli
 // RevokeScope asks the authorizer afresh, past its cache, whether each of
 // userID's sockets holding (scopeType, scopeID) may keep it, and drops it
 // from those it no longer admits: a member kicked from a private room loses
-// it, one who left a public channel they can still read does not.
+// it, one who left a public channel they can still read does not. An empty
+// userID rechecks every socket holding the scope.
 func (h *Hub) RevokeScope(userID, scopeType, scopeID string) {
 	auth := h.scopeAuthorizer()
 	if r, ok := auth.(ScopeRevoker); ok {
@@ -926,7 +969,7 @@ func (h *Hub) RevokeScope(userID, scopeType, scopeID string) {
 	h.mu.RLock()
 	var holders []*Client
 	for c := range h.rooms[sk(scopeType, scopeID)] {
-		if c.userID == userID {
+		if userID == "" || c.userID == userID {
 			holders = append(holders, c)
 		}
 	}
@@ -1080,6 +1123,15 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse SessionParser, resolv
 			)
 			return
 		}
+		if !hub.reserveUserSocket(uid) {
+			writeWSAuthErrorAndClose(
+				conn,
+				[]byte(`{"error":"too many connections"}`),
+				"workspace_id", workspaceID,
+				"user_id", uid,
+			)
+			return
+		}
 		userID = uid
 
 		if !writeWSAuthFrame(
@@ -1089,6 +1141,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse SessionParser, resolv
 			"workspace_id", workspaceID,
 			"user_id", userID,
 		) {
+			hub.releaseUserSocket(userID)
 			conn.Close()
 			return
 		}

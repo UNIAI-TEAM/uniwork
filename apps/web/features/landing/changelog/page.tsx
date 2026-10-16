@@ -1,9 +1,10 @@
 "use client";
+import { MarketingAnchor } from "../../../platform/marketing-link";
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Check, Link as LinkIcon } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../../platform/marketing-link";
 import { CHANGELOG_RELEASES, groupReleasesByMonth } from "@uniwork/core/changelog";
 import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -65,7 +66,7 @@ export function ChangelogPage() {
   };
 
   return <div className={`landing-site changelog-site ${landingFont.variable}`} data-design-contract="uniwork-changelog">
-    <a className="landing-skip" href="#changelog-main">{t("landing.studio.skip")}</a>
+    <MarketingAnchor className="landing-skip" href="#changelog-main">{t("landing.studio.skip")}</MarketingAnchor>
     <SiteHeader />
     <main id="changelog-main">
       <Container className="changelog-layout">
@@ -79,11 +80,11 @@ export function ChangelogPage() {
             {groups.map((group) => <section className="changelog-month" key={group.month}>
               <h3>{formatDate(group.month + "-01", locale, true)}</h3>
               <ol>{group.releases.map((release) => <li key={release.id}>
-                <a href={`#${release.id}`} aria-current={active === release.id ? "location" : undefined} onClick={() => setActive(release.id)}>
+                <MarketingAnchor href={`#${release.id}`} aria-current={active === release.id ? "location" : undefined} onClick={() => setActive(release.id)}>
                   <span className="changelog-timeline-dot" aria-hidden />
                   <span className="changelog-day">{release.date.slice(-2)}</span>
                   <span>{`v${release.version}`}</span>
-                </a>
+                </MarketingAnchor>
               </li>)}</ol>
             </section>)}
           </nav>
@@ -93,7 +94,7 @@ export function ChangelogPage() {
             const prefix = `changelog.releases.${release.contentKey}`;
             return <article key={release.id} id={release.id} tabIndex={-1} aria-labelledby={`${release.id}-title`} className="changelog-release">
               <div className="changelog-release-meta">
-                <a className="changelog-version" href={`#${release.id}`}>{`v${release.version}`}</a>
+                <MarketingAnchor className="changelog-version" href={`#${release.id}`}>{`v${release.version}`}</MarketingAnchor>
                 <time dateTime={release.date}>{formatDate(release.date, locale)}</time>
                 {index === 0 && <span className="changelog-latest">{t("changelog.latest")}</span>}
                 <Button variant="ghost" size="icon" className="changelog-copy" aria-label={t(copied === release.id ? "changelog.copied" : "changelog.copyLink", { version: release.version })} onClick={() => void copyLink(release.id)}>

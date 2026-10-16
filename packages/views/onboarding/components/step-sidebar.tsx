@@ -35,7 +35,10 @@ export function StepProgressBar({
   const currentIndex = Math.max(0, ONBOARDING_STEP_ORDER.indexOf(currentStep as never));
   const key = ONBOARDING_STEP_ORDER[currentIndex]!;
   return (
-    <div className="mb-6 flex items-center gap-3 md:hidden">
+    // Wraps: at 200% text the progress floor, the step label and Log out no
+    // longer fit one phone line, and held on one they pushed the step 40px
+    // past the screen. Log out then takes the next line, still at the right.
+    <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 md:hidden">
       {onBack ? (
         <Button
           type="button"
@@ -69,7 +72,7 @@ export function StepProgressBar({
         </span>
         {t(`onboarding.step_nav.${key}.label`)}
       </span>
-      {footer ? <span className="shrink-0">{footer}</span> : null}
+      {footer ? <span className="ml-auto shrink-0">{footer}</span> : null}
     </div>
   );
 }

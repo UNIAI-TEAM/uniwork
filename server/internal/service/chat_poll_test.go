@@ -377,7 +377,11 @@ func TestChatPollHideResultsUntilVote(t *testing.T) {
 		t.Fatal("votes should be visible to voter after voting")
 	}
 
-	msgs, err := s.ListWorkspaceMessages(ctx, ub.ID, w.ID, ListChatMessagesInput{})
+	if got := optionVotes(voted, optA); got != 1 {
+		t.Fatalf("voter should see the count after voting: got %d want 1", got)
+	}
+
+	msgs, err := s.ListRoomMessages(ctx, ub.ID, w.ID, roomID, ListChatMessagesInput{})
 	if err != nil {
 		t.Fatalf("list as non-voter: %v", err)
 	}
@@ -399,6 +403,45 @@ func TestChatPollHideResultsUntilVote(t *testing.T) {
 	}
 	if len(found.Poll.ViewerOptionIDs) != 0 {
 		t.Fatalf("non-voter viewer options: %+v", found.Poll.ViewerOptionIDs)
+	}
+	assertPollCountsHidden(t, "list", *found)
+
+	one, err := s.GetRoomMessage(ctx, ub.ID, w.ID, roomID, row.ID)
+	if err != nil {
+		t.Fatalf("get as non-voter: %v", err)
+	}
+	assertPollCountsHidden(t, "get", one)
+
+	again, err := s.ListRoomMessages(ctx, ua.ID, w.ID, roomID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatalf("list as voter: %v", err)
+	}
+	for _, m := range again {
+		if m.ID == row.ID {
+			if got := optionVotes(m, optA); got != 1 {
+				t.Fatalf("voter re-read count: got %d want 1", got)
+			}
+		}
+	}
+
+	votedB, err := s.VoteChatPollMessage(ctx, ub.ID, w.ID, roomID, row.ID, optA)
+	if err != nil {
+		t.Fatalf("vote as B: %v", err)
+	}
+	if got := optionVotes(votedB, optA); got != 2 {
+		t.Fatalf("B should see real counts once voted: got %d want 2", got)
+	}
+}
+
+func assertPollCountsHidden(t *testing.T, path string, row ChatMessageRow) {
+	t.Helper()
+	if row.Poll == nil {
+		t.Fatalf("%s: expected poll", path)
+	}
+	for _, opt := range row.Poll.Options {
+		if opt.Votes != 0 {
+			t.Fatalf("%s: non-voter must not see per-option counts: %+v", path, row.Poll.Options)
+		}
 	}
 }
 
@@ -479,12 +522,16 @@ func TestPollFromMetadataBranches(t *testing.T) {
 		t.Fatalf("blank viewer should have no options: %+v", got)
 	}
 
-	hidden := mkPayload("Q", 2, ChatPollSettings{HideResultsUntilVote: true}, votes)
-	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u2"); got == nil || got.VotesByUser != nil {
-		t.Fatalf("non-voter should not see votes: %+v", got)
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(raw), "u2"); got == nil || got.Options[1].Votes != 1 {
+		t.Fatalf("non-voter should see counts when results are not hidden: %+v", got)
 	}
-	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u1"); got == nil || got.VotesByUser == nil {
-		t.Fatalf("voter should see votes: %+v", got)
+
+	hidden := mkPayload("Q", 2, ChatPollSettings{HideResultsUntilVote: true}, votes)
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u2"); got == nil || got.VotesByUser != nil || got.Options[1].Votes != 0 {
+		t.Fatalf("non-voter should not see votes or counts: %+v", got)
+	}
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u1"); got == nil || got.VotesByUser == nil || got.Options[1].Votes != 1 {
+		t.Fatalf("voter should see votes and counts: %+v", got)
 	}
 
 	anon := mkPayload("Q", 2, ChatPollSettings{HideVoters: true}, votes)

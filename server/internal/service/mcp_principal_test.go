@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"net/url"
 	"testing"
 	"time"
 
@@ -170,5 +171,123 @@ func TestMcpPrincipalToolContextIsTheConsentingHuman(t *testing.T) {
 	}
 	if p := principalOf(tc); p.UserID != "u1" || p.OrganizationID != "o1" {
 		t.Fatalf("principalOf(ToolContext) = %+v", p)
+	}
+}
+
+// The principal says whether this call may write: the grant's scope and both
+// write switches, read on every request so turning one off acts at once.
+func TestAuthenticateReportsWriteAccess(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	c := w.publicClient(t, "https://x.test/cb")
+	id := w.startWrite(t, c)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(to)
+	pair, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: u.Query().Get("code"), CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := w.svc.Authenticate(w.ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.CanWrite() || p.Scope != "read write" || p.ClientName != "Test Client" {
+		t.Fatalf("principal = %+v, want a writer named Test Client", p)
+	}
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	p, err = w.svc.Authenticate(w.ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatalf("Authenticate after the write switch went off: %v", err)
+	}
+	if p.CanWrite() || p.WriteOpen || p.Scope != "read write" || p.ClientName != "Test Client" {
+		t.Fatalf("write switch off, principal = %+v, want the grant intact and WriteOpen false", p)
+	}
+}
+
+// The platform's write flag is the other leg of WriteOpen: a grant that holds
+// write, under an organization whose write switch is on, still reads as
+// closed the moment the flag goes off, and Authenticate keeps succeeding so
+// reads carry on.
+func TestAuthenticateWriteFlagOffClosesWrite(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	c := w.publicClient(t, "https://x.test/cb")
+	id := w.startWrite(t, c)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(to)
+	pair, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: u.Query().Get("code"), CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, err := w.svc.Authenticate(w.ctx, pair.AccessToken); err != nil || !p.CanWrite() {
+		t.Fatalf("before the flag goes off: principal = %+v, err = %v, want a writer", p, err)
+	}
+	w.svc.SetFlags(mcpFlagsExcept{off: mcpWriteFlagKey})
+	p, err := w.svc.Authenticate(w.ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatalf("Authenticate with the write flag off: %v", err)
+	}
+	if p.WriteOpen || p.CanWrite() || p.Scope != "read write" {
+		t.Fatalf("write flag off, principal = %+v, want the grant intact, WriteOpen false and CanWrite false", p)
+	}
+}
+
+// A grant that holds only read cannot write even when both switches are on:
+// the scope is the third condition of CanWrite.
+func TestAuthenticateReadOnlyGrantCannotWrite(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	_, pair := w.issue(t)
+	p, err := w.svc.Authenticate(w.ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.WriteOpen || p.Scope != "read" || p.CanWrite() {
+		t.Fatalf("principal = %+v, want write open, scope read, CanWrite false", p)
+	}
+}
+
+// CanWrite needs both switches and a grant that holds write.
+func TestMcpPrincipalCanWriteTruthTable(t *testing.T) {
+	cases := []struct {
+		open  bool
+		scope string
+		want  bool
+	}{
+		{true, "read write", true},
+		{true, "read", false},
+		{false, "read write", false},
+		{false, "read", false},
+		{true, "", false},
+	}
+	for _, c := range cases {
+		if got := (McpPrincipal{WriteOpen: c.open, Scope: c.scope}).CanWrite(); got != c.want {
+			t.Errorf("WriteOpen=%v Scope=%q: CanWrite = %v, want %v", c.open, c.scope, got, c.want)
+		}
 	}
 }

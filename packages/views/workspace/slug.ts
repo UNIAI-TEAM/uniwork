@@ -1,6 +1,6 @@
 import { ApiError } from "@uniwork/core/api";
 import { slugify } from "@uniwork/core/workspaces";
-import { CELESTIAL_NAMES } from "./celestial-names";
+import { CELESTIAL_SLUG_BASES, type CelestialSlugBase } from "./celestial-names";
 
 export const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -26,11 +26,19 @@ export function nameToSlug(name: string): string {
   return slugify(name);
 }
 
-export function randomWorkspaceIdentity(random: () => number = Math.random): { name: string; slug: string } {
-  const c = CELESTIAL_NAMES[Math.floor(random() * CELESTIAL_NAMES.length)]!;
+/**
+ * A random workspace identity. `nameOf` turns the slug base into the display
+ * name in the interface language (the caller passes its `t`), read at the
+ * moment of the press so a language switch applies to the next one.
+ */
+export function randomWorkspaceIdentity(
+  nameOf: (slugBase: CelestialSlugBase) => string,
+  random: () => number = Math.random,
+): { name: string; slug: string } {
+  const base = CELESTIAL_SLUG_BASES[Math.floor(random() * CELESTIAL_SLUG_BASES.length)]!;
   let suffix = "";
   for (let i = 0; i < 4; i += 1) suffix += SUFFIX_ALPHABET[Math.floor(random() * SUFFIX_ALPHABET.length)];
-  return { name: c.name, slug: `${c.slugBase}-${suffix}` };
+  return { name: nameOf(base), slug: `${base}-${suffix}` };
 }
 
 export function isSlugConflict(error: unknown): boolean {

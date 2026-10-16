@@ -70,8 +70,8 @@ describe("useHomeDestination", () => {
 
   it("leads to /get-started once the user belongs to no organization", async () => {
     signIn();
-    // A closed organization's workspace may still be listed; it is not home.
-    serve({ "/api/v1/workspaces": { workspaces: [ws] }, "/api/v1/orgs": { organizations: [] } });
+    // GET /workspaces leaves a closed organization out (ADR 0032 D4).
+    serve({ "/api/v1/workspaces": { workspaces: [] }, "/api/v1/orgs": { organizations: [] } });
     const { result } = renderHook(() => useHomeDestination(), { wrapper });
     await waitFor(() => expect(result.current).toBe("/get-started"));
   });

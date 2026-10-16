@@ -31,7 +31,7 @@ func ValidateCheckoutPath(path string) error {
 // A still-valid pending intent for the same plan is reused so two devices do
 // not open two payable orders for one checkout wave.
 func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, successURL, cancelURL, clientIP string) (billing.CheckoutSession, error) {
-	if _, err := s.requireOwner(ctx, userID, orgID); err != nil {
+	if err := s.requireOwner(ctx, userID, orgID); err != nil {
 		return billing.CheckoutSession{}, err
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
@@ -79,6 +79,7 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 	var intentID string
 	var amount int64
 	var currency string
+	var createdAt, expiresAt time.Time
 	orderInfo := "UniWork " + plan.Code
 	existing, err := q.GetPendingBillingPaymentIntentForPlan(ctx, db.GetPendingBillingPaymentIntentForPlanParams{
 		OrganizationID: orgID, PlanID: plan.ID,
@@ -87,6 +88,8 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 		intentID = existing.ID
 		amount = existing.Amount
 		currency = existing.Currency
+		createdAt = existing.CreatedAt.Time
+		expiresAt = existing.ExpiresAt.Time
 		if s := strings.TrimSpace(pgTextString(existing.ProviderOrderInfo)); s != "" {
 			orderInfo = s
 		}
@@ -99,7 +102,7 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 		checkoutActor := Human(userID)
 		amount = plan.PriceAmount.Int64
 		currency = plan.PriceCurrency
-		_, err = q.InsertBillingPaymentIntent(ctx, db.InsertBillingPaymentIntentParams{
+		row, err := q.InsertBillingPaymentIntent(ctx, db.InsertBillingPaymentIntentParams{
 			ID: intentID, OrganizationID: orgID, SubscriptionID: sub.ID, PlanID: plan.ID,
 			Provider: s.provider.Name(), ProviderTxnRef: intentID,
 			Amount: amount, Currency: currency,
@@ -111,6 +114,8 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 		if err != nil {
 			return billing.CheckoutSession{}, err
 		}
+		createdAt = row.CreatedAt.Time
+		expiresAt = row.ExpiresAt.Time
 	} else {
 		return billing.CheckoutSession{}, err
 	}
@@ -123,6 +128,7 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 		SuccessURL: successURL, CancelURL: cancelURL,
 		IntentID: intentID, Amount: amount, Currency: currency,
 		OrderInfo: orderInfo, ClientIP: clientIP,
+		CreatedAt: createdAt, ExpiresAt: expiresAt,
 	})
 	if err != nil {
 		_ = s.q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{

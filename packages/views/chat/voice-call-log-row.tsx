@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, PhoneIncoming, PhoneMissed, PhoneOff } from "lucide-react";
+import { Phone, PhoneIncoming, PhoneMissed, PhoneOff, Video, VideoOff } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -20,25 +20,23 @@ function voiceCallLogLabel(
   if (!call) return t("chat.voice_call_log_unknown");
 
   const isCaller = call.caller_id === currentUserId;
+  const kind = call.video ? "video_call_log" : "voice_call_log";
   switch (call.outcome) {
     case "completed":
-      return t("chat.voice_call_log_completed", {
+      return t(`chat.${kind}_completed`, {
         duration: formatVoiceCallDuration(call.duration_seconds ?? 0),
       });
     case "declined":
-      return isCaller
-        ? t("chat.voice_call_log_declined_outgoing")
-        : t("chat.voice_call_log_declined_incoming");
+      return isCaller ? t(`chat.${kind}_declined_outgoing`) : t(`chat.${kind}_declined_incoming`);
     case "unanswered":
-      return isCaller
-        ? t("chat.voice_call_log_cancelled")
-        : t("chat.voice_call_log_missed");
+      return isCaller ? t(`chat.${kind}_cancelled`) : t(`chat.${kind}_missed`);
     default:
-      return t("chat.voice_call_log_unknown");
+      return t(`chat.${kind}_unknown`);
   }
 }
 
-function voiceCallLogIcon(outcome: string | undefined) {
+function voiceCallLogIcon(outcome: string | undefined, video: boolean) {
+  if (video) return outcome === "completed" ? Video : VideoOff;
   switch (outcome) {
     case "completed":
       return Phone;
@@ -74,7 +72,7 @@ export function VoiceCallLogRow({
     summary,
     participants: participantLabels,
   }) : summary;
-  const Icon = voiceCallLogIcon(message.voiceCall?.outcome);
+  const Icon = voiceCallLogIcon(message.voiceCall?.outcome, message.voiceCall?.video === true);
   const recordingId = message.voiceCall?.recording_id?.trim();
   const recordingReady =
     message.voiceCall?.recording_status === "COMPLETE" && Boolean(recordingId);

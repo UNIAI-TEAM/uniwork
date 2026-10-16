@@ -1,5 +1,12 @@
 export type OfficeChannel = "dev" | "beta" | "stable";
 export type OfficeLaunchOutcome = "hidden" | "launched" | "not-installed" | "expired" | "error";
+/** What a launcher may be asked besides the link. */
+export interface OfficeLaunchOptions {
+  /** Called at most once when the page loses focus or visibility after the
+   * launcher already answered "not-installed": the app took its time but did
+   * open, so the caller drops its "did not respond" prompt. */
+  onLateHandoff?: () => void;
+}
 export interface OfficeLaunchSessionLike {
   launch_ticket: string;
   launch_url?: string;

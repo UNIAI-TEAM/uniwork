@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Download, ExternalLink, Eye, EyeOff, FileText } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { Download, Eye, EyeOff, FileText } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
-import { useChatFileBlobLoader } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { ChatAnimatedImage } from "./chat-animated-image";
@@ -12,7 +11,8 @@ import { isChatImageContentType, isChatPdfContentType, resolveChatFileContentTyp
 import { formatChatFileSize } from "./chat-file-size";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
-import { useChatFileObjectUrl } from "./use-chat-file-object-url";
+import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
+import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media-url";
 
 type ChatFile = NonNullable<ChatMessage["file"]>;
 
@@ -68,21 +68,29 @@ function FileCard({
   );
 }
 
-function useDownload(workspaceId: string, roomId: string, messageId: string, filename: string) {
+/**
+ * Downloads straight from storage: the signed download URL carries
+ * Content-Disposition: attachment with the file's name, so the browser saves
+ * it even though the anchor's own download attribute is ignored cross-origin.
+ */
+function useDownload(workspaceId: string, roomId: string, message: ChatMessage) {
   const { t } = useTranslation();
-  const loadBlob = useChatFileBlobLoader(workspaceId, roomId);
+  const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
   const [busy, setBusy] = useState(false);
   const download = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      const blob = await loadBlob(messageId);
-      const url = URL.createObjectURL(blob);
+      const url = await freshUrl(
+        message.id,
+        { url: message.file?.download_url, expiresAt: message.file?.url_expires_at },
+        (fresh) => fresh.file?.download_url,
+      );
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = filename || "file";
+      anchor.download = message.file?.filename || "file";
+      anchor.rel = "noopener";
       anchor.click();
-      URL.revokeObjectURL(url);
     } catch (err) {
       toastChatError(err, t, t("chat.file_download_failed"));
     } finally {
@@ -107,8 +115,43 @@ function ImageAttachment({
   // A GIF keeps its animation, so it loads whole; any other photo shows its
   // thumbnail and loads the original only when opened.
   const isGif = file?.content_type === "image/gif";
-  const { url, status } = useChatFileObjectUrl(workspaceId, roomId, message.id, true, isGif ? undefined : "thumb");
-  const loadOriginal = useChatFileBlobLoader(workspaceId, roomId);
+  const preview = useChatMediaSrc(
+    workspaceId,
+    roomId,
+    message.id,
+    isGif ? file?.url : file?.thumb_url || file?.url,
+    file?.url_expires_at,
+  );
+  const { src: url, status } = preview;
+  const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
+  const previewRequest = useRef(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const openPreview = () => {
+    const token = ++previewRequest.current;
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreviewSrc(null);
+    freshUrl(message.id, { url: file?.url, expiresAt: file?.url_expires_at }, (fresh) => fresh.file?.url).then(
+      (href) => {
+        if (previewRequest.current !== token) return;
+        setPreviewSrc(href);
+        setPreviewLoading(false);
+      },
+      (err: unknown) => {
+        if (previewRequest.current !== token) return;
+        setPreviewOpen(false);
+        setPreviewLoading(false);
+        toastChatError(err, t, t("chat.file_download_failed"));
+      },
+    );
+  };
+  const closePreview = (open: boolean) => {
+    if (open) return;
+    previewRequest.current += 1;
+    setPreviewOpen(false);
+  };
   const [aspect, setAspect] = useState(() => imageAspectByMessage.get(message.id) ?? null);
   const rememberAspect = (img: HTMLImageElement) => {
     if (!img.naturalWidth || !img.naturalHeight) return;
@@ -136,56 +179,55 @@ function ImageAttachment({
   }
   const openLabel = t("chat.message_list.file_open_named", { name });
   const imgClass = "block max-h-56 max-w-full object-contain";
+  const previewDialog = (
+    <ChatImagePreviewDialog
+      open={previewOpen}
+      name={name}
+      src={previewSrc}
+      loading={previewLoading}
+      onOpenChange={closePreview}
+    />
+  );
   if (isGif) {
-    const open = () => window.open(url, "_blank", "noopener,noreferrer");
-    // The GIF carries its own play/pause button, so opening it is a button
+    // The GIF carries its own play/pause button, so the preview is a button
     // of its own rather than the whole picture.
     return (
       <div className="relative w-fit max-w-full" style={aspect ? undefined : boxStyle}>
-        <ChatAnimatedImage src={url} alt={name} imgClassName={imgClass} onLoad={rememberAspect} />
+        <ChatAnimatedImage src={url} alt={name} imgClassName={imgClass} onLoad={rememberAspect} onError={preview.onError} />
         <Button
           type="button"
           size="icon-sm"
           variant="secondary"
           className="absolute top-1.5 right-1.5 pointer-coarse:size-11"
           aria-label={openLabel}
-          onClick={open}
+          onClick={openPreview}
         >
-          <ExternalLink aria-hidden />
+          <Eye className="size-4" aria-hidden />
         </Button>
+        {previewDialog}
       </div>
     );
   }
-  const openOriginal = () => {
-    // The tab opens inside the click, before the download, so no popup
-    // blocker refuses it; the original is put into it once it arrives.
-    const tab = window.open("", "_blank");
-    if (!tab) return;
-    tab.opener = null;
-    loadOriginal(message.id).then(
-      (blob) => {
-        const href = URL.createObjectURL(blob);
-        tab.location.href = href;
-        // The tab has its own copy once loaded; the URL need not outlive that.
-        window.setTimeout(() => URL.revokeObjectURL(href), 60_000);
-      },
-      (err: unknown) => {
-        tab.close();
-        toastChatError(err, t, t("chat.file_download_failed"));
-      },
-    );
-  };
   return (
-    <button
-      type="button"
-      className="block max-w-full overflow-hidden"
-      style={aspect ? undefined : boxStyle}
-      aria-label={openLabel}
-      onClick={openOriginal}
-    >
-      {/* Authenticated blob URL — not a public CDN asset. */}
-      <img src={url} alt={name} className={imgClass} onLoad={(e) => rememberAspect(e.currentTarget)} />
-    </button>
+    <>
+      <button
+        type="button"
+        className="block max-w-full overflow-hidden"
+        style={aspect ? undefined : boxStyle}
+        aria-label={openLabel}
+        onClick={openPreview}
+      >
+        {/* Short-lived signed storage URL, not a public CDN asset. */}
+        <img
+          src={url}
+          alt={name}
+          className={imgClass}
+          onLoad={(e) => rememberAspect(e.currentTarget)}
+          onError={preview.onError}
+        />
+      </button>
+      {previewDialog}
+    </>
   );
 }
 
@@ -208,7 +250,14 @@ function PdfAttachment({
 }) {
   const { t } = useTranslation();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const { url, status } = useChatFileObjectUrl(workspaceId, roomId, message.id, previewOpen);
+  const { src: url, status } = useChatMediaSrc(
+    workspaceId,
+    roomId,
+    message.id,
+    message.file?.url,
+    message.file?.url_expires_at,
+    previewOpen,
+  );
   return (
     <div className="space-y-2 p-2">
       <div className="px-1">
@@ -262,7 +311,7 @@ export function ChatFileAttachment({
   message: ChatMessage;
 }) {
   const file = message.file;
-  const { busy, download } = useDownload(workspaceId, roomId, message.id, file?.filename ?? "");
+  const { busy, download } = useDownload(workspaceId, roomId, message);
   const contentType = file ? resolveChatFileContentType(file) : undefined;
   if (isChatImageContentType(contentType, file?.filename)) {
     return <ImageAttachment workspaceId={workspaceId} roomId={roomId} message={message} />;

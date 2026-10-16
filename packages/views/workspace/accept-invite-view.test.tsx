@@ -93,15 +93,15 @@ const next = () => fireEvent.click(screen.getByRole("button", { name: "Tiếp t�
 // parallel run, so these finds get more than the default second.
 const SLOW = { timeout: 5000 };
 async function pickHeir() {
-  fireEvent.click(await screen.findByRole("combobox", { name: "Chủ sở hữu mới" }, SLOW));
-  const option = await screen.findByRole("option", { name: "Nguyễn Văn An" }, SLOW);
-  // A bare click on an option is only honoured once the popup has highlighted
-  // it (a later tick, longer under a loaded runner); a pointerdown first, as a
-  // real press sends, makes Base UI commit the click at once. Without it the
-  // pick was silently dropped and "Tiếp tục" stayed aria-disabled.
+  const combobox = await screen.findByRole("combobox", { name: "Chủ sở hữu mới" }, SLOW);
+  fireEvent.click(combobox);
+  const option = await screen.findByRole("option", { name: "Nguyễn Văn An an@acme.vn" }, SLOW);
+  // A bare click on an option counts only if Base UI has highlighted it by
+  // then (a timing race); a click that starts with a pointer down on the
+  // item is a real press and always commits.
   fireEvent.pointerDown(option);
   fireEvent.click(option);
-  await waitFor(() => expect(screen.getByRole("combobox", { name: "Chủ sở hữu mới" })).toHaveTextContent("Nguyễn Văn An"));
+  await waitFor(() => expect(combobox).toHaveTextContent("Nguyễn Văn An"));
 }
 
 describe("AcceptInviteView", () => {
@@ -125,8 +125,14 @@ describe("AcceptInviteView", () => {
       renderView();
       const heading = await screen.findByRole("heading", { name: "Không dùng được lời mời này" });
       expect(screen.queryByText("not found")).not.toBeInTheDocument();
-      // The page keeps one shell, so the new title moves focus to it: that announces the refusal.
-      await waitFor(() => expect(heading).toHaveFocus());
+      // The first real title is an arrival, not a change: the loading frame
+      // had no title to replace, so focus is left where the page opened.
+      expect(heading).not.toHaveFocus();
+      // The focus it took is visible to a keyboard user: the global
+      // :focus-visible outline is not switched off on the heading, and a name
+      // with no break opportunity wraps instead of overflowing the card.
+      expect(heading).not.toHaveClass("outline-none");
+      expect(heading).toHaveClass("[overflow-wrap:anywhere]");
       expect(screen.getByRole("link", { name: "Xem workspace của tôi" })).toHaveAttribute("href", "/workspaces");
     });
 
@@ -201,7 +207,10 @@ describe("AcceptInviteView", () => {
       renderView();
       expect(await screen.findByRole("heading", { name: "Lời mời không còn hiệu lực" })).toBeInTheDocument();
       expect(screen.getByText(sentence)).toBeInTheDocument();
-      expect(await screen.findByText("Bạn vẫn ở Acme, không có gì thay đổi.")).toBeInTheDocument();
+      // The news, in the success tone, said politely once the organizations load.
+      expect(await screen.findByRole("status")).toHaveTextContent("Bạn vẫn ở Acme, không có gì thay đổi.");
+      // What to do about the dead link is a hint on the page, not an announcement.
+      expect(screen.getByRole("note")).toHaveTextContent(/nhờ (người mời|họ) gửi/i);
       // Other invitations may still be waiting.
       expect(screen.getByRole("link", { name: "Xem lời mời của tôi" })).toHaveAttribute("href", "/invitations");
       expect(acceptCalls()).toHaveLength(0);
@@ -214,6 +223,40 @@ describe("AcceptInviteView", () => {
       const onAccepted = renderView();
       await waitFor(() => expect(onAccepted).toHaveBeenCalledWith(expect.objectContaining({ id: "w2" })));
       expect(acceptCalls()).toEqual([undefined]);
+    });
+
+    /** The repeat ask failed in passing: "Thử lại" asks again instead of spinning on "accepted". */
+    it("asks again after a failed repeat accept when the person retries", async () => {
+      signIn();
+      let calls = 0;
+      serve({
+        preview: { invitation: invitation("accepted"), conflicts: [] },
+        onAccept: async () => {
+          calls += 1;
+          if (calls === 1) throw new ApiError("boom", "internal", 500);
+          return { organization: beta, workspace: betaWorkspace };
+        },
+      });
+      const onAccepted = renderView();
+      fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+      await waitFor(() => expect(onAccepted).toHaveBeenCalledWith(expect.objectContaining({ id: "w2" })));
+      expect(acceptCalls()).toHaveLength(2);
+    });
+
+    it("offers a retry instead of a spinner when the repeat accept meets another change", async () => {
+      signIn();
+      let calls = 0;
+      serve({
+        preview: { invitation: invitation("accepted"), conflicts: [] },
+        onAccept: async () => {
+          calls += 1;
+          if (calls === 1) throw new ApiError("x", "membership_busy", 409);
+          return { organization: beta, workspace: betaWorkspace };
+        },
+      });
+      const onAccepted = renderView();
+      fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+      await waitFor(() => expect(onAccepted).toHaveBeenCalled());
     });
 
     it("tells anybody else the invitation was already used", async () => {
@@ -233,7 +276,12 @@ describe("AcceptInviteView", () => {
       signIn();
       serve({ preview: { invitation: invitation(), conflicts: [] } });
       renderView();
-      expect(await screen.findByRole("heading", { name: "Tham gia Beta" })).toBeInTheDocument();
+      const heading = await screen.findByRole("heading", { name: "Tham gia Beta" });
+      // While the invitation was read the shell said nothing it would take
+      // back (no "Bạn có lời mời" swapped for the real title), so the real
+      // one arrives without moving focus.
+      expect(screen.queryByText("Bạn có lời mời")).not.toBeInTheDocument();
+      expect(heading).not.toHaveFocus();
       expect(screen.getByText("Lan mời bạn tham gia tổ chức này.")).toBeInTheDocument();
       // The organization leads the card as its identity; the list holds the facts.
       expect(screen.getByText("Beta")).toBeInTheDocument();
@@ -287,10 +335,24 @@ describe("AcceptInviteView", () => {
       const { workspace: _ws, inviter_name: _name, ...orgLevel } = invitation();
       serve({ preview: { invitation: orgLevel, conflicts: [] }, onAccept: async () => ({ organization: beta }) });
       const onAccepted = renderView();
-      expect(await screen.findByText("Chưa vào workspace nào. Bạn chọn workspace sau khi tham gia.")).toBeInTheDocument();
+      expect(
+        await screen.findByText("Chưa được cấp workspace. Quản trị viên sẽ thêm bạn vào workspace sau."),
+      ).toBeInTheDocument();
       expect(screen.getByText("Bạn được mời tham gia tổ chức này.")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Tham gia" }));
       await waitFor(() => expect(onAccepted).toHaveBeenCalledWith(null));
+    });
+
+    /** UNI-1582: the card lists every workspace accepting grants. */
+    it("lists the workspaces an organization invitation grants", async () => {
+      signIn();
+      const { workspace: _ws, ...orgLevel } = invitation();
+      const granted = [{ id: "w3", slug: "sales", name: "Sales" }, { id: "w2", slug: "ops", name: "Ops" }];
+      serve({ preview: { invitation: { ...orgLevel, workspaces: granted }, conflicts: [] } });
+      renderView();
+      const details = await screen.findByRole("list", { name: "Tham gia Beta" });
+      expect(within(details).getByText("Sales, Ops")).toBeInTheDocument();
+      expect(within(details).queryByText(/Chưa được cấp workspace/)).not.toBeInTheDocument();
     });
 
     it("lets the person put it off without accepting", async () => {
@@ -298,8 +360,9 @@ describe("AcceptInviteView", () => {
       serve({ preview: { invitation: invitation(), conflicts: [] } });
       renderView();
       const later = await screen.findByRole("link", { name: "Để sau" });
-      // Acme has no workspace here, so home is where its organization starts.
-      await waitFor(() => expect(later).toHaveAttribute("href", "/workspaces/new"));
+      // A plain member of Acme with no workspace there waits to be given one
+      // (UNI-1472): home is /no-workspace, not the create flow.
+      await waitFor(() => expect(later).toHaveAttribute("href", "/no-workspace"));
       fireEvent.click(later);
       expect(acceptCalls()).toHaveLength(0);
     });
@@ -316,7 +379,12 @@ describe("AcceptInviteView", () => {
       renderView();
       fireEvent.click(await screen.findByRole("button", { name: "Tham gia" }));
       expect(await screen.findByRole("heading", { name: "Bạn đang thuộc Acme" })).toBeInTheDocument();
-      expect(screen.getByText("Tình hình đã thay đổi trong lúc bạn thao tác. Xem lại từng mục dưới đây.")).toBeInTheDocument();
+      // A status, not an alert: the step heading takes focus at the same
+      // moment, and an alert would cut its announcement off.
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Tình hình đã thay đổi trong lúc bạn thao tác. Xem lại từng mục dưới đây.",
+      );
+      expect(screen.queryByRole("alert")).toBeNull();
     });
 
     it("keeps the person on the page when the server is busy with another change", async () => {
@@ -364,7 +432,10 @@ describe("AcceptInviteView", () => {
       expect(to).toHaveTextContent("Beta");
       expect(within(to!).getByText("Vai trò: Thành viên")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Bạn sẽ không còn vào được Acme" })).toBeInTheDocument();
-      expect(screen.getByRole("group", { name: "Các bước chuyển tổ chức" })).toBeInTheDocument();
+      const progress = screen.getByRole("group", { name: "Các bước chuyển tổ chức" });
+      // Progress, not navigation: no landmark, and no aria-orientation (not allowed on group).
+      expect(progress).not.toHaveAttribute("aria-orientation");
+      expect(screen.queryByRole("navigation")).toBeNull();
       expect(acceptCalls()).toHaveLength(0);
     });
 
@@ -372,8 +443,10 @@ describe("AcceptInviteView", () => {
       const onAccepted = await openWizard([conflict("leave")]);
       next();
       const heading = await screen.findByRole("heading", { name: "Xử lý tổ chức cũ" });
-      // Focus follows the step, so a screen reader hears where it landed.
+      // Focus follows the step, so a screen reader hears where it landed, and
+      // the global :focus-visible outline shows a keyboard user the same.
       await waitFor(() => expect(heading).toHaveFocus());
+      expect(heading).not.toHaveClass("outline-none");
       const cont = screen.getByRole("button", { name: "Tiếp tục" });
       expect(cont).toHaveAttribute("aria-disabled", "true");
       next();
@@ -385,6 +458,8 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByRole("heading", { name: "Xác nhận chuyển tổ chức" })).toBeInTheDocument();
       expect(screen.getByText("Rời Acme")).toBeInTheDocument();
       expect(screen.getByText("Tham gia Beta với vai trò Thành viên")).toBeInTheDocument();
+      // Where the switch lands is part of what is confirmed (UNI-1582).
+      expect(screen.getByText("Vào workspace Ops")).toBeInTheDocument();
       expect(acceptCalls()).toHaveLength(0);
 
       fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
@@ -397,8 +472,36 @@ describe("AcceptInviteView", () => {
       next();
       fireEvent.click(await screen.findByRole("checkbox", { name: "Tôi muốn rời Acme" }));
       next();
-      fireEvent.click(await screen.findByRole("button", { name: "Quay lại" }));
+      const back = await screen.findByRole("button", { name: "Quay lại" });
+      // Back sits above the heading and before it in the DOM, so Shift+Tab
+      // from the focused heading reaches it and reading order matches layout.
+      const heading = screen.getByRole("heading", { name: "Xác nhận chuyển tổ chức" });
+      expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      fireEvent.click(back);
       expect(await screen.findByRole("checkbox", { name: "Tôi muốn rời Acme" })).toBeChecked();
+    });
+
+    it("lets Enter move a step on once it is complete, and do nothing before", async () => {
+      await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })]);
+      next();
+      await pickHeir();
+      const password = screen.getByLabelText("Mật khẩu hiện tại của bạn") as HTMLInputElement;
+      const cont = screen.getByRole("button", { name: "Tiếp tục" });
+      // The step is a form, so Enter in the password field submits it and a
+      // password manager sees a sign-in-like form.
+      expect(password.form).not.toBeNull();
+      expect(cont).toHaveAttribute("type", "submit");
+      expect((cont as HTMLButtonElement).form).toBe(password.form);
+      fireEvent.submit(password.form!);
+      expect(screen.getByRole("heading", { name: "Xử lý tổ chức cũ" })).toBeInTheDocument();
+      fireEvent.change(password, { target: { value: "secret" } });
+      fireEvent.submit(password.form!);
+      expect(await screen.findByRole("heading", { name: "Xác nhận chuyển tổ chức" })).toBeInTheDocument();
+      expect(acceptCalls()).toHaveLength(0);
+      const action = screen.getByRole("button", { name: "Chuyển sang Beta" }) as HTMLButtonElement;
+      expect(action).toHaveAttribute("type", "submit");
+      fireEvent.submit(action.form!);
+      await waitFor(() => expect(acceptCalls()).toHaveLength(1));
     });
 
     it("transfers ownership to the chosen member with the owner's password", async () => {
@@ -424,7 +527,10 @@ describe("AcceptInviteView", () => {
       next();
       expect(await screen.findByText(/Bạn là thành viên duy nhất của Acme/)).toBeInTheDocument();
       expect(screen.getByText(/Acme sẽ được lưu trữ/)).toBeInTheDocument();
-      const field = screen.getByLabelText("Gõ đường dẫn tổ chức để xác nhận");
+      const field = screen.getByLabelText("Gõ định danh tổ chức để xác nhận");
+      // Slugs are lowercase: a phone keyboard must not capitalise or correct them.
+      expect(field).toHaveAttribute("autocapitalize", "none");
+      expect(field).toHaveAttribute("autocorrect", "off");
       fireEvent.change(field, { target: { value: "Acme" } });
       expect(screen.getByRole("button", { name: "Tiếp tục" })).toHaveAttribute("aria-disabled", "true");
       fireEvent.change(field, { target: { value: "acme" } });
@@ -441,6 +547,8 @@ describe("AcceptInviteView", () => {
       ]);
       next();
       expect(await screen.findByText(/Acme đang tạm ngưng/)).toBeInTheDocument();
+      // Part of the step the heading announced: a note, not an alert.
+      expect(screen.getByRole("note")).toHaveTextContent(/Acme đang tạm ngưng/);
       const cont = screen.getByRole("button", { name: "Tiếp tục" });
       // aria-disabled, not disabled: it stays reachable and says why.
       expect(cont).toHaveAttribute("aria-disabled", "true");
@@ -477,7 +585,7 @@ describe("AcceptInviteView", () => {
       );
       expect(await screen.findByText("Tình hình đã thay đổi trong lúc bạn thao tác. Xem lại từng mục dưới đây.")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Xử lý tổ chức cũ" })).toBeInTheDocument();
-      expect(screen.getByLabelText("Gõ đường dẫn tổ chức để xác nhận")).toBeInTheDocument();
+      expect(screen.getByLabelText("Gõ định danh tổ chức để xác nhận")).toBeInTheDocument();
       expect(screen.queryByRole("checkbox", { name: "Tôi muốn rời Acme" })).not.toBeInTheDocument();
     });
 
@@ -510,6 +618,22 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByRole("status")).toHaveTextContent("Thử lại sau giây lát.");
       fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
       await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+    });
+
+    /** A network or server failure leaves the choices made; the same button sends them again. */
+    it("keeps the confirmation and what was chosen when the switch fails in passing", async () => {
+      let calls = 0;
+      const onAccepted = await reachConfirm([conflict("leave")], async () => {
+        calls += 1;
+        if (calls === 1) throw new ApiError("boom", "internal", 502);
+        return { organization: beta, workspace: betaWorkspace };
+      });
+      expect(await screen.findByRole("status")).toHaveTextContent("Chưa gửi được yêu cầu chuyển tổ chức.");
+      fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
+      await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+      const calls2 = acceptCalls();
+      expect(calls2).toHaveLength(2);
+      expect(calls2[1]).toEqual(calls2[0]);
     });
 
     /** Once sent, the switch cannot be called off: "Để sau" would only hide that it went through. */
@@ -554,11 +678,19 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/, {}, SLOW)).toBeInTheDocument();
       expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Tiếp tục" })).toHaveAttribute("aria-disabled", "true");
+      // Sent back to the step, a screen reader also hears why.
+      await waitFor(() =>
+        expect(
+          screen
+            .getAllByText("Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.")
+            .some((el) => el.closest('[aria-live="polite"]') !== null),
+        ).toBe(true),
+      );
     });
 
     it("sends the owner back to the password when the server refuses it", async () => {
       await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })], () =>
-        Promise.reject(new ApiError("x", "invalid_credentials", 401)),
+        Promise.reject(new ApiError("x", "password_incorrect", 403)),
       );
       next();
       await pickHeir();
@@ -573,6 +705,8 @@ describe("AcceptInviteView", () => {
       expect(password).toHaveValue("");
       expect(password).toHaveAttribute("aria-invalid", "true");
       expect(password).toHaveAccessibleDescription("Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.");
+      // Focus lands on the refused field, whose description says why, not on the step heading.
+      await waitFor(() => expect(password).toHaveFocus());
     });
   });
 });

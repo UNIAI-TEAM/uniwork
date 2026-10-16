@@ -7,11 +7,12 @@ import "../platform/runtime-config";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { accentBootScript } from "@uniwork/ui/lib/accent";
 import { textSizeBootScript } from "@uniwork/ui/lib/text-size";
-import { resolveRequestLocale } from "../platform/locale-server";
+import { resolveRequestLocale, isMarketingRequest } from "../platform/locale-server";
 import { SITE_DESCRIPTION, SITE_NAME, shareMetadata } from "../platform/share-metadata";
 import { Providers } from "./providers";
+import { siteInformation } from "../platform/site-information";
 
-const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-inter", display: "swap" });
+const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-inter", display: "swap", preload: false });
 // Ba họ chữ theo hệ ClickUp (tokens.css): Plus Jakarta Sans cho tiêu đề — cần
 // italic cho <em> trong h1 onboarding; JetBrains Mono cho nhãn phân loại
 // (Sometype Mono của ClickUp không có subset tiếng Việt).
@@ -20,11 +21,13 @@ const plusJakarta = Plus_Jakarta_Sans({
   style: ["normal", "italic"],
   variable: "--font-plus-jakarta",
   display: "swap",
+  preload: false,
 });
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin", "vietnamese"],
   variable: "--font-jetbrains-mono",
   display: "swap",
+  preload: false,
 });
 
 /**
@@ -71,13 +74,16 @@ export const metadata: Metadata = {
   metadataBase: siteOrigin(),
   title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
   applicationName: SITE_NAME,
+  robots: { index: false, follow: false },
+  ...(siteInformation.googleSiteVerification ? { verification: { google: siteInformation.googleSiteVerification } } : {}),
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await resolveRequestLocale();
+  const marketing = await isMarketingRequest();
   // Vietnamese only: keep `vi.json` off the shared client chunk (bundle-budget).
   const initialDictionary =
-    locale === "vi" ? (await import("@uniwork/core/i18n/locales/vi.json")).default : undefined;
+    !marketing && locale === "vi" ? (await import("@uniwork/core/i18n/locales/vi.json")).default : undefined;
   return (
     <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans">

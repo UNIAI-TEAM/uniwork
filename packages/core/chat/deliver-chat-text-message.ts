@@ -1,7 +1,7 @@
 import * as chat from "../api/endpoints/chat";
 import type { ComposerMessagePriority } from "./composer-priority";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
-import { runWithChatSendRetry } from "./send-retry";
+import { isPermanentChatSendRefusal, runWithChatSendRetry } from "./send-retry";
 import type { ChatSendOutboxEntry } from "./send-outbox-store";
 import { useChatSendOutboxStore } from "./send-outbox-store";
 
@@ -64,7 +64,7 @@ export async function flushChatSendOutbox(
   workspaceId: string,
   senderId: string,
   onDeliver: (payload: ChatTextSendPayload) => Promise<unknown>,
-): Promise<{ sent: number; failed: number }> {
+): Promise<{ sent: number; failed: number; dropped: number }> {
   // Expired entries are dropped rather than sent; another user's entries are
   // left alone — they are theirs to deliver when they sign back in.
   useChatSendOutboxStore.getState().pruneStale();
@@ -72,6 +72,7 @@ export async function flushChatSendOutbox(
   const pending = listForWorkspace(workspaceId, senderId);
   let sent = 0;
   let failed = 0;
+  let dropped = 0;
 
   for (const entry of pending) {
     usePendingChatMessagesStore.getState().upsert({
@@ -91,11 +92,17 @@ export async function flushChatSendOutbox(
       remove(entry.client_msg_id);
       usePendingChatMessagesStore.getState().remove(entry.client_msg_id);
       sent += 1;
-    } catch {
+    } catch (err) {
       usePendingChatMessagesStore.getState().remove(entry.client_msg_id);
-      failed += 1;
+      if (isPermanentChatSendRefusal(err)) {
+        // Kept, it would show as waiting for a day, then vanish unannounced.
+        remove(entry.client_msg_id);
+        dropped += 1;
+      } else {
+        failed += 1;
+      }
     }
   }
 
-  return { sent, failed };
+  return { sent, failed, dropped };
 }
