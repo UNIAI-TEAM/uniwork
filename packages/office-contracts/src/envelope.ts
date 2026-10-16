@@ -277,13 +277,19 @@ export interface ValidatedEnvelope {
  *
  * `opts.hash` lets a Node caller inject a synchronous SHA-256; the default is
  * WebCrypto, which keeps this package free of node: imports.
+ *
+ * `opts.inputByteBound` lets a host enforce a configured cap below the wire
+ * ceiling (the engine's DOCUMENT_MAX_BYTES): the DECLARED length is refused
+ * before the base64 decode reads a character, and the measured bound uses the
+ * same value. Callers that omit it keep the transport ceiling.
  */
 export async function validateEnvelope(
   envelope: unknown,
-  opts: { hash?: Sha256HexFn; trustedEngineVersions?: readonly string[] } = {},
+  opts: { hash?: Sha256HexFn; trustedEngineVersions?: readonly string[]; inputByteBound?: number } = {},
 ): Promise<ValidatedEnvelope> {
   const hash = opts.hash ?? sha256Hex;
   const trusted = opts.trustedEngineVersions ?? TRUSTED_ENGINE_VERSIONS;
+  const inputByteBound = opts.inputByteBound ?? ENGINE_LIMITS.max_input_bytes;
 
   requireOnlyKeys(envelope, ENVELOPE_FIELDS, "envelope");
   requireNoAuthority(envelope, "envelope");
@@ -341,7 +347,7 @@ export async function validateEnvelope(
     requireString(requireKey(p, "base_version_id", "envelope.payload"), "envelope.payload.base_version_id");
     const inputs = await validateInputBytes(p, "envelope.payload", {
       required: true,
-      byteBound: ENGINE_LIMITS.max_input_bytes,
+      byteBound: inputByteBound,
       hash,
     });
     if (p.locale !== undefined) requireString(p.locale, "envelope.payload.locale", { maxLength: 35 });
@@ -366,7 +372,7 @@ export async function validateEnvelope(
     if (p.locale !== undefined) requireString(p.locale, "envelope.payload.locale", { maxLength: 35 });
     const inputs = await validateInputBytes(p, "envelope.payload", {
       required: false,
-      byteBound: ENGINE_LIMITS.max_input_bytes,
+      byteBound: inputByteBound,
       hash,
     });
     return { operation, format, deadlineMs, inputs, editCount: edits.length };
@@ -392,7 +398,7 @@ export async function validateEnvelope(
     }
     const inputs = await validateInputBytes(p, "envelope.payload", {
       required: true,
-      byteBound: ENGINE_LIMITS.max_input_bytes,
+      byteBound: inputByteBound,
       hash,
     });
     return { operation, format, deadlineMs, targetFormat, sourceVersionId, inputs };
@@ -416,7 +422,7 @@ export async function validateEnvelope(
     }
     const inputs = await validateInputBytes(p, "envelope.payload", {
       required: true,
-      byteBound: ENGINE_LIMITS.max_input_bytes,
+      byteBound: inputByteBound,
       hash,
     });
     return { operation, format, deadlineMs, targetFormat, sourceVersionId, inputs };
@@ -432,7 +438,7 @@ export async function validateEnvelope(
     }
     const inputs = await validateInputBytes(p, "envelope.payload", {
       required: false,
-      byteBound: ENGINE_LIMITS.max_input_bytes,
+      byteBound: inputByteBound,
       hash,
     });
     return { operation, format, deadlineMs, inputs };

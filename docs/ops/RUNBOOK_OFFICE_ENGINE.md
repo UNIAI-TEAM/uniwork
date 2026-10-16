@@ -192,7 +192,9 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   `chmod 1777 /tmp` first, matching compose's `mode=1777`. Without it any worker uid could rename or delete the
   supervisor's `uniwork-office-engine` temp root.
 - The submit path parses and hashes the envelope on the service's event loop; a large input stalls other requests
-  briefly (measured in `reports/g2-02-engine-service/limits-measurement.md`).
+  briefly (measured in `reports/g2-02-engine-service/limits-measurement.md`). A declared `input_length` over the
+  configured `maxInputBytes` is refused before the base64 decode reads a character, so a refused upload never pays
+  the decode+hash cost an accepted one does.
 
 ### Restart and replay (Go side)
 

@@ -203,17 +203,16 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
       // whether this build carries the converter for (format, target_format).
     }
     const grant = verifyGrant(req.headers[GRANT_HEADER] as string | undefined, config.grantKey);
-    const validated = await validateEnvelope(envelope, { hash: nodeSha256Hex });
+    // The configured cap travels into the contract validation: a declared
+    // input_length already over it is refused before the base64 decode reads
+    // a character, and the measured bound uses the same value — the decoded
+    // bytes can never exceed maxInputBytes.
+    const validated = await validateEnvelope(envelope, { hash: nodeSha256Hex, inputByteBound: config.limits.maxInputBytes });
     const env = envelope as Record<string, unknown>;
     const payload = env.payload as Record<string, unknown>;
     if (validated.operation === "cancel" || validated.operation === "capability" || !isBound(validated.operation, validated.format)) {
       deps.metrics.rejected("unsupported_operation");
       fail(res, boundaryFailure("unsupported_operation", { reason: "not_bound" }, { operation: validated.operation }));
-      return;
-    }
-    if (validated.inputs && validated.inputs.length > config.limits.maxInputBytes) {
-      deps.metrics.rejected("upload_bounds");
-      fail(res, boundaryFailure("upload_bounds", { max_input_bytes: config.limits.maxInputBytes }));
       return;
     }
     bindEnvelope(
