@@ -24,15 +24,17 @@ func (s *ChatService) workspaceForChat(ctx context.Context, userID, workspaceID 
 	return w, nil
 }
 
+// requireOrgPeer checks someone other than the caller, through the caller's
+// own gate. Its coded refusals (member_deactivated, organization_*) tell the
+// client that the caller is locked out, so for a peer every refusal reads as
+// "not here" (UNI-1659); only infrastructure errors pass through.
 func (s *ChatService) requireOrgPeer(ctx context.Context, orgID, targetUserID string) error {
 	_, err := s.ws.orgs.RequireMember(ctx, orgID, targetUserID)
-	if err != nil {
-		if err == ErrForbidden {
-			return ErrNotFound
-		}
-		return err
+	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrMemberDeactivated) ||
+		errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
+		return ErrNotFound
 	}
-	return nil
+	return err
 }
 
 func (s *ChatService) publishChatRoomEvent(ctx context.Context, roomID string, ev Event) {

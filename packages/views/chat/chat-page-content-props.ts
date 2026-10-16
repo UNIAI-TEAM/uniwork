@@ -94,6 +94,7 @@ export type ChatPageContentProps = {
   chatSendRestricted: boolean;
   chatSendMutedByModerator: boolean;
   canPinMessages: boolean;
+  canModerate: boolean;
   canCreatePolls: boolean;
   canCreateNotes: boolean;
   peerLastReadAt?: string | null;

@@ -50,7 +50,7 @@ describe("buildUnifiedSidebarEntries", () => {
         },
       },
       pinnedByRoomId: {
-        "g-room": { pinned: true, notificationsMuted: false, pinnedAt: Date.parse("2026-09-01T00:00:00.000Z") },
+        "g-room": { pinned: true, pinnedAt: Date.parse("2026-09-01T00:00:00.000Z") },
       },
     });
 

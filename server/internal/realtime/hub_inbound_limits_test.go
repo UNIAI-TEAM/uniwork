@@ -3,7 +3,9 @@ package realtime
 import (
 	"context"
 	"encoding/json"
+	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -110,4 +112,90 @@ func TestSocketFloodingFramesIsClosedWithPolicyViolation(t *testing.T) {
 		break
 	}
 	waitFor(t, "client to be unregistered", func() bool { return totalClients(hub) == 0 })
+}
+
+// dialAndAuth opens a workspace socket, sends token and returns the socket
+// with the server's first answer.
+func dialAndAuth(t *testing.T, server *httptest.Server, token string) (*websocket.Conn, string) {
+	t.Helper()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?workspace_id=" + testWorkspaceID
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	authMsg, _ := json.Marshal(map[string]any{"type": "auth", "payload": map[string]string{"token": token}})
+	if err := conn.WriteMessage(websocket.TextMessage, authMsg); err != nil {
+		t.Fatalf("send auth: %v", err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, answer, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read auth answer: %v", err)
+	}
+	_ = conn.SetReadDeadline(time.Time{})
+	return conn, string(answer)
+}
+
+func TestSocketsPastThePerUserCapAreRefused(t *testing.T) {
+	hub, server := newTestHub(t)
+	defer server.Close()
+
+	conns := make([]*websocket.Conn, 0, maxSocketsPerUser)
+	defer func() {
+		for _, c := range conns {
+			c.Close()
+		}
+	}()
+	for range maxSocketsPerUser {
+		conns = append(conns, connectWS(t, server))
+	}
+	waitFor(t, "every socket registered", func() bool { return totalClients(hub) == maxSocketsPerUser })
+
+	extra, answer := dialAndAuth(t, server, testBearerToken)
+	extra.Close()
+	if answer != `{"error":"too many connections"}` {
+		t.Fatalf("socket past the cap answered %s, want the too many connections auth error", answer)
+	}
+
+	other, answer := dialAndAuth(t, server, `{"UserID":"other-user"}`)
+	defer other.Close()
+	if !strings.Contains(answer, "auth_ack") {
+		t.Fatalf("another user's socket answered %s, want auth_ack", answer)
+	}
+	waitFor(t, "other user registered", func() bool { return totalClients(hub) == maxSocketsPerUser+1 })
+
+	conns[0].Close()
+	conns = conns[1:]
+	waitFor(t, "closed socket removed", func() bool { return totalClients(hub) == maxSocketsPerUser })
+
+	again, answer := dialAndAuth(t, server, testBearerToken)
+	defer again.Close()
+	if !strings.Contains(answer, "auth_ack") {
+		t.Fatalf("socket after one closed answered %s, want auth_ack", answer)
+	}
+}
+
+func TestEvictingSlowSocketsGivesTheirSlotsBack(t *testing.T) {
+	hub, server := newTestHub(t)
+	defer server.Close()
+
+	for range maxSocketsPerUser {
+		c := connectWS(t, server)
+		defer c.Close()
+	}
+	waitFor(t, "every socket registered", func() bool { return totalClients(hub) == maxSocketsPerUser })
+
+	hub.mu.Lock()
+	slow := make([]*Client, 0, len(hub.clients))
+	for c := range hub.clients {
+		slow = append(slow, c)
+	}
+	hub.mu.Unlock()
+	hub.evictSlow(slow)
+
+	again, answer := dialAndAuth(t, server, testBearerToken)
+	defer again.Close()
+	if !strings.Contains(answer, "auth_ack") {
+		t.Fatalf("socket after every slot was evicted answered %s, want auth_ack", answer)
+	}
 }

@@ -6,21 +6,24 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
+import { isChatMediaUrlFresh } from "@uniwork/core/chat";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
-import { useChatFileObjectUrl } from "./use-chat-file-object-url";
 
 function isImageFileMessage(message: ChatMessage): boolean {
   return message.kind === "file" && Boolean(message.file?.content_type?.startsWith("image/"));
 }
 
 /**
- * The quote's thumbnail: the same variant, and so the same cache entry, the
- * file row shows, so quoting a photo already on screen costs no second
- * download. A GIF row loads the whole file, so its quote does too.
+ * The quote's thumbnail: the same signed URL the file row shows, so the
+ * browser cache serves a photo already on screen. A GIF row shows the whole
+ * file, so its quote does too. A URL past its expiry shows the placeholder
+ * until the message is loaded again.
  */
-function useQuotedImageUrl(workspaceId: string, roomId: string, message: ChatMessage): string | null {
-  const variant = message.file?.content_type === "image/gif" ? undefined : "thumb";
-  return useChatFileObjectUrl(workspaceId, roomId, message.id, isImageFileMessage(message), variant).url;
+function quotedImageUrl(message: ChatMessage): string | null {
+  const file = message.file;
+  if (!isImageFileMessage(message) || !file) return null;
+  const url = file.content_type === "image/gif" ? file.url : file.thumb_url || file.url;
+  return isChatMediaUrlFresh(url, file.url_expires_at) ? (url ?? null) : null;
 }
 
 export function replyPreviewLabel(
@@ -37,15 +40,11 @@ export function replyPreviewLabel(
 
 export function ChatReplyQuote({
   message,
-  workspaceId,
-  roomId,
   isOwn: _isOwn = false,
   compact = false,
   onJump,
 }: {
   message: ChatMessage;
-  workspaceId: string;
-  roomId: string;
   isOwn?: boolean;
   /** Composer banner uses a lighter layout. */
   compact?: boolean;
@@ -53,7 +52,7 @@ export function ChatReplyQuote({
   onJump?: (messageId: string) => void;
 }) {
   const { t } = useTranslation();
-  const previewUrl = useQuotedImageUrl(workspaceId, roomId, message);
+  const previewUrl = quotedImageUrl(message);
   const isImage = isImageFileMessage(message);
   const label = replyPreviewLabel(message, {
     voice: t("chat.voice_message"),
@@ -125,13 +124,9 @@ export function ChatReplyQuote({
 
 export function ChatReplyComposerBar({
   message,
-  workspaceId,
-  roomId,
   onCancel,
 }: {
   message: ChatMessage;
-  workspaceId: string;
-  roomId: string;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
@@ -139,7 +134,7 @@ export function ChatReplyComposerBar({
     <div className="flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-1.5">
       <span className="flex min-w-0 items-center gap-2">
         <Reply aria-hidden className="size-4 shrink-0 text-brand-subtle-foreground" />
-        <ChatReplyQuote message={message} workspaceId={workspaceId} roomId={roomId} compact />
+        <ChatReplyQuote message={message} compact />
       </span>
       <Button
         type="button"

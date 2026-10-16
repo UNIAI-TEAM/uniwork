@@ -3,8 +3,11 @@ package billing
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -68,4 +71,47 @@ func TestVNPayQueryDRSignAndCall(t *testing.T) {
 	if !ev.Paid || ev.RawParams["vnp_TransactionNo"] != "14399999" || got["vnp_Command"] != "querydr" {
 		t.Fatalf("querydr: ev=%+v got=%v", ev, got)
 	}
+}
+
+func TestVNPayQueryDRTimesOutOnHungServer(t *testing.T) {
+	prev := vnpHTTP.Timeout
+	vnpHTTP.Timeout = 50 * time.Millisecond
+	t.Cleanup(func() { vnpHTTP.Timeout = prev })
+
+	hung, release := context.WithCancel(context.Background())
+	t.Cleanup(release)
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-hung.Done()
+	}))
+	t.Cleanup(func() {
+		release()
+		srv.Close()
+	})
+
+	v, err := NewVNPay(VNPayConfig{TMNCode: "TMNTEST1", HashSecret: "testsecret", QueryURL: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	_, err = v.QueryTransaction(context.Background(), QueryTransactionInput{TxnRef: "01INTENT0000000001"})
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("hung querydr returned success")
+	}
+	if !clientTimedOut(err) {
+		t.Fatalf("want a client timeout, got %v", err)
+	}
+	if strings.Contains(err.Error(), "querydr response") {
+		t.Fatalf("timeout treated as a VNPay rejection: %v", err)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("querydr blocked for %s", elapsed)
+	}
+}
+
+func clientTimedOut(err error) bool {
+	var netErr net.Error
+	return (errors.As(err, &netErr) && netErr.Timeout()) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), "Client.Timeout")
 }

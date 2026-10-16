@@ -98,7 +98,7 @@ export function OrgRoute({
             {captions ? (
               <span className="text-caption text-brand-subtle-foreground">{t("invitations.switch.after")}</span>
             ) : null}
-            <span className="text-body-lg font-semibold text-foreground [overflow-wrap:anywhere]">{to}</span>
+            <span className="text-body font-semibold text-foreground [overflow-wrap:anywhere]">{to}</span>
           </div>
           <RoleBadge role={invitation.org_role} />
         </div>

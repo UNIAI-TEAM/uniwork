@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { ArrowLeft, ArrowRight, Check, CircleCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DEMO_TEAM_SIZES, useCreateDemoRequest, type DemoRequestInput } from "@uniwork/core/demo-requests";

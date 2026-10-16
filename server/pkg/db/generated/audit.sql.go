@@ -162,21 +162,30 @@ func (q *Queries) GetAuditEvent(ctx context.Context, arg GetAuditEventParams) (A
 const getAuditEventByCorrelation = `-- name: GetAuditEventByCorrelation :one
 SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
+  AND ($4::timestamptz IS NULL OR occurred_at <= $4)
 ORDER BY occurred_at DESC
 LIMIT 1
 `
 
 type GetAuditEventByCorrelationParams struct {
-	CorrelationID string `json:"correlation_id"`
-	Action        string `json:"action"`
-	ResourceID    string `json:"resource_id"`
+	CorrelationID string             `json:"correlation_id"`
+	Action        string             `json:"action"`
+	ResourceID    string             `json:"resource_id"`
+	Before        pgtype.Timestamptz `json:"before"`
 }
 
 // tenant: system
 // The notification consumer asks "which fields moved" here rather than
 // having the task service say so in its payload (OPEN_QUESTIONS N1).
+// before is the event's created_at: one call may commit several rows under
+// one correlation id, and an event reads its own, not a later step's.
 func (q *Queries) GetAuditEventByCorrelation(ctx context.Context, arg GetAuditEventByCorrelationParams) (AuditEvent, error) {
-	row := q.db.QueryRow(ctx, getAuditEventByCorrelation, arg.CorrelationID, arg.Action, arg.ResourceID)
+	row := q.db.QueryRow(ctx, getAuditEventByCorrelation,
+		arg.CorrelationID,
+		arg.Action,
+		arg.ResourceID,
+		arg.Before,
+	)
 	var i AuditEvent
 	err := row.Scan(
 		&i.ID,

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady, gotoLanding } from "./landing-ready";
 import en from "../packages/core/i18n/locales/en.json" with { type: "json" };
 import vi from "../packages/core/i18n/locales/vi.json" with { type: "json" };
 
@@ -16,7 +17,8 @@ for (const [locale, dictionary] of Object.entries({ en, vi })) {
     });
 
     for (const load of ["initial", "reload"] as const) {
-      const response = load === "initial" ? await page.goto("/") : await page.reload();
+      const response = load === "initial" ? await gotoLanding(page, "/") : await page.reload();
+      await landingReady(page);
       const html = await response!.text();
       const serverDescription = html.match(/<p class="landing-hero-description">([^<]+)<\/p>/)?.[1];
       expect(serverDescription, "server must render the current dictionary").toBe(dictionary.landing.studio.heroDescription);

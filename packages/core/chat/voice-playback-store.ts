@@ -28,7 +28,7 @@ const IDLE: ChatVoicePlaybackState = {
 export const useChatVoicePlaybackStore = create<ChatVoicePlaybackState>()(() => IDLE);
 
 let audio: HTMLAudioElement | null = null;
-let objectUrl: string | null = null;
+let source: string | null = null;
 let loadToken = 0;
 
 function set(partial: Partial<ChatVoicePlaybackState>) {
@@ -40,8 +40,7 @@ function releaseSource() {
     audio.pause();
     audio.removeAttribute("src");
   }
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
-  objectUrl = null;
+  source = null;
 }
 
 function ensureAudio(): HTMLAudioElement {
@@ -65,12 +64,13 @@ function ensureAudio(): HTMLAudioElement {
 }
 
 /**
- * Play or pause one voice message. A different message takes the player
- * over: the one playing stops, its blob URL is released.
+ * Play or pause one voice message. resolveUrl gives the signed storage URL
+ * the audio streams from (UNI-1633). A different message takes the player
+ * over: the one playing stops.
  */
-export async function toggleChatVoicePlayback(id: string, load: () => Promise<Blob>): Promise<void> {
+export async function toggleChatVoicePlayback(id: string, resolveUrl: () => Promise<string>): Promise<void> {
   const state = useChatVoicePlaybackStore.getState();
-  if (state.activeId === id && audio && objectUrl) {
+  if (state.activeId === id && audio && source) {
     if (state.status === "playing") {
       audio.pause();
       return;
@@ -88,11 +88,11 @@ export async function toggleChatVoicePlayback(id: string, load: () => Promise<Bl
   releaseSource();
   useChatVoicePlaybackStore.setState({ ...IDLE, activeId: id, status: "loading" });
   try {
-    const blob = await load();
+    const url = await resolveUrl();
     if (token !== loadToken) return;
     const el = ensureAudio();
-    objectUrl = URL.createObjectURL(blob);
-    el.src = objectUrl;
+    source = url;
+    el.src = url;
     await el.play();
   } catch {
     if (token === loadToken) set({ status: "error" });

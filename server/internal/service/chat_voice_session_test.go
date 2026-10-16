@@ -9,6 +9,17 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+func TestVoiceCallLogMetadataKeepsVideo(t *testing.T) {
+	video := voiceCallLogFromMetadata("voice_call_log", []byte(`{"outcome":"completed","caller_id":"a","video":true}`))
+	if video == nil || !video.Video {
+		t.Fatalf("video log: %+v", video)
+	}
+	voice := voiceCallLogFromMetadata("voice_call_log", []byte(`{"outcome":"completed","caller_id":"a"}`))
+	if voice == nil || voice.Video {
+		t.Fatalf("voice log: %+v", voice)
+	}
+}
+
 func TestNormalizeVoiceCallID(t *testing.T) {
 	for _, ok := range []string{"550e8400-e29b-41d4-a716-446655440000", "01J8X4ROOM0N1P2Q3R4S5T6U7V8", " call-1 ", strings.Repeat("a", maxVoiceCallIDLen)} {
 		if _, err := normalizeVoiceCallID(ok); err != nil {
@@ -41,7 +52,7 @@ func TestSignalVoiceInviteRefusesALongCallID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, strings.Repeat("a", 1<<20))
+	err = s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, strings.Repeat("a", 1<<20), false)
 	requireValidationError(t, err, "1 MiB call_id")
 }
 
@@ -67,7 +78,9 @@ func TestAbandonedVoiceCallSessionsAreReclaimed(t *testing.T) {
 
 	// A new invite sweeps the rest.
 	lastVoiceCallSweep.Store(0)
-	(&ChatService{}).trackVoiceCallInvite(db.ChatRoom{ID: "room-sweep", Kind: chatRoomKindDM}, "new", "U1", "A")
+	if err := (&ChatService{}).trackVoiceCallInvite(db.ChatRoom{ID: "room-sweep", Kind: chatRoomKindDM}, "new", "U1", "A", false); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { voiceCallSessions.Delete(voiceCallSessionKey("room-sweep", "new")) })
 	for callID, wantLive := range map[string]bool{"stale-invite": false, "stale-call": false, "ringing": true, "long-but-active": true, "new": true} {
 		if _, ok := voiceCallSessions.Load(voiceCallSessionKey("room-sweep", callID)); ok != wantLive {

@@ -22,9 +22,9 @@ export function chatRoomToGroup(room: ChatRoomRecord): GroupChat {
 }
 
 /** The Chat nav badge: every unread message, but only the mentions of a room the reader muted. */
-export function chatUnreadBadge(rooms: ChatRoomRecord[], isMuted: (roomId: string) => boolean): number {
+export function chatUnreadBadge(rooms: ChatRoomRecord[]): number {
   let total = 0;
-  for (const room of rooms) total += isMuted(room.id) ? room.mention_unread_count : room.unread_count;
+  for (const room of rooms) total += room.notifications_muted ? room.mention_unread_count : room.unread_count;
   return total;
 }
 

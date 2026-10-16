@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { landingReady, gotoLanding, landingHref } from "./landing-ready";
 import { auditText } from "./contrast";
 
 const samples = [
@@ -21,11 +22,12 @@ for (const { width, locale, theme } of samples) {
     await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
     if (width === 1280) {
       // Client navigation retains global styles from the feature route.
-      await page.goto("/features/tasks");
+      await gotoLanding(page, "/features/tasks");
       await page.locator('.site-header a[href="/"]').first().click();
     } else {
-      await page.goto("/");
+      await gotoLanding(page, "/");
     }
+    await landingReady(page);
     const chapter = page.locator(".landing-trust-story");
     await expect(chapter).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
@@ -45,7 +47,7 @@ for (const { width, locale, theme } of samples) {
     await expect(chapter.locator(".trust-models li")).toHaveCount(3);
     await expect(chapter.locator(".trust-models button, .trust-models a")).toHaveCount(0);
     expect(await chapter.locator(".trust-models ul").evaluate(element => getComputedStyle(element, "::before").content)).toBe("none");
-    await expect(chapter.locator(".market-layout a")).toHaveAttribute("href", "/why-uniwork");
+    await expect(chapter.locator(".market-layout a")).toHaveAttribute("href", await landingHref(page, "/why-uniwork"));
     await expect(chapter.locator(".security-explore")).toHaveAttribute("href", "#nhat-ky");
     const dir = resolve(import.meta.dirname, "../.impeccable/review");
     await mkdir(dir, { recursive: true });

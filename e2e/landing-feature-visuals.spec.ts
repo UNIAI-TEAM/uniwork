@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
 
@@ -10,9 +11,10 @@ test("every product chapter retains visual examples on a narrow English screen",
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   for (const key of features) {
-    await page.goto(`/features/${key}`);
+    await gotoLanding(page, `/features/${key}`);
+    await landingReady(page);
     const illustrations = page.locator('.feature-world .feature-art[role="img"]');
-    await expect(illustrations).toHaveCount(4);
+    await expect(illustrations).toHaveCount(2);
     for (const illustration of await illustrations.all()) {
       await expect(illustration).toBeVisible();
       await expect(illustration).toHaveAttribute("aria-label", /^Illustrative data:/);
@@ -28,11 +30,12 @@ test("every product chapter retains visual examples on a narrow English screen",
 
 test("visual directory navigates to chapters and the full preview still expands", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/features");
-  const cards = page.locator('.feature-directory-visual a[href^="/features/"]');
+  await gotoLanding(page, "/features");
+  await landingReady(page);
+  const cards = page.locator('.feature-directory-visual a[href*="/features/"]');
   await expect(cards).toHaveCount(18);
   await expect(cards.locator('.feature-art[aria-hidden="true"]')).toHaveCount(18);
-  await page.locator('.feature-directory-visual a[href="/features/chat"]').click();
+  await page.locator('.feature-directory-visual a[href$="/features/chat"]').click();
   await expect(page).toHaveURL(/\/features\/chat$/);
   await page.locator('.feature-demo [data-action="expand-preview"]').click();
   await expect(page.getByRole('dialog')).toBeVisible();

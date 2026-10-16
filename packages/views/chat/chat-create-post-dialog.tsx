@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import {
   canSubmitPost,
   POST_BODY_MAX_LENGTH,
@@ -66,6 +67,7 @@ export function ChatCreatePostDialog({
     void sendMessage
       .mutateAsync({
         roomId,
+        client_msg_id: newChatClientMsgId(),
         post: {
           title: title.trim(),
           body: body.trim(),

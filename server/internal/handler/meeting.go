@@ -193,6 +193,21 @@ func (h *handlers) cancelMeeting(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]string{"status": "ok"})
 }
 
+func (h *handlers) restoreMeeting(w http.ResponseWriter, r *http.Request) {
+	var in sdi.RestoreMeetingSDI
+	// The version is optional but must be read when sent: a chunked request has
+	// no Content-Length (-1), which a length test would take for no body.
+	if !decodeOptionalBody(w, r, &in) {
+		return
+	}
+	m, err := h.Meetings.Restore(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Version)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, map[string]any{"meeting": toMeetingDTO(m)})
+}
+
 func (h *handlers) transferHost(w http.ResponseWriter, r *http.Request) {
 	var in sdi.HostTransferSDI
 	if !decode(w, r, &in, maxJSONBody) {

@@ -64,9 +64,17 @@ WHERE task_id = $1
 ORDER BY created_at ASC
 LIMIT 1;
 
--- name: DeleteChatThreadTaskLinkByThread :execrows
+-- name: DeleteChatThreadTaskLinksByTask :many
+-- Deleting a task frees the threads it synced with, in the same transaction.
 DELETE FROM chat_thread_task_links
-WHERE thread_root_id = $1 AND workspace_id = $2;
+WHERE organization_id = $1 AND task_id = $2
+RETURNING room_id, thread_root_id;
+
+-- name: DeleteChatMessageLinksByTask :many
+-- Deleting a task takes its card off every message it was linked from.
+DELETE FROM chat_message_links
+WHERE organization_id = $1 AND target_type = 'task' AND target_id = $2
+RETURNING room_id, message_id;
 
 -- name: CreateMirroredChatThreadReply :one
 INSERT INTO chat_messages (

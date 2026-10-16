@@ -68,7 +68,8 @@ export function AlreadyInOrganizationNotice({ organization }: { organization: He
  */
 export function ManageOrganizationAction({ organization, label }: { organization: HeldOrganization; label: string }) {
   const settings = useOrganizationSettingsHref(organization);
-  if (!settings.ready) return <Skeleton aria-hidden className="h-11 w-full rounded-control" />;
+  // The lg button's own height, 44px on a coarse pointer (its min-h-11).
+  if (!settings.ready) return <Skeleton aria-hidden className="h-9 w-full rounded-control pointer-coarse:h-11" />;
   return (
     <AppLink
       href={settings.href}

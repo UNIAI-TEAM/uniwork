@@ -20,12 +20,13 @@ import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-grou
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChannelSettingsMembers } from "./channel-settings-members";
 import { ChannelSettingsReadonly } from "./channel-settings-readonly";
 import { ChatSettingsMenuRow, ChatSettingsTitleRow } from "./chat-settings-ui";
 import { ConfirmDialog } from "../common/form-dialog";
 import { toastChatError } from "./chat-error-message";
-import { isChatRoomModerator } from "./chat-room-moderation-utils";
+import { canAdminChannel, isChatRoomModerator } from "./chat-room-moderation-utils";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 
@@ -43,6 +44,7 @@ export function ChannelSettingsSheet({
   leaveDisabled,
   onOpenSearch,
   memberAvatarByUserId = {},
+  onMessage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -57,6 +59,7 @@ export function ChannelSettingsSheet({
   leaving?: boolean;
   leaveDisabled?: boolean;
   onOpenSearch?: () => void;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
   const updateChannel = useUpdateChatChannel(workspaceId);
@@ -70,7 +73,9 @@ export function ChannelSettingsSheet({
   // server may refuse.
   const { data: members = [] } = useChatRoomMembers(workspaceId, channel.id, open);
   const currentMember = useCurrentMember(workspaceId);
-  const canAdmin = isChatRoomModerator(currentUserId, members, currentMember.role);
+  const canAdmin = canAdminChannel(currentUserId, members, currentMember.role);
+  // Inviting into a channel is the moderators' (chat_rooms.go InviteGroupMembers).
+  const canInvite = isChatRoomModerator(currentUserId, members, currentMember.role, channel);
 
   const [name, setName] = useState(channel.name);
   const [topic, setTopic] = useState(channel.topic ?? "");
@@ -307,7 +312,7 @@ export function ChannelSettingsSheet({
             </form>
           )}
 
-          {!isDefault && onAddMembers ? (
+          {!isDefault && canInvite && onAddMembers ? (
             <section className="border-b border-border py-1">
               <ChatSettingsMenuRow
                 icon={UserPlus}
@@ -321,10 +326,11 @@ export function ChannelSettingsSheet({
             <ChannelSettingsMembers
               open={open}
               workspaceId={workspaceId}
-              roomId={channel.id}
+              room={channel}
               currentUserId={currentUserId}
               youLabel={youLabel}
               memberAvatarByUserId={memberAvatarByUserId}
+              onMessage={onMessage}
             />
           ) : null}
 

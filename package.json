@@ -75,6 +75,7 @@
     "typecheck": "turbo typecheck",
     "lint": "bash scripts/lint-gate.sh",
     "test": "turbo test --filter=!@uniwork/e2e",
+    "seo:check": "node scripts/seo-smoke.mjs",
     "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
     "generate:lucide-aliases": "node scripts/generate-lucide-aliases.mjs",
     "brand:build": "bash scripts/brand/build.sh",

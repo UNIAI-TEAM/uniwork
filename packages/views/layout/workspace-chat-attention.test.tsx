@@ -2,7 +2,6 @@ import { act, render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
-import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
 import { initI18n } from "@uniwork/core/i18n";
 import { registerSystemNotificationClickHandler } from "@uniwork/core/platform";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -23,7 +22,7 @@ const workspace: Workspace = {
 
 const room = (id: string, unread: number, mentions: number) => ({
   id, kind: "channel", name: id, workspace_id: "ws1", member_user_ids: [],
-  unread_count: unread, mention_unread_count: mentions,
+  unread_count: unread, mention_unread_count: mentions, notifications_muted: id === "muted",
 });
 const dm = (id: string, updated: string, actor = "Bình") => ({
   id, kind: "chat_dm", resource_type: "chat_message", resource_id: "m1", resource_parent_id: "r1",
@@ -61,7 +60,6 @@ function setHidden(hidden: boolean) {
 beforeEach(() => {
   document.title = "UniWork";
   notifications = [];
-  useChatRoomPreferencesStore.setState({ byRoomId: { muted: { notificationsMuted: true, pinned: false, pinnedAt: 0 } } });
   requestMock.mockReset();
   requestMock.mockImplementation((path: string) => {
     if (path.endsWith("/chat/rooms")) return Promise.resolve({ rooms: [room("r1", 2, 0), room("muted", 5, 1)] });

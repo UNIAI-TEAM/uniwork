@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	netmail "net/mail"
+	"regexp"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -30,6 +32,9 @@ type WorkspaceView struct {
 	db.Workspace
 	OrganizationSlug string
 	OrganizationName string
+	// IconURL is the presigned uploaded icon, resolved at read time; "" when
+	// there is no file or presigning failed.
+	IconURL string
 }
 
 type WorkspaceService struct {
@@ -66,7 +71,20 @@ func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
 		ID: r.ID, OrganizationID: r.OrganizationID, Slug: r.Slug, Name: r.Name,
 		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		MatrixRoomID: r.MatrixRoomID, TaskPrefix: r.TaskPrefix, TaskCounter: r.TaskCounter,
+		Description: r.Description, IconEmoji: r.IconEmoji, IconFileID: r.IconFileID,
 	}, OrganizationSlug: r.OrganizationSlug, OrganizationName: r.OrganizationName}
+}
+
+// ViewsFromOrgRows turns rows an already-authorized org listing returned into
+// views with the icon URL signed.
+func (s *WorkspaceService) ViewsFromOrgRows(ctx context.Context, rows []db.ListWorkspacesInOrgRow) []WorkspaceView {
+	out := make([]WorkspaceView, 0, len(rows))
+	// shortcut: one presign per workspace with an icon file on list reads,
+	// bounded by the organization's workspace count; batch if lists grow.
+	for _, r := range rows {
+		out = append(out, s.withIconURL(ctx, viewFromInOrgRow(r)))
+	}
+	return out
 }
 
 func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name, slug string) (WorkspaceView, error) {
@@ -86,6 +104,14 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+
+	// A slug another workspace keeps as an old slug is taken (spec §4.4).
+	if err := q.LockWorkspaceSlugs(ctx, orgID); err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := slugFreeFor(ctx, q, orgID, slug, ""); err != nil {
+		return WorkspaceView{}, err
+	}
 
 	// workspaces.max: refused here means the workspace row below is never
 	// written (spec F-02 §4.3).
@@ -173,8 +199,10 @@ func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]Wo
 		return nil, err
 	}
 	out := make([]WorkspaceView, 0, len(rows))
+	// shortcut: one presign per workspace with an icon file on list reads,
+	// bounded by membership count; batch if lists grow.
 	for _, r := range rows {
-		out = append(out, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r)))
+		out = append(out, s.withIconURL(ctx, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r))))
 	}
 	return out, nil
 }
@@ -184,10 +212,7 @@ func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]Wo
 // has authenticated the caller and checks membership immediately after; every
 // HTTP path keeps using GetBySlugs, which does both.
 func (s *WorkspaceService) ResolveSlugs(ctx context.Context, orgSlug, wsSlug string) (string, error) {
-	r, err := s.q.GetWorkspaceBySlugs(ctx, db.GetWorkspaceBySlugsParams{Slug: orgSlug, Slug_2: wsSlug})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
+	r, err := s.workspaceBySlugs(ctx, orgSlug, wsSlug)
 	if err != nil {
 		return "", err
 	}
@@ -195,10 +220,7 @@ func (s *WorkspaceService) ResolveSlugs(ctx context.Context, orgSlug, wsSlug str
 }
 
 func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSlug string) (WorkspaceView, error) {
-	r, err := s.q.GetWorkspaceBySlugs(ctx, db.GetWorkspaceBySlugsParams{Slug: orgSlug, Slug_2: wsSlug})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return WorkspaceView{}, ErrNotFound
-	}
+	r, err := s.workspaceBySlugs(ctx, orgSlug, wsSlug)
 	if err != nil {
 		return WorkspaceView{}, err
 	}
@@ -212,7 +234,7 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 		}
 		return WorkspaceView{}, ErrNotFound // không lộ sự tồn tại
 	}
-	return viewFromInOrgRow(db.ListWorkspacesInOrgRow(r)), nil
+	return s.withIconURL(ctx, viewFromInOrgRow(r)), nil
 }
 
 // RequireMember: quyền workspace = dòng workspace_members HOẶC owner/admin của
@@ -285,37 +307,50 @@ func (s *WorkspaceService) requireActorMember(ctx context.Context, workspaceID s
 }
 
 type UpdateWorkspaceInput struct {
-	Name *string
+	Name        *string
+	Description *string
+	IconEmoji   *string
+	TaskPrefix  *string
+	Slug        *string
 }
 
-const maxWorkspaceNameRunes = 100
+const (
+	maxWorkspaceNameRunes        = 100
+	maxWorkspaceDescriptionRunes = 500
+	maxWorkspaceIconEmojiRunes   = 16
+)
 
-// Update changes workspace settings the caller is allowed to edit. v1: name only.
+// taskPrefixPattern: an upper-case letter, then 1-9 letters or digits.
+var taskPrefixPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,9}$`)
+
+// Update changes what an owner or admin may edit about a workspace (spec
+// 2026-10-14 §5.1). A nil field keeps its value; a field sent with its
+// current value is not a change, and a call that changes nothing writes no
+// audit row and no event.
 func (s *WorkspaceService) Update(ctx context.Context, userID, workspaceID string, in UpdateWorkspaceInput) (WorkspaceView, error) {
-	m, err := s.RequireMember(ctx, workspaceID, userID)
+	before, err := s.requireWorkspaceAdmin(ctx, userID, workspaceID)
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	if m.Role != "owner" && m.Role != "admin" {
-		return WorkspaceView{}, ErrForbidden
-	}
-	if in.Name == nil {
-		return WorkspaceView{}, Invalid("name is required")
-	}
-	name := strings.TrimSpace(*in.Name)
-	if name == "" {
-		return WorkspaceView{}, Invalid("tên workspace không được để trống")
-	}
-	if utf8.RuneCountInString(name) > maxWorkspaceNameRunes {
-		return WorkspaceView{}, Invalid("tên workspace quá dài")
-	}
-	before, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return WorkspaceView{}, ErrNotFound
-	}
+	return s.updateFrom(ctx, userID, before, in)
+}
+
+// updateFrom is Update after the admin gate; before is the unlocked row the
+// gate read.
+func (s *WorkspaceService) updateFrom(ctx context.Context, userID string, before db.Workspace, in UpdateWorkspaceInput) (WorkspaceView, error) {
+	in, err := normalizeWorkspaceInput(before, in)
 	if err != nil {
 		return WorkspaceView{}, err
 	}
+	workspaceID := before.ID
+	// before is unlocked, so this diff only says whether there is work and
+	// whether a file icon must be released first; the real diff is computed
+	// below from the locked row.
+	_, hint := workspaceChanges(before, in)
+	if len(hint) == 0 {
+		return s.viewWithIcon(ctx, userID, workspaceID)
+	}
+	_, releaseIcon := hint["icon_emoji"]
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -324,27 +359,298 @@ func (s *WorkspaceService) Update(ctx context.Context, userID, workspaceID strin
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	if _, err := q.UpdateWorkspaceName(ctx, db.UpdateWorkspaceNameParams{ID: workspaceID, Name: name}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return WorkspaceView{}, ErrNotFound
-		}
+	// Files rows are locked before the workspace row (UploadIcon does the
+	// same), so a file icon is released first when the hint says it will go.
+	locked, err := s.lockWorkspace(ctx, q, before, releaseIcon)
+	if err != nil {
 		return WorkspaceView{}, err
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: before.OrganizationID, WorkspaceID: workspaceID,
-		Actor:        audit.User(userID),
-		Action:       audit.ActionWorkspaceUpdated,
-		ResourceType: "workspace", ResourceID: workspaceID,
-		Changes: audit.Diff(map[string]any{"name": before.Name}, map[string]any{"name": name}),
-	}, audit.Event{Topic: "workspace.updated", Payload: map[string]string{
-		"workspace_id": workspaceID, "organization_id": before.OrganizationID,
-	}}); err != nil {
+	from, to := workspaceChanges(locked, in)
+	if len(to) == 0 {
+		return s.viewWithIcon(ctx, userID, workspaceID)
+	}
+	if _, writesIcon := to["icon_emoji"]; writesIcon != releaseIcon && locked.IconFileID.Valid {
+		// An icon file appeared after the unlocked read: either it was not
+		// released although the emoji is written, or it was released although
+		// nothing writes the icon. Rolling back undoes the release.
+		return WorkspaceView{}, ErrConflict
+	}
+	if p, ok := to["task_prefix"]; ok && !taskPrefixPattern.MatchString(p.(string)) {
+		return WorkspaceView{}, Invalid(taskPrefixInvalid)
+	}
+	if sl, ok := to["slug"]; ok {
+		// normalize skipped the format check for the unlocked row's slug;
+		// the locked row may differ.
+		if err := ValidateSlug(sl.(string)); err != nil {
+			return WorkspaceView{}, err
+		}
+	}
+	if err := s.applyWorkspaceChanges(ctx, q, locked, in, to); err != nil {
+		return WorkspaceView{}, err
+	}
+	if emoji, ok := to["icon_emoji"]; ok {
+		// The trail names this "icon", as UploadIcon and RemoveIcon do, and
+		// keeps the id of a file icon the emoji replaced.
+		delete(from, "icon_emoji")
+		delete(to, "icon_emoji")
+		from["icon"], to["icon"] = workspaceIconLabel(locked), emoji
+	}
+	if err := recordWorkspaceUpdated(ctx, q, userID, locked, from, to); err != nil {
 		return WorkspaceView{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return WorkspaceView{}, err
 	}
-	return s.GetView(ctx, userID, workspaceID)
+	return s.viewWithIcon(ctx, userID, workspaceID)
+}
+
+// requireWorkspaceAdmin is the gate every workspace-settings write shares:
+// owner or admin of the workspace (organization owners and admins count as
+// admin through RequireMember). It returns the row as it stands.
+func (s *WorkspaceService) requireWorkspaceAdmin(ctx context.Context, userID, workspaceID string) (db.Workspace, error) {
+	m, err := s.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
+		return db.Workspace{}, err
+	}
+	if m.Role != "owner" && m.Role != "admin" {
+		return db.Workspace{}, ErrForbidden
+	}
+	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Workspace{}, ErrNotFound
+	}
+	return w, err
+}
+
+// lockWorkspace returns the workspace row locked FOR UPDATE: inside a
+// settings transaction it is the only source of `before`, so concurrent
+// changes cannot both diff against the same old value. With releaseIcon the
+// uploaded icon file is released first, keeping files rows ahead of the
+// workspace row.
+func (s *WorkspaceService) lockWorkspace(ctx context.Context, q *db.Queries, w db.Workspace, releaseIcon bool) (db.Workspace, error) {
+	if releaseIcon {
+		if _, err := s.releaseIconFileInTx(ctx, q, w.ID, w.OrganizationID); err != nil {
+			return db.Workspace{}, err
+		}
+	}
+	locked, err := q.GetWorkspaceForUpdate(ctx, db.GetWorkspaceForUpdateParams{ID: w.ID, OrganizationID: w.OrganizationID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Workspace{}, ErrNotFound
+	}
+	return locked, err
+}
+
+const taskPrefixInvalid = "tiền tố mã task gồm 2–10 ký tự A-Z, 0-9 và bắt đầu bằng chữ"
+
+// normalizeWorkspaceInput trims and validates every field that was sent.
+func normalizeWorkspaceInput(before db.Workspace, in UpdateWorkspaceInput) (UpdateWorkspaceInput, error) {
+	if in.Name == nil && in.Description == nil && in.IconEmoji == nil && in.TaskPrefix == nil && in.Slug == nil {
+		return in, Invalid("không có thông tin nào để đổi")
+	}
+	out := UpdateWorkspaceInput{}
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return out, Invalid("tên workspace không được để trống")
+		}
+		if utf8.RuneCountInString(name) > maxWorkspaceNameRunes {
+			return out, Invalid("tên workspace quá dài")
+		}
+		out.Name = &name
+	}
+	if in.Description != nil {
+		d := strings.TrimSpace(*in.Description)
+		if utf8.RuneCountInString(d) > maxWorkspaceDescriptionRunes {
+			return out, Invalid("mô tả workspace tối đa 500 ký tự")
+		}
+		out.Description = &d
+	}
+	if in.IconEmoji != nil {
+		e := strings.TrimSpace(*in.IconEmoji)
+		// shortcut: any short run of non-space characters passes; nothing
+		// checks it is really an emoji. Upgrade if people put words here.
+		if utf8.RuneCountInString(e) > maxWorkspaceIconEmojiRunes || strings.ContainsFunc(e, unicode.IsSpace) {
+			return out, Invalid("icon workspace phải là một emoji")
+		}
+		out.IconEmoji = &e
+	}
+	if in.TaskPrefix != nil {
+		p := strings.ToUpper(strings.TrimSpace(*in.TaskPrefix))
+		// The prefix a workspace already has passes unchecked: a derived one
+		// may not fit the pattern, and re-sending it is not a change.
+		if p != before.TaskPrefix && !taskPrefixPattern.MatchString(p) {
+			return out, Invalid(taskPrefixInvalid)
+		}
+		out.TaskPrefix = &p
+	}
+	if in.Slug != nil {
+		slug := strings.TrimSpace(*in.Slug)
+		// Like the prefix, the slug a workspace already has passes unchecked.
+		if slug != before.Slug {
+			if err := ValidateSlug(slug); err != nil {
+				return out, err
+			}
+		}
+		out.Slug = &slug
+	}
+	return out, nil
+}
+
+// workspaceChanges compares the validated input with the row. from and to
+// hold only the fields that change, keyed as the audit diff names them.
+func workspaceChanges(before db.Workspace, in UpdateWorkspaceInput) (from, to map[string]any) {
+	from, to = map[string]any{}, map[string]any{}
+	change := func(key, old, next string) {
+		if old != next {
+			from[key], to[key] = old, next
+		}
+	}
+	if in.Name != nil {
+		change("name", before.Name, *in.Name)
+	}
+	if in.Description != nil {
+		change("description", before.Description, *in.Description)
+	}
+	if in.IconEmoji != nil {
+		change("icon_emoji", before.IconEmoji.String, *in.IconEmoji)
+	}
+	if in.TaskPrefix != nil {
+		change("task_prefix", before.TaskPrefix, *in.TaskPrefix)
+	}
+	if in.Slug != nil {
+		change("slug", before.Slug, *in.Slug)
+	}
+	return from, to
+}
+
+// applyWorkspaceChanges writes the changed fields inside the caller's
+// transaction; to holds only fields whose value really changes.
+func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Queries, before db.Workspace, in UpdateWorkspaceInput, to map[string]any) error {
+	// before is the locked row. The slug lock comes after the workspace row
+	// lock; CreateInOrg takes it too but touches no existing workspace row.
+	if _, ok := to["slug"]; ok {
+		if err := q.LockWorkspaceSlugs(ctx, before.OrganizationID); err != nil {
+			return err
+		}
+		if err := slugFreeFor(ctx, q, before.OrganizationID, *in.Slug, before.ID); err != nil {
+			return err
+		}
+	}
+	// An emoji replaces an uploaded icon, which
+	// Update already released (spec 2026-10-14 §5.1).
+	if _, ok := to["icon_emoji"]; ok {
+		emoji := pgtype.Text{String: *in.IconEmoji, Valid: *in.IconEmoji != ""}
+		if _, err := q.SetWorkspaceIcon(ctx, db.SetWorkspaceIconParams{
+			ID: before.ID, OrganizationID: before.OrganizationID, IconEmoji: emoji,
+		}); err != nil {
+			return err
+		}
+	}
+	profile := db.UpdateWorkspaceProfileParams{ID: before.ID, OrganizationID: before.OrganizationID}
+	if _, ok := to["name"]; ok {
+		profile.Name = pgtype.Text{String: *in.Name, Valid: true}
+	}
+	if _, ok := to["description"]; ok {
+		profile.Description = pgtype.Text{String: *in.Description, Valid: true}
+	}
+	if _, ok := to["task_prefix"]; ok {
+		profile.TaskPrefix = pgtype.Text{String: *in.TaskPrefix, Valid: true}
+	}
+	if _, ok := to["slug"]; ok {
+		profile.Slug = pgtype.Text{String: *in.Slug, Valid: true}
+	}
+	if profile.Name.Valid || profile.Description.Valid || profile.TaskPrefix.Valid || profile.Slug.Valid {
+		if _, err := q.UpdateWorkspaceProfile(ctx, profile); err != nil {
+			if isUniqueViolation(err) {
+				return ErrConflict
+			}
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+	}
+	if _, ok := to["task_prefix"]; ok {
+		if err := moveWorkspaceAlias(ctx, q, before, "task_prefix", before.TaskPrefix, *in.TaskPrefix); err != nil {
+			return err
+		}
+	}
+	if _, ok := to["slug"]; ok {
+		if err := moveWorkspaceAlias(ctx, q, before, "slug", before.Slug, *in.Slug); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// slugFreeFor refuses a slug another workspace of the organization keeps as
+// an old slug. The caller holds LockWorkspaceSlugs; current slugs are
+// guarded by the unique index on workspaces.
+func slugFreeFor(ctx context.Context, q *db.Queries, orgID, slug, workspaceID string) error {
+	owner, err := q.GetWorkspaceSlugAliasOwner(ctx, db.GetWorkspaceSlugAliasOwnerParams{OrganizationID: orgID, Value: slug})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if owner != workspaceID {
+		return ErrConflict
+	}
+	return nil
+}
+
+// workspaceBySlugs reads the workspace a URL pair names: by its current
+// slug, or by an old one it keeps (spec 2026-10-14 §5.3). The row carries
+// the current slug either way, so the client can move the URL.
+func (s *WorkspaceService) workspaceBySlugs(ctx context.Context, orgSlug, wsSlug string) (db.ListWorkspacesInOrgRow, error) {
+	r, err := s.q.GetWorkspaceBySlugs(ctx, db.GetWorkspaceBySlugsParams{Slug: orgSlug, Slug_2: wsSlug})
+	if err == nil {
+		return db.ListWorkspacesInOrgRow(r), nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return db.ListWorkspacesInOrgRow{}, err
+	}
+	a, err := s.q.GetWorkspaceBySlugAlias(ctx, db.GetWorkspaceBySlugAliasParams{OrgSlug: orgSlug, Value: wsSlug})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ListWorkspacesInOrgRow{}, ErrNotFound
+	}
+	return db.ListWorkspacesInOrgRow(a), err
+}
+
+// moveWorkspaceAlias keeps the value a workspace is leaving answering for
+// it, and drops the alias of the value it takes back (spec 2026-10-14 §4.4).
+// Deleting before inserting keeps one row per value.
+func moveWorkspaceAlias(ctx context.Context, q *db.Queries, w db.Workspace, kind, from, to string) error {
+	for _, v := range []string{to, from} {
+		if err := q.DeleteWorkspaceAlias(ctx, db.DeleteWorkspaceAliasParams{
+			OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Kind: kind, Value: v,
+		}); err != nil {
+			return err
+		}
+	}
+	err := q.InsertWorkspaceAlias(ctx, db.InsertWorkspaceAliasParams{
+		ID: util.NewID(), OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Kind: kind, Value: from,
+	})
+	if isUniqueViolation(err) {
+		// Only out-of-band data can hold the value under another workspace.
+		return ErrConflict
+	}
+	return err
+}
+
+// recordWorkspaceUpdated writes the one audit row and outbox event of a
+// workspace-settings change, in the caller's transaction.
+func recordWorkspaceUpdated(ctx context.Context, q *db.Queries, userID string, w db.Workspace, from, to map[string]any) error {
+	return auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+		Actor:        audit.User(userID),
+		Action:       audit.ActionWorkspaceUpdated,
+		ResourceType: "workspace", ResourceID: w.ID,
+		Changes: audit.Diff(from, to),
+	}, audit.Event{Topic: "workspace.updated", Payload: map[string]string{
+		"workspace_id": w.ID, "organization_id": w.OrganizationID,
+	}})
 }
 
 func (s *WorkspaceService) Members(ctx context.Context, userID, workspaceID string) ([]db.ListWorkspaceMembersRow, error) {
@@ -361,6 +667,18 @@ func (s *WorkspaceService) Members(ctx context.Context, userID, workspaceID stri
 		r.AvatarUrl = pgtype.Text{String: url, Valid: true}
 	})
 	return rows, nil
+}
+
+// AssignableMembers is who a task in the workspace can be assigned to:
+// Members plus the organization's owners and admins, who are implicit
+// workspace admins. The caller must belong to the workspace, and the
+// organization read is the workspace's own, from RequireMember.
+func (s *WorkspaceService) AssignableMembers(ctx context.Context, userID, workspaceID string) ([]db.ListAssignableMembersRow, error) {
+	m, err := s.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListAssignableMembers(ctx, db.ListAssignableMembersParams{WorkspaceID: workspaceID, OrganizationID: m.OrganizationID})
 }
 
 const (
@@ -444,6 +762,11 @@ func (s *WorkspaceService) UpdateMemberRole(ctx context.Context, actorID, worksp
 	}
 	if err := syncDefaultChatRoomMembers(ctx, q, workspaceID); err != nil {
 		return db.WorkspaceMember{}, err
+	}
+	if role == "member" && target.Role == "admin" {
+		if err := demoteDefaultChatRoomAdmin(ctx, q, workspaceID, targetUserID); err != nil {
+			return db.WorkspaceMember{}, err
+		}
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
@@ -634,7 +957,10 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 // PendingInvitations hands out the tokens of the invitations sent to the
 // caller's address, so the address must be proven first: otherwise anyone who
 // registers an invitee's email before they do reads the token here.
-func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string) ([]db.ListInvitationsForEmailRow, error) {
+//
+// Each carries the workspaces it grants (UNI-1582), so the person sees where
+// accepting it leads before opening it.
+func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string) ([]MyInvitation, error) {
 	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
 		return nil, err
 	}
@@ -642,7 +968,39 @@ func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string
 	if err != nil {
 		return nil, err
 	}
-	return s.q.ListInvitationsForEmail(ctx, u.Email)
+	rows, err := s.q.ListInvitationsForEmail(ctx, u.Email)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	orgIDs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+		orgIDs = append(orgIDs, r.OrganizationID)
+	}
+	granted, err := invitationGrants(ctx, s.q, ids, orgIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MyInvitation, 0, len(rows))
+	for _, r := range rows {
+		inv := MyInvitation{ListInvitationsForEmailRow: r, Workspaces: granted[r.ID]}
+		if r.WorkspaceID.Valid {
+			inv.Workspaces = []WorkspaceRef{{ID: r.WorkspaceID.String, Name: r.WorkspaceName.String, Slug: r.WorkspaceSlug.String}}
+		}
+		if inv.Workspaces == nil {
+			inv.Workspaces = []WorkspaceRef{}
+		}
+		out = append(out, inv)
+	}
+	return out, nil
+}
+
+// MyInvitation is one invitation waiting for the caller, with the workspaces
+// accepting it grants.
+type MyInvitation struct {
+	db.ListInvitationsForEmailRow
+	Workspaces []WorkspaceRef
 }
 
 // OrganizationOf names the organization a workspace belongs to. The realtime

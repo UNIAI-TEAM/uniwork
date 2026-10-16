@@ -48,7 +48,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/meetings/[0-9A-Z]+`), { timeout: 15_000 });
   await expect(page.getByRole("heading", { name: "Họp e2e" })).toBeVisible();
 
-  // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
+  // mở phòng: chấp nhận các trạng thái (LiveKit cấu hình, chưa cấu hình, hoặc chưa trả lời)
   await page.getByRole("button", { name: "Bắt đầu" }).click();
   // Detail → /room lands on the pre-join screen, whose join button carries
   // the same label; the second click is what asks the server for a token.
@@ -60,6 +60,9 @@ test("register → workspace → task → meeting", async ({ page }) => {
       .getByText("Phòng họp video chưa được thiết lập. Hãy báo quản trị viên workspace.")
       // The smoke user hosts this meeting, so an unstarted room reads as theirs to start.
       .or(page.getByRole("heading", { name: "Cuộc họp chưa bắt đầu" }))
+      // LiveKit configured but not answering (a runner whose env names a LiveKit
+      // nobody started): the room is asked for and the lobby waits for it.
+      .or(page.getByRole("heading", { name: "Đang chuẩn bị phòng họp…" }))
       .or(page.locator("[data-lk-theme]")),
   ).toBeVisible({ timeout: 15_000 });
 });

@@ -79,8 +79,8 @@ describe("InstantMeetingDialog", () => {
     });
     const dialog = renderDialog();
     fireEvent.click(within(dialog).getByRole("button", { name: "Họp ngay" }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang bắt đầu…" })).toBeDisabled());
-    expect(within(dialog).getByRole("button", { name: "Hủy" })).toBeDisabled();
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang bắt đầu…" })).toHaveAttribute("aria-disabled", "true"));
+    expect(within(dialog).getByRole("button", { name: "Hủy" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("names how many invitations did not go out", async () => {
