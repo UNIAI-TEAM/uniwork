@@ -41,13 +41,12 @@ describe("contract constants", () => {
     }
   });
 
-  it("carries the 2 GiB document-cap ceiling so a 200 MiB document and any configured cap pass", () => {
-    // SIZE-S1 (UNI-1859): one byte ceiling for documents. The boundary bound
-    // is the top of the DOCUMENT_MAX_BYTES range (2 GiB), not the 200 MiB
-    // default, so raising the configured cap never hits a stale protocol max.
-    // Output mirrors it: a grant's output.max_bytes is the same document cap.
+  it("caps input at the 383 MiB JSON transport ceiling and output at the 2 GiB document cap", () => {
+    // SIZE-S1 (UNI-1859) + size-cap:005: output keeps the top of the
+    // DOCUMENT_MAX_BYTES range (2 GiB); input is bounded lower because a
+    // base64-in-JSON body can never exceed V8's string limit.
     const TWO_GIB = 2 * 1024 * 1024 * 1024;
-    expect(ENGINE_LIMITS.max_input_bytes).toBe(TWO_GIB);
+    expect(ENGINE_LIMITS.max_input_bytes).toBe(401604608);
     expect(ENGINE_LIMITS.max_output_bytes).toBe(TWO_GIB);
   });
 });

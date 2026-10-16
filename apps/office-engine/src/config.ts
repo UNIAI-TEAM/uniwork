@@ -106,13 +106,26 @@ function positiveInt(env: Record<string, string | undefined>, key: string, fallb
   return value;
 }
 
+/** The shared document cap (DOCUMENT_MAX_BYTES), bounded by the server's own
+ *  [1 MiB, 2 GiB] range (config.go MinDocumentMaxBytes/MaxDocumentMaxBytes):
+ *  an engine that booted outside it would disagree with the server driving
+ *  it. The bounds bind only this shared fallback; the engine-specific names
+ *  keep their own range. */
+function sharedDocumentMaxBytes(env: Record<string, string | undefined>, fallback: number): number {
+  const value = positiveInt(env, "DOCUMENT_MAX_BYTES", fallback, 2 * 1024 * 1024 * 1024);
+  if (value < 1048576) throw new ConfigError("DOCUMENT_MAX_BYTES must be at least 1048576 (1 MiB)");
+  return value;
+}
+
 /** Per-job byte bound: the engine env wins, then the shared document cap
  *  (DOCUMENT_MAX_BYTES, the one value that also configures the server), then
  *  the provisional default. contractMax pins the top of the range the shared
- *  contract allows. */
+ *  contract allows. An explicit engine value above contractMax refuses to
+ *  start; the shared value is CLAMPED to it instead, so a document cap the
+ *  transport cannot carry still boots with the tightest legal bound. */
 function byteLimit(env: Record<string, string | undefined>, key: string, fallback: number, contractMax: number): number {
   const shared = env[key] === undefined || env[key] === "" ? env.DOCUMENT_MAX_BYTES : undefined;
-  if (shared !== undefined) return positiveInt(env, "DOCUMENT_MAX_BYTES", fallback, contractMax);
+  if (shared !== undefined) return Math.min(sharedDocumentMaxBytes(env, fallback), contractMax);
   return positiveInt(env, key, fallback, contractMax);
 }
 
