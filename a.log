@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -5; node -p "require('./apps/web/platform/office-frame/docs.pin.json').version"
+5609f97ae8359f161d61074da184f4afdeeecf84
+5609f97ae chore(office): re-pin the six office frames to web-0.1.0-fa22cd9
+1920a7c80 feat(ai): offer generate_mindmap as a read tool in docs and markdown (G6-09d)
+1eb5dba46 test(ai): expect generate_mindmap in docs and markdown Read sets and on view-only turns
+08861392f docs(office): regenerate the G6-01 tool table and schemas with the G6-09d extractor at 3e4e9b71f
+c32a97d37 chore: merge the G5-G7 root 89262b63b (DOC05-LOCKSTEP) into REPIN-1
+0.1.0-fa22cd9
