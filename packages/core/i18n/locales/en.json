@@ -9587,7 +9587,7 @@
         "star": "Star",
         "starred": "Starred",
         "unstar": "Remove star",
-        "go_to_source": "Go to the original",
+        "go_to_source": "View where attached",
         "download": "Download",
         "save_to_folder": "Save to folder",
         "menu": "Actions for {{title}}",
@@ -9595,7 +9595,6 @@
         "star_failed": "Could not update the star. Try again.",
         "move": "Move",
         "archive": "Archive",
-        "open_chat": "Open Chat",
         "open_email": "Open Email",
         "new_subfolder": "New subfolder",
         "rename": "Rename"
