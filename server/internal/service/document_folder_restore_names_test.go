@@ -89,18 +89,24 @@ func TestDocumentRestoreNames(t *testing.T) {
 	t.Run("two orphans of one old batch with one name come back distinct", func(t *testing.T) {
 		batch := util.NewID()
 		live := env.folder(t, "", "Gốc trùng")
-		// Their parent sits in the trash in another batch, so both members
-		// detach to the root, where the live folder already holds the name.
-		gone := env.archivedFolder(t, "", "Cha mất", 0)
-		first := env.archivedFolder(t, gone.ID, "Gốc trùng", 0)
+		// first sits at the root; second sits under an unmanaged intermediate
+		// folder gone in the same batch, so when first is restored, gone stays
+		// in the trash and second detaches to the root, where the live folder
+		// already holds the name.
+		first := env.archivedFolder(t, "", "Gốc trùng", 0)
+		gone := env.f.treeDoc(t, env.tn, treeDocSpec{
+			ws: env.tn.wsA, visibility: documentVisibilityRestricted,
+			aclOwner: env.tn.aclOwner.ID, createdBy: env.tn.aclOwner.ID,
+			kind: DocumentKindFolder, title: "Cha mất", parent: first.ID, archived: true,
+		})
 		second := env.archivedFolder(t, gone.ID, "Gốc trùng", 1)
-		setArchiveBatch(t, env, batch, first.ID, second.ID)
-		res, err := env.svc.RestoreDocument(env.ctx, env.member, second.ID, ArchiveDocumentInput{})
+		setArchiveBatch(t, env, batch, first.ID, gone.ID, second.ID)
+		res, err := env.svc.RestoreDocument(env.ctx, env.member, first.ID, ArchiveDocumentInput{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(res.Affected) != 2 {
-			t.Fatalf("restored %v, want the whole batch", res.Affected)
+			t.Fatalf("restored %v, want the two managed members", res.Affected)
 		}
 		names := map[string]string{}
 		for _, id := range []string{first.ID, second.ID} {
@@ -123,24 +129,31 @@ func TestDocumentRestoreNames(t *testing.T) {
 		}
 	})
 
-	t.Run("a node the caller cannot manage leaves the whole batch in the trash", func(t *testing.T) {
+	t.Run("a node the caller cannot manage stays in the trash while the managed item restores", func(t *testing.T) {
 		batch := util.NewID()
 		mine := env.folder(t, "", "Của tôi")
 		env.archive(t, mine.ID)
 		theirs := env.f.treeDoc(t, env.tn, treeDocSpec{
 			ws: env.tn.wsA, visibility: documentVisibilityRestricted,
 			aclOwner: env.tn.aclOwner.ID, createdBy: env.tn.aclOwner.ID,
-			kind: DocumentKindFolder, title: "Của người khác", archived: true,
+			kind: DocumentKindFolder, title: "Của người khác", parent: mine.ID, archived: true,
 		})
 		setArchiveBatch(t, env, batch, mine.ID, theirs.ID)
-		if _, err := env.svc.RestoreDocument(env.ctx, env.member, mine.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrForbidden) {
-			t.Fatalf("restore of a batch with an unmanageable node = %v, want forbidden", err)
+		res, err := env.svc.RestoreDocument(env.ctx, env.member, mine.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("restore of mine with an unmanageable child = %v, want nil", err)
 		}
-		if !env.archived(t, mine.ID) || !env.archived(t, theirs.ID) {
-			t.Fatal("a refused restore left the batch half-applied")
+		if len(res.Affected) != 1 || res.Affected[0] != mine.ID {
+			t.Fatalf("restored = %v, want [%s]", res.Affected, mine.ID)
 		}
-		if got := env.title(t, mine.ID); got != "Của tôi" {
-			t.Fatalf("refused restore renamed a member: %q", got)
+		if env.archived(t, mine.ID) || !env.archived(t, theirs.ID) {
+			t.Fatal("want mine live and theirs still in the trash")
+		}
+		if got := env.title(t, theirs.ID); got != "Của người khác" {
+			t.Fatalf("unmanaged node was renamed: %q", got)
+		}
+		if _, err := env.svc.RestoreDocument(env.ctx, env.member, theirs.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("restore of invisible node = %v, want not found", err)
 		}
 	})
 }

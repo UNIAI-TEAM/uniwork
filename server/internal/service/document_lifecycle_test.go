@@ -253,6 +253,173 @@ func TestDocumentArchive(t *testing.T) {
 	})
 }
 
+func TestDocumentRestorePerItem(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "rs")
+	admin := Human(tn.wsAdmin.ID)
+	u := Human(tn.member.ID)
+
+	t.Run("RS-1: child manager restores only child to workspace root while parent and sibling stay in trash", func(t *testing.T) {
+		folderF := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindFolder, title: "Thư mục F",
+		})
+		docA := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Tài liệu A", parent: folderF.ID,
+		})
+		docB := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Tài liệu B", parent: folderF.ID,
+		})
+		f.share(t, docA, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
+
+		arch, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("admin archive F: %v", err)
+		}
+
+		res, err := f.svc.RestoreDocument(f.ctx, u, docA.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("U restore A: %v", err)
+		}
+		if len(res.Affected) != 1 || res.Affected[0] != docA.ID {
+			t.Fatalf("restore affected = %v, want [%s]", res.Affected, docA.ID)
+		}
+		gotA := f.live(t, docA.ID)
+		if gotA.ParentID.Valid {
+			t.Fatalf("restored A parent_id = %v, want NULL (workspace root)", gotA.ParentID)
+		}
+		if gotA.ArchiveBatchID.Valid || gotA.PurgeAfter.Valid {
+			t.Fatalf("restored A still carries batch/purge_after: batch=%v purge_after=%v", gotA.ArchiveBatchID, gotA.PurgeAfter)
+		}
+		for _, id := range []string{folderF.ID, docB.ID} {
+			rem, err := f.q.GetDocumentByID(f.ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !rem.ArchivedAt.Valid || rem.ArchiveBatchID.String != arch.BatchID || !rem.PurgeAfter.Valid {
+				t.Fatalf("%s state after partial restore: archived=%v batch=%v (want %q) purge_after=%v",
+					id, rem.ArchivedAt.Valid, rem.ArchiveBatchID, arch.BatchID, rem.PurgeAfter.Valid)
+			}
+		}
+	})
+
+	t.Run("RS-2: folder manager restores folder and managed child while unmanaged child stays in trash", func(t *testing.T) {
+		folderF := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindFolder, title: "Thư mục RS2",
+		})
+		docA := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindPage, title: "Con A", parent: folderF.ID,
+		})
+		docB := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Con B", parent: folderF.ID,
+		})
+		f.share(t, docB, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
+
+		arch, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("admin archive F: %v", err)
+		}
+		beforeB, err := f.q.GetDocumentByID(f.ctx, docB.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := f.svc.RestoreDocument(f.ctx, u, folderF.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("U restore F: %v", err)
+		}
+		if len(res.Affected) != 2 {
+			t.Fatalf("restore affected = %v, want 2 ids (F and A)", res.Affected)
+		}
+		gotF := f.live(t, folderF.ID)
+		gotA := f.live(t, docA.ID)
+		if gotF.ParentID.Valid || gotA.ParentID.String != folderF.ID {
+			t.Fatalf("F parent=%v, A parent=%v, want nil and %s", gotF.ParentID, gotA.ParentID, folderF.ID)
+		}
+		afterB, err := f.q.GetDocumentByID(f.ctx, docB.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !afterB.ArchivedAt.Valid || afterB.ArchiveBatchID.String != arch.BatchID || !afterB.PurgeAfter.Time.Equal(beforeB.PurgeAfter.Time) {
+			t.Fatalf("B state after F restore: archived=%v batch=%v (want %q) purge_after=%v (want %v)",
+				afterB.ArchivedAt.Valid, afterB.ArchiveBatchID, arch.BatchID, afterB.PurgeAfter, beforeB.PurgeAfter)
+		}
+	})
+
+	t.Run("RS-3: child restored after parent is already live returns under parent and renames on collision", func(t *testing.T) {
+		folderF := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindFolder, title: "Thư mục RS3",
+		})
+		docA := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Báo cáo", parent: folderF.ID,
+		})
+		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("admin archive F: %v", err)
+		}
+		// U restores F first; docA stays in trash because U does not manage docA yet.
+		if _, err := f.svc.RestoreDocument(f.ctx, u, folderF.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("U restore F: %v", err)
+		}
+		f.live(t, folderF.ID)
+		f.liveArchived(t, docA.ID)
+
+		// Create a live sibling under F with the same title "Báo cáo".
+		f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindPage, title: "Báo cáo", parent: folderF.ID,
+		})
+
+		// Now restore docA as aclOwner: it comes back under F as "Báo cáo (2)".
+		res, err := f.svc.RestoreDocument(f.ctx, Human(tn.aclOwner.ID), docA.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("aclOwner restore A: %v", err)
+		}
+		if res.View.Document.ParentID.String != folderF.ID || res.View.Document.Title != "Báo cáo (2)" {
+			t.Fatalf("restored A = parent %v title %q, want %s and Báo cáo (2)",
+				res.View.Document.ParentID, res.View.Document.Title, folderF.ID)
+		}
+	})
+
+	t.Run("RS-4: admin restoring batch root restores the whole subtree", func(t *testing.T) {
+		folderF := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindFolder, title: "Thư mục RS4",
+		})
+		docA := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindPage, title: "Con A", parent: folderF.ID,
+		})
+		docB := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Con B", parent: folderF.ID,
+		})
+		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("admin archive F: %v", err)
+		}
+		res, err := f.svc.RestoreDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("admin restore F: %v", err)
+		}
+		if len(res.Affected) != 3 {
+			t.Fatalf("admin restore affected = %v, want 3", res.Affected)
+		}
+		f.live(t, folderF.ID)
+		if gotA := f.live(t, docA.ID); gotA.ParentID.String != folderF.ID {
+			t.Fatalf("A parent = %v, want %s", gotA.ParentID, folderF.ID)
+		}
+		if gotB := f.live(t, docB.ID); gotB.ParentID.String != folderF.ID {
+			t.Fatalf("B parent = %v, want %s", gotB.ParentID, folderF.ID)
+		}
+	})
+}
+
 func wantCodeOrForbidden(t *testing.T, err error) {
 	t.Helper()
 	if errors.Is(err, ErrForbidden) {

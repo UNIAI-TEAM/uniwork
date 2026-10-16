@@ -162,15 +162,15 @@ SET archived_at = NULL,
     updated_at = now()
 WHERE organization_id = $1
   AND workspace_id = $2
-  AND archive_batch_id = $3
+  AND id = ANY($3::text[])
   AND archived_at IS NOT NULL
 RETURNING id, parent_id
 `
 
 type ClearDocumentArchiveBatchParams struct {
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
-	ArchiveBatchID pgtype.Text `json:"archive_batch_id"`
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
 }
 
 type ClearDocumentArchiveBatchRow struct {
@@ -182,7 +182,7 @@ type ClearDocumentArchiveBatchRow struct {
 // and a client holding the pre-archive revision must conflict on write
 // rather than silently keep a stale base.
 func (q *Queries) ClearDocumentArchiveBatch(ctx context.Context, arg ClearDocumentArchiveBatchParams) ([]ClearDocumentArchiveBatchRow, error) {
-	rows, err := q.db.Query(ctx, clearDocumentArchiveBatch, arg.OrganizationID, arg.WorkspaceID, arg.ArchiveBatchID)
+	rows, err := q.db.Query(ctx, clearDocumentArchiveBatch, arg.OrganizationID, arg.WorkspaceID, arg.Ids)
 	if err != nil {
 		return nil, err
 	}
