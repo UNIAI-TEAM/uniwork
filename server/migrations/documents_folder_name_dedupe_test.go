@@ -378,12 +378,13 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 	// operator actually runs (BE-FD02P2-1). It is markdown, not SQL, so it
 	// needs its own reader: the recovery block must stay the dedupe migration's
 	// statements (comments and whitespace aside), and every key expression in
-	// the file keeps the inside-lower() shape. One deliberate delta (review
-	// BE-MF-1): the runbook scopes both statements to the current index
-	// population with system_kind IS NULL, because the historical migration
-	// predates system_kind and would rename My Folder rows. Removing exactly
-	// those two predicates must give the migration back, and both must be
-	// present, so dropping one fails.
+	// the file keeps the inside-lower() shape. Deliberate deltas (reviews
+	// BE-MF-1, BE-MF-R2-1): the runbook scopes both statements to the current
+	// index population with system_kind IS NULL, because the historical
+	// migration predates system_kind and would rename My Folder rows, and its
+	// normalize UPDATE adds owner_id IS NULL so owned folders stay untouched.
+	// Removing exactly those three predicates must give the migration back, and
+	// all must be present, so dropping one fails.
 	runbook := filepath.Join("..", "..", "docs", "runbooks", "documents-folder-name-index.md")
 	blocks := fencedSQLBlocks(t, runbook)
 	recovery := 0
@@ -399,7 +400,14 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 		if n := strings.Count(code, "system_kind IS NULL"); n != 2 {
 			t.Errorf("%s: the recovery SQL carries system_kind IS NULL %d times, want 2 (one per statement)", runbook, n)
 		}
-		scoped := strings.NewReplacer("AND system_kind IS NULL", "", "AND d.system_kind IS NULL", "").Replace(code)
+		// The normalize UPDATE (the first statement) also carries owner_id IS
+		// NULL, which the historical migration lacks (BE-MF-R2-1).
+		normalizeStmt, _, _ := strings.Cut(code, ";")
+		if !strings.Contains(normalizeStmt, "SET title = normalize(title, NFC)") || strings.Count(normalizeStmt, "AND owner_id IS NULL") != 1 {
+			t.Errorf("%s: the normalize UPDATE must carry owner_id IS NULL exactly once", runbook)
+		}
+		scoped := strings.Replace(code, "AND owner_id IS NULL", "", 1) // first occurrence: the normalize UPDATE
+		scoped = strings.NewReplacer("AND system_kind IS NULL", "", "AND d.system_kind IS NULL", "").Replace(scoped)
 		if want, got := normalizeSQL(stripSQLComments(readMigration(t, dedupe))), normalizeSQL(scoped); want != got {
 			t.Errorf("%s: the recovery SQL is not %s apart from the system_kind scope\nwant: %s\ngot:  %s", runbook, dedupe, want, got)
 		}
