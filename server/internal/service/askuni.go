@@ -186,9 +186,14 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 		}
 		return AskResult{}, err
 	}
-	sources, err = s.withPreviousQuestion(ctx, conv.ID, userID, w.OrganizationID, workspaceID, question, sources)
+	rows, err := s.q.AiListMessages(ctx, conv.ID)
 	if err != nil {
 		return AskResult{}, err
+	}
+	if !hasOwnSubject(sources) {
+		if sources, err = s.withPreviousQuestion(ctx, previousQuestion(rows), userID, w.OrganizationID, workspaceID, question, sources); err != nil {
+			return AskResult{}, err
+		}
 	}
 	pack, truncated := ai.BuildContext(sources)
 
@@ -197,10 +202,6 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	var resp ai.Response
 	if len(pack) > 0 {
 		notice = ""
-		history, err := s.history(ctx, conv.ID)
-		if err != nil {
-			return AskResult{}, err
-		}
 		resp, err = s.gw.Complete(ctx, ai.Request{
 			Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,
 			Capability: ai.CapCopilotAnswer, PromptID: ai.PromptCopilotAnswer,
@@ -208,7 +209,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 				"question": ai.EscapeUntrusted(question), "locale": in.Locale, "today": s.now().Format("2006-01-02"),
 				"sources": ai.RenderSources(pack),
 			},
-			History: history, Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
+			History: history(rows), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
 		})
 		if err != nil {
 			return AskResult{}, err
@@ -253,22 +254,33 @@ func (s *AskUNIService) ownConversation(ctx context.Context, userID, id, workspa
 	return conv, err
 }
 
-// withPreviousQuestion appends the sources of "<previous question> <question>"
-// after the current ones, so a follow-up like "who owns that?" still finds what
-// the last turn was about. The raw stored question is used, not the wrapped
-// history copy. Focus is not repeated: the first lookup already carries it.
-func (s *AskUNIService) withPreviousQuestion(ctx context.Context, convID, userID, orgID, workspaceID, question string, sources []ai.Source) ([]ai.Source, error) {
-	rows, err := s.q.AiListMessages(ctx, convID)
-	if err != nil {
-		return nil, err
-	}
-	prev := ""
-	for i := len(rows) - 1; i >= 0; i-- {
-		if rows[i].Role == "user" {
-			prev = rows[i].Content
-			break
+// hasOwnSubject reports whether the question found something of its own: a
+// task (a PREFIX-N one too), meeting, document or focused object. Members and
+// chat lines alone do not make it a new topic.
+func hasOwnSubject(sources []ai.Source) bool {
+	for _, src := range sources {
+		if src.Kind != "members" && src.Kind != "chat" {
+			return true
 		}
 	}
+	return false
+}
+
+// previousQuestion is the raw text of the conversation's last question, not
+// the wrapped history copy; "" for a new conversation.
+func previousQuestion(rows []db.AiMessage) string {
+	for i := len(rows) - 1; i >= 0; i-- {
+		if rows[i].Role == "user" {
+			return rows[i].Content
+		}
+	}
+	return ""
+}
+
+// withPreviousQuestion appends the sources of "<previous question> <question>"
+// after the current ones, so a follow-up like "who owns that?" still finds what
+// the last turn was about. Focus is not repeated: the first lookup already carries it.
+func (s *AskUNIService) withPreviousQuestion(ctx context.Context, prev, userID, orgID, workspaceID, question string, sources []ai.Source) ([]ai.Source, error) {
 	if prev == "" {
 		return sources, nil
 	}
@@ -292,33 +304,29 @@ func (s *AskUNIService) withPreviousQuestion(ctx context.Context, convID, userID
 	return sources, nil
 }
 
-func (s *AskUNIService) history(ctx context.Context, convID string) ([]provider.Message, error) {
-	rows, err := s.q.AiListMessages(ctx, convID)
-	if err != nil {
-		return nil, err
-	}
-	// Drop no-source replies (notice code, or the fixed text older rows stored)
-	// before windowing, so they neither mislead the model nor eat a turn.
-	kept := rows[:0]
+// history replays the conversation's last turns, wrapped as untrusted.
+func history(rows []db.AiMessage) []provider.Message {
+	// Drop notice replies (no sources, empty answer, or the fixed text older
+	// rows stored) before windowing, so they neither mislead the model nor eat a turn.
+	var kept []db.AiMessage
 	for _, r := range rows {
 		if r.Role == "assistant" && (r.Notice.String != "" || r.Content == ai.NoSourcesAnswer) {
 			continue
 		}
 		kept = append(kept, r)
 	}
-	rows = kept
-	if len(rows) > askHistory {
-		rows = rows[len(rows)-askHistory:]
+	if len(kept) > askHistory {
+		kept = kept[len(kept)-askHistory:]
 	}
-	out := make([]provider.Message, 0, len(rows))
-	for _, r := range rows {
+	out := make([]provider.Message, 0, len(kept))
+	for _, r := range kept {
 		src := "question"
 		if r.Role == "assistant" {
 			src = "prior_answer"
 		}
 		out = append(out, provider.Message{Role: r.Role, Content: ai.WrapUntrusted(src, r.Content)})
 	}
-	return out, nil
+	return out
 }
 
 func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answer, notice string, citations []AskCitation, usageEventID string) (db.AiMessage, error) {

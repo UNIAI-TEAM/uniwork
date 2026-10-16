@@ -635,3 +635,25 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 	t.Fatalf("follow-up did not cite the previous question's task: %+v / notice %q", res.Citations, res.Message.Notice.String)
 }
 
+// A follow-up that names its own subject is about that subject: the previous
+// question's sources are not appended to it.
+func TestAskFollowUpWithItsOwnSubjectKeepsToIt(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	for _, title := range []string{"Banner Tết", "Kịch bản video"} {
+		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: title}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "Kịch bản video thì sao?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !citesTitle(res.Citations, "Kịch bản video") || citesTitle(res.Citations, "Banner Tết") {
+		t.Fatalf("follow-up with its own task must cite it alone: %+v", res.Citations)
+	}
+}
