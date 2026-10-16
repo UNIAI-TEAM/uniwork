@@ -14,14 +14,20 @@ import { CommentActorAvatar } from "../comments/comment-actor-avatar";
 export function VersionAuthor({
   version,
   members,
+  ready,
 }: {
   version: Pick<DocumentVersion, "created_by" | "created_by_kind">;
   members: ReadonlyMap<string, Member>;
+  /** The member list has loaded; until then a name that is not in it is unknown, not "former". */
+  ready: boolean;
 }) {
   const { t } = useTranslation();
   if (!version.created_by) return null;
 
   const kind = version.created_by_kind;
+  // A pending or failed members request cannot tell a former member from one
+  // not loaded yet, so the line waits for the list instead of guessing.
+  if (kind !== "system" && !ready) return null;
   const member = members.get(version.created_by);
   const name =
     kind === "system"
@@ -34,10 +40,13 @@ export function VersionAuthor({
   const avatarUrl = typeof member?.avatar_url === "string" ? member.avatar_url : undefined;
 
   return (
-    <p data-testid="version-author" className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+    <div
+      data-testid="version-author"
+      className="flex min-h-5 min-w-0 items-center gap-1.5 text-caption text-muted-foreground"
+    >
       <CommentActorAvatar name={name} avatarUrl={avatarUrl} kind={kind} size="xs" />
       {showName ? <span className="truncate">{name}</span> : null}
       {kind === "agent" ? <AgentBadge /> : null}
-    </p>
+    </div>
   );
 }

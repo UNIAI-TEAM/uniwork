@@ -324,14 +324,80 @@ describe("VersionHistorySheet", () => {
       expect(memberCalls.length).toBe(1);
     });
 
-    it("marks an agent author with the agent badge", async () => {
+    it("marks an unnamed agent with the badge alone", async () => {
       mockApi({ rows: [{ ...versionRows[0], created_by: "agent-9", created_by_kind: "agent" }] });
       renderSheet();
       await screen.findByText(t("documents.versions.row_version", { no: 2 }));
-      const row = rowOf(2);
-      // The member list does not name this agent: the badge is its one label.
-      expect(await within(row).findByText(t("agents.badge"))).toBeInTheDocument();
-      expect(within(row).getAllByText(t("documents.home.editor_agent")).length).toBe(1);
+      const line = await within(rowOf(2)).findByTestId("version-author");
+      // The member list does not name this agent: the badge is its one label,
+      // so the line holds the badge and no name span.
+      expect(within(line).getByText(t("agents.badge"))).toBeInTheDocument();
+      expect(line.querySelector("span.truncate")).toBeNull();
+    });
+
+    it("draws both the name and the badge for an agent the member list names", async () => {
+      requestMock.mockImplementation((path: string) => {
+        if (path === `/api/v1/workspaces/${WS}/members`) {
+          return Promise.resolve({
+            members: [{ workspace_id: WS, user_id: "agent-9", role: "member", email: "", display_name: "Trợ lý Lịch" }],
+          });
+        }
+        return Promise.resolve({
+          versions: [{ ...versionRows[0], created_by: "agent-9", created_by_kind: "agent" }],
+          next_cursor: null,
+        });
+      });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      const line = await within(rowOf(2)).findByTestId("version-author");
+      await within(line).findByText("Trợ lý Lịch");
+      expect(line.querySelector("span.truncate")).toHaveTextContent("Trợ lý Lịch");
+      expect(within(line).getByText(t("agents.badge"))).toBeInTheDocument();
+    });
+
+    it("does not claim a former member while the members request is pending", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      const base = requestMock.getMockImplementation()!;
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+        path === `/api/v1/workspaces/${WS}/members` ? new Promise(() => {}) : base(path, opts),
+      );
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      await waitFor(() => expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/members"))).toBe(true));
+      expect(screen.queryByTestId("version-author")).toBeNull();
+      expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
+    });
+
+    it("does not claim a former member when the members request fails", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      const base = requestMock.getMockImplementation()!;
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+        path === `/api/v1/workspaces/${WS}/members` ? Promise.reject(new Error("boom")) : base(path, opts),
+      );
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      await waitFor(() => expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/members"))).toBe(true));
+      expect(screen.queryByTestId("version-author")).toBeNull();
+      expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
+    });
+
+    it("makes no members request while the sheet is closed", async () => {
+      mockApi();
+      render(wrap(<VersionHistorySheet open={false} onOpenChange={vi.fn()} wsId={WS} doc={pageDocument()} />));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/members"))).toBe(false);
+    });
+
+    it("renders the line without an invalid-DOM console error and with one shared height", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      const line = await within(rowOf(2)).findByTestId("version-author");
+      await within(line).findByText("Lan Nguyễn");
+      expect(line.tagName).toBe("DIV");
+      expect(line).toHaveClass("min-h-5");
+      expect(errorSpy).not.toHaveBeenCalled();
     });
 
     it("labels a system author", async () => {
