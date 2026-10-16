@@ -70,8 +70,11 @@ export const OPERATIONS = ["capability", "open", "edit", "serialize", "convert",
  * validateEnvelope rejects any request outside them.
  */
 export const LIMITS = Object.freeze({
-  max_input_bytes: 64 * 1024 * 1024,
-  max_output_bytes: 128 * 1024 * 1024,
+  // The byte ceilings mirror the document cap's configured maximum (SIZE-S1,
+  // UNI-1859): DOCUMENT_MAX_BYTES may reach 2 GiB, so a job this size is
+  // contract-legal and the deployed service's own limit does the gating.
+  max_input_bytes: 2 * 1024 * 1024 * 1024,
+  max_output_bytes: 2 * 1024 * 1024 * 1024,
   max_edit_ops: 20000,
   max_deadline_ms: 600000,
   min_deadline_ms: 1,
