@@ -10,7 +10,9 @@ import { joinInvitation } from "./invitations";
  * the same behaviors at the API level; this spec is the browser layer — two
  * members of one organization plus a member of a second organization.
  *
- * Requires `make start-worktree` (this lane's ports) with LOCAL_UPLOAD_DIR.
+ * Requires `make start-worktree` (this lane's ports) on MinIO (`make minio-up`):
+ * since UNI-1633 file and voice bytes come from signed storage URLs, which
+ * the local disk backend cannot issue.
  */
 
 // Chromium's fake devices make the voice recorder testable without a real
@@ -135,7 +137,7 @@ test.describe.serial("chat file and voice messages", () => {
     await expect(ownerCard).toBeVisible({ timeout: 20_000 });
 
     // The second member sees the same attachment and downloads exactly those
-    // bytes through the room-authorized route.
+    // bytes from the signed storage URL the message list handed it (UNI-1633).
     const memberCard = member.locator('article[id^="chat-msg-"]').filter({ hasText: fileName });
     await expect(memberCard).toBeVisible({ timeout: 20_000 });
     const [download] = await Promise.all([

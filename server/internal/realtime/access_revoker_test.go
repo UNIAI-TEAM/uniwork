@@ -42,7 +42,7 @@ func instantRevoker(hub *Hub, inv MembershipInvalidator) *AccessRevoker {
 }
 
 func TestAccessRevokerSubscribesToEveryTopicThatTakesAccessAway(t *testing.T) {
-	want := []string{"member.removed", "member.deactivated", "member.left", "chat.room.member_removed", "session.revoked", "organization.suspended", "organization.closed"}
+	want := []string{"member.removed", "member.deactivated", "member.left", "chat.room.member_removed", "chat.channel.updated", "session.revoked", "organization.suspended", "organization.closed"}
 	got := NewAccessRevoker(NewHub(), nil).Topics()
 	if len(got) != len(want) {
 		t.Fatalf("topics = %v, want %v", got, want)
@@ -173,6 +173,41 @@ func TestAccessRevokerRechecksTheRoomAMemberWasRemovedFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSubscribeError(t, c, "forbidden")
+}
+
+func TestAccessRevokerRechecksEveryHolderOfAnUpdatedChannel(t *testing.T) {
+	gate := &countingChatGate{allow: true}
+	hub := NewHub()
+	hub.SetAuthorizer(ScopeAuthorizers{ScopeChat: NewChatScopeAuthorizer(gate)})
+	u1 := newDirectHubClient(hub, "u1", "ws1")
+	u2 := newDirectHubClient(hub, "u2", "ws1")
+	elsewhere := newDirectHubClient(hub, "u1", "ws1")
+	for _, c := range []*Client{u1, u2} {
+		c.handleSubscribe(ScopeChat, "r1")
+		assertSubscribeAck(t, c)
+	}
+	elsewhere.handleSubscribe(ScopeChat, "r2")
+	assertSubscribeAck(t, elsewhere)
+	// The channel went private: the gate now refuses both onlookers.
+	gate.mu.Lock()
+	gate.allow = false
+	gate.mu.Unlock()
+
+	if err := instantRevoker(hub, nil).Handle(context.Background(), outbox.Row{
+		Topic: "chat.channel.updated", Payload: `{"room_id":"r1","workspace_id":"ws1"}`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertSubscribeError(t, u1, "forbidden")
+	assertSubscribeError(t, u2, "forbidden")
+	if !inScopeRoom(hub, elsewhere, ScopeChat, "r2") {
+		t.Fatal("a socket holding another channel was dropped")
+	}
+	select {
+	case raw := <-elsewhere.send:
+		t.Fatalf("unexpected frame %s", raw)
+	default:
+	}
 }
 
 func TestAccessRevokerIgnoresARowWithoutAUser(t *testing.T) {

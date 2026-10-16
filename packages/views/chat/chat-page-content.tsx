@@ -21,6 +21,9 @@ import {
 import { ChatFrameListToggle, ChatPageEmptyConversation } from "./chat-page-empty-conversation";
 import { ChatConversationSkeleton } from "./chat-conversation-skeleton";
 import { ChatConversationNotices } from "./chat-notice";
+import { ChatPersonMessageProvider } from "./chat-person-card";
+import { useChatVoiceCall } from "./chat-voice-call-host";
+import { useChatPersonActions } from "./use-chat-person-actions";
 import { chatComposerPlaceholder } from "./chat-composer-placeholder";
 import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
 import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
@@ -107,6 +110,7 @@ export function ChatPageContent({
   chatSendRestricted,
   chatSendMutedByModerator,
   canPinMessages,
+  canModerate,
   canCreatePolls,
   canCreateNotes,
   peerLastReadAt = null,
@@ -117,6 +121,13 @@ export function ChatPageContent({
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
   const [createPostOpen, setCreatePostOpen] = useState(false);
   const [recordingsOpen, setRecordingsOpen] = useState(false);
+  const { startCall } = useChatVoiceCall();
+  const { messagePerson, callPerson } = useChatPersonActions({
+    workspaceId, currentUserId, nameContext, contacts, setTarget, startCall,
+    closeSheets: () => {
+      [onWorkspaceSettingsOpenChange, onGroupSettingsOpenChange, onChannelSettingsOpenChange].forEach((close) => close(false));
+    },
+  });
   const followUpUi = useChatFollowUpUi(workspaceId);
   const catchUpUi = useChatCatchUpUi(workspaceId, activeRoomId, activeThreadRootId);
   const {
@@ -217,7 +228,7 @@ export function ChatPageContent({
   };
 
   return (
-    <>
+    <ChatPersonMessageProvider onMessage={messagePerson} onCall={callPerson} roomId={activeRoomId}>
       <ChatPageContentDialogs
         target={target}
         setTarget={setTarget}
@@ -315,6 +326,7 @@ export function ChatPageContent({
               onRetry={onRefetchWorkspace}
               workspaceRoomTitle={workspaceRoomTitle}
               memberAvatarByUserId={memberAvatarByUserId}
+              knownPeople={nameContext}
               onCollapse={handleToggleSidebar}
               embedded
             />
@@ -401,7 +413,7 @@ export function ChatPageContent({
                   />
                 ) : null}
 
-                <NativeChatMessagePanel
+                  <NativeChatMessagePanel
                   workspaceId={workspaceId}
                   roomId={activeRoomId}
                   currentUserId={currentUserId}
@@ -440,6 +452,7 @@ export function ChatPageContent({
                   anchorMessageId={jumpToMessageId}
                   onClearAnchor={() => onJumpToMessageIdChange(null)}
                   canPinMessages={canPinMessages}
+                  canModerate={canModerate}
                   canSendMessages={!dmBlocked && !chatSendRestricted}
                   onFocusComposer={focusComposer}
                   peerLastReadAt={peerLastReadAt}
@@ -502,6 +515,6 @@ export function ChatPageContent({
         currentUserId={currentUserId}
         nameContext={nameContext}
       />
-    </>
+    </ChatPersonMessageProvider>
   );
 }

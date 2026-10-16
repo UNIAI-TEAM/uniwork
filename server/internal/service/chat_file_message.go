@@ -7,6 +7,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -43,6 +44,11 @@ type FileMessageInfo struct {
 	ObjectKey   string
 	ContentType string
 	SizeBytes   int64
+	// Read URLs signed for the viewer (signChatMedia); empty when unsigned.
+	URL          string
+	DownloadURL  string
+	ThumbURL     string
+	URLExpiresAt time.Time
 }
 
 type PrepareFileMessageInput struct {
@@ -113,7 +119,7 @@ func (s *ChatService) PrepareFileMessage(
 	if err != nil {
 		return FileMessagePreparation{}, err
 	}
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return FileMessagePreparation{}, err
 	}
 	prep := FileMessagePreparation{
@@ -213,7 +219,7 @@ func (s *ChatService) CreateFileMessage(
 		LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, prep.room.ID)
-	s.publishCreatedChatMessage(ctx, prep.room, msg.ID, msg.SenderID)
+	s.publishCreatedChatMessage(ctx, prep.room, msg.ID, msg.SenderID, "")
 	return chatMessageRowFromDB(msg, prep.senderName), true, nil
 }
 

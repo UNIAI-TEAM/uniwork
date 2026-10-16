@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -75,20 +76,28 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
   // and the panel says which device and why, so answering again is the retry.
   const [acceptError, setAcceptError] = useState<{ callId: string; device: VoiceCallDeviceError } | null>(null);
 
+  const startingRef = useRef(false);
+
   const startCall = useCallback(
     async (roomId: string, label: string, callKind: VoiceCallKind, options?: { withCamera?: boolean }) => {
+      // A second press while devices warm up or the invite is in flight would
+      // ring twice, and the callee's busy decline of it reads as "declined" here.
+      if (startingRef.current) return false;
+      startingRef.current = true;
       const withCamera = options?.withCamera ?? false;
       const target = { roomId, peerName: label, callKind, withCamera };
-      const prep = withCamera ? await prepareVideoCapture() : await prepareVoiceCapture();
-      if (!prep.ok) {
-        reportStartFailure({ ...target, reason: "device", device: prep.device });
-        return false;
-      }
       try {
+        const prep = withCamera ? await prepareVideoCapture() : await prepareVoiceCapture();
+        if (!prep.ok) {
+          reportStartFailure({ ...target, reason: "device", device: prep.device });
+          return false;
+        }
         return await ringCall(roomId, label, callKind, { withCamera });
       } catch (err) {
         reportStartFailure({ ...target, reason: "start_failed", error: err });
         return false;
+      } finally {
+        startingRef.current = false;
       }
     },
     [ringCall, reportStartFailure],

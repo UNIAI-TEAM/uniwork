@@ -65,43 +65,70 @@ export function useVoiceCallRecording({
     return () => clearTimeout(timer);
   }, [announcement]);
 
+  const recordingRef = useRef(recording);
+  recordingRef.current = recording;
+  // Bumped by every frame and local start/stop, so a server answer read
+  // before one of them cannot overwrite it.
+  const changeSeqRef = useRef(0);
+  const setRecordingNow = useCallback((value: boolean) => {
+    changeSeqRef.current += 1;
+    setRecording(value);
+  }, []);
+
+  // Asks the server whether the call is being recorded; a failure keeps the
+  // current state, since the realtime frame still flips the badge.
+  const syncActive = useCallback(
+    (isCancelled: () => boolean = () => false) => {
+      const seq = changeSeqRef.current;
+      return getActiveChatVoiceRecording(workspaceId, roomId, callId)
+        .then((rec) => {
+          if (isCancelled() || seq !== changeSeqRef.current) return;
+          const active = rec?.status === "ACTIVE";
+          if (active && !recordingRef.current) announce(tRef.current("chat.voice_call_recording_in_progress"));
+          recordingRef.current = active;
+          setRecording(active);
+        })
+        .catch(() => undefined);
+    },
+    [workspaceId, roomId, callId, announce],
+  );
+
   // Joining a call that is already being recorded: ask on mount, before the
   // room has published our microphone, and say so the moment we know.
   useEffect(() => {
     let cancelled = false;
-    void getActiveChatVoiceRecording(workspaceId, roomId, callId)
-      .then((rec) => {
-        if (cancelled || rec?.status !== "ACTIVE") return;
-        setRecording(true);
-        announce(tRef.current("chat.voice_call_recording_in_progress"));
-      })
-      .catch(() => {
-        /* optional sync — the realtime frame still flips the badge */
-      });
+    void syncActive(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, roomId, callId, announce]);
+  }, [syncActive]);
+
+  // Recording frames are ephemeral: one sent while the socket was down is
+  // gone, so ask again whenever it reconnects.
+  useEffect(() => {
+    if (!ws) return;
+    return ws.onReconnect(() => void syncActive());
+  }, [ws, syncActive]);
 
   useEffect(() => {
     if (!ws) return;
     const offStarted = ws.on("chat.voice.recording.started", (payload) => {
       const data = payload as { room_id?: string; call_id?: string; user_id?: string };
       if (data.room_id !== roomId || data.call_id !== callId) return;
-      setRecording(true);
+      setRecordingNow(true);
       const by = data.user_id?.trim();
       // Everyone in the call is told, not only the person who pressed record.
       if (by && by !== currentUserId) announce(tRef.current("chat.voice_call_record_peer_started"));
     });
     const offStopped = ws.on("chat.voice.recording.stopped", (payload) => {
       const data = payload as { room_id?: string; call_id?: string };
-      if (data.room_id === roomId && data.call_id === callId) setRecording(false);
+      if (data.room_id === roomId && data.call_id === callId) setRecordingNow(false);
     });
     return () => {
       offStarted();
       offStopped();
     };
-  }, [ws, roomId, callId, currentUserId, announce]);
+  }, [ws, roomId, callId, currentUserId, announce, setRecordingNow]);
 
   const start = useCallback(async () => {
     setPending(true);
@@ -111,7 +138,7 @@ export function useVoiceCallRecording({
         toast.error(t("chat.voice_call_record_failed"));
         return false;
       }
-      setRecording(true);
+      setRecordingNow(true);
       invalidateRecordings(workspaceId, roomId);
       toast.success(
         rec.started_by && currentUserId && rec.started_by !== currentUserId
@@ -125,7 +152,7 @@ export function useVoiceCallRecording({
     } finally {
       setPending(false);
     }
-  }, [workspaceId, roomId, callId, t, currentUserId, invalidateRecordings]);
+  }, [workspaceId, roomId, callId, t, currentUserId, invalidateRecordings, setRecordingNow]);
 
   const stop = useCallback(async () => {
     setPending(true);
@@ -135,7 +162,7 @@ export function useVoiceCallRecording({
         toast.error(t("chat.voice_call_record_failed"));
         return;
       }
-      setRecording(false);
+      setRecordingNow(false);
       invalidateRecordings(workspaceId, roomId);
       toast.success(t("chat.voice_call_record_stopped"));
     } catch (err) {
@@ -143,7 +170,7 @@ export function useVoiceCallRecording({
     } finally {
       setPending(false);
     }
-  }, [workspaceId, roomId, callId, t, invalidateRecordings]);
+  }, [workspaceId, roomId, callId, t, invalidateRecordings, setRecordingNow]);
 
   return { recording, recordingEnabled, pending, start, stop, announcement };
 }

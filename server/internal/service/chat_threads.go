@@ -69,7 +69,9 @@ func (s *ChatService) resolveThreadRoot(
 	return msg, nil
 }
 
-// ListThreadMessages returns the root plus replies for a thread.
+// ListThreadMessages returns a page of a thread's replies, oldest first. The
+// first page (no cursor, no before) starts with the root; an older page is
+// asked for with the oldest reply's Cursor().
 func (s *ChatService) ListThreadMessages(
 	ctx context.Context, userID, workspaceID, roomID, threadRootID string, in ListChatMessagesInput,
 ) ([]ChatMessageRow, error) {
@@ -80,7 +82,8 @@ func (s *ChatService) ListThreadMessages(
 	if !threadAllowedOnRoom(room) {
 		return nil, errChatThreadNotFound()
 	}
-	if _, err := s.resolveThreadRoot(ctx, room, threadRootID); err != nil {
+	root, err := s.resolveThreadRoot(ctx, room, threadRootID)
+	if err != nil {
 		return nil, err
 	}
 	limit := in.Limit
@@ -91,7 +94,15 @@ func (s *ChatService) ListThreadMessages(
 		limit = maxChatMessageLimit
 	}
 	var before pgtype.Timestamptz
-	if in.Before != nil {
+	var beforeID string
+	switch {
+	case in.Cursor != "":
+		at, id, err := decodeFeedCursor(in.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		before, beforeID = pgtype.Timestamptz{Time: at, Valid: true}, id
+	case in.Before != nil:
 		before = pgtype.Timestamptz{Time: *in.Before, Valid: true}
 	}
 	rows, err := s.q.ListChatThreadMessages(ctx, db.ListChatThreadMessagesParams{
@@ -99,24 +110,30 @@ func (s *ChatService) ListThreadMessages(
 		WorkspaceID:  roomAnchorWorkspaceID(room),
 		ThreadRootID: threadRootID,
 		BeforeAt:     before,
+		BeforeID:     beforeID,
 		MsgLimit:     int32(limit),
 	})
 	if err != nil {
 		return nil, err
 	}
-	out := make([]ChatMessageRow, 0, len(rows))
+	out := make([]ChatMessageRow, 0, len(rows)+1)
+	// The first page leads with the root, which carries the viewer's follow and
+	// unread state; the query lists replies only.
+	if !before.Valid {
+		sender, err := s.q.GetUserByID(ctx, root.SenderID)
+		if err != nil {
+			return nil, err
+		}
+		head := chatMessageRowFromDBForViewer(root, sender.DisplayName, userID)
+		if head.ThreadUnread, head.ThreadFollowing, err = s.threadViewerState(ctx, userID, threadRootID); err != nil {
+			return nil, err
+		}
+		out = append(out, head)
+	}
 	for i := len(rows) - 1; i >= 0; i-- {
 		out = append(out, chatMessageRowFromThreadListRow(rows[i], userID))
 	}
-	unread, err := s.threadUnreadForViewer(ctx, userID, threadRootID)
-	if err != nil {
-		return nil, err
-	}
-	for i := range out {
-		if out[i].ID == threadRootID {
-			out[i].ThreadUnread = unread
-		}
-	}
+	s.signChatMedia(ctx, room, out)
 	return out, nil
 }
 
@@ -138,7 +155,7 @@ func (s *ChatService) SendThreadReply(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
 
@@ -248,7 +265,7 @@ func (s *ChatService) SendThreadReply(
 		}
 	}
 	_ = q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, threadRootID, mentions); err != nil {
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, threadRootID, root.SenderID, mentions); err != nil {
 		return ChatMessageRow{}, err
 	}
 
@@ -274,14 +291,14 @@ func (s *ChatService) SendThreadReply(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, threadRootID)
 	s.publishChatRoomEvent(ctx, room.ID, Event{
 		Type: "chat.thread.replied",
 		Payload: map[string]string{
 			"room_id": room.ID, "thread_root_id": threadRootID, "message_id": msg.ID,
 		},
 	})
-	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentions.Recipients)
+	s.publishMentionNotifications(ctx, room, userID, msg.ID, threadRootID, mentions.Recipients)
 	s.notifyThreadFollowers(ctx, room, userID, threadRootID, msg.ID)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }
@@ -320,28 +337,43 @@ func (s *ChatService) UnfollowThread(ctx context.Context, userID, workspaceID, t
 	})
 }
 
-// MarkThreadRead updates last_read_at for the caller on a thread.
-func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, threadRootID string) error {
-	room, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
+// MarkThreadRead updates last_read_at for the caller on a thread and returns
+// the pointer it replaced (the root's time when the caller never read it), so
+// a catch-up asked for right after opening still covers the unread replies.
+func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, threadRootID string) (time.Time, error) {
+	_, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
 	if err != nil {
-		return err
+		return time.Time{}, err
 	}
-	orgID := room.OrganizationID
-	anchorWS := roomAnchorWorkspaceID(room)
+	previous := root.CreatedAt.Time.UTC()
+	f, err := s.q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{ThreadRootID: root.ID, UserID: userID})
+	if err == nil && f.LastReadAt.Valid {
+		previous = f.LastReadAt.Time.UTC()
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, err
+	}
+	// Reading is not following (UNI-1682): the UPDATE below touches only an
+	// existing follower row, so a reader who never followed gets no notifications.
 	// Prefer at least last_reply_at: Go's clock can lag Postgres, and writing a
 	// stale "now" would move last_read backwards and leave the thread unread.
 	readAt := time.Now().UTC()
 	if root.LastReplyAt.Valid && root.LastReplyAt.Time.After(readAt) {
 		readAt = root.LastReplyAt.Time
 	}
-	if err := s.ensureThreadFollowerTx(ctx, s.q, orgID, anchorWS, room.ID, root.ID, userID, chatThreadFollowManual, &readAt); err != nil {
-		return err
-	}
-	return s.q.MarkChatThreadRead(ctx, db.MarkChatThreadReadParams{
+	if err := s.q.MarkChatThreadRead(ctx, db.MarkChatThreadReadParams{
 		ThreadRootID: root.ID,
 		UserID:       userID,
 		LastReadAt:   pgtype.Timestamptz{Time: readAt, Valid: true},
-	})
+	}); err != nil {
+		return time.Time{}, err
+	}
+	// Close the thread's reply row so the next reply pushes again (UNI-1665).
+	if err := s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
+		UserID: userID, GroupKeys: []string{ChatThreadNotifyGroup(root.ID)},
+	}); err != nil {
+		return time.Time{}, err
+	}
+	return previous, nil
 }
 
 // ListFollowedThreads returns threads the caller follows (optionally unread only).
@@ -439,27 +471,30 @@ func (s *ChatService) ensureThreadFollowerTx(
 	})
 }
 
-func (s *ChatService) threadUnreadForViewer(ctx context.Context, userID, threadRootID string) (bool, error) {
+// threadViewerState says whether the viewer has unread replies in the thread
+// and whether they follow it (a follower row that is not muted).
+func (s *ChatService) threadViewerState(ctx context.Context, userID, threadRootID string) (unread, following bool, err error) {
 	f, err := s.q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{
 		ThreadRootID: threadRootID, UserID: userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
+		return false, false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
+	following = !f.Muted
 	root, err := s.q.GetChatMessageByID(ctx, threadRootID)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	if !root.LastReplyAt.Valid {
-		return false, nil
+		return false, following, nil
 	}
 	if !f.LastReadAt.Valid {
-		return true, nil
+		return true, following, nil
 	}
-	return root.LastReplyAt.Time.After(f.LastReadAt.Time), nil
+	return root.LastReplyAt.Time.After(f.LastReadAt.Time), following, nil
 }
 
 func (s *ChatService) notifyThreadFollowers(

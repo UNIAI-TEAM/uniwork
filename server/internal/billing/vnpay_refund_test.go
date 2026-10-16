@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -50,5 +51,41 @@ func TestVNPayRefundSignAndCall(t *testing.T) {
 	}
 	if !res.OK() || res.TransactionNo != "14312345" || got["vnp_Command"] != "refund" || got["vnp_Amount"] != "149900000" {
 		t.Fatalf("refund: %+v got=%v", res, got)
+	}
+}
+
+func TestVNPayRefundTimesOutOnHungServer(t *testing.T) {
+	prev := vnpHTTP.Timeout
+	vnpHTTP.Timeout = 50 * time.Millisecond
+	t.Cleanup(func() { vnpHTTP.Timeout = prev })
+
+	hung, release := context.WithCancel(context.Background())
+	t.Cleanup(release)
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-hung.Done()
+	}))
+	t.Cleanup(func() {
+		release()
+		srv.Close()
+	})
+
+	v, err := NewVNPay(VNPayConfig{TMNCode: "TMNTEST1", HashSecret: "testsecret", QueryURL: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	_, err = v.Refund(context.Background(), RefundInput{TxnRef: "01INTENT0000000001", Amount: 1000})
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("hung refund returned success")
+	}
+	if !clientTimedOut(err) {
+		t.Fatalf("want a client timeout, got %v", err)
+	}
+	if strings.Contains(err.Error(), "refund response") {
+		t.Fatalf("timeout treated as a VNPay rejection: %v", err)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("refund blocked for %s", elapsed)
 	}
 }

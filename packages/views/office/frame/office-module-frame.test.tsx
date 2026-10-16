@@ -657,7 +657,7 @@ describe("the frame's app.open request (A7)", () => {
     // The committed version is the current one, so the body leaves `version` out (it would force a read-only session).
     expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit", deployment_id: "dep-1" }));
     expect(createSession).toHaveBeenCalledWith("doc-1", expect.not.objectContaining({ version: expect.anything() }));
-    expect(launch).toHaveBeenCalledWith(expect.stringContaining("://open?ticket="));
+    expect(launch).toHaveBeenCalledWith(expect.stringContaining("://open?ticket="), expect.anything());
   });
 
   it("opens the installer prompt when the app does not answer", async () => {

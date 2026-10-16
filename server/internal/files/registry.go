@@ -282,7 +282,9 @@ func DefaultSpecs() []PurposeSpec {
 			Purpose: ChatAttachment,
 			Prefix:  "chat/files",
 			Scope:   ScopeOrgWorkspaceOptional,
-			Policy:  Policy{MaxBytes: 25 << 20, MIMEAllowlist: chatFileMIMETypes, CanonicalTypes: plainTextCanonicalTypes, ReadMode: ReadProxy},
+			// UNI-1633: the browser reads chat files straight from storage;
+			// the message list carries the signed URLs.
+			Policy: Policy{MaxBytes: 25 << 20, MIMEAllowlist: chatFileMIMETypes, CanonicalTypes: plainTextCanonicalTypes, ReadMode: ReadPresign},
 		},
 		{
 			Purpose: ChatVoice,
@@ -330,6 +332,12 @@ func DefaultSpecs() []PurposeSpec {
 			Scope:   ScopeOrgWorkspace,
 			Policy:  Policy{MaxBytes: 10 << 20, MIMEAllowlist: imageMIMETypes, ChecksumRequired: true, ReadMode: ReadProxy},
 			// Opened by G1-03 with documents.assets.
+		},
+		{
+			Purpose: WorkspaceIcon,
+			Prefix:  "workspace-icons",
+			Scope:   ScopeOrgWorkspace,
+			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
 		},
 	}
 }

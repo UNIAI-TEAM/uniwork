@@ -1,9 +1,20 @@
 "use client";
-import { Archive, ArrowRightLeft, Check, LogIn, LogOut, ShieldCheck, TriangleAlert, type LucideIcon } from "lucide-react";
+import {
+  Archive,
+  ArrowRightLeft,
+  Check,
+  LayoutGrid,
+  LogIn,
+  LogOut,
+  ShieldCheck,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import { forwardRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { InvitationPreview, MembershipConflict } from "@uniwork/core/types";
+import { invitationWorkspaces, type InvitationPreview, type MembershipConflict } from "@uniwork/core/types";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import {
   Stepper,
   StepperIndicator,
@@ -26,15 +37,20 @@ const SWITCH_STEPS = ["conflict", "resolve", "confirm"] as const;
 /**
  * Where the person is in the switch. Progress, not navigation: steps are not
  * tabs (you only go forward through the current step's checks), so the
- * Stepper is a labelled group and the current step carries aria-current.
+ * Stepper is a labelled group, its row is a plain element rather than a
+ * navigation landmark, and the current step carries aria-current.
  * Drawn like onboarding's rail: a done step is filled with a check, the
  * current one is a hollow brand ring, an upcoming one a control-weight ring.
+ * Below `sm` a third of the row is too narrow for a name like "Current
+ * organization", so the row keeps only the markers and the current step's
+ * name runs full width under it; every name stays in the row for screen
+ * readers.
  */
 export function SwitchProgress({ step }: { step: number }) {
   const { t } = useTranslation();
   return (
     <Stepper value={step} role="group" aria-label={t("invitations.switch.steps_label")} className="w-full min-w-0 flex-1">
-      <StepperNav className="w-full">
+      <StepperNav as="div" className="w-full">
         {SWITCH_STEPS.map((id, index) => {
           const number = index + 1;
           const done = number < step;
@@ -68,7 +84,7 @@ export function SwitchProgress({ step }: { step: number }) {
                 </div>
                 <StepperTitle
                   className={cn(
-                    "text-pretty text-caption",
+                    "text-pretty text-caption max-sm:sr-only",
                     // Keep a gutter before the next step's name, so on a phone
                     // the names wrap instead of running into each other.
                     number < SWITCH_STEPS.length && "pr-3",
@@ -85,14 +101,22 @@ export function SwitchProgress({ step }: { step: number }) {
           );
         })}
       </StepperNav>
+      {/* The phone's one visible name; aria-hidden, the row already says it. */}
+      <p aria-hidden className="mt-2 text-pretty text-caption font-semibold text-foreground sm:hidden">
+        {t(`invitations.switch.step_${SWITCH_STEPS[step - 1] ?? SWITCH_STEPS[0]}`)}
+      </p>
     </Stepper>
   );
 }
 
-/** A step's heading. It takes focus when the step changes, so a screen reader hears where it landed. */
+/**
+ * A step's heading. It takes focus when the step changes, so a screen reader
+ * hears where it landed; the global :focus-visible outline (not switched off
+ * here) shows a keyboard user the same thing.
+ */
 export const StepHeading = forwardRef<HTMLHeadingElement, { children: string }>(function StepHeading({ children }, ref) {
   return (
-    <h2 ref={ref} tabIndex={-1} className="text-balance text-title-lg font-semibold text-foreground outline-none">
+    <h2 ref={ref} tabIndex={-1} className="rounded-sm text-balance text-title-lg font-semibold text-foreground [overflow-wrap:anywhere]">
       {children}
     </h2>
   );
@@ -109,10 +133,11 @@ const LOST_MODULES = ["tasks", "meetings", "documents", "chat"] as const;
 function LosePanel({ conflicts }: { conflicts: MembershipConflict[] }) {
   const { t } = useTranslation();
   return (
-    <section aria-labelledby="switch-lose-heading" className="flex flex-col gap-3 rounded-xl bg-warning-soft p-4">
+    // The warning band, as a note: part of the step its heading announces.
+    <Alert variant="warning" role="note" aria-labelledby="switch-lose-heading" className="flex flex-col gap-3 rounded-xl p-4">
       <h3
         id="switch-lose-heading"
-        className="flex items-start gap-2 text-pretty text-body font-semibold text-warning-soft-foreground"
+        className="flex items-start gap-2 text-pretty text-body font-semibold text-warning-soft-foreground [overflow-wrap:anywhere]"
       >
         <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
         {t("invitations.switch.lose_heading", { name: conflictNames(conflicts) })}
@@ -126,7 +151,7 @@ function LosePanel({ conflicts }: { conflicts: MembershipConflict[] }) {
         ))}
       </ul>
       <p className="text-pretty text-caption text-warning-soft-foreground">{t("invitations.switch.lose_kept")}</p>
-    </section>
+    </Alert>
   );
 }
 
@@ -177,6 +202,7 @@ export function ConfirmStepBody({
 }) {
   const { t } = useTranslation();
   const to = invitation.organization.name;
+  const workspaces = invitationWorkspaces(invitation).map((w) => w.name);
   return (
     <div className="flex flex-col gap-4">
       <OrgRoute invitation={invitation} conflicts={conflicts} />
@@ -187,21 +213,39 @@ export function ConfirmStepBody({
           return (
             <li key={c.organization.id} className="flex items-start gap-3 text-body">
               <Icon aria-hidden className={cn("mt-0.5 size-4 shrink-0", line.danger ? "text-destructive" : "text-muted-foreground")} />
-              <span className={cn("text-pretty", line.danger ? "font-medium text-destructive" : "text-foreground")}>{line.text}</span>
+              <span
+                className={cn(
+                  "min-w-0 text-pretty [overflow-wrap:anywhere]",
+                  line.danger ? "font-medium text-destructive" : "text-foreground",
+                )}
+              >
+                {line.text}
+              </span>
             </li>
           );
         })}
         <li className="flex items-start gap-3 text-body">
           <LogIn aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
-          <span className="text-pretty font-medium text-foreground">
+          <span className="min-w-0 text-pretty font-medium text-foreground [overflow-wrap:anywhere]">
             {t("invitations.switch.confirm_join", { name: to, role: roleLabel(t, invitation.org_role) })}
           </span>
         </li>
+        {/* Where the switch lands, when the invitation grants a workspace (UNI-1582). */}
+        {workspaces.length > 0 ? (
+          <li className="flex items-start gap-3 text-body">
+            <LayoutGrid aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
+            <span className="min-w-0 text-pretty text-foreground [overflow-wrap:anywhere]">
+              {t("invitations.switch.confirm_workspaces", { list: workspaces.join(", ") })}
+            </span>
+          </li>
+        ) : null}
       </ol>
-      <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-pretty text-caption text-muted-foreground">
-        <ShieldCheck aria-hidden className="mt-px size-3.5 shrink-0 text-success" />
-        {t("invitations.switch.confirm_note")}
-      </p>
+      {/* A standing fact about the switch, on the muted band; the shield
+          keeps its success tint over the band's current-colour icon rule. */}
+      <Alert variant="muted" role="note" className="border-0 p-3 *:[svg]:translate-y-px *:[svg]:text-success">
+        <ShieldCheck aria-hidden className="size-3.5" />
+        <AlertDescription className="text-pretty text-caption">{t("invitations.switch.confirm_note")}</AlertDescription>
+      </Alert>
     </div>
   );
 }

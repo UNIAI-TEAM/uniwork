@@ -126,7 +126,7 @@ func (w *mcpConnectWorld) connect(t *testing.T, u mcpTenant) (access, grantID st
 	if err != nil {
 		t.Fatal(err)
 	}
-	back, err := svc.Approve(ctx, u.userID, id, consent.CSRFToken, u.orgID)
+	back, err := svc.Approve(ctx, u.userID, id, consent.CSRFToken, u.orgID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestMcpConsentShapeAndCSRFRotation(t *testing.T) {
 		t.Fatalf("read: %d %v", res.StatusCode, consent)
 	}
 	wantNoStore(t, res)
-	wantKeys(t, "consent", consent, "attempt_id", "status", "client", "redirect_host", "scope", "organizations", "csrf_token")
+	wantKeys(t, "consent", consent, "attempt_id", "status", "client", "redirect_host", "scope", "organizations", "csrf_token", "write_requested")
 	client, _ := consent["client"].(map[string]any)
 	wantKeys(t, "consent client", client, "client_id", "name", "logo_uri", "verified")
 	if consent["attempt_id"] != attempt || consent["status"] != "pending" || consent["scope"] != "read" || client["name"] != "Test" || client["verified"] != false {
@@ -264,7 +264,7 @@ func TestMcpConsentShapeAndCSRFRotation(t *testing.T) {
 		t.Fatalf("organizations = %v", orgs)
 	}
 	org := orgs[0].(map[string]any)
-	wantKeys(t, "consent organization", org, "id", "slug", "name", "enabled", "reason")
+	wantKeys(t, "consent organization", org, "id", "slug", "name", "enabled", "write_enabled", "reason")
 	if org["id"] != w.owner.orgID || org["slug"] != w.owner.slug || org["enabled"] != true || org["reason"] != "" {
 		t.Fatalf("organization = %v", org)
 	}
@@ -294,6 +294,47 @@ func TestMcpConsentShapeAndCSRFRotation(t *testing.T) {
 	}
 }
 
+// The consent screen tells the person that the app asked for write and whether
+// the organization allows it; their tick decides the grant's scope.
+func TestMcpConsentWriteChoiceOverHTTP(t *testing.T) {
+	w := newMcpConnectWorld(t, "write", nil)
+	w.setPolicy(t, w.owner, true)
+	if _, err := w.d.McpAuth.SetWritePolicy(context.Background(), w.owner.userID, w.owner.orgID, true); err != nil {
+		t.Fatal(err)
+	}
+	clientID := mcpRegister(t, w.srv, mcpTestRedirect)
+	to, err := w.d.McpAuth.Start(context.Background(), service.McpAuthorizeInput{
+		ResponseType: "code", ClientID: clientID, RedirectURI: mcpTestRedirect,
+		CodeChallenge: mcpTestChallenge, CodeChallengeMethod: "S256", State: "st", Scope: "read write",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(to)
+	attempt := u.Query().Get("attempt")
+
+	res, consent := w.read(t, w.owner.token, attempt)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("read consent: %d %v", res.StatusCode, consent)
+	}
+	org := consent["organizations"].([]any)[0].(map[string]any)
+	if consent["write_requested"] != true || consent["scope"] != "read write" || org["write_enabled"] != true {
+		t.Fatalf("consent = %v", consent)
+	}
+
+	res, out := w.decide(t, w.owner.token, attempt, map[string]any{
+		"decision": "approve", "csrf_token": consent["csrf_token"], "organization_id": org["id"], "write": true,
+	})
+	if res.StatusCode != http.StatusOK || out["status"] != "approved" {
+		t.Fatalf("approve: %d %v", res.StatusCode, out)
+	}
+	_, mine := doJSON(t, w.srv, "GET", "/api/v1/me/connected-apps", w.owner.token, nil)
+	grants, _ := mine["grants"].([]any)
+	if len(grants) != 1 || grants[0].(map[string]any)["scope"] != "read write" {
+		t.Fatalf("connected apps = %v, want one grant with scope read write", mine)
+	}
+}
+
 func TestMcpConsentAfterTheAttemptEnds(t *testing.T) {
 	w := newMcpConnectWorld(t, "ended", nil)
 	w.setPolicy(t, w.owner, true)
@@ -304,7 +345,7 @@ func TestMcpConsentAfterTheAttemptEnds(t *testing.T) {
 		if res.StatusCode != http.StatusOK {
 			t.Fatalf("%s: %d %v", what, res.StatusCode, out)
 		}
-		wantKeys(t, what, out, "attempt_id", "status", "client", "redirect_host", "scope", "organizations", "csrf_token")
+		wantKeys(t, what, out, "attempt_id", "status", "client", "redirect_host", "scope", "organizations", "csrf_token", "write_requested")
 		if out["status"] != status || out["client"] != nil || out["csrf_token"] != "" || out["attempt_id"] != attempt {
 			t.Errorf("%s = %v, want status %s, no client and no token", what, out, status)
 		}
@@ -697,7 +738,7 @@ func TestMcpPolicyOverHTTP(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("read: %d %v", res.StatusCode, off)
 	}
-	wantKeys(t, "policy", off, "enabled", "available", "enabled_at", "enabled_by", "mcp_url")
+	wantKeys(t, "policy", off, "enabled", "available", "enabled_at", "enabled_by", "mcp_url", "write_enabled", "write_available", "write_enabled_at", "write_enabled_by")
 	if off["enabled"] != false || off["available"] != true || off["enabled_at"] != nil || off["enabled_by"] != "" || off["mcp_url"] != mcpTestIssuer+"/mcp" {
 		t.Fatalf("policy before the switch = %v", off)
 	}
@@ -769,6 +810,34 @@ func TestMcpPolicyNeedsOrgAdmin(t *testing.T) {
 	}
 }
 
+// Write access is a second switch under the connector's own (ADR 0033): it
+// refuses to turn on while the connector is off, and reads back on the policy.
+func TestMcpWritePolicyOverHTTP(t *testing.T) {
+	w := newMcpConnectWorld(t, "write-policy", nil)
+	path := "/api/v1/orgs/" + w.owner.slug + "/mcp-policy"
+
+	res, out := doJSON(t, w.srv, "PUT", path+"/write", w.owner.token, map[string]any{"enabled": true})
+	wantError(t, "write on before the connector", res, out, http.StatusConflict, "connector_off")
+
+	w.setPolicy(t, w.owner, true)
+	res, on := doJSON(t, w.srv, "PUT", path+"/write", w.owner.token, map[string]any{"enabled": true})
+	if res.StatusCode != http.StatusOK || on["write_enabled"] != true || on["write_available"] != true || on["write_enabled_by"] != w.owner.userID {
+		t.Fatalf("write on: %d %v", res.StatusCode, on)
+	}
+	if at, _ := on["write_enabled_at"].(string); at == "" {
+		t.Errorf("write_enabled_at = %v, want an RFC 3339 time", on["write_enabled_at"])
+	}
+	res, read := doJSON(t, w.srv, "GET", path, w.owner.token, nil)
+	if res.StatusCode != http.StatusOK || read["write_enabled"] != true || read["write_available"] != true || read["enabled"] != true {
+		t.Errorf("read after write on: %d %v", res.StatusCode, read)
+	}
+
+	res, off := doJSON(t, w.srv, "PUT", path+"/write", w.owner.token, map[string]any{"enabled": false})
+	if res.StatusCode != http.StatusOK || off["write_enabled"] != false || off["write_enabled_at"] != nil || off["enabled"] != true {
+		t.Errorf("write off: %d %v", res.StatusCode, off)
+	}
+}
+
 func TestMcpPolicyCannotTurnOnWhileThePlatformFlagIsOff(t *testing.T) {
 	w := newMcpConnectWorld(t, "flag-off", func(d *Deps) { d.McpAuth.SetFlags(mcpTestFlags(false)) })
 	path := "/api/v1/orgs/" + w.owner.slug + "/mcp-policy"
@@ -813,6 +882,7 @@ func TestMcpAdminRoutesAnswerForAClosedDoor(t *testing.T) {
 				{"DELETE", base + "/connected-apps/" + grantID},
 				{"GET", base + "/mcp-policy"},
 				{"PUT", base + "/mcp-policy"},
+				{"PUT", base + "/mcp-policy/write"},
 			} {
 				res, out := doJSON(t, w.srv, r.method, r.path, admin.token, map[string]any{"enabled": false})
 				wantError(t, r.method+" "+r.path, res, out, http.StatusForbidden, c.code)
@@ -856,5 +926,6 @@ func mcpConnectRoutes(tn mcpTenant) []mcpConnectRoute {
 		{"DELETE", org + "/connected-apps/" + id, nil},
 		{"GET", org + "/mcp-policy", nil},
 		{"PUT", org + "/mcp-policy", map[string]any{"enabled": true}},
+		{"PUT", org + "/mcp-policy/write", map[string]any{"enabled": true}},
 	}
 }

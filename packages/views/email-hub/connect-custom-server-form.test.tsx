@@ -220,7 +220,7 @@ describe("ConnectCustomServerForm", () => {
     fillRequired();
     fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "" } });
     const submit = screen.getByRole("button", { name: "Kết nối" });
-    expect(submit).toBeEnabled();
+    expect(submit).not.toHaveAttribute("aria-disabled");
 
     fireEvent.click(submit);
 
@@ -265,6 +265,6 @@ describe("ConnectCustomServerForm", () => {
     expect(smtp().getByLabelText("Máy chủ")).toHaveValue("smtp.congty.vn");
     expect(smtp().getByLabelText("Cổng")).toHaveValue("465");
     expect(radio(smtp, TLS)).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("button", { name: "Kết nối lại" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Kết nối lại" })).not.toHaveAttribute("aria-disabled");
   });
 });

@@ -2,14 +2,22 @@ import {
   buildOfficeDeepLink,
   officeClientId,
   safeOfficeDeepLink,
+  type OfficeLaunchOptions,
   type OfficeLaunchOutcome,
 } from "@uniwork/core/office";
 
 export { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink };
 export type { OfficeLaunchOutcome };
 
-export interface DeepLinkLauncherOptions {
+/** A cold start of the app (and Windows holding the browser in front) takes
+ * longer than a second; this is how long a missing hand-off is believed. */
+const LAUNCH_WAIT_MS = 2500;
+/** How long after "not-installed" a late hand-off is still reported. */
+const LATE_HANDOFF_WINDOW_MS = 60_000;
+
+export interface DeepLinkLauncherOptions extends OfficeLaunchOptions {
   timeoutMs?: number;
+  lateWindowMs?: number;
   signal?: AbortSignal;
   open?: (url: string) => void;
   isHidden?: () => boolean;
@@ -49,15 +57,26 @@ export async function launchOfficeDeepLink(url: string, options: DeepLinkLaunche
   const isHidden = options.isHidden ?? (() => document.visibilityState === "hidden" || document.hidden);
   const wait = options.wait ?? delay;
   let handedOff = false;
-  const stopWatching = (options.onHandoffSignal ?? watchPageHandoff)(() => { handedOff = true; });
+  let late: (() => void) | null = null;
+  const stopWatching = (options.onHandoffSignal ?? watchPageHandoff)(() => { handedOff = true; late?.(); });
+  let keepWatching = false;
   try {
     open(url);
-    await wait(options.timeoutMs ?? 900, options.signal);
-    return handedOff || isHidden() ? "launched" : "not-installed";
+    await wait(options.timeoutMs ?? LAUNCH_WAIT_MS, options.signal);
+    if (handedOff || isHidden()) return "launched";
+    const notify = options.onLateHandoff;
+    if (notify) {
+      // A cold start can outlast the wait, and on Windows the app may not take
+      // the foreground at all: keep listening so a late hand-off is reported.
+      const giveUp = globalThis.setTimeout(() => { late = null; stopWatching(); }, options.lateWindowMs ?? LATE_HANDOFF_WINDOW_MS);
+      late = () => { late = null; globalThis.clearTimeout(giveUp); stopWatching(); notify(); };
+      keepWatching = true;
+    }
+    return "not-installed";
   } catch (error) {
     if (options.signal?.aborted) return "error";
     return error instanceof Error && /expired|ticket/i.test(error.message) ? "expired" : "error";
   } finally {
-    stopWatching();
+    if (!keepWatching) stopWatching();
   }
 }

@@ -2,10 +2,11 @@
 import { ChevronRight, CircleAlert, RefreshCw } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
-import type { PendingInvitation } from "@uniwork/core/types";
+import { invitationWorkspaces, type PendingInvitation } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { SettingsBadge } from "../settings/components/settings-layout";
 import { roleLabel } from "./role-label";
@@ -37,32 +38,68 @@ function expiry(iso: string, locale: string): { date: string; soon: boolean } | 
  * the target — the trailing link stretches over it — while the link itself
  * stays a real anchor named after its destination, so a list of "Xem" reads
  * apart by ear and the global focus outline lands on something visible.
+ *
+ * `compact` is the same row at the chat sidebar's density (18–20rem wide):
+ * tighter padding, the same lines in the same order, so an invitation reads
+ * the same wherever it is listed.
  */
-export function InvitationList({ invitations, label }: { invitations: PendingInvitation[]; label: string }) {
+export function InvitationList({
+  invitations,
+  label,
+  compact = false,
+}: {
+  invitations: PendingInvitation[];
+  label: string;
+  compact?: boolean;
+}) {
   return (
     <ul aria-label={label} className={FRAME}>
       {invitations.map((invitation) => (
-        <InvitationRow key={invitation.id} invitation={invitation} />
+        <InvitationRow key={invitation.id} invitation={invitation} compact={compact} />
       ))}
     </ul>
   );
 }
 
-function InvitationRow({ invitation }: { invitation: PendingInvitation }) {
+function InvitationRow({ invitation, compact }: { invitation: PendingInvitation; compact: boolean }) {
   const { t, i18n } = useTranslation();
-  const name = invitation.workspace
-    ? `${invitation.organization.name} › ${invitation.workspace.name}`
-    : invitation.organization.name;
+  const organization = invitation.organization.name;
+  // Every workspace accepting grants (UNI-1582); none for an invitation that
+  // opens the organization alone.
+  const workspace = invitationWorkspaces(invitation).map((w) => w.name).join(", ") || undefined;
+  // "›" is drawn, not read: a screen reader hears "Team trong Acme" instead
+  // of the glyph's name, and the link's name says the same.
+  const viewLabel = workspace
+    ? t("invitations.viewWorkspaceLabel", { workspace, organization })
+    : t("invitations.viewLabel", { name: organization });
+  // An inviter whose name came back empty would leave " mời bạn vào".
+  const inviter = invitation.invited_by.display_name.trim();
   const expires = expiry(invitation.expires_at, i18n.language);
   return (
-    <li className="relative flex items-center gap-3 px-4 py-3 transition-colors duration-150 first:rounded-t-lg last:rounded-b-lg has-[a:hover]:bg-surface-hover has-[a:focus-visible]:bg-surface-hover pointer-coarse:min-h-11">
+    <li
+      className={cn(
+        "relative flex items-center gap-3 transition-colors duration-150 first:rounded-t-lg last:rounded-b-lg has-[a:hover]:bg-surface-hover has-[a:focus-visible]:bg-surface-hover pointer-coarse:min-h-11",
+        compact ? "px-3 py-2.5" : "px-4 py-3",
+      )}
+    >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-caption text-muted-foreground">
-          {t("invitations.invitedBy", { name: invitation.invited_by.display_name })}
+        {/* Wraps instead of truncating: at 200% text a truncated line kept
+            only the first letters of the inviter's name. */}
+        <span className="text-pretty text-caption text-muted-foreground [overflow-wrap:anywhere]">
+          {inviter ? t("invitations.invitedBy", { name: inviter }) : t("invitations.invited")}
         </span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="min-w-0 text-pretty text-body font-medium text-foreground [overflow-wrap:anywhere]">
-            {name}
+            {workspace ? (
+              <>
+                <span aria-hidden>
+                  {organization} › {workspace}
+                </span>
+                <span className="sr-only">{t("invitations.place", { workspace, organization })}</span>
+              </>
+            ) : (
+              organization
+            )}
           </span>
           {expires?.soon ? <SettingsBadge tone="warning">{t("invitations.expires_soon")}</SettingsBadge> : null}
         </span>
@@ -86,7 +123,7 @@ function InvitationRow({ invitation }: { invitation: PendingInvitation }) {
       </div>
       <AppLink
         href={paths.invite(invitation.token)}
-        aria-label={t("invitations.viewLabel", { name })}
+        aria-label={viewLabel}
         className="inline-flex shrink-0 items-center gap-1 text-body font-medium text-foreground underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline"
       >
         {t("invitations.view")}

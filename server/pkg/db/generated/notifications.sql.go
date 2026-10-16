@@ -686,6 +686,24 @@ func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotif
 	return items, nil
 }
 
+const markNotificationGroupsRead = `-- name: MarkNotificationGroupsRead :exec
+UPDATE notifications SET read_at = now(), updated_at = now()
+WHERE user_id = $1 AND group_key = ANY($2::text[]) AND read_at IS NULL
+`
+
+type MarkNotificationGroupsReadParams struct {
+	UserID    string   `json:"user_id"`
+	GroupKeys []string `json:"group_keys"`
+}
+
+// tenant: self
+// Reading what a group is about (a chat room, a thread) closes its open row,
+// so the next event opens a new one and pushes again.
+func (q *Queries) MarkNotificationGroupsRead(ctx context.Context, arg MarkNotificationGroupsReadParams) error {
+	_, err := q.db.Exec(ctx, markNotificationGroupsRead, arg.UserID, arg.GroupKeys)
+	return err
+}
+
 const markNotificationPushed = `-- name: MarkNotificationPushed :exec
 UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL
 `
@@ -816,6 +834,7 @@ INSERT INTO notifications (
 ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
 DO UPDATE SET
   count = notifications.count + 1,
+  resource_id = EXCLUDED.resource_id,
   params = EXCLUDED.params,
   actor_kind = EXCLUDED.actor_kind,
   actor_id = EXCLUDED.actor_id,
@@ -927,6 +946,7 @@ FROM (SELECT unnest($12::text[]) AS id, unnest($13::text[]) AS user_id) u
 ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
 DO UPDATE SET
   count = notifications.count + 1,
+  resource_id = EXCLUDED.resource_id,
   params = EXCLUDED.params,
   actor_kind = EXCLUDED.actor_kind,
   actor_id = EXCLUDED.actor_id,

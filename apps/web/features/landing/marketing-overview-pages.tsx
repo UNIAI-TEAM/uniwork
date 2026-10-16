@@ -1,6 +1,7 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { ArrowDown, ArrowRight, CircleCheck, MessageSquare, ShieldCheck } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -10,6 +11,7 @@ import { FeatureIllustration } from "./feature-illustration";
 import { Pricing } from "./pricing";
 import { Faq } from "./faq";
 import { PRODUCT_FEATURES } from "./showcase";
+import { GuideDirectory } from "./guide-directory";
 import { SOLUTIONS, SOLUTION_KEYS } from "./solutions";
 
 const LEARNING_PHASES = [{ feature: "organization", index: 2 }, { feature: "tasks", index: 2 }, { feature: "ask", index: 0 }] as const;
@@ -21,7 +23,7 @@ export function SolutionsPage() {
   const { t } = useTranslation();
   return <MarketingShell closingTitle="landing.chapters.solutions.closing"><div className="chapter-world">
     <ChapterHero titleKey="landing.productPages.solutionsTitle" descriptionKey="landing.productPages.solutionsDescription" visual={<ChapterScene featureKey="projects" index={1} />}>
-      <div className="marketing-actions"><a href="#team-comparison" className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.chapters.solutions.choose")}<ArrowDown aria-hidden /></a><Link href={paths.features()} className="chapter-link">{t("landing.productPages.allFeatures")}<ArrowRight aria-hidden /></Link></div>
+      <div className="marketing-actions"><MarketingAnchor href="#team-comparison" className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.chapters.solutions.choose")}<ArrowDown aria-hidden /></MarketingAnchor><Link href={paths.features()} className="chapter-link">{t("landing.productPages.allFeatures")}<ArrowRight aria-hidden /></Link></div>
     </ChapterHero>
     <section id="team-comparison" className="chapter-section chapter-soft"><div className="chapter-width"><ChapterHeading titleKey="landing.chapters.solutions.compareTitle" descriptionKey="landing.chapters.solutions.compareDescription" />
       <table className="chapter-table"><caption className="sr-only">{t("landing.chapters.solutions.compareTitle")}</caption><thead><tr><th scope="col">{t("landing.chapters.table.subject")}</th>{SOLUTION_KEYS.map(key => <th scope="col" key={key}><Link href={SOLUTIONS[key].href}>{t(`${SOLUTIONS[key].ns}.name`)}<ArrowRight aria-hidden /></Link></th>)}</tr></thead>
@@ -37,10 +39,11 @@ export function SolutionsPage() {
 export function LearnPage() {
   const { t } = useTranslation();
   return <MarketingShell closingTitle="landing.chapters.learn.closing" closingDemoHref={`${paths.feature("tasks")}#feature-preview`}><div className="chapter-world">
-    <ChapterHero titleKey="landing.productPages.learnTitle" descriptionKey="landing.productPages.learnDescription" visual={<ChapterScene featureKey="tasks" index={2} />}>
-      <div className="marketing-actions"><a href="#learn-workspace" className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.chapters.learn.start")}<ArrowDown aria-hidden /></a><Link href={paths.register()} className="chapter-link">{t("landing.cta.start")}<ArrowRight aria-hidden /></Link></div>
+    <ChapterHero titleKey="landing.productPages.learnTitle" descriptionKey="landing.productPages.learnDescription" visual={<ChapterScene featureKey="tasks" />}>
+      <div className="marketing-actions"><MarketingAnchor href="#learn-workspace" className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.chapters.learn.start")}<ArrowDown aria-hidden /></MarketingAnchor><Link href={paths.register()} className="chapter-link">{t("landing.cta.start")}<ArrowRight aria-hidden /></Link></div>
     </ChapterHero>
-    <nav className="chapter-jumps chapter-width" aria-labelledby="learn-navigation-title"><span className="chapter-jumps-title" id="learn-navigation-title">{t("landing.chapters.learn.navigation")}</span><div className="chapter-jump-links">{["workspace", "task", "sources"].map((key, index) => <a href={`#learn-${key}`} key={key}><strong>{t(`landing.chapters.learn.phases.${index}`)}</strong><ArrowDown aria-hidden /></a>)}</div></nav>
+    <nav className="chapter-jumps chapter-width" aria-labelledby="learn-navigation-title"><span className="chapter-jumps-title" id="learn-navigation-title">{t("landing.chapters.learn.navigation")}</span><div className="chapter-jump-links">{["workspace", "task", "sources"].map((key, index) => <MarketingAnchor href={`#learn-${key}`} key={key}><strong>{t(`landing.chapters.learn.phases.${index}`)}</strong><ArrowDown aria-hidden /></MarketingAnchor>)}</div></nav>
+    <GuideDirectory />
     <ol className="chapter-learning-path chapter-width chapter-section">{LEARNING_PHASES.map(({ feature, index }, n) => <li className="chapter-row" id={`learn-${["workspace", "task", "sources"][n]}`} key={feature}>
       <div className="chapter-row-copy"><span className="chapter-step-number" aria-hidden>{n + 1}</span><h2>{t(`landing.productPages.learnSteps.${n}.title`)}</h2><p>{t(`landing.productPages.learnSteps.${n}.description`)}</p><ul>{[0, 1].map(point => <li key={point}>{t(`landing.chapters.learn.points.${n}.${point}`)}</li>)}</ul><ChapterLink href={paths.feature(feature)} labelKey="landing.productPages.learnCta" /></div><ChapterScene featureKey={feature} index={index} />
     </li>)}</ol>
@@ -57,29 +60,34 @@ export function PricingPage() {
   const { t } = useTranslation();
   return <MarketingShell closingTitle="landing.chapters.pricing.closing" closingDemoHref={`${paths.feature("tasks")}#feature-preview`}><div className="chapter-world">
     <ChapterHero titleKey="landing.productPages.pricingTitle" descriptionKey="landing.productPages.pricingDescription" visual={<ChapterScene featureKey="tasks" index={1} />}>
-      <div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link><a href="#plan-offer" className="chapter-link">{t("landing.chapters.pricing.viewPlan")}<ArrowDown aria-hidden /></a></div><p className="marketing-scope">{t("landing.pricing.status")}</p>
+      <div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link><MarketingAnchor href="#plan-offer" className="chapter-link">{t("landing.chapters.pricing.viewPlan")}<ArrowDown aria-hidden /></MarketingAnchor></div>
     </ChapterHero>
-    <div id="plan-offer" className="marketing-pricing"><Pricing /></div>
-    <section className="chapter-section chapter-soft"><div className="chapter-width"><ChapterHeading titleKey="landing.chapters.pricing.checkTitle" descriptionKey="landing.chapters.pricing.checkDescription" /><ScopeTable namespace="pricing" /><ChapterLink href={paths.enterprise()} labelKey="landing.chapters.pricing.enterpriseLink" /></div></section>
+    <div id="plan-offer" className="marketing-pricing"><Pricing showIntroduction={false} /></div>
+    <section className="chapter-section chapter-soft"><div className="chapter-width"><ChapterHeading titleKey="landing.chapters.pricing.checkTitle" descriptionKey="landing.chapters.pricing.checkDescription" /><PricingScopeTable /><ChapterLink href={paths.enterprise()} labelKey="landing.chapters.pricing.enterpriseLink" /></div></section>
   </div></MarketingShell>;
 }
 
 export function EnterprisePage() {
   const { t } = useTranslation();
   return <MarketingShell closingTitle="landing.chapters.enterprise.closing" closingDemoHref={`${paths.feature("organization")}#feature-preview`}><div className="chapter-world">
-    <ChapterHero titleKey="landing.productPages.enterpriseTitle" descriptionKey="landing.productPages.enterpriseDescription" visual={<ChapterScene featureKey="organization" index={2} />}>
-      <div className="marketing-actions"><Link href={paths.feature("organization")} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.productPages.enterpriseCta")}<ArrowRight aria-hidden /></Link><a href="#governance" className="chapter-link">{t("landing.chapters.enterprise.explore")}<ArrowDown aria-hidden /></a></div><p className="marketing-scope">{t("landing.productPages.enterpriseStatus")}</p>
+    <ChapterHero titleKey="landing.productPages.enterpriseTitle" descriptionKey="landing.productPages.enterpriseDescription" visual={<ChapterScene featureKey="organization" />}>
+      <div className="marketing-actions"><Link href={paths.feature("organization")} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.productPages.enterpriseCta")}<ArrowRight aria-hidden /></Link><MarketingAnchor href="#governance" className="chapter-link">{t("landing.chapters.enterprise.explore")}<ArrowDown aria-hidden /></MarketingAnchor></div><p className="marketing-scope">{t("landing.productPages.enterpriseStatus")}</p>
     </ChapterHero>
-    <section id="governance" className="chapter-section chapter-soft"><div className="chapter-width"><ChapterHeading titleKey="landing.productPages.enterpriseDetails" descriptionKey="landing.chapters.enterprise.structure" /><ScopeTable namespace="enterprise" /></div></section>{/* plan-literal-ok: landing page namespace key, not a plan code */}
-    <div className="chapter-width chapter-section">{GOVERNANCE.map(({ feature, index }, n) => <section className="chapter-row" key={feature}>
-      <div className="chapter-row-copy"><CircleCheck aria-hidden /><h2>{t(`landing.chapters.enterprise.examples.${n}`)}</h2><p>{t(`landing.productPages.enterprisePoints.${n}`)}</p><p>{t(`landing.chapters.enterprise.exampleDescriptions.${n}`)}</p><ChapterLink href={paths.feature(feature)} labelKey="landing.productPages.solutionExplore" /></div><ChapterScene featureKey={feature} index={index} />
-    </section>)}</div>
+    <section id="governance" className="chapter-width chapter-section" aria-labelledby="governance-title"><ChapterHeading id="governance-title" titleKey="landing.productPages.enterpriseDetails" descriptionKey="landing.chapters.enterprise.structure" />
+      <div>{GOVERNANCE.map(({ feature, index }, n) => <article className="chapter-row" key={feature}>
+        <div className="chapter-row-copy"><CircleCheck aria-hidden /><h3>{t(`landing.chapters.enterprise.examples.${n}`)}</h3>
+          <p>{n === 1 && <>{t(`landing.productPages.enterprisePoints.${n}`)} </>}{t(`landing.chapters.enterprise.exampleDescriptions.${n}`)}</p>
+          <p className="chapter-confirmation"><strong>{t("landing.chapters.table.confirm")}:</strong> {t(`landing.chapters.enterprise.rows.${n}.confirm`)}</p>
+          <ChapterLink href={paths.feature(feature)} labelKey="landing.productPages.solutionExplore" />
+        </div><ChapterScene featureKey={feature} index={index} />
+      </article>)}</div>
+    </section>
   </div></MarketingShell>;
 }
 
-function ScopeTable({ namespace }: { namespace: "pricing" | "enterprise" }) { // plan-literal-ok: landing page namespace key, not a plan code
+function PricingScopeTable() {
   const { t } = useTranslation();
-  return <table className="chapter-table"><caption className="sr-only">{t(`landing.chapters.${namespace}.${namespace === "pricing" ? "checkTitle" : "structure"}`)}</caption><thead><tr>{["subject", "current", "confirm"].map(key => <th key={key} scope="col">{t(`landing.chapters.table.${key}`)}</th>)}</tr></thead>
-    <tbody>{[0, 1, 2].map(index => <tr key={index}>{["subject", "current", "confirm"].map(key => key === "subject" ? <th scope="row" key={key}>{t(`landing.chapters.${namespace}.rows.${index}.${key}`)}</th> : <td key={key}>{t(`landing.chapters.${namespace}.rows.${index}.${key}`)}</td>)}</tr>)}</tbody>
+  return <table className="chapter-table"><caption className="sr-only">{t("landing.chapters.pricing.checkTitle")}</caption><thead><tr>{["subject", "current", "confirm"].map(key => <th key={key} scope="col">{t(`landing.chapters.table.${key}`)}</th>)}</tr></thead>
+    <tbody>{[1, 2].map(index => <tr key={index}>{["subject", "current", "confirm"].map(key => key === "subject" ? <th scope="row" key={key}>{t(`landing.chapters.pricing.rows.${index}.${key}`)}</th> : <td key={key}>{t(`landing.chapters.pricing.rows.${index}.${key}`)}</td>)}</tr>)}</tbody>
   </table>;
 }

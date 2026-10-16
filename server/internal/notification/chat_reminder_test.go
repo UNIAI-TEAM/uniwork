@@ -52,3 +52,38 @@ func TestChatReminderDueNotifiesRoomMembers(t *testing.T) {
 		t.Fatalf("notification.push events = %d, want 3", len(evs))
 	}
 }
+
+// A due event still in the outbox when its channel is archived tells nobody:
+// the room is closed, so its reminder has no audience.
+func TestChatReminderDueSkipsArchivedRoom(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "nhac-luu-tru", Visibility: "public", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remindAt := time.Now().Add(time.Minute).Truncate(time.Second)
+	if _, err := chat.SendReminderMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendReminderMessageInput{
+		Body: "Gửi hợp đồng", RemindAt: remindAt.Format(time.RFC3339), Repeat: "daily",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := chat.NewChatReminderWorker().RunOnce(f.ctx, remindAt.Add(time.Second)); err != nil || n != 1 {
+		t.Fatalf("worker fired %d (err %v), want 1", n, err)
+	}
+	if err := chat.ArchiveChannel(f.ctx, f.owner.ID, f.wsID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.reminder.due")
+
+	for _, uid := range []string{f.owner.ID, f.member.ID} {
+		if got := f.inbox(t, uid); len(got) != 0 {
+			t.Fatalf("inbox of %s = %+v, want nothing from an archived channel", uid, got)
+		}
+	}
+	if evs := f.events(t, TopicPush); len(evs) != 0 {
+		t.Fatalf("notification.push events = %d, want 0", len(evs))
+	}
+}

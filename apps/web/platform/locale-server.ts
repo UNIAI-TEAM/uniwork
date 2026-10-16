@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { DEFAULT_LOCALE, LOCALE_COOKIE, matchLocale, type SupportedLocale } from "@uniwork/core/i18n/server";
 
 
@@ -12,7 +12,13 @@ import { DEFAULT_LOCALE, LOCALE_COOKIE, matchLocale, type SupportedLocale } from
  * server render and hydration.
  */
 export async function resolveRequestLocale(): Promise<SupportedLocale> {
+  const marketingLocale = (await headers()).get("x-uniwork-marketing-locale");
+  if (marketingLocale === "en" || marketingLocale === "vi") return marketingLocale;
   const choice = (await cookies()).get(LOCALE_COOKIE)?.value;
   if (choice) return matchLocale([choice]);
   return DEFAULT_LOCALE;
+}
+
+export async function isMarketingRequest(): Promise<boolean> {
+  return (await headers()).has("x-uniwork-marketing-locale");
 }

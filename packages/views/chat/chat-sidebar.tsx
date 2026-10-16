@@ -3,6 +3,7 @@
 import { Compass, Hash, ListChecks, PanelLeftClose, Plus, Search, UserPlus, Users } from "lucide-react";
 import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useChatRooms } from "@uniwork/core/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -30,6 +31,7 @@ import {
   type ChatSidebarKindFilter,
 } from "./chat-sidebar-unified";
 import { ChatSidebarList } from "./chat-sidebar-list";
+import { typingNameByUserIdFromContext } from "./chat-sidebar-typing";
 import {
   SidebarEmpty,
   SidebarIconAction,
@@ -45,6 +47,7 @@ const EMPTY_PREVIEWS: NonNullable<ChatSidebarProps["roomPreviewsByRoomId"]> = {}
 const EMPTY_NICKNAMES: Record<string, string> = {};
 const EMPTY_CHANNELS: NonNullable<ChatSidebarProps["channels"]> = [];
 const EMPTY_MEMBER_AVATARS: NonNullable<ChatSidebarProps["memberAvatarByUserId"]> = {};
+const EMPTY_PEOPLE: NonNullable<ChatSidebarProps["knownPeople"]> = [];
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
@@ -86,6 +89,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   workspaceRoomTitle,
   onCollapse,
   memberAvatarByUserId = EMPTY_MEMBER_AVATARS,
+  knownPeople = EMPTY_PEOPLE,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [filterQuery, setFilterQuery] = useState("");
@@ -100,7 +104,16 @@ export const ChatSidebar = memo(function ChatSidebar({
   // The field answers every keystroke; the list re-sorts when React is idle.
   const filterText = useDeferredValue(filterQuery.trim());
   const pinnedByRoomId = useChatRoomPreferencesStore((state) => state.byRoomId);
+  const { data: rooms } = useChatRooms(workspaceId);
+  const mutedRoomIds = useMemo(
+    () => new Set((rooms ?? []).filter((room) => room.notifications_muted).map((room) => room.id)),
+    [rooms],
+  );
   const workspaceTitle = workspaceRoomTitle ?? t("chat.workspace_room");
+  const typingNameByUserId = useMemo(
+    () => typingNameByUserIdFromContext(knownPeople),
+    [knownPeople],
+  );
 
   const filterOptions = useMemo(() => chatSidebarFilterOptions(), []);
   const activityFilterOptions = useMemo(() => chatSidebarActivityFilterOptions(), []);
@@ -357,8 +370,10 @@ export const ChatSidebar = memo(function ChatSidebar({
               mentionUnreadByRoomId={mentionUnreadByRoomId}
               unreadBadgesReady={unreadBadgesReady}
               preferencesByRoomId={pinnedByRoomId}
+              mutedRoomIds={mutedRoomIds}
               labels={labels}
               memberAvatarByUserId={memberAvatarByUserId}
+              typingNameByUserId={typingNameByUserId}
             />
           )}
           {!loading && !loadError && !filtering && entries.length === 1 && entries[0]?.kind === "workspace" ? (

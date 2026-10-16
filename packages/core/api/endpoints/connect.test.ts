@@ -8,6 +8,7 @@ import {
   revokeMyConnectedApp,
   revokeOrgConnectedApp,
   setMcpPolicy,
+  setMcpWritePolicy,
 } from "./connect";
 
 const requestMock = vi.fn();
@@ -77,5 +78,24 @@ describe("connect endpoints", () => {
     expect(requestMock).toHaveBeenLastCalledWith("/api/v1/orgs/acme/mcp-policy", { method: "PUT", body: { enabled: true } });
     requestMock.mockResolvedValue(undefined);
     await expect(setMcpPolicy("acme", true)).resolves.toBeNull();
+  });
+
+  it("reads the write fields of a consent and of a policy, defaulting them off", async () => {
+    requestMock.mockResolvedValueOnce({ attempt_id: "a", status: "pending", organizations: [{ id: "o", slug: "s", name: "N", enabled: true }] });
+    const consent = await getConnectConsent("a");
+    expect(consent?.write_requested).toBe(false);
+    expect(consent?.organizations[0]?.write_enabled).toBe(false);
+    requestMock.mockResolvedValueOnce({ enabled: true, available: true, mcp_url: "u", write_enabled: true, write_available: true });
+    const policy = await getMcpPolicy("acme");
+    expect(policy?.write_enabled).toBe(true);
+    expect(policy?.write_enabled_at).toBeNull();
+  });
+
+  it("sets the write policy on its own route and degrades on a malformed answer", async () => {
+    requestMock.mockResolvedValueOnce({ enabled: true, available: true, mcp_url: "u", write_enabled: true, write_available: true });
+    await expect(setMcpWritePolicy("acme", true)).resolves.toMatchObject({ write_enabled: true });
+    expect(requestMock).toHaveBeenLastCalledWith("/api/v1/orgs/acme/mcp-policy/write", { method: "PUT", body: { enabled: true } });
+    requestMock.mockResolvedValueOnce({ write_enabled: "yes" });
+    await expect(setMcpWritePolicy("acme", true)).resolves.toBeNull();
   });
 });

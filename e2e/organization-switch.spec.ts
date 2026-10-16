@@ -90,7 +90,7 @@ test.describe("organization switch", () => {
     await page.getByRole("button", { name: "Đóng tổ chức" }).click();
     const dialog = page.getByRole("dialog", { name: `Đóng ${first.orgName}?` });
     await expect(dialog).toBeVisible();
-    await dialog.getByLabel("Gõ đường dẫn tổ chức để xác nhận").fill(first.orgSlug);
+    await dialog.getByLabel("Gõ định danh tổ chức để xác nhận").fill(first.orgSlug);
     await dialog.getByRole("button", { name: "Đóng tổ chức" }).click();
 
     await expect(page).toHaveURL(/\/get-started$/, { timeout: 20_000 });

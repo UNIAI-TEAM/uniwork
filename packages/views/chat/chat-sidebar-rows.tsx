@@ -47,6 +47,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   preview,
   roomId = null,
   contacts = [],
+  typingNameByUserId,
   previewOptions,
   unread,
   mentionUnread = 0,
@@ -67,6 +68,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   preview?: ChatRoomPreview;
   roomId?: string | null;
   contacts?: readonly ChatContact[];
+  typingNameByUserId?: Record<string, string>;
   previewOptions: SidebarPreviewOptions;
   unread: number;
   mentionUnread?: number;
@@ -84,6 +86,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
     locale: i18n.language,
     nicknamesByUserId: previewOptions.nicknamesByUserId,
     contacts,
+    fallbackNameByUserId: typingNameByUserId,
   });
   const previewText = formatChatSidebarPreviewText(preview, {
     currentUserId: previewOptions.currentUserId,

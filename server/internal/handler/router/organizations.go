@@ -101,12 +101,13 @@ func registerOrganizations(r api, h Routes) {
 		auth:        true,
 	})
 	r.Post("/orgs/{org}/transfer-ownership", h.TransferOrgOwnership, apiOp{
-		summary:     "Transfer organization ownership",
-		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần nhập lại mật khẩu.",
-		tags:        []string{"organizations"},
-		sdi:         sdi.TransferOwnershipSDI{},
-		sdo:         sdo.OrgMemberSDO{},
-		auth:        true,
+		summary: "Transfer organization ownership",
+		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần nhập lại mật khẩu: " +
+			"403 password_incorrect khi sai (không phải 401, để client không làm mới phiên rồi gửi lại), 403 password_required khi tài khoản chưa có mật khẩu.",
+		tags: []string{"organizations"},
+		sdi:  sdi.TransferOwnershipSDI{},
+		sdo:  sdo.OrgMemberSDO{},
+		auth: true,
 	})
 	// The Office app capability route (X-03): the features enabled for one
 	// organization, evaluated with the same override resolution as
@@ -122,18 +123,20 @@ func registerOrganizations(r api, h Routes) {
 	})
 	r.Get("/orgs/{org}/invitations", h.ListOrgInvitations, apiOp{
 		summary:     "List pending organization invitations",
-		description: "Lời mời cấp tổ chức chưa được chấp nhận và chưa thu hồi.",
+		description: "Lời mời cấp tổ chức chưa được chấp nhận và chưa thu hồi, kèm các workspace mỗi lời mời cấp.",
 		tags:        []string{"organizations"},
 		sdo:         sdo.OrgInvitationListSDO{},
 		auth:        true,
 	})
 	r.Post("/orgs/{org}/invitations", h.InviteToOrganization, apiOp{
-		summary:     "Invite people to the organization",
-		description: "Mời vào tổ chức, không cần workspace. Địa chỉ đã là thành viên bị bỏ qua; địa chỉ đã có lời mời giữ nguyên token cũ.",
-		tags:        []string{"organizations"},
-		sdi:         sdi.OrgInviteSDI{},
-		sdo:         sdo.OrgInvitationListSDO{},
-		auth:        true,
+		summary: "Invite people to the organization",
+		description: "Mời vào tổ chức, kèm 0..n workspace của tổ chức (workspace_ids) người được mời sẽ vào với vai trò member khi chấp nhận. " +
+			"Workspace ngoài tổ chức trả 400 workspace_not_in_organization. Địa chỉ đã là thành viên bị bỏ qua; địa chỉ đã có lời mời " +
+			"giữ nguyên token cũ và nhận lựa chọn workspace mới nhất.",
+		tags: []string{"organizations"},
+		sdi:  sdi.OrgInviteSDI{},
+		sdo:  sdo.OrgInvitationListSDO{},
+		auth: true,
 	})
 	r.Delete("/orgs/{org}/invitations/{invitationId}", h.RevokeOrgInvitation, apiOp{
 		summary:     "Revoke an organization invitation",

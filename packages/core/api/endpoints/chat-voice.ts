@@ -32,10 +32,11 @@ export async function signalChatVoiceInvite(
   workspaceId: string,
   roomId: string,
   callId: string,
+  video = false,
 ): Promise<boolean> {
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/voice/invite`,
-    { method: "POST", body: { call_id: callId } },
+    { method: "POST", body: video ? { call_id: callId, video: true } : { call_id: callId } },
   );
   const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
     endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/voice/invite",

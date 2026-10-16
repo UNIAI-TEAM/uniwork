@@ -1,20 +1,18 @@
 "use client";
 import { ArrowLeft, ArrowRightLeft, CircleAlert, Info } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@uniwork/core/auth";
+import type { PasswordRefusal } from "@uniwork/core/organizations/errors";
 import type { InvitationPreview, MembershipConflict, SwitchResolution } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { BusyNotice, ChangedNotice } from "./invite-notices";
+import { ChangedNotice, RetryNotice, type RetryReason } from "./invite-notices";
 import { LaterLink } from "./invite-screens";
 import { ResolveBlock } from "./resolve-block";
 import { EMPTY_DRAFT, draftReady, toResolution, type SwitchDraft } from "./switch-draft";
 import { ConfirmStepBody, ConflictStepBody, StepHeading, SwitchProgress, conflictHeading } from "./switch-steps";
-
-/** Why the server refused the owner's password; the wizard sends them back to it. */
-export type PasswordRefusal = "invalid_credentials" | "password_required";
 
 /**
  * Joining another organization from its invitation (spec 2026-10-13 §6.1):
@@ -30,7 +28,7 @@ export function SwitchWizard({
   startAt = 1,
   notice = false,
   pending,
-  busy,
+  retry,
   onSubmit,
 }: {
   invitation: InvitationPreview["invitation"];
@@ -39,8 +37,8 @@ export function SwitchWizard({
   /** The conflicts were refreshed by a refusal: tell the person to look again. */
   notice?: boolean;
   pending: boolean;
-  /** The last attempt met another change to this account; nothing changed. */
-  busy: boolean;
+  /** Why the last attempt changed nothing and can be sent again; null when there was none. */
+  retry: RetryReason | null;
   /** Sends the switch; `onPasswordRefused` runs when the server refuses the owner's password. */
   onSubmit: (resolve: SwitchResolution[], onPasswordRefused: (why: PasswordRefusal) => void) => void;
 }) {
@@ -56,14 +54,26 @@ export function SwitchWizard({
   // asking for a password that does not exist.
   const passwordless = refusedPasswordless || user?.has_password === false;
   const heading = useRef<HTMLHeadingElement>(null);
+  const form = useRef<HTMLFormElement>(null);
   // The step whose heading last had its chance at focus. 0 on a mount that
   // answers an action (a refreshed conflict list), so that heading takes it;
   // a first visit reads from the top instead.
   const focused = useRef(notice ? 0 : startAt);
+  // Set by a password refusal: focus goes to the refused field instead.
+  const focusInvalid = useRef(false);
+  // Why the person was sent back, for a screen reader: said politely after
+  // the heading that took focus. Empty when focus itself says it (the
+  // refused password field carries its own error).
+  const [announcement, setAnnouncement] = useState("");
 
-  // Focus follows the step, so a screen reader hears where it landed.
+  // Focus follows the step, so a screen reader hears where it landed: the
+  // step heading, or the field the server refused, whose description says why.
   useEffect(() => {
-    if (focused.current !== step) heading.current?.focus();
+    if (focused.current !== step) {
+      const refused = focusInvalid.current ? form.current?.querySelector<HTMLElement>('[aria-invalid="true"]') : null;
+      (refused ?? heading.current)?.focus();
+    }
+    focusInvalid.current = false;
     focused.current = step;
   }, [step]);
 
@@ -89,18 +99,38 @@ export function SwitchWizard({
       setDrafts((prev) =>
         Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, password: "" }])),
       );
-      // password_required: the account has no password at all, so asking
-      // for it again would only send the same refusal back.
-      if (why === "password_required") setRefusedPasswordless(true);
-      else setPasswordError(t("invitations.switch.wrong_password"));
+      // "missing": the account has no password at all, so asking for it
+      // again would only send the same refusal back.
+      if (why === "missing") {
+        setRefusedPasswordless(true);
+        setAnnouncement(t("invitations.switch.no_password_reason"));
+      } else {
+        setPasswordError(t("org.transfer.wrong_password"));
+        focusInvalid.current = true;
+      }
       setStep(2);
     });
+  };
+
+  // Each step is a form, so Enter in a field submits it (and a password
+  // manager recognises the password step); the same checks as the button
+  // apply, and an incomplete step stays put rather than reloading the page.
+  const advance = (event: FormEvent) => {
+    event.preventDefault();
+    if (step === 1) setStep(2);
+    else if (step === 2) {
+      if (ready) setStep(3);
+    } else submit();
   };
 
   return (
     <div className="flex flex-col gap-6">
       {/* Back sits with the progress it moves along, as on onboarding; it is
-          gone while the switch is being sent, which cannot be called off. */}
+          gone while the switch is being sent, which cannot be called off.
+          It stays before the step in the DOM, as it is above it on screen:
+          Shift+Tab from the focused heading reaches it, and the reading
+          order matches the layout (moving it after the step would make
+          forward Tab reach it at the cost of a visual/DOM mismatch). */}
       <div className="flex items-start gap-2">
         {step > 1 && !pending ? (
           <Button
@@ -118,15 +148,25 @@ export function SwitchWizard({
       </div>
       {notice ? <ChangedNotice /> : null}
 
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+
       {/* Keyed by step so each step fades in (opacity only: a transform on
           this column would flicker the scrollbar, see base.css). */}
-      <section key={step} className="flex flex-col gap-4 motion-safe:animate-onboarding-enter">
+      <form
+        key={step}
+        ref={form}
+        noValidate
+        onSubmit={advance}
+        className="flex flex-col gap-4 motion-safe:animate-onboarding-enter"
+      >
         {step === 1 ? (
           <>
             <StepHeading ref={heading}>{conflictHeading(t, conflicts)}</StepHeading>
             <ConflictStepBody invitation={invitation} conflicts={conflicts} />
             <StepActions>
-              <Button type="button" size="lg" className="w-full" onClick={() => setStep(2)}>
+              <Button type="submit" size="lg" className="w-full">
                 {t("common.continue")}
               </Button>
             </StepActions>
@@ -150,14 +190,11 @@ export function SwitchWizard({
               {/* aria-disabled, not disabled: the button stays in the tab
                   order and its description says what is missing. */}
               <Button
-                type="button"
+                type="submit"
                 size="lg"
                 className="w-full"
                 aria-disabled={!ready || undefined}
                 aria-describedby={ready ? undefined : "switch-resolve-reason"}
-                onClick={() => {
-                  if (ready) setStep(3);
-                }}
               >
                 {t("common.continue")}
               </Button>
@@ -170,10 +207,10 @@ export function SwitchWizard({
           <>
             <StepHeading ref={heading}>{t("invitations.switch.confirm_heading")}</StepHeading>
             <ConfirmStepBody invitation={invitation} conflicts={conflicts} drafts={drafts} />
-            {busy ? <BusyNotice /> : null}
+            {retry ? <RetryNotice why={retry} /> : null}
             <StepActions sending={pending}>
               <Button
-                type="button"
+                type="submit"
                 size="lg"
                 variant={closes ? "destructiveSolid" : "default"}
                 // The label carries the organization's name, which can be
@@ -184,7 +221,6 @@ export function SwitchWizard({
                 )}
                 aria-disabled={pending || undefined}
                 aria-busy={pending || undefined}
-                onClick={submit}
               >
                 {/* Decorative: the name stays "Chuyển sang …" while it works.
                     Inline with the words, so a wrapped label keeps its glyph
@@ -201,7 +237,7 @@ export function SwitchWizard({
             </StepActions>
           </>
         ) : null}
-      </section>
+      </form>
     </div>
   );
 }

@@ -92,6 +92,8 @@ func mcpDirectCall(t *testing.T, h http.Handler, body string) map[string]any {
 type mcpToolCounts struct {
 	mu    sync.Mutex
 	calls []string
+	// kinds is calls with the kind label in the middle: tool/kind/outcome.
+	kinds []string
 }
 
 func (m *mcpToolCounts) count() int {
@@ -107,10 +109,11 @@ func (m *mcpToolCounts) joined() string {
 }
 
 func (m *mcpToolCounts) IncOAuth(string) {}
-func (m *mcpToolCounts) ObserveTool(tool, outcome string, _ time.Duration) {
+func (m *mcpToolCounts) ObserveTool(tool, kind, outcome string, _ time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls = append(m.calls, tool+"/"+outcome)
+	m.kinds = append(m.kinds, tool+"/"+kind+"/"+outcome)
 }
 
 // The principal the gate put on the context is the actor the tool runs as, and
@@ -129,7 +132,7 @@ func TestMcpHandlerRunsToolsAsThePrincipalAndLogsFailuresWithoutArguments(t *tes
 	}}
 	var logs bytes.Buffer
 	counts := &mcpToolCounts{}
-	h := mcpServeAs(newMcpHandler(registry, counts, slog.New(slog.NewTextHandler(&logs, nil))),
+	h := mcpServeAs(newMcpHandler(registry, counts, nil, slog.New(slog.NewTextHandler(&logs, nil))),
 		service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1", ClientID: "c1"})
 
 	out := mcpDirectCall(t, h, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"boom","arguments":{"secret":"hunter2"}}}`)
@@ -172,7 +175,7 @@ func TestMcpHandlerDoesNotLogWhatTheModelCanFix(t *testing.T) {
 	}
 	var logs bytes.Buffer
 	counts := &mcpToolCounts{}
-	h := mcpServeAs(newMcpHandler(registry, counts, slog.New(slog.NewTextHandler(&logs, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1"})
+	h := mcpServeAs(newMcpHandler(registry, counts, nil, slog.New(slog.NewTextHandler(&logs, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1"})
 	mcpDirectCall(t, h, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"bad","arguments":{}}}`)
 	mcpDirectCall(t, h, `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gone","arguments":{}}}`)
 	if logs.Len() != 0 {
@@ -193,7 +196,7 @@ func TestMcpHandlerWithoutAPrincipalRunsNothing(t *testing.T) {
 	}}}
 	var logs bytes.Buffer
 	counts := &mcpToolCounts{}
-	h := newMcpHandler(registry, counts, slog.New(slog.NewTextHandler(&logs, nil)))
+	h := newMcpHandler(registry, counts, nil, slog.New(slog.NewTextHandler(&logs, nil)))
 	for name, handler := range map[string]http.Handler{
 		"no principal":           h,
 		"principal without user": mcpServeAs(h, service.McpPrincipal{OrganizationID: "o1"}),
@@ -219,7 +222,7 @@ func TestMcpHandlerRefusesAToolWithABrokenSchema(t *testing.T) {
 			t.Fatalf("recover = %v, want a panic naming the tool", r)
 		}
 	}()
-	newMcpHandler(ai.Registry{{Name: "broken", Schema: json.RawMessage(`{`)}}, &mcpToolCounts{}, nil)
+	newMcpHandler(ai.Registry{{Name: "broken", Schema: json.RawMessage(`{`)}}, &mcpToolCounts{}, nil, nil)
 }
 
 // The SDK runs a tool on a goroutine of its own, outside the HTTP middleware
@@ -232,7 +235,7 @@ func TestMcpHandlerSurvivesAPanickingTool(t *testing.T) {
 	}}}
 	var logs bytes.Buffer
 	counts := &mcpToolCounts{}
-	h := mcpServeAs(newMcpHandler(registry, counts, slog.New(slog.NewTextHandler(&logs, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1"})
+	h := mcpServeAs(newMcpHandler(registry, counts, nil, slog.New(slog.NewTextHandler(&logs, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1"})
 	out := mcpDirectCall(t, h, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"panics","arguments":{"secret":"hunter2"}}}`)
 	result, _ := out["result"].(map[string]any)
 	if result["isError"] != true || resultText(result) != "temporarily unavailable" {

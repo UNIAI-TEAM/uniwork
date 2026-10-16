@@ -219,9 +219,62 @@ func TestPresenceBeatReturnsTheOnlineSnapshot(t *testing.T) {
 	})
 }
 
-// A tab that closes says so; a tab that crashes, loses the network or sleeps
-// stops beating, and the sweep publishes the offline frame once its entry
-// expires. Whichever happens, it happens once.
+// Presence is per person, not per tab: closing or reloading one of two tabs
+// must not flash the person offline to the whole workspace. The tab still
+// open beats within presenceLeaveGrace and keeps them online without a frame.
+func TestPresenceLeaveWithAnotherTabOpenStaysOnline(t *testing.T) {
+	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, pub *presenceRecorder, clock *presenceClock) {
+		ctx := context.Background()
+		if _, err := tr.beat(ctx, "WS1", "U1"); err != nil {
+			t.Fatal(err)
+		}
+		pub.take()
+
+		if err := tr.leave(ctx, "WS1", "U1"); err != nil {
+			t.Fatal(err)
+		}
+		wantFrames(t, pub.take())
+
+		clock.advance(10 * time.Second)
+		online, err := tr.beat(ctx, "WS1", "U1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(online, []string{"U1"}) {
+			t.Fatalf("snapshot = %v, want [U1]", online)
+		}
+		wantFrames(t, pub.take())
+
+		clock.advance(presenceLeaveGrace)
+		tr.sweep(ctx)
+		wantFrames(t, pub.take())
+	})
+}
+
+// A leave from someone who never beat (or whose entry was already swept)
+// creates no entry, so it never announces them online or offline.
+func TestPresenceLeaveWithoutBeatCreatesNoEntry(t *testing.T) {
+	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, pub *presenceRecorder, clock *presenceClock) {
+		ctx := context.Background()
+		if err := tr.leave(ctx, "WS1", "U1"); err != nil {
+			t.Fatal(err)
+		}
+		online, err := tr.store.online(ctx, "WS1", clock.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(online) != 0 {
+			t.Fatalf("online after a bare leave = %v, want none", online)
+		}
+		clock.advance(presenceLeaveGrace + time.Second)
+		tr.sweep(ctx)
+		wantFrames(t, pub.take())
+	})
+}
+
+// A tab that closes shortens its person's entry to presenceLeaveGrace; a tab
+// that crashes, loses the network or sleeps stops beating and waits out the
+// TTL. Either way the sweep publishes the offline frame once.
 func TestPresenceExpiryAndLeavePublishOffline(t *testing.T) {
 	eachPresenceStore(t, func(t *testing.T, tr *presenceTracker, pub *presenceRecorder, clock *presenceClock) {
 		ctx := context.Background()
@@ -238,10 +291,15 @@ func TestPresenceExpiryAndLeavePublishOffline(t *testing.T) {
 		if err := tr.leave(ctx, "WS1", "U3"); err != nil {
 			t.Fatal(err)
 		}
+		wantFrames(t, pub.take())
+
+		clock.advance(presenceLeaveGrace)
+		tr.sweep(ctx)
+		tr.sweep(ctx)
 		wantFrames(t, pub.take(), offlineFrame("WS1", "U3"))
 
 		// U2 keeps beating, U1 stops. Nothing expires before the TTL.
-		clock.advance(presenceTTL - time.Second)
+		clock.advance(presenceTTL - presenceLeaveGrace - time.Second)
 		if _, err := tr.beat(ctx, "WS1", "U2"); err != nil {
 			t.Fatal(err)
 		}
@@ -349,8 +407,8 @@ func (failingPresenceStore) beat(context.Context, string, string, time.Time) (bo
 	return false, errPresenceDown
 }
 
-func (failingPresenceStore) leave(context.Context, string, string, time.Time) (bool, error) {
-	return false, errPresenceDown
+func (failingPresenceStore) leave(context.Context, string, string, time.Time) error {
+	return errPresenceDown
 }
 
 func (failingPresenceStore) online(context.Context, string, time.Time) ([]string, error) {
@@ -362,7 +420,8 @@ func (failingPresenceStore) expire(context.Context, time.Time) ([]presenceEntry,
 }
 
 // Through the service: only a workspace member may beat, the beat answers
-// with the members online, and the leave publishes once.
+// with the members online, and the leave publishes nothing: the sweep
+// announces the offline once the leave grace runs out.
 func TestSignalPresenceRequiresMembershipAndReturnsSnapshot(t *testing.T) {
 	s, _, q, ua, ub, w, _ := chatFixtureWithPool(t)
 	ctx := context.Background()
@@ -399,5 +458,5 @@ func TestSignalPresenceRequiresMembershipAndReturnsSnapshot(t *testing.T) {
 	if err != nil || gone != nil {
 		t.Fatalf("leave = %v, %v; want nil snapshot", gone, err)
 	}
-	wantFrames(t, pub.take(), onlineFrame(w.ID, ua.ID), onlineFrame(w.ID, ub.ID), offlineFrame(w.ID, ub.ID))
+	wantFrames(t, pub.take(), onlineFrame(w.ID, ua.ID), onlineFrame(w.ID, ub.ID))
 }

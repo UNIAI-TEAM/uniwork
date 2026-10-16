@@ -24,7 +24,7 @@ func acceptDMVoiceCall(
 ) {
 	t.Helper()
 	ctx := context.Background()
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, roomID, callID); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, roomID, callID, false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, roomID, callID); err != nil {
@@ -84,6 +84,44 @@ func TestChatVoiceRecordingLifecycle(t *testing.T) {
 	playback, err := s.GetVoiceRecordingForPlayback(ctx, ua.ID, w.ID, dm.ID, rec.ID)
 	if err != nil || playback.FileUrl.String != "https://bucket/chat-voice.mp4" {
 		t.Fatalf("playback: %+v err=%v", playback, err)
+	}
+}
+
+// A DM's recordings are stored under the room's anchor workspace; the peer
+// opening the DM from another workspace of the organization still sees and
+// plays them (UNI-1660).
+func TestVoiceRecordingsListedFromPeerWorkspace(t *testing.T) {
+	s, _, q, ua, ub, w := chatVoiceRecordingFixture(t)
+	ctx := context.Background()
+	w2View, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Rec WS 2", "rec-ws-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addWorkspaceMember(t, q, w2View.Workspace.ID, ub.ID)
+	w2 := w2View.Workspace.ID
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	callID := "rec-call-peer-ws"
+	acceptDMVoiceCall(t, s, ua, ub, w, dm.ID, callID)
+	rec, err := s.StartVoiceRecording(ctx, ua.ID, w.ID, dm.ID, callID)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	s.FinishVoiceRecordingByEgress(ctx, ProviderNeutralEvent{
+		Type:         "conference.recording_ended",
+		RecordingID:  rec.EgressID,
+		RecordingURL: "https://bucket/chat-voice-peer.mp4",
+	})
+
+	list, err := s.ListVoiceRecordings(ctx, ub.ID, w2, dm.ID, 10)
+	if err != nil || len(list) != 1 || list[0].ID != rec.ID {
+		t.Fatalf("list from ws2: %+v err=%v", list, err)
+	}
+	if _, err := s.GetVoiceRecordingForPlayback(ctx, ub.ID, w2, dm.ID, rec.ID); err != nil {
+		t.Fatalf("playback from ws2: %v", err)
 	}
 }
 
@@ -158,7 +196,7 @@ func TestChatVoiceRecordingGuards(t *testing.T) {
 
 	fp := &meetings.FakeProvider{RecordingEnabled: true}
 	s.SetConference(fp)
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, callID); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, callID, false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if _, err := s.StartVoiceRecording(ctx, ua.ID, w.ID, dm.ID, callID); !errors.As(err, &ce) || ce.Code != "call_not_connected" {
@@ -166,6 +204,20 @@ func TestChatVoiceRecordingGuards(t *testing.T) {
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, callID); err != nil {
 		t.Fatalf("accept: %v", err)
+	}
+	if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+		RoomID: dm.ID, UserID: ua.ID, SendRestricted: true,
+	}); err != nil {
+		t.Fatalf("mute: %v", err)
+	}
+	var ve ValidationError
+	if _, err := s.StartVoiceRecording(ctx, ua.ID, w.ID, dm.ID, callID); !errors.As(err, &ve) {
+		t.Fatalf("muted member started a recording: %v", err)
+	}
+	if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+		RoomID: dm.ID, UserID: ua.ID, SendRestricted: false,
+	}); err != nil {
+		t.Fatalf("unmute: %v", err)
 	}
 	if _, err := s.StartVoiceRecording(ctx, ua.ID, w.ID, dm.ID, callID); err != nil {
 		t.Fatalf("start: %v", err)
