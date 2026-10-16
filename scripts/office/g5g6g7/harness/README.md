@@ -559,7 +559,9 @@ The driver opens the document on both hosts (the member's desktop session route
 and a frame token the member mints) and runs AI turn 1. Then it revokes and runs
 AI turn 2, a Save attempt and a commit-intent lookup. What each case does, and
 what the server really answers — read from the Go code, never assumed, and
-asserted per route (the two hosts do not always answer the same code):
+asserted per route (the two hosts do not always answer the same code). Both
+turns are asserted: turn 1 must be `200` on both routes (below), and the table
+is what the revoke makes turn 2 answer:
 
 | `--case` | revoke step | AI turn 2 | the member's Save | version |
 | --- | --- | --- | --- | --- |
@@ -583,6 +585,21 @@ resolver swallows it into a generic 401 `unauthorized` `error_class=session` —
 the 401 is not frame-token auth (the token is stateless and still verifies) and
 not a session revocation; it is that resolver's default branch.
 
+Turn 1 is a precondition, not a warm-up (cloud D2, D2-02): the row may PASS only
+when **both** routes answered `200` to turn 1, because the revoke is only shown
+against a turn that really worked. A deployment whose UniWork AI capability is
+off refuses turn 1 with `403 office_capability_off` and names the flag in
+`error.fields.capability` (`ai_uniwork`, or the format, e.g. `ai_uniwork_xlsx`;
+`service/ai_uniwork.go:498-514`): that row is **BLOCKED** (exit 77) with that
+capability named in the blocker — never a PASS, whatever turn 2 answers —
+because no turn ever worked and nothing about the revoke can be concluded. A
+turn 1 that answered anything else but `200` (and is not the fake deployment's
+`503 ai_disabled`) is a **FAIL** naming both routes' status and code. A
+capability that turns off **between** the two turns (turn 1 `200` on both, turn 2
+`office_capability_off`) is a **FAIL** named as that capability flip, not as a
+revoke result (D2-03). The revoke assertions still run in every one of these
+rows, and a broken revoke assertion wins over the BLOCKED.
+
 The commit-intent lookup is read with the owner's token — the revoke never
 refuses that read — and the intent the route answers for is the CALLER's own
 (`service/document_commit_intent.go:380-384`, enforced at `:429`): the owner's
@@ -593,8 +610,10 @@ the revoke in the first place. The rule that a committed intent FAILs the row is
 pinned by the unit test (the fake's committed-answer mutation), and the artifact
 records both the read and the reason with its file:line. A 200 on the next turn
 where a case expects a refusal, any new version, or a committed commit intent is
-a **FAIL**, never a PASS. Under `AI_PROVIDER=fake` the turn-1 content claim
-cannot be proven: that step is **BLOCKED** (`no real upstream on this runner;
+a **FAIL**, never a PASS — and so is a turn 1 that never answered `200` on both
+routes, since then the revoke was never shown. Under `AI_PROVIDER=fake` the
+turn-1 content claim cannot be proven: that step is **BLOCKED** (`no real
+upstream on this runner;
 contract-p0 §8`, owner `g7-qa`, exit 77) while the revoke assertion still runs,
 and a broken revoke assertion wins over the BLOCKED.
 

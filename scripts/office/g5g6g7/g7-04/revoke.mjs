@@ -47,6 +47,15 @@
 //   * A 200 on the next AI turn after the revoke, a new version or a committed
 //     commit intent is a FAIL, never a PASS. Each route is compared exactly; the
 //     assertion is never widened to "any 4xx".
+//   * A row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02,
+//     cloud D2): the revoke can only be shown after a turn that really worked.
+//     A turn 1 refused 403 `office_capability_off` is BLOCKED (exit 77) with
+//     the capability named — the deployment has that flag off, so no turn ever
+//     worked and the row can never PASS, whatever turn 2 answers. A turn 1
+//     answering anything else but 200 (and not the 503 `ai_disabled` of a fake
+//     deployment) is a FAIL naming both routes. A capability that turns off
+//     between the two turns (turn 1 200, turn 2 `office_capability_off`) is a
+//     FAIL named as that flip, not as a revoke result (D2-03).
 //   * Under `AI_PROVIDER=fake` the turn-1 CONTENT claim is BLOCKED
 //     (exit 77, `no real upstream on this runner; contract-p0 §8`), but the
 //     revoke assertion still runs and its verdict wins over the BLOCKED.
@@ -157,6 +166,27 @@ export const AI_DISABLED_BLOCKER = "no real upstream on this runner; contract-p0
 export const AI_DISABLED_OWNER = "g7-qa";
 export const REVOKE_OWNER = "g7-qa";
 
+/** The 403 a flag hides a UniWork capability with (service/ai_uniwork.go:498-514). */
+export const CAPABILITY_OFF_CODE = "office_capability_off";
+export const CAPABILITY_OFF_OWNER = "g7-qa";
+
+/**
+ * The named blocker of a deployment whose UniWork AI capability is off (D2-02):
+ * turn 1 refused 403 `office_capability_off` with `fields.capability` naming the
+ * format (e.g. `ai_uniwork_xlsx`), so no turn ever worked on this deployment and
+ * the revoke cannot be shown — BLOCKED, never PASS.
+ */
+export function capabilityOffBlocker(capability) {
+  return `UniWork AI capability ${capability || "ai_uniwork"} is off on this deployment: turn 1 refused, the revoke cannot be shown`;
+}
+
+/**
+ * Why turn 1 must answer 200 on both routes before the row can PASS (D2-02): the
+ * revoke assertion reads turn 2 against a turn 1 that worked, so a deployment
+ * that refuses turn 1 proves nothing about the revoke.
+ */
+export const TURN_1_PRECONDITION_REASON = "the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)";
+
 const AI_TURN_2_PROMPT = "Tiếp tục sau khi quyền bị thu hồi.";
 const AI_TURN_1_PROMPT = "Mở đầu bản nháp cho tài liệu này.";
 
@@ -206,6 +236,12 @@ export function errorClassOf(res) {
   return typeof errorClass === "string" ? errorClass : "";
 }
 
+/** The machine-readable detail a refused answer carries (`error.fields`), or {}. */
+export function errorFieldsOf(res) {
+  const fields = res?.body?.error?.fields ?? res?.data?.error?.fields;
+  return fields && typeof fields === "object" ? fields : {};
+}
+
 function safe(text) {
   return redactSignInError(String(text ?? ""));
 }
@@ -229,10 +265,22 @@ export function answerMismatch(label, want, got) {
 }
 
 /**
+ * Why turn 1 is not the 200 both routes must answer (D2-02), "" when it is. One
+ * helper, used by the step record and by the verdict, so the two can never drift.
+ */
+export function turn1MissesOf(aiTurn1) {
+  return [
+    answerMismatch("the session route", { status: 200 }, aiTurn1?.session),
+    answerMismatch("the frame route", { status: 200 }, aiTurn1?.frame),
+  ].filter(Boolean);
+}
+
+/**
  * The pure verdict of one case. Hard rules first: a new version, a committed
  * intent or a per-route AI/Save answer that is not the code's is a FAIL. Only
- * when every revoke assertion passed may a 503 `ai_disabled` on turn 1 (fake
- * deployment) downgrade the result to BLOCKED.
+ * when every revoke assertion passed may a turn 1 that refused the whole turn
+ * downgrade the result to BLOCKED — 403 `office_capability_off` (D2-02) with
+ * the capability named, or a fake deployment's 503 `ai_disabled`.
  */
 export function decideRevokeOutcome({
   caseName,
@@ -252,23 +300,18 @@ export function decideRevokeOutcome({
   // caller cannot forget to pass the flag.
   const turn1Disabled =
     aiDisabled ?? (aiTurn1?.session?.status === 503 && aiTurn1?.session?.code === "ai_disabled");
+  // D2-02: a turn 1 the deployment refused because the capability is off proves
+  // no revoke. Read from either route; the capability comes from the response's
+  // own fields (service/ai_uniwork.go:498-514), never assumed.
+  const turn1CapabilityOff =
+    (aiTurn1?.session?.status === 403 && aiTurn1?.session?.code === CAPABILITY_OFF_CODE) ||
+    (aiTurn1?.frame?.status === 403 && aiTurn1?.frame?.code === CAPABILITY_OFF_CODE);
+  const turn1Capability = aiTurn1?.session?.capability || aiTurn1?.frame?.capability || "ai_uniwork";
   if (versionsAfterRevoke !== versionsBefore) {
     return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `G7-A02 violation: version count changed across the revoke (${versionsBefore} -> ${versionsAfterRevoke})` };
   }
   if (commitIntent?.hasCommitted) {
     return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `G7-A02 violation: a commit intent is committed after the revoke (${commitIntent.outcome})` };
-  }
-  const turn2Misses = [
-    answerMismatch("the session route", x.aiTurn2.session, aiTurn2?.session),
-    answerMismatch("the frame route", x.aiTurn2.frame, aiTurn2?.frame),
-  ].filter(Boolean);
-  if (turn2Misses.length) {
-    return {
-      status: "FAIL",
-      exitCode: 1,
-      owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: AI turn 2 after the ${caseName} revoke: ${turn2Misses.join("; ")}`,
-    };
   }
   const saveMisses = [
     answerMismatch("the upload", x.saveUpload, save?.upload),
@@ -285,8 +328,50 @@ export function decideRevokeOutcome({
   if (revoke?.status !== x.revoke) {
     return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `the ${caseName} revoke answered ${revoke?.status ?? "nothing"}, want ${x.revoke}` };
   }
+  // D2-02: the capability off at turn 1 blocks the row whatever turn 2 says —
+  // but only after every revoke assertion held, so a real defect still FAILs.
+  if (turn1CapabilityOff) {
+    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: CAPABILITY_OFF_OWNER, blocker: capabilityOffBlocker(turn1Capability), reason: `${capabilityOffBlocker(turn1Capability)}; the revoke assertion ran (versions ${versionsBefore} -> ${versionsAfterRevoke}, AI turn 2 session ${answerOf(aiTurn2?.session)} frame ${answerOf(aiTurn2?.frame)}, Save refused ${answerOf(save?.commit)})` };
+  }
   if (turn1Disabled) {
     return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: AI_DISABLED_OWNER, blocker: AI_DISABLED_BLOCKER, reason: `${AI_DISABLED_BLOCKER}; the revoke assertion ran (versions ${versionsBefore} -> ${versionsAfterRevoke}, AI turn 2 session ${answerOf(x.aiTurn2.session)} frame ${answerOf(x.aiTurn2.frame)}, Save refused ${answerOf(x.saveCommit)})` };
+  }
+  // D2-02: the row may PASS only after a turn 1 that answered 200 on both
+  // routes; anything else but the fake deployment's 503 is a FAIL naming both.
+  const turn1Misses = turn1MissesOf(aiTurn1);
+  if (turn1Misses.length) {
+    return {
+      status: "FAIL",
+      exitCode: 1,
+      owner: REVOKE_OWNER,
+      reason: `G7-A02 violation: AI turn 1 did not answer 200 on both routes, so the revoke can never be shown: ${turn1Misses.join("; ")}`,
+    };
+  }
+  // D2-03: turn 1 worked and the capability turned off before turn 2 — a
+  // deployment change, not the revoke, so it is named as that flip.
+  const turn2CapabilityOff =
+    (aiTurn2?.session?.status === 403 && aiTurn2?.session?.code === CAPABILITY_OFF_CODE) ||
+    (aiTurn2?.frame?.status === 403 && aiTurn2?.frame?.code === CAPABILITY_OFF_CODE);
+  if (turn2CapabilityOff) {
+    const flipped = aiTurn2?.session?.capability || aiTurn2?.frame?.capability || "ai_uniwork";
+    return {
+      status: "FAIL",
+      exitCode: 1,
+      owner: REVOKE_OWNER,
+      reason: `G7-A02 violation: the capability ${flipped} turned off between turn 1 and turn 2 (turn 1 answered 200 on both routes): a capability flip, not a revoke result`,
+    };
+  }
+  const turn2Misses = [
+    answerMismatch("the session route", x.aiTurn2.session, aiTurn2?.session),
+    answerMismatch("the frame route", x.aiTurn2.frame, aiTurn2?.frame),
+  ].filter(Boolean);
+  if (turn2Misses.length) {
+    return {
+      status: "FAIL",
+      exitCode: 1,
+      owner: REVOKE_OWNER,
+      reason: `G7-A02 violation: AI turn 2 after the ${caseName} revoke: ${turn2Misses.join("; ")}`,
+    };
   }
   return { status: "PASS", exitCode: 0, reason: `${caseName}: revoke refused the next AI turn (session ${answerOf(x.aiTurn2.session)}, frame ${answerOf(x.aiTurn2.frame)}), the Save (upload ${answerOf(x.saveUpload)}, commit ${answerOf(x.saveCommit)}) and left versions at ${versionsAfterRevoke}` };
 }
@@ -420,9 +505,15 @@ async function aiTurnOnBothRoutes({ apiOrigin, fetchImpl, world, frameToken, pro
     body: { messages: [{ role: "user", content: prompt }] }, allowStatuses: allowed,
   });
   return {
-    session: { status: session.status, code: errorCodeOf(session), errorClass: errorClassOf(session), raw: { ok: session.ok, status: session.status, data: session.body } },
-    frame: { status: frame.status, code: errorCodeOf(frame), errorClass: errorClassOf(frame), raw: { ok: frame.ok, status: frame.status, data: frame.body } },
+    session: { status: session.status, code: errorCodeOf(session), errorClass: errorClassOf(session), capability: capabilityOf(session), raw: { ok: session.ok, status: session.status, data: session.body } },
+    frame: { status: frame.status, code: errorCodeOf(frame), errorClass: errorClassOf(frame), capability: capabilityOf(frame), raw: { ok: frame.ok, status: frame.status, data: frame.body } },
   };
+}
+
+/** The capability a refused turn names (`error.fields.capability`), or "". */
+function capabilityOf(res) {
+  const capability = errorFieldsOf(res).capability;
+  return typeof capability === "string" ? capability : "";
 }
 
 /** The member's Save attempt: stage the bytes, then commit on the head revision. */
@@ -528,7 +619,27 @@ export async function runRevokeCase({
       allowRealUpstream: Boolean(fetchImpl?.allowRealAiUpstream || process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1"),
     });
     const aiDisabled = aiTurn1.session.status === 503 && aiTurn1.session.code === "ai_disabled";
-    steps.aiTurn1 = { status: aiDisabled ? "BLOCKED" : aiSegment.status, session: { status: aiTurn1.session.status, code: aiTurn1.session.code }, frame: { status: aiTurn1.frame.status, code: aiTurn1.frame.code }, reason: aiDisabled ? AI_DISABLED_BLOCKER : aiSegment.reason ?? "" };
+    // D2-02: a capability-off turn 1 is the same kind of BLOCKED — the
+    // environment cannot show the revoke — and names the capability it read.
+    const turn1CapabilityOff = (aiTurn1.session.status === 403 && aiTurn1.session.code === CAPABILITY_OFF_CODE)
+      || (aiTurn1.frame.status === 403 && aiTurn1.frame.code === CAPABILITY_OFF_CODE);
+    const turn1Capability = aiTurn1.session.capability || aiTurn1.frame.capability || "ai_uniwork";
+    // A turn 1 that answered something other than 200 (and is not one of the two
+    // environment refusals) is the FAIL the verdict names, so the step says FAIL
+    // too — the artifact never reads BLOCKED where the row FAILed.
+    const turn1Misses = turn1MissesOf(aiTurn1);
+    steps.aiTurn1 = {
+      status: aiDisabled || turn1CapabilityOff ? "BLOCKED" : turn1Misses.length ? "FAIL" : aiSegment.status,
+      session: { status: aiTurn1.session.status, code: aiTurn1.session.code, capability: aiTurn1.session.capability },
+      frame: { status: aiTurn1.frame.status, code: aiTurn1.frame.code, capability: aiTurn1.frame.capability },
+      reason: aiDisabled
+        ? AI_DISABLED_BLOCKER
+        : turn1CapabilityOff
+          ? capabilityOffBlocker(turn1Capability)
+          : turn1Misses.length
+            ? turn1Misses.join("; ")
+            : aiSegment.reason ?? "",
+    };
 
     const revoke = await applyRevoke({ apiOrigin, fetchImpl, world, caseName });
     steps.revoke = { status: revoke.status === expectations.revoke ? "PASS" : "FAIL", route: revoke.via, httpStatus: revoke.status, code: revoke.code, shareLevel: revoke.shareLevel ?? "" };
@@ -568,16 +679,17 @@ export async function runRevokeCase({
       ...Object.entries(expectations.aiTurn2).map(([route, want]) => ({ route: `aiTurn2.${route}`, expect: answerOf(want), why: want.why ?? "" })),
       { route: "saveUpload", expect: answerOf(expectations.saveUpload), why: expectations.saveUpload.why ?? "" },
       { route: "saveCommit", expect: answerOf(expectations.saveCommit), why: expectations.saveCommit.why ?? "" },
+      { route: "aiTurn1", expect: "200 on both routes", why: TURN_1_PRECONDITION_REASON },
       { route: "commitIntent", expect: "never committed", why: COMMIT_INTENT_READ_REASON },
     ].filter((note) => note.why);
 
     const verdict = decideRevokeOutcome({
       caseName, expectations, versionsBefore: before.count, versionsAfterRevoke: after.count, aiTurn1, aiTurn2, revoke, save, commitIntent,
     });
-    const trim = (turn) => ({ session: { status: turn.session.status, code: turn.session.code, errorClass: turn.session.errorClass }, frame: { status: turn.frame.status, code: turn.frame.code, errorClass: turn.frame.errorClass } });
+    const trim = (turn) => ({ session: { status: turn.session.status, code: turn.session.code, errorClass: turn.session.errorClass, capability: turn.session.capability }, frame: { status: turn.frame.status, code: turn.frame.code, errorClass: turn.frame.errorClass, capability: turn.frame.capability } });
     const details = { aiTurn1: trim(aiTurn1), aiTurn2: trim(aiTurn2), save, revoke, commitIntent, routeNotes, prepared: { restricted: caseName === "downgrade", shareLevel: revoke.shareLevel ?? "" } };
     if (log) {
-      log(`case ${caseName} (${fixtureId}): versions before ${before.count} (read by ${before.by}), AI turn 1 session ${aiTurn1.session.status}/frame ${aiTurn1.frame.status}`);
+      log(`case ${caseName} (${fixtureId}): versions before ${before.count} (read by ${before.by}), AI turn 1 session ${answerOf(aiTurn1.session)}/frame ${answerOf(aiTurn1.frame)}`);
       log(`  revoke ${revoke.via} -> ${revoke.status}${revoke.code ? ` ${revoke.code}` : ""}`);
       log(`  AI turn 2 session ${answerOf(aiTurn2.session)}/frame ${answerOf(aiTurn2.frame)}; Save upload ${answerOf(save.upload)}/commit ${answerOf(save.commit)}`);
       log(`  versions after ${after.count} (read by ${after.by}); commit intent ${commitIntent.outcome} (http ${commitIntent.httpStatus}); verdict ${verdict.status}`);
