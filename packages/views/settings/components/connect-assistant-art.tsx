@@ -14,38 +14,40 @@ const ALT: Record<ArtKind, string> = {
 };
 
 /**
- * The assistants' own labels, as their apps show them (checked 2026-10). Not
- * translated: the user matches them against an English screen. They drift
- * with each redesign, so the steps' text and these drawings change together.
+ * ChatGPT's own labels, copied from chatgpt.com/plugins on 2026-10-16. Not
+ * translated: ChatGPT showed them in English for a Vietnamese account. Claude
+ * follows its user's language, so its labels live in the locale files
+ * (guide.uiClaude*). Both drift with each redesign: re-check the live pages
+ * and change the steps' text and these drawings together.
  */
-const UI = {
-  claudeHost: "claude.ai",
-  chatgptHost: "chatgpt.com",
-  customize: "Customize",
-  connectors: "Connectors",
-  plusAdd: "+ Add",
-  addCustom: "Add custom connector",
-  name: "Name",
-  url: "URL",
-  add: "Add",
+const GPT = {
+  host: "chatgpt.com",
   plugins: "Plugins",
-  plus: "+",
+  add: "Add ▾",
+  create: "Create plugin",
+  upload: "Upload plugin archive",
   addMcp: "Add custom MCP server",
+  name: "Name",
+  description: "Description (optional)",
   connection: "Connection",
+  serverUrl: "Server URL",
+  tunnel: "Tunnel",
   auth: "Authentication",
   oauth: "OAuth",
+  understand: "I understand and want to continue",
+  cancel: "Cancel",
   createPlugin: "Create as a plugin",
-  uniwork: "UniWork",
 } as const;
 
+const CLAUDE_HOST = "claude.ai";
+const UNIWORK = "UniWork";
 const W = 360;
-const H = 200;
 
-/** A browser window: the frame every scene is drawn in. */
-function Window({ host, children }: { host: string; children: ReactNode }) {
+/** A browser window of height `h`: the frame every scene is drawn in. */
+function Window({ host, h, children }: { host: string; h: number; children: ReactNode }) {
   return (
     <>
-      <rect x={6} y={6} width={W - 12} height={H - 12} rx={10} className="fill-background stroke-border" />
+      <rect x={6} y={6} width={W - 12} height={h - 12} rx={10} className="fill-background stroke-border" />
       <path d={`M6 30 H${W - 6}`} className="stroke-border" />
       {[18, 30, 42].map((cx) => (
         <circle key={cx} cx={cx} cy={18} r={3.5} className="fill-muted-foreground/40" />
@@ -69,25 +71,41 @@ const Ring = ({ x, y, w, h }: { x: number; y: number; w: number; h: number }) =>
   <rect x={x - 3} y={y - 3} width={w + 6} height={h + 6} rx={7} strokeWidth={2} className="fill-primary/10 stroke-primary" />
 );
 
-function Label({ x, y, children, strong = false }: { x: number; y: number; children: ReactNode; strong?: boolean }) {
+function Label({
+  x,
+  y,
+  children,
+  strong = false,
+  size = 10,
+  muted = false,
+}: {
+  x: number;
+  y: number;
+  children: ReactNode;
+  strong?: boolean;
+  size?: number;
+  muted?: boolean;
+}) {
   return (
-    <text x={x} y={y} fontSize={10} fontWeight={strong ? 600 : 400} className="fill-foreground">
+    <text x={x} y={y} fontSize={size} fontWeight={strong ? 600 : 400} className={muted ? "fill-muted-foreground" : "fill-foreground"}>
       {children}
     </text>
   );
 }
 
-function Field({ x, y, w, label, value, ring = false }: { x: number; y: number; w: number; label: string; value: string; ring?: boolean }) {
+function Field({ x, y, w, label, value, ring = false }: { x: number; y: number; w: number; label: string; value?: string; ring?: boolean }) {
   return (
     <>
-      <text x={x} y={y} fontSize={9} className="fill-muted-foreground">
+      <Label x={x} y={y} size={9} muted>
         {label}
-      </text>
+      </Label>
       {ring ? <Ring x={x} y={y + 5} w={w} h={18} /> : null}
       <rect x={x} y={y + 5} width={w} height={18} rx={4} className="fill-background stroke-border" />
-      <text x={x + 6} y={y + 17.5} fontSize={9.5} className="fill-foreground">
-        {value}
-      </text>
+      {value ? (
+        <Label x={x + 6} y={y + 17.5} size={9.5}>
+          {value}
+        </Label>
+      ) : null}
     </>
   );
 }
@@ -95,7 +113,7 @@ function Field({ x, y, w, label, value, ring = false }: { x: number; y: number; 
 function Pill({ x, y, w, children, primary = false }: { x: number; y: number; w: number; children: ReactNode; primary?: boolean }) {
   return (
     <>
-      <rect x={x} y={y} width={w} height={20} rx={6} className={primary ? "fill-primary" : "fill-background stroke-border"} />
+      <rect x={x} y={y} width={w} height={20} rx={10} className={primary ? "fill-primary" : "fill-background stroke-border"} />
       <text x={x + w / 2} y={y + 13.5} textAnchor="middle" fontSize={9.5} fontWeight={600} className={primary ? "fill-primary-foreground" : "fill-foreground"}>
         {children}
       </text>
@@ -103,106 +121,179 @@ function Pill({ x, y, w, children, primary = false }: { x: number; y: number; w:
   );
 }
 
-/** A small dialog over the dimmed app: where both assistants ask for the address. */
-function Sheet({ title, children }: { title: string; children: ReactNode }) {
+/** A dropdown under a button, its last item ringed. */
+function Menu({ x, y, w, items }: { x: number; y: number; w: number; items: string[] }) {
+  const last = items.length - 1;
   return (
     <>
-      <rect x={7} y={31} width={W - 14} height={H - 38} className="fill-muted/60" />
-      <rect x={70} y={40} width={220} height={148} rx={8} className="fill-background stroke-border" />
-      <Label x={82} y={58} strong>
-        {title}
+      <rect x={x} y={y} width={w} height={items.length * 20 + 8} rx={8} className="fill-background stroke-border" />
+      <Ring x={x + 5} y={y + 4 + last * 20} w={w - 10} h={18} />
+      {items.map((item, i) => (
+        <Label key={item} x={x + 12} y={y + 17 + i * 20} size={9.5}>
+          {item}
+        </Label>
+      ))}
+    </>
+  );
+}
+
+/** Claude's sidebar and Customize page, the Connectors tab chosen. */
+function ClaudeCustomize({ ringNav }: { ringNav: boolean }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.connectedApps.guide" });
+  return (
+    <>
+      <path d="M100 30 V194" className="stroke-border" />
+      <Bar x={18} y={44} w={56} />
+      <Bar x={18} y={58} w={44} />
+      {ringNav ? <Ring x={14} y={70} w={78} h={18} /> : null}
+      <rect x={14} y={70} width={78} height={18} rx={5} className="fill-muted" />
+      <Label x={20} y={82.5} strong>
+        {t("uiClaudeCustomize")}
       </Label>
-      {children}
+      <Bar x={18} y={100} w={50} />
+      <Label x={116} y={52} size={12} strong>
+        {t("uiClaudeCustomize")}
+      </Label>
+      <Label x={116} y={77} size={9} muted>
+        {"Skills"}
+      </Label>
+      {ringNav ? <Ring x={146} y={65} w={84} h={17} /> : null}
+      <rect x={146} y={65} width={84} height={17} rx={5} className="fill-muted" />
+      <text x={188} y={77} textAnchor="middle" fontSize={9} fontWeight={600} className="fill-foreground">
+        {t("uiClaudeConnectors")}
+      </text>
+      <Label x={238} y={77} size={9} muted>
+        {t("uiClaudePlugins")}
+      </Label>
+      {[96, 134].map((y) => (
+        <g key={y}>
+          <rect x={116} y={y} width={106} height={30} rx={5} className="fill-muted/50" />
+          <rect x={230} y={y} width={106} height={30} rx={5} className="fill-muted/50" />
+          <Bar x={124} y={y + 12} w={60} />
+          <Bar x={238} y={y + 12} w={60} />
+        </g>
+      ))}
     </>
   );
 }
 
 function OpenClaude() {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.connectedApps.guide" });
   return (
-    <Window host={UI.claudeHost}>
-      <path d={`M100 30 V${H - 6}`} className="stroke-border" />
-      <Bar x={18} y={46} w={60} />
-      <Bar x={18} y={62} w={48} />
-      <Ring x={16} y={74} w={76} h={18} />
-      <Label x={20} y={87} strong>
-        {UI.customize}
-      </Label>
-      <Label x={116} y={52} strong>
-        {UI.connectors}
-      </Label>
-      <Pill x={W - 70} y={40} w={52}>
-        {UI.plusAdd}
+    <Window host={CLAUDE_HOST} h={200}>
+      <ClaudeCustomize ringNav />
+      <Pill x={W - 78} y={40} w={60}>
+        {t("uiClaudeAdd")}
       </Pill>
-      {[70, 94, 118, 142].map((y) => (
-        <g key={y}>
-          <rect x={116} y={y} width={W - 140} height={18} rx={4} className="fill-muted/50" />
-          <Bar x={124} y={y + 6} w={90} />
-        </g>
-      ))}
+    </Window>
+  );
+}
+
+/** Claude's "Add custom connector" box: name, server URL, Continue. */
+function AddClaude({ url }: { url: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.connectedApps.guide" });
+  return (
+    <Window host={CLAUDE_HOST} h={230}>
+      <rect x={7} y={31} width={W - 14} height={192} className="fill-muted/60" />
+      <rect x={56} y={40} width={248} height={180} rx={10} className="fill-background stroke-border" />
+      <Label x={70} y={60} size={11} strong>
+        {t("uiClaudeAddCustom")}
+      </Label>
+      <Bar x={70} y={70} w={200} />
+      <rect x={70} y={86} width={220} height={18} rx={5} className="fill-background stroke-border" />
+      <Label x={76} y={98.5} size={9.5}>
+        {UNIWORK}
+      </Label>
+      <Bar x={70} y={110} w={110} />
+      <Ring x={70} y={124} w={220} h={18} />
+      <rect x={70} y={124} width={220} height={18} rx={5} className="fill-background stroke-border" />
+      <Label x={76} y={136.5} size={9.5}>
+        {url}
+      </Label>
+      <Bar x={70} y={148} w={180} />
+      <Bar x={70} y={164} w={210} />
+      <Bar x={70} y={174} w={150} />
+      <Pill x={176} y={190} w={48}>
+        {t("uiClaudeCancel")}
+      </Pill>
+      <Pill x={230} y={190} w={60} primary>
+        {t("uiClaudeContinue")}
+      </Pill>
     </Window>
   );
 }
 
 function OpenChatgpt() {
   return (
-    <Window host={UI.chatgptHost}>
-      <Label x={24} y={56} strong>
-        {UI.plugins}
+    <Window host={GPT.host} h={200}>
+      <path d="M100 30 V194" className="stroke-border" />
+      <Bar x={18} y={44} w={56} />
+      <Bar x={18} y={58} w={44} />
+      <rect x={14} y={70} width={78} height={18} rx={5} className="fill-muted" />
+      <Label x={20} y={82.5} strong>
+        {GPT.plugins}
       </Label>
-      <Ring x={W - 52} y={42} w={26} h={20} />
-      <Pill x={W - 52} y={42} w={26}>
-        {UI.plus}
-      </Pill>
-      <rect x={W - 186} y={70} width={160} height={52} rx={6} className="fill-background stroke-border" />
-      <Ring x={W - 180} y={76} w={148} h={18} />
-      <Label x={W - 174} y={89}>
-        {UI.addMcp}
+      <Bar x={18} y={100} w={50} />
+      <Label x={116} y={58} size={12} strong>
+        {GPT.plugins}
       </Label>
-      <Bar x={W - 174} y={106} w={90} />
-      {[70, 94, 118, 142].map((y) => (
+      <rect x={116} y={70} width={120} height={16} rx={8} className="fill-muted/60 stroke-border" />
+      {[100, 124, 148].map((y) => (
         <g key={y}>
-          <rect x={24} y={y} width={W - 230} height={18} rx={4} className="fill-muted/50" />
-          <Bar x={32} y={y + 6} w={70} />
+          <rect x={116} y={y} width={120} height={18} rx={4} className="fill-muted/50" />
+          <Bar x={124} y={y + 6} w={70} />
         </g>
       ))}
-    </Window>
-  );
-}
-
-function AddClaude({ url }: { url: string }) {
-  return (
-    <Window host={UI.claudeHost}>
-      <Sheet title={UI.addCustom}>
-        <Field x={82} y={78} w={196} label={UI.name} value={UI.uniwork} />
-        <Field x={82} y={118} w={196} label={UI.url} value={url} ring />
-        <Pill x={232} y={160} w={46} primary>
-          {UI.add}
-        </Pill>
-      </Sheet>
+      <Ring x={W - 64} y={38} w={46} h={20} />
+      <Pill x={W - 64} y={38} w={46}>
+        {GPT.add}
+      </Pill>
+      <Menu x={W - 166} y={64} w={148} items={[GPT.create, GPT.upload, GPT.addMcp]} />
     </Window>
   );
 }
 
 function AddChatgpt({ url }: { url: string }) {
   return (
-    <Window host={UI.chatgptHost}>
-      <Sheet title={UI.addMcp}>
-        <Field x={82} y={70} w={196} label={UI.name} value={UI.uniwork} />
-        <Field x={82} y={106} w={196} label={UI.connection} value={url} ring />
-        <Field x={82} y={145} w={80} label={UI.auth} value={UI.oauth} />
-        <Pill x={182} y={160} w={96} primary>
-          {UI.createPlugin}
-        </Pill>
-      </Sheet>
+    <Window host={GPT.host} h={280}>
+      <rect x={7} y={31} width={W - 14} height={242} className="fill-muted/60" />
+      <rect x={60} y={38} width={240} height={234} rx={10} className="fill-background stroke-border" />
+      <Label x={72} y={56} strong>
+        {GPT.addMcp}
+      </Label>
+      <Field x={72} y={74} w={216} label={GPT.name} value={UNIWORK} />
+      <Field x={72} y={112} w={216} label={GPT.description} />
+      <Field x={72} y={150} w={216} label={GPT.connection} value={url} ring />
+      <rect x={196} y={139} width={92} height={14} rx={7} className="fill-muted" />
+      <rect x={197} y={140} width={50} height={12} rx={6} className="fill-background" />
+      <text x={222} y={149} textAnchor="middle" fontSize={7.5} fontWeight={600} className="fill-foreground">
+        {GPT.serverUrl}
+      </text>
+      <text x={267} y={149} textAnchor="middle" fontSize={7.5} className="fill-muted-foreground">
+        {GPT.tunnel}
+      </text>
+      <Field x={72} y={188} w={100} label={GPT.auth} value={GPT.oauth} />
+      <Ring x={72} y={218} w={216} h={16} />
+      <rect x={76} y={220} width={11} height={11} rx={3} className="fill-primary" />
+      <path d="M78.5 225.5 l2.5 2.5 l4.5 -5" fill="none" strokeWidth={1.6} className="stroke-primary-foreground" />
+      <Label x={93} y={229.5} size={9.5}>
+        {GPT.understand}
+      </Label>
+      <Pill x={130} y={244} w={52}>
+        {GPT.cancel}
+      </Pill>
+      <Pill x={188} y={244} w={100} primary>
+        {GPT.createPlugin}
+      </Pill>
     </Window>
   );
 }
 
 /** UniWork's own consent page, so its labels come from the same keys the page uses. */
-function Allow({ host, client }: { host: string; client: string }) {
+function Allow({ client }: { client: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "auth.connect" });
   return (
-    <Window host={host}>
+    <Window host={UNIWORK} h={200}>
       <rect x={60} y={40} width={240} height={148} rx={8} className="fill-background stroke-border" />
       <Label x={74} y={60} strong>
         {t("title", { client })}
@@ -223,24 +314,23 @@ function Allow({ host, client }: { host: string; client: string }) {
 }
 
 /**
- * Simple drawings of where to press, one per step. Drawn rather than
- * screenshotted: the assistants restyle often, and a drawing shows only the
- * one thing that matters, ringed. The label carries the picture for a
- * screen reader.
+ * Simple drawings of where to press, one per step, traced from the live
+ * pages. Drawn rather than screenshotted: the assistants restyle often, and a
+ * drawing shows only the controls that matter, ringed. The label carries the
+ * picture for a screen reader.
  */
 export function ConnectAssistantArt({ kind, client }: { kind: ArtKind; client: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.connectedApps.guide" });
-  const url = t("artUrl");
-  const scene: Record<ArtKind, ReactNode> = {
-    openClaude: <OpenClaude />,
-    openChatgpt: <OpenChatgpt />,
-    addClaude: <AddClaude url={url} />,
-    addChatgpt: <AddChatgpt url={url} />,
-    allow: <Allow host={UI.uniwork} client={client} />,
-  };
+  const h = kind === "addChatgpt" ? 280 : kind === "addClaude" ? 230 : 200;
+  let scene: ReactNode;
+  if (kind === "openClaude") scene = <OpenClaude />;
+  else if (kind === "addClaude") scene = <AddClaude url={t("artUrl")} />;
+  else if (kind === "openChatgpt") scene = <OpenChatgpt />;
+  else if (kind === "addChatgpt") scene = <AddChatgpt url={t("artUrl")} />;
+  else scene = <Allow client={client} />;
   return (
-    <svg role="img" aria-label={t(ALT[kind])} viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full rounded-lg bg-muted/40">
-      {scene[kind]}
+    <svg role="img" aria-label={t(ALT[kind])} viewBox={`0 0 ${W} ${h}`} className="block h-auto w-full rounded-lg bg-muted/40">
+      {scene}
     </svg>
   );
 }

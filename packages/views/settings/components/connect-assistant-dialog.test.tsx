@@ -70,6 +70,7 @@ describe("ConnectAssistantDialog", () => {
 
     next(dialog);
     expect(within(dialog).getByText(g("addClaude"))).toBeInTheDocument();
+    expect(within(dialog).getByText(g("claudeTeam"))).toBeInTheDocument();
     expect(within(dialog).getByRole("img", { name: g("artAddClaude") })).toBeInTheDocument();
 
     next(dialog);
@@ -96,6 +97,7 @@ describe("ConnectAssistantDialog", () => {
 
     next(dialog);
     expect(within(dialog).getByText(g("addChatgpt"))).toBeInTheDocument();
+    expect(within(dialog).queryByText(g("claudeTeam"))).toBeNull();
     expect(within(dialog).getByRole("img", { name: g("artAddChatgpt") })).toBeInTheDocument();
   });
 

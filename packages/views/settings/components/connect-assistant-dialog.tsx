@@ -191,6 +191,7 @@ function Steps({ mcpUrl, knownIds, onClose }: { mcpUrl: string; knownIds: readon
         <StepTitle>{t("addTitle", { client })}</StepTitle>
         <ConnectAssistantArt kind={a.artAdd} client={client} />
         <p>{t(a.add)}</p>
+        {assistant === "claude" ? <p className="text-caption text-muted-foreground">{t("claudeTeam")}</p> : null}
       </>
     );
   } else {
