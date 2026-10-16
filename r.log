@@ -1,0 +1,964 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19070 FRONTEND_ORIGIN=http://localhost:13990 API_PUBLIC_URL=http://localhost:19070 PREVIEW_ORIGIN=http://localhost:13991 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19070 NEXT_PUBLIC_WS_URL=ws://localhost:19070 NEXT_PUBLIC_APP_URL=http://localhost:13990 E2E_BASE_URL=http://localhost:13990 E2E_API_URL=http://localhost:19070 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_UX_FLOOR_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-ux-floor.spec.ts --reporter=list > /tmp/repin1r4-office-ux-floor.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/repin1r4-office-ux-floor.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/repin1r4-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/repin1r4-office-ux-floor.log && echo "skipped: office-ux-floor has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/repin1r4-office-ux-floor.log || { echo "no passing test matched office-ux-floor"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_UX_FLOOR_EXIT=$rc"
+    Usage:
+
+        pnpm exec playwright show-trace test-results/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en 
+
+    TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+    Call log:
+      - waiting for locator('.ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error').first() to be visible
+
+
+      411 |         await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
+      412 |         await page.keyboard.press("Enter");
+    > 413 |         await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
+          |                                                                                                                   ^
+      414 |         await audit(frame, ".ai-chat", "S9 result/error", mode);
+      415 |         await shot(frame, `s9-result-${mode}-${locale}`);
+      416 |       });
+
+    Error Context: test-results/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi 
+    office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en 
+    office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi 
+    office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en 
+  24 passed (10.8m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-ux-floor.spec.ts --reporter=list
+===== e2e/test-results/office-ux-floor-S5-order-f-a1727--Overwrite-with-edit-access/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> Save copy sits between Reload and Overwrite with edit access
+- Location: office-ux-floor.spec.ts:189:3
+
+# Error details
+
+```
+Error: save-copy, reload and overwrite present
+
+expect(received).toEqual(expected) // deep equality
+
+Expected: ArrayContaining ["reload", "save-copy", "overwrite"]
+Received: ["diff", "reload", "overwrite", "cancel"]
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvb70kc3, WS ux-floor-mvb70kc3: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvb70kc3" [ref=f1e14]
+              - generic "WS ux-floor-mvb70kc3" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792168774132/rec-ws-1792168774132
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792168774132/rec-ws-1792168774132/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvb70kc3, ux-floor-mvb70kc3-1792168774132@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvb70kc3" [ref=f1e113]
+              - generic "ux-floor-mvb70kc3-1792168774132@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792168774132/rec-ws-1792168774132/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - iframe [active] [ref=f1e154]:
+          - generic [ref=f2e1]:
+            - region "Phiên bản mới" [ref=f2e2]:
+              - generic [ref=f2e3]: Có phiên bản mới hơn trên UniWork (phiên bản 12). Thay đổi của bạn chưa lưu nên tài liệu không tự tải lại.
+              - generic [ref=f2e4]:
+                - button "Tải lại bản mới nhất…" [ref=f2e5] [cursor=pointer]
+                - button "Để sau" [ref=f2e6] [cursor=pointer]
+            - button "Thảo luận" [ref=f2e9] [cursor=pointer]
+            - generic [ref=f2e14]:
+              - gene===== e2e/test-results/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — dark vi
+- Location: office-ux-floor.spec.ts:401:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error').first() to be visible
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvb77ybj, WS ux-floor-mvb77ybj: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvb77ybj" [ref=f1e14]
+              - generic "WS ux-floor-mvb77ybj" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792169118847/rec-ws-1792169118847
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792169118847/rec-ws-1792169118847/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792169118847/rec-ws-1792169118847/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvb77ybj, ux-floor-mvb77ybj-1792169118847@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvb77ybj" [ref=f1e113]
+              - generic "ux-floor-mvb77ybj-1792169118847@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792169118847/rec-ws-1792169118847/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa có thay đổi" [ref=f1e142]
+              - button "Lưu vào UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - iframe [active] [ref=f1e154]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Hoàn tác" [disabled] [ref=f2e19]
+                  - button "Làm lại" [disabled] [ref=f2e23]
+                  - button "Trang đầu" [ref=f2e28] [cursor=pointer]
+                  - button "Chèn" [ref=f2e29] [cursor=pointer]
+                  - button "Vẽ" [ref=f2e===== e2e/test-results/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — dark en
+- Location: office-ux-floor.spec.ts:401:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error').first() to be visible
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Skip to main content" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvb7aran, WS ux-floor-mvb7aran: switch workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvb7aran" [ref=f1e14]
+              - generic "WS ux-floor-mvb7aran" [ref=f1e15]
+      - navigation "Workspace navigation" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Home" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792169249711/rec-ws-1792169249711
+          - listitem [ref=f1e30]:
+            - link "Inbox" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792169249711/rec-ws-1792169249711/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Work
+          - list "Work" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Tasks" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/tasks
+            - listitem [ref=f1e48]:
+              - link "My tasks" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Projects" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/projects
+            - listitem [ref=f1e61]:
+              - link "Calendar" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Communication
+          - list "Communication" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/email
+            - listitem [ref=f1e78]:
+              - link "Meetings" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/meetings
+            - listitem [ref=f1e85]:
+              - link "Documents" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/documents
+            - listitem [ref=f1e92]:
+              - link "Chat" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/chat
+            - listitem [ref=f1e98]:
+              - link "People" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792169249711/rec-ws-1792169249711/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvb7aran, ux-floor-mvb7aran-1792169249711@example.com: account" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvb7aran" [ref=f1e113]
+              - generic "ux-floor-mvb7aran-1792169249711@example.com" [ref=f1e114]
+      - button "Toggle sidebar" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Toggle sidebar" [ref=f1e120] [cursor=pointer]
+        - button "Search…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Ask UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Notifications" [ref=f1e125] [cursor=pointer]
+          - button "New task" [ref=f1e126] [cursor=pointer]
+          - button "Theme" [ref=f1e127] [cursor=pointer]
+          - button "Language" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Back to documents" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Documents" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792169249711/rec-ws-1792169249711/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "No changes" [ref=f1e142]
+              - button "Save to UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Save
+            - group [ref=f1e147]:
+              - button "Open in UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "UniWork Office options" [ref=f1e150] [cursor=pointer]
+            - button "More actions" [ref=f1e151] [cursor=pointer]
+        - iframe [active] [ref=f1e154]:
+          - generic [ref=f2e1]:
+            - button "Discussion" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "File" [ref=f2e13] [cursor=pointer]
+                  - button "Save (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Undo" [disabled] [ref=f2e19]
+                  - button "Redo" [disabled] [ref=f2e23]
+                  - button "Home" [ref=f2e28] [cursor=pointer]
+                  - button "Insert" [ref=f2e29] [cursor=pointer]
+                  - button "Draw" [ref=f2e30] [cursor=pointer]
+                  - button "Design" [ref=f2e31] [cursor=pointer]
+                  - button "Layout" [ref=f2e32] [cursor=pointer]
+                  -===== e2e/test-results/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — light vi
+- Location: office-ux-floor.spec.ts:401:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error').first() to be visible
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvb70kc3, WS ux-floor-mvb70kc3: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvb70kc3" [ref=f1e14]
+              - generic "WS ux-floor-mvb70kc3" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792168774132/rec-ws-1792168774132
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792168774132/rec-ws-1792168774132/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792168774132/rec-ws-1792168774132/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvb70kc3, ux-floor-mvb70kc3-1792168774132@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvb70kc3" [ref=f1e113]
+              - generic "ux-floor-mvb70kc3-1792168774132@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792168774132/rec-ws-1792168774132/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa có thay đổi" [ref=f1e142]
+              - button "Lưu vào UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - iframe [active] [ref=f1e154]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Hoàn tác" [disabled] [ref=f2e19]
+                  - button "Làm lại" [disabled] [ref=f2e23]
+                  - button "Trang đầu" [ref=f2e28] [cursor=pointer]
+                  - button "Chèn" [ref=f2e29] [cursor=pointer]
+                  - button "Vẽ" [ref=f2===== e2e/test-results/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — light en
+- Location: office-ux-floor.spec.ts:401:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error').first() to be visible
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Skip to main content" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvb758x3, WS ux-floor-mvb758x3: switch workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvb758x3" [ref=f1e14]
+              - generic "WS ux-floor-mvb758x3" [ref=f1e15]
+      - navigation "Workspace navigation" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Home" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792168992615/rec-ws-1792168992615
+          - listitem [ref=f1e30]:
+            - link "Inbox" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792168992615/rec-ws-1792168992615/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Work
+          - list "Work" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Tasks" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/tasks
+            - listitem [ref=f1e48]:
+              - link "My tasks" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Projects" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/projects
+            - listitem [ref=f1e61]:
+              - link "Calendar" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Communication
+          - list "Communication" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/email
+            - listitem [ref=f1e78]:
+              - link "Meetings" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/meetings
+            - listitem [ref=f1e85]:
+              - link "Documents" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/documents
+            - listitem [ref=f1e92]:
+              - link "Chat" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/chat
+            - listitem [ref=f1e98]:
+              - link "People" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792168992615/rec-ws-1792168992615/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvb758x3, ux-floor-mvb758x3-1792168992615@example.com: account" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvb758x3" [ref=f1e113]
+              - generic "ux-floor-mvb758x3-1792168992615@example.com" [ref=f1e114]
+      - button "Toggle sidebar" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Toggle sidebar" [ref=f1e120] [cursor=pointer]
+        - button "Search…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Ask UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Notifications" [ref=f1e125] [cursor=pointer]
+          - button "New task" [ref=f1e126] [cursor=pointer]
+          - button "Theme" [ref=f1e127] [cursor=pointer]
+          - button "Language" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Back to documents" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Documents" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792168992615/rec-ws-1792168992615/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "No changes" [ref=f1e142]
+              - button "Save to UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Save
+            - group [ref=f1e147]:
+              - button "Open in UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "UniWork Office options" [ref=f1e150] [cursor=pointer]
+            - button "More actions" [ref=f1e151] [cursor=pointer]
+        - iframe [active] [ref=f1e154]:
+          - generic [ref=f2e1]:
+            - button "Discussion" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "File" [ref=f2e13] [cursor=pointer]
+                  - button "Save (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Undo" [disabled] [ref=f2e19]
+                  - button "Redo" [disabled] [ref=f2e23]
+                  - button "Home" [ref=f2e28] [cursor=pointer]
+                  - button "Insert" [ref=f2e29] [cursor=pointer]
+                  - button "Draw" [ref=f2e30] [cursor=pointer]
+                  - button "Design" [ref=f2e31] [cursor=pointer]
+                  - button "Layout" [ref=f2e32] [cursor=pointer]
+                  ===== S9_PANEL_TAIL e2e/test-results/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/error-context.md
+ [ref=f2e385] [cursor=pointer]
+                      - button "10 từ" [ref=f2e386] [cursor=pointer]
+                      - 'button "Theo dõi thay đổi: Tắt" [ref=f2e387] [cursor=pointer]'
+                      - status [ref=f2e388]: Đã lưu mọi thay đổi
+                      - generic "Đã mở docs-web.docx" [ref=f2e389]: — Đã mở docs-web.docx
+                    - generic [ref=f2e390]:
+                      - group [ref=f2e391]:
+                        - button "Bố trí in" [ref=f2e392] [cursor=pointer]
+                        - button "Bố trí Web" [ref=f2e396] [cursor=pointer]
+                        - button "Dàn bài" [ref=f2e400] [cursor=pointer]
+                        - button "Chế độ đọc" [ref=f2e405] [cursor=pointer]
+                      - button "−" [ref=f2e408] [cursor=pointer]
+                      - slider [ref=f2e409]: "70"
+                      - button "+" [ref=f2e410] [cursor=pointer]
+                      - button "74%" [ref=f2e411] [cursor=pointer]
+            - status [ref=f2e412]
+            - alert [ref=f2e413]
+  - status [ref=f1e155]
+  - region "Notifications alt+T"
+  - alert [ref=f1e156]
+```
+
+# Test source
+
+```ts
+  313 |     await page.setViewportSize({ width: 640, height: 400 });
+  314 |     const frame = await openDocs(page, seeded);
+  315 |     await makeDirty(page, `uw-ux-z-${Date.now().toString(36)}`);
+  316 |     await commitElsewhere(request, seeded);
+  317 |     await waitForBar(frame, "warn");
+  318 |     await page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first().click();
+  319 |     await page.keyboard.press("Control+s");
+  320 |     await frame.locator(S5_CARD).waitFor({ state: "visible", timeout: 60_000 });
+  321 |     expect(await clippedLabels(frame, false), "labels cut by nowrap at 200 %").toEqual([]);
+  322 |     await reachable(frame);
+  323 |     await shot(frame, "zoom-200");
+  324 |     // WCAG 1.4.12 text spacing (Floor › Phóng to 200% / text spacing): line height 1.5, paragraph spacing 2, letter 0.12, word 0.16 (em).
+  325 |     await frame.addStyleTag({ content: "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }" });
+  326 |     expect(await clippedLabels(frame, true), "labels cut or hidden with the 1.4.12 spacing overrides").toEqual([]);
+  327 |     await reachable(frame);
+  328 |     await shot(frame, "text-spacing");
+  329 |   });
+  330 | 
+  331 |   test("S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable", async ({ page, request }) => {
+  332 |     await prepare(page, baseUrl, "light", "vi");
+  333 |     const frame = await reachConflict(page, request, seeded);
+  334 |     await sizeFrame(page, 320, 256);
+  335 |     const title = await frame.locator(`${S5_CARD} .ow-dlg-title`).evaluate((el) => {
+  336 |       const r = el.getBoundingClientRect();
+  337 |       return { top: r.top, height: r.height, cut: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1 };
+  338 |     });
+  339 |     expect(title.top, "the title starts inside the frame").toBeGreaterThanOrEqual(0);
+  340 |     expect(title.height).toBeGreaterThan(0);
+  341 |     expect(title.cut, "the title is clipped").toBe(false);
+  342 |     const scroll = await frame.locator(S5_MASK).evaluate((m) => ({ sh: m.scrollHeight, ch: m.clientHeight, oy: getComputedStyle(m).overflowY }));
+  343 |     if (scroll.sh > scroll.ch) expect(["auto", "scroll"], "taller than the frame and the backdrop does not scroll").toContain(scroll.oy);
+  344 |     await reachable(frame);
+  345 |     await shot(frame, "s5-320x256");
+  346 |   });
+  347 | 
+  348 |   for (const width of [390, 600]) {
+  349 |     test(`narrow web frame ${width}px: S5 full width minus 16px margins, buttons stacked`, async ({ page, request }) => {
+  350 |       await prepare(page, baseUrl, "light", "vi");
+  351 |       const frame = await reachConflict(page, request, seeded);
+  352 |       await sizeFrame(page, width);
+  353 |       const box = await frame.locator(S5_CARD).evaluate((card) => {
+  354 |         const r = card.getBoundingClientRect();
+  355 |         const btns = [...card.querySelectorAll<HTMLElement>(".ow-dlg-btn")].map((b) => b.getBoundingClientRect());
+  356 |         return { left: r.left, width: r.width, inner: window.innerWidth, xs: btns.map((b) => Math.round(b.left)), ys: btns.map((b) => b.top) };
+  357 |       });
+  358 |       test.info().annotations.push({ type: "measured", description: JSON.stringify(box) });
+  359 |       await shot(frame, `s5-narrow-${width}`);
+  360 |       expect(new Set(box.xs).size, "buttons share one column").toBe(1);
+  361 |       expect(new Set(box.ys.map(Math.round)).size, "stacked: every button on its own row").toBe(box.ys.length);
+  362 |       expect([...box.ys].sort((a, b) => a - b), "stacked top-to-bottom = DOM order").toEqual(box.ys);
+  363 |       expect(Math.abs(box.left - 16), "16px left margin").toBeLessThanOrEqual(1);
+  364 |       expect(Math.abs(box.width - (box.inner - 32)), "full width minus 2x16px").toBeLessThanOrEqual(1);
+  365 |     });
+  366 |   }
+  367 | 
+  368 |   test("reduced motion: no slide/fade on S6 or S5", async ({ page, request }) => {
+  369 |     await prepare(page, baseUrl, "light", "vi");
+  370 |     await page.emulateMedia({ reducedMotion: "reduce" });
+  371 |     const frame = await openDocs(page, seeded);
+  372 |     // The recorder goes in BEFORE the surfaces appear: a finished animation/transition is gone from getAnimations().
+  373 |     await recordMotion(frame, `${S6_BAR}, ${S5_MASK}`);
+  374 |     await commitElsewhere(request, seeded);
+  375 |     await waitForBar(frame, "info");
+  376 |     await makeDirty(page, `uw-ux-m-${Date.now().toString(36)}`);
+  377 |     await commitElsewhere(request, seeded);
+  378 |     await waitForBar(frame, "warn");
+  379 |     await page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first().click();
+  380 |     await page.keyboard.press("Control+s");
+  381 |     await frame.locator(S5_CARD).waitFor({ state: "visible", timeout: 60_000 });
+  382 |     await page.waitForTimeout(1_000);
+  383 |     const motion = await motionSeen(frame, [S6_BAR, S5_MASK, S5_CARD]);
+  384 |     test.info().annotations.push({ type: "measured", description: JSON.stringify(motion) });
+  385 |     expect(motion.missing, "surfaces not found: the measurement would be vacuous").toEqual([]);
+  386 |     expect(motion.moving, "slide/fade under prefers-reduced-motion").toEqual([]);
+  387 |   });
+  388 | 
+  389 |   test("target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer)", async ({ page, request }) => {
+  390 |     await prepare(page, baseUrl, "light", "vi");
+  391 |     const frame = await reachConflict(page, request, seeded);
+  392 |     const small = await smallTargets(frame);
+  393 |     expect(small).toEqual([]);
+  394 |   });
+  395 | });
+  396 | 
+  397 | test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags)", () => {
+  398 |   aiFlagsBeforeAll(() => seeded);
+  399 |   for (const mode of MODES) {
+  400 |     for (const locale of LOCALES) {
+  401 |       test(`S7 picker with UniWork AI and the S9 result line — ${mode} ${locale}`, async ({ page }) => {
+  402 |         await prepare(page, baseUrl, mode, locale);
+  403 |         const frame = await openDocs(page, seeded);
+  404 |         await openPicker(frame);
+  405 |         await audit(frame, PICKER_POP, "S7 picker", mode);
+  406 |         await shot(frame, `s7-picker-${mode}-${locale}`);
+  407 |         await uniworkOption(frame).click();
+  408 |         // S9: one UniWork AI turn against the fake provider; the finished reply is detected by its action toolbar (or the error line) and measured.
+  409 |         const composer = frame.locator(COMPOSER).first();
+  410 |         await composer.click();
+  411 |         await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
+  412 |         await page.keyboard.press("Enter");
+> 413 |         await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
+      |                                                                                                                   ^ TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+  414 |         await audit(frame, ".ai-chat", "S9 result/error", mode);
+  415 |         await shot(frame, `s9-result-${mode}-${locale}`);
+  416 |       });
+  417 |     }
+  418 | 
+  419 |     test(`S7 the selected option's focus ring is >= 3:1 against accent-soft — ${mode}`, async ({ page }) => {
+  420 |       await prepare(page, baseUrl, mode, "vi");
+  421 |       const frame = await openDocs(page, seeded);
+  422 |       await selectUniworkAi(frame);
+  423 |       // Keyboard open, so :focus-visible applies: the chip, Enter, the list enters at the selected option.
+  424 |       await frame.locator(".ai-model-chip").first().focus();
+  425 |       await page.keyboard.press("Enter");
+  426 |       await frame.locator(PICKER_POP).waitFor();
+  427 |       const selected = frame.locator(".ai-model-item.selected").first();
+  428 |       await selected.focus();
+  429 |       await page.keyboard.press("ArrowDown");
+  430 |       await page.keyboard.press("ArrowUp");
+  431 |       await selected.focus();
+  432 |       const ring = await selected.evaluate((el) => {
+  433 |         const cs = getComputedStyle(el);
+  434 |         return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), color: cs.outlineColor, bg: cs.backgroundColor, focusVisible: el.matches(":focus-visible") };
+  435 |       });
+  436 |       test.info().annotations.push({ type: "measured", description: JSON.stringify(ring) });
+  437 |       expect(ring.focusVisible, "the selected option is not :focus-visible").toBe(true);
+  438 |       expect(ring.style).not.toBe("none");
+  439 |       expect(ring.width).toBeGreaterThanOrEqual(2);
+  440 |       expect(await contrastIn(frame, ring.color, ring.bg)).toBeGreaterThanOrEqual(3);
+  441 |     });
+  442 |   }
+  443 | 
+  444 |   test("S7 the selected picker option has a 2px Highlight border, not only a fill", async ({ page }) => {
+  445 |     await prepare(page, baseUrl, "light", "vi");
+  446 |     await page.emulateMedia({ forcedColors: "active" });
+  447 |     const frame = await openDocs(page, seeded);
+  448 |     await selectUniworkAi(frame);
+  449 |     await openPicker(frame);
+  450 |     const sel = await frame.locator(".ai-model-item.selected").first().evaluate((el) => {
+  451 |       const probe = document.createElement("span");
+  452 |       probe.style.color = "Highlight";
+  453 |       el.append(probe);
+  454 |       const hl = getComputedStyle(probe).color;
+  455 |       probe.remove();
+  456 |       const cs = getComputedStyle(el);
+  457 |       return { width: parseFloat(cs.borderTopWidth), color: cs.borderTopColor, outline: cs.outlineStyle, hl };
+  458 |     });
+  459 |     test.info().annotations.push({ type: "measured", description: JSON.stringify(sel) });
+  460 |     await shot(frame, "s7-forced-colors");
+  461 |     expect(sel.width).toBeGreaterThanOrEqual(2);
+  462 |     expect(sel.color).toBe(sel.hl);
+  463 |   });
+  464 | 
+  465 |   test("S7 listbox sits on the list, Manage and the footer are siblings after it", async ({ page }) => {
+  466 |     await prepare(page, baseUrl, "light", "vi");
+  467 |     const frame = await openDocs(page, seeded);
+  468 |     await openPicker(frame);
+  469 |     const roles = await frame.locator(PICKER_POP).evaluate((pop) => ({
+  470 |       pop: pop.getAttribute("role"),
+  471 |       list: pop.querySelector(".ai-model-pop-list")?.getAttribute("role") ?? null,
+  472 |       manageInList: !!pop.querySelector('[role="listbox"] .ai-model-manage'),
+  473 |     }));
+  474 |     test.info().annotations.push({ type: "measured", description: JSON.stringify(roles) });
+  475 |     expect(roles).toEqual({ pop: "group", list: "listbox", manageInList: false });
+  476 |   });
+  477 | 
+  478 |   test("S8 disclosure region shows on the first UniWork AI turn and gates Send", async ({ page }) => {
+  479 |     await prepare(page, baseUrl, "light", "vi");
+  480 |     const frame = await openDocs(page, seeded);
+  481 |     await selectUniworkAi(frame);
+  482 |     const send = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
+  483 |     await expect(send, "S8: the composer has its Send button").toBeVisible({ timeout: 15_000 });
+  484 |     // RFE-202: a non-empty composer, so an empty-composer `disabled` can never pass for the disclosure gate.
+  485 |     await frame.locator(COMPOSER).first().click();
+  486 |     await page.keyboard.type("Tóm tắt tài liệu này.");
+  487 |     const region = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|What UniWork AI receives/i });
+  488 |     await expect(region).toBeVisible({ timeout: 10_000 });
+  489 |     await expect(send, "Send is aria-disabled before the acknowledgement").toHaveAttribute("aria-disabled", "true");
+  490 |     const reason = await send.evaluate((b) => b.getAttribute("aria-describedby")?.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? "").join(" ") ?? "");
+  491 |     // aiUniworkSendNeedsAck (vi/en) — the disclosure is the reason, not an empty composer.
+  492 |     expect(reason, "Send's aria-describedby names the disclosure reason").toMatch(/xác nhận lời công bố|confirm the notice/i);
+  493 |     await audit(frame, ".ai-composer", "S8 disclosure", "light");
+  494 |     await frame.getByRole("button", { name: /Đã hiểu|Got it/i }).first().click();
+  495 |     await expect(send, "Send is enabled after 'Đã hiểu'").not.toHaveAttribute("aria-disabled", "true");
+  496 |     await expect(send, "Send is enabled after 'Đã hiểu' (the composer is not empty)").toBeEnabled();
+  497 |   });
+  498 | });
+  499 | 
+```===== S9_SERVER_AI
+16:39:41.778 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=8.374ms request_id=cursor/NT0iQeukUq-000181 correlation_id=678bce641e2f0a0aa2c4d2ba42abb57e trace_id=678bce641e2f0a0aa2c4d2ba42abb57e span_id=dcf99a6aa5811500 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:39:42.644 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=9.037ms request_id=cursor/NT0iQeukUq-000216 correlation_id=4b7dc6acab06e97b4f5e5980e7f3ff0b trace_id=4b7dc6acab06e97b4f5e5980e7f3ff0b span_id=804c99e85e3e182d organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:39:47.796 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=3µs request_id=cursor/NT0iQeukUq-000304 correlation_id=bcc7ba04d20e7932e54b9e9140eca0f7 trace_id=bcc7ba04d20e7932e54b9e9140eca0f7 span_id=ed2d941ef0bbb2c8
+16:39:47.813 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=13.093ms request_id=cursor/NT0iQeukUq-000305 correlation_id=67b2a13d7aec39b7e11974e2c3b25a0c trace_id=67b2a13d7aec39b7e11974e2c3b25a0c span_id=ff4fd990b7e4f0e1 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:39:48.774 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=18.043ms request_id=cursor/NT0iQeukUq-000344 correlation_id=5010476c51c377cd9fcfd19d8440c856 trace_id=5010476c51c377cd9fcfd19d8440c856 span_id=f85e18ac20b215ed organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:39:53.730 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=5µs request_id=cursor/NT0iQeukUq-000435 correlation_id=5da112c9b6f62b678baa6c311d14dabf trace_id=5da112c9b6f62b678baa6c311d14dabf span_id=98b5b2dd2a42dadb
+16:39:53.734 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=2.894ms request_id=cursor/NT0iQeukUq-000439 correlation_id=94a1f8df3396ba2359268999a2cb4d43 trace_id=94a1f8df3396ba2359268999a2cb4d43 span_id=b8c019f710652a2d organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:39:54.602 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=8.722ms request_id=cursor/NT0iQeukUq-000473 correlation_id=3dad02c1c641e66c5c5b9eb0b20a60cb trace_id=3dad02c1c641e66c5c5b9eb0b20a60cb span_id=9220dc283fc440d4 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:39:59.761 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=9µs request_id=cursor/NT0iQeukUq-000567 correlation_id=8c9f92c53caee9b49b431f0ff58f9003 trace_id=8c9f92c53caee9b49b431f0ff58f9003 span_id=6c1264779ffd2ae5
+16:39:59.774 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=9.407ms request_id=cursor/NT0iQeukUq-000571 correlation_id=960c8acc7b969f3b2df4ad765d965c2b trace_id=960c8acc7b969f3b2df4ad765d965c2b span_id=ad3e8cd447498e70 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:00.711 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=9.205ms request_id=cursor/NT0iQeukUq-000608 correlation_id=d19ee58d568d373042f2516ee4f51656 trace_id=d19ee58d568d373042f2516ee4f51656 span_id=48b91ae9b9850d11 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:05.723 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4µs request_id=cursor/NT0iQeukUq-000687 correlation_id=9463c3d5065bd0616f7ccb5ed84a27fb trace_id=9463c3d5065bd0616f7ccb5ed84a27fb span_id=3301304277ded043
+16:40:05.734 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=6.365ms request_id=cursor/NT0iQeukUq-000692 correlation_id=1381fc2e73967c82961c8440bd4ace62 trace_id=1381fc2e73967c82961c8440bd4ace62 span_id=366b137a9eadb697 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:06.671 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=10.941ms request_id=cursor/NT0iQeukUq-000722 correlation_id=4210094a91f492056547f23ce14dcaec trace_id=4210094a91f492056547f23ce14dcaec span_id=d8893b8ccd2b2d09 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:11.579 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=8µs request_id=cursor/NT0iQeukUq-000800 correlation_id=784bd2f4098aed30b2df86c566fbcd0a trace_id=784bd2f4098aed30b2df86c566fbcd0a span_id=21b283a78f9bf6e9
+16:40:11.590 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=8.095ms request_id=cursor/NT0iQeukUq-000806 correlation_id=ec63e7aeb4cb2340b54ca921af4cc8a1 trace_id=ec63e7aeb4cb2340b54ca921af4cc8a1 span_id=3e44c8a699d1b5eb organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:12.518 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4.987ms request_id=cursor/NT0iQeukUq-000839 correlation_id=07c5c6c47beea7910fbdb87c8ac6ebdc trace_id=07c5c6c47beea7910fbdb87c8ac6ebdc span_id=d1c50ab516328bd0 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:16.223 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=6µs request_id=cursor/NT0iQeukUq-000913 correlation_id=038c3d0fd6be9684b36dc966cb9ab538 trace_id=038c3d0fd6be9684b36dc966cb9ab538 span_id=19db433d5106d309
+16:40:16.231 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=2.842ms request_id=cursor/NT0iQeukUq-000918 correlation_id=fa054200a1e855b03e1baf5ffa6c3e74 trace_id=fa054200a1e855b03e1baf5ffa6c3e74 span_id=f8c90fb08e32c2ea organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:16.785 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=5.529ms request_id=cursor/NT0iQeukUq-000935 correlation_id=2b29b30733046dce485388cee0b65860 trace_id=2b29b30733046dce485388cee0b65860 span_id=d8b2ba04626e1a72 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:21.501 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=7µs request_id=cursor/NT0iQeukUq-001005 correlation_id=908ade66d02ff6ae71a31761210110e5 trace_id=908ade66d02ff6ae71a31761210110e5 span_id=5b3b4f88dbb7601e
+16:40:21.511 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=7.037ms request_id=cursor/NT0iQeukUq-001013 correlation_id=87902d628518b956ba78e144c820fbdf trace_id=87902d628518b956ba78e144c820fbdf span_id=47233dfab86a3210 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:22.469 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=12.03ms request_id=cursor/NT0iQeukUq-001050 correlation_id=acf547ba57198f771e76eb2f47f0f6ea trace_id=acf547ba57198f771e76eb2f47f0f6ea span_id=74e8657da03d08d8 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:26.181 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=8µs request_id=cursor/NT0iQeukUq-001124 correlation_id=847572fd41e9577cf55fdde0fb82654c trace_id=847572fd41e9577cf55fdde0fb82654c span_id=d9790b8212b0e6c3
+16:40:26.194 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=6.963ms request_id=cursor/NT0iQeukUq-001129 correlation_id=1ca18a5614308fb3a61e629ab0d36093 trace_id=1ca18a5614308fb3a61e629ab0d36093 span_id=2868c556227675e2 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:26.748 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=6.154ms request_id=cursor/NT0iQeukUq-001142 correlation_id=3315b73ded156be576e83561c61514f7 trace_id=3315b73ded156be576e83561c61514f7 span_id=0a502ec965c1cffd organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:29.887 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=18µs request_id=cursor/NT0iQeukUq-001212 correlation_id=e304260c7775592a5bcb7ea59ee39312 trace_id=e304260c7775592a5bcb7ea59ee39312 span_id=54bcb1ccebba0a48
+16:40:29.894 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4.02ms request_id=cursor/NT0iQeukUq-001216 correlation_id=5f526b8d7146a41adaf9d19569d4db5a trace_id=5f526b8d7146a41adaf9d19569d4db5a span_id=64adbdbf4d2da161 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:30.457 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=7.114ms request_id=cursor/NT0iQeukUq-001236 correlation_id=524077787644d07827a6620f6f3a25ca trace_id=524077787644d07827a6620f6f3a25ca span_id=7a017156e9991d08 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:36.418 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=8µs request_id=cursor/NT0iQeukUq-001313 correlation_id=314a3fb2af130870fc24b371e7bad1e7 trace_id=314a3fb2af130870fc24b371e7bad1e7 span_id=a1fa53131d1be639
+16:40:36.430 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4.484ms request_id=cursor/NT0iQeukUq-001317 correlation_id=45a6bacf18ab4d70e03a2ca706c530a0 trace_id=45a6bacf18ab4d70e03a2ca706c530a0 span_id=d148ab24986ba45e organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:36.988 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=3.816ms request_id=cursor/NT0iQeukUq-001342 correlation_id=74e6f6c2a113956de72353da4c124cc9 trace_id=74e6f6c2a113956de72353da4c124cc9 span_id=fa7f86f96da58e2c organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:41.388 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=3µs request_id=cursor/NT0iQeukUq-001416 correlation_id=d5d225a4661af9f00b8c1d8986dc26ef trace_id=d5d225a4661af9f00b8c1d8986dc26ef span_id=4a9e3e1101f27e85
+16:40:41.398 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=2.96ms request_id=cursor/NT0iQeukUq-001420 correlation_id=62a2fb76af27889a1133605c00381e49 trace_id=62a2fb76af27889a1133605c00381e49 span_id=d1f4c4c85ac8115c organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:41.948 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4.942ms request_id=cursor/NT0iQeukUq-001439 correlation_id=34a2801b2f46ec796c5b406d876d6273 trace_id=34a2801b2f46ec796c5b406d876d6273 span_id=b182b229a2729db1 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:46.181 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=8µs request_id=cursor/NT0iQeukUq-001510 correlation_id=05cb1dd91c9f76333ee8e347d06d4933 trace_id=05cb1dd91c9f76333ee8e347d06d4933 span_id=0d3f47623d2352c6
+16:40:46.191 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=7.294ms request_id=cursor/NT0iQeukUq-001516 correlation_id=e0f15b74de61a97112cd6b8890aea441 trace_id=e0f15b74de61a97112cd6b8890aea441 span_id=913b007c56be11e4 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:46.743 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=6.277ms request_id=cursor/NT0iQeukUq-001536 correlation_id=efb80d6268ee02dedd812eddc3ffeaf5 trace_id=efb80d6268ee02dedd812eddc3ffeaf5 span_id=8d1ad97fa1c1e8d2 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:51.556 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=20µs request_id=cursor/NT0iQeukUq-001611 correlation_id=4f78e0ea068711e380c2f330b6a52337 trace_id=4f78e0ea068711e380c2f330b6a52337 span_id=a044a68d3b0a0bfb
+16:40:51.567 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=5.289ms request_id=cursor/NT0iQeukUq-001619 correlation_id=c0de4292b27381f722193d75867ea2d7 trace_id=c0de4292b27381f722193d75867ea2d7 span_id=c24fac82ece7be16 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:52.103 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=2.85ms request_id=cursor/NT0iQeukUq-001636 correlation_id=f6badc7325086df58977981898074f37 trace_id=f6badc7325086df58977981898074f37 span_id=7fe80994d597f8b8 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:56.491 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4µs request_id=cursor/NT0iQeukUq-001713 correlation_id=d2ff528833dd66a330cb8f2feabbaaf0 trace_id=d2ff528833dd66a330cb8f2feabbaaf0 span_id=5b244f763c24058b
+16:40:56.496 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=2.541ms request_id=cursor/NT0iQeukUq-001717 correlation_id=d42f1b57721a4e7604aff66c169d1018 trace_id=d42f1b57721a4e7604aff66c169d1018 span_id=46c13c58a5845663 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:40:57.441 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=8.521ms request_id=cursor/NT0iQeukUq-001749 correlation_id=d67c95b7aa4d04c03805c296d7875ca6 trace_id=d67c95b7aa4d04c03805c296d7875ca6 span_id=d3b6c634ebcf7e40 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:41:01.263 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=7µs request_id=cursor/NT0iQeukUq-001829 correlation_id=f51b4b5a32dd4f17904aa841e1c6e9eb trace_id=f51b4b5a32dd4f17904aa841e1c6e9eb span_id=28def9ed603524da
+16:41:01.271 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=5.17ms request_id=cursor/NT0iQeukUq-001832 correlation_id=d73ca4059ae4bcd784b8651bf3baa51b trace_id=d73ca4059ae4bcd784b8651bf3baa51b span_id=12dc073656c15644 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:41:02.227 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4.512ms request_id=cursor/NT0iQeukUq-001870 correlation_id=43b3b0f709795c2cf5ae3d2ad5610942 trace_id=43b3b0f709795c2cf5ae3d2ad5610942 span_id=8787d86901e72247 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:41:06.559 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=5µs request_id=cursor/NT0iQeukUq-001945 correlation_id=1b84c356ff886a7f9bc0839900d2eebb trace_id=1b84c356ff886a7f9bc0839900d2eebb span_id=073d6c298dff32b4
+16:41:06.562 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=2.798ms request_id=cursor/NT0iQeukUq-001950 correlation_id=326d90deb8e51e4f68b84bc5073014b8 trace_id=326d90deb8e51e4f68b84bc5073014b8 span_id=c64ac4e060a8cdf7 organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:41:07.125 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=5.162ms request_id=cursor/NT0iQeukUq-001967 correlation_id=1ccfd972a94da78cb34ccc6862e32220 trace_id=1ccfd972a94da78cb34ccc6862e32220 span_id=8104a21374e03bed organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:41:13.205 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=7µs request_id=cursor/NT0iQeukUq-002055 correlation_id=d33607eddfa4d7ceb031eeb7cbd83499 trace_id=d33607eddfa4d7ceb031eeb7cbd83499 span_id=1f9e43966ae532d9
+16:41:13.214 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4.429ms request_id=cursor/NT0iQeukUq-002060 correlation_id=6fa0f78d35321e90cd3c4cbc447ae77c trace_id=6fa0f78d35321e90cd3c4cbc447ae77c span_id=a6de2ce10520599e organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:41:14.151 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=6.963ms request_id=cursor/NT0iQeukUq-002094 correlation_id=797272731803e69e376c79eb493be5ec trace_id=797272731803e69e376c79eb493be5ec span_id=e7757d45e9e6d6ef organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:41:37.586 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=5µs request_id=cursor/NT0iQeukUq-002189 correlation_id=dca72f3c611ff9fa04f02a548e60541d trace_id=dca72f3c611ff9fa04f02a548e60541d span_id=83965a53c41a4ae8
+16:41:37.597 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=4.113ms request_id=cursor/NT0iQeukUq-002196 correlation_id=fcddf2f55afa071fb5d61a8a6e73490c trace_id=fcddf2f55afa071fb5d61a8a6e73490c span_id=12ded931e453464e organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:41:38.520 INF http request method=GET path=/api/v1/workspaces/01M52SAJJPGFECFNHZ9KTYWMV9/ai/capabilities status=200 duration=7.084ms request_id=cursor/NT0iQeukUq-002229 correlation_id=e57a4ad3df574637f6006f0466613f27 trace_id=e57a4ad3df574637f6006f0466613f27 span_id=170d20076b26ef1d organization_id=01M52SAJJC9ABHSDCERZ30FW73 workspace_id=01M52SAJJPGFECFNHZ9KTYWMV9 actor_id=01M52SAJHFKDP1YH1S8Q2YF7F1 actor_kind=human
+16:43:43.954 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SH7Y1HSP66QVPZGCRP1XZ/ai/capabilities status=200 duration=6µs request_id=cursor/NT0iQeukUq-002338 correlation_id=4d878aebeacc685f9d967963fa1fba95 trace_id=4d878aebeacc685f9d967963fa1fba95 span_id=568b194869d2ba3a
+16:43:43.967 INF http request method=GET path=/api/v1/workspaces/01M52SH7Y1HSP66QVPZGCRP1XZ/ai/capabilities status=200 duration=9.191ms request_id=cursor/NT0iQeukUq-002345 correlation_id=cf8952991417712b6473ed9e745bb4d4 trace_id=cf8952991417712b6473ed9e745bb4d4 span_id=eb072660c4bbb49e organization_id=01M52SH7XTN1ZWQQ782DS06DXD workspace_id=01M52SH7Y1HSP66QVPZGCRP1XZ actor_id=01M52SH7X2BX83NHYSC761WA3R actor_kind=human
+16:43:44.804 INF http request method=GET path=/api/v1/workspaces/01M52SH7Y1HSP66QVPZGCRP1XZ/ai/capabilities status=200 duration=6.227ms request_id=cursor/NT0iQeukUq-002378 correlation_id=fc346be808ab4a0ee1784a44534188c2 trace_id=fc346be808ab4a0ee1784a44534188c2 span_id=2c223109ef52aec9 organization_id=01M52SH7XTN1ZWQQ782DS06DXD workspace_id=01M52SH7Y1HSP66QVPZGCRP1XZ actor_id=01M52SH7X2BX83NHYSC761WA3R actor_kind=human
+16:45:50.270 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SN36XY6MDJZH258HDNTTJ/ai/capabilities status=200 duration=8µs request_id=cursor/NT0iQeukUq-002492 correlation_id=9dc9938d08e2bc713931c14054a223f6 trace_id=9dc9938d08e2bc713931c14054a223f6 span_id=84929d4518986f6c
+16:45:50.278 INF http request method=GET path=/api/v1/workspaces/01M52SN36XY6MDJZH258HDNTTJ/ai/capabilities status=200 duration=6.832ms request_id=cursor/NT0iQeukUq-002494 correlation_id=3afc6c427cf332982f9a410cebc1f7c5 trace_id=3afc6c427cf332982f9a410cebc1f7c5 span_id=caa3c552b7caf6a8 organization_id=01M52SN36NKTDJ3TTCBZ5KPSRA workspace_id=01M52SN36XY6MDJZH258HDNTTJ actor_id=01M52SN35VVYNDWP6QAECWD404 actor_kind=human
+16:45:51.251 INF http request method=GET path=/api/v1/workspaces/01M52SN36XY6MDJZH258HDNTTJ/ai/capabilities status=200 duration=1.485ms request_id=cursor/NT0iQeukUq-002531 correlation_id=ee809e50aa874c03570d10cd42ea5660 trace_id=ee809e50aa874c03570d10cd42ea5660 span_id=188ce53d28b44df2 organization_id=01M52SN36NKTDJ3TTCBZ5KPSRA workspace_id=01M52SN36XY6MDJZH258HDNTTJ actor_id=01M52SN35VVYNDWP6QAECWD404 actor_kind=human
+16:45:54.691 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SN36XY6MDJZH258HDNTTJ/ai/capabilities status=200 duration=7µs request_id=cursor/NT0iQeukUq-002590 correlation_id=e9be4cb0a3e80907c8c0f65acfdca43a trace_id=e9be4cb0a3e80907c8c0f65acfdca43a span_id=d749ae2a1d05b3af
+16:45:54.704 INF http request method=GET path=/api/v1/workspaces/01M52SN36XY6MDJZH258HDNTTJ/ai/capabilities status=200 duration=9.771ms request_id=cursor/NT0iQeukUq-002596 correlation_id=76f5f605c9c26208f79683e2ccf957af trace_id=76f5f605c9c26208f79683e2ccf957af span_id=a5b59b9ca989d188 organization_id=01M52SN36NKTDJ3TTCBZ5KPSRA workspace_id=01M52SN36XY6MDJZH258HDNTTJ actor_id=01M52SN35VVYNDWP6QAECWD404 actor_kind=human
+16:45:55.638 INF http request method=GET path=/api/v1/workspaces/01M52SN36XY6MDJZH258HDNTTJ/ai/capabilities status=200 duration=4.118ms request_id=cursor/NT0iQeukUq-002631 correlation_id=3f61fc55d07cf61d5984055d407ccd2f trace_id=3f61fc55d07cf61d5984055d407ccd2f span_id=80fd61ddd1999918 organization_id=01M52SN36NKTDJ3TTCBZ5KPSRA workspace_id=01M52SN36XY6MDJZH258HDNTTJ actor_id=01M52SN35VVYNDWP6QAECWD404 actor_kind=human
+16:48:01.059 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SS306MW5152WSCHTJVTR8/ai/capabilities status=200 duration=8µs request_id=cursor/NT0iQeukUq-002743 correlation_id=6e8e4119a40b549e1a2aaecf8570cb27 trace_id=6e8e4119a40b549e1a2aaecf8570cb27 span_id=36cfb09b882d4ee7
+16:48:01.071 INF http request method=GET path=/api/v1/workspaces/01M52SS306MW5152WSCHTJVTR8/ai/capabilities status=200 duration=6.039ms request_id=cursor/NT0iQeukUq-002751 correlation_id=9e8e922adea22a010b4091dfdeea3ab6 trace_id=9e8e922adea22a010b4091dfdeea3ab6 span_id=5d2d5e6293a29f89 organization_id=01M52SS2ZXT1KWVHR9ZRWAGMCE workspace_id=01M52SS306MW5152WSCHTJVTR8 actor_id=01M52SS2ZAG47RFS351FVTPSE2 actor_kind=human
+16:48:01.908 INF http request method=GET path=/api/v1/workspaces/01M52SS306MW5152WSCHTJVTR8/ai/capabilities status=200 duration=5.357ms request_id=cursor/NT0iQeukUq-002783 correlation_id=ba0325e3455a5dace3af72b4d6bf6786 trace_id=ba0325e3455a5dace3af72b4d6bf6786 span_id=19b54bfb6b2929d3 organization_id=01M52SS2ZXT1KWVHR9ZRWAGMCE workspace_id=01M52SS306MW5152WSCHTJVTR8 actor_id=01M52SS2ZAG47RFS351FVTPSE2 actor_kind=human
+16:50:07.323 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=7µs request_id=cursor/NT0iQeukUq-002896 correlation_id=35c3e5a47f3f127b69de9b1ff6c09bb1 trace_id=35c3e5a47f3f127b69de9b1ff6c09bb1 span_id=bcd9d4145b8bd6ad
+16:50:07.331 INF http request method=GET path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=6.315ms request_id=cursor/NT0iQeukUq-002901 correlation_id=e919c6679a7c0be8acf21320b5707655 trace_id=e919c6679a7c0be8acf21320b5707655 span_id=72d5a34548a5d392 organization_id=01M52SWY8MXE499BX0DA1HSVH0 workspace_id=01M52SWY8WRR1D3SJT5J5NP367 actor_id=01M52SWY7Z7XAG5TKCAGN3SHPR actor_kind=human
+16:50:07.928 INF http request method=GET path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=4.672ms request_id=cursor/NT0iQeukUq-002932 correlation_id=581dc3dead88da29b0a1ac232f4d7f44 trace_id=581dc3dead88da29b0a1ac232f4d7f44 span_id=fe45278bda1b7ef0 organization_id=01M52SWY8MXE499BX0DA1HSVH0 workspace_id=01M52SWY8WRR1D3SJT5J5NP367 actor_id=01M52SWY7Z7XAG5TKCAGN3SHPR actor_kind=human
+16:50:11.339 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=12µs request_id=cursor/NT0iQeukUq-002994 correlation_id=5e65643d248b9916c9e8f2a3a978a215 trace_id=5e65643d248b9916c9e8f2a3a978a215 span_id=d5512c77074d6edf
+16:50:11.346 INF http request method=GET path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=6.229ms request_id=cursor/NT0iQeukUq-002999 correlation_id=85bbad29c4da5356363c96552edde29c trace_id=85bbad29c4da5356363c96552edde29c span_id=789fe7a8af0d5b16 organization_id=01M52SWY8MXE499BX0DA1HSVH0 workspace_id=01M52SWY8WRR1D3SJT5J5NP367 actor_id=01M52SWY7Z7XAG5TKCAGN3SHPR actor_kind=human
+16:50:11.908 INF http request method=GET path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=2.836ms request_id=cursor/NT0iQeukUq-003019 correlation_id=6a212561a9e480344ceed6b9b7f6dff1 trace_id=6a212561a9e480344ceed6b9b7f6dff1 span_id=ed91aa297319a40c organization_id=01M52SWY8MXE499BX0DA1HSVH0 workspace_id=01M52SWY8WRR1D3SJT5J5NP367 actor_id=01M52SWY7Z7XAG5TKCAGN3SHPR actor_kind=human
+16:50:15.378 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=7µs request_id=cursor/NT0iQeukUq-003082 correlation_id=e2a58a06e3146200db195508729788be trace_id=e2a58a06e3146200db195508729788be span_id=e9a34a7433a88efb
+16:50:15.386 INF http request method=GET path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=4.136ms request_id=cursor/NT0iQeukUq-003086 correlation_id=a910d09f0b5f76530af7abc36a112614 trace_id=a910d09f0b5f76530af7abc36a112614 span_id=d52de37a3a479e19 organization_id=01M52SWY8MXE499BX0DA1HSVH0 workspace_id=01M52SWY8WRR1D3SJT5J5NP367 actor_id=01M52SWY7Z7XAG5TKCAGN3SHPR actor_kind=human
+16:50:15.948 INF http request method=GET path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=5.728ms request_id=cursor/NT0iQeukUq-003104 correlation_id=f3d2dd76929fe993545eb2186fd17527 trace_id=f3d2dd76929fe993545eb2186fd17527 span_id=913a0efc885d249e organization_id=01M52SWY8MXE499BX0DA1HSVH0 workspace_id=01M52SWY8WRR1D3SJT5J5NP367 actor_id=01M52SWY7Z7XAG5TKCAGN3SHPR actor_kind=human
+16:50:19.199 INF http request method=OPTIONS path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=5µs request_id=cursor/NT0iQeukUq-003161 correlation_id=58cd9e93481d33e7c2e58ccd24a86ba5 trace_id=58cd9e93481d33e7c2e58ccd24a86ba5 span_id=34e6071685aa44e9
+16:50:19.209 INF http request method=GET path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=4.727ms request_id=cursor/NT0iQeukUq-003170 correlation_id=5b77cff54aaa1e9ca6467e80be4c58ee trace_id=5b77cff54aaa1e9ca6467e80be4c58ee span_id=51d8e0d7db6bf734 organization_id=01M52SWY8MXE499BX0DA1HSVH0 workspace_id=01M52SWY8WRR1D3SJT5J5NP367 actor_id=01M52SWY7Z7XAG5TKCAGN3SHPR actor_kind=human
+16:50:19.757 INF http request method=GET path=/api/v1/workspaces/01M52SWY8WRR1D3SJT5J5NP367/ai/capabilities status=200 duration=3.015ms request_id=cursor/NT0iQeukUq-003188 correlation_id=9f2f0c4af41009eb54d518fd41568ff7 trace_id=9f2f0c4af41009eb54d518fd41568ff7 span_id=9ef1ae22680cfad6 organization_id=01M52SWY8MXE499BX0DA1HSVH0 workspace_id=01M52SWY8WRR1D3SJT5J5NP367 actor_id=01M52SWY7Z7XAG5TKCAGN3SHPR actor_kind=human
+
+E2E_UX_FLOOR_EXIT=1
