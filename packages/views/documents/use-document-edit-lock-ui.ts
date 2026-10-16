@@ -76,15 +76,20 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
   // Only a refusal of the lock id held NOW counts, and each refusal once: a late 423 for an older
   // id (or one already handled) must not drop a lock that was regained since (CFE-1-1). A refusal is
   // told apart by the send it answers, not by its fields, which a 423 may not carry (CFE-2-1).
-  const handled423 = useRef(0);
+  // The save machine is per document and counts sends from 0, so the handled seq belongs to the
+  // document it was seen on: a component that stays mounted across a document switch starts over
+  // (CFE-3-1), or the new document's refusal at the same seq would be swallowed.
+  const handled423 = useRef({ scope: "", seq: 0 });
   useEffect(() => {
+    const scope = `${wsId}/${doc.id}`;
+    if (handled423.current.scope !== scope) handled423.current = { scope, seq: 0 };
     if (saveState.phase !== "locked" || phase !== "mine") return;
-    if (handled423.current === saveState.sendSeq) return;
+    if (handled423.current.seq === saveState.sendSeq) return;
     if (saveState.sentEditLockId !== lock.editLockId) return;
-    handled423.current = saveState.sendSeq;
+    handled423.current.seq = saveState.sendSeq;
     const lost = lostFrom423(saveState.errorFields);
     lock.markLost(lost.reason, lost.by);
-  }, [saveState.phase, saveState.errorFields, saveState.sendSeq, saveState.sentEditLockId, phase, lock]);
+  }, [wsId, doc.id, saveState.phase, saveState.errorFields, saveState.sendSeq, saveState.sentEditLockId, phase, lock]);
   // Holding it again (edit now, edit here, a handover): the kept draft goes out after the quiet window.
   // Only on the way into "mine", or for a refusal of an older id; a refusal of the current id is the
   // effect above's to end the hold with.
