@@ -909,6 +909,49 @@ describe("DocumentsPageView", () => {
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === `${LIST_BASE}/files`)).toBe(true));
   });
 
+  it("refuses a file over upload_max_bytes before sending any upload request", async () => {
+    const uploadSpy = vi.fn();
+    route({ list: () => [], upload: uploadSpy });
+    renderView(vi.fn());
+
+    fireEvent.click(await cardButton("upload"));
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    const huge = new File(["x"], "huge.pdf", { type: "application/pdf" });
+    Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });
+    fireEvent.change(input, { target: { files: [huge] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.upload.too_large_named", { name: "huge.pdf", size: "200,1 MB", max: "200 MB" }),
+    );
+    expect(uploadSpy).not.toHaveBeenCalled();
+    expect(requestMock.mock.calls.some(([path]) => path === `${LIST_BASE}/files`)).toBe(false);
+  });
+
+  it("renders {{max}} from error.fields.max_bytes when the server answers 413 file_too_large", async () => {
+    route({
+      list: () => [],
+      upload: () => {
+        throw new ApiError("tệp vượt quá dung lượng cho phép", "file_too_large", 413, undefined, {
+          max_bytes: 50 * 1024 * 1024,
+        });
+      },
+    });
+    renderView(vi.fn());
+
+    fireEvent.click(await cardButton("upload"));
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    const big = new File(["x"], "report.pdf", { type: "application/pdf" });
+    Object.defineProperty(big, "size", { value: 60 * 1024 * 1024 });
+    fireEvent.change(input, { target: { files: [big] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.upload.too_large_named", { name: "report.pdf", size: "60 MB", max: "50 MB" }),
+    );
+  });
+
+
   describe("folder contents list (FD-08)", () => {
     const rowOrder = () =>
       Array.from(document.querySelectorAll("[data-library-row]")).map((tr) =>

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
-import { documentErrorMessage } from "./document-error-message";
+import { initI18n } from "@uniwork/core/i18n";
+import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 
 type T = Parameters<typeof documentErrorMessage>[1];
 
@@ -29,4 +30,52 @@ describe("documentErrorMessage", () => {
     expect(documentErrorMessage(new ApiError("Nope", "something_else", 400), t, "fallback")).toBe("Nope");
     expect(documentErrorMessage(undefined, t, "fallback")).toBe("fallback");
   });
+
+  it("reads error.fields.max_bytes for a 413 file_too_large error", () => {
+    const t = fakeT();
+    const err = new ApiError("too large", "file_too_large", 413, undefined, {
+      max_bytes: 50 * 1024 * 1024,
+    });
+    documentErrorMessage(err, t, "fallback", {
+      locale: "vi",
+      file: { name: "Report.docx", size: 60 * 1024 * 1024 },
+    });
+    expect(t).toHaveBeenCalledWith("documents.upload.too_large_named", {
+      name: "Report.docx",
+      size: "60 MB",
+      max: "50 MB",
+    });
+
+    const tNoFile = fakeT();
+    documentErrorMessage(err, tNoFile, "fallback", { locale: "en" });
+    expect(tNoFile).toHaveBeenCalledWith("documents.errors.file_too_large", {
+      max: "50 MB",
+    });
+  });
+
+  it("formats pre-upload size and extension failures in vi and en", () => {
+    const i18n = initI18n();
+    const tVi = i18n.getFixedT("vi");
+    const tEn = i18n.getFixedT("en");
+    const maxBytes = 200 * 1024 * 1024;
+
+    expect(documentUploadValidationMessage({ name: "ok.docx", size: maxBytes }, maxBytes, tVi, "vi")).toBeNull();
+
+    expect(
+      documentUploadValidationMessage({ name: "Report.docx", size: maxBytes + 1 }, maxBytes, tVi, "vi"),
+    ).toBe(
+      "Report.docx nặng 200,1 MB, vượt giới hạn 200 MB. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
+    );
+
+    expect(
+      documentUploadValidationMessage({ name: "Report.docx", size: maxBytes + 1 }, maxBytes, tEn, "en"),
+    ).toBe(
+      "Report.docx is 200.1 MB, which is over the 200 MB limit. Reduce image sizes or split the file, then upload again.",
+    );
+
+    expect(documentUploadValidationMessage({ name: "bad.exe", size: 128 }, maxBytes, tVi, "vi")).toBe(
+      "Định dạng của bad.exe chưa được hỗ trợ.",
+    );
+  });
 });
+
