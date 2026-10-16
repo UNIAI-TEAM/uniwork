@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+4845b6ac5a3de5b315ff38284502b69dcb754852
+10b16375ac1b819592e9d7145d5ae03033fcb61b
+4845b6ac5 chore: merge root 10b16375a (MYFOLDER-01, SHAREDBYME-01, LISTFILTER-01) into the edit-lock server lane
+10b16375a chore: merge LISTFILTER-01 server + core (UNI-1868, 7a8154623) into the G5-G7 root
+d273efb38 chore: merge MYFOLDER-01 + SHAREDBYME-01 server (UNI-1850/1851, 8a1f0a97e) into the G5-G7 root
+408081ee4 chore: merge root b65535f35 (REPIN-1) into the edit-lock server lane
+b65535f35 chore: merge REPIN-1 (UNI-1825, 712c8e467) into the G5-G7 root
+d043fd154 chore: merge root 9863ca89b (SRC-02a) into the edit-lock server lane

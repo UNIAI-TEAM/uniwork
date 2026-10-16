@@ -1,0 +1,14 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test -race ./internal/notification -run "TestDocumentEdit|TestEditRequest" -count=1 -v > /tmp/notif.log 2>&1); rc=$?; grep -E -- "^(--- |ok|FAIL)" /tmp/notif.log; echo; echo "NOTIF_EDIT_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestDocumentEditRequestedNotifiesTheHolder (0.34s)
+--- PASS: TestDocumentEditKindsNeedReadAccess (0.32s)
+--- PASS: TestDocumentEditTakenOverNotifiesThePreviousHolder (0.27s)
+--- PASS: TestDocumentEditRequestAnsweredCarriesTheDecision (0.27s)
+--- PASS: TestEditRequestAnsweredReadsItsOwnAnswerRow (0.36s)
+--- PASS: TestDocumentEditKindsRejectAForeignTenantEvent (0.29s)
+--- PASS: TestDocumentEditKindsDefaultPrefs (0.00s)
+--- PASS: TestEditRequestAnsweredTitleFollowsTheDecision (0.00s)
+ok  	github.com/unicomhub/uniwork/server/internal/notification	2.904s
+
+NOTIF_EDIT_EXIT=0
