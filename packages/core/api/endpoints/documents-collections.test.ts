@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { isMyFolder, type DocumentSystemKind } from "../../types/document";
 import { setAccessToken } from "../session";
 import {
   archiveDocument,
@@ -412,4 +413,56 @@ describe("documents-collections endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(getDocumentArchiveImpact("d1")).resolves.toBeNull();
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): system_kind on list + tree -----------------
+
+  it("listDocuments and getDocumentTree parse system_kind, narrow to my_folder, and degrade unknown or malformed values", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "mf1", kind: "folder", system_kind: "my_folder" }),
+            summary({ id: "mf2", kind: "folder", system_kind: "future_system_folder" }),
+            summary({ id: "mf3", kind: "folder", system_kind: 99 }),
+            summary({ id: "d1", kind: "page" }),
+          ],
+        }),
+      ),
+    );
+    const list = await listDocuments("w1");
+    const firstKind: DocumentSystemKind | null | undefined = list.documents[0]?.system_kind;
+    expect(firstKind).toBe("my_folder");
+    expect(list.documents[2]?.system_kind).toBeUndefined();
+    expect(list.documents.map((d) => [d.id, isMyFolder(d)])).toEqual([
+      ["mf1", true],
+      ["mf2", false],
+      ["mf3", false],
+      ["d1", false],
+    ]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          treeNode({
+            id: "mf1",
+            kind: "folder",
+            system_kind: "my_folder",
+            children: [
+              treeNode({ id: "c1", parent_id: "mf1", system_kind: "future_system_folder" }),
+              treeNode({ id: "c2", parent_id: "mf1", system_kind: 12 }),
+            ],
+          }),
+        ],
+      }),
+    );
+    const tree = await getDocumentTree("w1");
+    const rootNode = tree.documents[0]!;
+    const rootKind: DocumentSystemKind | null | undefined = rootNode.system_kind;
+    expect(rootKind).toBe("my_folder");
+    expect(isMyFolder(rootNode)).toBe(true);
+    expect(isMyFolder(rootNode.children[0])).toBe(false);
+    expect(rootNode.children[1]?.system_kind).toBeUndefined();
+    expect(isMyFolder(rootNode.children[1])).toBe(false);
+  });
 });
+

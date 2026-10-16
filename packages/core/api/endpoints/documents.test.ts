@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
-import { DocumentAccessSchema } from "../../types/document";
+import {
+  DOCUMENT_SYSTEM_KINDS,
+  DocumentAccessSchema,
+  isMyFolder,
+  type DocumentSystemKind,
+} from "../../types/document";
 import { ApiError } from "../http";
 import { setAccessToken } from "../session";
 import {
@@ -648,4 +653,39 @@ describe("documents endpoints", () => {
     expect(parseDocumentAccessError(null)).toBeNull();
     expect(parseDocumentAccessError("nope")).toBeNull();
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): system_kind + isMyFolder ------------------
+
+  it("getDocument parses system_kind, narrows to my_folder, and degrades unknown or malformed values", async () => {
+    expect(DOCUMENT_SYSTEM_KINDS).toEqual(["my_folder"]);
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: "my_folder" }) }),
+    );
+    const myFolder = await getDocument("d1");
+    const kind: DocumentSystemKind | null | undefined = myFolder?.system_kind;
+    expect(kind).toBe("my_folder");
+    expect(isMyFolder(myFolder)).toBe(true);
+
+    // Unknown string enum value parses through z.string() and degrades to false in isMyFolder.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: "future_system_folder" }) }),
+    );
+    const unknownKind = await getDocument("d1");
+    expect(unknownKind?.id).toBe("d1");
+    expect(isMyFolder(unknownKind)).toBe(false);
+
+    // Non-string malformed value degrades to undefined without failing the document read.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: 42 }) }),
+    );
+    const malformedKind = await getDocument("d1");
+    expect(malformedKind?.id).toBe("d1");
+    expect(malformedKind?.system_kind).toBeUndefined();
+    expect(isMyFolder(malformedKind)).toBe(false);
+
+    expect(isMyFolder(null)).toBe(false);
+    expect(isMyFolder(undefined)).toBe(false);
+    expect(isMyFolder({ system_kind: null })).toBe(false);
+  });
 });
+

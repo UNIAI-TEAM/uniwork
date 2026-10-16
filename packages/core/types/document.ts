@@ -46,6 +46,9 @@ export type DocumentVersionReason = (typeof DOCUMENT_VERSION_REASONS)[number];
 export const DOCUMENT_OWNER_KINDS = ["work_product"] as const;
 export type DocumentOwnerKind = (typeof DOCUMENT_OWNER_KINDS)[number];
 
+export const DOCUMENT_SYSTEM_KINDS = ["my_folder"] as const;
+export type DocumentSystemKind = (typeof DOCUMENT_SYSTEM_KINDS)[number];
+
 export const DOCUMENT_DISPOSITIONS = ["attachment", "inline"] as const;
 export type DocumentDisposition = (typeof DOCUMENT_DISPOSITIONS)[number];
 
@@ -98,6 +101,7 @@ export const DocumentSchema = z.object({
   workspace_id: z.string(),
   parent_id: z.string().nullable().optional(),
   kind: z.string(),
+  system_kind: z.string().nullable().optional().catch(undefined),
   title: z.string(),
   icon: z.string().nullable().optional(),
   visibility: z.string().optional().default("workspace"),
@@ -126,14 +130,27 @@ export const DocumentSchema = z.object({
 });
 export type Document = Omit<
   z.infer<typeof DocumentSchema>,
-  "kind" | "visibility" | "my_level" | "via" | "owner_kind"
+  "kind" | "system_kind" | "visibility" | "my_level" | "via" | "owner_kind"
 > & {
   kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel;
   via?: DocumentAccessVia;
   owner_kind?: DocumentOwnerKind | null;
 };
+
+/** True when a document, list item or tree node is the caller's system My Folder. */
+export function isMyFolder(
+  doc: { system_kind?: string | null } | null | undefined,
+): boolean {
+  switch (doc?.system_kind) {
+    case "my_folder":
+      return true;
+    default:
+      return false;
+  }
+}
 
 export const DocumentVersionSchema = z.object({
   id: z.string(),
@@ -254,6 +271,7 @@ export const DocumentSummarySchema = z.object({
   workspace_id: z.string(),
   parent_id: z.string().nullable().optional(),
   kind: z.string(),
+  system_kind: z.string().nullable().optional().catch(undefined),
   title: z.string(),
   icon: z.string().nullable().optional(),
   visibility: z.string().optional().default("workspace"),
@@ -303,15 +321,17 @@ export type DocumentOrigin = "upload" | "created";
 
 // The parser always fills `path` ([] when absent); the type keeps it optional
 // so a row a view builds by hand (a favorite, a fixture) need not carry one.
-type DocumentSummaryWire = Omit<z.infer<typeof DocumentSummarySchema>, "path"> & {
+type DocumentSummaryWire = Omit<z.infer<typeof DocumentSummarySchema>, "path" | "system_kind"> & {
   path?: z.infer<typeof DocumentPathItemSchema>[];
+  system_kind?: DocumentSystemKind | null;
 };
 
 export type DocumentSummary = Omit<
   DocumentSummaryWire,
-  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin"
+  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin" | "system_kind"
 > & {
   kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
   origin?: DocumentOrigin | null;
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel | null;
@@ -382,6 +402,7 @@ export interface DocumentTreeNode {
   title: string;
   icon?: string | null;
   kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
   position: number;
   children: DocumentTreeNode[];
 }
@@ -393,6 +414,7 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
     title: z.string(),
     icon: z.string().nullable().optional(),
     kind: z.string(),
+    system_kind: z.string().nullable().optional().catch(undefined),
     position: z.number().optional().default(0),
     children: z.array(DocumentTreeNodeSchema).optional().default([]),
   }),
