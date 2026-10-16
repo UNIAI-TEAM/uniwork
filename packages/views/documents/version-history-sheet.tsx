@@ -270,7 +270,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
                         {version.size_bytes > 0 ? ` · ${formatFileSize(version.size_bytes, i18n.language)}` : ""}
                         {version.created_at ? ` · ${formatWhen(version.created_at, i18n.language)}` : ""}
                       </p>
-                      <VersionAuthor version={version} members={memberById} ready={members.isSuccess} />
+                      <VersionAuthor version={version} members={memberById} ready={members.data !== undefined} />
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5">
                       {doc.kind === "page" ? (

@@ -18,15 +18,16 @@ export function VersionAuthor({
 }: {
   version: Pick<DocumentVersion, "created_by" | "created_by_kind">;
   members: ReadonlyMap<string, Member>;
-  /** The member list has loaded; until then a name that is not in it is unknown, not "former". */
+  /** A member list has loaded (a failed refetch keeps it); until then a name that is not in it is unknown, not "former". */
   ready: boolean;
 }) {
   const { t } = useTranslation();
   if (!version.created_by) return null;
 
   const kind = version.created_by_kind;
-  // A pending or failed members request cannot tell a former member from one
-  // not loaded yet, so the line waits for the list instead of guessing.
+  // With no list ever loaded (pending, or failed before the first success) a
+  // former member cannot be told from a name not loaded yet, so the line waits
+  // instead of guessing.
   if (kind !== "system" && !ready) return null;
   const member = members.get(version.created_by);
   const name =

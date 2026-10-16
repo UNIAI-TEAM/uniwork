@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
@@ -79,7 +80,7 @@ function mockApi(overrides: { rows?: unknown[]; onPost?: (path: string, opts: an
   });
 }
 
-function renderSheet(over: { doc?: Document; onOpenChange?: (open: boolean) => void } = {}) {
+function renderSheet(over: { doc?: Document; onOpenChange?: (open: boolean) => void; client?: QueryClient } = {}) {
   const onOpenChange = over.onOpenChange ?? vi.fn();
   const view = render(
     wrap(
@@ -89,6 +90,7 @@ function renderSheet(over: { doc?: Document; onOpenChange?: (open: boolean) => v
         wsId={WS}
         doc={over.doc ?? pageDocument()}
       />,
+      over.client,
     ),
   );
   return { view, onOpenChange };
@@ -301,6 +303,10 @@ describe("VersionHistorySheet", () => {
   });
 
   describe("author line", () => {
+    const membersClient = () =>
+      new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
+    const membersQueries = (client: QueryClient) =>
+      client.getQueryCache().findAll({ predicate: (q) => JSON.stringify(q.queryKey).includes("members") });
     const rowOf = (no: number) =>
       screen.getByText(t("documents.versions.row_version", { no })).closest("li") as HTMLElement;
 
@@ -374,10 +380,33 @@ describe("VersionHistorySheet", () => {
       requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
         path === `/api/v1/workspaces/${WS}/members` ? Promise.reject(new Error("boom")) : base(path, opts),
       );
-      renderSheet();
+      const client = membersClient();
+      renderSheet({ client });
       await screen.findByText(t("documents.versions.row_version", { no: 2 }));
-      await waitFor(() => expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/members"))).toBe(true));
+      // Wait for the query itself to reach the error state: a call having been
+      // made is also true while it is still pending.
+      await waitFor(() => expect(membersQueries(client).some((q) => q.state.status === "error")).toBe(true));
       expect(screen.queryByTestId("version-author")).toBeNull();
+      expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
+    });
+
+    it("keeps cached names when a background members refetch fails", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      const base = requestMock.getMockImplementation()!;
+      const client = membersClient();
+      renderSheet({ client });
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      await within(rowOf(2)).findByText("Lan Nguyễn");
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+        path === `/api/v1/workspaces/${WS}/members` ? Promise.reject(new Error("boom")) : base(path, opts),
+      );
+      await client.refetchQueries({ predicate: (q) => JSON.stringify(q.queryKey).includes("members") });
+      await waitFor(() =>
+        expect(
+          membersQueries(client).some((q) => q.state.status === "error" && q.state.data !== undefined),
+        ).toBe(true),
+      );
+      expect(within(rowOf(2)).getByText("Lan Nguyễn")).toBeInTheDocument();
       expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
     });
 
