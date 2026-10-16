@@ -30,6 +30,8 @@ type AskUNIService struct {
 	meetings *MeetingService
 	chat     *ChatService
 	emailHub *EmailHubService
+	docs     *DocumentService
+	flags    McpFlags
 	gw       *ai.Gateway
 	ent      *EntitlementService
 	rdb      *redis.Client
@@ -40,6 +42,13 @@ type AskUNIService struct {
 func (s *AskUNIService) SetEmailHub(hub *EmailHubService) {
 	s.emailHub = hub
 }
+
+// SetDocuments wires document search (optional; set from main after construction).
+func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
+
+// SetFlags wires the feature-flag evaluator; without it the documents flag
+// reads as off (fail closed, as in McpToolService).
+func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
 
 // taskRow is what the source reader renders; it is the sqlc row.
 type taskRow = db.Task
@@ -177,6 +186,10 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 		}
 		return AskResult{}, err
 	}
+	sources, err = s.withPreviousQuestion(ctx, conv.ID, userID, w.OrganizationID, workspaceID, question, sources)
+	if err != nil {
+		return AskResult{}, err
+	}
 	pack, truncated := ai.BuildContext(sources)
 
 	answer := ai.Answer{Citations: []ai.Citation{}}
@@ -238,6 +251,45 @@ func (s *AskUNIService) ownConversation(ctx context.Context, userID, id, workspa
 		return db.AiConversation{}, ErrNotFound
 	}
 	return conv, err
+}
+
+// withPreviousQuestion appends the sources of "<previous question> <question>"
+// after the current ones, so a follow-up like "who owns that?" still finds what
+// the last turn was about. The raw stored question is used, not the wrapped
+// history copy. Focus is not repeated: the first lookup already carries it.
+func (s *AskUNIService) withPreviousQuestion(ctx context.Context, convID, userID, orgID, workspaceID, question string, sources []ai.Source) ([]ai.Source, error) {
+	rows, err := s.q.AiListMessages(ctx, convID)
+	if err != nil {
+		return nil, err
+	}
+	prev := ""
+	for i := len(rows) - 1; i >= 0; i-- {
+		if rows[i].Role == "user" {
+			prev = rows[i].Content
+			break
+		}
+	}
+	if prev == "" {
+		return sources, nil
+	}
+	more, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: orgID, WorkspaceID: workspaceID, Question: prev + " " + question})
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			return nil, ai.ErrContextForbidden
+		}
+		return nil, err
+	}
+	seen := map[string]bool{}
+	for _, src := range sources {
+		seen[src.Href] = true
+	}
+	for _, src := range more {
+		if !seen[src.Href] {
+			sources = append(sources, src)
+			seen[src.Href] = true
+		}
+	}
+	return sources, nil
 }
 
 func (s *AskUNIService) history(ctx context.Context, convID string) ([]provider.Message, error) {

@@ -491,3 +491,85 @@ func TestAskFindsTaskByIdentifier(t *testing.T) {
 		t.Fatalf("unknown identifier must not error: %v", err)
 	}
 }
+
+func askDocs(t *testing.T, s *AskUNIService, flags McpFlags) *DocumentService {
+	t.Helper()
+	docs := NewDocumentService(s.pool, s.q, s.orgs, s.ws)
+	docs.SetEntitlements(NewEntitlementService(s.pool, s.q))
+	s.SetDocuments(docs)
+	s.SetFlags(flags)
+	return docs
+}
+
+func TestAskFindsDocuments(t *testing.T) {
+	s, fake, ua, ub, w := askFixture(t)
+	ctx := context.Background()
+	docs := askDocs(t, s, mcpFlags(true))
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addMember(t, s.meetings, w.ID, ub.ID)
+	if _, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép"}); err != nil {
+		t.Fatal(err)
+	}
+	// A owns the organization (implicit admin), so the asker is member B.
+	secret, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình nghỉ phép nội bộ của A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, secret.Document.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := s.Ask(ctx, ub.ID, w.ID, AskInput{Question: "quy trình nghỉ phép", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, c := range res.Citations {
+		if c.Kind == "document" && c.Title == "Quy trình xin nghỉ phép" {
+			found = true
+		}
+		if strings.Contains(c.Title, "của A") {
+			t.Fatalf("restricted document cited: %+v", c)
+		}
+	}
+	if !found {
+		t.Fatalf("document not cited: %+v", res.Citations)
+	}
+	if p := fake.Last.Messages[len(fake.Last.Messages)-1].Content; strings.Contains(p, "của A") {
+		t.Fatalf("restricted title reached the model:\n%s", p)
+	}
+
+	// Flag off: no document source, so the question has nothing to cite.
+	s.SetFlags(mcpFlagsExcept{off: "documents"})
+	res, err = s.Ask(ctx, ub.ID, w.ID, AskInput{Question: "quy trình nghỉ phép", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range res.Citations {
+		if c.Kind == "document" {
+			t.Fatalf("document cited with the flag off: %+v", c)
+		}
+	}
+}
+
+func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Banner Tết"}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "Ai đang nhận cái đó?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range res.Citations {
+		if c.Title == "Banner Tết" {
+			return
+		}
+	}
+	t.Fatalf("follow-up did not cite the previous question's task: %+v / notice %q", res.Citations, res.Message.Notice.String)
+}

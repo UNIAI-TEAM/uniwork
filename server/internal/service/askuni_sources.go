@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"sort"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"unicode"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // The Ask UNI tool registry (spec F-09 §3.4) and the permission-aware source
@@ -284,6 +287,7 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 	for _, c := range chat {
 		items = append(items, scored{src: c, score: 1, when: s.now()})
 	}
+	items = append(items, s.searchDocumentSources(ctx, tc, query)...)
 	if asksMembers(query) {
 		members, err := s.memberContext(ctx, tc, query)
 		if err != nil {
@@ -294,6 +298,67 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 		}
 	}
 	return topSources(items, ai.MaxSources), nil
+}
+
+// documentsOn mirrors McpToolService.documentsOn: DocumentService wired and the
+// `documents` flag on for the asker's organization and person; no evaluator = off.
+func (s *AskUNIService) documentsOn(ctx context.Context, tc ai.ToolContext) bool {
+	if s.docs == nil || s.flags == nil {
+		return false
+	}
+	def := false
+	if f, ok := featureflags.Lookup(mcpDocumentsFlag); ok {
+		def = f.Default
+	}
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID})
+	return s.flags.IsEnabled(ctx, mcpDocumentsFlag, def)
+}
+
+// searchDocumentSources finds documents the asker may read by the question's
+// three longest terms. Excerpt is the 160-char list Snippet at P0. Any error
+// drops the document half only; the turn still runs.
+func (s *AskUNIService) searchDocumentSources(ctx context.Context, tc ai.ToolContext, query string) []scored {
+	if !s.documentsOn(ctx, tc) {
+		return nil
+	}
+	ts := terms(query)
+	sort.SliceStable(ts, func(i, j int) bool { return len([]rune(ts[i])) > len([]rune(ts[j])) })
+	if len(ts) > 3 {
+		ts = ts[:3]
+	}
+	if len(ts) == 0 {
+		return nil
+	}
+	base, err := s.base(ctx, tc.WorkspaceID)
+	if err != nil {
+		slog.Warn("ask uni: document search skipped", "user_id", tc.ActorID, "workspace_id", tc.WorkspaceID, "error", err)
+		return nil
+	}
+	byID := map[string]*scored{}
+	var order []string
+	for _, term := range ts {
+		page, err := s.docs.ListDocuments(ctx, Human(tc.ActorID), tc.WorkspaceID, ListDocumentsInput{Query: term, Kind: DocumentKindDocument, Limit: 5})
+		if err != nil {
+			slog.Warn("ask uni: document search skipped", "user_id", tc.ActorID, "workspace_id", tc.WorkspaceID, "error", err)
+			return nil
+		}
+		for _, it := range page.Items {
+			d := it.Document
+			if byID[d.ID] != nil {
+				continue
+			}
+			byID[d.ID] = &scored{
+				src:   ai.Source{Kind: "document", Title: d.Title, Href: base + "/documents/" + d.ID, Excerpt: it.Snippet},
+				score: score(d.Title+" "+it.Snippet, ts), when: d.UpdatedAt.Time,
+			}
+			order = append(order, d.ID)
+		}
+	}
+	out := make([]scored, 0, len(order))
+	for _, id := range order {
+		out = append(out, *byID[id])
+	}
+	return out
 }
 
 var taskIdentifierRe = regexp.MustCompile(`(?i)\b([a-z][a-z0-9]{1,9})-(\d{1,9})\b`)
