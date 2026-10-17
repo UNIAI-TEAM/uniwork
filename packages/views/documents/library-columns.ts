@@ -38,20 +38,7 @@
  * | 59rem     | + Truy cập                           |
  */
 
-export type LibraryColumnId =
-  | "name"
-  | "type"
-  | "source"
-  | "editor"
-  | "updated"
-  | "size"
-  | "access"
-  | "visibility"
-  | "actions"
-  // Trash-only columns (RESTORE-01): who deleted, when, and the purge countdown.
-  | "deleted_by"
-  | "deleted_at"
-  | "purge_in";
+export type LibraryColumnId = "name" | "access" | "editor" | "updated" | "size" | "actions";
 
 interface LibraryColumn {
   id: LibraryColumnId;
