@@ -7,6 +7,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { listVersions } from '../g7-04/cross-host.mjs';
 import {
   buildEditSaveObservation,
   buildUndoRedoObserved,
@@ -74,6 +75,21 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     }, { apiOrigin: 'http://a', documentId: 'D1', token: 't' });
     assert.equal(missing.ok, false);
     assert.equal(missing.reason, 'missing_version_list');
+  });
+
+  it('R2-6: listVersions keeps its lenient default and throws only for the strict g7-08 caller', async () => {
+    const fetchWith = (body) => async () => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    const args = { apiOrigin: 'http://api.test', documentId: 'D1', token: 't' };
+    // G7-04 semantics unchanged: a 200 without a versions array is still 0.
+    assert.equal(await listVersions({ ...args, fetchImpl: fetchWith({}) }), 0);
+    assert.equal(await listVersions({ ...args, fetchImpl: fetchWith({ versions: [{}, {}] }) }), 2);
+    // The strict form: no array is an absent scored field, an empty array is a real 0.
+    await assert.rejects(listVersions({ ...args, fetchImpl: fetchWith({}), strict: true }), /missing_version_list/);
+    await assert.rejects(listVersions({ ...args, fetchImpl: fetchWith({ versions: null }), strict: true }), /missing_version_list/);
+    assert.equal(await listVersions({ ...args, fetchImpl: fetchWith({ versions: [] }), strict: true }), 0);
+    const blocked = await readVersionCount(listVersions, { ...args, fetchImpl: fetchWith({}) });
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.reason, 'missing_version_list');
   });
 
   it('R2-5: undo/redo observation never infers visibility from executed tools', () => {
