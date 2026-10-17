@@ -183,9 +183,8 @@ export function DocumentWorkspace({
   // Live again after a refusal: once the edit lock is held, send the held draft on its key (the key is
   // only kept while the lock id is the same, UNI-1645). Any new send clears errorCode, which ends this.
   useEffect(() => {
-    if (!liveAgain) return;
-    if (state.errorCode !== "document_shelved") setLiveAgain(false);
-    else if (editable) save.retry();
+    if (liveAgain && state.errorCode !== "document_shelved") setLiveAgain(false);
+    else if (liveAgain && editable) save.retry();
     // `save` is rebuilt on every state change and is read fresh here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveAgain, editable, state.errorCode]);
