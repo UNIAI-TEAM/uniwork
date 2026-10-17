@@ -17,8 +17,8 @@ import {
 
 /** Past this many rows only the visible slice is mounted. */
 const SIDEBAR_VIRTUALIZE_AFTER = 100;
-/** A row: 32px mark, a name line and a preview line, 8px padding each side. */
-const ROW_ESTIMATE_PX = 54;
+/** A row: 48px mark with 10px padding above and below, plus the 1px gap. */
+const ROW_ESTIMATE_PX = 69;
 
 const ROW_SELECTOR = "[data-chat-sidebar-row]";
 const NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);

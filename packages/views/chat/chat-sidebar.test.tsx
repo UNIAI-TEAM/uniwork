@@ -201,6 +201,16 @@ describe("ChatSidebar", () => {
     expect(screen.getByLabelText("Đã tắt thông báo")).toBeInTheDocument();
   });
 
+  it("sets a group preview's sender apart from the body, and keeps both in the row's name", () => {
+    renderSidebar({
+      roomPreviewsByRoomId: {
+        "room-g1": { body: "hello: there", kind: "text", senderId: "u3", senderName: "Minh", createdAt: "2026-09-04T15:18:00.000Z" },
+      },
+    });
+    expect(screen.getByText("Minh:")).toHaveClass("text-foreground");
+    expect(screen.getByRole("button", { name: /Design.*Minh: hello: there/ })).toBeInTheDocument();
+  });
+
   it("keeps one row in the tab order and moves between rows with the arrow keys", () => {
     const onTargetChange = vi.fn();
     renderSidebar({ onTargetChange, target: { kind: "group", group } });

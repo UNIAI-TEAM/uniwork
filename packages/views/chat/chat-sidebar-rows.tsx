@@ -1,6 +1,6 @@
 "use client";
 
-import { BellOff, Pin } from "lucide-react";
+import { BellOff, Mic, Paperclip, Phone, Pin, type LucideIcon } from "lucide-react";
 import { memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
@@ -88,7 +88,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
     contacts,
     fallbackNameByUserId: typingNameByUserId,
   });
-  const previewText = formatChatSidebarPreviewText(preview, {
+  const formatOptions = {
     currentUserId: previewOptions.currentUserId,
     isGroup: previewOptions.isGroup,
     youLabel: previewOptions.youLabel,
@@ -101,13 +101,25 @@ export const SidebarNavItem = memo(function SidebarNavItem({
       gif: t("chat.media_gif"),
       image: t("chat.media_image"),
     },
-  });
+  };
+  const previewText = formatChatSidebarPreviewText(preview, formatOptions);
+  // The sender ("Bạn: ", "Minh: ") is what the group line adds to the bare
+  // body; split it off so it can carry the ink while the body stays quiet.
+  const bodyText = previewOptions.isGroup
+    ? formatChatSidebarPreviewText(preview, { ...formatOptions, isGroup: false })
+    : previewText;
+  const senderPrefix =
+    previewText && bodyText && previewText !== bodyText && previewText.endsWith(bodyText)
+      ? previewText.slice(0, previewText.length - bodyText.length)
+      : "";
+  const PreviewIcon = preview && previewText ? PREVIEW_ICONS[preview.kind] : undefined;
   const timeLabel = formatChatSidebarTime(preview?.createdAt, {
     yesterdayLabel: previewOptions.yesterdayLabel,
     locale: i18n.language,
   });
   const subtitle = typingPreview ?? previewText ?? fallbackSubtitle;
   const hasUnread = unread > 0 || mentionUnread > 0;
+  const showBadges = unreadBadgesReady && hasUnread;
 
   return (
     <button
@@ -119,93 +131,84 @@ export const SidebarNavItem = memo(function SidebarNavItem({
       // The row publishes its fill as --row-fill so the presence dot's
       // cut-out ring matches whatever the row is painted with.
       className={cn(
-        "relative flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors duration-(--duration-fast)",
+        "relative flex min-h-17 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-(--duration-fast)",
         active
-          ? "bg-surface-selected text-surface-selected-foreground [--row-fill:var(--surface-selected)]"
+          ? "bg-brand-subtle [--row-fill:var(--brand-subtle)]"
           : "[--row-fill:var(--surface)] hover:bg-surface-hover hover:[--row-fill:var(--surface-hover)]",
       )}
       onClick={onClick}
     >
       {avatar}
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-body font-medium text-foreground",
-              hasUnread && "font-semibold",
-            )}
-          >
-            {title}
-          </span>
-          <span className="flex shrink-0 items-center gap-1">
-            {notificationsMuted ? (
-              <BellOff
-                className="size-3.5 shrink-0 text-muted-foreground"
-                aria-label={t("chat.sidebar_conversation_muted_aria")}
-              />
-            ) : null}
-            {timeLabel ? (
-              <span
-                className={cn(
-                  "text-caption tabular-nums",
-                  hasUnread && !notificationsMuted ? "font-medium text-brand-subtle-foreground" : "text-muted-foreground",
-                )}
-              >
-                {timeLabel}
-              </span>
-            ) : null}
-          </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex items-center gap-1.5">
+          <span className="min-w-0 flex-1 truncate font-display text-body-lg font-bold text-foreground">{title}</span>
+          {notificationsMuted ? (
+            <BellOff
+              className="size-3.5 shrink-0 text-faint-foreground"
+              aria-label={t("chat.sidebar_conversation_muted_aria")}
+            />
+          ) : null}
+          {timeLabel ? (
+            <span
+              className={cn(
+                "shrink-0 text-caption tabular-nums",
+                hasUnread && !notificationsMuted ? "font-medium text-brand" : "text-muted-foreground",
+              )}
+            >
+              {timeLabel}
+            </span>
+          ) : null}
         </span>
-        {subtitle || pinned ? (
-          <span className="mt-0.5 flex items-center gap-2">
-            {subtitle ? (
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-caption",
-                  typingPreview
-                    ? "inline-flex items-center gap-1.5 italic text-brand-subtle-foreground"
-                    : hasUnread
-                      ? "font-medium text-foreground"
-                      : "text-muted-foreground",
-                )}
-              >
-                {typingPreview ? (
-                  <>
-                    <span className="truncate">{typingPreview}</span>
-                    <SidebarTypingDots />
-                  </>
-                ) : (
-                  subtitle
-                )}
+        {subtitle || pinned || showBadges ? (
+          <span className="flex items-center gap-1.5">
+            {typingPreview ? (
+              <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 text-body font-medium text-brand">
+                <span className="truncate">{typingPreview}</span>
+                <SidebarTypingDots />
+              </span>
+            ) : previewText ? (
+              <span className="min-w-0 flex-1 truncate text-body text-muted-foreground">
+                {PreviewIcon ? (
+                  <PreviewIcon aria-hidden className="mr-1 inline-block size-3.5 align-[-0.125em] text-faint-foreground" />
+                ) : null}
+                {senderPrefix ? <span className="font-medium text-foreground">{senderPrefix}</span> : null}
+                {senderPrefix ? bodyText : previewText}
               </span>
             ) : (
-              <span className="min-w-0 flex-1" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-body text-muted-foreground">{subtitle}</span>
             )}
             {pinned ? (
               <Pin
-                className="size-3.5 shrink-0 text-muted-foreground"
+                className="size-3.5 shrink-0 text-faint-foreground"
                 aria-label={t("chat.sidebar_conversation_pinned_aria")}
               />
             ) : null}
+            <UnreadBadge
+              count={unread}
+              mentionCount={mentionUnread}
+              ready={unreadBadgesReady}
+              muted={notificationsMuted}
+            />
           </span>
         ) : null}
       </span>
-      <UnreadBadge
-        count={unread}
-        mentionCount={mentionUnread}
-        ready={unreadBadgesReady}
-        muted={notificationsMuted}
-      />
     </button>
   );
 });
 
-const BADGE = "h-5 min-w-5 shrink-0 justify-center rounded-full px-1.5 text-micro font-semibold tabular-nums";
+/** Decorative: the preview text already names the kind ("Tin nhắn thoại"). */
+const PREVIEW_ICONS: Partial<Record<string, LucideIcon>> = {
+  voice: Mic,
+  voice_call_log: Phone,
+  file: Paperclip,
+};
+
+const BADGE = "h-5.5 min-w-5.5 shrink-0 justify-center rounded-full px-1.5 text-caption font-semibold tabular-nums";
 
 /**
- * A mention is the one unread that asks for you, so it takes the warning
- * signal; a plain count is the brand. A muted room keeps its counts but drops
- * to neutral, so it no longer competes with rooms that notify.
+ * A mention is the one unread that asks for you: a brand "@" disc ahead of
+ * the count, even in a muted room. A muted room's count drops to neutral
+ * grey, so it no longer competes with rooms that notify.
  */
 function UnreadBadge({
   count,
@@ -223,10 +226,10 @@ function UnreadBadge({
     return null;
   }
   return (
-    <span className="flex shrink-0 items-center gap-1 self-center">
+    <span className="flex shrink-0 items-center gap-1">
       {mentionCount > 0 ? (
         <Badge
-          className={cn(BADGE, "bg-warning-solid text-on-solid")}
+          className={cn(BADGE, "bg-primary px-0 font-bold text-primary-foreground")}
           aria-label={t("chat.mention_unread_badge_aria", { count: mentionCount })}
         >
           @
@@ -234,12 +237,7 @@ function UnreadBadge({
       ) : null}
       {count > 0 ? (
         <Badge
-          // A muted count sits on the page fill with a hairline: bg-muted is
-          // also the row's hover wash, so it would vanish under the pointer.
-          className={cn(
-            BADGE,
-            muted ? "border border-border bg-background text-muted-foreground" : "bg-brand text-brand-foreground",
-          )}
+          className={cn(BADGE, muted ? "bg-tint-gray-solid text-on-solid" : "bg-primary text-primary-foreground")}
           aria-label={t("chat.unread_badge_aria", { count })}
         >
           {count > 99 ? "99+" : String(count)}

@@ -10,7 +10,9 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -51,13 +53,21 @@ const EMPTY_PEOPLE: NonNullable<ChatSidebarProps["knownPeople"]> = [];
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
-/* Same chip as the inbox triage row: a quiet label that rises to a raised
-   surface when on, so the active filter reads without a second accent. */
-/* One segment of the kind filter: a quiet label on the muted track that
-   rises to a raised surface when chosen — one control, one row. */
-const FILTER_SEGMENT =
-  "h-7 min-w-0 flex-1 truncate rounded-md border-0 px-1.5 text-caption font-medium text-muted-foreground transition-colors duration-(--duration-fast) pointer-coarse:h-11 " +
-  "hover:text-foreground aria-pressed:bg-surface aria-pressed:text-foreground aria-pressed:shadow-[var(--surface-shadow)] dark:aria-pressed:bg-muted";
+/* The kind filter is the list's tab strip: a quiet label that takes the brand
+   and an underline when chosen, sitting on the rule above the list. */
+/* Menu rows at the canvas' 40px, icon and label 12px apart. */
+const MENU_ITEM = "h-10 gap-3 rounded-md px-2.5 font-medium";
+
+const KIND_TAB =
+  "relative h-11 min-w-0 flex-1 truncate rounded-md border-0 px-1 text-label font-semibold text-muted-foreground transition-colors duration-(--duration-fast) " +
+  "after:absolute after:inset-x-1.5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent " +
+  "hover:bg-transparent hover:text-foreground aria-pressed:bg-transparent aria-pressed:text-brand aria-pressed:after:bg-brand";
+
+/* The read-state filter is a row of pills under the tabs: muted when off, the
+   brand wash when on, so the two filters never read as one control. */
+const ACTIVITY_CHIP =
+  "h-7 rounded-full border-0 px-3 text-label font-medium text-muted-foreground bg-muted transition-colors duration-(--duration-fast) pointer-coarse:h-11 " +
+  "hover:bg-surface-hover hover:text-foreground aria-pressed:bg-brand-subtle aria-pressed:text-brand-subtle-foreground";
 
 /**
  * Memoised: the page re-renders on every composer keystroke and typing
@@ -210,10 +220,11 @@ export const ChatSidebar = memo(function ChatSidebar({
           embedded ? "h-full min-w-0 flex-1 border-r border-border" : "rounded-lg border border-border",
         )}
       >
-        {/* Same height as the conversation header, so one rule runs across
-            both columns and the two titles share a baseline. */}
-        <header className="flex h-14 shrink-0 items-center gap-0.5 border-b border-border pr-2 pl-3">
-          <h2 id="chat-sidebar-title" className="min-w-0 flex-1 truncate text-title-sm font-semibold text-foreground">
+        <header className="flex shrink-0 items-center gap-1 pt-3.5 pr-3 pb-3 pl-5">
+          <h2
+            id="chat-sidebar-title"
+            className="min-w-0 flex-1 truncate font-display text-title-lg font-extrabold text-foreground"
+          >
             {t("chat.title")}
           </h2>
           {onOpenFollowUps ? (
@@ -229,32 +240,37 @@ export const ChatSidebar = memo(function ChatSidebar({
                         type="button"
                         variant="ghost"
                         size="icon-lg"
-                        className="text-foreground"
+                        // A filled square, so the one way to start a conversation
+                        // stands apart from the quiet icons beside it.
+                        className="size-10 rounded-lg bg-muted text-foreground hover:bg-surface-hover aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground dark:hover:bg-surface-hover"
                         aria-label={t("chat.new_conversation_aria")}
                       />
                     }
                   />
                 }
               >
-                <Plus aria-hidden className="size-4.5" />
+                <Plus aria-hidden className="size-5" />
               </TooltipTrigger>
               <TooltipContent>{t("chat.new_conversation_aria")}</TooltipContent>
             </Tooltip>
-            <DropdownMenuContent align="end" className="min-w-52">
-              <DropdownMenuItem onClick={() => setStartDmOpen(true)}>
-                <UserPlus aria-hidden />
-                {t("chat.add_dm_aria")}
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={!onCreateGroup} onClick={() => setCreateGroupOpen(true)}>
-                <Users aria-hidden />
-                {t("chat.create_group_aria")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setCreateChannelOpen(true)}>
+            <DropdownMenuContent align="end" className="min-w-60 rounded-xl p-1.5">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="px-2.5 pt-2 pb-1.5">{t("chat.new_conversation_aria")}</DropdownMenuLabel>
+                <DropdownMenuItem className={MENU_ITEM} onClick={() => setStartDmOpen(true)}>
+                  <UserPlus aria-hidden />
+                  {t("chat.add_dm_aria")}
+                </DropdownMenuItem>
+                <DropdownMenuItem className={MENU_ITEM} disabled={!onCreateGroup} onClick={() => setCreateGroupOpen(true)}>
+                  <Users aria-hidden />
+                  {t("chat.create_group_aria")}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator className="mx-1 my-1.5" />
+              <DropdownMenuItem className={MENU_ITEM} onClick={() => setCreateChannelOpen(true)}>
                 <Hash aria-hidden />
                 {t("chat.channel.create_aria")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setChannelDirectoryOpen(true)}>
+              <DropdownMenuItem className={MENU_ITEM} onClick={() => setChannelDirectoryOpen(true)}>
                 <Compass aria-hidden />
                 {t("chat.channel.directory_aria")}
               </DropdownMenuItem>
@@ -272,11 +288,11 @@ export const ChatSidebar = memo(function ChatSidebar({
           ) : null}
         </header>
 
-        <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-2">
+        <div className="shrink-0 px-4 pb-1">
           <div className="relative">
             <Search
               aria-hidden
-              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               value={filterQuery}
@@ -285,50 +301,47 @@ export const ChatSidebar = memo(function ChatSidebar({
               aria-label={t("chat.search_conversations_label")}
               type="search"
               autoComplete="off"
-              className="h-8 border-transparent bg-muted pl-8 hover:bg-surface-hover focus-visible:bg-surface dark:bg-muted dark:focus-visible:bg-surface"
+              className="h-11 rounded-full border-transparent bg-muted pr-4 pl-10 hover:bg-surface-hover focus-visible:bg-surface md:text-body-lg dark:bg-muted dark:focus-visible:bg-surface"
             />
           </div>
-          {/* Registry toggle group: arrow keys move between kinds (roving focus).
-              Dark has no surface lighter than the sidebar, so there the track
-              sinks (background) and the chosen segment rises (muted). */}
-          <ToggleGroup
-            value={[kindFilter]}
-            onValueChange={(value) => {
-              const next = value[0] as ChatSidebarKindFilter | undefined;
-              if (next) setKindFilter(next);
-            }}
-            aria-label={t("chat.filter_aria")}
-            spacing={1}
-            className="flex w-full rounded-lg bg-muted p-0.5 dark:bg-background"
-          >
-            {filterOptions.map((kind) => (
-              <ToggleGroupItem key={kind} value={kind} className={FILTER_SEGMENT}>
-                {filterLabel(kind)}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <ToggleGroup
-            value={[activityFilter]}
-            onValueChange={(value) => {
-              const next = value[0] as ChatSidebarActivityFilter | undefined;
-              if (next) setActivityFilter(next);
-            }}
-            aria-label={t("chat.filter_activity_aria")}
-            spacing={1}
-            className="flex w-full rounded-lg bg-muted p-0.5 dark:bg-background"
-          >
-            {activityFilterOptions.map((kind) => (
-              <ToggleGroupItem key={kind} value={kind} className={FILTER_SEGMENT}>
-                {activityFilterLabel(kind)}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
         </div>
+        {/* Registry toggle groups: arrow keys move between options (roving focus). */}
+        <ToggleGroup
+          value={[kindFilter]}
+          onValueChange={(value) => {
+            const next = value[0] as ChatSidebarKindFilter | undefined;
+            if (next) setKindFilter(next);
+          }}
+          aria-label={t("chat.filter_aria")}
+          className="flex w-full shrink-0 rounded-none border-b border-border px-2.5"
+        >
+          {filterOptions.map((kind) => (
+            <ToggleGroupItem key={kind} value={kind} className={KIND_TAB}>
+              {filterLabel(kind)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <ToggleGroup
+          value={[activityFilter]}
+          onValueChange={(value) => {
+            const next = value[0] as ChatSidebarActivityFilter | undefined;
+            if (next) setActivityFilter(next);
+          }}
+          aria-label={t("chat.filter_activity_aria")}
+          spacing={1.5}
+          className="flex w-full shrink-0 px-4 pt-2.5 pb-1"
+        >
+          {activityFilterOptions.map((kind) => (
+            <ToggleGroupItem key={kind} value={kind} className={ACTIVITY_CHIP}>
+              {activityFilterLabel(kind)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
 
         <SidebarInvitations />
 
         <nav
-          className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2"
           aria-label={t("chat.sidebar_nav")}
         >
           {/* One persistent region: the count a filter or search leaves is

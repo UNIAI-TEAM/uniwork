@@ -6,6 +6,9 @@ import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { selectIsUserOnline, usePresenceStore } from "@uniwork/core/chat/presence-store";
+import { tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
+import { cn } from "@uniwork/ui/lib/utils";
+import { identityTint } from "../people/identity-tint";
 import { initialOf } from "./chat-initials";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";
@@ -38,7 +41,9 @@ function DmPresenceAvatar({
       name={label}
       initials={initialOf(label)}
       avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, userId)}
-      size="lg"
+      size="fluid"
+      // Initials sit on the person's own colour, as they do across the app.
+      avatarClassName={cn("size-12 font-display text-title-sm font-bold", tintSolidClass[identityTint(userId)])}
       online={online}
     />
   );
@@ -161,7 +166,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     return (
       <SidebarNavItem
         {...shared}
-        avatar={<ChatRoomMark icon={House} active={active} />}
+        avatar={<ChatRoomMark icon={House} size="list" tint="blue" />}
         title={workspaceTitle}
         fallbackSubtitle={t("chat.workspace_room_subtitle")}
         contacts={contacts}
@@ -175,7 +180,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     return (
       <SidebarNavItem
         {...shared}
-        avatar={<ChatRoomMark icon={privateChannel ? Lock : Hash} active={active} />}
+        avatar={<ChatRoomMark icon={privateChannel ? Lock : Hash} size="list" tint={identityTint(channel.id)} />}
         title={privateChannel ? channel.name : `#${channel.name}`}
       />
     );
@@ -185,7 +190,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     return (
       <SidebarNavItem
         {...shared}
-        avatar={<ChatRoomMark icon={Users} active={active} />}
+        avatar={<ChatRoomMark icon={Users} size="list" tint={identityTint(entry.group.id)} />}
         title={entry.group.name}
         contacts={contacts}
       />
