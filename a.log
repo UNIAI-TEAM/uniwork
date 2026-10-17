@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+c172420210ed5a1540e895972020490da9dc4d23
+c17242021 test(e2e): verify Shared by me collection view for owner and recipient
+056496b1c feat(documents): add Shared by me collection view and sub-nav entry
+844aab79f chore: merge SIZE-S2 spool validation (UNI-1870, e40c9c519) into the G5-G7 root
+95c03a58f chore: merge SRC-02b documents source office view (UNI-1869, 3ca55437d) into the G5-G7 root
+3ca55437d fix(documents): show the whole view-only notice on narrow screens (UNI-1869)
+beff88384 chore: merge BIGUP-S1 server upload sessions (UNI-1862, 98f36067a) into the G5-G7 root
+e40c9c519 feat(documents): validate single-request uploads on the spool before Put (UNI-1870)
+210d64ca8 test(documents): pin spool-first validation of single-request uploads (UNI-1870)
