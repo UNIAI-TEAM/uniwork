@@ -1,0 +1,8 @@
+$ sudo apt-get update >/dev/null 2>&1; timeout 300 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gnome-keyring libsecret-1-0 libsecret-tools dbus-x11 dbus-user-session >/tmp/apt.log 2>&1; rc=$?; tail -3 /tmp/apt.log; command -v gnome-keyring-daemon dbus-run-session secret-tool; echo "KEYRING_PKG_EXIT=$rc"; exit $rc
+  libwayland-server0
+Use 'sudo apt autoremove' to remove it.
+0 upgraded, 0 newly installed, 0 to remove and 29 not upgraded.
+/usr/bin/gnome-keyring-daemon
+/usr/bin/dbus-run-session
+/usr/bin/secret-tool
+KEYRING_PKG_EXIT=0

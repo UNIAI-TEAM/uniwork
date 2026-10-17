@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+ca6823097af117d8369a57ac9a21e0c3e0427dc8
+ca6823097af117d8369a57ac9a21e0c3e0427dc8
+ca682309 test(e2e): adapt openHomeFiles and UniWork e2e specs to DocumentsHome layout
+022c84a9 test(shell): mock real UniworkDocListPage documents shape in home-fd13-areas
+f0a1a118 fix(shell): skip shared-with-me author merge and fill folder-card open
