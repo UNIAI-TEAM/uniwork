@@ -272,7 +272,12 @@ export const DocumentShareSchema = z.object({
   id: z.string(),
   principal_type: z.string(),
   principal_id: z.string(),
-  level: z.string().transform((v) => narrowDocumentAccessLevel(v) ?? ("view" as DocumentAccessLevel)),
+  level: z
+    .string()
+    .nullable()
+    .optional()
+    .default(null)
+    .transform(narrowDocumentAccessLevel),
   active: z.boolean().optional().default(true),
   effective_level: z.string().nullable().optional(),
   effective_via: z.string().nullable().optional(),
@@ -292,7 +297,7 @@ export type DocumentShare = Omit<
   z.infer<typeof DocumentShareSchema>,
   "level" | "effective_level" | "effective_via" | "sources" | "warnings"
 > & {
-  level: DocumentAccessLevel;
+  level: DocumentAccessLevel | null;
   effective_level?: DocumentAccessLevel | null;
   effective_via?: DocumentAccessVia | null;
   sources?: DocumentAccessSource[];
