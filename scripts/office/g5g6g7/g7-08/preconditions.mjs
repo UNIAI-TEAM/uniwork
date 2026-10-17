@@ -110,13 +110,21 @@ function corsHeadersForOrigin(origin) {
   };
 }
 
+function parseUnquotedEnvFile(filePath) {
+  if (!filePath || !existsSync(filePath)) return {};
+  const raw = parseEnvFile(readFileSync(filePath, 'utf8'));
+  return Object.fromEntries(
+    Object.entries(raw).map(([k, v]) => [k, String(v).replace(/^'(.*)'$/, '$1').replace(/\\'\\''/g, "'")]),
+  );
+}
+
 async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_ROOT, ports, fetchImpl = fetch }) {
   const paths = harnessPaths(runDir);
   const binPath = join(repoRoot, 'server', 'bin', 'harness-server');
   if (!existsSync(binPath)) return false;
 
-  const pidEntries = existsSync(paths.pidsFile)
-    ? readFileSync(paths.pidsFile, 'utf8')
+  const pidEntries = existsSync(paths.pidFile)
+    ? readFileSync(paths.pidFile, 'utf8')
         .split('\n')
         .map((l) => l.trim().split(/\s+/))
         .filter((p) => p.length >= 2)
@@ -129,7 +137,7 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
     await sleep(400);
   }
 
-  const fileEnv = existsSync(paths.serverEnvFile) ? parseEnvFile(readFileSync(paths.serverEnvFile, 'utf8')) : {};
+  const fileEnv = parseUnquotedEnvFile(join(runDir, 'server.env'));
   const serverEnv = {
     ...process.env,
     STORAGE_BACKEND: 'local',
@@ -139,14 +147,13 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
     AI_PROVIDER: 'fake',
     AI_CONVERSATION_KEY: TEST_CONVERSATION_KEY_B64,
   };
-  const serverCwd = join(runDir, 'server-cwd', 'a', 'b', 'c');
-  mkdirSync(serverCwd, { recursive: true });
-  mkdirSync(paths.logsDir, { recursive: true });
-  const logFd = openSync(join(paths.logsDir, 'server.log'), 'a');
+  mkdirSync(paths.serverCwd, { recursive: true });
+  mkdirSync(paths.logDir, { recursive: true });
+  const logFd = openSync(join(paths.logDir, 'server.log'), 'a');
   let childPid = null;
   try {
     const child = spawn(binPath, [], {
-      cwd: serverCwd,
+      cwd: paths.serverCwd,
       env: serverEnv,
       detached: true,
       stdio: ['ignore', logFd, logFd],
@@ -162,7 +169,7 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
     .filter((e) => e.name !== 'server')
     .map((e) => `${e.name} ${e.pid}${e.port ? ` ${e.port}` : ''}`);
   updatedLines.push(`server ${childPid} ${ports.API_PORT}`);
-  writeFileSync(paths.pidsFile, `${updatedLines.join('\n')}\n`, 'utf8');
+  writeFileSync(paths.pidFile, `${updatedLines.join('\n')}\n`, 'utf8');
 
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
@@ -185,9 +192,14 @@ export async function ensureServerPreconditions({
   stubUrl = null,
 } = {}) {
   const paths = harnessPaths(runDir);
-  const ports = existsSync(paths.envFile) ? parseEnvFile(readFileSync(paths.envFile, 'utf8')) : {};
-  const dbName = ports.WORKTREE_DB_NAME;
-  const pgContainer = ports.PG_CONTAINER || 'uniwork-postgres';
+  const ports = parseUnquotedEnvFile(paths.envFile);
+  const srvEnv = parseUnquotedEnvFile(join(runDir, 'server.env'));
+  const dbUrl = srvEnv.DATABASE_URL || process.env.DATABASE_URL || '';
+  let dbName = ports.WORKTREE_DB_NAME || '';
+  if (!dbName && dbUrl) {
+    try { dbName = new URL(dbUrl).pathname.replace(/^\//, ''); } catch { /* ignore */ }
+  }
+  const pgContainer = ports.PG_CONTAINER || 'uniwork-postgres-1';
   const pgUser = ports.PG_USER || 'uniwork';
   const formatFlag = FORMAT_FEATURE_FLAGS[row?.format] || `office_ai_uniwork_${row?.format}`;
   const serverFormatToken = SERVER_FORMAT_TOKENS[row?.format] || row?.format;
@@ -211,7 +223,10 @@ export async function ensureServerPreconditions({
       `UPDATE subscriptions SET overrides = COALESCE(overrides, '{}'::jsonb) || '{"office.ai_cloud": true, "ai.tokens": 100000000}'::jsonb WHERE organization_id = '${seeded.organizationId}';`,
       `INSERT INTO feature_flag_overrides (id, flag_key, scope, scope_id, enabled, updated_by, reason) VALUES ${flagValuesSql} ON CONFLICT (flag_key, scope, scope_id) DO UPDATE SET enabled = true, updated_at = NOW();`,
     ].join(' ');
-    spawnSync('docker', ['exec', pgContainer, 'psql', '-U', pgUser, '-d', dbName, '-c', sql], { timeout: 10_000 });
+    const r1 = spawnSync('docker', ['exec', pgContainer, 'psql', '-U', pgUser, '-d', dbName, '-c', sql], { timeout: 10_000 });
+    if (r1.status !== 0 && pgContainer === 'uniwork-postgres-1') {
+      spawnSync('docker', ['exec', 'uniwork-postgres', 'psql', '-U', pgUser, '-d', dbName, '-c', sql], { timeout: 10_000 });
+    }
 
     for (const key of ['office_ai_uniwork', formatFlag, 'office_ai_byok']) {
       await fetchImpl(`${apiOrigin}/api/v1/admin/flags/${key}/overrides`, {
