@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ApiError } from "@uniwork/core/api";
 import {
   parseDocumentAccessRejected,
   type DocumentAccessOnExisting,
@@ -11,10 +12,7 @@ import {
   type DocumentAccessUpdateItemInput,
   type DocumentShareCandidate,
 } from "@uniwork/core/api/endpoints/documents-sharing";
-import {
-  classifyDocumentError,
-  sharePrincipalsNotInOrganization,
-} from "@uniwork/core/documents/errors";
+import { sharePrincipalsNotInOrganization } from "@uniwork/core/documents/errors";
 import {
   useDocumentShareCandidates,
   useUpdateDocumentAccess,
@@ -68,7 +66,6 @@ export interface ShareAddSectionProps {
   members: ShareMembersDirectory;
   orgWorkspaces: Array<{ id: string; name: string }>;
   organization?: { id: string; name: string } | null;
-  onSelfShareBlocked?: (message: string) => void;
 }
 
 export function allowedLevelsForPrincipal(
@@ -91,7 +88,6 @@ export function ShareAddSection({
   members,
   orgWorkspaces,
   organization,
-  onSelfShareBlocked,
 }: ShareAddSectionProps) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -158,11 +154,14 @@ export function ShareAddSection({
     : code === "break_glass_required" ? t("documents.share.rejected_break_glass")
     : t("documents.share.rejected_unknown");
 
-  // The server's answer is shown as it is, an empty one included: no match is
-  // "no result", not a cue to offer people the server just left out. Only a
-  // request that failed (the endpoint is unavailable) falls back to the local
-  // directory, which the server cannot filter, so the query applies here.
-  const endpointUnavailable = candidatesQuery.isError;
+  // Fall back to the local directory only when the server has returned no pages
+  // and answered 404 (endpoint unavailable). A failed page 2 or a non-404 error
+  // keeps whatever pages arrived and offers a retry instead of swapping lists.
+  const endpointUnavailable =
+    candidatesQuery.isError &&
+    !candidatesQuery.data &&
+    candidatesQuery.error instanceof ApiError &&
+    candidatesQuery.error.status === 404;
   const serverItems = candidatesQuery.items;
   const candidates = useMemo(
     () =>
@@ -277,10 +276,8 @@ export function ShareAddSection({
       setSubmitError(t("documents.share.people_not_in_org", { count: refused.length, names }));
       return;
     }
-    const cls = classifyDocumentError(err);
     const msg = shareErrorMessage(err, t) ?? t("documents.share.submit_failed");
     setSubmitError(msg);
-    if (cls.code === "break_glass_required") onSelfShareBlocked?.(msg);
   };
 
   const executeCommit = async (items: DocumentAccessUpdateItemInput[]) => {
@@ -362,7 +359,9 @@ export function ShareAddSection({
         inputId={inputId} listboxId={listboxId} query={query} onQueryChange={setQuery}
         selected={selected} selectedKeys={selectedKeys} candidates={candidates}
         hasMore={!endpointUnavailable && Boolean(candidatesQuery.hasNextPage)}
-        loadingMore={candidatesQuery.isFetchingNextPage} onLoadMore={() => void candidatesQuery.fetchNextPage()}
+        loadingMore={candidatesQuery.isFetchingNextPage}
+        loadMoreError={!endpointUnavailable && candidatesQuery.isFetchNextPageError}
+        onLoadMore={() => void candidatesQuery.fetchNextPage()}
         alreadySharedUserIds={alreadySharedUserIds}
         isLoading={candidatesQuery.isLoading || Boolean(members.loading || members.isLoading)}
         disabled={updateAccess.isPending} atLimit={atLimit} rejectedByKey={rejectedByKey}

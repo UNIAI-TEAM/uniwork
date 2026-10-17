@@ -170,12 +170,12 @@ test("AC03 three people at Edit and seven at View: per-person levels with a live
   const summary = dialog.getByRole("status").filter({ hasText: /Chỉ xem|Chỉnh sửa/ });
   await expect(summary).toHaveText("3 Chỉ xem");
   await dialog.getByRole("combobox", { name: `Mức quyền ${s.other.name}` }).click();
-  await page.getByRole("option", { name: "Chỉnh sửa" }).click();
+  await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Chỉnh sửa" }).click();
   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
 
   // Changing the common level never overwrites a level set per person without asking.
   await dialog.getByRole("combobox", { name: "Mức quyền", exact: true }).click();
-  await page.getByRole("option", { name: "Nhận xét" }).click();
+  await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Nhận xét" }).click();
   await expect(dialog.getByText("Đặt tất cả 3 đối tượng thành Nhận xét?")).toBeVisible();
   await dialog.getByRole("button", { name: /^Hu/ }).click();
   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
@@ -222,7 +222,7 @@ test("AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused fo
 
   await pickCandidate(dialog, orgName, who(orgName));
   await dialog.getByRole("combobox", { name: "Mức quyền", exact: true }).click();
-  await page.getByRole("option", { name: "Chỉnh sửa" }).click();
+  await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Chỉnh sửa" }).click();
   await submitShare(dialog).click();
 
   // A wide grant reads back what it reaches before anything is written.
@@ -323,7 +323,10 @@ test("AC07 revoking a Person at Edit while the Workspace stays at View: the prev
   const confirm = dialog.getByTestId("share-access-confirm");
   await expect(confirm).toContainText(`${s.member.name} vẫn có quyền Chỉ xem qua Workspace`, { timeout: 30_000 });
   await confirm.getByRole("button", { name: "Xác nhận" }).click();
-  await toast(page, `Đã thu hồi quyền của ${s.member.name}`);
+  await toast(
+    page,
+    new RegExp(`Đã thu hồi quyền chia sẻ trực tiếp của ${escapeRegExp(s.member.name)}\\. ${escapeRegExp(s.member.name)} vẫn có quyền Chỉ xem qua Workspace`),
+  );
   await expect(dialog.getByRole("button", { name: `Thu hồi ${s.member.name}`, exact: true })).toHaveCount(0, { timeout: 30_000 });
 
   expect(await levelOf(request, s.member.token, id), "the workspace row still gives View").toBe("view");

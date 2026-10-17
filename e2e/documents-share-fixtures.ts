@@ -40,14 +40,14 @@ export interface AccessItem {
   on_existing?: "update" | "keep";
 }
 
-export interface AccessSource {
+interface AccessSource {
   via: string;
   principal_type?: string;
   principal_id?: string;
   level: string;
 }
 
-export interface ShareRow {
+interface ShareRow {
   id: string;
   principal_type: string;
   principal_id: string;
@@ -150,7 +150,7 @@ export async function buildShareScene(page: Page, tag: string, extraCount: numbe
 }
 
 /** A root page of the owner's workspace. Private at create (U-SH2) unless `visibility` says otherwise. */
-export async function createDoc(
+async function createDoc(
   request: APIRequestContext,
   token: string,
   wsId: string,
@@ -263,7 +263,7 @@ export function docPath(w: WorkspaceRoute, docId: string): string {
   return `/${w.orgSlug}/${w.wsSlug}/documents/${docId}`;
 }
 
-export function shareDialog(page: Page): Locator {
+function shareDialog(page: Page): Locator {
   return page.getByRole("dialog", { name: /^Chia sẻ “/ });
 }
 
@@ -297,7 +297,7 @@ export function submitShare(dialog: Locator): Locator {
 
 /** The row of the library table for a title, once the list has it. */
 export function libraryBadge(row: Locator): Locator {
-  return row.getByTestId("document-share-scope-badge").filter({ visible: true }).first();
+  return row.getByTestId("document-share-scope-badge").first();
 }
 
 /**
@@ -316,7 +316,7 @@ const stamp = Date.now();
 let titleSeq = 0;
 
 /** A document title unique to this run and call: the Share dialog and library rows are found by it. */
-export function docTitle(ac: string): string {
+function docTitle(ac: string): string {
   titleSeq += 1;
   return `SH-E2E ${ac} ${stamp}-${titleSeq}`;
 }

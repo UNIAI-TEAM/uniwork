@@ -17,6 +17,9 @@ afterAll(async () => {
   await setLocale("en");
 });
 
+const SCOPE_PRIVATE = { users: 0, home_workspace: false, workspaces: 0, organization: false, public_link: false };
+const SCOPE_HOME = { ...SCOPE_PRIVATE, home_workspace: true };
+
 function item(id: string, title: string, over: Partial<DocumentSummaryRow> = {}): DocumentSummaryRow {
   return {
     id,
@@ -70,8 +73,8 @@ function renderList(rows: LibraryRow[]) {
 describe("library table access column", () => {
   it("shows the visibility and the viewer's level per row, with — where the row carries nothing", () => {
     renderList([
-      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted" })),
-      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace" })),
+      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted", share_scope: SCOPE_PRIVATE })),
+      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace", share_scope: SCOPE_HOME })),
       documentRow(item("c", "C.docx", { my_level: undefined, visibility: "weird" as DocumentSummaryRow["visibility"] })),
     ]);
     expect(screen.getByRole("columnheader", { name: t("documents.home.columns.access") })).toBeTruthy();
@@ -109,8 +112,8 @@ describe("library table access column", () => {
 
   it("carries the level and the restricted lock on the row's secondary line while the main area is narrow", () => {
     renderList([
-      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted" })),
-      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace" })),
+      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted", share_scope: SCOPE_PRIVATE })),
+      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace", share_scope: SCOPE_HOME })),
       documentRow(item("c", "C.docx", { my_level: undefined, visibility: undefined })),
     ]);
     const line = (id: string) => {

@@ -71,20 +71,21 @@ describe("documents-sharing lenient response enums (F-W1-05)", () => {
     ]);
   });
 
-  it("listShareCandidates keeps a row whose direct_level is new and drops only a principal type it cannot share with", async () => {
+  it("listShareCandidates narrows an unknown direct_level to null and drops only a principal type it cannot share with", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
         items: [
           { principal_type: "user", principal_id: "u2", name: "An", direct_level: "super_edit" },
           { principal_type: "agent", principal_id: "a1", name: "Bot" },
-          { principal_type: "workspace", principal_id: "w1", name: "Kinh doanh", direct_level: null },
+          { principal_type: "workspace", principal_id: "w1", name: "Kinh doanh", direct_level: "edit" },
         ],
         next_cursor: "",
       }),
     );
     const out = await listShareCandidates("d1");
     expect(out.items.map((c) => c.principal_id)).toEqual(["u2", "w1"]);
-    expect(out.items[0]?.direct_level).toBe("super_edit");
+    expect(out.items[0]?.direct_level).toBeNull();
+    expect(out.items[1]?.direct_level).toBe("edit");
   });
 
   it("parseDocumentAccessRejected keeps a rejected item whose code is new", () => {
@@ -96,7 +97,7 @@ describe("documents-sharing lenient response enums (F-W1-05)", () => {
     ]);
   });
 
-  it("getDocumentShares keeps the overview when the home workspace level is new", async () => {
+  it("getDocumentShares keeps the overview and narrows an unknown home workspace level to null", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
         my_level: "manage",
@@ -106,5 +107,6 @@ describe("documents-sharing lenient response enums (F-W1-05)", () => {
     );
     const out = await getDocumentShares("d1");
     expect(out?.home_workspace?.workspace_id).toBe("w1");
+    expect(out?.home_workspace?.level).toBeNull();
   });
 });

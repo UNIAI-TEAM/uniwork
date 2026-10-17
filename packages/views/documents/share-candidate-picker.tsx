@@ -137,6 +137,7 @@ export interface ShareCandidatePickerProps {
   candidates: DocumentShareCandidate[];
   hasMore: boolean;
   loadingMore: boolean;
+  loadMoreError?: boolean;
   onLoadMore: () => void;
   alreadySharedUserIds?: readonly (string | null | undefined)[];
   isLoading: boolean;
@@ -161,6 +162,7 @@ export function ShareCandidatePicker({
   candidates,
   hasMore,
   loadingMore,
+  loadMoreError = false,
   onLoadMore,
   alreadySharedUserIds,
   isLoading,
@@ -395,7 +397,7 @@ export function ShareCandidatePicker({
                 );
               })
             )}
-            {hasMore || loadingMore ? (
+            {hasMore || loadingMore || loadMoreError ? (
               <div role="presentation" className="flex justify-center py-1">
                 <Button
                   type="button"
@@ -408,7 +410,11 @@ export function ShareCandidatePicker({
                   }}
                 >
                   {loadingMore ? <Spinner aria-hidden role="presentation" /> : null}
-                  {loadingMore ? t("documents.share.people_loading") : t("documents.share.candidates_more")}
+                  {loadingMore
+                    ? t("documents.share.people_loading")
+                    : loadMoreError
+                      ? t("documents.share.retry")
+                      : t("documents.share.candidates_more")}
                 </Button>
               </div>
             ) : null}

@@ -26,6 +26,7 @@ function file(id: string, over: Partial<DocumentSummaryRow> = {}): DocumentSumma
     kind: "file",
     title: "Báo cáo tổng kết quý",
     visibility: "restricted",
+    share_scope: { users: 0, home_workspace: false, workspaces: 0, organization: false, public_link: false },
     revision: "1",
     current_version: 1,
     position: 0,
