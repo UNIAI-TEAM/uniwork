@@ -40,6 +40,37 @@ describe("OfficeTooLargeNotice", () => {
     expect(screen.getByRole("button", { name: copy.download })).toBeInTheDocument();
   });
 
+  it.each([
+    [
+      "too_large_to_open",
+      "Tệp DOCX này quá lớn để trình duyệt mở. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "Tệp DOCX này quá lớn để trình duyệt mở. Hãy tải tệp xuống để tiếp tục làm việc.",
+    ],
+    [
+      "engine_out_of_memory",
+      "Trình duyệt không đủ bộ nhớ để mở tệp DOCX này. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "Trình duyệt không đủ bộ nhớ để mở tệp DOCX này. Hãy tải tệp xuống để tiếp tục làm việc.",
+    ],
+    [
+      "too_complex",
+      "Tệp DOCX này có quá nhiều nội dung để trình duyệt xử lý. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "Tệp DOCX này có quá nhiều nội dung để trình duyệt xử lý. Hãy tải tệp xuống để tiếp tục làm việc.",
+    ],
+  ] as const)("renders the exact vi refusal copy and download-only variant for reason=%s", (reason, withApp, downloadOnly) => {
+    const first = withHost(<OfficeTooLargeNotice format="docx" reason={reason} />, async () => undefined);
+    expect(screen.getByText("Không mở được tệp này trên web")).toBeInTheDocument();
+    expect(screen.getByText(withApp)).toBeInTheDocument();
+    first.unmount();
+
+    render(
+      <OfficeTooLargeProvider value={{ onDownload: async () => undefined, desktopAction: null }}>
+        <OfficeTooLargeNotice format="docx" reason={reason} />
+      </OfficeTooLargeProvider>,
+    );
+    expect(screen.getByText("Không mở được tệp này trên web")).toBeInTheDocument();
+    expect(screen.getByText(downloadOnly)).toBeInTheDocument();
+  });
+
   it("renders only the message without a provider (no buttons to offer)", () => {
     render(<OfficeTooLargeNotice format="xlsx" />);
     expect(screen.getByText(copy.title)).toBeInTheDocument();

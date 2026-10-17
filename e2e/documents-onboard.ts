@@ -77,7 +77,7 @@ export function newPageCard(page: Page) {
   return page.getByRole("region", { name: "Tạo nhanh" }).getByRole("button", { name: /^UniNote/ });
 }
 
-/** New page from the library, `text` typed and confirmed saved; returns its URL. */
+/** New UniNote from the library, `text` typed and confirmed saved; returns its URL. */
 export async function createPageWithText(page: Page, w: WorkspaceSeed, text: string): Promise<string> {
   await page.goto(`/${w.orgSlug}/${w.wsSlug}/documents`);
   await newPageCard(page).click();

@@ -322,7 +322,7 @@
       "shareTasks": "Your tasks and tasks in your workspaces, with comments",
       "shareProjects": "Projects and their tasks",
       "shareMeetings": "Meetings and their AI summaries, without transcripts",
-      "shareDocuments": "Documents you can see: pages and text files in full, other files by name",
+      "shareDocuments": "Documents you can see: UniNotes and text files in full, other files by name",
       "shareNot": "Never chat messages or email",
       "allowWrite": "Allow create and edit",
       "allowWriteHint": "Many AI apps ask before each change, but UniWork cannot check that. Each change is recorded with your name and the app's, and can be undone.",
@@ -8676,12 +8676,12 @@
       "md": "Markdown document",
       "html": "HTML document",
       "file": "File",
-      "page": "UniWork page",
+      "page": "UniNote",
       "folder": "Folder"
     },
     "page": {
       "title": "Documents",
-      "new_page": "New page",
+      "new_page": "New UniNote",
       "off_title": "Documents are off",
       "off_description": "Documents are not enabled for this workspace.",
       "checking_title": "Checking whether documents are available…",
@@ -8982,7 +8982,7 @@
       "done": "Created the copy \"{{title}}\"",
       "consent_required": "An explicit confirmation is required before copying.",
       "owner_requires_copy": "This document belongs to a Work Product: copy it through the owning screen.",
-      "page_not_supported": "Only file documents can be copied at this step. Page copies come later.",
+      "page_not_supported": "Only file documents can be copied at this step. UniNote copies come later.",
       "unavailable": "This deployment does not have the copy feature yet."
     },
     "actions": {
@@ -9270,7 +9270,7 @@
       "restore_failed": "Could not restore. Nothing changed.",
       "restore_not_archived": "This document is not in the trash.",
       "archive_folder_title": "Move folder to trash",
-      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later.",
+      "archive_folder_description": "The folder and everything in it (subfolders, UniNotes, files) go to the trash together. You can restore them later.",
       "delete_title": "Delete folder",
       "delete_subfolders_one": "{{count}} subfolder",
       "delete_subfolders_other": "{{count}} subfolders",
@@ -9522,8 +9522,8 @@
         "unavailable_hint": "Not available on this server yet",
         "page": {
           "chip": "UniNote",
-          "hint": "UniWork page with tasks and mentions",
-          "menu": "Page",
+          "hint": "A private or shared UniNote with tasks and mentions",
+          "menu": "UniNote",
           "ext": "UniWork"
         },
         "docx": {
@@ -9629,7 +9629,7 @@
       "chips_label": "Filter by type",
       "chips": {
         "all": "All",
-        "page": "Pages",
+        "page": "UniNote",
         "docx": "Docs",
         "xlsx": "Sheets",
         "pptx": "Slides",
@@ -9667,7 +9667,7 @@
       "groups": {
         "unfiled": "Not in a folder",
         "type": {
-          "page": "Pages",
+          "page": "UniNote",
           "folder": "Folders",
           "docx": "Docs",
           "xlsx": "Sheets",
@@ -9798,7 +9798,7 @@
       }
     },
     "errors": {
-      "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
+      "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; UniNotes and files sit in a UniNote or a folder.",
       "document_cycle": "An item can't move into itself or into something inside it.",
       "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
@@ -10008,11 +10008,20 @@
       }
     },
     "too_large": {
-      "title": "File is too large to edit on the web",
-      "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",
-      "description_download_only": "This {{format}} file exceeds the browser size limit. Download it to keep working.",
+      "title": "Can’t open this file on the web",
+      "description": "This {{format}} file is too large for the browser to open. Open it in the UniWork Office desktop app to keep working.",
+      "description_download_only": "This {{format}} file is too large for the browser to open. Download it to keep working.",
+      "engine_out_of_memory": "The browser ran out of memory opening this {{format}} file. Open it in the UniWork Office desktop app to keep working.",
+      "engine_out_of_memory_download_only": "The browser ran out of memory opening this {{format}} file. Download it to keep working.",
+      "too_complex": "This {{format}} file has more content than the browser can handle. Open it in the UniWork Office desktop app to keep working.",
+      "too_complex_download_only": "This {{format}} file has more content than the browser can handle. Download it to keep working.",
       "download": "Download",
       "download_failed": "The file could not be downloaded. Try again."
+    },
+    "lag_banner": {
+      "body": "This file is large and may run slowly in the browser. Open it in the UniWork Office app for a better experience.",
+      "open_app": "Open in app",
+      "continue": "Continue on web"
     },
     "shell": {
       "save": "Save",
@@ -10215,6 +10224,15 @@
       "loading": "Loading editor…",
       "capability_unavailable": "This editor is unavailable",
       "editor_pending": "{{format}} editing is not available yet."
+    },
+    "size": {
+      "warn_chip": "Approaching the {{max}} limit (currently {{size}}).",
+      "save_blocked": {
+        "title": "Couldn’t save to UniWork",
+        "body": "This document is over {{max}}. Your changes are still here. Download your copy to your computer, then reduce image sizes or split the document.",
+        "download": "Download my copy",
+        "close": "Close"
+      }
     }
   },
   "officeDesktop": {

@@ -92,7 +92,7 @@ có gì và còn phải làm gì; **không** màn hình nào được dựng ở
 
 | Màn hình | Route dự kiến | Nội dung | Trạng thái |
 | --- | --- | --- | --- |
-| Danh sách tài liệu | `/{org}/{ws}/documents` | `CollectionPageHeader` (icon Documents, tint orange, đếm, nút "Trang mới" + "Tải tệp"); tab Tất cả / Gần đây / Được chia sẻ với tôi / Lưu trữ; cây bên trái + danh sách bên phải | Mới |
+| Danh sách tài liệu | `/{org}/{ws}/documents` | `CollectionPageHeader` (icon Documents, tint orange, đếm, nút "UniNote mới" + "Tải tệp"); tab Tất cả / Gần đây / Được chia sẻ với tôi / Lưu trữ; cây bên trái + danh sách bên phải | Mới |
 | Chi tiết tài liệu (vỏ) | `/{org}/{ws}/documents/{id}` | `BreadcrumbHeader` (cây › tiêu đề) + `PAGE_TOOLBAR`; vùng canvas; panel phải; trạng thái lưu | Mới |
 | Editor `page` | trong chi tiết | `ContentEditor` (TipTap) đã có | Tái sử dụng |
 | Editor `file` Office | trong chi tiết | UniWork Office canvas theo định dạng; chọn theo khả năng engine | Mới (G3) |
@@ -297,7 +297,7 @@ commit; `readonly`/`revoked` **không** có đường xuất hay sync sang tài 
 
 ### 5.2 Tạo và tải lên
 
-- "Trang mới" tạo `kind = page` rồi mở thẳng editor; không tạo hai bước thừa.
+- "UniNote mới" tạo `kind = page` rồi mở thẳng editor; không tạo hai bước thừa.
 - "Tải tệp" nhận cả sáu nhóm lõi + định dạng khác; sau upload mới đối chiếu khả
   năng engine và hiển thị bề mặt đúng (§3.3).
 - Kiểm ở server (không tin client); quota `storage.bytes` báo lỗi rõ, không cắt im lặng.

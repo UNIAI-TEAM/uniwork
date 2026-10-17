@@ -20,7 +20,7 @@ export type CreateMenuType = (typeof CREATE_MENU_TYPES)[number];
 /**
  * Create one document of a type in the open folder with its default name and
  * open it — no name prompt (user decision 2026-10-12); renaming happens on the
- * document's breadcrumb. A page keeps today's "New page" flow; the six file
+ * document's breadcrumb. A page keeps the "New UniNote" flow; the six file
  * types go through the blank-file route. Create awaits the server, never an
  * optimistic row (CLAUDE.md § State Rules: create navigates).
  */

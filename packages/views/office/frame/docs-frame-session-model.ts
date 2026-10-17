@@ -1,13 +1,22 @@
 import type { RefObject } from "react";
+import type { DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import type { OfficeFrameAIGrant } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameError, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import type { DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import {
   DocsProtocolError,
+  PROTOCOL_NS,
+  PROTOCOL_VERSION,
+  parseEnvelope,
   type AppOpenResult,
   type Capabilities,
+  type FrameEvents,
+  type DocumentSizeLimits,
   type OfficeModule,
   type ProtocolErrorShape,
+  type SaveBlockedPayload,
   type SavedPayload,
+  type SizeWarningPayload,
   type Theme,
 } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
@@ -89,6 +98,16 @@ export type DocsFrameStatus = "booting" | "ready" | "failed";
 /** What the page header says about the frame's edits: driven by its dirty / saved events and the save proxy. */
 export type DocsFrameSaveState = "ready" | "dirty" | "saving" | "saved" | "error";
 
+export interface DocsFrameSizeWarning {
+  bytes: number;
+  maxBytes: number;
+  warnRatio: number;
+}
+
+export interface DocsFrameSaveBlocked {
+  maxBytes: number;
+}
+
 export interface DocsFrameSessionOptions {
   iframeRef: RefObject<HTMLIFrameElement | null>;
   /** Exact origin of the frame document. */
@@ -162,6 +181,14 @@ export interface DocsFrameSession {
   aiRunning: boolean;
   /** The document was deleted or this user lost access: every Save is refused (EXPERIENCE.md › S6). */
   blocked: FrameBlock | null;
+  /** Latched once per document session when the frame emits `size_warning`. */
+  sizeWarning: DocsFrameSizeWarning | null;
+  /** Open when the frame emits `save_blocked` or a save fails with 413 `file_too_large`. */
+  saveBlocked: DocsFrameSaveBlocked | null;
+  /** Dismiss the save-blocked dialog without closing or reloading the frame. */
+  dismissSaveBlocked: () => void;
+  /** Ask the frame to download the user's current copy (`doc.download`). */
+  downloadCopy: () => void;
   /**
    * Ask the frame to save (header Save, leave dialog). A conflict is the frame's to resolve in its
    * own dialog; the answer says how the user resolved it.
@@ -208,6 +235,8 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     desktopOpen: desktopOpen && !readonly,
     // The host delivers the frame's bytes itself (api.download), only to a user who may edit.
     download: download && !readonly,
+    // The host renders the size-warning chip and save-blocked dialog (SIZE-W1b).
+    sizeUi: true,
   };
 }
 
@@ -215,3 +244,154 @@ export const unauthorized = () => new DocsProtocolError({ code: "unauthorized", 
 export const readOnly = (type: string) => new DocsProtocolError({ code: "forbidden", message: `${type} is not allowed for a read-only viewer`, status: 403 });
 
 export const shapeOf = (error: unknown): ProtocolErrorShape => docsFrameError(error).toShape();
+
+export function toFrameLimits(limits: Pick<DocumentLimits, "upload_max_bytes" | "save_warn_ratio">): DocumentSizeLimits {
+  return { max_bytes: limits.upload_max_bytes, warn_ratio: limits.save_warn_ratio };
+}
+
+export function saveBlockedMaxBytes(error: unknown, fallbackMaxBytes: number): number | null {
+  const shape = shapeOf(error);
+  const isTooLarge = shape.code === "too_large" || shape.status === 413 || shape.details?.["apiCode"] === "file_too_large";
+  if (!isTooLarge) return null;
+  const rawMax = shape.details?.["max_bytes"];
+  return typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : fallbackMaxBytes;
+}
+
+export function onSizeEvents(
+  endpoint: DocsFrameHost,
+  handlers: { onSizeWarning: (payload: SizeWarningPayload) => void; onSaveBlocked: (payload: SaveBlockedPayload) => void },
+): void {
+  const subscribe = endpoint.on as <K extends "size_warning" | "save_blocked">(
+    type: K,
+    listener: (payload: FrameEvents[K]) => void,
+  ) => () => void;
+  subscribe("size_warning", handlers.onSizeWarning);
+  subscribe("save_blocked", handlers.onSaveBlocked);
+}
+
+export const DOC_DOWNLOAD_TIMEOUT_MS = 30_000;
+
+let downloadSeq = 0;
+export function postDocDownload(target: Window | null, origin: string, timeoutMs = DOC_DOWNLOAD_TIMEOUT_MS): Promise<void> {
+  if (!target || !origin) {
+    return Promise.reject(new DocsProtocolError({ code: "not_ready", message: "frame window not available" }));
+  }
+  downloadSeq += 1;
+  const id = `h-dl-${downloadSeq}`;
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new DocsProtocolError({ code: "timeout", message: `doc.download timed out after ${timeoutMs} ms`, retryable: true }));
+    }, timeoutMs);
+    const onMessage = (ev: MessageEvent) => {
+      if (ev.origin !== origin || ev.source !== target) return;
+      const parsed = parseEnvelope(ev.data);
+      if (!parsed.ok) {
+        if (parsed.reason === "malformed" && parsed.partial?.id === id && parsed.partial.kind === "response") {
+          cleanup();
+          reject(new DocsProtocolError({ code: "malformed", message: parsed.detail }));
+        }
+        return;
+      }
+      const msg = parsed.message;
+      if (msg.kind !== "response" || msg.id !== id) return;
+      cleanup();
+      if (msg.error) reject(new DocsProtocolError(msg.error));
+      else resolve();
+    };
+    window.addEventListener("message", onMessage);
+    try {
+      target.postMessage(
+        { ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind: "request", type: "doc.download", payload: {} },
+        origin,
+      );
+    } catch (error) {
+      cleanup();
+      reject(docsFrameError(error));
+    }
+  });
+}
+
+export function attachFrameBundleProbe(options: {
+  iframe: HTMLIFrameElement | null;
+  frameSrc?: string;
+  bootTimeoutMs?: number;
+  slowAfterMs?: number;
+  isBooted: () => boolean;
+  getFrameDoc: () => Document | null;
+  onSlow: () => void;
+  onDocGone: () => void;
+  onFailBoot: (reason: DocsFrameBundleFailure) => void;
+}): () => void {
+  const { iframe, frameSrc, bootTimeoutMs, slowAfterMs, isBooted, getFrameDoc, onSlow, onDocGone, onFailBoot } = options;
+  const probe = new AbortController();
+  const bootTimer = setTimeout(() => onFailBoot("timeout"), bootTimeoutMs ?? BOOT_TIMEOUT_MS);
+  const slowTimer = setTimeout(() => { if (!isBooted()) onSlow(); }, slowAfterMs ?? SLOW_AFTER_MS);
+  if (frameSrc) {
+    // Only an HTTP answer >= 400 counts: a probe that cannot run (offline, blocked) leaves the
+    // verdict to the timer and the handshake.
+    void fetch(frameSrc, { credentials: "same-origin", signal: probe.signal }).then(
+      (response) => { if (response.status >= 400) onFailBoot("missing"); },
+      () => undefined,
+    );
+  }
+  // A module script that failed to load (404/5xx, a blocked or dropped request) leaves a frame that
+  // loads fine and then never starts: its script error does not reach the page, and the load event
+  // still fires. Once the frame document has loaded, probe its scripts (served from the HTTP cache
+  // when they did load) and fall back at once instead of waiting out the boot timer.
+  // The first load is the frame document itself; any later one replaced it. A load of a document
+  // other than the one that shook hands replaced it too, even when its first load was never seen.
+  let loads = 0;
+  const onFrameLoad = () => {
+    loads += 1;
+    let current: Document | null = null;
+    try { current = iframe?.contentDocument ?? null; } catch { /* not same-origin: the count decides */ }
+    const frameDoc = getFrameDoc();
+    if (loads > 1 || (frameDoc !== null && current !== frameDoc)) onDocGone();
+    if (isBooted()) return;
+    let sources: string[] = [];
+    try {
+      sources = Array.from(iframe?.contentDocument?.querySelectorAll("script[src]") ?? []).map((el) => (el as HTMLScriptElement).src);
+    } catch { return; /* a frame that is not same-origin cannot be inspected; the timer decides */ }
+    for (const source of sources) {
+      void fetch(source, { credentials: "same-origin", cache: "force-cache", signal: probe.signal }).then(
+        (response) => { if (response.status >= 400) onFailBoot("script"); },
+        (error: unknown) => { if (!(error instanceof DOMException && error.name === "AbortError")) onFailBoot("script"); },
+      );
+    }
+  };
+  iframe?.addEventListener("load", onFrameLoad);
+  return () => {
+    clearTimeout(bootTimer);
+    clearTimeout(slowTimer);
+    iframe?.removeEventListener("load", onFrameLoad);
+    probe.abort();
+  };
+}
+
+
+/**
+ * A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
+ * read-only) via `onLocked`, and the frame hears the same refusal the host gives a viewer, so it
+ * opens no conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
+ */
+export function lockAwareSave<F extends (...args: never[]) => Promise<unknown>>(
+  upload: F,
+  onLocked: (fields: Record<string, unknown> | undefined) => void,
+): F {
+  return (async (...args: Parameters<F>) => {
+    try {
+      return await upload(...args);
+    } catch (error) {
+      const shape = shapeOf(error);
+      if (shape.status !== 423) throw error;
+      const fields = shape.details?.fields;
+      onLocked(fields && typeof fields === "object" ? fields as Record<string, unknown> : undefined);
+      throw readOnly("api.save");
+    }
+  }) as F;
+}

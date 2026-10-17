@@ -24,6 +24,7 @@ const DOCUMENT_URL = /\/documents\/[0-9A-HJKMNP-TV-Z]{26}$/;
 let m: DocumentMatrix;
 let pageDocId: string;
 let pageDocTitle: string;
+let pageDocRevision: number;
 let ownerDocUrl: string;
 let restrictedDocUrl: string;
 let restrictedDocTitle: string;
@@ -54,6 +55,16 @@ test.beforeAll(async ({ browser }) => {
     const created = await createPage(page.request, m.aOwner.token, m.aOwner.wsId, { title: pageDocTitle });
     expect(created.status(), await created.text()).toBe(201);
     pageDocId = ((await created.json()) as { document: { id: string } }).document.id;
+    // A root page is private at create (U-SH2, SH-S1); the member-side rows
+    // below need the workspace-editable page this spec was written against.
+    const opened = await page.request.post(`${api}/api/v1/documents/${pageDocId}/shares`, {
+      headers: authHeaders(m.aOwner.token),
+      data: { principal_type: "workspace", principal_id: m.aOwner.wsId, level: "edit" },
+    });
+    expect(opened.status(), await opened.text()).toBe(201);
+    // The share moved the revision; the save rows start from the stored one.
+    const fresh = await page.request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: authHeaders(m.aOwner.token) });
+    pageDocRevision = Number(((await fresh.json()) as { document: { revision: string } }).document.revision);
     ownerDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${pageDocId}`;
 
     restrictedDocTitle = `G1-09 restricted ${stamp}`;
@@ -130,19 +141,19 @@ test("two saves from one base: the first wins, the stale one conflicts", async (
   });
   const first = await request.patch(`${api}/api/v1/documents/${pageDocId}`, {
     headers: h,
-    data: { revision: "1", content: content("first save") },
+    data: { revision: String(pageDocRevision), content: content("first save") },
   });
   expect(first.status()).toBe(200);
-  expect(((await first.json()) as { document: { revision: string } }).document.revision).toBe("2");
+  expect(((await first.json()) as { document: { revision: string } }).document.revision).toBe(String(pageDocRevision + 1));
 
   const stale = await request.patch(`${api}/api/v1/documents/${pageDocId}`, {
     headers: h,
-    data: { revision: "1", content: content("stale save") },
+    data: { revision: String(pageDocRevision), content: content("stale save") },
   });
   expect(stale.status()).toBe(422);
   const body = (await stale.json()) as { error: { code: string; fields?: { current_revision?: string } } };
   expect(body.error.code).toBe("revision_conflict");
-  expect(body.error.fields?.current_revision).toBe("2");
+  expect(body.error.fields?.current_revision).toBe(String(pageDocRevision + 1));
 });
 
 test("a create replay returns the same page; a changed payload under the same key is refused", async ({ request }) => {

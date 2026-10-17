@@ -241,7 +241,7 @@ describe("DocumentsPageView", () => {
     expect(urls.some((url) => queryOf(url).get("cursor") === "c2")).toBe(true);
   });
 
-  it("filters by the Loại select on the server: ?format= for file types, ?kind=page for Trang", async () => {
+  it("filters by the Loại select on the server: ?format= for file types, ?kind=page for UniNote", async () => {
     const urls: string[] = [];
     route({
       list: (path) => {
