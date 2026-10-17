@@ -1746,6 +1746,36 @@ describe('usage rows and arguments', () => {
     assert.ok(!derivedForbidden.answer.structural.some((s) => s.kind === 'refusal'), 'forbidden write must not be credited with structural refusal');
     assert.equal(score(permCase, derivedForbidden.answer).status, 'fail');
   });
+
+  it('H-2: updates the in-turn backend view on applied writes while keeping sourceText as opened, and denies unsupported page-setup operations', () => {
+    const xlsxEditCase = cases.find((c) => c.id === 'HO-XLSX-030');
+    const backend = createBackend(xlsxEditCase);
+    const openedText = backend.sourceText();
+    const before = backend.execute('read_cells', JSON.stringify({ addresses: ['F4'] }));
+    assert.equal(before.cells.F4, '10');
+    const writeRes = backend.execute('propose_operations', JSON.stringify({
+      operations: [{ sheet: 'Doanh thu Q1', address: 'F4', value: 0.1, numberFormat: '0%' }],
+    }));
+    assert.equal(writeRes.status, 'applied');
+    assert.equal(backend.writes(), 1);
+    const after = backend.execute('read_cells', JSON.stringify({ addresses: ['F4'] }));
+    assert.equal(after.cells.F4, '0.1', 'subsequent read_cells in the same turn sees the written value');
+    const fmtAfter = backend.execute('read_formats', JSON.stringify({ range: 'F4:F4' }));
+    assert.equal(fmtAfter.rows[0].formats.F4, 'percent', 'subsequent read_formats in the same turn sees the written percent format');
+    assert.equal(backend.sourceText(), openedText, 'sourceText stays the initial document text as opened');
+
+    const unsupportedCase = cases.find((c) => c.id === 'HO-CROSS-013');
+    const unsupportedBackend = createBackend(unsupportedCase);
+    const unsupRes = unsupportedBackend.execute('propose_operations', JSON.stringify({
+      operations: [
+        { type: 'set_print_area', sheetId: 'sheet-1', range: 'A1:G7' },
+        { type: 'freeze_panes', sheetId: 'sheet-1', rows: 1 },
+      ],
+    }));
+    assert.equal(unsupRes.error, 'unsupported_operation');
+    assert.equal(unsupportedBackend.writes(), 0, 'unsupported page-setup/freeze operations must not increment writes');
+    assert.equal(unsupportedBackend.denied().length, 1);
+  });
 });
 
 
