@@ -378,6 +378,7 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   let usageTokens = { input: 0, output: 0, source: 'none' };
   const models = new Set();
   const toolResultChunks = [];
+  const toolResults = [];
   for (let step = 0; step < MAX_STEPS; step += 1) {
     const headers = {};
     if (conversation) headers['X-UniWork-AI-Conversation'] = conversation;
@@ -448,6 +449,9 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
         ? { ...result, note: 'The user will answer later. Reply to the user now with what you need to know, then finish with the reporting line.' }
         : result);
       toolResultChunks.push(resultContent);
+      // R17-2: the answer adapter needs to know WHICH tool returned which numbers, so compute operands come only from
+      // the data reads of this turn and never from orientation metadata.
+      toolResults.push({ name, text: resultContent });
       results.push({ role: 'tool', tool_call_id: tc.id, content: resultContent });
     }
     messages = results;
@@ -465,7 +469,7 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   }
   const { answer, adapter } = deriveAnswer(
     caseDoc,
-    { reply, calls: record.toolCalls, writes: backend.writes(), writeLog: record.writeLog, dropped: record.dropped, modules: modulesOfCase(caseDoc), sheetNames: backend.sheetNames(), sourceText: backend.sourceText(), toolResultsText: toolResultChunks.join('\n') },
+    { reply, calls: record.toolCalls, writes: backend.writes(), writeLog: record.writeLog, dropped: record.dropped, modules: modulesOfCase(caseDoc), sheetNames: backend.sheetNames(), sourceText: backend.sourceText(), toolResultsText: toolResultChunks.join('\n'), toolResults },
     { numbers: opts.numbers, computeByReply: opts.computeByReply, anchors: opts.anchors },
   );
   record.adapter = adapter;

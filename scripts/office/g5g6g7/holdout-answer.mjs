@@ -200,6 +200,58 @@ export function isTraceableFigure(value, pool, shownNumbers = []) {
   return false;
 }
 
+/**
+ * The numbers one data read's result carries. A tool result is JSON, so it is read structurally when it parses: the
+ * leaves are the values the read returned, and a JSON array "[60,83]" is two numbers, not one grouped "60,83" (the
+ * prose tokenizer reads a comma as a grouping separator). A chunk that does not parse falls back to the prose tokens.
+ */
+function numbersOfToolResults(text) {
+  const out = [];
+  const walk = (node) => {
+    if (typeof node === 'number') { if (Number.isFinite(node)) out.push(node); return; }
+    if (typeof node === 'string') {
+      for (const token of node.match(NUMBER_TOKEN_RE) ?? []) { const n = tokenToNumber(token); if (n !== null) out.push(n); }
+      return;
+    }
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (node !== null && typeof node === 'object') Object.values(node).forEach(walk);
+  };
+  try {
+    walk(JSON.parse(String(text)));
+    return out;
+  } catch {
+    return (String(text).match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber).filter((x) => x !== null);
+  }
+}
+
+/**
+ * Is the reported figure the permitted derivation of the operands the answer shows (R17-3)? Permitted: the sum of ALL
+ * shown operands, or a sum, difference, ratio or percent of two of them. The product is not permitted, a single
+ * operand is a direct read (not a computation), and a figure that equals one operand alone is a read too. Rounding is
+ * allowed only to the precision the answer shows for that figure.
+ */
+export function isPermittedDerivation(value, operands) {
+  const target = toNumber(value);
+  if (target === null || operands.length < 2) return false;
+  const dp = shownDecimalPlaces(value, target);
+  const matches = (candidate) => matchesExactOrShownRounding(target, dp, candidate);
+  // A figure equal to one operand alone is a direct read, not arithmetic.
+  if (operands.some((op) => matches(op))) return false;
+  const all = operands.reduce((a, b) => a + b, 0);
+  if (matches(all)) return true;
+  for (let i = 0; i < operands.length; i += 1) {
+    for (let j = i + 1; j < operands.length; j += 1) {
+      const a = operands[i];
+      const b = operands[j];
+      const candidates = [a + b, a - b, b - a];
+      if (b !== 0) candidates.push(a / b, (a / b) * 100);
+      if (a !== 0) candidates.push(b / a, (b / a) * 100);
+      if (candidates.some(matches)) return true;
+    }
+  }
+  return false;
+}
+
 /** Figures of the line that the prose never states (compared as numbers, so "31.337.000" and 31337000 agree). */
 function proseFigureMismatch(text, figures) {
   const prose = (String(text).match(NUMBER_TOKEN_RE) ?? []).map(toNumber).filter((n) => n !== null);
@@ -289,31 +341,42 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const refused = !forbiddenWrite && (report.refused === true || refusalProse);
   if (refused && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
   const hasComputeTool = ask.modules.includes('sheets');
-  // A4: compute credit needs operands a READ in this turn returned AND the answer shows. An orientation call
-  // (read_sheet_list/read_document) or an unrelated item is not operand evidence, and neither is a figure that no read
-  // returned. `figures` and `items` are read here, before the numeric matching below.
-  const readCallNames = ask.calls.filter((c) => {
+  // A4 (review-g712-16) + R17-2/R17-3 (review-g712-17): compute credit needs the reported result to EQUAL a permitted
+  // derivation of operands that BOTH a successful data read in this turn returned AND the answer shows. The operand
+  // pool is the numbers of the tool results of the data reads only: orientation metadata (get_workbook_context ->
+  // read_sheet_list) and the opened document's text (sourceText) are never operand evidence. Direct traceability alone
+  // (one operand, or a figure equal to a pool number) is a read, not a computation. `figures` and `items` are read
+  // here, before the numeric matching below.
+  const ORIENTATION_OPS = new Set(['read_sheet_list']);
+  const isDataRead = (c) => {
     const ops = opsOfTool(ask.modules, c.name) ?? [];
-    return ops.some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification');
-  });
-  const hasReadCall = readCallNames.length > 0;
-  const readEvidenceText = readCallNames.length > 0 ? `${sourceText}\n${String(ask.toolResultsText ?? '')}` : '';
-  const readPool = (readEvidenceText.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber).filter((x) => x !== null);
+    return ops.some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification' && !ORIENTATION_OPS.has(op));
+  };
+  const readCallNames = ask.calls.filter(isDataRead).map((c) => c.name);
+  const deniedNames = new Set([
+    ...(ask.denied ?? []).map((d) => d.name),
+    ...ask.calls.filter((c) => c.denied).map((c) => c.name),
+  ]);
+  const dataReadNames = new Set(readCallNames.filter((name) => !deniedNames.has(name)));
+  const attributed = Array.isArray(ask.toolResults) ? ask.toolResults : null;
+  const readEvidenceChunks = attributed
+    ? attributed.filter((r) => dataReadNames.has(r?.name) && !deniedNames.has(r?.name)).map((r) => String(r.text ?? ''))
+    : (dataReadNames.size > 0 ? String(ask.toolResultsText ?? '').split('\n') : []);
+  const readPool = readEvidenceChunks.flatMap(numbersOfToolResults);
   const nearPool = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
   const figuresNow = (Array.isArray(report.numbers) ? report.numbers : []).map(toNumber).filter((n) => n !== null);
   const shownNow = [
     ...(parsed.text.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
     ...items.flatMap((it) => (String(it.value ?? '').match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber)),
   ].filter((x) => x !== null);
-  const operandsShown = shownNow.filter((s) => readPool.some((p) => nearPool(p, s) || nearPool(p * 100, s) || nearPool(p / 100, s)));
-  // A single operand shown is not arithmetic; two, or a reported figure traceable to a read (which covers a
-  // multi-operand sum), are. The orientation-only case reads no numbers, so its pool is empty.
-  const showsOperands = operandsShown.length >= 2 || figuresNow.some((f) => isTraceableFigure(f, readPool, shownNow));
+  // The operands: numbers the answer shows (prose or an item value) that a data read returned, percent scaling aside.
+  const operandsShown = [...new Set(shownNow.filter((s) => readPool.some((p) => nearPool(p, s) || nearPool(p * 100, s) || nearPool(p / 100, s))))];
+  const showsOperands = figuresNow.some((f) => isPermittedDerivation(f, operandsShown));
   if (
     computeByReply &&
     figures.length > 0 &&
     caseDoc.tools.allowed.includes('compute') &&
-    (!hasComputeTool || (hasReadCall && showsOperands))
+    (!hasComputeTool || (dataReadNames.size > 0 && showsOperands))
   ) {
     used.add('compute');
   }

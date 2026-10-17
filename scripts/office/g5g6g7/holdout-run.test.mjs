@@ -2088,6 +2088,8 @@ describe('usage rows and arguments', () => {
       dropped: [],
       modules: ['sheets'],
       sourceText: 'SheetA\n500\nSheetB\n300\nSheetC\n200',
+      // R17-2: operands count only when a data read of the turn returned them, so the read's own result carries them.
+      toolResultsText: '{"rows":[{"cells":{"A1":"300","A2":"200"}}]}',
     };
     const derivedTraceable = deriveAnswer(sumCase, askWithTraceableExtras);
     assert.ok(derivedTraceable.answer.tools.used.includes('compute'), 'DP-2: compute credited when tool-read operands are shown');
@@ -2136,7 +2138,9 @@ describe('usage rows and arguments', () => {
       dropped: [],
       modules: ['sheets'],
       sourceText: 'SheetB 300 SheetC 200',
-      toolResultsText: '{"rate":0.185,"wholePct":40,"rawDecimal":12.3456}',
+      // R17-2: the read's own result carries the operands the answer shows (300 and 200), so the sum 500 is a
+      // permitted derivation; the other figures stay traceable to the same result and to the document text.
+      toolResultsText: '{"rows":[{"cells":{"A1":"300","A2":"200"}}],"rate":0.185,"wholePct":40,"rawDecimal":12.3456}',
     };
     assert.equal(score(sumCase, deriveAnswer(sumCase, allowedRulesAsk).answer).status, 'pass', 'DS-5: one traceable figure per allowed rule passes');
 
@@ -2299,7 +2303,8 @@ describe('usage rows and arguments', () => {
     // The other side: a prose answer that repeats tool-read figures, a cell address and a date must pass.
     const clean = deriveAnswer(
       invCase,
-      ask('Q1 total is 143 (60 plus 83), cell SheetA!D5, updated 2026-10-17.', [143], { sourceText: '60\n83\nSheetA!D5\n2026-10-17' }),
+      // R17-2: the operands the answer shows (60 and 83) must come from the read of this turn, not only from sourceText.
+      ask('Q1 total is 143 (60 plus 83), cell SheetA!D5, updated 2026-10-17.', [143], { sourceText: '60\n83\nSheetA!D5\n2026-10-17', toolResultsText: '{"rows":[60,83]}' }),
     );
     assert.equal(
       Object.keys(clean.answer.numeric).filter((k) => k.startsWith('extra_figure_')).length,
