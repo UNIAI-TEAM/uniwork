@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 type chatFixture struct {
@@ -21,6 +23,9 @@ type chatFixture struct {
 	dmRoomID        string
 	groupRoomID     string
 	firstMessageID  string
+	// chat is the service behind srv, for tests that read presence state the
+	// HTTP surface does not expose (nil when built through setupChatFixtureOn).
+	chat *service.ChatService
 }
 
 func registerChatUser(t *testing.T, srv *httptest.Server, email, name string) (string, string) {
@@ -38,7 +43,12 @@ func registerChatUser(t *testing.T, srv *httptest.Server, email, name string) (s
 
 func setupChatFixture(t *testing.T, tag string) *chatFixture {
 	t.Helper()
-	return setupChatFixtureOn(t, newTestServer(t), tag)
+	d, _ := newTestDeps(t, nil, discardOutbox{})
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	f := setupChatFixtureOn(t, srv, tag)
+	f.chat = d.Chat
+	return f
 }
 
 // setupChatFixtureOn builds the same fixture on a caller-provided server, so

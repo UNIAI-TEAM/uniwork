@@ -177,10 +177,18 @@ var isoReferences = []isoReference{
 		noControl: "handing B's meeting to B's peer would take the owner's host role for later cases", covers: []string{"HostTransferSDI.new_host_user_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/join", what: "invite link", body: map[string]any{"invite_link_id": isoRef("inviteLink"), "secret": isoRef("inviteSecret")},
 		covers: []string{"JoinMeetingSDI.invite_link_id"}},
+	// Each case converts its own item of the meeting's summary (the world
+	// seeds four), so its control leaves the others free. The people and
+	// projects named are checked before whether an item was converted.
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "assignee", body: map[string]any{
-		"items": []any{map[string]any{"title": isoUnique("ref"), "assignee_id": isoRef("peer")}}}, covers: []string{"SummaryTaskItemSDI.assignee_id"}},
+		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 0, "assignee_id": isoRef("peer")}}},
+		covers: []string{"MeetingSummaryTaskItemSDI.assignee_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "project", body: map[string]any{
-		"items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}}, covers: []string{"SummaryTaskItemSDI.project_id"}},
+		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 1, "project_id": isoRef("project")}}},
+		covers: []string{"MeetingSummaryTaskItemSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "summary", body: map[string]any{
+		"summary_id": isoRef("meetingSummary"), "items": []any{map[string]any{"index": 2}}},
+		covers: []string{"SummaryTasksSDI.summary_id"}},
 
 	// Documents.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent page", body: map[string]any{
@@ -350,9 +358,11 @@ var isoReferences = []isoReference{
 		"account_id": isoOwn("emailAccount"), "reply_to_thread_id": isoRef("emailThread"), "to": []any{"someone@example.com"}, "subject": "ref", "body_text": "ref"},
 		noControl: "sending needs an SMTP server", covers: []string{"SendEmailHubSDI.reply_to_thread_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", what: "assignee", body: map[string]any{
-		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "assignee_id": isoRef("peer")}}}},
+		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "assignee_id": isoRef("peer")}}},
+		covers: []string{"SummaryTaskItemSDI.assignee_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", what: "project", body: map[string]any{
-		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}}},
+		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}},
+		covers: []string{"SummaryTaskItemSDI.project_id"}},
 }
 
 // referenceControls sends each reference case with B's own rows: the request

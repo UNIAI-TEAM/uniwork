@@ -1,3 +1,4 @@
+import { getSessionProvider } from "../auth/session-provider";
 import { runtimeConfig } from "../runtime-config";
 import { SessionResponseSchema, type SessionResponse } from "../types/user";
 import { emitEntitlementGateError } from "./entitlement-error-bus";
@@ -345,20 +346,30 @@ function dispositionFilename(value: string | null): string | null {
 // several requests hitting 401 together) would have the second one present an
 // already-revoked cookie → 401 → a spurious logout. Single-flight: every
 // caller shares one in-flight promise.
-let refreshInFlight: Promise<SessionResponse | null> | null = null;
+let refreshInFlight: Promise<RefreshedSession | null> | null = null;
+
+/** `user` is null when a host session provider refreshed: it hands out tokens only. */
+type RefreshedSession = { access_token: string; user: SessionResponse["user"] | null };
 
 /**
- * Obtain a new access token from the refresh cookie. Lives here rather than in
- * the auth endpoints because the transport's 401 retry depends on it.
+ * Obtain a new access token from the refresh cookie — or from the registered
+ * session provider when a host (the UniChat shell) owns the session. Lives
+ * here rather than in the auth endpoints because the transport's 401 retry
+ * depends on it.
  */
-export function refreshSession(): Promise<SessionResponse | null> {
+export function refreshSession(): Promise<RefreshedSession | null> {
   refreshInFlight ??= (async () => {
     const tokenBefore = getAccessToken();
     try {
-      const raw = await request("/api/v1/auth/refresh", { method: "POST", skipRefresh: true });
-      const sess = parseWithFallback<SessionResponse | null>(raw, SessionResponseSchema, null, {
-        endpoint: "POST /api/v1/auth/refresh",
-      });
+      const provider = getSessionProvider();
+      const sess: RefreshedSession | null = provider
+        ? await provider.refresh().then((t) => (t ? { access_token: t, user: null } : null))
+        : parseWithFallback<SessionResponse | null>(
+            await request("/api/v1/auth/refresh", { method: "POST", skipRefresh: true }),
+            SessionResponseSchema,
+            null,
+            { endpoint: "POST /api/v1/auth/refresh" },
+          );
       // Login/register may set a newer token while this refresh was in flight.
       const tokenNow = getAccessToken();
       if (tokenNow !== null && tokenNow !== tokenBefore) {

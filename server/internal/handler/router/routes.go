@@ -420,6 +420,7 @@ type Routes struct {
 	GetChatMediaStatus               http.HandlerFunc
 	MintChatVoiceToken               http.HandlerFunc
 	ListPendingChatVoiceInvites      http.HandlerFunc
+	ListChatCallLogs                 http.HandlerFunc
 	GetWorkspaceChatRoom             http.HandlerFunc
 	EnsureWorkspaceChatRoom          http.HandlerFunc
 	ListChatRooms                    http.HandlerFunc

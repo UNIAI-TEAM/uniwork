@@ -117,6 +117,14 @@ const OfficeInstallerURLsSchema = z.object({
   stable: installerURL.optional().default(""),
 });
 const InstallerChannelsSchema = z.object({ dev: z.unknown().optional(), beta: z.unknown().optional(), stable: z.unknown().optional() });
+// Store pages open in the visitor's browser: HTTPS without credentials, or "".
+const storeURL = z.string().trim().refine((value) => value === "" || /^https:\/\/[^\s/@]+(?:[/?#]\S*)?$/i.test(value)).catch("");
+const UniChatStoresSchema = z.object({
+  ios: storeURL.optional().default(""),
+  android: storeURL.optional().default(""),
+  testflight: storeURL.optional().default(""),
+  play_internal: storeURL.optional().default(""),
+});
 
 const ConfigSchema = z.object({
   flags: z.record(z.string(), z.boolean()).catch({}),
@@ -128,14 +136,23 @@ const ConfigSchema = z.object({
   // A drifted origin drops to "absent": links then carry no profile and the app keeps its server.
   office_api_origin: z.string().trim().min(1).optional().catch(undefined),
   documents: DocumentsConfigSchema,
+  // A drifted UniChat block reads as "nothing published", never as a broken config.
+  unichat_installers: InstallerChannelsSchema.optional().catch(undefined),
+  unichat_stores: UniChatStoresSchema.optional().catch(undefined),
 });
+
+type InstallerChannels = { dev: OfficeInstallerOption[]; beta: OfficeInstallerOption[]; stable: OfficeInstallerOption[] };
 
 export interface PublicConfig {
   flags: Record<string, boolean>;
   rum_sample_rate: number;
   work_management_capabilities: Record<string, CapabilityState>;
   /** Older config consumers may omit this optional rollout field. */
-  office_installers?: { dev: OfficeInstallerOption[]; beta: OfficeInstallerOption[]; stable: OfficeInstallerOption[] };
+  office_installers?: InstallerChannels;
+  /** UniChat desktop installers per channel, on Office's platform contract. */
+  unichat_installers?: InstallerChannels;
+  /** UniChat mobile store pages; "" means that store has nothing published. */
+  unichat_stores?: z.infer<typeof UniChatStoresSchema>;
   /** Server-selected deployment binding for Office launch tickets. */
   office_deployment_id?: string;
   /** Public API origin the desktop app signs in to; carried on every web -> app link. */
@@ -146,17 +163,20 @@ export interface PublicConfig {
 
 // No guessed fallback here: an id the server never advertised must leave the
 // desktop open action closed, not send a possibly-wrong deployment binding.
+const NO_STORES = { ios: "", android: "", testflight: "", play_internal: "" };
 const EMPTY: PublicConfig = {
   flags: {},
   rum_sample_rate: 0,
   work_management_capabilities: {},
   office_installers: { dev: [], beta: [], stable: [] },
   documents: { limits: DEFAULT_DOCUMENT_LIMITS },
+  unichat_installers: { dev: [], beta: [], stable: [] }, unichat_stores: NO_STORES,
 };
 
-type WireConfig = Omit<PublicConfig, "office_installers"> & {
+type WireConfig = Omit<PublicConfig, "office_installers" | "unichat_installers"> & {
   office_installer_urls?: z.infer<typeof OfficeInstallerURLsSchema>;
   office_installers?: z.infer<typeof InstallerChannelsSchema>;
+  unichat_installers?: z.infer<typeof InstallerChannelsSchema>;
 };
 
 export async function getPublicConfig(organizationId?: string): Promise<PublicConfig> {
@@ -167,10 +187,12 @@ export async function getPublicConfig(organizationId?: string): Promise<PublicCo
   const installer = parsed.office_installer_urls ?? { dev: "", beta: "", stable: "" };
   // Singular channel URLs are supported only at this rollout boundary,
   // removed with server legacy env support on 2026-11-02.
-  const channels = {} as NonNullable<PublicConfig["office_installers"]>;
+  const channels = {} as InstallerChannels;
+  const unichat = {} as InstallerChannels;
   for (const channel of ["dev", "beta", "stable"] as const) {
     const rows = parsed.office_installers?.[channel] ?? (installer[channel] ? [{ platform: "win32-x64", kind: ".exe", url: installer[channel] }] : []);
     channels[channel] = officeInstallerOptions(rows, channel);
+    unichat[channel] = officeInstallerOptions(parsed.unichat_installers?.[channel] ?? [], channel, "unichat_installers");
   }
   return {
     flags: parsed.flags,
@@ -180,6 +202,8 @@ export async function getPublicConfig(organizationId?: string): Promise<PublicCo
     office_deployment_id: parsed.office_deployment_id,
     office_api_origin: parsed.office_api_origin,
     documents: parsed.documents ?? { limits: DEFAULT_DOCUMENT_LIMITS },
+    unichat_installers: unichat,
+    unichat_stores: parsed.unichat_stores ?? NO_STORES,
   };
 }
 

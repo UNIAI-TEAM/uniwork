@@ -1,0 +1,4 @@
+/* /unichat reuses the Office page's layout classes (office.css); only its four points and link row differ. */
+.unichat-points { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.unichat-links { display: flex; flex-wrap: wrap; gap: 0 32px; margin-top: 8px; }
+@media (max-width: 639px) { .unichat-points { grid-template-columns: minmax(0,1fr); } }

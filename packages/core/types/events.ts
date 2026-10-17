@@ -135,6 +135,7 @@ export const WS_EVENT_TYPES = [
   "recording.stopped",
   "subscription.changed",
   "summary.created",
+  "summary.tasks_linked",
   "task.comment_added",
   "task.comment_updated",
   "task.comment_deleted",

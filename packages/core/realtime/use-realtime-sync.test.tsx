@@ -1207,6 +1207,27 @@ describe("useRealtimeSync", () => {
   });
 });
 
+describe("useRealtimeSync › meeting summary", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(["summary.created", "summary.tasks_linked"])(
+    "refreshes the meeting's summary and activity on %s",
+    (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { meeting_id: "m1", summary_id: "s1", workspace_id: "ws1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["meeting-summary", "m1"]), JSON.stringify(["meeting-activity", "m1"])]),
+      );
+    },
+  );
+});
+
 describe("useRealtimeSync › home summary", () => {
   afterEach(() => {
     vi.useRealTimers();

@@ -18,11 +18,12 @@ type Prefs struct {
 // Replies and resolves stay in-app only (G8-D4: push on for mentions). An
 // edit request needs a quick answer and a take-over may leave unsaved work
 // behind, so both push; the answer to a request stays in-app (UNI-1645 Q6).
-// An emergency access to a restricted document also pushes (DOC-05).
+// An emergency access to a restricted document also pushes (DOC-05), and so
+// does a ringing call.
 func DefaultPrefs(kind string) Prefs {
 	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindTaskAssigned || kind == KindMeetingStarting ||
-		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM ||
+		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM || kind == KindChatCallIncoming ||
 		kind == KindDocumentEditRequested || kind == KindDocumentEditTakenOver
 	return Prefs{InApp: true, Push: push, Email: true}
 }

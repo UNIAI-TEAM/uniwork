@@ -11,6 +11,7 @@ import (
 //
 //	GET  /api/v1/workspaces/{workspaceID}/chat/users/lookup
 //	POST /api/v1/chat/voice/token
+//	GET  /api/v1/workspaces/{workspaceID}/chat/call-logs
 //	GET  /api/v1/workspaces/{workspaceID}/chat/room
 //	POST /api/v1/workspaces/{workspaceID}/chat/room
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms
@@ -119,6 +120,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		description: "Cuộc gọi đang đổ chuông mà callee có thể bỏ lỡ khi offline.",
 		tags:        []string{"chat"},
 		sdo:         sdo.PendingVoiceInviteSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/call-logs", h.ListChatCallLogs, apiOp{
+		summary:     "List chat call logs",
+		description: "Lịch sử cuộc gọi trong các phòng chat của caller ở workspace (DM và nhóm của tổ chức, kênh của workspace), mới nhất trước, phân trang bằng cursor. Chỉ đọc.",
+		tags:        []string{"chat"},
+		sdi:         sdi.ListChatCallLogsSDI{},
+		sdo:         sdo.ChatCallLogListSDO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/room", h.GetWorkspaceChatRoom, apiOp{

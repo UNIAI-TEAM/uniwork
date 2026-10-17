@@ -2,7 +2,6 @@
 
 import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
 
 /**
  * Q&A over the meeting is on the roadmap, not in the product: one locked row
@@ -23,32 +22,5 @@ export function MeetingCopilotFooter() {
         {t("meetings.comingSoon")}
       </span>
     </div>
-  );
-}
-
-export function MeetingCopilotTasksCta({
-  disabled,
-  pending,
-  count,
-  onClick,
-}: {
-  disabled?: boolean;
-  pending?: boolean;
-  count: number;
-  onClick: () => void;
-}) {
-  const { t } = useTranslation();
-  if (count <= 0) return null;
-
-  return (
-    <Button
-      type="button"
-      variant="brand"
-      className="mt-3 w-full"
-      disabled={disabled || pending}
-      onClick={onClick}
-    >
-      {t("meetings.createTasksInUniwork", { count })}
-    </Button>
   );
 }

@@ -178,6 +178,7 @@ var catalogue = []EventDef{
 	{Topic: "chat.message.mentioned", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.dm.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_received", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.voice.invite_received", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
@@ -242,7 +243,13 @@ var catalogue = []EventDef{
 	{Topic: "conference.session_ready", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "transcript.appended", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
-	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	// The AI summary is written with its audit row in one transaction and
+	// announced from the outbox (UNI-1853): a host who missed the frame would
+	// otherwise keep a stale summary. summary.tasks_linked follows a batch of
+	// tasks created from the summary's action items, so every open copy of
+	// the summary shows which items already became tasks.
+	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "summary.tasks_linked", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "recording.started", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},

@@ -1,0 +1,22 @@
+[
+  "api/schema",
+  "runtime-config",
+  "api/endpoints/chat-schemas",
+  "permissions/rules",
+  "paths/paths",
+  "paths/marketing",
+  "types/events",
+  "chat/read-receipt-utils",
+  "chat/poll-utils",
+  "chat/post-utils",
+  "chat/note-utils",
+  "chat/reminder-utils",
+  "chat/room-permissions-utils",
+  "chat/client-msg-id",
+  "chat/pending-message-id",
+  "chat/lazy-chat-scopes",
+  "chat/message-links",
+  "chat/typing-user-id",
+  "chat/composer-priority",
+  "chat/chat-room-helpers"
+]

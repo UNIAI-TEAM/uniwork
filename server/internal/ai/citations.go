@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 // Citation validation (spec §3.6): a source_id the pack does not contain is
@@ -155,24 +156,66 @@ func ParseEmailThreadSummaryJSON(s string) (EmailThreadSummary, error) {
 	return out, nil
 }
 
+// Caps on a parsed meeting summary (L1). They are far above what the prompt
+// asks for, so a well-behaved answer is never cut; they only stop a runaway
+// answer from becoming a record nobody can read or a task batch nobody can
+// review.
+const (
+	maxSummaryRunes     = 4000
+	maxSummaryDecisions = 30
+	maxDecisionRunes    = 500
+	maxSummaryItems     = 30
+	maxItemTitleRunes   = 300
+	maxItemOwnerRunes   = 120
+	maxItemDueRunes     = 120
+)
+
 // ParseSummaryJSON accepts the model text and tolerates a ```json fence or
 // prose around the object: it parses from the first '{' to the last '}'.
+// Strings are trimmed and capped, blank decisions and untitled action items
+// are dropped, and an answer left with nothing at all (no summary, no
+// decision, no item) is ErrOutputInvalid, so the caller keeps the summary it
+// already has instead of storing an empty one over it.
 func ParseSummaryJSON(s string) (MeetingSummary, error) {
 	raw, err := extractJSON(s)
 	if err != nil {
-		return MeetingSummary{}, err
+		return MeetingSummary{}, ErrOutputInvalid.wrap(err)
 	}
 	var out MeetingSummary
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return MeetingSummary{}, fmt.Errorf("ai: parse summary: %w", err)
+		return MeetingSummary{}, ErrOutputInvalid.wrap(fmt.Errorf("parse summary: %w", err))
 	}
-	if out.Decisions == nil {
-		out.Decisions = []string{}
+	out.Summary = capRunes(strings.TrimSpace(out.Summary), maxSummaryRunes)
+	decisions := make([]string, 0, len(out.Decisions))
+	for _, d := range out.Decisions {
+		if d = strings.TrimSpace(d); d != "" && len(decisions) < maxSummaryDecisions {
+			decisions = append(decisions, capRunes(d, maxDecisionRunes))
+		}
 	}
-	if out.ActionItems == nil {
-		out.ActionItems = []ActionItem{}
+	out.Decisions = decisions
+	items := make([]ActionItem, 0, len(out.ActionItems))
+	for _, it := range out.ActionItems {
+		it.Title = capRunes(strings.TrimSpace(it.Title), maxItemTitleRunes)
+		if it.Title == "" || len(items) >= maxSummaryItems {
+			continue
+		}
+		it.Owner = capRunes(strings.TrimSpace(it.Owner), maxItemOwnerRunes)
+		it.Due = capRunes(strings.TrimSpace(it.Due), maxItemDueRunes)
+		items = append(items, it)
+	}
+	out.ActionItems = items
+	if out.Summary == "" && len(out.Decisions) == 0 && len(out.ActionItems) == 0 {
+		return MeetingSummary{}, ErrOutputInvalid.wrap(errors.New("empty summary"))
 	}
 	return out, nil
+}
+
+// capRunes cuts s to at most n runes, marking the cut with an ellipsis.
+func capRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	return strings.TrimSpace(string([]rune(s)[:n-1])) + "…"
 }
 
 // MediaAnalysis is the media_analysis@1 output.

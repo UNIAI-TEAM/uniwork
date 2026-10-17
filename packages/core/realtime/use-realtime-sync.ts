@@ -314,7 +314,10 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
       break;
     }
-    case "summary.created": {
+    // A new summary, or items of the current one that just became tasks
+    // (their task_id, so no host converts them twice).
+    case "summary.created":
+    case "summary.tasks_linked": {
       if (payload.meeting_id) {
         push(meetingKeys.summary(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));

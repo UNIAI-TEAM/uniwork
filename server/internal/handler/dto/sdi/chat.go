@@ -19,6 +19,12 @@ type ListChatThreadMessagesSDI struct {
 	Limit  int    `query:"limit" description:"Số câu trả lời mỗi trang (trang đầu thêm tin gốc)" example:"50"`
 }
 
+// ListChatCallLogsSDI documents GET .../chat/call-logs query params.
+type ListChatCallLogsSDI struct {
+	Cursor string `query:"cursor" description:"next_cursor của trang trước, gửi lại nguyên văn; bỏ trống để lấy trang mới nhất" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Limit  int    `query:"limit" description:"Số cuộc gọi mỗi trang (mặc định 30, tối đa 100)" example:"30"`
+}
+
 // SendChatMessageSDI is POST /workspaces/{workspaceID}/chat/messages.
 type SendChatMessageSDI struct {
 	Body             string                 `json:"body" description:"Message text" example:"Xin chào team!"`
@@ -118,7 +124,8 @@ type VoiceSignalSDI struct {
 
 // ChatPresenceSDI is POST .../chat/presence.
 type ChatPresenceSDI struct {
-	State string `json:"state,omitempty" description:"online (default) or offline" example:"online"`
+	State   string `json:"state,omitempty" description:"online (default) or offline" example:"online"`
+	Visible bool   `json:"visible,omitempty" description:"True when the beating page is visible; only a visible beat holds back chat pushes to this user" example:"true"`
 }
 
 // ToggleChatReactionSDI is POST .../messages/{messageID}/reactions.

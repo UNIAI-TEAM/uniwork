@@ -5,6 +5,12 @@ import { getPublicConfig, postWebVital } from "./config";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+// Nothing published: what every catalogue degrades to.
+const NO_DOWNLOADS = {
+  office_installers: { dev: [], beta: [], stable: [] },
+  unichat_installers: { dev: [], beta: [], stable: [] },
+  unichat_stores: { ios: "", android: "", testflight: "", play_internal: "" },
+};
 
 describe("config endpoints", () => {
   beforeEach(() => {
@@ -23,7 +29,7 @@ describe("config endpoints", () => {
       flags: { rum_sampling: true },
       rum_sample_rate: 0.2,
       work_management_capabilities: {},
-      office_installers: { dev: [], beta: [], stable: [] },
+      ...NO_DOWNLOADS,
       documents: {
         limits: {
           upload_max_bytes: 209715200,
@@ -46,7 +52,7 @@ describe("config endpoints", () => {
       flags: {},
       rum_sample_rate: 0,
       work_management_capabilities: {},
-      office_installers: { dev: [], beta: [], stable: [] },
+      ...NO_DOWNLOADS,
       documents: {
         limits: {
           upload_max_bytes: 209715200,
@@ -110,6 +116,38 @@ describe("config endpoints", () => {
     });
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_installers: { dev: [{ platform: "win32-x64", kind: 42 }], stable: [] } }));
     expect((await getPublicConfig()).office_installers).toEqual({ dev: [], beta: [], stable: [] });
+  });
+
+  it("reads the UniChat catalogue with Office's platform rules and keeps only HTTPS store links", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0,
+      unichat_installers: {
+        dev: [
+          { platform: "darwin-arm64", url: "https://downloads.test/UniChat_0.1.0-dev.1_unsigned_darwin_arm64.dmg", kind: ".dmg", version: "0.1.0-dev.1", unsigned: true },
+          { platform: "unknown", url: "javascript:alert(1)", kind: ".future" },
+        ],
+        beta: "nope",
+        stable: [{ platform: "win32-x64", url: "javascript:alert(1)", kind: ".exe" }],
+      },
+      unichat_stores: { ios: "https://apps.apple.com/app/id1234567890", android: "http://play.google.com/store/apps/details?id=x", testflight: 42, play_internal: " https://play.google.com/apps/internaltest/1 " },
+    }));
+    const cfg = await getPublicConfig();
+    expect(cfg.unichat_installers).toEqual({
+      dev: [{ platform: "darwin-arm64", url: "https://downloads.test/UniChat_0.1.0-dev.1_unsigned_darwin_arm64.dmg", kind: ".dmg", version: "0.1.0-dev.1", unsigned: true, channel: "dev" }],
+      beta: [], stable: [],
+    });
+    expect(cfg.unichat_stores).toEqual({ ios: "https://apps.apple.com/app/id1234567890", android: "", testflight: "", play_internal: "https://play.google.com/apps/internaltest/1" });
+    expect(cfg.office_installers).toEqual({ dev: [], beta: [], stable: [] });
+  });
+
+  it("degrades a drifted UniChat block to nothing published without dropping the rest", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: { a: true }, rum_sample_rate: 0.5, unichat_installers: [1, 2], unichat_stores: "https://apps.apple.com/app/id1" }));
+    const cfg = await getPublicConfig();
+    expect(cfg.flags).toEqual({ a: true });
+    expect(cfg.rum_sample_rate).toBe(0.5);
+    expect(cfg.unichat_installers).toEqual({ dev: [], beta: [], stable: [] });
+    expect(cfg.unichat_stores).toEqual({ ios: "", android: "", testflight: "", play_internal: "" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, unichat_stores: { ios: "https://user:pw@apps.apple.com/app/id1", android: "itms-apps://x" } }));
+    expect((await getPublicConfig()).unichat_stores).toEqual({ ios: "", android: "", testflight: "", play_internal: "" });
   });
 
   it("degrades malformed capability entries to the unavailable fallback", async () => {

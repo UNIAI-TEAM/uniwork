@@ -199,6 +199,7 @@ export function useEmailHubThread(
     retry: (failureCount, error) => failureCount < 2 && error != null,
   });
   const data = detail.data?.id === threadId ? detail.data : undefined;
+  const { refetch: refetchDetail } = detail;
   const bodyRetryRef = useRef({ threadId: "", attempts: 0 });
   const [bodyAutoRetrying, setBodyAutoRetrying] = useState(false);
   const [bodyAutoRetriesExhausted, setBodyAutoRetriesExhausted] = useState(false);
