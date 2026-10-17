@@ -66,6 +66,7 @@ export function OwnerTransferAction({ lockedBy, ...props }: OwnerTransferActionP
         type="button"
         variant="outline"
         size="sm"
+        className="h-auto min-h-7 max-w-full whitespace-normal"
         aria-haspopup="dialog"
         aria-disabled={lockedBy ? true : undefined}
         aria-describedby={lockedBy}

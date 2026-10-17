@@ -118,9 +118,10 @@ describe("UI-AR6 share dialog on a shelved document", () => {
     expect(writes()).toHaveLength(0);
   });
 
-  // F5: the server's shelve gate is the default of every document mutation (withDocumentMutation, addendum §3),
-  // so handing the ACL owner on is refused like any grant: the button says why and opens nothing.
-  it("keeps Chuyển quyền sở hữu in the tab order but off, with the shelved note", async () => {
+  // F5 + F9: the server's shelve gate is the default of every document mutation (withDocumentMutation, addendum §3),
+  // so handing the ACL owner on is refused like any grant: the button says why, opens nothing, wraps below the
+  // owner name at 390px without clipping its label, and keeps its 44px coarse target.
+  it("keeps Chuyển quyền sở hữu in the tab order but off, with the shelved note and unclipped 390 layout (F9)", async () => {
     renderDialog();
     await screen.findByText("Bình");
     const note = screen.getByText(t("documents.shelved_doc.share_note"));
@@ -128,6 +129,11 @@ describe("UI-AR6 share dialog on a shelved document", () => {
     expect(transfer).toHaveAttribute("aria-disabled", "true");
     expect(transfer).not.toBeDisabled();
     expect(transfer.getAttribute("aria-describedby")).toBe(note.id);
+    expect(transfer).toHaveClass("max-w-full", "whitespace-normal", "pointer-coarse:min-h-11", "pointer-coarse:min-w-11");
+    const ownerRow = transfer.closest("li")!;
+    expect(ownerRow).toHaveClass("flex-wrap");
+    expect(ownerRow.firstElementChild).toHaveClass("basis-full", "sm:basis-40", "min-w-0", "flex-1");
+    expect(transfer.parentElement).toHaveClass("min-w-0", "max-w-full");
     const dialogs = screen.getAllByRole("dialog").length;
     fireEvent.click(transfer);
     await new Promise((resolve) => setTimeout(resolve, 50));

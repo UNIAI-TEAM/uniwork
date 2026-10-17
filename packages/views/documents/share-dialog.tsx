@@ -382,14 +382,14 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                     // transfer button drops under them, instead of the button
                     // squeezing the name to nothing at 390px.
                     <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
-                      <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
+                      <span className="flex min-w-0 flex-1 basis-full items-center gap-2 text-body text-foreground sm:basis-40">
                         <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
                         <NameOrSkeleton name={memberName(access.data.acl_owner.user_id)} />
                         <span className="shrink-0 text-caption text-muted-foreground">
                           {t("documents.share.acl_owner")}
                         </span>
                       </span>
-                      <span className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
+                      <span className="flex min-w-0 max-w-full shrink-0 items-center gap-2 text-caption text-muted-foreground">
                         <OwnerTransferAction
                           wsId={wsId}
                           doc={doc}
