@@ -68,6 +68,10 @@ export interface PatchDocumentBody {
   icon?: string;
   content?: unknown;
   visibility?: DocumentVisibility;
+  /** The editor's live edit lock (UNI-1645). A PATCH carrying content is
+   *  refused 423 document_locked while someone else holds the document;
+   *  absent means "not holding a lock". */
+  edit_lock_id?: string;
 }
 
 export type CreateDocumentFileMeta = {

@@ -59,6 +59,37 @@ func TestRealtimeConsumerRoutesByCatalogueScope(t *testing.T) {
 	}
 }
 
+// UNI-1645: the lock change goes to the workspace; the three person-addressed
+// edit-lock topics resolve the user scope from payload.user_id (previous
+// holder, holder, requester) and never carry a lock or requester id beyond it.
+func TestRealtimeConsumerRoutesEditLockTopics(t *testing.T) {
+	pub := &spyPublisher{}
+	c := NewRealtimeConsumer(pub)
+	ctx := context.Background()
+	for _, r := range []Row{
+		row("document.lock_changed", `{"document_id":"d1","workspace_id":"ws1"}`, "ws1"),
+		row("document.lock_taken_over", `{"document_id":"d1","workspace_id":"ws1","user_id":"u1"}`, "ws1"),
+		row("document.edit_requested", `{"document_id":"d1","workspace_id":"ws1","request_id":"r1","user_id":"u2"}`, "ws1"),
+		row("document.edit_request_answered", `{"document_id":"d1","workspace_id":"ws1","request_id":"r1","user_id":"u3"}`, "ws1"),
+	} {
+		if err := c.Handle(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(pub.workspace) != 1 || pub.workspace[0] != "ws1/document.lock_changed" {
+		t.Fatalf("workspace publishes = %v", pub.workspace)
+	}
+	want := []string{"u1/document.lock_taken_over", "u2/document.edit_requested", "u3/document.edit_request_answered"}
+	if len(pub.user) != len(want) {
+		t.Fatalf("user publishes = %v, want %v", pub.user, want)
+	}
+	for i := range want {
+		if pub.user[i] != want[i] {
+			t.Fatalf("user publishes = %v, want %v", pub.user, want)
+		}
+	}
+}
+
 // A row missing the id its scope needs can never be delivered, and retrying it
 // ten times only delays every other event on the topic. Drop it.
 func TestRealtimeConsumerDropsUnroutableRows(t *testing.T) {

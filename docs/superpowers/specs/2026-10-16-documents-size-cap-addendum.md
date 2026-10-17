@@ -85,7 +85,7 @@ Mọi 413 `file_too_large` của tài liệu (handler cap, `service/document_fil
 
 - Frame gửi `lag_detected` (LAG-F1) → host hiện banner không chặn: "Tệp lớn nên có thể chạy chậm trên trình duyệt. Mở bằng app UniWork Office cho trải nghiệm tốt hơn." + **Mở bằng app** (luồng mở app hiện có) · **Tiếp tục trên web** (ẩn banner).
 - Fallback theo kích thước: khi môi trường không có `PerformanceObserver` hỗ trợ `longtask`/`event` (Safari), host hiện cùng banner lúc mở nếu `file.size_bytes > web_open[format].warn_bytes`. Trình duyệt có observer thì chỉ dựa vào `lag_detected` (không hiện theo kích thước) để tránh báo hai lần.
-- Bỏ qua (dismiss) nhớ theo tài liệu: `StorageAdapter` key `office.lagBanner.dismissed:<documentId>`; nhớ qua phiên. Không bao giờ chặn sửa hay lưu; "Mở bằng app" không có khi máy không mở app được (giống nút mở app hiện có).
+- Bỏ qua (dismiss) nhớ theo tài liệu: `StorageAdapter` key `office.lagBanner.dismissed:<documentId>`; nhớ qua phiên. Không bao giờ chặn sửa hay lưu; Khi máy không mở app được (không có nút mở app hiện có, hoặc chỉ xem), **ẩn cả banner**: banner chỉ để gợi ý app, không có app thì câu gợi ý sai (sửa r5, lead, theo review LAG-W1 R1-3).
 - `open_refused` (contract fork §3.1a): host hiện thông báo từ chối với "Mở bằng app" · "Tải xuống" (thay notice "Tệp quá lớn để chỉnh sửa trên web" đang dựa vào 10 MiB). Thuộc LAG-W1 (cùng vendor giao thức với W1b).
 
 ## 6. Phiên tải lên tệp lớn — API (BIGUP-S1 / BIGUP-W1) — OQ-SIZE-2

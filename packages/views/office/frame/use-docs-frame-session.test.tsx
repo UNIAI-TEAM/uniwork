@@ -3,10 +3,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
 import { frameDownloadMaxBytes } from "./frame-download";
 import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
+import type { FrameEditLock } from "./frame-edit-lock";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
@@ -17,10 +18,11 @@ const minted = (canEdit = true) => ({
 });
 
 /** A frame on the other side of the wire: records what the host posts, posts back as the iframe's window. */
-function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, uploadMaxBytes }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; uploadMaxBytes?: number } = {}) {
+function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes, configPromise }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number; configPromise?: Promise<unknown> } = {}) {
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
     if (String(path).startsWith("/api/v1/config")) {
+      if (configPromise) return configPromise;
       return Promise.resolve(uploadMaxBytes !== undefined ? { flags: {}, documents: { limits: { upload_max_bytes: uploadMaxBytes } } } : { flags: {} });
     }
     return Promise.reject(new Error(`unexpected ${path}`));
@@ -47,15 +49,17 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const options: DocsFrameSessionOptions = {
     iframeRef: { current: iframe }, frameOrigin: window.location.origin, module, wsId: "ws-1", documentId: "doc-1",
-    readonly, locale: "vi", theme: "light", onError, downloadName: () => "Kế hoạch: Q4 (bản của tôi)",
+    readonly, editLock, locale: "vi", theme: "light", onError, downloadName: () => "Kế hoạch: Q4 (bản của tôi)",
     api: { open: vi.fn(), save: vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" })), recents: vi.fn(), ...api } as unknown as DocsFrameApi,
   };
   const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   return {
-    iframe, hook, onError, received, sent, client,
+    iframe, hook, onError, received, sent, options, client,
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     respond: (to: Envelope, payload: unknown) => post(envelope("response", to.type, payload, to.id)),
+    respondError: (to: Envelope, error: Envelope["error"]) =>
+      post({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: to.id, kind: "response", type: to.type, error }),
     request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
     answerTo: (id: string) => received.find((m) => m.kind === "response" && m.id === id),
     async boot(instanceId = "i-1") {
@@ -501,5 +505,131 @@ describe("useDocsFrameSession: api.download", () => {
     const id = frame.request("api.download", { data: "not bytes" });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("malformed"));
     expect(clicks).toHaveLength(0);
+  });
+
+  it("enforces the exact downloadMaxBytes ceiling sent in init even if config resolves after init (N1)", async () => {
+    let resolveConfig!: (val: unknown) => void;
+    const configPromise = new Promise((r) => { resolveConfig = r; });
+    const frame = setup({ configPromise });
+    await frame.boot();
+    const initCeiling = frameDownloadMaxBytes(200 * 1024 * 1024);
+    expect((frame.sent("init")[0]?.payload as { downloadMaxBytes?: number }).downloadMaxBytes).toBe(initCeiling);
+
+    // Config arrives after init with a higher 300 MiB upload_max_bytes.
+    await act(async () => {
+      resolveConfig({ flags: {}, documents: { limits: { upload_max_bytes: 300 * 1024 * 1024, save_warn_ratio: 0.9 } } });
+    });
+    await waitFor(() => expect(frame.client.getQueryData(["public-config"])).toBeDefined());
+
+    // api.download must still enforce the ceiling sent in init (264 MiB), not 364 MiB.
+    const fakeOversize = { byteLength: initCeiling + 1 };
+    Object.setPrototypeOf(fakeOversize, ArrayBuffer.prototype);
+    const id = frame.request("api.download", { data: fakeOversize });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("too_large"));
+    expect(frame.answerTo(id)?.error?.details).toEqual({ maxBytes: initCeiling });
+  });
+
+  it("includes limits and capabilities.sizeUi: true on init and api.open across modules", async () => {
+    const open = vi.fn(async () => ({ file: FILE, source: { kind: "bytes" as const, data: new ArrayBuffer(4) } }));
+    const frame = setup({ module: "sheets", uploadMaxBytes: 100 * 1024 * 1024, api: { open } });
+    await waitFor(() => expect(frame.client.getQueryData(["public-config"])).toBeDefined());
+    await frame.boot();
+    expect(frame.sent("init")[0]?.payload).toMatchObject({
+      capabilities: { sizeUi: true },
+      limits: { max_bytes: 100 * 1024 * 1024, warn_ratio: 0.9 },
+    });
+    const openId = frame.request("api.open", { fileId: "doc-1" });
+    await waitFor(() => expect(frame.answerTo(openId)?.payload).toBeDefined());
+    expect(frame.answerTo(openId)?.payload).toMatchObject({
+      file: FILE,
+      limits: { max_bytes: 100 * 1024 * 1024, warn_ratio: 0.9 },
+    });
+  });
+
+  it("calls onError when the frame replies with an error to doc.download (R1-3)", async () => {
+    const frame = setup();
+    await frame.boot();
+    act(() => { frame.hook.result.current.downloadCopy(); });
+    expect(frame.sent("doc.download")).toHaveLength(1);
+    const req = frame.sent("doc.download")[0]!;
+    await frame.respondError(req, { code: "unknown_type", message: "no handler for doc.download" });
+    await waitFor(() => expect(frame.onError).toHaveBeenCalledTimes(1));
+    expect(frame.onError.mock.calls[0]![0]).toMatchObject({ code: "unknown_type", message: "no handler for doc.download" });
+  });
+
+  it("ignores a second downloadCopy click while pending and times out to onError when the frame does not reply (R1-3)", async () => {
+    const frame = setup();
+    await frame.boot();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    act(() => {
+      frame.hook.result.current.downloadCopy();
+      frame.hook.result.current.downloadCopy();
+    });
+    expect(frame.sent("doc.download")).toHaveLength(1);
+    await advance(29_999);
+    expect(frame.onError).not.toHaveBeenCalled();
+    await advance(1);
+    expect(frame.onError).toHaveBeenCalledTimes(1);
+    expect(frame.onError.mock.calls[0]![0]).toMatchObject({ code: "timeout", retryable: true });
+
+    // Once settled, a subsequent click sends a new request.
+    act(() => { frame.hook.result.current.downloadCopy(); });
+    expect(frame.sent("doc.download")).toHaveLength(2);
+    await frame.respond(frame.sent("doc.download")[1]!, { delivered: true });
+    await settle();
+    expect(frame.onError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)", () => {
+  const lockOf = (held: boolean, onLocked = vi.fn()): FrameEditLock => ({ held, lockId: held ? "L1" : undefined, onLocked });
+
+  it("is view-only while the page does not hold the lock: no save capability, a write is refused", async () => {
+    const save = vi.fn();
+    const frame = setup({ editLock: lockOf(false), api: { save } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    expect(frame.hook.result.current.viewOnly).toBe(true);
+    expect(frame.sent("init")[0]?.payload).toMatchObject({ capabilities: { save: false } });
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("commits with the held lock id", async () => {
+    const save = vi.fn(async (_payload: unknown, _call: unknown) => ({ ok: true, file: FILE, versionId: "v2" }));
+    const frame = setup({ editLock: lockOf(true), api: { save } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    expect(frame.hook.result.current.viewOnly).toBe(false);
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true }));
+    expect(save.mock.calls[0]?.[1]).toMatchObject({ documentId: "doc-1", editLockId: "L1" });
+  });
+
+  it("423 on save flips the host lock state to lost: onLocked gets the holder, the frame a read-only refusal, never {ok:false}", async () => {
+    const fields = { holder_id: "u2", holder_name: "An", held_by_me: false };
+    const locked = new DocsProtocolError({ code: "forbidden", message: "document_locked (HTTP 423)", status: 423, details: { apiCode: "document_locked", fields } });
+    const save = vi.fn(async () => { throw locked; });
+    const onLocked = vi.fn();
+    const frame = setup({ editLock: lockOf(true, onLocked), api: { save } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(id)?.error).toMatchObject({ code: "forbidden", status: 403 }));
+    expect(frame.answerTo(id)?.payload).toBeUndefined();
+    expect(onLocked).toHaveBeenCalledWith(fields);
+    // The current pin advertises no editLock capability: no doc.editLock is sent (Q4).
+    expect(frame.received.some((m) => m.type === "doc.editLock")).toBe(false);
+  });
+
+  it("re-attaches a frame that opened read-only once the lock is held, and only then", async () => {
+    const frame = setup({ editLock: lockOf(false) });
+    await frame.boot();
+    expect(frame.hook.result.current.attempt).toBe(0);
+    frame.options.editLock = lockOf(false);
+    frame.hook.rerender();
+    expect(frame.hook.result.current.attempt).toBe(0);
+    frame.options.editLock = lockOf(true);
+    frame.hook.rerender();
+    await waitFor(() => expect(frame.hook.result.current.attempt).toBe(1));
+    expect(frame.hook.result.current.viewOnly).toBe(false);
   });
 });

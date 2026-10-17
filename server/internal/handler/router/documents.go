@@ -43,6 +43,16 @@ import (
 //	GET    /api/v1/documents/{documentID}/access-logs             (G1-05b)
 //	PUT    /api/v1/documents/{documentID}/office/offline-lease    (G5-08s)
 //	DELETE /api/v1/documents/{documentID}/office/offline-lease    (G5-08s)
+//	GET    /api/v1/documents/{documentID}/edit-lock                         (UNI-1645 R1)
+//	POST   /api/v1/documents/{documentID}/edit-lock                         (R2)
+//	POST   /api/v1/documents/{documentID}/edit-lock/{lockID}/heartbeat      (R3)
+//	DELETE /api/v1/documents/{documentID}/edit-lock/{lockID}                (R4)
+//	POST   /api/v1/documents/{documentID}/edit-lock/take-over               (R5)
+//	PUT    /api/v1/documents/{documentID}/edit-lock/{lockID}/offline-hold   (R6)
+//	DELETE /api/v1/documents/{documentID}/edit-lock/{lockID}/offline-hold   (R7)
+//	POST   /api/v1/documents/{documentID}/edit-requests                     (R8)
+//	POST   /api/v1/documents/{documentID}/edit-requests/{requestID}/answer  (R9)
+//	DELETE /api/v1/documents/{documentID}/edit-requests/{requestID}         (R10)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/workspaces/{workspaceID}/documents/upload-sessions   (BIGUP-S1)
@@ -75,8 +85,9 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r api, h Routes, flags *featureflag.Service) {
+func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
+	registerDocumentEditLock(d, h, editRequestLimit)
 
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
 		summary: "Create a page or folder document",
@@ -582,9 +593,16 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
 		summary:     "Restore an archived document",
-		description: "Khôi phục đúng các node của một đợt archive (batch_id); node bị archive bởi đợt khác không tự sống lại; không giới hạn số node (đợt cũ quá 1000 node vẫn khôi phục được).Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Khôi phục mục trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §1); hậu duệ không quản lý ở lại thùng rác. Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/purge", h.PurgeDocument, apiOp{
+		summary:     "Permanently delete an archived document",
+		description: "Xóa vĩnh viễn một mục đang trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §2): dọn mọi bảng phụ thuộc, nhả blob qua FileService và ghi audit/outbox document.deleted (metadata manual_purge=true) trong một transaction. Mục đang sống -> 400 document_not_in_trash; dưới manage -> 403; không thấy -> 404; quá 1000 nút -> 400 folder_too_large.",
+		tags:        []string{"documents"},
+		status:      http.StatusNoContent,
 		auth:        true,
 	})
 	d.Get("/documents/{documentID}/shares", h.ListDocumentShares, apiOp{

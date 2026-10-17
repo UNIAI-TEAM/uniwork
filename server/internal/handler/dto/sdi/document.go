@@ -49,6 +49,9 @@ type PatchDocumentSDI struct {
 	Icon       *string          `json:"icon" description:"Emoji mới; chuỗi rỗng để gỡ icon (bỏ qua = giữ nguyên)" example:"📑"`
 	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON mới; server sanitize và rút content_text"`
 	Visibility *string          `json:"visibility" description:"workspace hoặc restricted; đổi visibility cần manage" example:"restricted"`
+	// EditLockID gates only a PATCH that carries content; a rename or a
+	// visibility change needs no lock (addendum §2, Q5).
+	EditLockID string `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645), chỉ xét khi PATCH có content; bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
 }
 
 // UploadDocumentFileSDI documents POST /api/v1/documents/{documentID}/uploads
@@ -67,6 +70,7 @@ type UploadDocumentFileSDI struct {
 type CommitDocumentVersionSDI struct {
 	UploadID     string `json:"upload_id" description:"upload_id (= file_id FileService) do POST .../uploads hoặc RegisterProviderOutput cấp" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
 	BaseRevision string `json:"base_revision" description:"Revision nền dạng chuỗi thập phân; lệch → document_version_conflict" example:"41"`
+	EditLockID   string `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645); bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
 }
 
 // CreateDocumentVersionSDI is POST /api/v1/documents/{documentID}/versions:
@@ -85,6 +89,7 @@ type CreateDocumentVersionSDI struct {
 // optional JSON body - absent or empty keeps the page behaviour.
 type RestoreDocumentVersionSDI struct {
 	BaseRevision *string `json:"base_revision" description:"Revision nền dạng chuỗi thập phân; bắt buộc cho file document, lệch → document_version_conflict" example:"41"`
+	EditLockID   string  `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645); bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
 }
 
 // UploadDocumentAssetSDI documents POST /api/v1/documents/{documentID}/assets

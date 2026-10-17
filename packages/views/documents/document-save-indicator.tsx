@@ -53,6 +53,9 @@ export function DocumentSaveIndicator({
   announce = true,
 }: DocumentSaveIndicatorProps) {
   const { t } = useTranslation();
+  // Compact (the page header): below sm the icon stands in for the words, which stay in the accessibility
+  // tree, so a phone header never clips a status mid-word (V-1).
+  const words = compact ? "sr-only sm:not-sr-only" : undefined;
   const statusProps = announce ? { role: "status" as const, "aria-live": "polite" as const } : {};
 
   if (readonly) {
@@ -73,7 +76,7 @@ export function DocumentSaveIndicator({
       return (
         <span {...statusProps} className={cn(BASE, className)}>
           <Spinner className="size-3.5" />
-          {t("documents.save.saving")}
+          <span className={words}>{t("documents.save.saving")}</span>
         </span>
       );
     case "saved": {
@@ -122,7 +125,7 @@ export function DocumentSaveIndicator({
       return (
         <span {...statusProps} className={cn(BASE, className)}>
           <Clock aria-hidden className="size-3.5" />
-          {t("documents.save.unsaved")}
+          <span className={words}>{t("documents.save.unsaved")}</span>
         </span>
       );
   }

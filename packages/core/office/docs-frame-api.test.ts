@@ -99,6 +99,17 @@ describe("createDocsFrameApi", () => {
     expect(header(commit!.init, "Idempotency-Key")).toMatch(/:commit$/);
   });
 
+  it("commits with the host's edit lock id when the call carries one (UNI-1645)", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, { ...call(), editLockId: "lock-1" });
+    const commit = calls.find((c) => c.path.endsWith("/versions/commit"));
+    expect(JSON.parse(String(commit?.init.body))).toEqual({ upload_id: "up-1", base_revision: "7", edit_lock_id: "lock-1" });
+  });
+
   it("refuses a save with no etag instead of rebasing onto the newest revision", async () => {
     const { fetch, calls } = fakeFetch({});
     await expect(createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4) }, call())).rejects.toMatchObject({ code: "malformed" });
@@ -130,6 +141,17 @@ describe("createDocsFrameApi", () => {
     });
     const result = await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "6" }, call());
     expect(result).toMatchObject({ ok: false, error: { code: "conflict", status: 409, details: { apiCode: "document_version_conflict" } } });
+  });
+
+  it("commit 423 document_locked -> readOnly refusal, never {ok:false} (UNI-1645)", async () => {
+    const fields = { holder_id: "u2", holder_name: "An", since: "2026-10-15T03:12:00Z", expires_at: "2026-10-15T03:14:00Z", held_by_me: false, current_revision: "8" };
+    const { fetch } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json({ error: { code: "document_locked", message: "đang sửa", fields } }, 423),
+    });
+    const saving = createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, { ...call(), editLockId: "lock-1" });
+    await expect(saving).rejects.toMatchObject({ code: "forbidden", status: 423, message: "document_locked (HTTP 423)", details: { apiCode: "document_locked", fields } });
   });
 
   it("hands the frame a stable code, never the server's account-language sentence", async () => {
@@ -305,5 +327,25 @@ describe("createDocsFrameApi saveAs", () => {
   it("maps a refused create to the protocol code", async () => {
     const { api } = setup({ "POST /api/v1/workspaces/ws-1/documents/files": () => json({ error: { code: "quota_exceeded", message: "full" } }, 413) });
     await expect(api.saveAs!({ name: "Big.docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "too_large", status: 413 });
+  });
+
+  it("preserves fields.max_bytes on a 413 file_too_large save or saveAs failure", async () => {
+    const { api } = setup({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        json({ error: { code: "file_too_large", message: "too big", fields: { max_bytes: 209715200 } } }, 413),
+      "POST /api/v1/workspaces/ws-1/documents/files": () =>
+        json({ error: { code: "file_too_large", message: "too big", fields: { max_bytes: 104857600 } } }, 413),
+    });
+    await expect(api.save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, call())).rejects.toMatchObject({
+      code: "too_large",
+      status: 413,
+      details: { apiCode: "file_too_large", max_bytes: 209715200 },
+    });
+    await expect(api.saveAs!({ name: "Big.docx", data: new ArrayBuffer(4) }, call())).rejects.toMatchObject({
+      code: "too_large",
+      status: 413,
+      details: { apiCode: "file_too_large", max_bytes: 104857600 },
+    });
   });
 });

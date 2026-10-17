@@ -137,7 +137,7 @@ export function rowTypeKey(row: LibraryRow): string {
 
 /**
  * The type chip keeps folders visible (they are how one gets to the files)
- * except under "Trang", which lists pages only. Document lists send the chip
+ * except under "UniNote", which lists pages only. Document lists send the chip
  * to the server (`format`/`kind`); this predicate remains only for the rows
  * the server cannot filter: merged source files and the starred view.
  */

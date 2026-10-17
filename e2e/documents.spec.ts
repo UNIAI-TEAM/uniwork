@@ -77,14 +77,18 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: resolve(SHOTS, `${name}.png`) });
 }
 
+function sidebar(page: Page) {
+  return page.getByRole("navigation", { name: "Điều hướng tài liệu" });
+}
+
 test("a page is created, typed into, and survives a reload", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await onboard(page, pageSeed);
 
   await page.goto(`/${pageSeed.orgSlug}/${pageSeed.wsSlug}/documents`);
-  // The library shell: tabs and the real empty state, never fabricated rows.
-  await expect(page.getByRole("tab", { name: /Tất cả/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible();
+  // The library shell: the sidebar views and the real empty state, never fabricated rows.
+  await expect(page.getByRole("heading", { name: "Tài liệu của workspace" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Workspace chưa có tài liệu" })).toBeVisible();
   await shot(page, "documents-library-light-vi");
 
   await newPageCard(page).click();
@@ -130,12 +134,11 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   await onboard(page, fileSeed);
 
   await page.goto(`/${fileSeed.orgSlug}/${fileSeed.wsSlug}/documents`);
-  await page
-    .getByRole("button", { name: "Tải file lên" })
-    .first()
-    .click();
-  await page.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
-  await page.getByRole("button", { name: "Tải lên" }).click();
+  await page.getByRole("button", { name: "Tải lên", exact: true }).click();
+  const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
+  await expect(uploadDialog).toBeVisible();
+  await uploadDialog.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
+  await uploadDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
 
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 90_000 });
   await expect(page.getByText("parity-upload.txt").first()).toBeVisible({ timeout: 60_000 });
@@ -145,8 +148,9 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
 
   // A new version: uploads + versions/commit, then the history grows.
   await page.getByRole("button", { name: "Tải phiên bản mới" }).click();
-  await page.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
-  await page.getByRole("button", { name: "Tải lên" }).click();
+  const versionDialog = page.getByRole("dialog", { name: "Tải phiên bản mới" });
+  await versionDialog.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
+  await versionDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
   await expect(page.getByText("Phiên bản 2")).toBeVisible({ timeout: 90_000 });
 
   // Download goes through the authenticated proxy route (no presigned URL).
@@ -157,12 +161,12 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   expect((await download).suggestedFilename()).toBe("parity-upload.txt");
 });
 
-test("the library lists pages across its tabs and the tree opens one", async ({ page }) => {
+test("the library lists pages across its views and the tree opens one", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await onboard(page, librarySeed);
 
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
-  await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Workspace chưa có tài liệu" })).toBeVisible({
     timeout: 30_000,
   });
 
@@ -173,36 +177,39 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
     timeout: 60_000,
   });
 
-  // Back to the library: the table carries the new page, and the tab count is
-  // the server's own row count. The sidebar tree lists folders only.
+  // Back to the library: the table carries the new page, and the "Tài liệu"
+  // section's h2 is the server's own row count. The sidebar tree lists folders only.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
   const list = page.getByRole("table", { name: "Tài liệu" });
-  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toHaveCount(0);
-  await expect(page.getByRole("tab", { name: /Tất cả/ })).toContainText("1");
+  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("treeitem", { name: /UniNote mới/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Tài liệu 1", exact: true })).toBeVisible();
 
-  // The other tabs read their own endpoints (nothing is shared with anyone).
-  await page.getByRole("tab", { name: /Gần đây/ }).click();
-  await expect(page.getByRole("tab", { name: /Gần đây/ })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("tab", { name: /Được chia sẻ/ }).click();
-  await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible({
+  // The sidebar views read their own endpoints (nothing is shared with anyone).
+  await sidebar(page).getByRole("button", { name: "Gần đây", exact: true }).click();
+  await expect(sidebar(page).getByRole("button", { name: "Gần đây", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await sidebar(page).getByRole("button", { name: "Được chia sẻ với tôi" }).click();
+  await expect(page.getByRole("heading", { name: "Chưa có tài liệu nào được chia sẻ với bạn" })).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByRole("tab", { name: /Tất cả/ }).click();
+  await sidebar(page).getByRole("button", { name: "Tài liệu của workspace" }).click();
 
-  // A type chip drops the page row.
-  await page.getByRole("button", { name: "Docs", exact: true }).click();
+  // The type filter drops the page row.
+  await page.getByRole("combobox", { name: /^Loại/ }).click();
+  await page.getByRole("option", { name: "Docs" }).click();
   await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
-  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
-
+  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
   // The row opens the document.
-  await libraryRowButton(list, /Trang mới/).click();
+  await libraryRowButton(list, /UniNote mới/).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
 
   // Dark and mobile screenshots, then English, on the same library.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
-  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await shot(page, "documents-library-dark-vi");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
@@ -210,14 +217,14 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   // Below xl the navigation folds into a sheet; the trigger opens it.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Điều hướng" }).click();
-  await expect(page.getByRole("button", { name: "Trang chủ Tài liệu" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Tài liệu của workspace" })).toBeVisible({ timeout: 30_000 });
   await shot(page, "documents-library-mobile-tree-vi");
   await page.keyboard.press("Escape");
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "Ng\u00f4n ng\u1eef" }).click();
   await page.getByRole("menuitemradio", { name: "English" }).click();
-  await expect(page.getByRole("tab", { name: /^All/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: /^Workspace documents/ })).toBeVisible({ timeout: 30_000 });
   await shot(page, "documents-library-light-en");
 });
 
@@ -231,8 +238,8 @@ test("the library and the page editor never call the Office service", async ({ p
   });
 
   await page.goto(`/${officeSeed.orgSlug}/${officeSeed.wsSlug}/documents`);
-  await expect(page.getByRole("tab", { name: /Tất cả/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tài liệu của workspace" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Workspace chưa có tài liệu" })).toBeVisible();
 
   // This spec runs with the Office engine stopped; nothing above may depend on
   // it, and the page editor has to open without it.
