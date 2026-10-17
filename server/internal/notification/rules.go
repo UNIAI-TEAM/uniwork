@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
@@ -105,14 +108,17 @@ var rules = map[string]rule{
 	// DOC-05 (UNI-1628): an admin opened emergency view access to a
 	// restricted document; the owner must hear about it.
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
-	"participant.invited":          ruleParticipantInvited,
-	"member.joined":                ruleMemberJoined,
-	"member.role_changed":          ruleRoleChanged,
-	"audit.exported":               ruleAuditExported,
-	"chat.follow_up.created":       ruleChatFollowUpCreated,
-	"chat.reminder.due":            ruleChatReminderDue,
-	"email_hub.new_mail":           ruleEmailHubNewMail,
-	"meeting.ended":                ruleMeetingEnded,
+	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
+	// document; the ACL owner hears once per archive batch.
+	"document.archived":      ruleDocumentTrashed,
+	"participant.invited":    ruleParticipantInvited,
+	"member.joined":          ruleMemberJoined,
+	"member.role_changed":    ruleRoleChanged,
+	"audit.exported":         ruleAuditExported,
+	"chat.follow_up.created": ruleChatFollowUpCreated,
+	"chat.reminder.due":      ruleChatReminderDue,
+	"email_hub.new_mail":     ruleEmailHubNewMail,
+	"meeting.ended":          ruleMeetingEnded,
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
@@ -623,6 +629,87 @@ func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p 
 		"document_id": doc.ID, "grant_id": p["grant_id"],
 	}
 	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params)
+}
+
+// ruleDocumentTrashed tells the ACL owners of an archive batch's documents
+// that somebody else moved their work to the trash (TRASH-NOTIFY-01, addendum
+// §4 N-2/N-3). One document.archived row lands per node, all sharing
+// archive_batch_id, while the person wants one row per batch: the rule
+// answers with a draft only on the event whose document is the recipient's
+// top-most node of the batch - the owned node with the fewest ancestors also
+// in the batch, the smaller id breaking a tie. The group key carries
+// recipient and batch, so the merge can never produce a second row, and
+// notification_deliveries still makes a redelivery idempotent. A node
+// restored or purged before the event is consumed dropped its batch id and
+// leaves the read; an archived event arriving after the batch was purged
+// reads an empty batch and emits nothing, and purge itself emits
+// document.deleted, which has no rule (N-5).
+func ruleDocumentTrashed(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	docID, batchID, wsID := p["document_id"], p["archive_batch_id"], p["workspace_id"]
+	if wsID == "" && ev.WorkspaceID.Valid {
+		wsID = ev.WorkspaceID.String
+	}
+	if docID == "" || batchID == "" || wsID == "" {
+		return nil, nil
+	}
+	orgID, err := orgOf(ctx, e.q, ev, wsID)
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := e.q.ListDocumentArchiveBatch(ctx, db.ListDocumentArchiveBatchParams{
+		OrganizationID: orgID, WorkspaceID: wsID, ArchiveBatchID: pgtype.Text{String: batchID, Valid: true},
+	})
+	if err != nil || len(nodes) == 0 {
+		return nil, err
+	}
+	inBatch := make(map[string]db.Document, len(nodes))
+	for _, d := range nodes {
+		inBatch[d.ID] = d
+	}
+	depth := func(d db.Document) (n int) {
+		for p := d.ParentID; p.Valid && inBatch[p.String].ID != ""; p = inBatch[p.String].ParentID {
+			n++
+		}
+		return n
+	}
+	byOwner := map[string][]db.Document{}
+	purgeAfter := ""
+	for _, d := range nodes {
+		if !d.ArchivedAt.Valid {
+			continue
+		}
+		if purgeAfter == "" && d.PurgeAfter.Valid {
+			purgeAfter = d.PurgeAfter.Time.Format(time.RFC3339)
+		}
+		if d.AclOwnerID.Valid {
+			byOwner[d.AclOwnerID.String] = append(byOwner[d.AclOwnerID.String], d)
+		}
+	}
+	var out []Draft
+	for owner, docs := range byOwner {
+		top := docs[0]
+		for _, d := range docs[1:] {
+			if dt, tt := depth(d), depth(top); dt < tt || (dt == tt && d.ID < top.ID) {
+				top = d
+			}
+		}
+		if top.ID != docID {
+			continue // this owner's draft rides the event of their top node
+		}
+		r := newRecipients(ctx, e, ev, wsID)
+		r.add(owner)
+		params := map[string]string{
+			"actor": actorName(ctx, e.q, ev), "document": top.Title, "date": purgeAfter,
+			"document_id": top.ID, "archive_batch_id": batchID, "count": strconv.Itoa(len(docs) - 1),
+		}
+		ds, err := r.drafts(orgID, KindDocumentTrashedByOther,
+			"document:"+batchID+":trashed:"+owner, "document", top.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
+	}
+	return out, nil
 }
 
 func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
