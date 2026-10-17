@@ -373,3 +373,25 @@ export function attachFrameBundleProbe(options: {
   };
 }
 
+
+/**
+ * A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
+ * read-only) via `onLocked`, and the frame hears the same refusal the host gives a viewer, so it
+ * opens no conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
+ */
+export function lockAwareSave<F extends (...args: never[]) => Promise<unknown>>(
+  upload: F,
+  onLocked: (fields: Record<string, unknown> | undefined) => void,
+): F {
+  return (async (...args: Parameters<F>) => {
+    try {
+      return await upload(...args);
+    } catch (error) {
+      const shape = shapeOf(error);
+      if (shape.status !== 423) throw error;
+      const fields = shape.details?.fields;
+      onLocked(fields && typeof fields === "object" ? fields as Record<string, unknown> : undefined);
+      throw readOnly("api.save");
+    }
+  }) as F;
+}

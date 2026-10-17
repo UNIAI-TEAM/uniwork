@@ -8,15 +8,13 @@ import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentLimits } from "@uniwork/core/documents/limits";
 import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
 import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
-import { docsFrameApiBase, docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
+import { docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
-import { DocsProtocolError, type FrameRequests, type InitPayload, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
-import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-session-key";
-import { officeModuleSpec } from "@uniwork/core/office/office-modules";
+import { DocsProtocolError, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
 import {
   armWatchdog,
   attachFrameBundleProbe,
-  officeModuleCapabilities,
+  lockAwareSave,
   onSizeEvents,
   postDocDownload,
   readOnly,
@@ -35,6 +33,7 @@ import {
   type FrameLife,
   type HostSaveWatch,
 } from "./docs-frame-session-model";
+import { composeFrameInit } from "./docs-frame-init";
 import { deliverFrameDownload, frameDownloadMaxBytes } from "./frame-download";
 import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave } from "./frame-remote-version";
 import { useFrameRemote } from "./use-frame-remote-source";
@@ -185,17 +184,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
     // read-only) and the frame hears the same refusal the host gives a viewer, so it opens no
     // conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
-    const lockAware: typeof upload = async (payload, context) => {
-      try {
-        return await upload(payload, context);
-      } catch (error) {
-        const shape = shapeOf(error);
-        if (shape.status !== 423) throw error;
-        const fields = shape.details?.fields;
-        latest.current.options.editLock?.onLocked(fields && typeof fields === "object" ? fields as Record<string, unknown> : undefined);
-        throw readOnly("api.save");
-      }
-    };
+    const lockAware = lockAwareSave(upload, (fields) => latest.current.options.editLock?.onLocked(fields));
     const save = remoteAwareSave(lockAware, remote, applyBlock);
     // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
     // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session
@@ -270,43 +259,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
-        const { options: current, scopeId: doc, displayName: name, userId: uid } = latest.current;
+        const { options: current, scopeId: doc, displayName: name, userId: uid, documentLimits: limits } = latest.current;
         const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
-        // The server derives the module from the stored file; a frame mounted for another
-        // module would edit bytes of a format it does not own (older servers send none).
-        if (minted?.module && minted.module !== module) {
-          throw new DocsProtocolError({
-            code: "malformed", message: `token is for module ${minted.module}, frame is ${module}`,
-            details: { tokenModule: minted.module, expectedModule: module },
-          });
-        }
-        // Same rule as the hook's viewOnly, read from the token this init carries.
-        const lockedOutNow = current.editLock != null && !current.editLock.held;
-        initLockedOut.current = lockedOutNow;
-        const viewOnly = current.readonly || (module !== "docs" && minted?.can_edit === false) || lockedOutNow;
-        // Draft recovery (CONTRACT C18): the session's key, again on every init so a reloaded
-        // frame reads the drafts it wrote. A viewer has nothing unsaved to recover.
-        const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
-          ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
-          : null;
-        const capabilities = officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true);
-        const limits = toFrameLimits(latest.current.documentLimits);
-        const downloadMaxBytes = frameDownloadMaxBytes(limits.max_bytes);
+        const { init, lockedOut, downloadMaxBytes } = await composeFrameInit({ module, frameToken, current, doc, name, uid, minted, limits });
+        initLockedOut.current = lockedOut;
         initDownloadMaxBytes.current = downloadMaxBytes;
-        const init: Omit<InitPayload, "protocolVersion"> = {
-          ...frameToken,
-          documentId: doc, workspaceId: current.wsId,
-          apiBase: docsFrameApiBase(), apiMode: "host-proxy",
-          locale: current.locale, theme: current.theme,
-          capabilities,
-          limits,
-          // The cap api.download enforces, told up front so the conflict dialog can disable its
-          // download choice before a 413; only with the capability (the frame ignores it otherwise).
-          ...(capabilities.download ? { downloadMaxBytes } : {}),
-          ...(name ? { user: { displayName: name } } : {}),
-          ...(recovery ? { recovery } : {}),
-        };
-        return current.comments ? current.comments.augmentInit(init, { canEdit: minted?.can_edit, readonly: viewOnly }) : init;
+        return init;
       },
       refreshToken: async () => {
         const { data } = await latest.current.refetch();
