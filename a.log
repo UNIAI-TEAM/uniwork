@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+50fb9d979e0fea91aeb3660972b2568f7fe6cf88
+98c210422c03fd8d75d8a2756a78e69555cdf9f2
+50fb9d979 fix(documents): decide access on the locked document before the shelved check on upload completion
+e5f4d6c91 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
+98c210422 chore: merge BIGUP-W1 chunked resumable uploader (UNI-1863, 9886305ac) into the G5-G7 root
+0053d7776 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
+9886305ac test(documents): pin the XHR part PUT error paths (R3-1)
+f10d04a59 fix(documents): refuse shelved documents on the large upload-session routes

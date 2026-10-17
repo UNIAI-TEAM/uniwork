@@ -1,0 +1,11 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; gofmt -l internal/service internal/handler; go vet ./internal/service ./internal/handler && AI_PROVIDER=fake go test ./internal/service -run "Shelved|UploadSession" -count=1 -v > /tmp/svc.log 2>&1); rc=$?; grep -E "^(--- FAIL|--- SKIP|ok|FAIL)" /tmp/svc.log | tail -20; grep -cE "^--- PASS" /tmp/svc.log; grep -E "TestUploadSessionCompleteReDecidesAccessBeforeShelvedState" /tmp/svc.log | head -4; echo; echo "TEST_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	37.844s
+53
+=== RUN   TestUploadSessionCompleteReDecidesAccessBeforeShelvedState
+=== RUN   TestUploadSessionCompleteReDecidesAccessBeforeShelvedState/version
+2026/10/17 22:46:33 INFO local storage adapter ready dir=/tmp/TestUploadSessionCompleteReDecidesAccessBeforeShelvedStateversi209185804/001
+=== RUN   TestUploadSessionCompleteReDecidesAccessBeforeShelvedState/frame
+
+TEST_SVC_EXIT=0
