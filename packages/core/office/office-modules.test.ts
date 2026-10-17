@@ -36,7 +36,8 @@ describe("office module table", () => {
     expect(docsFrameSrc("1.0.0")).toBe("/office-frame/docs/1.0.0/index.html");
   });
 
-  it("grants each module what its frame implements: no recents, attachments or server PDF export outside docs; images for markdown/html", () => {
+  it("grants each module what its frame implements: no recents, attachments, saveCopy or server PDF export outside docs; images for markdown/html", () => {
+    expect(officeModuleSpec("docs").grant.saveCopy).toBe(true);
     expect(officeModuleSpec("pdf").grant).toEqual({ save: true, saveAs: true, print: true });
     expect(officeModuleSpec("markdown").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true, images: true });
     expect(officeModuleSpec("html").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true, images: true });

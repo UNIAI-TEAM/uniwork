@@ -1,5 +1,6 @@
 import { ApiError } from "../api/http";
 import { createDocumentFile } from "../api/endpoints/documents";
+import { copyDocument } from "../api/endpoints/office";
 import {
   createOfficeFrameClient,
   mintOfficeFrameToken,
@@ -26,10 +27,12 @@ import {
   type ApiRecentsPayload,
   type ApiRecentsResult,
   type ApiSaveAsPayload,
+  type ApiSaveCopyPayload,
   type ApiSavePayload,
   type FileMeta,
   type OfficeModule,
   type OpenPayload,
+  type SaveCopyResult,
   type SaveResult,
   type TokenPayload,
 } from "./docs-frame-protocol";
@@ -72,6 +75,7 @@ export interface DocsFrameApi {
   /** Markdown/HTML: fresh URLs and the URLs of paths typed after the open (CONTRACT A1b). */
   resolveAssets?(payload: ApiAssetsResolvePayload, call: DocsFrameCall): Promise<ApiAssetsResolveResult>;
   saveAs?(payload: ApiSaveAsPayload, call: DocsFrameCall): Promise<DocsFrameSavedAs>;
+  saveCopy?(payload: ApiSaveCopyPayload, call: DocsFrameCall): Promise<SaveCopyResult>;
   export?(payload: ApiExportPayload, call: DocsFrameCall): Promise<ApiExportResult>;
   addAttachments?(payload: ApiAttachmentsAddPayload, call: DocsFrameCall): Promise<ApiAttachmentsAddResult>;
 }
@@ -112,7 +116,11 @@ export function docsFrameError(error: unknown): DocsProtocolError {
     const maxBytes = typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : undefined;
     return new DocsProtocolError({
       ...shape,
-      details: { apiCode: error.code, ...(maxBytes !== undefined ? { max_bytes: maxBytes } : {}) },
+      details: {
+        apiCode: error.code,
+        ...(error.fields ? { fields: error.fields } : {}),
+        ...(maxBytes !== undefined ? { max_bytes: maxBytes } : {}),
+      },
     });
   }
   return toProtocolError(error);
@@ -283,6 +291,20 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       const opened = await createOfficeFrameClient({ ...options, getToken: () => token.token }).open(created.id);
       if (!opened || "source_id" in opened) throw malformed("office-frame open");
       return { save: { ok: true, file: fileMeta(opened), versionId: opened.file.version_id }, rebind: { documentId: created.id, token } };
+    }),
+
+    saveCopy: (payload, call) => run(async () => {
+      const name = ext.test(payload.name) ? payload.name : `${payload.name}.${extension}`;
+      const key = await operationKey("savecopy", [call.documentId, payload.name], payload.data);
+      const upload = await clientFor(call).upload(call.documentId, new Blob([payload.data], { type: mimeType }), name, `${key}:upload`);
+      if (!upload) throw malformed("office-frame upload");
+      const copied = await copyDocument(
+        call.documentId,
+        { consent: "copy", upload_id: upload.upload_id, title: payload.name },
+        { idempotencyKey: key, signal: call.signal },
+      );
+      if (!copied) throw malformed("documents/copies");
+      return { documentId: copied.id, title: copied.title };
     }),
 
     recents: (payload, call) => run(async () => {
