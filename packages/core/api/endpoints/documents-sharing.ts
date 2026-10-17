@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   DocumentAccessSchema,
   DocumentAccessLogListSchema,
@@ -8,21 +9,230 @@ import {
   type DocumentAccess,
   type DocumentAccessLevel,
   type DocumentAccessLogList,
+  type DocumentAccessVia,
   type DocumentLinkEnvelope,
   type DocumentSettings,
   type DocumentShareBatch,
   type DocumentShareEnvelope,
 } from "../../types/document";
-import { request } from "../http";
+import { ApiError, request } from "../http";
 import { parseWithFallback } from "../schema";
 
-// Document sharing endpoints (C-01 §5.3/§5.4; UNI-679, G1-05b): the access
-// overview, grant/revoke, public-link create/revoke, the manage-only access
-// log and the organization public-links switch. Mutations resolve null when
-// the answer cannot prove the write; the hooks turn that into "result not
-// verifiable" and keep the caller's state.
+// Document sharing endpoints (C-01 §5.3/§5.4; UNI-679, G1-05b; SH-W1 UNI-1784):
+// the access overview, unified batch access update + dry_run preview, share
+// candidate search, grant/revoke, public-link create/revoke, the manage-only
+// access log and the organization public-links switch.
 
 const enc = encodeURIComponent;
+
+export type DocumentPrincipalType = "user" | "workspace" | "organization";
+export type DocumentAccessOnExisting = "update" | "keep";
+
+export interface DocumentAccessUpdateItemInput {
+  principal_type: DocumentPrincipalType;
+  principal_id: string;
+  level: DocumentAccessLevel | null;
+  on_existing?: DocumentAccessOnExisting;
+}
+
+export interface UpdateDocumentAccessBody {
+  items: DocumentAccessUpdateItemInput[];
+  dry_run?: boolean;
+}
+
+export type DocumentAccessResultStatus =
+  | "granted"
+  | "updated"
+  | "revoked"
+  | "kept"
+  | "unchanged";
+
+export const DocumentAccessResultItemSchema = z.object({
+  index: z.number().int().min(0),
+  status: z.enum(["granted", "updated", "revoked", "kept", "unchanged"]),
+});
+export type DocumentAccessResultItem = z.infer<typeof DocumentAccessResultItemSchema>;
+
+export const DocumentAccessPreviewLevelSchema = z.object({
+  level: z.string(),
+  via: z.string().optional().default(""),
+});
+export type DocumentAccessPreviewLevel = {
+  level: DocumentAccessLevel | "";
+  via: DocumentAccessVia | "";
+};
+
+export const DocumentAccessPreviewUserSchema = z.object({
+  user_id: z.string().min(1),
+  before: DocumentAccessPreviewLevelSchema,
+  after: DocumentAccessPreviewLevelSchema,
+});
+export type DocumentAccessPreviewUser = {
+  user_id: string;
+  before: DocumentAccessPreviewLevel;
+  after: DocumentAccessPreviewLevel;
+};
+
+export const DocumentAccessPreviewGroupSchema = z.object({
+  principal_type: z.enum(["workspace", "organization"]),
+  principal_id: z.string().min(1),
+  member_count: z.number().int().min(0),
+  losing_count: z.number().int().min(0),
+});
+export type DocumentAccessPreviewGroup = z.infer<typeof DocumentAccessPreviewGroupSchema>;
+
+export type DocumentAccessWarningCode = "wide_scope" | "direct_below_group" | "downgrade";
+
+export const DocumentAccessWarningSchema = z.object({
+  code: z.enum(["wide_scope", "direct_below_group", "downgrade"]),
+  index: z.number().int().min(0),
+});
+export type DocumentAccessWarning = z.infer<typeof DocumentAccessWarningSchema>;
+
+export const DocumentAccessPreviewSchema = z.object({
+  users: z.array(DocumentAccessPreviewUserSchema).optional().default([]),
+  groups: z.array(DocumentAccessPreviewGroupSchema).optional().default([]),
+  warnings: z.array(DocumentAccessWarningSchema).optional().default([]),
+});
+export type DocumentAccessPreview = {
+  users: DocumentAccessPreviewUser[];
+  groups: DocumentAccessPreviewGroup[];
+  warnings: DocumentAccessWarning[];
+};
+
+export const DocumentAccessUpdateSchema = z.object({
+  batch_id: z.string().optional().default(""),
+  dry_run: z.boolean().optional().default(false),
+  results: z.array(DocumentAccessResultItemSchema).min(1),
+  preview: DocumentAccessPreviewSchema.optional().default({
+    users: [],
+    groups: [],
+    warnings: [],
+  }),
+});
+export type DocumentAccessUpdate = Omit<z.infer<typeof DocumentAccessUpdateSchema>, "preview"> & {
+  preview: DocumentAccessPreview;
+};
+
+export type DocumentAccessRejectedCode =
+  | "principal_not_in_organization"
+  | "level_not_allowed"
+  | "duplicate_principal"
+  | "break_glass_required";
+
+const DocumentAccessRejectedItemSchema = z.object({
+  index: z.number().int().min(0),
+  principal_type: z.enum(["user", "workspace", "organization"]),
+  principal_id: z.string().min(1),
+  code: z.enum([
+    "principal_not_in_organization",
+    "level_not_allowed",
+    "duplicate_principal",
+    "break_glass_required",
+  ]),
+});
+export type DocumentAccessRejectedItem = z.infer<typeof DocumentAccessRejectedItemSchema>;
+
+export interface DocumentAccessRejectedError {
+  code: "document_access_rejected";
+  status: number;
+  message: string;
+  rejected: DocumentAccessRejectedItem[];
+}
+
+export function parseDocumentAccessRejected(err: unknown): DocumentAccessRejectedError | null {
+  if (!(err instanceof ApiError) || err.code !== "document_access_rejected") return null;
+  const rawList = err.fields?.rejected;
+  const rejected: DocumentAccessRejectedItem[] = [];
+  if (Array.isArray(rawList)) {
+    for (const entry of rawList) {
+      const parsed = DocumentAccessRejectedItemSchema.safeParse(entry);
+      if (parsed.success) rejected.push(parsed.data);
+    }
+  }
+  return {
+    code: "document_access_rejected",
+    status: err.status,
+    message: err.message,
+    rejected,
+  };
+}
+
+export const DocumentShareCandidateSchema = z.object({
+  principal_type: z.enum(["user", "workspace", "organization"]),
+  principal_id: z.string().min(1),
+  name: z.string(),
+  secondary: z.string().optional().default(""),
+  direct_level: z.enum(["view", "comment", "edit", "manage"]).nullable().optional().default(null),
+  is_home_workspace: z.boolean().optional().default(false),
+});
+export type DocumentShareCandidate = z.infer<typeof DocumentShareCandidateSchema>;
+
+export const DocumentShareCandidatesSchema = z.object({
+  items: z.array( z.unknown() ).transform((raw): DocumentShareCandidate[] => {
+    const out: DocumentShareCandidate[] = [];
+    for (const item of raw) {
+      const parsed = DocumentShareCandidateSchema.safeParse(item);
+      if (parsed.success) out.push(parsed.data);
+    }
+    return out;
+  }),
+  next_cursor: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? ""),
+});
+export type DocumentShareCandidates = z.infer<typeof DocumentShareCandidatesSchema>;
+
+/** PUT /api/v1/documents/{documentID}/access — batch grant/update/revoke with
+ *  optional dry_run impact preview (SH-S2/SH-W1). */
+export async function updateDocumentAccess(
+  documentId: string,
+  body: UpdateDocumentAccessBody,
+  signal?: AbortSignal,
+): Promise<DocumentAccessUpdate | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/access`, {
+    method: "PUT",
+    body,
+    signal,
+  });
+  return parseWithFallback<DocumentAccessUpdate | null>(raw, DocumentAccessUpdateSchema, null, {
+    endpoint: "PUT /api/v1/documents/{id}/access",
+  });
+}
+
+export interface ListShareCandidatesOpts {
+  q?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+/** GET /api/v1/documents/{documentID}/share-candidates — people, workspaces
+ *  and the organization in the document's organization, annotated with each
+ *  principal's existing direct grant level (SH-S2/SH-W1). */
+export async function listShareCandidates(
+  documentId: string,
+  opts?: ListShareCandidatesOpts,
+  signal?: AbortSignal,
+): Promise<DocumentShareCandidates> {
+  const p = new URLSearchParams();
+  const q = opts?.q?.trim() ?? "";
+  if (q) p.set("q", q);
+  if (opts?.cursor) p.set("cursor", opts.cursor);
+  if (opts?.limit !== undefined) p.set("limit", String(opts.limit));
+  const qs = p.toString();
+  const raw = await request(
+    `/api/v1/documents/${enc(documentId)}/share-candidates${qs ? `?${qs}` : ""}`,
+    { signal },
+  );
+  return parseWithFallback<DocumentShareCandidates>(
+    raw,
+    DocumentShareCandidatesSchema,
+    { items: [], next_cursor: "" },
+    { endpoint: "GET /api/v1/documents/{id}/share-candidates" },
+  );
+}
 
 /** GET /api/v1/documents/{documentID}/shares — my level always; grants,
  *  acl owner and live links only for a caller at manage level. */

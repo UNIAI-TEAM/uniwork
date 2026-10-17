@@ -488,6 +488,43 @@ export type DocumentTree = z.infer<typeof DocumentTreeSchema>;
 
 export { DocumentPersonAccessSchema, type DocumentPersonAccess };
 
+export const DocumentAccessSourceSchema = z.object({
+  via: z.string().min(1),
+  principal_type: z.enum(["user", "workspace", "organization"]).optional().catch(undefined),
+  principal_id: z.string().optional().catch(undefined),
+  level: z.string().min(1),
+});
+export type DocumentAccessSource = {
+  via: DocumentAccessVia;
+  principal_type?: "user" | "workspace" | "organization";
+  principal_id?: string;
+  level: DocumentAccessLevel;
+};
+
+export type DocumentShareWarningCode = "direct_below_group";
+
+export const DocumentHomeWorkspaceAccessSchema = z.object({
+  workspace_id: z.string().min(1),
+  workspace_name: z.string().optional().default(""),
+  level: z.enum(["view", "comment", "edit", "manage"]).nullable().optional().default(null),
+});
+export type DocumentHomeWorkspaceAccess = {
+  workspace_id: string;
+  workspace_name: string;
+  level: DocumentAccessLevel | null;
+};
+
+const parseAccessSources = (raw: unknown): DocumentAccessSource[] | undefined => {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) return [];
+  const items: DocumentAccessSource[] = [];
+  for (const item of raw) {
+    const parsed = DocumentAccessSourceSchema.safeParse(item);
+    if (parsed.success) items.push(parsed.data as DocumentAccessSource);
+  }
+  return items;
+};
+
 export const DocumentShareSchema = z.object({
   id: z.string(),
   principal_type: z.string(),
@@ -496,11 +533,22 @@ export const DocumentShareSchema = z.object({
   active: z.boolean().optional().default(true),
   effective_level: z.string().nullable().optional(),
   effective_via: z.string().nullable().optional(),
+  sources: z.unknown().optional().transform(parseAccessSources),
+  warnings: z
+    .unknown()
+    .optional()
+    .transform((raw): DocumentShareWarningCode[] | undefined => {
+      if (!Array.isArray(raw)) return undefined;
+      return raw.filter((w): w is DocumentShareWarningCode => w === "direct_below_group");
+    }),
   granted_by: z.string().optional().default(""),
   granted_by_kind: z.string().optional().default("human"),
   created_at: z.string().optional().default(""),
 });
-export type DocumentShare = Omit<z.infer<typeof DocumentShareSchema>, "level" | "effective_level" | "effective_via"> & {
+export type DocumentShare = Omit<
+  z.infer<typeof DocumentShareSchema>,
+  "level" | "effective_level" | "effective_via"
+> & {
   level: DocumentAccessLevel;
   effective_level?: DocumentAccessLevel | null;
   effective_via?: DocumentAccessVia | null;
@@ -522,6 +570,16 @@ export const DocumentAccessSchema = z
     my_level: z.string().optional(),
     admin_scope: z.boolean().optional().catch(undefined),
     via: z.string().optional().default(""),
+    my_sources: z.unknown().optional().transform(parseAccessSources),
+    home_workspace: z
+      .unknown()
+      .optional()
+      .transform((raw): DocumentHomeWorkspaceAccess | null | undefined => {
+        if (raw === undefined) return undefined;
+        if (raw === null) return null;
+        const parsed = DocumentHomeWorkspaceAccessSchema.safeParse(raw);
+        return parsed.success ? (parsed.data as DocumentHomeWorkspaceAccess) : undefined;
+      }),
     acl_owner: DocumentPersonAccessSchema.nullable().optional(),
     shares: z.array(DocumentShareSchema).optional(),
     links: z.array(DocumentLinkSchema).optional(),

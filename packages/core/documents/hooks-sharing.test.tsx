@@ -8,10 +8,14 @@ import {
   useCreateDocumentLink,
   useDocumentAccessLogs,
   useDocumentSettings,
+  useDocumentShareCandidates,
   useDocumentShares,
+  useRevokeDocumentLink,
+  useRevokeDocumentShare,
   useSetDocumentPublicLinks,
   useShareDocument,
   useShareDocumentBatch,
+  useUpdateDocumentAccess,
 } from "./hooks-sharing";
 import { documentKeys } from "./keys";
 import { sharePrincipalsNotInOrganization } from "./errors";
@@ -329,4 +333,100 @@ describe("documents sharing hooks (G1-05b)", () => {
     await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
     expect(second.result.current.data).toBeNull();
   });
+
+  it("useUpdateDocumentAccess skips invalidation on dry_run and invalidates shares, detail, listRoot, and shareCandidates on real writes (SH-W1)", async () => {
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
+    qc.setQueryData(documentKeys.detail("w1", "d1"), { id: "d1" });
+    qc.setQueryData(documentKeys.list("w1", "all"), { documents: [] });
+    qc.setQueryData(documentKeys.shareCandidates("w1", "d1", "spec"), { items: [], next_cursor: "" });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        batch_id: "",
+        dry_run: true,
+        results: [{ index: 0, status: "granted" }],
+        preview: {
+          users: [],
+          groups: [{ principal_type: "organization", principal_id: "o1", member_count: 42, losing_count: 0 }],
+          warnings: [{ code: "wide_scope", index: 0 }],
+        },
+      }),
+    );
+
+    const { result } = renderHook(() => useUpdateDocumentAccess("w1", "d1"), { wrapper });
+    await act(async () => {
+      const out = await result.current.mutateAsync({
+        items: [{ principal_type: "organization", principal_id: "o1", level: "view" }],
+        dry_run: true,
+      });
+      expect(out.dry_run).toBe(true);
+    });
+    expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(documentKeys.detail("w1", "d1"))?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(documentKeys.list("w1", "all"))?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(documentKeys.shareCandidates("w1", "d1", "spec"))?.isInvalidated).toBe(false);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        batch_id: "01JABCDEF123",
+        dry_run: false,
+        results: [{ index: 0, status: "granted" }],
+        preview: { users: [], groups: [], warnings: [] },
+      }),
+    );
+    await act(async () => {
+      const out = await result.current.mutateAsync({
+        items: [{ principal_type: "organization", principal_id: "o1", level: "view" }],
+        dry_run: false,
+      });
+      expect(out.batch_id).toBe("01JABCDEF123");
+    });
+    expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.detail("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.list("w1", "all"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.shareCandidates("w1", "d1", "spec"))?.isInvalidated).toBe(true);
+
+    // Unverifiable response (missing results or non-dry_run without batch_id when results change state) is rejected.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const unverifiable = renderHook(() => useUpdateDocumentAccess("w1", "d1"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() =>
+        unverifiable.result.current.mutateAsync({
+          items: [{ principal_type: "user", principal_id: "u2", level: "view" }],
+        }),
+      );
+    });
+  });
+
+  it("useDocumentShareCandidates keys under the workspace, document, and query (SH-W1)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        items: [
+          {
+            principal_type: "user",
+            principal_id: "u2",
+            name: "Nguyễn Văn An",
+            secondary: "an@acme.vn",
+            direct_level: "view",
+            is_home_workspace: false,
+          },
+        ],
+        next_cursor: "",
+      }),
+    );
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(
+      () => useDocumentShareCandidates("w1", "d1", { q: "an" }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/documents/d1/share-candidates?q=an",
+    );
+    expect(qc.getQueryData(documentKeys.shareCandidates("w1", "d1", "an"))).toBeDefined();
+    expect(useRevokeDocumentShare).toBeTypeOf("function");
+    expect(useRevokeDocumentLink).toBeTypeOf("function");
+  });
 });
+
