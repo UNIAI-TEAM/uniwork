@@ -5134,7 +5134,9 @@
       "document_access_approved_untitled": "{{actor}} gave you access to a document.",
       "document_access_declined": "Your request to access a document was declined.",
       "document_trashed_by_other": "{{actor}} moved your document to trash. Restore it before {{date}}",
-      "document_trashed_by_other_untitled": "{{actor}} moved one of your documents to trash. Restore it before {{date}}"
+      "document_trashed_by_other_untitled": "{{actor}} moved one of your documents to trash. Restore it before {{date}}",
+      "document_trashed_by_other_nodate": "{{actor}} moved your document to trash",
+      "document_trashed_by_other_untitled_nodate": "{{actor}} moved one of your documents to trash"
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
@@ -9238,9 +9240,9 @@
         "purge_in": "Deleted forever in",
         "actions": "Actions"
       },
+      "focus_further": "The item you opened may be further down. Select Load more to see it.",
       "in_trashed_folder": "In folder “{{folder}}”",
       "deleted_by_unknown": "Former member",
-      "focus_further": "The item you opened may be further down. Select Load more to see it.",
       "read_only": "View only · a manager restores",
       "restore": "Restore",
       "purge": "Delete forever",

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Notification, User, Workspace } from "@uniwork/core/types";
@@ -86,10 +86,14 @@ describe("document_trashed_by_other sentence", () => {
     expect(text).not.toMatch(/notifications\.kind|\{\{/);
   });
 
-  it("does not choke on a date it cannot read", () => {
-    const text = sentence(trashed({ date: "" }));
-    expect(text).not.toMatch(/Invalid|NaN|\{\{/);
-    expect(sentence(trashed({ date: "soon" }))).not.toMatch(/Invalid|NaN/);
+  it("drops the date part for an empty or invalid date, with no dangling 'trước '", async () => {
+    for (const date of ["", "soon"]) {
+      expect(sentence(trashed({ date }))).toBe("Bình đã chuyển tài liệu của bạn vào thùng rác");
+      expect(sentence(trashed({ date, document: "" }))).toBe("Bình đã chuyển một tài liệu của bạn vào thùng rác");
+    }
+    await i18n.changeLanguage("en");
+    expect(sentence(trashed({ date: "" }))).toBe("Bình moved your document to trash");
+    expect(sentence(trashed({ date: "", document: "" }))).toBe("Bình moved one of your documents to trash");
   });
 });
 
@@ -146,5 +150,26 @@ describe("document_trashed_by_other click target (N-4)", () => {
   it("leaves the other document kinds opening the document", () => {
     const n = { ...trashed(), kind: "document_access_approved" };
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/documents/d1");
+  });
+});
+
+describe("document_trashed_by_other row at phone width (visual F1)", () => {
+  it("lets the sentence run to three lines so the purge date is not clamped; other kinds stay at two", () => {
+    const sentenceLine = (n: Notification) => row(n).querySelector(".text-body.text-pretty");
+    expect(sentenceLine(trashed())?.className).toContain("line-clamp-3");
+    cleanup();
+    expect(sentenceLine({ ...trashed(), kind: "document_access_approved", title_key: "notifications.kind.document_access_approved" })?.className).toContain(
+      "line-clamp-2",
+    );
+  });
+
+  it("keeps the 'and N more' suffix out of the ellipsis: the name truncates, the suffix does not shrink", () => {
+    const snippet = row(trashed({ count: "5" })).querySelector("[data-notification-snippet]");
+    expect(snippet?.className).not.toContain("line-clamp-1");
+    const [name, more] = Array.from(snippet?.children ?? []);
+    expect(name?.className).toContain("truncate");
+    expect(name).toHaveTextContent("“Kế hoạch Q4”");
+    expect(more?.className).toContain("shrink-0");
+    expect(more).toHaveTextContent("và 5 mục khác");
   });
 });

@@ -6,7 +6,7 @@ import type { Notification, TaskStatus } from "@uniwork/core/types";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { STATUS_CONFIG } from "../tasks/modes/status-config";
-import { purgeDate } from "./trashed-notice";
+import { isPurgeDate, purgeDate } from "./trashed-notice";
 
 /** Brackets each param in the rendered sentence so it can be found again. */
 const MARK = "⁣";
@@ -41,7 +41,9 @@ export function notificationTitleKey(n: Notification): string {
   // sentence has no document to drop (access addendum §3.4).
   if (n.kind === "document_access_declined") return n.title_key;
   const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_");
-  return untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
+  const key = untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
+  // A trash notice whose purge date cannot be read says no deadline rather than "before ".
+  return n.kind === "document_trashed_by_other" && !isPurgeDate(n.params.date ?? "") ? `${key}_nodate` : key;
 }
 
 /**
