@@ -1683,7 +1683,7 @@ describe('usage rows and arguments', () => {
     assert.equal(score(writeCase, deriveAnswer(writeCase, writeAskUnreportedCounts).answer).status, 'fail', 'when writes > 0, unreported counts still fail');
   });
 
-  it('DS-4: a backend-denied write tool is not counted as a used write tool, refusal is credited on backend denial or refusal prose, and never credited when a forbidden write executed', () => {
+  it('DS-4: a backend-denied write tool is not counted as a used write tool, refusal is credited only on report.refused or explicit refusal prose, and never credited on silent denial, incidental cannot, or a forbidden write', () => {
     const permCase = synthCase({
       id: 'HO-XLSX-905',
       format: 'xlsx',
@@ -1703,8 +1703,8 @@ describe('usage rows and arguments', () => {
         text: 'Cannot edit in view-only mode.',
       },
     });
-    const deniedWriteAsk = {
-      reply: `Không thể sửa ô F4 vì tài liệu đang ở chế độ chỉ-đọc.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+    const silentDeniedWriteAsk = {
+      reply: `The value in F4 is 10.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
       calls: [
         { name: 'get_workbook_context', write: false, denied: null },
         { name: 'read_range', write: false, denied: null },
@@ -1716,10 +1716,35 @@ describe('usage rows and arguments', () => {
       dropped: [],
       modules: ['sheets'],
     };
-    const derivedDenied = deriveAnswer(permCase, deniedWriteAsk);
+    const derivedSilentDenied = deriveAnswer(permCase, silentDeniedWriteAsk);
+    assert.ok(!derivedSilentDenied.answer.tools.used.includes('write_range'), 'denied write tool must not count as used');
+    assert.ok(!derivedSilentDenied.answer.tools.used.includes('refuse'), 'backend denial with a silent answer must not get refusal credit');
+    assert.ok(!derivedSilentDenied.answer.structural.some((s) => s.kind === 'refusal'), 'silent answer must not get structural refusal credit');
+    assert.equal(score(permCase, derivedSilentDenied.answer).status, 'fail');
+
+    const deniedWithReadOnlyProseAsk = {
+      ...silentDeniedWriteAsk,
+      reply: `I could not edit, the file is read-only.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+    };
+    const derivedDenied = deriveAnswer(permCase, deniedWithReadOnlyProseAsk);
     assert.ok(!derivedDenied.answer.tools.used.includes('write_range'), 'denied write tool must not count as used');
-    assert.ok(derivedDenied.answer.tools.used.includes('refuse'), 'refusal must be credited when backend denied the write');
+    assert.ok(derivedDenied.answer.tools.used.includes('refuse'), 'refusal must be credited when reply states read-only refusal');
     assert.equal(score(permCase, derivedDenied.answer).status, 'pass');
+
+    for (const incidental of ['The value cannot be negative.', 'Khoản mục này không thể thiếu trong bảng.']) {
+      const incidentalAsk = {
+        reply: `${incidental}\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+        calls: [{ name: 'get_workbook_context', write: false, denied: null }],
+        writes: 0,
+        denied: [],
+        writeLog: [],
+        dropped: [],
+        modules: ['sheets'],
+      };
+      const derivedIncidental = deriveAnswer(permCase, incidentalAsk);
+      assert.ok(!derivedIncidental.answer.tools.used.includes('refuse'), `incidental prose "${incidental}" must not get refusal credit`);
+      assert.equal(score(permCase, derivedIncidental.answer).status, 'fail');
+    }
 
     const proseRefusalAsk = {
       reply: `Not supported: cross-organization write is not allowed.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
