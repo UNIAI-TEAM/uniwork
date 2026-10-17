@@ -20,7 +20,7 @@ import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
 import { AccessReportMenu } from "./access-report/access-report-menu";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
-import { useCreateOfType } from "./documents-create";
+import { isParentWorkspaceShared, useCreateOfType, type CreateShareOptions } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
@@ -161,8 +161,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     (folderDoc !== null &&
       canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
+  const parentShared = parentForCreate !== null && isParentWorkspaceShared(folderDoc, library.docById.get(parentForCreate));
 
-  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title });
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title, parentShared });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
@@ -197,12 +198,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     }
   };
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File, options?: CreateShareOptions) => {
     const invalid = documentUploadValidationMessage(file, limits.upload_max_bytes, t, i18n.language);
     if (invalid) return setUploadError(invalid);
     setUploadError(null);
+    const shareMeta = options?.shareWithWorkspace ? ({ visibility: "workspace", workspace_level: "view" } as const) : {};
+    const meta = parentForCreate || options?.shareWithWorkspace ? { ...(parentForCreate ? { parent_id: parentForCreate } : {}), ...shareMeta } : undefined;
     try {
-      const doc = await createFile.mutateAsync({ file, meta: parentForCreate ? { parent_id: parentForCreate } : undefined });
+      const doc = await createFile.mutateAsync({ file, meta });
       setUploadOpen(false);
       onOpen(doc.id);
     } catch (error) {
@@ -210,8 +213,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     }
   };
 
-  const newRootFolder = async (title?: string): Promise<boolean> => {
-    const id = await creator.newFolder(null, title);
+  const newRootFolder = async (title?: string, options?: CreateShareOptions): Promise<boolean> => {
+    const id = await creator.newFolder(null, title, options);
     if (id) {
       goHome({ kind: "home" }, id);
       return true;
@@ -297,12 +300,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     newFolderPending: creator.folderPending,
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
-    onNewFolder: (title?: string) => newRootFolder(title),
+    onNewFolder: (title?: string, options?: CreateShareOptions) => newRootFolder(title, options),
   };
   const createProps = {
     pending: creator.pending,
     unavailable: creator.unavailable,
-    onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
+    parentShared,
+    onCreate: (type: Parameters<typeof creator.create>[0], options?: CreateShareOptions) => void creator.create(type, parentForCreate, options),
     onUpload: () => setUploadOpen(true),
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };
@@ -500,7 +504,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
         pending={createFile.isPending}
         error={uploadError}
-        onSubmit={(file) => void uploadFile(file)}
+        parentShared={parentShared}
+        onSubmit={(file, options) => void uploadFile(file, options)}
       />
 
       {sourcePreview.dialog}

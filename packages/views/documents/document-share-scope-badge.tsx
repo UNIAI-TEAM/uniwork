@@ -152,8 +152,9 @@ export function DocumentShareScopeBadge({
 
   return (
     <>
-      <Tooltip open={open} onOpenChange={setOpen} delay={0}>
+      <Tooltip open={open} onOpenChange={setOpen}>
         <TooltipTrigger
+          delay={0}
           render={
             <span
               data-testid="document-share-scope-badge"

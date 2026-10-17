@@ -9561,7 +9561,11 @@
         },
         "folder": {
           "menu": "Thư mục"
-        }
+        },
+        "share_workspace_toggle": "Chia sẻ với workspace",
+        "share_workspace_hint": "Mọi thành viên của workspace này sẽ {{level}} tài liệu mới",
+        "share_workspace_inherited": "Thư mục này đang chia sẻ với workspace nên tài liệu mới cũng vậy",
+        "share_workspace_level_view": "chỉ xem"
       },
       "sections": {
         "folders": "Thư mục",

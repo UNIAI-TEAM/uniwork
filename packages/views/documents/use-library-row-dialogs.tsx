@@ -11,6 +11,7 @@ import { createSafeId } from "@uniwork/core/utils";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
+import { isParentWorkspaceShared } from "./documents-create";
 import { findTreeNode, loadMoveRevision } from "./document-tree-model";
 import { FolderNameDialog } from "./folder-name-dialog";
 import { FolderPickerDialog } from "./folder-picker-dialog";
@@ -19,7 +20,7 @@ import type { DocumentSummaryRow } from "./library-rows";
 type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
 type NameDialogState =
-  | { mode: "create"; parentId: string | null; parentTitle?: string }
+  | { mode: "create"; parentId: string | null; parentTitle?: string; parentShared?: boolean }
   | { mode: "rename"; doc: DocumentSummaryRow };
 
 export interface LibraryRowDialogs {
@@ -46,6 +47,7 @@ export function useLibraryRowDialogs({
   tree,
   folderId,
   folderTitle,
+  parentShared,
 }: {
   wsId: string;
   tree: DocumentTreeNode[];
@@ -53,6 +55,8 @@ export function useLibraryRowDialogs({
   folderId: string | null;
   /** Title of the open folder for the "New -> Folder" dialog header. */
   folderTitle?: string;
+  /** True when the open folder already shares with the home workspace. */
+  parentShared?: boolean;
 }): LibraryRowDialogs {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -104,6 +108,7 @@ export function useLibraryRowDialogs({
         mode={naming?.mode ?? "create"}
         parentId={naming?.mode === "create" ? naming.parentId : null}
         parentTitle={naming?.mode === "create" ? naming.parentTitle : undefined}
+        parentShared={naming?.mode === "create" ? naming.parentShared : undefined}
         folderId={naming?.mode === "rename" ? naming.doc.id : ""}
         initialName={naming?.mode === "rename" ? naming.doc.title : ""}
         kind={naming?.mode === "rename" ? naming.doc.kind : "folder"}
@@ -185,8 +190,14 @@ export function useLibraryRowDialogs({
       setError(null);
       setSaving(row);
     },
-    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle }),
-    onNewSubfolder: (doc) => setNaming({ mode: "create", parentId: doc.id, parentTitle: doc.title }),
+    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle, parentShared }),
+    onNewSubfolder: (doc) =>
+      setNaming({
+        mode: "create",
+        parentId: doc.id,
+        parentTitle: doc.title,
+        parentShared: isParentWorkspaceShared(doc, findTreeNode(tree, doc.id)),
+      }),
     onRename: (doc) => setNaming({ mode: "rename", doc }),
     onMove: (doc) => {
       setError(null);

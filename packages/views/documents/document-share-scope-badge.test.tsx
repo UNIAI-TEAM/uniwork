@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
-import type { DocumentShareScope, DocumentTreeNode } from "@uniwork/core/types/document";
+import type { DocumentShareScope, DocumentSummary, DocumentTreeNode } from "@uniwork/core/types/document";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrap } from "../test/api-mock";
 import { DocumentShareScopeBadge, resolveDocumentShareScope } from "./document-share-scope-badge";
@@ -10,7 +10,7 @@ import { DocumentTree } from "./document-tree";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { type LibraryRowHandlers } from "./documents-library-row";
 import { DocumentsSearchResults } from "./documents-search-results";
-import { documentRow, type DocumentSummaryRow } from "./library-rows";
+import { documentRow } from "./library-rows";
 
 initI18n();
 
@@ -181,7 +181,7 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
       isStarred: () => false,
       personName: () => "An",
     };
-    const summaryRow: DocumentSummaryRow = {
+    const summaryRow: DocumentSummary = {
       id: "d1",
       organization_id: "org1",
       workspace_id: "ws1",
@@ -225,11 +225,10 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
       <DocumentsSearchResults
         search={{
           query: "bao cao",
-          setQuery: vi.fn(),
-          clear: vi.fn(),
-          active: true,
+          committedQuery: "bao cao",
           filter: "all",
-          setFilter: vi.fn(),
+          active: true,
+          composing: false,
           items: [
             {
               ...summaryRow,
@@ -239,11 +238,16 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
           loading: false,
           loadingMore: false,
           hasMore: false,
-          loadMore: vi.fn(),
+          error: null,
           isError: false,
-          retry: vi.fn(),
+          setFilter: vi.fn(),
+          onQueryChange: vi.fn(),
           onCompositionStart: vi.fn(),
           onCompositionEnd: vi.fn(),
+          onKeyDown: vi.fn(),
+          clear: vi.fn(),
+          loadMore: vi.fn(),
+          retry: vi.fn(),
         }}
         onSelectFolder={vi.fn()}
         onSelectDocument={vi.fn()}

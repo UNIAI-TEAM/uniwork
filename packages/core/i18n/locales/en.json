@@ -9567,7 +9567,11 @@
         },
         "folder": {
           "menu": "Folder"
-        }
+        },
+        "share_workspace_toggle": "Share with workspace",
+        "share_workspace_hint": "Everyone in this workspace can {{level}} new documents",
+        "share_workspace_inherited": "This folder is shared with the workspace, so new documents are too",
+        "share_workspace_level_view": "view"
       },
       "sections": {
         "folders": "Folders",

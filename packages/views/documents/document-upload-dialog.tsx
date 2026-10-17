@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@uniwork/core/documents/limits";
@@ -16,6 +16,8 @@ import {
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { Switch } from "@uniwork/ui/components/ui/switch";
+import type { CreateShareOptions } from "./documents-create";
 
 export interface DocumentUploadDialogProps {
   open: boolean;
@@ -28,7 +30,11 @@ export interface DocumentUploadDialogProps {
   pending?: boolean;
   /** A failed attempt, shown in place so the picked file is not lost. */
   error?: string | null;
-  onSubmit: (file: File) => void;
+  /** True when the open folder already shares with the home workspace. */
+  parentShared?: boolean;
+  /** False when staging a new version of an existing document. */
+  showShareToggle?: boolean;
+  onSubmit: (file: File, options?: CreateShareOptions) => void;
 }
 
 /**
@@ -45,13 +51,29 @@ export function DocumentUploadDialog({
   hint,
   pending = false,
   error,
+  parentShared = false,
+  showShareToggle = true,
   onSubmit,
 }: DocumentUploadDialogProps) {
   const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [inputKey, setInputKey] = useState(0);
+  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
+  const shareHintId = useId();
+  const effectiveShare = parentShared || shareWithWorkspace;
+  const sendShare = showShareToggle && effectiveShare && !parentShared;
+  const shareHintText = !showShareToggle
+    ? null
+    : parentShared
+      ? t("documents.home.create.share_workspace_inherited")
+      : effectiveShare
+        ? t("documents.home.create.share_workspace_hint", {
+            level: t("documents.home.create.share_workspace_level_view"),
+          })
+        : null;
 
   useEffect(() => {
+    setShareWithWorkspace(false);
     if (!open) {
       setFile(null);
       // Remount the input so picking the same file again still fires a change.
@@ -71,7 +93,11 @@ export function DocumentUploadDialog({
           onSubmit={(event) => {
             event.preventDefault();
             if (!file || pending) return;
-            onSubmit(file);
+            if (sendShare) {
+              onSubmit(file, { shareWithWorkspace: true });
+            } else {
+              onSubmit(file);
+            }
           }}
         >
           <div className="flex flex-col gap-1.5">
@@ -95,6 +121,31 @@ export function DocumentUploadDialog({
               <p className="text-caption text-muted-foreground">{hint}</p>
             ) : null}
           </div>
+          {showShareToggle ? (
+            <div className="flex flex-col gap-1">
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <span className="text-body text-foreground">
+                  {t("documents.home.create.share_workspace_toggle")}
+                </span>
+                <Switch
+                  size="sm"
+                  checked={effectiveShare}
+                  aria-disabled={parentShared || pending || undefined}
+                  aria-describedby={shareHintText ? shareHintId : undefined}
+                  onCheckedChange={(next) => {
+                    if (parentShared || pending) return;
+                    setShareWithWorkspace(next);
+                  }}
+                  className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                />
+              </label>
+              {shareHintText ? (
+                <p id={shareHintId} className="text-caption text-muted-foreground">
+                  {shareHintText}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {error ? (
             <p role="alert" className="text-caption text-destructive">
               {error}
