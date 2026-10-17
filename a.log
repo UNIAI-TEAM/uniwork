@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+07fbc5033611eca2e7029b62afd90e5a356c1532
+bf693b001da6512bbf33d867c35250179106a63b
+07fbc5033 chore: merge SH be-fix-2 review_be r2 medium items (UNI-1781, 2fbdbd145) into the sharing lane
+2fbdbd145 test(documents): exercise the home row and an existing share before a late batch failure
+8b2195acf fix(documents): exclude a direct downgrade from the batch notify decision
+0133258b5 fix(documents): derive the preview count's home role with the resolver's precedence
+4b01852d0 chore: merge SH fe-fix-2 review_fe r2 items and cloud r3 failures (UNI-1784, 330af0dfa) into the sharing lane
+330af0dfa test(e2e): fix cloud r3 failures in documents-share and documents-share-rules
+daf4b9a82 chore(e2e): remove unused exports from documents-share-fixtures
+3a905ce94 fix(views): replace non-existent warning token and add share_scope to library test fixtures

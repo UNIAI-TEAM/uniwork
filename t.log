@@ -1,0 +1,31 @@
+$ tail -n 60 /tmp/sh4-server.log /tmp/sh4-web.log; for p in 18530 13450; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18530/tcp 13450/tcp 2>/dev/null; sleep 1; for p in 18530 13450; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+==> /tmp/sh4-server.log <==
+21:26:07.041 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+21:26:07.041 INF local storage adapter ready dir=/tmp/uniwork-uploads
+21:26:07.049 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/17 21:26:07 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+21:26:07.050 INF mail: log mode, messages are printed component=server
+21:26:07.050 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+21:26:07.051 INF uniwork ai transcript store not configured component=server
+21:26:07.091 INF document edit lock sweep component=server expired=7 deleted=0
+21:26:07.722 INF listening component=server port=18530 swagger=http://localhost:18530/swagger/index.html
+21:26:07.722 INF mail: outbox worker started component=server tick=5s
+
+==> /tmp/sh4-web.log <==
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::13450
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::13450)
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 13450
+}
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 start: `next start`
+Exit status 1
