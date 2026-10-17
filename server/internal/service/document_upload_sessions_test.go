@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -2594,4 +2596,160 @@ func TestOfficeFrameUploadSessionWrappers(t *testing.T) {
 			t.Fatalf("wrapper %s after revoked access succeeded, want a refusal", tc.name)
 		}
 	}
+}
+
+// versionLockEnv is the multipart scene plus a file document: the shape the
+// lock-check cases need, a version target both `member` and `aclOwner` may
+// write (workspace level edit), on a store that can open a session.
+type versionLockEnv struct {
+	*lockWorld
+	env *docStorageEnv
+	doc db.Document
+}
+
+func newVersionLockEnv(t *testing.T) *versionLockEnv {
+	t.Helper()
+	env := newMultipartDocEnv(t)
+	w := &lockWorld{ctx: context.Background(), env: env, svc: env.svc, tn: env.tn}
+	doc := env.createFile(t, human(env.tn.aclOwner), "report.pdf", pdfBody("v1")).Document
+	return &versionLockEnv{lockWorld: w, env: env, doc: doc}
+}
+
+// insertAgentTenure plants a live tenure whose holder is an agent: no command
+// creates one (agents never hold a lock), but the create-time check must
+// refuse a human caller while one is live.
+func (v *versionLockEnv) insertAgentTenure(t *testing.T) string {
+	t.Helper()
+	id := util.NewID()
+	v.exec(t, `INSERT INTO document_edit_locks (
+			id, organization_id, document_id, user_id, base_revision,
+			acquired_at, heartbeat_at, expires_at, granted_via)
+		VALUES ($1, $2, $3, $4, $5, now(), now(), now() + interval '2 minutes', 'acquire')`,
+		id, v.doc.OrganizationID, v.doc.ID, v.tn.agent, v.doc.Revision)
+	return id
+}
+
+// lockSideEffects is the count of rows and storage calls a create would leave
+// behind: the multipart rows and FileService file/session rows of the tenant,
+// plus the CreateMultipart calls at the storage.
+func (v *versionLockEnv) lockSideEffects(t *testing.T) lockSideEffectCounts {
+	t.Helper()
+	rows, fileRows, sessRows, _ := multipartSideEffects(t, v.env)
+	return lockSideEffectCounts{rows: rows, files: fileRows, sessions: sessRows, multipart: v.env.store.multipartCreates}
+}
+
+// lockSideEffectCounts is comparable, so a test asserts a refused create left
+// every one of them unchanged in a single check.
+type lockSideEffectCounts struct {
+	rows, files, sessions, multipart int
+}
+
+func (v *versionLockEnv) versionInput(t *testing.T) OpenUploadSessionInput {
+	t.Helper()
+	_, probe := buildLargePDF(25<<20, "lock-version")
+	return OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "report.pdf", SizeBytes: 25 << 20, Probe: probe}
+}
+
+func (v *versionLockEnv) frameClaims() OfficeFrameClaims {
+	return OfficeFrameClaims{
+		Version: 1, DocumentID: v.doc.ID, WorkspaceID: v.doc.WorkspaceID,
+		OrganizationID: v.doc.OrganizationID, UserID: v.tn.member.ID, Module: OfficeFrameModulePDF,
+	}
+}
+
+// wantVersionLocked checks the create-time 423 body against the gate's shape:
+// the holder, never the lock id.
+func (v *versionLockEnv) wantVersionLocked(t *testing.T, what string, err error, heldByMe bool) {
+	t.Helper()
+	v.wantVersionLockedBy(t, what, err, heldByMe, v.tn.aclOwner.ID)
+}
+
+// wantVersionLockedBy is wantVersionLocked with an explicit holder, for the
+// agent tenure whose holder is not the person the test calls with.
+func (v *versionLockEnv) wantVersionLockedBy(t *testing.T, what string, err error, heldByMe bool, holderID string) {
+	t.Helper()
+	ce := wantCode(t, err, "document_locked")
+	if ce.Status != http.StatusLocked || !errors.Is(err, ErrDocumentLocked) || errors.Is(err, ErrConflict) {
+		t.Fatalf("%s: status %d, locked %v, conflict %v", what, ce.Status, errors.Is(err, ErrDocumentLocked), errors.Is(err, ErrConflict))
+	}
+	if ce.Fields["holder_id"] != holderID || ce.Fields["held_by_me"] != heldByMe {
+		t.Fatalf("%s: fields %v", what, ce.Fields)
+	}
+	for _, k := range []string{"holder_id", "holder_name", "since", "expires_at", "held_by_me", "current_revision"} {
+		if _, ok := ce.Fields[k]; !ok {
+			t.Fatalf("%s: 423 lacks %s: %v", what, k, ce.Fields)
+		}
+	}
+	if ce.Fields["current_revision"] != strconv.FormatInt(v.doc.Revision, 10) {
+		t.Fatalf("%s: current_revision %v, want %d", what, ce.Fields["current_revision"], v.doc.Revision)
+	}
+	for _, k := range []string{"lock_id", "offline_hold_until"} {
+		if _, ok := ce.Fields[k]; ok {
+			t.Fatalf("%s: 423 carries %s: %v", what, k, ce.Fields)
+		}
+	}
+}
+
+// TestVersionUploadSessionOpenRefusedWhileLocked is BIGUP-LOCKCHECK S-1/S-2 at
+// the service layer: a version create is refused 423 document_locked while
+// another holder (another person, or an agent) holds the live lock, the
+// caller's own lock and a dead or absent lock pass, and an idempotent replay
+// is refused too.
+func TestVersionUploadSessionOpenRefusedWhileLocked(t *testing.T) {
+	v := newVersionLockEnv(t)
+	ctx := v.ctx
+	member, holder := human(v.tn.member), human(v.tn.aclOwner)
+
+	// No lock: the version create passes.
+	if _, err := v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, v.versionInput(t)); err != nil {
+		t.Fatalf("open with no lock: %v", err)
+	}
+
+	// Another person holds: 423, and nothing was created for this call.
+	held := v.acquire(t, v.tn.aclOwner, v.doc.ID, "editor-holder")
+	before := v.lockSideEffects(t)
+	_, err := v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, v.versionInput(t))
+	v.wantVersionLocked(t, "another person holds", err, false)
+	// The frame route is the same rule.
+	_, err = v.svc.OpenFrameUploadSession(ctx, v.frameClaims(), v.doc.ID, v.versionInput(t))
+	v.wantVersionLocked(t, "another person holds (frame)", err, false)
+	after := v.lockSideEffects(t)
+	if before != after {
+		t.Fatalf("a refused create left side effects: %v -> %v", before, after)
+	}
+
+	// The holder itself passes (the create carries no lock id).
+	if _, err := v.svc.OpenVersionUploadSession(ctx, holder, v.doc.ID, v.versionInput(t)); err != nil {
+		t.Fatalf("holder open: %v", err)
+	}
+
+	// A replay of a create made before the lock was taken is refused too: the
+	// idempotency pre-check runs after the lock check.
+	replay := v.versionInput(t)
+	if _, err := v.svc.OpenVersionUploadSession(ctx, holder, v.doc.ID, replay); err != nil {
+		t.Fatalf("pre-lock create: %v", err)
+	}
+	if _, err := v.svc.OpenVersionUploadSession(ctx, holder, v.doc.ID, replay); err != nil {
+		t.Fatalf("pre-lock replay: %v", err)
+	}
+	_, err = v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, replay)
+	v.wantVersionLocked(t, "replay under a lock", err, false)
+
+	// An expired tenure (past TTL, not swept) passes.
+	if err := v.svc.ReleaseDocumentEditLock(ctx, holder, v.doc.ID, held.Lock.ID); err != nil {
+		t.Fatal(err)
+	}
+	dead := v.acquire(t, v.tn.aclOwner, v.doc.ID, "editor-dead")
+	v.expire(t, dead.Lock.ID)
+	if _, err := v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, v.versionInput(t)); err != nil {
+		t.Fatalf("open under an expired lock: %v", err)
+	}
+
+	// An agent tenure refuses a human caller.
+	if err := v.svc.ReleaseDocumentEditLock(ctx, holder, v.doc.ID, dead.Lock.ID); err != nil {
+		t.Fatal(err)
+	}
+	v.insertAgentTenure(t)
+	_, err = v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, v.versionInput(t))
+	v.wantVersionLockedBy(t, "an agent holds", err, false, v.tn.agent)
 }

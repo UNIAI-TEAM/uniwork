@@ -444,6 +444,47 @@ func (s *DocumentService) checkDocumentEditLock(ctx context.Context, q *db.Queri
 	return errDocumentLocked(live, name, human && live.UserID == actor.ID, doc.Revision)
 }
 
+// checkVersionUploadLock is the BIGUP-LOCKCHECK S-1 rule: a version upload
+// session is refused up front while a live tenure exists that the calling
+// human does not hold, so a locked document never uploads 200 MiB of parts
+// that the commit gate would then discard.
+//
+// Read-only, unlike checkDocumentEditLock: it reads the unended tenure
+// without FOR UPDATE, refreshes no heartbeat and writes nothing (no audit, no
+// outbox, no ending of a stale row). The commit gate stays the authority; a
+// tenure that ran out reads as no lock here too.
+//
+// A create carries no edit_lock_id (adding one would change the
+// Idempotency-Key fingerprint), so the caller's own tenure - in any tab - is
+// the only way to pass: held_by_me is always false in this 423. An agent is
+// refused whenever a live tenure exists (§1.6), the same as the gate.
+func (s *DocumentService) checkVersionUploadLock(ctx context.Context, actor Actor, doc db.Document) error {
+	live, err := s.q.GetLiveDocumentEditLock(ctx, db.GetLiveDocumentEditLockParams{
+		OrganizationID: doc.OrganizationID, DocumentID: doc.ID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	now, err := editLockClock(ctx, s.q)
+	if err != nil {
+		return err
+	}
+	if !editLockLive(live, now) {
+		return nil
+	}
+	if actor.Kind == audit.KindHuman && live.UserID == actor.ID {
+		return nil
+	}
+	name, err := userDisplayName(ctx, s.q, live.UserID)
+	if err != nil {
+		return err
+	}
+	return errDocumentLocked(live, name, false, doc.Revision)
+}
+
 // releaseEditLocksOnArchive ends the live tenures of every archived document
 // in the archive's own transaction (end_reason document_archived, §2).
 func (s *DocumentService) releaseEditLocksOnArchive(ctx context.Context, q *db.Queries, actor Actor, root db.Document, ids []string) (*editLockOps, error) {
