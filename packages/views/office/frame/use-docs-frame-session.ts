@@ -92,7 +92,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
   const initLockedOut = useRef(false);
   // New-version bookkeeping of the current endpoint (frame-remote-version.ts); a block outlives a retry.
-  const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, scopeId, syncFeed);
+  const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, isSource ? "" : scopeId, syncFeed);
   const sentToken = useRef<string | null>(null);
   // The Save the page has in flight, and whether the frame shows a dialog right now.
   const hostSave = useRef<HostSaveWatch | null>(null);
@@ -294,7 +294,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
             payload,
             remote,
             context.signal,
-          ).catch((error: unknown) => { if (latest.current.isSource) failSession(shapeOf(error)); throw error; }),
+          ).catch((error: unknown) => { const shape = shapeOf(error); if (latest.current.isSource && shape.code !== "cancelled") failSession(shape); throw error; }),
         "api.save": async (payload, context) => {
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
           const watch = hostSave.current?.life === life ? hostSave.current : null;

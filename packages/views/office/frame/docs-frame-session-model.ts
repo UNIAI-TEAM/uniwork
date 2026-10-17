@@ -258,7 +258,7 @@ export function officeSourceCapabilities(module: OfficeModule, api: DocsFrameApi
   return { ...officeModuleCapabilities(module, true, api), recents: false, exportPdf: false, exportHtml: false };
 }
 
-export const unauthorized =() => new DocsProtocolError({ code: "unauthorized", message: "frame token unavailable" });
+export const unauthorized = () => new DocsProtocolError({ code: "unauthorized", message: "frame token unavailable" });
 export const readOnly = (type: string) => new DocsProtocolError({ code: "forbidden", message: `${type} is not allowed for a read-only viewer`, status: 403 });
 
 export const shapeOf = (error: unknown): ProtocolErrorShape => docsFrameError(error).toShape();

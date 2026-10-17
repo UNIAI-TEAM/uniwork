@@ -670,6 +670,18 @@ describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
     frame.hook.rerender();
     expect(frame.hook.result.current.attempt).toBe(0);
   });
+
+  it("does not fail the session when a source api.open rejects with cancelled (N1)", async () => {
+    const open = vi.fn(async () => {
+      throw new DocsProtocolError({ code: "cancelled", message: "aborted" });
+    });
+    const frame = setup({ fileRef: sourceRef, api: { open } });
+    await frame.boot();
+    const openId = frame.request("api.open", { fileId: SOURCE_ID });
+    await waitFor(() => expect(frame.answerTo(openId)?.error?.code).toBe("cancelled"));
+    expect(frame.hook.result.current.status).toBe("ready");
+    expect(frame.hook.result.current.failure).toBeNull();
+  });
 });
 
 describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)", () => {

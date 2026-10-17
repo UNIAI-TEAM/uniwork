@@ -38,11 +38,19 @@ vi.mock("@uniwork/core/feature-flags", () => ({ useFlag: (key: string, fallback:
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
 const DOC_PATH = "/api/v1/documents/doc-1";
+const SOURCE_ID = "chat:s-1";
+const SOURCE_MINT_PATH = `/api/v1/workspaces/ws-1/documents/sources/${encodeURIComponent(SOURCE_ID)}/office/frame-token`;
+const SOURCE_DOC_PATH = `/api/v1/documents/${encodeURIComponent(SOURCE_ID)}`;
 const VERSIONS_PATH = "/api/v1/documents/doc-1/versions";
 const FEED_PATH = "/api/v1/workspaces/ws-1/documents/changes";
 const minted = {
   token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: true, module: "docs",
+};
+const mintedSource = {
+  token: "ofs1.tok", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
+  source_id: SOURCE_ID, parent_kind: "chat_channel", parent_id: "c-1",
+  workspace_id: "ws-1", organization_id: "org-1", can_edit: false, module: "docs", readonly: true,
 };
 const fileOf = (revision: string, versionId: string) => ({ fileId: "doc-1", name: "Plan.docx", versionId, etag: revision });
 const headDoc = (revision: string, versionId: string) => ({
@@ -60,10 +68,12 @@ interface Server {
   feed: unknown;
 }
 
-function setup() {
+function setup(fileRef: { kind: "document" | "source"; id: string } = { kind: "document", id: "doc-1" }) {
   const server: Server = { head: { revision: "9", versionId: "v1" }, versions: ["v1"], feed: null };
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve(minted);
+    if (path === SOURCE_MINT_PATH) return Promise.resolve(mintedSource);
+    if (path === SOURCE_DOC_PATH) return Promise.reject(new ApiError("not found", "not_found", 404));
     if (path === MINT_PATH.replace("doc-1", "doc-2")) return Promise.resolve({ ...minted, token: "tok-2", document_id: "doc-2" });
     if (path === DOC_PATH) return server.headError ? Promise.reject(server.headError) : Promise.resolve(headDoc(server.head.revision, server.head.versionId));
     if (path.startsWith(VERSIONS_PATH)) return Promise.resolve({ versions: server.versions.map((id, i) => ({ id, document_id: "doc-1", version: i + 1 })) });
@@ -95,7 +105,7 @@ function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const options: DocsFrameSessionOptions = {
-    iframeRef: { current: iframe }, frameOrigin: window.location.origin, wsId: "ws-1", fileRef: { kind: "document", id: "doc-1" },
+    iframeRef: { current: iframe }, frameOrigin: window.location.origin, wsId: "ws-1", fileRef,
     readonly: false, locale: "vi", theme: "light", onError: vi.fn(),
     api: { open, save, recents: vi.fn() } as unknown as DocsFrameApi,
   };
@@ -645,4 +655,29 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     await waitFor(() => expect(frame.events("doc.blocked")).toHaveLength(2));
     expect(frame.events("doc.blocked").at(-1)).toEqual({ document_id: "doc-1", reason: "document_deleted" });
   });
+
+  it("never calls getDocument or listDocumentChanges or posts doc.blocked on a source session when the socket reconnects, while a document session still reads its head (F1)", async () => {
+    for (const syncFeed of [false, true]) {
+      flag.syncFeed = syncFeed;
+      const sourceFrame = setup({ kind: "source", id: SOURCE_ID });
+      await sourceFrame.boot();
+      requestMock.mockClear();
+      await act(async () => { ws.reconnect(); });
+      await flush();
+      expect(requestMock.mock.calls.filter(([path]) => path !== "/api/v1/config")).toEqual([]);
+      expect(sourceFrame.events("doc.blocked")).toEqual([]);
+      expect(sourceFrame.hook.result.current.blocked).toBeNull();
+      sourceFrame.hook.unmount();
+      ws.handlers.clear(); ws.reconnects.clear(); document.body.innerHTML = "";
+    }
+
+    flag.syncFeed = false;
+    const docFrame = await openedFrame();
+    requestMock.mockClear();
+    await act(async () => { ws.reconnect(); });
+    await flush();
+    expect(requestMock.mock.calls.filter(([path]) => path === DOC_PATH)).toHaveLength(1);
+    expect(docFrame.events("doc.blocked")).toEqual([]);
+  });
 });
+
