@@ -1,6 +1,6 @@
 # UniChat D1 — Shell Electron `apps/chat-desktop` — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — issue UNI-1830, nhánh `feature/UNI-1830-unichat-d1-shell-electron`.
+> **Trạng thái:** in-progress — issue UNI-1830, nhánh `feature/UNI-1830-unichat-d1-apps-chat-desktop-shell-elect`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
