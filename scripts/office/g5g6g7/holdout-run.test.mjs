@@ -329,6 +329,40 @@ describe('fixture backend: arguments, write log and number formats', () => {
     assert.equal(score(c, contradicted.answer).status, 'fail', 'a contradicted proof is no proof');
   });
 
+  it('R18-7: canonical config state is the final state after every applied op in order; a later null or clear removes the key (review-g712-18 R18-7)', () => {
+    const structural = [
+      { kind: 'config_op', anchor: 'set_page_setup', value: 'SheetZ|printArea=A1:G7' },
+      { kind: 'config_op', anchor: 'set_freeze', value: 'SheetZ|rows=1,columns=0' },
+    ];
+    const c = synthCase({
+      id: 'HO-TEST-918', format: 'xlsx', category: 'edit',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural, writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural, writes: 1, text: 'Setup done.' },
+    });
+    const ask = (operations) => ({
+      reply: `Setup done.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+      calls: [{ name: 'propose_operations' }], writes: 1,
+      writeLog: [{ name: 'propose_operations', applied: true, args: { operations } }],
+      dropped: [], modules: ['sheets'], sheetNames: ['SheetZ'], sourceText: '',
+    });
+    const clearedNull = deriveAnswer(c, ask([
+      { op: 'set_page_setup', sheetId: 'SheetZ', printArea: 'A1:G7' },
+      { op: 'set_freeze', sheetId: 'SheetZ', rows: 1, columns: 0 },
+      { op: 'set_page_setup', sheetId: 'SheetZ', printArea: null },
+    ]));
+    assert.equal(score(c, clearedNull.answer).status, 'fail', 'an applied null setting clears the earlier printArea from final state');
+    assert.equal(clearedNull.adapter.writeBacked, 1, 'only set_freeze stays backed once printArea is cleared');
+    // If a subsequent applied op restores the setting to the expected value, the final state is valid again.
+    const restored = deriveAnswer(c, ask([
+      { op: 'set_page_setup', sheetId: 'SheetZ', printArea: null },
+      { op: 'set_page_setup', sheetId: 'SheetZ', printArea: 'A1:G7' },
+      { op: 'set_freeze', sheetId: 'SheetZ', rows: 1, columns: 0 },
+    ]));
+    assert.equal(score(c, restored.answer).status, 'pass', 'final state after clear then set is valid');
+  });
+
   it('reads the number format of a cell from the workbook, as the #numberFormat probe of the cases needs (G712-13)', () => {
     const probe = cases.find((c) => c.expected.structural.some((i) => i.anchor.includes('#numberFormat')));
     assert.ok(probe, 'the set has a #numberFormat case');
