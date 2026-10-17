@@ -67,7 +67,7 @@ export type ListDocumentsOpts = ListDocumentsBaseOpts &
     | { sharedByMe: true; parentId?: never }
   );
 
-function listQuery(opts?: ListDocumentsOpts): string {
+function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean }): string {
   if (!opts) return "";
   const p = new URLSearchParams();
   if (opts.parentId !== undefined) p.set("parent_id", opts.parentId);
@@ -78,6 +78,7 @@ function listQuery(opts?: ListDocumentsOpts): string {
   if (opts.access) p.set("access", opts.access);
   if (opts.match) p.set("match", opts.match);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
+  if (opts.shelved === true) p.set("shelved", "true");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);
   if (opts.updatedFrom) p.set("updated_from", opts.updatedFrom);
   if (opts.updatedTo) p.set("updated_to", opts.updatedTo);
@@ -170,6 +171,37 @@ export async function listSharedByMe(
   if (!parsed) throw new Error("document_list_invalid");
   return parsed;
 }
+
+/**
+ * GET /api/v1/workspaces/{workspaceID}/documents?shelved=true — the "Lưu trữ"
+ * list (ARCHIVE-01 §4): a flat keyset-paged view of what the caller may see,
+ * ordered shelved_at DESC. Combines with the LISTFILTER `format`/`access`
+ * chips; never sends `parent_id` or `archived` (shelved+archived answers 400).
+ * Uses the same list schema and cursor contract as the flat list; an
+ * untrusted answer throws rather than render an empty shelf.
+ */
+export async function listShelvedDocuments(
+  wsId: string,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/documents${listQuery({
+      shelved: true,
+      cursor: opts?.cursor,
+      limit: opts?.limit,
+      format: opts?.format,
+      access: opts?.access,
+    })}`,
+    { signal },
+  );
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents?shelved=true",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
 
 /** GET /api/v1/workspaces/{workspaceID}/documents/tree — the sidebar forest
  *  to TREE_MAX_LEVEL levels; root narrows to one branch, foldersOnly drops

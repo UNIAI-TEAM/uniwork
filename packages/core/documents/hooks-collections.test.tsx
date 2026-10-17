@@ -20,6 +20,7 @@ import {
   useShelveDocument,
   useSharedByMe,
   useSharedWithMe,
+  useShelvedDocuments,
   useUnshelveDocument,
 } from "./hooks-collections";
 import { documentKeys } from "./keys";
@@ -663,6 +664,36 @@ describe("documents collection hooks", () => {
       await expectNotVerifiable(() => unshelve.result.current.mutateAsync({ documentId: "d2" }));
     });
     expect(qc.getQueryState(shelvedKey)?.isInvalidated).toBe(false);
+  });
+
+  it("useShelvedDocuments queries shelved=true under documentKeys.shelved(wsId, filters) and follows next_cursor", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("d1", { shelved_at: "2026-10-17T00:00:00Z" })], "n1")))
+      .mockResolvedValueOnce(json(listBody([summary("d2", { shelved_at: "2026-10-17T01:00:00Z" })])));
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useShelvedDocuments("w1", { format: "docx" }), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages.length).toBe(2));
+    expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?format=docx&shelved=true&limit=50",
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?format=docx&shelved=true&cursor=n1&limit=50",
+    );
+    // The chips key the entry; the bare shelved key stays empty.
+    expect(qc.getQueryData(documentKeys.shelved("w1", documentFilterKey({ format: "docx" })))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.shelved("w1"))).toBeUndefined();
+  });
+
+  it("useShelvedDocuments stays idle without a workspace", () => {
+    const { wrapper } = setup();
+    renderHook(() => useShelvedDocuments("", {}), { wrapper });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

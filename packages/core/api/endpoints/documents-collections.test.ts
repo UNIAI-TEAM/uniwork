@@ -11,6 +11,7 @@ import {
   listRecentDocuments,
   listSharedByMe,
   listSharedWithMe,
+  listShelvedDocuments,
   moveDocument,
   purgeDocument,
   restoreDocument,
@@ -347,6 +348,27 @@ describe("documents-collections endpoints", () => {
   it.each(malformedBodies)("listDocuments throws rather than fake-empty %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(listDocuments("w1")).rejects.toThrow("document_list_invalid");
+  });
+
+  it.each(malformedBodies)("listShelvedDocuments throws rather than fake-empty %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(listShelvedDocuments("w1")).rejects.toThrow("document_list_invalid");
+  });
+
+  it("listShelvedDocuments asks for shelved=true with the chip filters and the cursor (ARCHIVE-01)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [summary({ shelved_at: "2026-10-17T00:00:00Z", shelved_by: "u2" })], next_cursor: "s9" })));
+    const out = await listShelvedDocuments("w1", { format: "docx", access: "manage", cursor: "c5", limit: 25 });
+    const parsed = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(parsed.pathname).toBe("/api/v1/workspaces/w1/documents");
+    expect(parsed.searchParams.get("shelved")).toBe("true");
+    expect(parsed.searchParams.get("format")).toBe("docx");
+    expect(parsed.searchParams.get("access")).toBe("manage");
+    expect(parsed.searchParams.get("cursor")).toBe("c5");
+    expect(parsed.searchParams.get("limit")).toBe("25");
+    expect(parsed.searchParams.has("archived")).toBe(false);
+    expect(parsed.searchParams.has("parent_id")).toBe(false);
+    expect(out.documents[0]?.shelved_at).toBe("2026-10-17T00:00:00Z");
+    expect(out.next_cursor).toBe("s9");
   });
 
   it.each(malformedBodies)("listRecentDocuments throws rather than fake-empty %#", async (body) => {

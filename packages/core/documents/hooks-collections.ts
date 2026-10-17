@@ -8,6 +8,7 @@ import {
   listRecentDocuments,
   listSharedByMe,
   listSharedWithMe,
+  listShelvedDocuments,
   moveDocument,
   purgeDocument,
   restoreDocument,
@@ -175,6 +176,31 @@ export function useSharedByMe(wsId: string, opts?: DocumentListFilters & { enabl
     enabled: (opts?.enabled ?? true) && !!wsId,
   });
 }
+
+/** The "Lưu trữ" list (ARCHIVE-01 §4): shelved rows the caller may see, flat
+ *  and keyset-paged like the other collection lists. The format/access chips
+ *  filter server-side and key the cache entry; under the workspace root so
+ *  every `document.*` frame and a shelve/unshelve refresh reaches it. */
+export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: documentKeys.shelved(wsId, documentListFilterKey(opts)),
+    queryFn: ({ pageParam, signal }) =>
+      listShelvedDocuments(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          format: opts?.format,
+          access: opts?.access,
+        },
+        signal,
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
 
 /**
  * Reparent/reorder one document. The caller sends the revision it last saw;
