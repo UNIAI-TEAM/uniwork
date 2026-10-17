@@ -1071,6 +1071,12 @@ test('A8: a table_cell topic keeps the row AND the column, dropping only private
     'fail',
     'another row with the right column must fail',
   );
+  // R17-8 (review-g712-17): a partial anchor must not reach the table_cell topic through the generic containment
+  // shortcut: the row alone and the column alone are each an incomplete address.
+  assert.equal(score(tableCase, answer('Alpha')).status, 'fail', 'the row alone is not the table topic (R17-8)');
+  assert.equal(score(tableCase, answer('Revenue')).status, 'fail', 'the column alone is not the table topic (R17-8)');
+  assert.equal(anchorMatches('table_cell', 'table:1/Alpha/Revenue', 'Alpha', '42', 42), false, 'row-only anchor must not match (R17-8)');
+  assert.equal(anchorMatches('table_cell', 'table:1/Alpha/Revenue', 'Revenue', '42', 42), false, 'column-only anchor must not match (R17-8)');
 });
 
 
