@@ -92,6 +92,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.message.mentioned` | 1 | `room_id`, `message_id`, `user_id`, `thread_root_id` | — | - | outbox |
 | `chat.dm.received` | 1 | `room_id`, `message_id`, `user_id` | — | - | outbox |
 | `chat.thread.reply_received` | 1 | `room_id`, `message_id`, `user_id`, `thread_root_id` | — | - | outbox |
+| `chat.voice.invite_received` | 1 | `room_id`, `call_id`, `user_id` | — | - | outbox |
 | `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | — | - | outbox |
 | `chat.reminder.due` | 1 | `room_id`, `message_id` | — | room | outbox |
 | `chat.room.activity` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |

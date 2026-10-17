@@ -1,6 +1,8 @@
 // The composer (spec §2.2): text with @mention autocomplete, a photo or a
 // file, the quoted reply, editing one's own message, and the typing signal
 // (600 ms after the draft stops changing, as packages/views/chat/use-native-typing.ts).
+// M3: an empty draft's send button records a voice message, and the attach
+// sheet opens the sticker/GIF picker and the reminder sheet.
 // Mentions are typed as "@Tên" and stored as tokens on send
 // (lib/mentions.ts › serializeComposerDraftToMessageBody), as on the web.
 import { Ionicons } from "@expo/vector-icons";
@@ -14,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { CHAT_FILE_MAX_LABEL, CHAT_FILE_PICKER_TYPES, isChatAcceptedFile, isChatFileTooLarge } from "@/lib/file-accept";
+import { formatVoiceCallDuration } from "@/lib/message-display";
 import {
   deserializeMessageBodyToComposerDraft,
   filterMentionCandidates,
@@ -27,6 +30,7 @@ import {
 import type { PendingFile } from "@/lib/send-pipeline";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
+import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
 
 const TYPING_DEBOUNCE_MS = 600;
 
@@ -53,6 +57,9 @@ interface Props {
   onSendFile: (file: PendingFile) => void;
   onEdit: (messageId: string, body: string) => void;
   onTyping: () => void;
+  onSendVoice: (clip: VoiceClip) => void;
+  onOpenExpressions: () => void;
+  onOpenReminder: () => void;
 }
 
 export function Composer(props: Props) {
@@ -67,6 +74,14 @@ export function Composer(props: Props) {
   const allLabel = t("chat.mention_all");
   const insets = useSafeAreaInsets();
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const voice = useVoiceRecorder(props.onSendVoice);
+  const startVoice = () =>
+    void voice
+      .start()
+      .then((started) => {
+        if (!started) Alert.alert(t("chat.voice_record_failed"));
+      })
+      .catch(() => Alert.alert(t("chat.voice_record_failed")));
 
   // Above the home indicator while the keyboard is down; the keyboard-avoiding view takes over when it is up.
   useEffect(() => {
@@ -217,7 +232,7 @@ export function Composer(props: Props) {
         </View>
       ) : null}
       <View className="flex-row items-end gap-1 px-2 py-2">
-        {allowAttachments && !edit ? (
+        {allowAttachments && !edit && !voice.active ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("chat.composer_attach")}
@@ -227,6 +242,14 @@ export function Composer(props: Props) {
             <Ionicons name="attach" size={24} color={theme.mutedForeground} />
           </Pressable>
         ) : null}
+        {voice.active ? (
+          <View className="flex-1 min-h-11 flex-row items-center gap-2 rounded-2xl bg-secondary px-4" accessible accessibilityLabel={t("chat.voice_recording_aria")}>
+            <View className="h-2.5 w-2.5 rounded-full bg-destructive" />
+            <Text className="text-base text-foreground">
+              {formatVoiceCallDuration(voice.elapsedMs / 1000)} / {formatVoiceCallDuration(VOICE_MAX_MS / 1000)}
+            </Text>
+          </View>
+        ) : (
         <TextInput
           value={draft}
           onChangeText={onChange}
@@ -237,16 +260,32 @@ export function Composer(props: Props) {
           multiline
           className="flex-1 max-h-32 min-h-11 rounded-2xl bg-secondary px-4 py-2.5 text-base text-foreground"
         />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={edit ? t("chat.edit_dialog_save") : t("chat.send")}
-          accessibilityState={{ disabled: !trimmed || tooLong }}
-          disabled={!trimmed || tooLong}
-          onPress={submit}
-          className="h-11 w-11 items-center justify-center rounded-full"
-        >
-          <Ionicons name={edit ? "checkmark-circle" : "send"} size={edit ? 30 : 24} color={!trimmed || tooLong ? theme.mutedForeground : theme.primary} />
-        </Pressable>
+        )}
+        {voice.active ? (
+          <>
+            <Pressable accessibilityRole="button" accessibilityLabel={t("common.cancel")} testID="composer-voice-cancel" onPress={() => void voice.cancel()} className="h-11 w-11 items-center justify-center rounded-full">
+              <Ionicons name="trash-outline" size={24} color={theme.destructive} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t("chat.send")} testID="composer-voice-send" onPress={() => void voice.send()} className="h-11 w-11 items-center justify-center rounded-full">
+              <Ionicons name="send" size={24} color={theme.primary} />
+            </Pressable>
+          </>
+        ) : !trimmed && !edit && allowAttachments ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={t("chat.voice_message")} testID="composer-voice" onPress={startVoice} className="h-11 w-11 items-center justify-center rounded-full">
+            <Ionicons name="mic-outline" size={26} color={theme.primary} />
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={edit ? t("chat.edit_dialog_save") : t("chat.send")}
+            accessibilityState={{ disabled: !trimmed || tooLong }}
+            disabled={!trimmed || tooLong}
+            onPress={submit}
+            className="h-11 w-11 items-center justify-center rounded-full"
+          >
+            <Ionicons name={edit ? "checkmark-circle" : "send"} size={edit ? 30 : 24} color={!trimmed || tooLong ? theme.mutedForeground : theme.primary} />
+          </Pressable>
+        )}
       </View>
       {tooLong ? (
         <Text className="px-4 pb-2 text-xs text-destructive">
@@ -260,6 +299,8 @@ export function Composer(props: Props) {
         actions={[
           { key: "photo", label: t("chat.media_image"), onPress: () => void pickPhoto() },
           { key: "file", label: t("chat.composer_attach_file"), onPress: () => void pickFile() },
+          { key: "expressions", label: `${t("chat.expression_tab_sticker")} · ${t("chat.expression_tab_gif")}`, onPress: props.onOpenExpressions },
+          { key: "reminder", label: t("chat.composer_create_reminder"), onPress: props.onOpenReminder },
         ]}
       />
     </View>

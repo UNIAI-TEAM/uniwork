@@ -100,6 +100,124 @@ const cases: Case[] = [
   { name: "beatPresence", call: (c) => c.beatPresence("w1", true), path: `${W}/chat/presence`, method: "POST", body: { state: "online", visible: true }, good: { online_user_ids: ["u2"] }, read: ["u2"], fallback: null },
   { name: "leavePresence", call: (c) => c.leavePresence("w1"), path: `${W}/chat/presence`, method: "POST", body: { state: "offline" }, good: { status: "ok" }, read: true, fallback: false },
   { name: "signalTyping", call: (c) => c.signalTyping("w1", "r1"), path: `${R}/typing`, method: "POST", body: {}, good: { status: "ok" }, read: true, fallback: false },
+  {
+    name: "listPendingVoiceInvites",
+    call: (c) => c.listPendingVoiceInvites("w1"),
+    path: `${W}/chat/voice/pending`,
+    method: "GET",
+    good: { invites: [{ room_id: "r1", call_id: "c1", caller_id: "u2" }] },
+    read: [{ room_id: "r1", call_id: "c1", caller_id: "u2", caller_name: "", call_kind: "dm", invited_at: "" }],
+    fallback: [],
+  },
+  {
+    name: "mintVoiceToken",
+    call: (c) => c.mintVoiceToken(" r1 ", "c1"),
+    path: "/api/v1/chat/voice/token",
+    method: "POST",
+    body: { room_id: "r1", call_id: "c1" },
+    good: { token: "jwt", url: "wss://lk" },
+    read: { token: "jwt", url: "wss://lk" },
+    fallback: null,
+  },
+  { name: "signalVoiceInvite", call: (c) => c.signalVoiceInvite("w1", "r1", "c1", false), path: `${R}/voice/invite`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalVoiceInvite video", call: (c) => c.signalVoiceInvite("w1", "r1", "c1", true), path: `${R}/voice/invite`, method: "POST", body: { call_id: "c1", video: true }, good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalVoiceAccept", call: (c) => c.signalVoiceAccept("w1", "r1", "c1"), path: `${R}/voice/accept`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalVoiceHangup", call: (c) => c.signalVoiceHangup("w1", "r1", "c1"), path: `${R}/voice/hangup`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalVoiceHangup timed", call: (c) => c.signalVoiceHangup("w1", "r1", "c1", 42), path: `${R}/voice/hangup`, method: "POST", body: { call_id: "c1", duration_seconds: 42 }, good: { status: "ok" }, read: true, fallback: false },
+  // Rich kinds (M3): the web's paths and bodies (chat-messages, chat-media, chat-follow-ups, chat-links, tasks).
+  {
+    name: "sendMessage with a reminder",
+    call: (c) => c.sendMessage("w1", "r1", { client_msg_id: "c1", reminder: { body: "Gửi báo giá", remind_at: "2026-10-18T02:00:00.000Z", repeat: "none" } }),
+    path: `${R}/messages`,
+    method: "POST",
+    body: { client_msg_id: "c1", reminder: { body: "Gửi báo giá", remind_at: "2026-10-18T02:00:00.000Z", repeat: "none" } },
+    good: { message: { ...msg, kind: "reminder" } },
+    read: expect.objectContaining({ kind: "reminder" }),
+    fallback: null,
+  },
+  { name: "votePoll", call: (c) => c.votePoll("w1", "r1", "m1", "o2"), path: `${R}/messages/m1/poll/vote`, method: "POST", body: { option_id: "o2" }, good: { message: msg }, read: expect.objectContaining({ id: "m1" }), fallback: null },
+  {
+    name: "listExpressions trending stickers",
+    call: (c) => c.listExpressions("w1", "stickers", " "),
+    path: `${W}/chat/stickers/trending?limit=48`,
+    method: "GET",
+    good: { items: [{ id: "s1", label: "cat", url: "https://media.tenor.com/a.gif", preview_url: "https://media.tenor.com/p.gif" }] },
+    read: [{ id: "s1", label: "cat", url: "https://media.tenor.com/a.gif", previewUrl: "https://media.tenor.com/p.gif" }],
+    fallback: [],
+  },
+  {
+    name: "listExpressions searched gifs",
+    call: (c) => c.listExpressions("w1", "gifs", " mèo "),
+    path: `${W}/chat/gifs/search?q=m%C3%A8o&limit=48`,
+    method: "GET",
+    good: { items: [{ id: "g1", label: "mèo", url: "https://media.tenor.com/g.gif" }] },
+    read: [{ id: "g1", label: "mèo", url: "https://media.tenor.com/g.gif", previewUrl: "https://media.tenor.com/g.gif" }],
+    fallback: [],
+  },
+  {
+    name: "listFollowUps",
+    call: (c) => c.listFollowUps("w1", true),
+    path: `${W}/chat/follow-ups?include_completed=true`,
+    method: "GET",
+    good: { follow_ups: [{ id: "f1", message_id: "m1", note: 3 }] },
+    read: [{ id: "f1", message_id: "m1", note: "", due_at: undefined, completed_at: undefined }],
+    fallback: [],
+  },
+  { name: "listFollowUps open only", call: (c) => c.listFollowUps("w1"), path: `${W}/chat/follow-ups`, method: "GET", good: {}, read: [], fallback: [] },
+  {
+    name: "createFollowUp",
+    call: (c) => c.createFollowUp("w1", "m1", { note: "gọi lại" }),
+    path: `${W}/chat/messages/m1/follow-ups`,
+    method: "POST",
+    body: { note: "gọi lại" },
+    good: { follow_up: { id: "f1", message_id: "m1" } },
+    read: expect.objectContaining({ id: "f1" }),
+    fallback: null,
+  },
+  { name: "createFollowUp bare", call: (c) => c.createFollowUp("w1", "m1"), path: `${W}/chat/messages/m1/follow-ups`, method: "POST", body: {}, good: {}, read: null, fallback: null },
+  {
+    name: "patchFollowUp",
+    call: (c) => c.patchFollowUp("w1", "f1", { completed: true }),
+    path: `${W}/chat/follow-ups/f1`,
+    method: "PATCH",
+    body: { completed: true },
+    good: { follow_up: { id: "f1", message_id: "m1", completed_at: "2026-10-17T00:00:00Z" } },
+    read: expect.objectContaining({ completed_at: "2026-10-17T00:00:00Z" }),
+    fallback: null,
+  },
+  { name: "deleteFollowUp ok", call: (c) => c.deleteFollowUp("w1", "f1"), path: `${W}/chat/follow-ups/f1`, method: "DELETE", good: { ok: true }, read: true, fallback: false },
+  { name: "deleteFollowUp status", call: (c) => c.deleteFollowUp("w1", "f1"), path: `${W}/chat/follow-ups/f1`, method: "DELETE", good: { status: "ok" }, read: true, fallback: false },
+  {
+    name: "convertFollowUpToTask",
+    call: (c) => c.convertFollowUpToTask("w1", "f1"),
+    path: `${W}/chat/follow-ups/f1/task`,
+    method: "POST",
+    body: {},
+    good: { task: { id: "t1", title: "Gọi lại", identifier: "UNI-1", status: "todo" } },
+    read: { id: "t1", title: "Gọi lại", identifier: "UNI-1", status: "todo" },
+    fallback: null,
+  },
+  {
+    name: "createTaskFromMessage",
+    call: (c) => c.createTaskFromMessage("w1", "m1", { title: "Báo giá" }),
+    path: `${W}/chat/messages/m1/tasks`,
+    method: "POST",
+    body: { title: "Báo giá" },
+    good: { task: { id: "t1", title: "Báo giá" } },
+    read: { id: "t1", title: "Báo giá", identifier: "", status: "" },
+    fallback: null,
+  },
+  { name: "createTaskFromMessage bare", call: (c) => c.createTaskFromMessage("w1", "m1"), path: `${W}/chat/messages/m1/tasks`, method: "POST", body: {}, good: {}, read: null, fallback: null },
+  {
+    name: "listRoomMessageLinks",
+    call: (c) => c.listRoomMessageLinks("w1", "r1", ["m1", "m2"]),
+    path: `${R}/message-links?message_ids=m1%2Cm2`,
+    method: "GET",
+    good: { links: [{ id: "l1", message_id: "m1", target_type: "task", target_id: "t1" }] },
+    read: [{ id: "l1", message_id: "m1", target_type: "task", target_id: "t1" }],
+    fallback: [],
+  },
+  { name: "getTask", call: (c) => c.getTask("t 1"), path: "/api/v1/tasks/t%201", method: "GET", good: { task: { id: "t 1", title: "A", identifier: "UNI-2", status: "done" } }, read: expect.objectContaining({ status: "done" }), fallback: null },
 ];
 
 describe("chat endpoints", () => {
@@ -137,6 +255,34 @@ describe("chat endpoints", () => {
     expect(await chat.sendFileMessage("w1", "r1", { file: { uri: "file:///b", name: "b" }, client_msg_id: "c2" })).toBeNull();
     const second = request.mock.calls[1]?.[1]?.body as FormData;
     expect(second.has("reply_to_message_id")).toBe(false);
+  });
+
+  it("uploads a voice clip as the web does: an m4a part, its duration and the idempotency key", async () => {
+    request.mockResolvedValueOnce({ message: { ...msg, kind: "voice" } });
+    expect(await chat.sendVoiceMessage("w1", "r1", { uri: "file:///rec.m4a", duration_ms: 3200, client_msg_id: "c1", reply_to_message_id: "m0" })).toMatchObject({ kind: "voice" });
+    const [path, init] = request.mock.calls[0] ?? [];
+    expect(path).toBe(`${R}/messages/voice`);
+    expect(init?.method).toBe("POST");
+    const form = init?.body as FormData;
+    expect(form.get("duration_ms")).toBe("3200");
+    expect(form.get("client_msg_id")).toBe("c1");
+    expect(form.get("reply_to_message_id")).toBe("m0");
+    expect(form.has("file")).toBe(true);
+
+    request.mockResolvedValueOnce("<html>");
+    expect(await chat.sendVoiceMessage("w1", "r1", { uri: "file:///b.m4a", duration_ms: 1, client_msg_id: "c2" })).toBeNull();
+    expect((request.mock.calls[1]?.[1]?.body as FormData).has("reply_to_message_id")).toBe(false);
+  });
+
+  it("asks for no links when no message is on screen, and at most 200 ids a request", async () => {
+    expect(await chat.listRoomMessageLinks("w1", "r1", [])).toEqual([]);
+    expect(request).not.toHaveBeenCalled();
+    const link = (id: string) => ({ id: `l-${id}`, message_id: id, target_type: "task", target_id: "t1" });
+    request.mockResolvedValueOnce({ links: [link("m0")] }).mockResolvedValueOnce({ links: [link("m200")] });
+    const ids = Array.from({ length: 201 }, (_, i) => `m${i}`);
+    expect((await chat.listRoomMessageLinks("w1", "r1", ids)).map((l) => l.message_id)).toEqual(["m0", "m200"]);
+    const sentIds = request.mock.calls.map(([path]) => new URL(String(path), "http://x").searchParams.get("message_ids")?.split(",").length);
+    expect(sentIds).toEqual([200, 1]);
   });
 
   it("the shared instance goes through the app's API client", async () => {

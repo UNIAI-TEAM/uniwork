@@ -6,7 +6,9 @@ vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 
 import { chatApi } from "./chat-api";
 import {
+  createTaskFromMessage,
   deleteMessage,
+  followUpCommand,
   editMessage,
   joinChannel,
   leaveRoom,
@@ -14,8 +16,11 @@ import {
   markThreadRead,
   refreshMessageMedia,
   resolveDMRoom,
+  sendReminder,
+  sendVoiceMessage,
   setRoomMuted,
   toggleReaction,
+  votePoll,
 } from "./chat-actions";
 import { flattenRoomTimeline, type RoomTimeline } from "./chat-timeline";
 import { chatKeys } from "./queries/chat-keys";
@@ -130,6 +135,67 @@ describe("chat actions", () => {
       chatKeys.rooms("w1"),
       chatKeys.rooms("w1"),
       chatKeys.discoverableChannels("w1"),
+    ]);
+  });
+
+  it("puts a vote's answer in place (M3)", async () => {
+    const qc = new QueryClient();
+    withTimeline(qc, [msg("m1", { kind: "poll" })]);
+    const poll = { question: "Ăn gì?", options: [{ id: "o1", label: "Phở", votes: 1 }], settings: { deadline_at: null, pin_to_top: false, allow_multiple: true, allow_add_options: true, hide_results_until_vote: false, hide_voters: false }, viewer_option_ids: ["o1"] };
+    const vote = vi.spyOn(chatApi, "votePoll").mockResolvedValue(msg("m1", { kind: "poll", poll } as Partial<ChatMessageRecord>));
+    await votePoll(qc, "w1", "r1", "m1", "o1");
+    expect(vote).toHaveBeenCalledWith("w1", "r1", "m1", "o1");
+    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]?.poll?.viewer_option_ids).toEqual(["o1"]);
+  });
+
+  it("sends a voice clip and a reminder like the web, inside the server's bounds, and reports nothing back", async () => {
+    const qc = new QueryClient();
+    withTimeline(qc, []);
+    const voice = vi.spyOn(chatApi, "sendVoiceMessage").mockResolvedValueOnce(msg("v1", { kind: "voice" })).mockResolvedValueOnce(null);
+    await sendVoiceMessage(qc, "w1", "r1", { uri: "file:///a.m4a", durationMs: 130_400.6, replyToMessageId: "m0" });
+    expect(voice).toHaveBeenCalledWith("w1", "r1", expect.objectContaining({ uri: "file:///a.m4a", duration_ms: 120_000, reply_to_message_id: "m0", client_msg_id: expect.any(String) }));
+    await expect(sendVoiceMessage(qc, "w1", "r1", { uri: "file:///b.m4a", durationMs: 0 })).rejects.toThrow("chat_voice_send_failed");
+    expect(voice.mock.calls[1]?.[2].duration_ms).toBe(1);
+
+    const send = vi.spyOn(chatApi, "sendMessage").mockResolvedValueOnce(msg("rm", { kind: "reminder", created_at: "2026-10-17T10:01:00Z" })).mockResolvedValueOnce(null);
+    const at = new Date("2026-10-18T02:00:00Z");
+    await sendReminder(qc, "w1", "r1", { body: "  Gửi báo giá ", remindAt: at, repeat: "daily" });
+    expect(send).toHaveBeenCalledWith("w1", "r1", { client_msg_id: expect.any(String), reminder: { body: "Gửi báo giá", remind_at: "2026-10-18T02:00:00.000Z", repeat: "daily" } });
+    await expect(sendReminder(qc, "w1", "r1", { body: "x", remindAt: at, repeat: "none" })).rejects.toThrow("chat_reminder_send_failed");
+    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!).map((m) => m.id)).toEqual(["v1", "rm"]);
+  });
+
+  it("creates, completes and removes a follow-up, refetching the list each time, and reports a refusal", async () => {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const create = vi.spyOn(chatApi, "createFollowUp").mockResolvedValue({ id: "f1", message_id: "m1", note: "" });
+    const patch = vi.spyOn(chatApi, "patchFollowUp").mockResolvedValue(null);
+    const remove = vi.spyOn(chatApi, "deleteFollowUp").mockResolvedValue(true);
+    await followUpCommand(qc, "w1", "create", "m1");
+    await expect(followUpCommand(qc, "w1", "complete", "f1")).rejects.toThrow("chat_follow_up_failed");
+    await followUpCommand(qc, "w1", "remove", "f1");
+    expect(create).toHaveBeenCalledWith("w1", "m1");
+    expect(patch).toHaveBeenCalledWith("w1", "f1", { completed: true });
+    expect(remove).toHaveBeenCalledWith("w1", "f1");
+    expect(invalidate.mock.calls.map(([f]) => f?.queryKey)).toEqual([chatKeys.followUps("w1"), chatKeys.followUps("w1")]);
+  });
+
+  it("makes a task from a message or its follow-up and refreshes the room's task cards", async () => {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const task = { id: "t1", title: "Báo giá", identifier: "UNI-9", status: "todo" };
+    const direct = vi.spyOn(chatApi, "createTaskFromMessage").mockResolvedValueOnce(task).mockResolvedValueOnce(null);
+    const convert = vi.spyOn(chatApi, "convertFollowUpToTask").mockResolvedValue(task);
+    expect(await createTaskFromMessage(qc, "w1", "r1", { messageId: "m1", title: "Báo giá" })).toBe(task);
+    expect(await createTaskFromMessage(qc, "w1", "r1", { followUpId: "f1" })).toBe(task);
+    await expect(createTaskFromMessage(qc, "w1", "r1", { messageId: "m2" })).rejects.toThrow("chat_task_create_failed");
+    expect(direct).toHaveBeenCalledWith("w1", "m1", { title: "Báo giá" });
+    expect(convert).toHaveBeenCalledWith("w1", "f1");
+    expect(invalidate.mock.calls.map(([f]) => f?.queryKey)).toEqual([
+      chatKeys.roomLinksRoot("w1", "r1"),
+      chatKeys.roomLinksRoot("w1", "r1"),
+      chatKeys.followUps("w1"),
+      chatKeys.roomLinksRoot("w1", "r1"),
     ]);
   });
 

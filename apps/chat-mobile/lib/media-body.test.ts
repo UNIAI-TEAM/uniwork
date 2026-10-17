@@ -1,11 +1,19 @@
-// Parity: the reading cases of packages/views/chat/chat-expression-utils.test.ts
-// (the phone shows stickers and GIFs; sending them is M3).
+// Parity: packages/views/chat/chat-expression-utils.test.ts (the phone shows
+// stickers and GIFs, and from M3 sends them).
 import { describe, expect, it } from "vitest";
-import { describeChatMediaBody, parseChatMediaMessageBody } from "./media-body";
+import { describeChatMediaBody, formatChatMediaMessageBody, parseChatMediaMessageBody } from "./media-body";
 
 const twemoji = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f600.png";
 
 describe("media-body", () => {
+  it("formats a sticker body the parser reads back", () => {
+    const body = formatChatMediaMessageBody("https://media.giphy.com/sticker.png", "sticker:cười");
+    expect(parseChatMediaMessageBody(body)).toEqual({ url: "https://media.giphy.com/sticker.png", alt: "sticker:cười" });
+    // Brackets would end the alt early; an empty one still names the media.
+    expect(formatChatMediaMessageBody("https://media.tenor.com/a.gif", "gif:[x]")).toBe("![gif:x](https://media.tenor.com/a.gif)");
+    expect(formatChatMediaMessageBody("https://media.tenor.com/a.gif", " [] ")).toBe("![media](https://media.tenor.com/a.gif)");
+  });
+
   it("parses media message bodies", () => {
     expect(parseChatMediaMessageBody("![sticker:cười](https://media.giphy.com/sticker.png)")).toEqual({
       url: "https://media.giphy.com/sticker.png",

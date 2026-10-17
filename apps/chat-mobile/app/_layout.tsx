@@ -3,6 +3,7 @@
 // notification tap, all above the Stack.
 import "../global.css";
 
+import { registerGlobals } from "@livekit/react-native";
 import { PortalHost } from "@rn-primitives/portal";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { configureRuntime, runtimeConfig } from "@uniwork/core/runtime-config";
@@ -28,6 +29,8 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 
 // Before the first request: every data/* module reads runtimeConfig() per call.
 configureRuntime(runtimeFromExtra(Constants.expoConfig?.extra));
+// WebRTC globals for LiveKit, once, before any call (M3).
+registerGlobals();
 
 /** A URL from the OS: the PKCE callback completes the sign-in; a chat link waits
  *  for one, or is pushed only when expo-router did not already route it

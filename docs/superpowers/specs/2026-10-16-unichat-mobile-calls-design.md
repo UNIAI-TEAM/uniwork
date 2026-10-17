@@ -1,6 +1,6 @@
 # UniChat — Gọi LiveKit React Native và các kind giàu (lát M3)
 
-> **Trạng thái:** in-progress — Đề xuất, chờ duyệt. Lát M3 của epic UNI-1826; issue UNI-1834.
+> **Trạng thái:** in-progress — Đã duyệt (chủ sở hữu 2026-10-17: "làm tiếp đến khi hoàn thành UNI-1826"). Lát M3 của epic UNI-1826; issue UNI-1834; plan `docs/superpowers/plans/2026-10-17-unichat-mobile-calls.md`.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.5, §6 M3 · **Quyết định:** gọi ở M3, cuộc gọi đến qua push thường, không CallKit (chủ sở hữu, 2026-10-16) · **Web phải mirror:** `packages/views/chat/{voice-call-invites.ts, use-call-ringtone.ts, voice-call-kind-utils.ts, use-voice-call-room-connection.ts, voice-call-participant-labels.ts}`, `packages/core/chat/voice-call.ts` (thuần)
 

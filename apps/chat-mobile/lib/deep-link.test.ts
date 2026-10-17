@@ -20,6 +20,16 @@ describe("parseDeepLink", () => {
     expect(parseDeepLink(`${APP_URL}/acme/hq/chat`, APP_URL, SCHEME)).toEqual({ orgSlug: "acme", wsSlug: "hq" });
   });
 
+  it("reads the call a ringing push names (notification.ResourceURL, chat_room)", () => {
+    expect(parseDeepLink(`${APP_URL}/acme/hq/chat?room=r1&call=c-1`, APP_URL, SCHEME)).toEqual({
+      orgSlug: "acme",
+      wsSlug: "hq",
+      roomId: "r1",
+      callId: "c-1",
+    });
+    expect(deepLinkHref({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c-1" })).toBe("/acme/hq/chat?room=r1&call=c-1");
+  });
+
   it("unwraps <scheme>://open?url=<percent-encoded path>, scheme case-insensitively", () => {
     const path = encodeURIComponent("/acme/hq/chat?room=r1");
     expect(parseDeepLink(`${SCHEME}://open?url=${path}`, APP_URL, SCHEME)).toEqual({

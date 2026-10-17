@@ -4,6 +4,7 @@
 // around that message instead (listChatRoomMessagesAround), with a way back
 // to the latest. Local sends join the timeline until the server echoes them.
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,11 +16,13 @@ import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat
 import { useRoomReadMarking } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { Text } from "@/components/ui/text";
+import { callEngine } from "@/data/calls/call-store";
 import { refreshRoomTimelineOnOpen } from "@/data/chat-timeline";
 import { roomAroundOptions, roomTimelineOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import { buildMainTimelineMessages } from "@/lib/timeline-display";
+import { voiceCallKindFromServer } from "@/lib/voice-call";
 
 function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspace; roomId: string; linkedMessageId: string | null }) {
   const { t } = useTranslation();
@@ -53,6 +56,10 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
 
   useRoomReadMarking(chat.wsId, roomId, latestRows.at(-1)?.id ?? null, atLatest && anchorRows === null);
 
+  // The web's chat header calls from a DM, a group or a channel, never from the workspace room.
+  const callable = room.room && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
+  const call = (withCamera: boolean) => void callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera });
+
   const backToLatest = () => {
     setAnchorId(null);
     setJump(null);
@@ -68,7 +75,17 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
         <ChatHeader
           title={room.title}
           subtitle={room.typingLabel ?? (room.peerOnline ? t("chat.presence_online") : null)}
-          right={<HeaderIconButton icon="information-circle-outline" label={t("chat.mobile.room_info")} onPress={() => router.push(chatRoutes.info(chat, roomId))} />}
+          right={
+            <View className="flex-row">
+              {callable ? (
+                <>
+                  <HeaderIconButton icon="call-outline" label={t("chat.voice_call_start")} testID="room-call-voice" onPress={() => call(false)} />
+                  <HeaderIconButton icon="videocam-outline" label={t("chat.video_call_start")} testID="room-call-video" onPress={() => call(true)} />
+                </>
+              ) : null}
+              <HeaderIconButton icon="information-circle-outline" label={t("chat.mobile.room_info")} onPress={() => router.push(chatRoutes.info(chat, roomId))} />
+            </View>
+          }
         />
       }
       banner={

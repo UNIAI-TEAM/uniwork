@@ -37,6 +37,8 @@ const TABS_PATHS = [
   "settings.security.sessions.revoke",
   "settings.security.sessions.revokeFailed",
   "settings.notifications.push_section",
+  // M3 (UNI-1834): a task card under a message names its status as the tasks do.
+  ...["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"].map((status) => `tasks.status_${status}`),
 ];
 
 // Chat strings only the phone needs (M2a), nested under chat.mobile so they
@@ -50,6 +52,8 @@ const CHAT_MOBILE_ONLY = {
     unmute_notifications: "Bật thông báo",
     unpin_conversation: "Bỏ ghim hội thoại",
     room_info: "Thông tin cuộc trò chuyện",
+    call_speaker: "Loa ngoài",
+    follow_up_remove: "Bỏ khỏi danh sách theo dõi",
   },
   en: {
     open_on_web: "Open on the web",
@@ -59,6 +63,8 @@ const CHAT_MOBILE_ONLY = {
     unmute_notifications: "Turn notifications on",
     unpin_conversation: "Unpin conversation",
     room_info: "Conversation details",
+    call_speaker: "Speaker",
+    follow_up_remove: "Remove from follow-ups",
   },
 };
 

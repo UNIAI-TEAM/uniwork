@@ -1056,8 +1056,19 @@
       "send_sending": "Đang gửi…",
       "unmute_notifications": "Bật thông báo",
       "unpin_conversation": "Bỏ ghim hội thoại",
-      "room_info": "Thông tin cuộc trò chuyện"
+      "room_info": "Thông tin cuộc trò chuyện",
+      "call_speaker": "Loa ngoài",
+      "follow_up_remove": "Bỏ khỏi danh sách theo dõi"
     }
+  },
+  "tasks": {
+    "status_backlog": "Backlog",
+    "status_todo": "Cần làm",
+    "status_in_progress": "Đang làm",
+    "status_in_review": "Đang review",
+    "status_done": "Hoàn thành",
+    "status_blocked": "Đang chặn",
+    "status_cancelled": "Đã hủy"
   },
   "mobile": {
     "tab_calls": "Cuộc gọi",

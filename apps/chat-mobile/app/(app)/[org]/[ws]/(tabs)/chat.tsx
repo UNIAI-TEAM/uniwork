@@ -16,6 +16,7 @@ import { ActionSheet, type SheetAction } from "@/components/ui/action-sheet";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
 import { Text } from "@/components/ui/text";
+import { callEngine } from "@/data/calls/call-store";
 import { resolveDMRoom, setRoomMuted } from "@/data/chat-actions";
 import { nicknamesOptions, roomsOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
@@ -30,19 +31,26 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 function useDeepLinkTarget(chat: ChatWorkspace | null) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const params = useLocalSearchParams<{ room?: string; message?: string; dm?: string }>();
+  const params = useLocalSearchParams<{ room?: string; message?: string; dm?: string; call?: string }>();
   const handled = useRef<string | null>(null);
 
   useEffect(() => {
-    const key = [params.room, params.message, params.dm].map((value) => value ?? "").join("|");
-    if (key === "||") {
+    const key = [params.room, params.message, params.dm, params.call].map((value) => value ?? "").join("|");
+    if (key === "|||") {
       handled.current = null;
       return;
     }
     if (!chat || handled.current === key) return;
     handled.current = key;
-    const { room, message, dm } = params;
-    router.setParams({ room: undefined, message: undefined, dm: undefined });
+    const { room, message, dm, call } = params;
+    router.setParams({ room: undefined, message: undefined, dm: undefined, call: undefined });
+    // A "X đang gọi" push: answer while it rings, else the room, where the missed call is logged.
+    if (room && call) {
+      void callEngine.joinFromPush(room, call).then((joined) => {
+        if (!joined) router.push(chatRoutes.room(chat, room));
+      });
+      return;
+    }
     if (room) {
       router.push(chatRoutes.room(chat, room, message));
       return;

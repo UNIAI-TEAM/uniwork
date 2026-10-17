@@ -585,6 +585,7 @@
         "chat_mentioned": "Mentioned in chat",
         "chat_dm": "Direct messages",
         "chat_thread_replied": "Replies in threads you follow",
+        "chat_call_incoming": "Incoming calls",
         "document_access_requested": "Document access requests",
         "document_access_approved": "Document access granted",
         "document_access_declined": "Document access request declined"
@@ -5189,6 +5190,7 @@
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
       "chat_thread_replied": "{{actor}} replied to a thread in {{room}}",
+      "chat_call_incoming": "{{actor}} is calling",
       "document_access_requested": "{{actor}} requested access to “{{document}}”.",
       "document_access_requested_untitled": "{{actor}} requested access to a document.",
       "document_access_approved": "{{actor}} gave you access to “{{document}}”.",

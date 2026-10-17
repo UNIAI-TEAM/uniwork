@@ -86,6 +86,12 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       case "chat.channel.archived":
         schedule(chatKeys.rooms(wsId), chatKeys.discoverableChannels(wsId));
         return;
+      case "chat.follow_up.created":
+      case "chat.follow_up.updated":
+      case "chat.follow_up.completed":
+      case "chat.follow_up.deleted":
+        schedule(chatKeys.followUps(wsId));
+        return;
       case "chat.room.read":
         if (roomId && payload.user_id && viewer.userId) patchChatRoomRead(qc, wsId, viewer.userId, roomId, payload.user_id);
         return;

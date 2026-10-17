@@ -1,10 +1,13 @@
 // The chat tab's one-shot commands and what each does to the cache, mirroring
 // the mutations of packages/core/chat/{chat-hooks-rooms,chat-hooks-messages,
-// thread-hooks}.ts. Screens await them; a rejection is the screen's to show.
+// thread-hooks,chat-follow-up-hooks,chat-link-hooks}.ts. Screens await them; a
+// rejection is the screen's to show.
 import type { QueryClient } from "@tanstack/react-query";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
+import type { ReminderRepeat } from "@uniwork/core/chat/reminder-utils";
 import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
-import { chatApi } from "./chat-api";
+import { chatApi, type ChatTask } from "./chat-api";
 import { chatKeys } from "./queries/chat-keys";
 
 function clearUnread(qc: QueryClient, wsId: string, roomId: string): void {
@@ -73,6 +76,83 @@ export async function joinChannel(qc: QueryClient, wsId: string, roomId: string)
   await qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
   void qc.invalidateQueries({ queryKey: chatKeys.discoverableChannels(wsId) });
   return room;
+}
+
+// M3: the rich kinds.
+
+export async function votePoll(qc: QueryClient, wsId: string, roomId: string, messageId: string, optionId: string): Promise<void> {
+  applyChatMessageResponse(qc, wsId, roomId, await chatApi.votePoll(wsId, roomId, messageId, optionId), false);
+}
+
+/** The server's bounds on a clip (chat_voice_message.go): 1 ms to 2 minutes. */
+const MAX_VOICE_MS = 120_000;
+
+/** A recorded clip: it lands in the timeline like a sent message; nothing back is a failure to show. */
+export async function sendVoiceMessage(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  input: { uri: string; durationMs: number; replyToMessageId?: string },
+): Promise<void> {
+  const message = await chatApi.sendVoiceMessage(wsId, roomId, {
+    uri: input.uri,
+    duration_ms: Math.min(MAX_VOICE_MS, Math.max(1, Math.round(input.durationMs))),
+    client_msg_id: newChatClientMsgId(),
+    reply_to_message_id: input.replyToMessageId,
+  });
+  if (!message) throw new Error("chat_voice_send_failed");
+  applyChatMessageResponse(qc, wsId, roomId, message, true);
+  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+}
+
+/** A reminder message, as chat-create-reminder-dialog.tsx sends it: no body, the reminder beside it. */
+export async function sendReminder(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  input: { body: string; remindAt: Date; repeat: ReminderRepeat },
+): Promise<void> {
+  const message = await chatApi.sendMessage(wsId, roomId, {
+    client_msg_id: newChatClientMsgId(),
+    reminder: { body: input.body.trim(), remind_at: input.remindAt.toISOString(), repeat: input.repeat },
+  });
+  if (!message) throw new Error("chat_reminder_send_failed");
+  applyChatMessageResponse(qc, wsId, roomId, message, true);
+  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+}
+
+const FOLLOW_UP_COMMANDS = {
+  create: (wsId: string, id: string) => chatApi.createFollowUp(wsId, id),
+  complete: (wsId: string, id: string) => chatApi.patchFollowUp(wsId, id, { completed: true }),
+  remove: (wsId: string, id: string) => chatApi.deleteFollowUp(wsId, id),
+};
+
+/**
+ * Follows a message up later (`create`, with the message id), or completes or
+ * drops a follow-up (with its id); each refetches the list, and a null or
+ * false answer changed nothing and is a failure to show.
+ */
+export async function followUpCommand(qc: QueryClient, wsId: string, command: keyof typeof FOLLOW_UP_COMMANDS, id: string): Promise<void> {
+  if (!(await FOLLOW_UP_COMMANDS[command](wsId, id))) throw new Error("chat_follow_up_failed");
+  void qc.invalidateQueries({ queryKey: chatKeys.followUps(wsId) });
+}
+
+/**
+ * A task from a message, straight or through its follow-up: the task card
+ * under the message shows once the room's links refetch.
+ */
+export async function createTaskFromMessage(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  from: { messageId: string; title?: string } | { followUpId: string },
+): Promise<ChatTask> {
+  const task =
+    "followUpId" in from ? await chatApi.convertFollowUpToTask(wsId, from.followUpId) : await chatApi.createTaskFromMessage(wsId, from.messageId, { title: from.title });
+  void qc.invalidateQueries({ queryKey: chatKeys.roomLinksRoot(wsId, roomId) });
+  if ("followUpId" in from) void qc.invalidateQueries({ queryKey: chatKeys.followUps(wsId) });
+  if (!task) throw new Error("chat_task_create_failed");
+  return task;
 }
 
 export async function leaveRoom(qc: QueryClient, wsId: string, roomId: string): Promise<void> {

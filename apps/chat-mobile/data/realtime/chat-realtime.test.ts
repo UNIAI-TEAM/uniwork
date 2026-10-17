@@ -140,6 +140,16 @@ describe("list-level frames", () => {
     realtime.dispose();
   });
 
+  it("refetches the follow-up list once per burst of follow-up frames (M3)", async () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const realtime = createChatRealtime(qc, deps);
+    for (const verb of ["created", "updated", "completed", "deleted"]) realtime.handle(frame(`chat.follow_up.${verb}`, { follow_up_id: "f1" }));
+    await vi.advanceTimersByTimeAsync(ROOM_ACTIVITY_DEBOUNCE_MS);
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([chatKeys.followUps("w1")]);
+    realtime.dispose();
+  });
+
   it("clears my badges on my read anywhere, and moves a DM's Seen on the peer's", () => {
     qc.setQueryData(chatKeys.rooms("w1"), [room("r1", { unread_count: 2, last_message_at: "2026-10-17T10:00:00Z" })]);
     const realtime = createChatRealtime(qc, deps);

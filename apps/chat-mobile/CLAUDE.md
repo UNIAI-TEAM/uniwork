@@ -73,6 +73,25 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
   `scripts/sync-i18n.mjs`. Kind lạ → `messageView` = `unsupported` → hàng
   "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).
+- Gọi (M3, UNI-1834; spec `2026-10-16-unichat-mobile-calls-design.md`, plan
+  `2026-10-17-unichat-mobile-calls.md`). `lib/voice-call.ts` (thuần, copy
+  `voice-call-{overlay-types,kind-utils,invites,copy}` web) →
+  `data/calls/call-engine.ts` (máy trạng thái của `use-native-voice-call.ts`,
+  store vanilla, test node) → `data/calls/call-store.ts` (một engine, nối
+  `chatApi`) ← `data/realtime/use-call-realtime.ts` (`chat.voice.*`, đồng bộ
+  lời mời chờ khi mở workspace và mỗi lần reconnect). UI:
+  `components/calls/call-overlay.tsx` (lớp toàn màn hình, không phải Modal,
+  gắn một lần ở `(app)/_layout.tsx`, trên mọi màn workspace; mỗi layout
+  workspace `attach` ngữ cảnh vào engine, cái trên cùng được dùng) + `call-room.tsx` (LiveKit RN;
+  `registerGlobals()` ở `app/_layout.tsx`). Nhạc chuông: `lib/call-ringtone.ts`
+  render `assets/sounds/ring-*.wav` (test so byte; sinh lại bằng
+  `UPDATE_RINGTONES=1`). Push "X đang gọi" mang `?call=`; tab Chat gọi
+  `callEngine.joinFromPush`. Cần dev client (EAS), không chạy Expo Go.
+  Kind giàu (M3): endpoint trong `data/chat-api.ts`, lệnh và cache trong
+  `data/chat-actions.ts` (bỏ phiếu, tin thoại, nhắc, follow-up, tạo việc);
+  composer ghi âm (`components/chat/use-voice-recorder.ts`), mở
+  `expression-sheet.tsx` và `reminder-sheet.tsx`; follow-up và "Tạo việc" ở
+  sheet nhấn giữ; thẻ việc `task-card.tsx` dưới tin.
 - `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
   bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
   sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.

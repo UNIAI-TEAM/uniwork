@@ -1,7 +1,7 @@
 // What a message shows inside its row, by kind (spec §4): text with its
 // mentions, stickers and GIFs, images and files (open with the OS), voice
-// (listen), poll results, note, post, reminder and call cards (read-only), and
-// an "Open on the web" row for a kind this build does not know.
+// (listen), a poll to vote in (M3), note, post, reminder and call cards
+// (read-only), and an "Open on the web" row for a kind this build does not know.
 import { Ionicons } from "@expo/vector-icons";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
@@ -35,10 +35,12 @@ export interface MessageCardContext {
   roomId: string;
   userId: string;
   onOpenImage: (url: string, name: string) => void;
+  /** A tap on a poll option (M3); the cache takes the answer. */
+  onVotePoll: (messageId: string, optionId: string) => void;
 }
 
 /** The views whose card is a button of its own (the row then is not one accessible element). */
-export const INTERACTIVE_VIEWS = new Set(["image", "file", "voice", "unsupported"]);
+export const INTERACTIVE_VIEWS = new Set(["image", "file", "voice", "poll", "unsupported"]);
 
 /** A card's own button still opens the message's actions on a long-press, for touch and for VoiceOver/TalkBack. */
 function useLongPressProps(onLongPress: () => void) {
@@ -177,13 +179,26 @@ function VoiceCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecor
   );
 }
 
-function PollCard({ poll, own }: { poll: NonNullable<ChatMessageRecord["poll"]>; own: boolean }) {
+/** Each option is a vote button (chat-poll-message-row.tsx); a closed poll only shows its results. */
+function PollCard({ record, own, ctx, onLongPress }: { record: ChatMessageRecord; own: boolean; ctx: MessageCardContext; onLongPress: () => void }) {
   const { t } = useTranslation();
+  const longPress = useLongPressProps(onLongPress);
+  const poll = record.poll!;
   const results = pollResults(poll);
   return (
     <CardShell own={own} icon="stats-chart-outline" title={poll.question}>
+      {results.closed ? <Text className={cn("text-xs", own ? "text-primary-foreground/80" : "text-muted-foreground")}>{t("chat.poll_closed_status")}</Text> : null}
       {results.options.map((option) => (
-        <View key={option.id} className="gap-1" accessible accessibilityLabel={t("chat.poll_option_aria", { label: option.label, count: option.votes })}>
+        <Pressable
+          key={option.id}
+          {...longPress}
+          accessibilityRole="button"
+          accessibilityState={{ selected: option.mine, disabled: results.closed }}
+          disabled={results.closed}
+          onPress={() => ctx.onVotePoll(record.id, option.id)}
+          className="min-h-11 justify-center gap-1"
+          accessibilityLabel={t("chat.poll_option_aria", { label: option.label, count: option.votes })}
+        >
           <View className="flex-row justify-between gap-3">
             <Text className={cn("flex-1 text-sm", own ? "text-primary-foreground" : "text-foreground", option.mine && "font-semibold")}>{option.label}</Text>
             {results.hideCounts ? null : <Text className={cn("text-sm", own ? "text-primary-foreground" : "text-muted-foreground")}>{option.votes}</Text>}
@@ -193,7 +208,7 @@ function PollCard({ poll, own }: { poll: NonNullable<ChatMessageRecord["poll"]>;
               <View className={cn("h-1.5 rounded-full", own ? "bg-primary-foreground" : "bg-primary")} style={{ width: `${option.percent}%` }} />
             </View>
           )}
-        </View>
+        </Pressable>
       ))}
     </CardShell>
   );
@@ -238,7 +253,7 @@ export function MessageContent({ record, own, ctx, onLongPress }: { record: Chat
     case "voice":
       return <VoiceCard record={record} ctx={ctx} own={own} onLongPress={onLongPress} />;
     case "poll":
-      return <PollCard poll={record.poll!} own={own} />;
+      return <PollCard record={record} own={own} ctx={ctx} onLongPress={onLongPress} />;
     case "note":
       return (
         <CardShell own={own} icon="document-text-outline" title={t("chat.settings_notes")}>

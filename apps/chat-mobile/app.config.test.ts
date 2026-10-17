@@ -68,10 +68,30 @@ describe("app.config per UNICHAT_ENV", () => {
         "expo-secure-store",
         "expo-notifications",
         ["expo-build-properties", { ios: { enableSceneSupport: true } }],
-        // Chat attachments read the photo library; the camera is not used.
-        ["expo-image-picker", expect.objectContaining({ photosPermission: expect.any(String), cameraPermission: false })],
+        "@livekit/react-native-expo-plugin",
       ]),
     );
+  });
+
+  // M3: calls and voice messages use the camera and the microphone. A plugin
+  // given `false` would remove the Android permission and the iOS prompt the
+  // call needs, so every plugin that writes one carries the same string.
+  it("asks for the camera and the microphone in Vietnamese and English and keeps call audio in the background", () => {
+    const config = build();
+    const options = (name: string) =>
+      (config.plugins ?? []).find((p): p is [string, Record<string, unknown>] => Array.isArray(p) && p[0] === name)?.[1];
+    const camera = "UniChat dùng camera khi bạn gọi video.";
+    const microphone = "UniChat dùng micro khi bạn gọi điện và ghi tin thoại.";
+    expect(options("@config-plugins/react-native-webrtc")).toEqual({ cameraPermission: camera, microphonePermission: microphone });
+    expect(options("expo-image-picker")).toMatchObject({ photosPermission: expect.any(String), cameraPermission: camera, microphonePermission: microphone });
+    expect(options("expo-audio")).toEqual({ microphonePermission: microphone });
+    expect(config.locales?.en).toMatchObject({
+      NSCameraUsageDescription: expect.stringContaining("camera"),
+      NSMicrophoneUsageDescription: expect.stringContaining("microphone"),
+      NSPhotoLibraryUsageDescription: expect.any(String),
+    });
+    expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
+    expect(config.android?.blockedPermissions).toEqual(["android.permission.SYSTEM_ALERT_WINDOW"]);
   });
 
   it("defaults the urls to the local dev servers and takes UNICHAT_* overrides", () => {
