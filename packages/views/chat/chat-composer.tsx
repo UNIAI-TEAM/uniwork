@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useId, useImperativeHandle, useRef, useState, type Ref } from "react";
-import { Mic, Send } from "lucide-react";
+import { CircleAlert, Mic, Paperclip, Send, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
@@ -11,7 +11,13 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ComposerAttachMenu, ComposerToolbarButton, type ComposerAttachAction } from "./chat-composer-attach-menu";
-import { ComposerPriorityChip, ComposerVoiceBar, StagedFileChip } from "./chat-composer-parts";
+import {
+  ComposerPriorityChip,
+  ComposerReadOnlyBar,
+  ComposerVoiceBar,
+  StagedFileChip,
+  type ComposerReadOnlyReason,
+} from "./chat-composer-parts";
 import { ChatExpressionPicker } from "./chat-expression-picker";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
@@ -20,6 +26,7 @@ import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageB
 import { CHAT_FILE_ACCEPT, CHAT_FILE_MAX_LABEL, isChatFileTooLarge, pickChatAcceptedFiles } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
+import { SidebarTypingDots } from "./sidebar-typing-dots";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
 
 /** Show the character count once a message gets this close to the limit. */
@@ -50,6 +57,8 @@ type ChatComposerProps = {
   showCreatePoll?: boolean;
   /** A host may provide its own voice capture flow. */
   onRecordVoice?: () => void;
+  /** Set with `disabled` when the room is read-only for this person: the field becomes one centred line. */
+  readOnlyReason?: ComposerReadOnlyReason;
   ref?: Ref<ChatComposerHandle>;
 };
 
@@ -72,6 +81,7 @@ export function ChatComposer({
   onSendFile,
   showCreatePoll = true,
   onRecordVoice,
+  readOnlyReason,
   ref,
 }: ChatComposerProps) {
   const { t } = useTranslation();
@@ -79,6 +89,7 @@ export function ChatComposer({
   const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const mentionListId = useId();
   const counterId = useId();
+  const stagedLabelId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Pasted, dropped or picked files wait here until the message is sent, so
   // a wrong file can be taken back before anyone sees it.
@@ -192,19 +203,20 @@ export function ChatComposer({
   };
 
   const showCounter = remaining <= COUNTER_THRESHOLD;
+  const recordLabel = t("chat.composer_state.record");
 
   return (
-    <div
-      className={cn("relative flex shrink-0 flex-col gap-1.5 border-t border-border bg-surface px-3 py-2.5 sm:px-4")}
-      {...dropZoneProps}
-    >
+    <div className="relative flex shrink-0 flex-col gap-1.5 bg-chat-wall px-3 pt-1 pb-3 sm:px-6 sm:pb-5" {...dropZoneProps}>
       {isDragOver ? (
-        <p
-          className="pointer-events-none absolute inset-1 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-brand bg-brand-subtle text-body font-medium text-brand-subtle-foreground"
+        <div
+          className="pointer-events-none absolute inset-x-4 inset-y-2 z-10 flex items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-brand bg-brand-subtle"
           aria-live="polite"
         >
-          {t("chat.file_drop_hint")}
-        </p>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground" aria-hidden>
+            <Upload className="size-4.5" />
+          </span>
+          <span className="text-body-lg font-semibold text-brand-subtle-foreground">{t("chat.file_drop_hint")}</span>
+        </div>
       ) : null}
       <input
         ref={fileInputRef}
@@ -222,30 +234,17 @@ export function ChatComposer({
         }}
       />
       {typingLabel ? (
-        <p className="px-1 text-caption text-muted-foreground" aria-live="polite">
+        <p
+          className="mx-auto flex w-full max-w-183 items-center gap-1.5 pl-15 text-label font-medium text-brand"
+          aria-live="polite"
+        >
+          <SidebarTypingDots />
           {typingLabel}
         </p>
       ) : null}
-      {stagedFiles.length > 0 ? (
-        <div role="group" className="flex flex-wrap gap-1.5" aria-label={t("chat.composer_staged_files")}>
-          {stagedFiles.map((file, index) => (
-            <StagedFileChip
-              key={`${file.name}-${file.size}-${index}`}
-              file={file}
-              onRemove={() => {
-                setStagedFiles((current) => current.filter((_, i) => i !== index));
-                textareaRef.current?.focus();
-              }}
-            />
-          ))}
-        </div>
-      ) : null}
-      {composerPriority ? (
-        <div>
-          <ComposerPriorityChip priority={composerPriority} onClear={() => onComposerPriorityChange?.(null)} />
-        </div>
-      ) : null}
-      {voiceActive ? (
+      {disabled && readOnlyReason ? (
+        <ComposerReadOnlyBar reason={readOnlyReason} placeholder={placeholder} textareaRef={textareaRef} />
+      ) : voiceActive ? (
         <ComposerVoiceBar
           state={voiceRecorder.state}
           error={voiceRecorder.error}
@@ -262,16 +261,56 @@ export function ChatComposer({
         />
       ) : (
         <form
+          className="mx-auto w-full max-w-183"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
           }}
         >
-          {/* The field's own ring is off, so the frame carries focus — the
-              same border and ring an Input takes when focused. */}
-          <div className="flex min-w-0 items-end gap-1 rounded-xl border border-input bg-surface px-1.5 py-1 transition-[border-color,box-shadow] duration-(--duration-fast) focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
-            <div className="flex shrink-0 items-center">
-              <div className="flex items-center justify-center pointer-coarse:min-h-11 pointer-coarse:min-w-11">
+          <div className="flex items-end gap-2">
+            <ComposerAttachMenu
+              disabled={disabled}
+              onAction={handleAttachAction}
+              align="start"
+              showCreatePoll={showCreatePoll}
+            />
+            {/* The field's own ring is off, so the pill carries focus. */}
+            <div
+              className={cn(
+                "flex min-h-12 min-w-0 flex-1 flex-col rounded-3xl bg-chat-bubble-other px-1.5 py-0.5 shadow-chat-bubble transition-shadow duration-(--duration-fast)",
+                remaining < 0 ? "ring-2 ring-destructive" : "focus-within:ring-2 focus-within:ring-ring/30",
+              )}
+            >
+              {composerPriority || stagedFiles.length > 0 ? (
+                <>
+                  <div className="flex flex-col items-start gap-2 px-1.5 pt-2.5 pb-2">
+                    {composerPriority ? (
+                      <ComposerPriorityChip priority={composerPriority} onClear={() => onComposerPriorityChange?.(null)} />
+                    ) : null}
+                    {stagedFiles.length > 0 ? (
+                      <div role="group" aria-labelledby={stagedLabelId} className="flex w-full min-w-0 flex-col gap-2">
+                        <span id={stagedLabelId} className="text-caption font-semibold text-muted-foreground">
+                          {`${t("chat.composer_staged_files")} · ${stagedFiles.length}`}
+                        </span>
+                        <div className="flex gap-2 overflow-x-auto">
+                          {stagedFiles.map((file, index) => (
+                            <StagedFileChip
+                              key={`${file.name}-${file.size}-${index}`}
+                              file={file}
+                              onRemove={() => {
+                                setStagedFiles((current) => current.filter((_, i) => i !== index));
+                                textareaRef.current?.focus();
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="mx-1.5 h-px bg-border" />
+                </>
+              ) : null}
+              <div className="flex items-end gap-1">
                 <ChatExpressionPicker
                   workspaceId={workspaceId}
                   disabled={disabled}
@@ -279,111 +318,117 @@ export function ChatComposer({
                   onSelectEmoji={insertEmoji}
                   onSendMedia={handleSendMedia}
                 />
+                <div ref={mentionAnchorRef} className="relative min-w-0 flex-1">
+                  {mentions.open ? (
+                    <ChatMentionAutocomplete
+                      listId={mentionListId}
+                      candidates={mentions.visibleCandidates}
+                      selectedIndex={mentions.activeIndex}
+                      onSelect={mentions.insert}
+                      onHover={mentions.setSelectedIndex}
+                      anchorRef={mentionAnchorRef}
+                      memberAvatarByUserId={memberAvatarByUserId}
+                    />
+                  ) : null}
+                  <Textarea
+                    ref={textareaRef}
+                    value={draft}
+                    maxLength={CHAT_MESSAGE_BODY_MAX_LENGTH}
+                    onChange={(e) => {
+                      const normalized = normalizeDraft(e.target.value);
+                      onDraftChange(normalized);
+                      mentions.sync(normalized, e.target.selectionStart ?? normalized.length);
+                    }}
+                    onClick={(e) => {
+                      const el = e.currentTarget;
+                      mentions.sync(el.value, el.selectionStart ?? el.value.length);
+                    }}
+                    onKeyUp={mentions.onKeyUp}
+                    onPaste={(e) => {
+                      if (!onSendFile || disabled) return;
+                      const files = Array.from(e.clipboardData?.files ?? []);
+                      if (files.length === 0) return;
+                      e.preventDefault();
+                      stageAcceptedFiles(files);
+                    }}
+                    placeholder={placeholder}
+                    aria-label={placeholder}
+                    role={mentionEnabled ? "combobox" : undefined}
+                    aria-expanded={mentionEnabled ? mentions.open && mentions.visibleCandidates.length > 0 : undefined}
+                    aria-autocomplete={mentionEnabled ? "list" : undefined}
+                    aria-controls={mentions.open ? mentionListId : undefined}
+                    aria-activedescendant={
+                      mentions.open && mentions.visibleCandidates.length > 0
+                        ? mentionOptionId(mentionListId, mentions.activeIndex)
+                        : undefined
+                    }
+                    aria-describedby={showCounter ? counterId : undefined}
+                    disabled={disabled}
+                    rows={1}
+                    className="max-h-40 min-h-11 w-full resize-none rounded-none border-0 bg-transparent px-1 py-2.5 shadow-none focus-visible:ring-0 disabled:bg-transparent md:text-body-lg dark:bg-transparent dark:disabled:bg-transparent"
+                    onKeyDown={(e) => {
+                      // A Vietnamese IME commits the pending syllable on Enter and the
+                      // browser reports that commit as its own keydown, so acting on
+                      // both sends the message twice under two client_msg_ids. A held
+                      // key repeats for the same reason.
+                      if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;
+                      if (mentions.onKeyDown(e)) return;
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        submit();
+                      }
+                    }}
+                  />
+                </div>
+                {onSendFile ? (
+                  <ComposerToolbarButton
+                    label={t("chat.composer_attach_file")}
+                    disabled={disabled}
+                    onClick={() => handleAttachAction("attach_file")}
+                  >
+                    <Paperclip aria-hidden />
+                  </ComposerToolbarButton>
+                ) : null}
               </div>
-              <ComposerAttachMenu
+            </div>
+            {canSend ? (
+              <Button
+                type="submit"
+                size="icon-lg"
+                className="size-12 rounded-full hover:bg-primary/90"
+                aria-label={sendLabel}
+                // Tapping send must not take focus from the field: on a
+                // phone that would close the keyboard after every message.
+                onPointerDown={(event) => event.preventDefault()}
+              >
+                <Send className="size-5" aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon-lg"
+                className="size-12 rounded-full hover:bg-primary/90"
+                aria-label={recordLabel}
+                title={recordLabel}
                 disabled={disabled}
-                onAction={handleAttachAction}
-                align="start"
-                showCreatePoll={showCreatePoll}
-              />
-            </div>
-
-            <div ref={mentionAnchorRef} className="relative min-w-0 flex-1">
-              {mentions.open ? (
-                <ChatMentionAutocomplete
-                  listId={mentionListId}
-                  candidates={mentions.visibleCandidates}
-                  selectedIndex={mentions.activeIndex}
-                  onSelect={mentions.insert}
-                  onHover={mentions.setSelectedIndex}
-                  anchorRef={mentionAnchorRef}
-                  memberAvatarByUserId={memberAvatarByUserId}
-                />
-              ) : null}
-              <Textarea
-                ref={textareaRef}
-                value={draft}
-                maxLength={CHAT_MESSAGE_BODY_MAX_LENGTH}
-                onChange={(e) => {
-                  const normalized = normalizeDraft(e.target.value);
-                  onDraftChange(normalized);
-                  mentions.sync(normalized, e.target.selectionStart ?? normalized.length);
+                onClick={() => {
+                  if (onRecordVoice) onRecordVoice();
+                  else void voiceRecorder.start();
                 }}
-                onClick={(e) => {
-                  const el = e.currentTarget;
-                  mentions.sync(el.value, el.selectionStart ?? el.value.length);
-                }}
-                onKeyUp={mentions.onKeyUp}
-                onPaste={(e) => {
-                  if (!onSendFile || disabled) return;
-                  const files = Array.from(e.clipboardData?.files ?? []);
-                  if (files.length === 0) return;
-                  e.preventDefault();
-                  stageAcceptedFiles(files);
-                }}
-                placeholder={placeholder}
-                aria-label={placeholder}
-                role={mentionEnabled ? "combobox" : undefined}
-                aria-expanded={mentionEnabled ? mentions.open && mentions.visibleCandidates.length > 0 : undefined}
-                aria-autocomplete={mentionEnabled ? "list" : undefined}
-                aria-controls={mentions.open ? mentionListId : undefined}
-                aria-activedescendant={
-                  mentions.open && mentions.visibleCandidates.length > 0
-                    ? mentionOptionId(mentionListId, mentions.activeIndex)
-                    : undefined
-                }
-                aria-describedby={showCounter ? counterId : undefined}
-                disabled={disabled}
-                rows={1}
-                className="max-h-40 min-h-9 w-full resize-none border-0 bg-transparent px-1 py-2 shadow-none focus-visible:ring-0 md:text-body dark:bg-transparent"
-                onKeyDown={(e) => {
-                  // A Vietnamese IME commits the pending syllable on Enter and the
-                  // browser reports that commit as its own keydown, so acting on
-                  // both sends the message twice under two client_msg_ids. A held
-                  // key repeats for the same reason.
-                  if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;
-                  if (mentions.onKeyDown(e)) return;
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    submit();
-                  }
-                }}
-              />
-            </div>
-
-            <div className="flex shrink-0 items-center pb-0.5">
-              {canSend ? (
-                <Button
-                  type="submit"
-                  variant="brand"
-                  size="icon-lg"
-                  className="shrink-0"
-                  aria-label={sendLabel}
-                  // Tapping send must not take focus from the field: on a
-                  // phone that would close the keyboard after every message.
-                  onPointerDown={(event) => event.preventDefault()}
-                >
-                  <Send className="size-4" aria-hidden />
-                </Button>
-              ) : (
-                <ComposerToolbarButton
-                  label={t("chat.composer_state.record")}
-                  disabled={disabled}
-                  onClick={() => { if (onRecordVoice) onRecordVoice(); else void voiceRecorder.start(); }}
-                >
-                  <Mic aria-hidden className="size-5" />
-                </ComposerToolbarButton>
-              )}
-            </div>
+              >
+                <Mic className="size-5.5" aria-hidden />
+              </Button>
+            )}
           </div>
           {showCounter ? (
             <p
               id={counterId}
               className={cn(
-                "mt-1 px-1 text-right text-micro tabular-nums",
-                remaining <= 0 ? "text-destructive" : "text-muted-foreground",
+                "mt-1.5 mr-15 flex items-center justify-end gap-1.5 text-caption tabular-nums",
+                remaining <= 0 ? "font-semibold text-destructive" : "font-medium text-muted-foreground",
               )}
             >
+              {remaining < 0 ? <CircleAlert className="size-3.5 shrink-0" aria-hidden /> : null}
               {remaining < 0
                 ? t("chat.composer_state.chars_over", { count: -remaining })
                 : t("chat.composer_state.chars_left", { count: remaining })}

@@ -30,6 +30,10 @@ const EmojiPicker = lazy(() =>
 
 const TENOR_STICKER_PACK_ID = "tenor-featured";
 
+/** Line tabs in the brand: the active one takes the brand text and underline. */
+const TAB_CLASS =
+  "flex-none px-3 font-semibold after:bg-brand data-active:text-brand dark:data-active:text-brand";
+
 function tenorRecordsToPack(
   records: { id: string; label: string; url: string; previewUrl: string }[],
   name: string,
@@ -110,10 +114,10 @@ function PickerEmpty({ label }: { label: string }) {
 /** Loading in the grid's own shape: tiles where the stickers or GIFs will land. */
 function PickerGridSkeleton({ columns, label }: { columns: 2 | 4; label: string }) {
   return (
-    <div className={cn("grid gap-2 p-3", columns === 4 ? "grid-cols-4" : "grid-cols-2")} aria-busy>
+    <div className={cn("grid gap-2 px-3 pt-3 pb-2", columns === 4 ? "grid-cols-4" : "grid-cols-2")} aria-busy>
       <span className="sr-only">{label}</span>
       {Array.from({ length: columns === 4 ? 12 : 6 }, (_, i) => (
-        <Skeleton key={i} className={cn("rounded-lg", columns === 4 ? "size-16" : "aspect-video w-full")} />
+        <Skeleton key={i} className={cn("w-full rounded-xl", columns === 4 ? "h-20" : "aspect-video")} />
       ))}
     </div>
   );
@@ -137,21 +141,21 @@ function StickerGrid({
 
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys bubble up from the tile buttons; the list itself takes no focus
-    <ul className="grid grid-cols-4 gap-2 px-3 pb-3" onKeyDown={(event) => onGridKeyDown(event, 4)}>
+    <ul className="grid grid-cols-4 gap-2 px-3 pb-2" onKeyDown={(event) => onGridKeyDown(event, 4)}>
       {visibleStickers.map((sticker, index) => (
         <li key={sticker.id}>
           <button
             type="button"
             data-grid-item
             tabIndex={index === 0 ? 0 : -1}
-            className="flex size-16 items-center justify-center rounded-lg transition-colors duration-(--duration-fast) hover:bg-surface-hover"
+            className="flex h-20 w-full items-center justify-center rounded-xl transition-colors duration-(--duration-fast) hover:bg-muted focus-visible:bg-muted"
             aria-label={sticker.label}
             onClick={() => onSelect(sticker)}
           >
             <MediaThumbnail
               src={sticker.url}
               alt=""
-              className="size-12 object-contain"
+              className="size-14 object-contain"
               onBroken={() => setBrokenIds((prev) => new Set(prev).add(sticker.id))}
             />
           </button>
@@ -179,14 +183,14 @@ function GifGrid({
 
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys bubble up from the tile buttons; the list itself takes no focus
-    <ul className="grid grid-cols-2 gap-2 px-3 pb-3" onKeyDown={(event) => onGridKeyDown(event, 2)}>
+    <ul className="grid grid-cols-2 gap-2 px-3 pb-2" onKeyDown={(event) => onGridKeyDown(event, 2)}>
       {visibleItems.map((item, index) => (
         <li key={item.id}>
           <button
             type="button"
             data-grid-item
             tabIndex={index === 0 ? 0 : -1}
-            className="overflow-hidden rounded-lg border border-border bg-muted transition-colors duration-(--duration-fast) hover:border-ring"
+            className="w-full overflow-hidden rounded-xl border border-border bg-muted transition-colors duration-(--duration-fast) hover:border-ring"
             aria-label={item.label}
             onClick={() => onSelect(item)}
           >
@@ -327,18 +331,18 @@ export function ChatExpressionPicker({
         : t("chat.expression_search_emojis");
 
   const searchField = (
-    <div className="border-b border-border px-3 py-2">
+    <div className="shrink-0 px-3 pt-2.5 pb-1">
       <div className="relative">
         <Search
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
-          className="h-8 pl-8"
+          className="h-9.5 rounded-lg border-border bg-muted pl-9"
         />
       </div>
     </div>
@@ -354,7 +358,7 @@ export function ChatExpressionPicker({
             disabled={disabled}
             className={className}
           >
-            <FaceSlightlySmiling className="size-5" aria-hidden />
+            <FaceSlightlySmiling aria-hidden />
           </ComposerToolbarButton>
         }
       />
@@ -362,32 +366,32 @@ export function ChatExpressionPicker({
         align={align}
         side="top"
         className={cn(
-          "flex flex-col overflow-hidden p-0",
+          "flex flex-col overflow-hidden rounded-xl p-0",
           // Never taller than the room the popover has above the composer.
           expanded
-            ? "h-[min(32.5rem,var(--available-height))] w-[min(30rem,calc(100vw-2rem))]"
-            : "h-[min(25rem,var(--available-height))] w-[min(22.5rem,calc(100vw-2rem))]",
+            ? "h-[min(36rem,var(--available-height))] w-[min(32.5rem,calc(100vw-2rem))]"
+            : "h-[min(28.75rem,var(--available-height))] w-[min(25rem,calc(100vw-2rem))]",
         )}
       >
         {/* Registry tabs: arrow keys between tabs, each panel labelled by its tab. */}
         <Tabs value={tab} onValueChange={(next) => setTab(next as ExpressionTab)} className="min-h-0 flex-1 gap-0">
-          <div className="flex items-center border-b border-border px-2 py-1.5">
+          <div className="flex h-12 shrink-0 items-center border-b border-border pr-1.5 pl-2">
             <TabsList variant="line" className="min-w-0 flex-1 justify-start" aria-label={t("chat.expression_picker_tabs")}>
-              <TabsTrigger value="sticker" className="flex-none px-2.5">
+              <TabsTrigger value="sticker" className={TAB_CLASS}>
                 {t("chat.expression_tab_sticker")}
               </TabsTrigger>
-              <TabsTrigger value="emoji" className="flex-none px-2.5">
+              <TabsTrigger value="emoji" className={TAB_CLASS}>
                 {t("chat.expression_tab_emoji")}
               </TabsTrigger>
-              <TabsTrigger value="gif" className="flex-none px-2.5">
+              <TabsTrigger value="gif" className={TAB_CLASS}>
                 {t("chat.expression_tab_gif")}
               </TabsTrigger>
             </TabsList>
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
-              className="shrink-0 text-muted-foreground hover:text-foreground"
+              size="icon"
+              className="size-9 shrink-0 rounded-control text-muted-foreground hover:text-foreground"
               aria-label={expanded ? t("chat.expression_collapse") : t("chat.expression_expand")}
               onClick={() => setExpanded((value) => !value)}
             >
@@ -411,7 +415,7 @@ export function ChatExpressionPicker({
                 </div>
               ) : (
                 <>
-                  <p className="px-3 pt-3 pb-1 text-overline text-muted-foreground uppercase">
+                  <p className="px-3.5 pt-2 pb-1.5 text-overline font-semibold text-muted-foreground uppercase">
                     {activePack?.name ?? t("chat.expression_tab_sticker")}
                   </p>
                   <StickerGrid
@@ -423,12 +427,12 @@ export function ChatExpressionPicker({
               )}
             </div>
             {filteredPacks.length > 0 ? (
-              <div className="flex items-center gap-1 border-t border-border px-2 py-1.5">
+              <div className="flex h-13 shrink-0 items-center gap-1 border-t border-border px-1.5">
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0 text-muted-foreground"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-control text-muted-foreground"
                   aria-label={t("chat.expression_prev_pack")}
                   onClick={() =>
                     setActivePackIndex((index) => (index <= 0 ? filteredPacks.length - 1 : index - 1))
@@ -444,8 +448,10 @@ export function ChatExpressionPicker({
                       aria-label={pack.name}
                       aria-pressed={index === activePackIndex}
                       className={cn(
-                        "inline-flex size-9 shrink-0 items-center justify-center rounded-md text-title-sm transition-colors duration-(--duration-fast) pointer-coarse:size-11",
-                        index === activePackIndex ? "bg-surface-selected" : "hover:bg-surface-hover",
+                        "inline-flex size-9.5 shrink-0 items-center justify-center rounded-control text-title-lg transition-colors duration-(--duration-fast) pointer-coarse:size-11",
+                        index === activePackIndex
+                          ? "bg-brand-subtle ring-2 ring-primary ring-inset"
+                          : "hover:bg-surface-hover",
                       )}
                       onClick={() => setActivePackIndex(index)}
                     >
@@ -460,8 +466,8 @@ export function ChatExpressionPicker({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0 text-muted-foreground"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-control text-muted-foreground"
                   aria-label={t("chat.expression_next_pack")}
                   onClick={() =>
                     setActivePackIndex((index) => (index >= filteredPacks.length - 1 ? 0 : index + 1))

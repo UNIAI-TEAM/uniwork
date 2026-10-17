@@ -279,6 +279,27 @@ describe("ChatComposer", () => {
     expect(onSendFile).not.toHaveBeenCalled();
   });
 
+  it("shows a read-only room as one line with the same disabled field", () => {
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          disabled
+          readOnlyReason="muted"
+          placeholder="Bạn bị cấm gửi tin trong phòng này — chỉ xem được."
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    expect(screen.getByPlaceholderText("Bạn bị cấm gửi tin trong phòng này — chỉ xem được.")).toBeDisabled();
+    expect(screen.queryByLabelText("Đính kèm")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Ghi âm tin nhắn thoại")).not.toBeInTheDocument();
+  });
+
   it("rejects unsupported paste types", () => {
     const onSendFile = vi.fn();
     render(
