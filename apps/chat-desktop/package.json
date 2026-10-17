@@ -4,11 +4,12 @@
   "private": true,
   "description": "UniChat desktop shell: an Electron window around the UniWork web app's chat layout",
   "author": { "name": "UniWork", "email": "dev@uniworkos.com" },
+  "homepage": "https://uniworkos.com",
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "package": "electron-builder",
+    "package": "electron-builder --publish never",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run --passWithNoTests=false --coverage"
