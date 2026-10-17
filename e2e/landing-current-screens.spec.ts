@@ -20,7 +20,7 @@ for (const sample of [{ width: 1440, theme: "light" }, { width: 390, theme: "dar
       await expect(panel.locator('.lovable-viewport')).toHaveCount(0);
       await expect(panel).not.toContainText(/(?:documents|chat|ai|calendar|people|myTasks|projects|editor|landing)\.[a-z][\w.]+/);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), feature).toBeLessThanOrEqual(1);
-      expect(await page.locator('.product-demo-content').evaluate(node => node.scrollHeight - node.clientHeight), `${feature} keeps its own scroll`).toBeLessThanOrEqual(1);
+      expect(await page.locator('#product-preview .product-demo-content').evaluate(node => node.scrollHeight - node.clientHeight), `${feature} keeps its own scroll`).toBeLessThanOrEqual(1);
       if (feature === 'documents') await expect(panel.getByRole('list', { name: vi.documents.home.create.label }).getByRole('button')).toHaveCount(8);
       if (feature === 'calendar') await expect(panel.locator('.fc')).toBeVisible();
       await page.locator('#product-preview').screenshot({ path: `.impeccable/review/current-${feature}-${sample.width}.png`, animations: 'disabled' });
@@ -60,7 +60,7 @@ test('the current chat composer sends locally and creates a task from a message'
   await gotoLanding(page, '/#trao-doi');
   await landingReady(page);
   await page.waitForLoadState('networkidle');
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'chat');
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'chat');
   await page.locator('[data-action=toggle-presentation]').click();
   const panel = page.locator('.preview-main > [role=tabpanel]:not([hidden])');
   await panel.getByRole('textbox', { name: vi.landing.demo.messagePlaceholder }).fill('Tin nhắn được gửi trong demo mới.');
@@ -73,8 +73,9 @@ test('the current chat composer sends locally and creates a task from a message'
   await page.getByRole('dialog').getByRole('button', { name: vi.common.create, exact: true }).click();
   await expect(panel.locator('[data-demo-result=chat-task]')).toBeVisible();
   await panel.locator('[data-demo-result=chat-task]').click();
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'tasks');
-  await expect(panel.locator('.product-task-open')).toHaveCount(9);
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'tasks');
+  // The ten demo tasks (product-task-data.ts) plus the one created from the message.
+  await expect(panel.locator('.product-task-open')).toHaveCount(11);
   await expect(panel.locator('.product-task-details')).toContainText(vi.landing.studio.task_followup);
 });
 
@@ -86,20 +87,20 @@ test('projects and people use the shared list controls', async ({ page }) => {
   await selectWorkspaceFeature(page, 'projects');
   const panel = page.locator('.preview-main > [role=tabpanel]:not([hidden])');
   await panel.getByRole('textbox', { name: vi.projects.page.search_placeholder }).fill('Website');
-  await expect(panel.getByText('Website', { exact: true })).toBeVisible();
-  await expect(panel.getByText('Marketing', { exact: true })).toHaveCount(0);
+  await expect(panel.getByText(vi.landing.productDemo.projects.website, { exact: true })).toBeVisible();
+  await expect(panel.getByText(vi.landing.productDemo.projects.campaign, { exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: vi.projects.page.view_cards, exact: true }).click();
   await page.getByRole('menuitemradio', { name: vi.projects.page.view_cards, exact: true }).click();
   await expect(panel.locator('[data-slot=project-card-footer]')).toHaveCount(1);
   await selectWorkspaceFeature(page, 'organization');
-  await panel.getByRole('searchbox', { name: vi.people.search, exact: true }).fill('Hoàng Anh');
-  await expect(panel.getByRole('link', { name: 'Hoàng Anh', exact: true })).toBeVisible();
-  await expect(panel.getByRole('link', { name: 'Minh Linh', exact: true })).toHaveCount(0);
-  await panel.getByRole('link', { name: 'Hoàng Anh', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('Hoàng Anh');
+  await panel.getByRole('searchbox', { name: vi.people.search, exact: true }).fill('Khánh Vy');
+  await expect(panel.getByRole('link', { name: 'Khánh Vy', exact: true })).toBeVisible();
+  await expect(panel.getByRole('link', { name: 'Bảo Lâm', exact: true })).toHaveCount(0);
+  await panel.getByRole('link', { name: 'Khánh Vy', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('Khánh Vy');
   await page.getByRole('dialog').getByRole('button', { name: vi.nav.chat, exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'chat');
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'chat');
 });
 
 test('feature pages share the current Documents preview', async ({ page }) => {
@@ -107,12 +108,12 @@ test('feature pages share the current Documents preview', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await gotoLanding(page, '/features/documents#feature-preview');
   await landingReady(page);
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'documents');
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'documents');
   const panel = page.locator('.preview-main > [role=tabpanel]:not([hidden])');
   await expect(panel.getByRole('list', { name: vi.documents.home.create.label }).getByRole('button')).toHaveCount(8);
   await expect(panel).not.toContainText(/documents\.[a-z][\w.]+/);
   await page.locator('.feature-page-related a').first().click();
-  await expect(page.locator('.product-demo-shell')).not.toHaveAttribute('data-demo-feature', 'documents');
+  await expect(page.locator('#product-preview .product-demo-shell')).not.toHaveAttribute('data-demo-feature', 'documents');
 });
 
 test('a compact calendar keeps its grid and planner reachable', async ({ page }) => {
@@ -132,6 +133,6 @@ test('a compact calendar keeps its grid and planner reachable', async ({ page })
   await panel.locator('.product-current-calendar-grid .fc-event').first().click();
   await page.getByRole('dialog').getByRole('button', { name: vi.tasks.title, exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'tasks');
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'tasks');
   await expect(page.locator('.preview-main > [role=tabpanel]:not([hidden]) .product-task-details')).toBeVisible();
 });
