@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { FolderBreadcrumb } from "./documents-library-toolbar";
+import { FolderBreadcrumb } from "./folder-breadcrumb";
 
 const { t } = initI18n();
 
@@ -31,7 +31,7 @@ describe("FolderBreadcrumb", () => {
     const nav = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     expect(nav).not.toHaveClass("flex-wrap");
 
-    expect(within(nav).getByRole("button", { name: t("documents.page.title") })).toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: t("documents.home.sidebar.home") })).toBeInTheDocument();
     const moreBtn = within(nav).getByRole("button", { name: t("documents.home.breadcrumb_more") });
     expect(moreBtn).toBeInTheDocument();
     expect(moreBtn).toHaveTextContent("…");
@@ -188,7 +188,7 @@ describe("FolderBreadcrumb", () => {
 
     expect(within(nav).queryByRole("button", { name: t("documents.home.breadcrumb_more") })).toBeNull();
     expect(within(nav).queryByText("…")).toBeNull();
-    fireEvent.click(within(nav).getByRole("button", { name: t("documents.page.title") }));
+    fireEvent.click(within(nav).getByRole("button", { name: t("documents.home.sidebar.home") }));
     expect(onRoot).toHaveBeenCalledTimes(1);
     fireEvent.click(within(nav).getByRole("button", { name: "Cấp 1" }));
     expect(onFolder).toHaveBeenCalledWith("f1");

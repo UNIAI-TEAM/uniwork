@@ -3,6 +3,11 @@
   "exclude": [
     "catalog"
   ],
+  "ignoreIssues": {
+    "packages/core/office/docs-frame-protocol.ts": [
+      "duplicates"
+    ]
+  },
   "workspaces": {
     ".": {
       "ignore": [

@@ -572,6 +572,67 @@ describe("DocumentTree", () => {
   });
 });
 
+describe("DocumentTree folder star menu", () => {
+  const folders = [
+    node({ id: "f1", title: "Hợp đồng", kind: "folder" }),
+    node({ id: "f2", title: "Tài chính", kind: "folder", position: 1 }),
+  ];
+  const workspace: Workspace = {
+    id: WS,
+    slug: "doi",
+    name: "Đội",
+    organization_id: "org1",
+    organization_slug: "acme",
+    organization_name: "Acme",
+  };
+  const user = { id: "u1", email: "an@example.com", display_name: "An", locale: "vi" } as User;
+
+  function renderFolders() {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: folders });
+      if (path === "/api/v1/orgs/org1/documents/favorites") {
+        return Promise.resolve({ favorites: [{ document_id: "f2", workspace_id: WS, title: "Tài chính", kind: "folder" }] });
+      }
+      if (path === "/api/v1/documents/f1/favorite" && opts?.method === "POST") {
+        return Promise.resolve({ favorite: { document_id: "f1", workspace_id: WS, title: "Hợp đồng", kind: "folder" } });
+      }
+      if (path === "/api/v1/documents/f2/favorite" && opts?.method === "DELETE") return Promise.resolve({ status: "ok" });
+      return Promise.resolve({});
+    });
+    render(
+      wrap(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <DocumentTree wsId={WS} folders />
+        </WorkspaceProvider>,
+      ),
+    );
+  }
+
+  it("stars an unstarred folder from its menu", async () => {
+    renderFolders();
+    const row = await screen.findByRole("treeitem", { name: /Hợp đồng/ });
+    await within(await screen.findByRole("treeitem", { name: /Tài chính/ })).findByRole("img", { name: t("documents.home.row.starred") });
+    fireEvent.contextMenu(row);
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.unstar") })).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.star") }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/documents/f1/favorite", expect.objectContaining({ method: "POST" })),
+    );
+  });
+
+  it("unstars a starred folder from its menu", async () => {
+    renderFolders();
+    const row = await screen.findByRole("treeitem", { name: /Tài chính/ });
+    await within(row).findByRole("img", { name: t("documents.home.row.starred") });
+    fireEvent.contextMenu(row);
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.star") })).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.unstar") }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/documents/f2/favorite", expect.objectContaining({ method: "DELETE" })),
+    );
+  });
+});
+
 describe("loadMoveRevision", () => {
   it("reads the working copy fresh and refuses an unverifiable one", async () => {
     const { QueryClient } = await import("@tanstack/react-query");

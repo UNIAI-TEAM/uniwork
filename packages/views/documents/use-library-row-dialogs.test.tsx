@@ -485,9 +485,17 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
     });
   });
 
-  it('row menu: folder row shows "Thư mục con mới" + "Đổi tên", document row "Đổi tên" only, view-only member sees neither, with 44px coarse targets', async () => {
+  it('folder card menu shows "Thư mục con mới" + "Đổi tên", document row menu "Đổi tên" only, view-only member sees neither, with 44px coarse targets', async () => {
     requestMock.mockImplementation((path: string) => {
-      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: tree });
+      if (path.startsWith(TREE_URL)) {
+        return Promise.resolve({
+          documents: [
+            ...tree,
+            { id: "fo-edit", title: "Thư mục sửa", kind: "folder", parent_id: null, position: 1, children: [] },
+            { id: "fo-view", title: "Thư mục chỉ xem", kind: "folder", parent_id: null, position: 2, children: [] },
+          ],
+        });
+      }
       if (path.startsWith(LIST_BASE)) {
         return Promise.resolve({
           documents: [
@@ -504,10 +512,10 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
 
     renderPageView("");
     const table = await screen.findByRole("table");
+    // Since A3 a folder is a card with its own ⋯ menu, not a row of the table.
+    const section = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
 
-    const checkRowMenu = async (title: string, firstItemKey: string) => {
-      const row = (await within(table).findByText(title)).closest("tr")!;
-      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+    const readMenu = async (firstItemKey: string) => {
       const firstItem = await screen.findByRole("menuitem", { name: t(firstItemKey) });
       for (const item of screen.getAllByRole("menuitem")) {
         expect(item).toHaveClass("pointer-coarse:min-h-11");
@@ -520,8 +528,17 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
       await waitFor(() => expect(screen.queryByRole("menuitem", { name: t(firstItemKey) })).toBeNull());
       return items;
     };
+    const checkRowMenu = async (title: string, firstItemKey: string) => {
+      const row = (await within(table).findByText(title)).closest("tr")!;
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+      return readMenu(firstItemKey);
+    };
+    const checkCardMenu = async (title: string, firstItemKey: string) => {
+      fireEvent.click(within(section).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+      return readMenu(firstItemKey);
+    };
 
-    expect(await checkRowMenu("Thư mục sửa", "documents.home.row.open_folder")).toEqual({
+    expect(await checkCardMenu("Thư mục sửa", "documents.home.row.open_folder")).toEqual({
       newSubfolder: true,
       rename: true,
     });
@@ -529,7 +546,7 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
       newSubfolder: false,
       rename: true,
     });
-    expect(await checkRowMenu("Thư mục chỉ xem", "documents.home.row.open_folder")).toEqual({
+    expect(await checkCardMenu("Thư mục chỉ xem", "documents.home.row.open_folder")).toEqual({
       newSubfolder: false,
       rename: false,
     });
