@@ -36,7 +36,11 @@
         "public/sw.js"
       ]
     },
-    "apps/chat-desktop": {},
+    "apps/chat-desktop": {
+      "entry": [
+        "electron-builder.ts"
+      ]
+    },
     "apps/chat-mobile": {
       "ignoreDependencies": [
         "@rn-primitives/avatar",

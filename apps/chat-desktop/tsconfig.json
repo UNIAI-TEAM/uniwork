@@ -6,5 +6,5 @@
     "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": ["electron.vite.config.ts", "vitest.config.ts", "src/**/*"]
+  "include": ["electron.vite.config.ts", "electron-builder.ts", "vitest.config.ts", "src/**/*"]
 }

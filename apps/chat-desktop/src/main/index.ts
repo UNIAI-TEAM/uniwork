@@ -3,7 +3,8 @@
  * window, its guards, the PKCE session and the closed IPC surface. Everything
  * with logic lives in the modules this file calls.
  */
-import { app, BrowserWindow, safeStorage, screen, session as electronSession } from "electron";
+import { app, BrowserWindow, Notification, safeStorage, screen, session as electronSession } from "electron";
+import { autoUpdater } from "electron-updater";
 import { join } from "node:path";
 import { createAuthCallbackRouter } from "./auth/callback";
 import { createCredentialStore } from "./auth/credentials";
@@ -19,6 +20,7 @@ import { decidePermission } from "./permissions";
 import { createRendererWebPreferences } from "./renderer-web-preferences";
 import { resolveShellConfig } from "./runtime-config";
 import { installScreenShare } from "./screen-share";
+import { startUpdater, updateMode } from "./updater";
 import {
   loadWindowState,
   MIN_WINDOW_WIDTH,
@@ -54,6 +56,8 @@ const queue = new MainRendererQueue();
 let win: BrowserWindow | null = null;
 const getWindow = (): BrowserWindow | null => (win && !win.isDestroyed() ? win : null);
 const deepLinkDeps = { config, queue, getWindow };
+// Held so the click handler outlives garbage collection.
+let updateNotice: Notification | null = null;
 
 function focusWindow(): void {
   const current = getWindow();
@@ -169,6 +173,20 @@ if (!app.requestSingleInstanceLock()) {
     installScreenShare(defaultSession, config.appUrl);
 
     createWindow();
+    // A dev build never reads the release feed.
+    if (config.env !== "dev") {
+      startUpdater({
+        updater: autoUpdater,
+        // Inlined at build: "1" when electron-builder got a mac certificate (CSC_LINK).
+        mode: updateMode(process.platform, process.env.UNICHAT_MAC_SIGNED === "1"),
+        notify: (notice, onClick) => {
+          updateNotice = new Notification(notice);
+          if (onClick) updateNotice.on("click", onClick);
+          updateNotice.show();
+        },
+        openDownloadPage: () => void openExternalSafely(`${config.appUrl}/unichat`, external),
+      });
+    }
     app.on("activate", () => {
       if (!getWindow()) createWindow();
     });
