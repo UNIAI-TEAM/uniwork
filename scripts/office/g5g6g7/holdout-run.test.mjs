@@ -1927,13 +1927,36 @@ describe('usage rows and arguments', () => {
   });
 
   it('H-2: updates the in-turn backend view on applied writes while keeping sourceText as opened, never rewrites applied writeLog entries in deriveAnswer, and maps only table-reading tools to read_table', () => {
-    const xlsxEditCase = cases.find((c) => c.id === 'HO-XLSX-030');
-    const backend = createBackend(xlsxEditCase);
+    // A synthetic case over an in-memory view (review-g712-16 A12): the post-write value and format the test needs come
+    // from the view, not from a holdout fixture, so the regression is reusable behaviour and copies no case content.
+    const view = () => ({
+      format: 'xlsx',
+      workbook: {
+        sheets: { SheetZ: { cells: { F4: { v: 10, t: 'n' } }, hiddenRows: new Set() } },
+        formatKinds: {},
+      },
+    });
+    const xlsxEditCase = synthCase({
+      id: 'HO-TEST-903', format: 'xlsx', category: 'edit',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: {
+        numeric: [],
+        structural: [{ kind: 'cell', anchor: 'SheetZ!F4', value: 0.1 }],
+        writes: 1, mustNotContain: [],
+      },
+      referenceAnswer: {
+        numeric: {},
+        structural: [{ kind: 'cell', anchor: 'SheetZ!F4', value: 0.1 }],
+        writes: 1, text: 'Dat dinh dang phan tram.',
+      },
+    });
+    const backend = createBackend(xlsxEditCase, { views: [view()] });
     const openedText = backend.sourceText();
     const before = backend.execute('read_cells', JSON.stringify({ addresses: ['F4'] }));
     assert.equal(before.cells.F4, '10');
     const writeRes = backend.execute('propose_operations', JSON.stringify({
-      operations: [{ sheet: 'Doanh thu Q1', address: 'F4', value: 0.1, numberFormat: '0%' }],
+      operations: [{ sheet: 'SheetZ', address: 'F4', value: 0.1, numberFormat: '0%' }],
     }));
     assert.equal(writeRes.status, 'applied');
     assert.equal(backend.writes(), 1);
