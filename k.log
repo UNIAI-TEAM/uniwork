@@ -1,0 +1,89 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --shard=6/6 > /tmp/rootb-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rootb-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/rootb-E2E.log; grep -E "✘|\[failed\]" /tmp/rootb-E2E.log | head -40; echo; echo "E2E_SUITE6_EXIT=$rc"
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) seo.spec.ts:28:1 › guides render without JavaScript and expose related localized destinations ─
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.public-guide-table')
+    Expected substring: "10 MiB"
+    Received string:    "Định dạng và thao tác trong Office trên webTrình soạn thảoĐịnh dạngThao tác khi có quyềnDocs.docxLưu, lưu thành bản mới và in; xuất PDFSheets.xlsxLưu, lưu thành bản mới và inSlides.pptxLưu, lưu thành bản mới và inPDF.pdfLưu, lưu thành bản mới và inHTML.htmlLưu, lưu thành bản mới và in; xuất HTMLMarkdown.mdLưu, lưu thành bản mới và in; xuất HTML"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for locator('.public-guide-table')
+        14 × locator resolved to <table class="public-guide-table">…</table>
+           - unexpected value "Định dạng và thao tác trong Office trên webTrình soạn thảoĐịnh dạngThao tác khi có quyềnDocs.docxLưu, lưu thành bản mới và in; xuất PDFSheets.xlsxLưu, lưu thành bản mới và inSlides.pptxLưu, lưu thành bản mới và inPDF.pdfLưu, lưu thành bản mới và inHTML.htmlLưu, lưu thành bản mới và in; xuất HTMLMarkdown.mdLưu, lưu thành bản mới và in; xuất HTML"
+
+
+      33 |   await expect(page.locator('.public-guide-related a[href="/vi/office"]')).toBeVisible();
+      34 |   await expect(page.locator(".public-guide-table tbody tr")).toHaveCount(6);
+    > 35 |   await expect(page.locator(".public-guide-table")).toContainText("10 MiB");
+         |                                                     ^
+      36 |   await expect(page.locator("article")).toContainText("yêu cầu dùng khóa API riêng đi qua máy chủ UniWork");
+      37 |   await expect(page.locator('link[hreflang="en"]')).toHaveAttribute("href", /\/learn\/office-files-and-ai$/);
+      38 |   await context.close();
+
+    Error Context: test-results/seo-guides-render-without--48407-ated-localized-destinations/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/seo-guides-render-without--48407-ated-localized-destinations/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/seo-guides-render-without--48407-ated-localized-destinations/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) seo.spec.ts:41:1 › Office guide facts, example images and tables work on mobile in both languages and themes 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.public-guide-table')
+    Expected substring: "10 MiB"
+    Received string:    "Formats and actions in Office on the webEditorFormatActions when permittedDocs.docxSave, save as and print; export PDFSheets.xlsxSave, save as and printSlides.pptxSave, save as and printPDF.pdfSave, save as and printHTML.htmlSave, save as and print; export HTMLMarkdown.mdSave, save as and print; export HTML"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for locator('.public-guide-table')
+        14 × locator resolved to <table class="public-guide-table">…</table>
+           - unexpected value "Formats and actions in Office on the webEditorFormatActions when permittedDocs.docxSave, save as and print; export PDFSheets.xlsxSave, save as and printSlides.pptxSave, save as and printPDF.pdfSave, save as and printHTML.htmlSave, save as and print; export HTMLMarkdown.mdSave, save as and print; export HTML"
+
+
+      49 |       await landingReady(page);
+      50 |       await expect(page.locator(".public-guide-table tbody tr")).toHaveCount(6);
+    > 51 |       await expect(page.locator(".public-guide-table")).toContainText("10 MiB");
+         |                                                         ^
+      52 |       const figure = page.locator(".public-guide-illustration");
+      53 |       await figure.scrollIntoViewIfNeeded();
+      54 |       const selected = figure.locator(`.public-guide-image-${theme}`);
+
+    Error Context: test-results/seo-Office-guide-facts-exa-5bb5e-n-both-languages-and-themes/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/seo-Office-guide-facts-exa-5bb5e-n-both-languages-and-themes/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/seo-Office-guide-facts-exa-5bb5e-n-both-languages-and-themes/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    files-chat.spec.ts:265:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+    seo.spec.ts:28:1 › guides render without JavaScript and expose related localized destinations ──
+    seo.spec.ts:41:1 › Office guide facts, example images and tables work on mobile in both languages and themes 
+  1 skipped
+  45 passed (7.5m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=6/6
+  3 failed
+  1 skipped
+  45 passed (7.5m)
+  ✘   6 files-chat.spec.ts:265:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions (4.0m)
+  ✘  29 seo.spec.ts:28:1 › guides render without JavaScript and expose related localized destinations (5.2s)
+  ✘  30 seo.spec.ts:41:1 › Office guide facts, example images and tables work on mobile in both languages and themes (5.5s)
+
+E2E_SUITE6_EXIT=1
