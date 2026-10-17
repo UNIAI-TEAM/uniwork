@@ -22,7 +22,7 @@ CREATE TABLE file_multipart_uploads (
     parent_id                TEXT,
     visibility               TEXT,
     probe_head_sha256        TEXT NOT NULL,
-    probe_tail_sha256        TEXT,
+    probe_tail_sha256        TEXT NOT NULL,
     cd_offset                BIGINT,
     cd_size                  BIGINT,
     status                   TEXT NOT NULL DEFAULT 'open',
@@ -49,6 +49,9 @@ CREATE TABLE file_multipart_uploads (
         (opened_via = 'frame' AND token_document_id IS NOT NULL AND document_id = token_document_id)
         OR (opened_via = 'version' AND document_id IS NOT NULL AND token_document_id IS NULL)
         OR (opened_via = 'workspace' AND document_id IS NULL AND token_document_id IS NULL)
+    ),
+    CONSTRAINT file_multipart_uploads_cd_pair_check CHECK (
+        (cd_offset IS NULL) = (cd_size IS NULL)
     ),
     CONSTRAINT file_multipart_uploads_closed_at_check CHECK (
         (status IN ('open', 'validating') AND closed_at IS NULL)

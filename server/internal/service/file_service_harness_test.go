@@ -81,8 +81,11 @@ type switchStore struct {
 	multipartSeq       int
 	multipartCreates   int
 	multipartAborts    int
+	abortsByKey        map[string]int
+	beforeAbort        func(key string)
 	deletedKeys        map[string]int
 	uploads            map[string]*testMultipartUpload
+	beforeListParts    func()
 	beforeComplete     func()
 }
 
@@ -90,6 +93,7 @@ func newSwitchStore(inner storage.ObjectStore) *switchStore {
 	return &switchStore{
 		ObjectStore: inner,
 		written:     map[string]storage.ObjectLocator{},
+		abortsByKey: map[string]int{},
 		deletedKeys: map[string]int{},
 		uploads:     map[string]*testMultipartUpload{},
 	}
@@ -271,10 +275,16 @@ func (s *switchStore) ListParts(ctx context.Context, loc storage.ObjectLocator, 
 	}
 	s.mu.Lock()
 	enabled := s.multipartEnabled
+	hook := s.beforeListParts
 	if !enabled {
 		s.mu.Unlock()
 		return s.ObjectStore.ListParts(ctx, loc, uploadID)
 	}
+	s.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	s.mu.Lock()
 	up, ok := s.uploads[uploadID]
 	if !ok || up.aborted || up.completed || up.loc.Key != loc.Key {
 		s.mu.Unlock()
@@ -347,11 +357,20 @@ func (s *switchStore) AbortMultipart(ctx context.Context, loc storage.ObjectLoca
 	}
 	s.mu.Lock()
 	enabled := s.multipartEnabled
+	hook := s.beforeAbort
 	if !enabled {
 		s.mu.Unlock()
 		return s.ObjectStore.AbortMultipart(ctx, loc, uploadID)
 	}
+	s.mu.Unlock()
+
+	if hook != nil {
+		hook(loc.Key)
+	}
+
+	s.mu.Lock()
 	s.multipartAborts++
+	s.abortsByKey[loc.Key]++
 	if up, ok := s.uploads[uploadID]; ok {
 		up.aborted = true
 	}

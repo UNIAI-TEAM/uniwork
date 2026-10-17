@@ -19,21 +19,109 @@ SET status = 'aborted',
     closed_at = $1::timestamptz,
     updated_at = $1::timestamptz
 WHERE id = $2::text
-  AND status = 'open'
+  AND (
+    status = 'open'
+    OR (status = 'validating' AND (lease_expires_at IS NULL OR lease_expires_at <= $3::timestamptz))
+  )
 `
 
 type AbortFileMultipartUploadParams struct {
 	ClosedAt pgtype.Timestamptz `json:"closed_at"`
 	ID       string             `json:"id"`
+	Now      pgtype.Timestamptz `json:"now"`
 }
 
 // tenant: by-id
 func (q *Queries) AbortFileMultipartUpload(ctx context.Context, arg AbortFileMultipartUploadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, abortFileMultipartUpload, arg.ClosedAt, arg.ID)
+	result, err := q.db.Exec(ctx, abortFileMultipartUpload, arg.ClosedAt, arg.ID, arg.Now)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const claimExpiredFileMultipartUploads = `-- name: ClaimExpiredFileMultipartUploads :many
+UPDATE file_multipart_uploads
+SET status = 'expired',
+    lease_owner = NULL,
+    lease_expires_at = NULL,
+    closed_at = $1::timestamptz,
+    updated_at = $1::timestamptz
+WHERE id IN (
+  SELECT file_multipart_uploads.id
+  FROM file_multipart_uploads
+  WHERE file_multipart_uploads.status IN ('open', 'validating')
+    AND file_multipart_uploads.expires_at <= $1::timestamptz
+    AND (
+      file_multipart_uploads.lease_owner IS NULL
+      OR file_multipart_uploads.lease_expires_at IS NULL
+      OR file_multipart_uploads.lease_expires_at <= $1::timestamptz
+    )
+  ORDER BY file_multipart_uploads.expires_at ASC
+  LIMIT $2::int
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at
+`
+
+type ClaimExpiredFileMultipartUploadsParams struct {
+	Now    pgtype.Timestamptz `json:"now"`
+	LimitN int32              `json:"limit_n"`
+}
+
+// tenant: system
+func (q *Queries) ClaimExpiredFileMultipartUploads(ctx context.Context, arg ClaimExpiredFileMultipartUploadsParams) ([]FileMultipartUpload, error) {
+	rows, err := q.db.Query(ctx, claimExpiredFileMultipartUploads, arg.Now, arg.LimitN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileMultipartUpload{}
+	for rows.Next() {
+		var i FileMultipartUpload
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.FileID,
+			&i.FileUploadSessionID,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.OpenedVia,
+			&i.TokenDocumentID,
+			&i.StorageUploadID,
+			&i.ObjectKey,
+			&i.Filename,
+			&i.SizeBytes,
+			&i.PartSize,
+			&i.TotalParts,
+			&i.Title,
+			&i.ParentID,
+			&i.Visibility,
+			&i.ProbeHeadSha256,
+			&i.ProbeTailSha256,
+			&i.CdOffset,
+			&i.CdSize,
+			&i.Status,
+			&i.FailureCode,
+			&i.ResultDocumentID,
+			&i.ResultVersionUploadID,
+			&i.LeaseOwner,
+			&i.LeaseExpiresAt,
+			&i.ExpiresAt,
+			&i.ClosedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const completeFileMultipartUpload = `-- name: CompleteFileMultipartUpload :one
@@ -122,7 +210,7 @@ func (q *Queries) CountOpenFileMultipartUploadsByActor(ctx context.Context, crea
 	return count, err
 }
 
-const failFileMultipartUpload = `-- name: FailFileMultipartUpload :one
+const failFileMultipartUpload = `-- name: FailFileMultipartUpload :execrows
 UPDATE file_multipart_uploads
 SET status = 'failed',
     failure_code = $1::text,
@@ -131,56 +219,29 @@ SET status = 'failed',
     closed_at = $2::timestamptz,
     updated_at = $2::timestamptz
 WHERE id = $3::text
-  AND status IN ('open', 'validating')
-RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at
+  AND status = 'validating'
+  AND lease_owner = $4::text
 `
 
 type FailFileMultipartUploadParams struct {
 	FailureCode string             `json:"failure_code"`
 	ClosedAt    pgtype.Timestamptz `json:"closed_at"`
 	ID          string             `json:"id"`
+	LeaseOwner  string             `json:"lease_owner"`
 }
 
 // tenant: by-id
-func (q *Queries) FailFileMultipartUpload(ctx context.Context, arg FailFileMultipartUploadParams) (FileMultipartUpload, error) {
-	row := q.db.QueryRow(ctx, failFileMultipartUpload, arg.FailureCode, arg.ClosedAt, arg.ID)
-	var i FileMultipartUpload
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.DocumentID,
-		&i.FileID,
-		&i.FileUploadSessionID,
-		&i.CreatedBy,
-		&i.CreatedByKind,
-		&i.OpenedVia,
-		&i.TokenDocumentID,
-		&i.StorageUploadID,
-		&i.ObjectKey,
-		&i.Filename,
-		&i.SizeBytes,
-		&i.PartSize,
-		&i.TotalParts,
-		&i.Title,
-		&i.ParentID,
-		&i.Visibility,
-		&i.ProbeHeadSha256,
-		&i.ProbeTailSha256,
-		&i.CdOffset,
-		&i.CdSize,
-		&i.Status,
-		&i.FailureCode,
-		&i.ResultDocumentID,
-		&i.ResultVersionUploadID,
-		&i.LeaseOwner,
-		&i.LeaseExpiresAt,
-		&i.ExpiresAt,
-		&i.ClosedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+func (q *Queries) FailFileMultipartUpload(ctx context.Context, arg FailFileMultipartUploadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failFileMultipartUpload,
+		arg.FailureCode,
+		arg.ClosedAt,
+		arg.ID,
+		arg.LeaseOwner,
 	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getFileMultipartUploadByID = `-- name: GetFileMultipartUploadByID :one
@@ -314,7 +375,7 @@ type InsertFileMultipartUploadParams struct {
 	ParentID            pgtype.Text        `json:"parent_id"`
 	Visibility          pgtype.Text        `json:"visibility"`
 	ProbeHeadSha256     string             `json:"probe_head_sha256"`
-	ProbeTailSha256     pgtype.Text        `json:"probe_tail_sha256"`
+	ProbeTailSha256     string             `json:"probe_tail_sha256"`
 	CdOffset            pgtype.Int8        `json:"cd_offset"`
 	CdSize              pgtype.Int8        `json:"cd_size"`
 	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
@@ -459,103 +520,6 @@ func (q *Queries) LeaseFileMultipartUploadForValidation(ctx context.Context, arg
 	return i, err
 }
 
-const listExpiredFileMultipartUploads = `-- name: ListExpiredFileMultipartUploads :many
-SELECT id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at
-FROM file_multipart_uploads
-WHERE (
-    status = 'open'
-    OR (status = 'validating' AND (lease_expires_at IS NULL OR lease_expires_at <= $1::timestamptz))
-  )
-  AND expires_at <= $1::timestamptz
-ORDER BY expires_at ASC
-LIMIT $2::int
-`
-
-type ListExpiredFileMultipartUploadsParams struct {
-	Now    pgtype.Timestamptz `json:"now"`
-	LimitN int32              `json:"limit_n"`
-}
-
-// tenant: system
-func (q *Queries) ListExpiredFileMultipartUploads(ctx context.Context, arg ListExpiredFileMultipartUploadsParams) ([]FileMultipartUpload, error) {
-	rows, err := q.db.Query(ctx, listExpiredFileMultipartUploads, arg.Now, arg.LimitN)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []FileMultipartUpload{}
-	for rows.Next() {
-		var i FileMultipartUpload
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.DocumentID,
-			&i.FileID,
-			&i.FileUploadSessionID,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.OpenedVia,
-			&i.TokenDocumentID,
-			&i.StorageUploadID,
-			&i.ObjectKey,
-			&i.Filename,
-			&i.SizeBytes,
-			&i.PartSize,
-			&i.TotalParts,
-			&i.Title,
-			&i.ParentID,
-			&i.Visibility,
-			&i.ProbeHeadSha256,
-			&i.ProbeTailSha256,
-			&i.CdOffset,
-			&i.CdSize,
-			&i.Status,
-			&i.FailureCode,
-			&i.ResultDocumentID,
-			&i.ResultVersionUploadID,
-			&i.LeaseOwner,
-			&i.LeaseExpiresAt,
-			&i.ExpiresAt,
-			&i.ClosedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const markFileMultipartUploadExpired = `-- name: MarkFileMultipartUploadExpired :execrows
-UPDATE file_multipart_uploads
-SET status = 'expired',
-    lease_owner = NULL,
-    lease_expires_at = NULL,
-    closed_at = $1::timestamptz,
-    updated_at = $1::timestamptz
-WHERE id = $2::text
-  AND status IN ('open', 'validating')
-`
-
-type MarkFileMultipartUploadExpiredParams struct {
-	ClosedAt pgtype.Timestamptz `json:"closed_at"`
-	ID       string             `json:"id"`
-}
-
-// tenant: by-id
-func (q *Queries) MarkFileMultipartUploadExpired(ctx context.Context, arg MarkFileMultipartUploadExpiredParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markFileMultipartUploadExpired, arg.ClosedAt, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const releaseFileMultipartUploadLease = `-- name: ReleaseFileMultipartUploadLease :execrows
 UPDATE file_multipart_uploads
 SET status = 'open',
@@ -565,6 +529,7 @@ SET status = 'open',
 WHERE id = $2::text
   AND status = 'validating'
   AND lease_owner = $3::text
+  AND expires_at > $1::timestamptz
 `
 
 type ReleaseFileMultipartUploadLeaseParams struct {

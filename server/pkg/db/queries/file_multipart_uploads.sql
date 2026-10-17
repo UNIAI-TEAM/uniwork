@@ -51,7 +51,7 @@ INSERT INTO file_multipart_uploads (
     sqlc.narg(parent_id)::text,
     sqlc.narg(visibility)::text,
     sqlc.arg(probe_head_sha256)::text,
-    sqlc.narg(probe_tail_sha256)::text,
+    sqlc.arg(probe_tail_sha256)::text,
     sqlc.narg(cd_offset)::bigint,
     sqlc.narg(cd_size)::bigint,
     'open',
@@ -98,7 +98,8 @@ SET status = 'open',
     updated_at = sqlc.arg(now)::timestamptz
 WHERE id = sqlc.arg(id)::text
   AND status = 'validating'
-  AND lease_owner = sqlc.arg(lease_owner)::text;
+  AND lease_owner = sqlc.arg(lease_owner)::text
+  AND expires_at > sqlc.arg(now)::timestamptz;
 
 -- name: CompleteFileMultipartUpload :one
 -- tenant: by-id
@@ -115,7 +116,7 @@ WHERE id = sqlc.arg(id)::text
   AND lease_owner = sqlc.arg(lease_owner)::text
 RETURNING *;
 
--- name: FailFileMultipartUpload :one
+-- name: FailFileMultipartUpload :execrows
 -- tenant: by-id
 UPDATE file_multipart_uploads
 SET status = 'failed',
@@ -125,8 +126,8 @@ SET status = 'failed',
     closed_at = sqlc.arg(closed_at)::timestamptz,
     updated_at = sqlc.arg(closed_at)::timestamptz
 WHERE id = sqlc.arg(id)::text
-  AND status IN ('open', 'validating')
-RETURNING *;
+  AND status = 'validating'
+  AND lease_owner = sqlc.arg(lease_owner)::text;
 
 -- name: AbortFileMultipartUpload :execrows
 -- tenant: by-id
@@ -137,27 +138,31 @@ SET status = 'aborted',
     closed_at = sqlc.arg(closed_at)::timestamptz,
     updated_at = sqlc.arg(closed_at)::timestamptz
 WHERE id = sqlc.arg(id)::text
-  AND status = 'open';
-
--- name: ListExpiredFileMultipartUploads :many
--- tenant: system
-SELECT *
-FROM file_multipart_uploads
-WHERE (
+  AND (
     status = 'open'
     OR (status = 'validating' AND (lease_expires_at IS NULL OR lease_expires_at <= sqlc.arg(now)::timestamptz))
-  )
-  AND expires_at <= sqlc.arg(now)::timestamptz
-ORDER BY expires_at ASC
-LIMIT sqlc.arg(limit_n)::int;
+  );
 
--- name: MarkFileMultipartUploadExpired :execrows
--- tenant: by-id
+-- name: ClaimExpiredFileMultipartUploads :many
+-- tenant: system
 UPDATE file_multipart_uploads
 SET status = 'expired',
     lease_owner = NULL,
     lease_expires_at = NULL,
-    closed_at = sqlc.arg(closed_at)::timestamptz,
-    updated_at = sqlc.arg(closed_at)::timestamptz
-WHERE id = sqlc.arg(id)::text
-  AND status IN ('open', 'validating');
+    closed_at = sqlc.arg(now)::timestamptz,
+    updated_at = sqlc.arg(now)::timestamptz
+WHERE id IN (
+  SELECT file_multipart_uploads.id
+  FROM file_multipart_uploads
+  WHERE file_multipart_uploads.status IN ('open', 'validating')
+    AND file_multipart_uploads.expires_at <= sqlc.arg(now)::timestamptz
+    AND (
+      file_multipart_uploads.lease_owner IS NULL
+      OR file_multipart_uploads.lease_expires_at IS NULL
+      OR file_multipart_uploads.lease_expires_at <= sqlc.arg(now)::timestamptz
+    )
+  ORDER BY file_multipart_uploads.expires_at ASC
+  LIMIT sqlc.arg(limit_n)::int
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;

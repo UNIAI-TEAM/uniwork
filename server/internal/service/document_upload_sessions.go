@@ -591,7 +591,7 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 		ParentID:            nullText(tgt.parentID),
 		Visibility:          nullText(tgt.visibility),
 		ProbeHeadSha256:     probeHeadSHA,
-		ProbeTailSha256:     nullText(probeTailSHA),
+		ProbeTailSha256:     probeTailSHA,
 		CdOffset:            cdOffsetPg,
 		CdSize:              cdSizePg,
 		ExpiresAt:           pgtype.Timestamptz{Time: expiresAt, Valid: true},
@@ -830,23 +830,23 @@ func (s *DocumentService) completeUploadSession(ctx context.Context, actor Actor
 		if res, handled, terr := s.handleTerminalCompleteState(ctx, actor, fresh, now); handled || terr != nil {
 			return res, terr
 		}
-		return UploadSessionCompleteResult{}, CodedError{
-			Code:   "upload_session_busy",
-			Status: http.StatusConflict,
-			Msg:    "phiên tải lên đang được xác thực; hãy thử lại sau",
-			Fields: map[string]any{"retry_after": 5},
-		}
+		return UploadSessionCompleteResult{}, errUploadSessionBusy()
 	}
 	if err != nil {
 		return UploadSessionCompleteResult{}, err
 	}
 
-	releaseLease := func() {
-		_, _ = s.q.ReleaseFileMultipartUploadLease(context.Background(), db.ReleaseFileMultipartUploadLeaseParams{
+	releaseLease := func(fallbackErr error) error {
+		relNow := s.now().UTC().Truncate(time.Microsecond)
+		n, rerr := s.q.ReleaseFileMultipartUploadLease(context.Background(), db.ReleaseFileMultipartUploadLeaseParams{
 			ID:         leased.ID,
 			LeaseOwner: leaseOwner,
-			Now:        pgtype.Timestamptz{Time: s.now().UTC(), Valid: true},
+			Now:        pgtype.Timestamptz{Time: relNow, Valid: true},
 		})
+		if rerr == nil && n == 0 && !relNow.Before(leased.ExpiresAt.Time) {
+			return errUploadSessionExpired()
+		}
+		return fallbackErr
 	}
 
 	loc := storage.ObjectLocator{Storage: fs.backend, Bucket: fs.bucket, Key: leased.ObjectKey}
@@ -854,58 +854,56 @@ func (s *DocumentService) completeUploadSession(ctx context.Context, actor Actor
 	// Step 5: ListParts and compare 1..total_parts + ETag against client input.
 	uploadedParts, err := fs.store.ListParts(ctx, loc, leased.StorageUploadID)
 	if err != nil {
-		releaseLease()
 		if errors.Is(err, storage.ErrMultipartNotFound) {
-			return UploadSessionCompleteResult{}, errUploadPartsInvalid()
+			return UploadSessionCompleteResult{}, releaseLease(errUploadPartsInvalid())
 		}
-		return UploadSessionCompleteResult{}, documentFileError(files.StorageUnavailable(err))
+		return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
 	}
 	completeParts, valid := matchMultipartParts(int(leased.TotalParts), in.Parts, uploadedParts)
 	if !valid {
-		releaseLease()
-		return UploadSessionCompleteResult{}, errUploadPartsInvalid()
+		return UploadSessionCompleteResult{}, releaseLease(errUploadPartsInvalid())
 	}
 
 	// Step 6: CompleteMultipart + Stat size check.
 	putRes, err := fs.store.CompleteMultipart(ctx, loc, leased.StorageUploadID, completeParts)
 	if err != nil {
-		releaseLease()
 		if errors.Is(err, storage.ErrMultipartPartsInvalid) || errors.Is(err, storage.ErrMultipartNotFound) {
-			return UploadSessionCompleteResult{}, errUploadPartsInvalid()
+			return UploadSessionCompleteResult{}, releaseLease(errUploadPartsInvalid())
 		}
-		return UploadSessionCompleteResult{}, documentFileError(files.StorageUnavailable(err))
+		return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
 	}
 
 	statInfo, err := fs.store.Stat(ctx, loc)
 	if err != nil {
-		releaseLease()
-		return UploadSessionCompleteResult{}, documentFileError(files.StorageUnavailable(err))
+		return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
 	}
 	if statInfo.SizeBytes != leased.SizeBytes {
-		s.failMultipartSession(ctx, fs, leased, putRes.VersionID, "upload_size_mismatch")
-		return UploadSessionCompleteResult{}, errUploadSizeMismatch()
+		return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, "upload_size_mismatch", errUploadSizeMismatch())
 	}
 
-	// Step 7: Range re-read head and (if present) central_dir, compare sha256.
+	// Step 7: Range re-read head and (if zip/present) central_dir, compare sha256.
 	headLen := min(leased.SizeBytes, int64(UploadSessionMaxProbeHeadBytes))
 	headSHA, err := readObjectRangeSHA256(ctx, fs.store, loc, 0, headLen)
 	if err != nil {
-		releaseLease()
-		return UploadSessionCompleteResult{}, documentFileError(files.StorageUnavailable(err))
+		return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
 	}
 	if headSHA != leased.ProbeHeadSha256 {
-		s.failMultipartSession(ctx, fs, leased, putRes.VersionID, "upload_probe_mismatch")
-		return UploadSessionCompleteResult{}, errUploadProbeMismatch()
+		return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, "upload_probe_mismatch", errUploadProbeMismatch())
 	}
-	if leased.ProbeTailSha256.Valid && leased.ProbeTailSha256.String != "" && leased.CdOffset.Valid && leased.CdSize.Valid && leased.CdSize.Int64 > 0 {
+	expectedMIME, _ := document.ExpectedMIMEForExtension(leased.Filename)
+	isZip := expectedMIME == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+		expectedMIME == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+		expectedMIME == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	if isZip || leased.ProbeTailSha256 != "" || leased.CdOffset.Valid || leased.CdSize.Valid {
+		if !leased.CdOffset.Valid || !leased.CdSize.Valid || leased.CdSize.Int64 <= 0 || leased.ProbeTailSha256 == "" {
+			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, "upload_probe_mismatch", errUploadProbeMismatch())
+		}
 		tailSHA, err := readObjectRangeSHA256(ctx, fs.store, loc, leased.CdOffset.Int64, leased.CdSize.Int64)
 		if err != nil {
-			releaseLease()
-			return UploadSessionCompleteResult{}, documentFileError(files.StorageUnavailable(err))
+			return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
 		}
-		if tailSHA != leased.ProbeTailSha256.String {
-			s.failMultipartSession(ctx, fs, leased, putRes.VersionID, "upload_probe_mismatch")
-			return UploadSessionCompleteResult{}, errUploadProbeMismatch()
+		if tailSHA != leased.ProbeTailSha256 {
+			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, "upload_probe_mismatch", errUploadProbeMismatch())
 		}
 	}
 
@@ -916,23 +914,19 @@ func (s *DocumentService) completeUploadSession(ctx context.Context, actor Actor
 		var ce CodedError
 		switch {
 		case errors.As(valErr, &fe):
-			s.failMultipartSession(ctx, fs, leased, putRes.VersionID, document.ErrCodeUnsupportedMedia+":"+fe.Reason)
-			return UploadSessionCompleteResult{}, documentValidationError(valErr)
+			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, document.ErrCodeUnsupportedMedia+":"+fe.Reason, documentValidationError(valErr))
 		case errors.As(valErr, &ce) && ce.Status == http.StatusUnsupportedMediaType:
 			reason, _ := ce.Fields["reason"].(string)
-			s.failMultipartSession(ctx, fs, leased, putRes.VersionID, document.ErrCodeUnsupportedMedia+":"+reason)
-			return UploadSessionCompleteResult{}, ce
+			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, document.ErrCodeUnsupportedMedia+":"+reason, ce)
 		default:
-			releaseLease()
-			return UploadSessionCompleteResult{}, valErr
+			return UploadSessionCompleteResult{}, releaseLease(valErr)
 		}
 	}
 
 	// Step 9: Stage the FileService upload and finalize the session.
 	stagedUp, err := fs.stageMultipartUpload(ctx, leased.FileID, leased.FileUploadSessionID, contentType, leased.SizeBytes, checksumSHA256, putRes.VersionID)
 	if err != nil {
-		releaseLease()
-		return UploadSessionCompleteResult{}, documentFileError(err)
+		return UploadSessionCompleteResult{}, releaseLease(documentFileError(err))
 	}
 
 	if leased.OpenedVia == "workspace" {
@@ -1135,6 +1129,9 @@ func (s *DocumentService) completeWorkspaceUploadSessionInTx(
 		ResultVersionUploadID: pgtype.Text{},
 		ClosedAt:              pgtype.Timestamptz{Time: now, Valid: true},
 	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return UploadSessionCompleteResult{}, errUploadSessionBusy()
+		}
 		return UploadSessionCompleteResult{}, err
 	}
 
@@ -1192,6 +1189,9 @@ func (s *DocumentService) completeVersionOrFrameUploadSessionInTx(
 		ResultVersionUploadID: pgtype.Text{String: string(stagedUp.File.ID), Valid: true},
 		ClosedAt:              pgtype.Timestamptz{Time: now, Valid: true},
 	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return UploadSessionCompleteResult{}, errUploadSessionBusy()
+		}
 		return UploadSessionCompleteResult{}, err
 	}
 
@@ -1326,10 +1326,25 @@ func (s *DocumentService) failMultipartSession(
 	ctx context.Context,
 	fs *FileService,
 	row db.FileMultipartUpload,
+	leaseOwner string,
 	objectVersion string,
 	failureCode string,
-) {
+	failErr error,
+) error {
 	ctx = context.WithoutCancel(ctx)
+	now := s.now().UTC().Truncate(time.Microsecond)
+	n, err := s.q.FailFileMultipartUpload(ctx, db.FailFileMultipartUploadParams{
+		ID:          row.ID,
+		LeaseOwner:  leaseOwner,
+		FailureCode: failureCode,
+		ClosedAt:    pgtype.Timestamptz{Time: now, Valid: true},
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errUploadSessionBusy()
+	}
 	loc := storage.ObjectLocator{
 		Storage: fs.backend,
 		Bucket:  fs.bucket,
@@ -1338,12 +1353,7 @@ func (s *DocumentService) failMultipartSession(
 	}
 	_ = fs.store.Delete(ctx, loc)
 	fs.cancelMultipartFileSession(ctx, row.FileID, row.FileUploadSessionID, true)
-	now := s.now().UTC().Truncate(time.Microsecond)
-	_, _ = s.q.FailFileMultipartUpload(ctx, db.FailFileMultipartUploadParams{
-		ID:          row.ID,
-		FailureCode: failureCode,
-		ClosedAt:    pgtype.Timestamptz{Time: now, Valid: true},
-	})
+	return failErr
 }
 
 func (s *DocumentService) streamValidateAssembledObject(
@@ -1419,6 +1429,7 @@ func (s *DocumentService) abortUploadSession(ctx context.Context, actor Actor, r
 	if err != nil {
 		return err
 	}
+	now := s.now().UTC().Truncate(time.Microsecond)
 	switch row.Status {
 	case "completed":
 		return CodedError{
@@ -1429,24 +1440,11 @@ func (s *DocumentService) abortUploadSession(ctx context.Context, actor Actor, r
 	case "aborted", "expired", "failed":
 		return nil
 	case "validating":
-		now := s.now()
-		if row.LeaseExpiresAt.Valid && now.Before(row.LeaseExpiresAt.Time) {
-			return CodedError{
-				Code:   "upload_session_busy",
-				Status: http.StatusConflict,
-				Msg:    "phiên tải lên đang được xác thực; hãy thử lại sau",
-				Fields: map[string]any{"retry_after": 5},
-			}
+		if row.LeaseExpiresAt.Valid && row.LeaseExpiresAt.Time.After(now) {
+			return errUploadSessionBusy()
 		}
 	}
 
-	loc := storage.ObjectLocator{Storage: fs.backend, Bucket: fs.bucket, Key: row.ObjectKey}
-	if err := fs.store.AbortMultipart(ctx, loc, row.StorageUploadID); err != nil && !errors.Is(err, storage.ErrMultipartNotFound) {
-		return documentFileError(files.StorageUnavailable(err))
-	}
-	fs.cancelMultipartFileSession(ctx, row.FileID, row.FileUploadSessionID, true)
-
-	now := s.now().UTC().Truncate(time.Microsecond)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -1457,16 +1455,93 @@ func (s *DocumentService) abortUploadSession(ctx context.Context, actor Actor, r
 	n, err := q.AbortFileMultipartUpload(ctx, db.AbortFileMultipartUploadParams{
 		ID:       row.ID,
 		ClosedAt: pgtype.Timestamptz{Time: now, Valid: true},
+		Now:      pgtype.Timestamptz{Time: now, Valid: true},
 	})
 	if err != nil {
 		return err
 	}
-	if n > 0 {
+	if n == 0 {
+		fresh, rerr := q.GetFileMultipartUploadByID(ctx, row.ID)
+		if rerr != nil {
+			return rerr
+		}
+		switch fresh.Status {
+		case "completed":
+			return CodedError{
+				Code:   "upload_session_completed",
+				Status: http.StatusConflict,
+				Msg:    "phiên tải lên đã hoàn tất, không thể hủy",
+			}
+		case "open", "validating":
+			return errUploadSessionBusy()
+		default:
+			return nil
+		}
+	}
+
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: row.OrganizationID,
+		WorkspaceID:    row.WorkspaceID,
+		Actor:          actor,
+		Action:         audit.ActionDocumentUploadSessionAborted,
+		ResourceType:   "upload_session",
+		ResourceID:     row.ID,
+		Changes: audit.Diff(nil, map[string]any{
+			"session_id": row.ID,
+			"file_id":    row.FileID,
+		}),
+		Metadata: map[string]any{
+			"session_id": row.ID,
+			"file_id":    row.FileID,
+		},
+	}); err != nil {
+		return err
+	}
+
+	loc := storage.ObjectLocator{Storage: fs.backend, Bucket: fs.bucket, Key: row.ObjectKey}
+	if err := fs.store.AbortMultipart(ctx, loc, row.StorageUploadID); err != nil && !errors.Is(err, storage.ErrMultipartNotFound) {
+		return documentFileError(files.StorageUnavailable(err))
+	}
+	fs.cancelMultipartFileSession(ctx, row.FileID, row.FileUploadSessionID, true)
+
+	return tx.Commit(ctx)
+}
+
+// ExpireMultipartUploads sweeps expired multipart upload sessions, claims them
+// in a single SKIP LOCKED update, records document.upload_session_expired, and
+// aborts S3 multipart uploads and FileService sessions only for claimed rows.
+func (s *DocumentService) ExpireMultipartUploads(ctx context.Context, now time.Time) (int, error) {
+	if s == nil || s.q == nil || s.pool == nil {
+		return 0, nil
+	}
+	fs, _ := s.files.(*FileService)
+	now = now.UTC().Truncate(time.Microsecond)
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+
+	rows, err := q.ClaimExpiredFileMultipartUploads(ctx, db.ClaimExpiredFileMultipartUploadsParams{
+		Now:    pgtype.Timestamptz{Time: now, Valid: true},
+		LimitN: 100,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+
+	sys := audit.System("documents.upload_session_gc")
+	for _, row := range rows {
 		if err := auditRecorder.Record(ctx, q, audit.Entry{
 			OrganizationID: row.OrganizationID,
 			WorkspaceID:    row.WorkspaceID,
-			Actor:          actor,
-			Action:         audit.ActionDocumentUploadSessionAborted,
+			Actor:          sys,
+			Action:         audit.ActionDocumentUploadSessionExpired,
 			ResourceType:   "upload_session",
 			ResourceID:     row.ID,
 			Changes: audit.Diff(nil, map[string]any{
@@ -1478,81 +1553,21 @@ func (s *DocumentService) abortUploadSession(ctx context.Context, actor Actor, r
 				"file_id":    row.FileID,
 			},
 		}); err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return tx.Commit(ctx)
-}
-
-// ExpireMultipartUploads sweeps expired multipart upload sessions, aborts
-// their S3 multipart uploads, cancels their FileService sessions (releasing
-// quota), marks them expired, and records document.upload_session_expired.
-func (s *DocumentService) ExpireMultipartUploads(ctx context.Context, now time.Time) (int, error) {
-	if s == nil || s.q == nil || s.pool == nil {
-		return 0, nil
-	}
-	fs, _ := s.files.(*FileService)
-	now = now.UTC().Truncate(time.Microsecond)
-	rows, err := s.q.ListExpiredFileMultipartUploads(ctx, db.ListExpiredFileMultipartUploadsParams{
-		Now:    pgtype.Timestamptz{Time: now, Valid: true},
-		LimitN: 100,
-	})
-	if err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return 0, err
 	}
 
-	sys := audit.System("documents.upload_session_gc")
-	expiredCount := 0
 	for _, row := range rows {
-		if ctx.Err() != nil {
-			return expiredCount, ctx.Err()
-		}
 		if fs != nil && fs.store != nil {
 			loc := storage.ObjectLocator{Storage: fs.backend, Bucket: fs.bucket, Key: row.ObjectKey}
 			_ = fs.store.AbortMultipart(ctx, loc, row.StorageUploadID)
 			fs.cancelMultipartFileSession(ctx, row.FileID, row.FileUploadSessionID, true)
 		}
-
-		tx, err := s.pool.Begin(ctx)
-		if err != nil {
-			return expiredCount, err
-		}
-		q := s.q.WithTx(tx)
-		n, err := q.MarkFileMultipartUploadExpired(ctx, db.MarkFileMultipartUploadExpiredParams{
-			ID:       row.ID,
-			ClosedAt: pgtype.Timestamptz{Time: now, Valid: true},
-		})
-		if err != nil {
-			_ = tx.Rollback(ctx)
-			return expiredCount, err
-		}
-		if n > 0 {
-			if err := auditRecorder.Record(ctx, q, audit.Entry{
-				OrganizationID: row.OrganizationID,
-				WorkspaceID:    row.WorkspaceID,
-				Actor:          sys,
-				Action:         audit.ActionDocumentUploadSessionExpired,
-				ResourceType:   "upload_session",
-				ResourceID:     row.ID,
-				Changes: audit.Diff(nil, map[string]any{
-					"session_id": row.ID,
-					"file_id":    row.FileID,
-				}),
-				Metadata: map[string]any{
-					"session_id": row.ID,
-					"file_id":    row.FileID,
-				},
-			}); err != nil {
-				_ = tx.Rollback(ctx)
-				return expiredCount, err
-			}
-			expiredCount++
-		}
-		if err := tx.Commit(ctx); err != nil {
-			return expiredCount, err
-		}
 	}
-	return expiredCount, nil
+	return len(rows), nil
 }
 
 func (s *DocumentService) authorizeNonFrameUploadSession(ctx context.Context, actor Actor, sessionID string) (db.FileMultipartUpload, error) {
@@ -1730,6 +1745,15 @@ func errUploadSessionExpired() error {
 		Code:   "upload_session_expired",
 		Status: http.StatusGone,
 		Msg:    "phiên tải lên đã hết hạn hoặc đã bị hủy",
+	}
+}
+
+func errUploadSessionBusy() error {
+	return CodedError{
+		Code:   "upload_session_busy",
+		Status: http.StatusConflict,
+		Msg:    "phiên tải lên đang được xác thực; hãy thử lại sau",
+		Fields: map[string]any{"retry_after": 5},
 	}
 }
 

@@ -1098,7 +1098,7 @@ type FileMultipartUpload struct {
 	ParentID              pgtype.Text        `json:"parent_id"`
 	Visibility            pgtype.Text        `json:"visibility"`
 	ProbeHeadSha256       string             `json:"probe_head_sha256"`
-	ProbeTailSha256       pgtype.Text        `json:"probe_tail_sha256"`
+	ProbeTailSha256       string             `json:"probe_tail_sha256"`
 	CdOffset              pgtype.Int8        `json:"cd_offset"`
 	CdSize                pgtype.Int8        `json:"cd_size"`
 	Status                string             `json:"status"`

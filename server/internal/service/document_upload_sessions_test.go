@@ -9,11 +9,15 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func newMultipartDocEnv(t *testing.T) *docStorageEnv {
@@ -318,43 +322,92 @@ func TestUploadSessionOpenRollsBackQuotaWhenCreateMultipartFails(t *testing.T) {
 func TestUploadSessionOpenEnforcesMax4PerUser(t *testing.T) {
 	env := newMultipartDocEnv(t)
 	ctx := context.Background()
-	member := human(env.tn.member)
+	owner := human(env.tn.owner) // member of both wsA and wsB
 
-	_, probe := buildLargePDF(25<<20, "concurrency-cap")
-	var sessions []UploadSessionView
-	for i := 0; i < 4; i++ {
-		v, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-			Filename:  "ok.pdf",
-			SizeBytes: 25 << 20,
-			Probe:     probe,
-		})
-		if err != nil {
-			t.Fatalf("open session %d: %v", i+1, err)
-		}
-		sessions = append(sessions, v)
-	}
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "concurrency-cap")
 
-	// 5th open session must fail with 429 upload_sessions_exhausted + retry_after = 60.
-	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "fifth.pdf",
-		SizeBytes: 25 << 20,
+	// Open 2 sessions in wsA and 1 session in wsB (all 'open').
+	s1, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "ok-1.pdf",
+		SizeBytes: size,
 		Probe:     probe,
 	})
-	ce := wantCode(t, err, "upload_sessions_exhausted")
-	if ce.Status != http.StatusTooManyRequests {
-		t.Fatalf("status = %d, want 429", ce.Status)
+	if err != nil {
+		t.Fatalf("open session 1 (wsA): %v", err)
 	}
-	if ce.Fields["retry_after"] != 60 {
-		t.Fatalf("fields.retry_after = %v, want 60", ce.Fields["retry_after"])
+	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "ok-2.pdf",
+		SizeBytes: size,
+		Probe:     probe,
+	}); err != nil {
+		t.Fatalf("open session 2 (wsA): %v", err)
+	}
+	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsB, OpenUploadSessionInput{
+		Filename:  "ok-3-wsb.pdf",
+		SizeBytes: size,
+		Probe:     probe,
+	}); err != nil {
+		t.Fatalf("open session 3 (wsB): %v", err)
 	}
 
-	// Aborting one frees a slot so the next open succeeds.
-	if err := env.svc.AbortUploadSession(ctx, member, sessions[0].SessionID); err != nil {
-		t.Fatalf("abort session 0: %v", err)
+	// Open a 4th session in wsA and hold it in 'validating'.
+	s4, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "ok-4-validating.pdf",
+		SizeBytes: size,
+		Probe:     probe,
+	})
+	if err != nil {
+		t.Fatalf("open session 4 (wsA): %v", err)
 	}
-	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+	parts4 := uploadAllParts(t, env, s4.SessionID, body)
+
+	inComplete := make(chan struct{})
+	releaseComplete := make(chan struct{})
+	var once sync.Once
+	env.store.beforeComplete = func() {
+		once.Do(func() {
+			close(inComplete)
+			<-releaseComplete
+		})
+	}
+	defer func() { env.store.beforeComplete = nil }()
+
+	completeDone := make(chan error, 1)
+	go func() {
+		_, cerr := env.svc.CompleteUploadSession(ctx, owner, s4.SessionID, CompleteUploadSessionInput{Parts: parts4})
+		completeDone <- cerr
+	}()
+	<-inComplete
+
+	// 5th open session in wsA or wsB must fail with 429 upload_sessions_exhausted + retry_after = 60.
+	for _, wsID := range []string{env.tn.wsA, env.tn.wsB} {
+		_, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, wsID, OpenUploadSessionInput{
+			Filename:  "fifth.pdf",
+			SizeBytes: size,
+			Probe:     probe,
+		})
+		ce := wantCode(t, err, "upload_sessions_exhausted")
+		if ce.Status != http.StatusTooManyRequests {
+			t.Fatalf("ws=%s status = %d, want 429", wsID, ce.Status)
+		}
+		if ce.Fields["retry_after"] != 60 {
+			t.Fatalf("ws=%s fields.retry_after = %v, want 60", wsID, ce.Fields["retry_after"])
+		}
+	}
+
+	close(releaseComplete)
+	if cerr := <-completeDone; cerr != nil {
+		t.Fatalf("complete session 4: %v", cerr)
+	}
+
+	// Aborting one frees a slot (and completing s4 also freed one) so the next open succeeds.
+	if err := env.svc.AbortUploadSession(ctx, owner, s1.SessionID); err != nil {
+		t.Fatalf("abort session 1: %v", err)
+	}
+	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsB, OpenUploadSessionInput{
 		Filename:  "fifth-retry.pdf",
-		SizeBytes: 25 << 20,
+		SizeBytes: size,
 		Probe:     probe,
 	}); err != nil {
 		t.Fatalf("open after abort: %v", err)
@@ -944,6 +997,80 @@ func TestUploadSessionAbortAfterCompleteReturns409(t *testing.T) {
 	}
 }
 
+func TestUploadSessionAbortStealableValidatingAndLiveLeaseBusy(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	_, probe := buildLargePDF(25<<20, "abort-validating")
+	var sessions []UploadSessionView
+	for i := 0; i < 4; i++ {
+		v, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+			Filename:  "slot.pdf",
+			SizeBytes: 25 << 20,
+			Probe:     probe,
+		})
+		if err != nil {
+			t.Fatalf("open session %d: %v", i+1, err)
+		}
+		sessions = append(sessions, v)
+	}
+
+	// Acquire a live validation lease on session 0.
+	now := env.clock.Now().UTC().Truncate(time.Microsecond)
+	if _, err := env.f.q.LeaseFileMultipartUploadForValidation(ctx, db.LeaseFileMultipartUploadForValidationParams{
+		ID:             sessions[0].SessionID,
+		LeaseOwner:     "complete:test-live-lease",
+		LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(UploadSessionValidationLeaseTTL), Valid: true},
+		Now:            pgtype.Timestamptz{Time: now, Valid: true},
+	}); err != nil {
+		t.Fatalf("lease session 0: %v", err)
+	}
+
+	// Aborting while the lease is live must return 409 upload_session_busy and keep the row validating.
+	busyErr := env.svc.AbortUploadSession(ctx, member, sessions[0].SessionID)
+	ce := wantCode(t, busyErr, "upload_session_busy")
+	if ce.Status != http.StatusConflict {
+		t.Fatalf("live-lease abort status = %d, want 409", ce.Status)
+	}
+	if ce.Fields["retry_after"] != 5 {
+		t.Fatalf("fields.retry_after = %v, want 5", ce.Fields["retry_after"])
+	}
+	liveRow, err := env.f.q.GetFileMultipartUploadByID(ctx, sessions[0].SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if liveRow.Status != "validating" || liveRow.ClosedAt.Valid {
+		t.Fatalf("row after live-lease abort = status %q closed_at %v, want validating with NULL closed_at", liveRow.Status, liveRow.ClosedAt)
+	}
+
+	// Expire only the validation lease (session TTL is 24h, lease TTL is 10m).
+	env.clock.Advance(UploadSessionValidationLeaseTTL + time.Minute)
+	if err := env.svc.AbortUploadSession(ctx, member, sessions[0].SessionID); err != nil {
+		t.Fatalf("abort validating session with expired lease: %v", err)
+	}
+
+	abortedRow, err := env.f.q.GetFileMultipartUploadByID(ctx, sessions[0].SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if abortedRow.Status != "aborted" || !abortedRow.ClosedAt.Valid {
+		t.Fatalf("row after expired-lease abort = status %q closed_at %v, want aborted with closed_at set", abortedRow.Status, abortedRow.ClosedAt)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionAborted, sessions[0].SessionID); n != 1 {
+		t.Fatalf("audit document.upload_session_aborted = %d, want 1", n)
+	}
+
+	// The D5 concurrency slot is now free so opening another session succeeds.
+	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "freed-slot.pdf",
+		SizeBytes: 25 << 20,
+		Probe:     probe,
+	}); err != nil {
+		t.Fatalf("open after aborting expired-lease validating session: %v", err)
+	}
+}
+
 func TestExpireMultipartUploadsReclaimsQuotaAndAudits(t *testing.T) {
 	env := newMultipartDocEnv(t)
 	ctx := context.Background()
@@ -981,6 +1108,205 @@ func TestExpireMultipartUploadsReclaimsQuotaAndAudits(t *testing.T) {
 	}
 	if n := env.countAudit(t, audit.ActionDocumentUploadSessionExpired, opened.SessionID); n != 1 {
 		t.Fatalf("audit document.upload_session_expired = %d, want 1", n)
+	}
+}
+
+func TestExpireMultipartUploadsConcurrentCallsClaimEachRowOnce(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	_, probe := buildLargePDF(25<<20, "gc-concurrent")
+	s1, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "expire-1.pdf",
+		SizeBytes: 25 << 20,
+		Probe:     probe,
+	})
+	if err != nil {
+		t.Fatalf("open s1: %v", err)
+	}
+	s2, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "expire-2.pdf",
+		SizeBytes: 25 << 20,
+		Probe:     probe,
+	})
+	if err != nil {
+		t.Fatalf("open s2: %v", err)
+	}
+	row1, err := env.f.q.GetFileMultipartUploadByID(ctx, s1.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row2, err := env.f.q.GetFileMultipartUploadByID(ctx, s2.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	env.clock.Advance(25 * time.Hour)
+	sweepNow := env.clock.Now()
+
+	firstInAbort := make(chan struct{})
+	secondDone := make(chan struct{})
+	var entered atomic.Bool
+	env.store.beforeAbort = func(key string) {
+		if key == row1.ObjectKey || key == row2.ObjectKey {
+			if entered.CompareAndSwap(false, true) {
+				close(firstInAbort)
+				<-secondDone
+			}
+		}
+	}
+	defer func() { env.store.beforeAbort = nil }()
+
+	var n1, n2 int
+	var err1, err2 error
+	done1 := make(chan struct{})
+	go func() {
+		defer close(done1)
+		n1, err1 = env.svc.ExpireMultipartUploads(ctx, sweepNow)
+	}()
+
+	<-firstInAbort
+	n2, err2 = env.svc.ExpireMultipartUploads(ctx, sweepNow)
+	close(secondDone)
+	<-done1
+
+	if err1 != nil || err2 != nil {
+		t.Fatalf("concurrent ExpireMultipartUploads err1=%v err2=%v", err1, err2)
+	}
+	if n1+n2 < 2 {
+		t.Fatalf("total expired count = %d (n1=%d, n2=%d), want >= 2", n1+n2, n1, n2)
+	}
+	env.store.mu.Lock()
+	aborts1 := env.store.abortsByKey[row1.ObjectKey]
+	aborts2 := env.store.abortsByKey[row2.ObjectKey]
+	env.store.mu.Unlock()
+	if aborts1 != 1 || aborts2 != 1 {
+		t.Fatalf("AbortMultipart counts = (%d, %d), want (1, 1)", aborts1, aborts2)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionExpired, s1.SessionID); n != 1 {
+		t.Fatalf("s1 audit document.upload_session_expired = %d, want 1", n)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionExpired, s2.SessionID); n != 1 {
+		t.Fatalf("s2 audit document.upload_session_expired = %d, want 1", n)
+	}
+}
+
+func TestExpireMultipartUploadsLeavesLiveSessionsUntouched(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	// Drain any expired sessions left in the shared test DB by earlier tests.
+	for {
+		n, err := env.svc.ExpireMultipartUploads(ctx, env.clock.Now().Add(48*time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n == 0 {
+			break
+		}
+	}
+	env.store.mu.Lock()
+	env.store.multipartAborts = 0
+	env.store.mu.Unlock()
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	_, probe := buildLargePDF(size, "gc-live-untouched")
+
+	// 1. Live 'open' row.
+	openSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "live-open.pdf",
+		SizeBytes: size,
+		Probe:     probe,
+	})
+	if err != nil {
+		t.Fatalf("open live session: %v", err)
+	}
+
+	// 2. 'validating' row with a live lease.
+	valSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "live-validating.pdf",
+		SizeBytes: size,
+		Probe:     probe,
+	})
+	if err != nil {
+		t.Fatalf("open validating session: %v", err)
+	}
+	now := env.clock.Now().UTC().Truncate(time.Microsecond)
+	if _, err := env.f.q.LeaseFileMultipartUploadForValidation(ctx, db.LeaseFileMultipartUploadForValidationParams{
+		ID:             valSess.SessionID,
+		LeaseOwner:     "complete:live-holder",
+		LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(UploadSessionValidationLeaseTTL), Valid: true},
+		Now:            pgtype.Timestamptz{Time: now, Valid: true},
+	}); err != nil {
+		t.Fatalf("lease validating session: %v", err)
+	}
+
+	n, err := env.svc.ExpireMultipartUploads(ctx, env.clock.Now())
+	if err != nil {
+		t.Fatalf("ExpireMultipartUploads: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expiredCount = %d, want 0 for live open and live-leased validating rows", n)
+	}
+	if env.store.multipartAborts != 0 {
+		t.Fatalf("multipartAborts = %d, want 0", env.store.multipartAborts)
+	}
+	used, err := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if used != 2*size {
+		t.Fatalf("used storage bytes = %d, want %d (quota still held for both)", used, 2*size)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionExpired, openSess.SessionID); n != 0 {
+		t.Fatalf("openSess expired audit = %d, want 0", n)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionExpired, valSess.SessionID); n != 0 {
+		t.Fatalf("valSess expired audit = %d, want 0", n)
+	}
+
+	// Also verify a validating row whose session TTL has elapsed while its validation lease is still live is untouched.
+	if err := env.svc.AbortUploadSession(ctx, member, openSess.SessionID); err != nil {
+		t.Fatalf("abort openSess: %v", err)
+	}
+	env.store.mu.Lock()
+	env.store.multipartAborts = 0
+	env.store.mu.Unlock()
+
+	env.clock.Advance(UploadSessionTTL - time.Minute)
+	leaseStart := env.clock.Now().UTC().Truncate(time.Microsecond)
+	if _, err := env.f.q.LeaseFileMultipartUploadForValidation(ctx, db.LeaseFileMultipartUploadForValidationParams{
+		ID:             valSess.SessionID,
+		LeaseOwner:     "complete:live-holder-2",
+		LeaseExpiresAt: pgtype.Timestamptz{Time: leaseStart.Add(UploadSessionValidationLeaseTTL), Valid: true},
+		Now:            pgtype.Timestamptz{Time: leaseStart, Valid: true},
+	}); err != nil {
+		t.Fatalf("re-lease validating session: %v", err)
+	}
+	// Advance 2 minutes: expires_at <= now, but lease_expires_at > now.
+	env.clock.Advance(2 * time.Minute)
+	n, err = env.svc.ExpireMultipartUploads(ctx, env.clock.Now())
+	if err != nil {
+		t.Fatalf("ExpireMultipartUploads with live lease past TTL: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expiredCount = %d, want 0 when validation lease is still live", n)
+	}
+	if env.store.multipartAborts != 0 {
+		t.Fatalf("multipartAborts = %d, want 0", env.store.multipartAborts)
+	}
+	used, err = env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if used != size {
+		t.Fatalf("used storage bytes = %d, want %d (quota still held for live-leased session)", used, size)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionExpired, valSess.SessionID); n != 0 {
+		t.Fatalf("valSess expired audit = %d, want 0", n)
 	}
 }
 
@@ -1067,6 +1393,189 @@ func TestSupportsChunkedUploadReflectsStoreCapabilities(t *testing.T) {
 	env.store.enableMultipart(true)
 	if !env.svc.SupportsChunkedUpload() {
 		t.Fatal("SupportsChunkedUpload = false when Multipart && Presign enabled, want true")
+	}
+}
+
+func TestUploadSessionProbeTailNotNullAndAlwaysCompared(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	const size = 25 << 20
+	_, pdfProbe := buildLargePDF(size, "tail-not-null")
+	pdfSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "non-zip.pdf",
+		SizeBytes: size,
+		Probe:     pdfProbe,
+	})
+	if err != nil {
+		t.Fatalf("open pdf session: %v", err)
+	}
+
+	// 1. probe_tail_sha256 must be NOT NULL (empty string for non-zip) in DB.
+	var tailIsNull bool
+	var tailVal string
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT probe_tail_sha256 IS NULL, COALESCE(probe_tail_sha256, '') FROM file_multipart_uploads WHERE id = $1`,
+		pdfSess.SessionID,
+	).Scan(&tailIsNull, &tailVal); err != nil {
+		t.Fatal(err)
+	}
+	if tailIsNull || tailVal != "" {
+		t.Fatalf("non-zip probe_tail_sha256 isNull=%v val=%q, want isNull=false val=\"\"", tailIsNull, tailVal)
+	}
+	if _, err := env.f.pool.Exec(ctx,
+		`UPDATE file_multipart_uploads SET probe_tail_sha256 = NULL WHERE id = $1`,
+		pdfSess.SessionID,
+	); err == nil {
+		t.Fatal("expected NOT NULL violation when setting probe_tail_sha256 = NULL")
+	}
+
+	// 2. CHECK ((cd_offset IS NULL) = (cd_size IS NULL)) must reject unpaired values.
+	if _, err := env.f.pool.Exec(ctx,
+		`UPDATE file_multipart_uploads SET cd_offset = 100, cd_size = NULL WHERE id = $1`,
+		pdfSess.SessionID,
+	); err == nil {
+		t.Fatal("expected CHECK violation when cd_offset IS NOT NULL and cd_size IS NULL")
+	}
+
+	// 3. Zip session stores 64-hex digest and Complete always compares the tail.
+	docxBody, docxProbe := buildLargeDOCX(t, size, nil)
+	docxSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "zip-tail.docx",
+		SizeBytes: size,
+		Probe:     docxProbe,
+	})
+	if err != nil {
+		t.Fatalf("open docx session: %v", err)
+	}
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT COALESCE(probe_tail_sha256, '') FROM file_multipart_uploads WHERE id = $1`,
+		docxSess.SessionID,
+	).Scan(&tailVal); err != nil {
+		t.Fatal(err)
+	}
+	if len(tailVal) != 64 {
+		t.Fatalf("zip probe_tail_sha256 len = %d (%q), want 64-hex digest", len(tailVal), tailVal)
+	}
+
+	// Force probe_tail_sha256 to empty string on the zip row; Complete must still compare and fail.
+	if _, err := env.f.pool.Exec(ctx,
+		`UPDATE file_multipart_uploads SET probe_tail_sha256 = '' WHERE id = $1`,
+		docxSess.SessionID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	parts := uploadAllParts(t, env, docxSess.SessionID, docxBody)
+	_, err = env.svc.CompleteUploadSession(ctx, member, docxSess.SessionID, CompleteUploadSessionInput{Parts: parts})
+	ce := wantCode(t, err, "upload_probe_mismatch")
+	if ce.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", ce.Status)
+	}
+}
+
+func TestUploadSessionFailFencedByLeaseOwner(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "fail-lease-fence")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "fenced.pdf",
+		SizeBytes: size,
+		Probe:     probe,
+	})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	// Tamper with the first byte of the uploaded body so Completer A hits the
+	// head-probe mismatch failure path after CompleteMultipart.
+	tampered := append([]byte(nil), body...)
+	tampered[10] ^= 0xff
+	parts := uploadAllParts(t, env, opened.SessionID, tampered)
+
+	var once sync.Once
+	env.store.beforeComplete = func() {
+		once.Do(func() {
+			// Expire Completer A's validation lease and let Completer B steal the lease.
+			env.clock.Advance(UploadSessionValidationLeaseTTL + time.Minute)
+			nowB := env.clock.Now().UTC().Truncate(time.Microsecond)
+			if _, lerr := env.f.q.LeaseFileMultipartUploadForValidation(ctx, db.LeaseFileMultipartUploadForValidationParams{
+				ID:             opened.SessionID,
+				LeaseOwner:     "complete:worker-B",
+				LeaseExpiresAt: pgtype.Timestamptz{Time: nowB.Add(UploadSessionValidationLeaseTTL), Valid: true},
+				Now:            pgtype.Timestamptz{Time: nowB, Valid: true},
+			}); lerr != nil {
+				t.Errorf("worker B lease failed: %v", lerr)
+			}
+		})
+	}
+	defer func() { env.store.beforeComplete = nil }()
+
+	// Completer A's fail path must notice its lease was lost, not fail B's row or delete B's object, and return 409 busy.
+	_, errA := env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	ce := wantCode(t, errA, "upload_session_busy")
+	if ce.Status != http.StatusConflict {
+		t.Fatalf("Completer A status = %d, want 409", ce.Status)
+	}
+
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "validating" || row.LeaseOwner.String != "complete:worker-B" {
+		t.Fatalf("row after A's fenced fail = status %q lease_owner %q, want validating with complete:worker-B", row.Status, row.LeaseOwner.String)
+	}
+	if env.store.deletedKeys[row.ObjectKey] != 0 {
+		t.Fatalf("deletedKeys[%s] = %d, want 0 when lease was lost", row.ObjectKey, env.store.deletedKeys[row.ObjectKey])
+	}
+	used, err := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if used != size {
+		t.Fatalf("used storage bytes = %d, want %d (still reserved for B)", used, size)
+	}
+}
+
+func TestUploadSessionLeaseReleasePastExpiryDoesNotResurrectToOpen(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	const size = 25 << 20
+	_, probe := buildLargePDF(size, "release-past-expiry")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:  "expire-during-complete.pdf",
+		SizeBytes: size,
+		Probe:     probe,
+	})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	// Lease just before expires_at, then advance past expires_at inside ListParts so releaseLease runs past TTL.
+	env.clock.Advance(UploadSessionTTL - time.Minute)
+	env.store.beforeListParts = func() {
+		env.clock.Advance(2 * time.Minute)
+	}
+	defer func() { env.store.beforeListParts = nil }()
+
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: nil})
+	ce := wantCode(t, err, "upload_session_expired")
+	if ce.Status != http.StatusGone {
+		t.Fatalf("Complete past expiry status = %d, want 410", ce.Status)
+	}
+
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status == "open" {
+		t.Fatalf("row status = %q after past-TTL lease release, must not resurrect to open", row.Status)
 	}
 }
 
