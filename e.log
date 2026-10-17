@@ -1,0 +1,18 @@
+$ echo "=== T3 ==="; xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t3-upgrade-rollback.mjs; rc=$?; echo; echo "T3_SUITE_EXIT=$rc"
+=== T3 ===
+==================================================================
+[g7-05/t3] Step 1: Install & run N' (v1.0.0-beta.3, APP_STORE_LEVEL=2)
+==================================================================
+[g7-05/t3] Installing /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office_1.0.0_amd64.deb via sudo dpkg -i ...
+[g7-05/t3] FATAL: page.evaluate: TypeError: globalThis.window.aiOffice.tabsList is not a function
+    at eval (eval at evaluate (:311:30), <anonymous>:4:55)
+    at async <anonymous>:337:30
+    at main (/home/ubuntu/work/uniwork-office/tools/g7-05/t3-upgrade-rollback.mjs:172:42) {
+  log: []
+}
+T3_UPGRADE_EXIT=1
+T3_ROLLBACK_EXIT=1
+T3_REUPGRADE_EXIT=1
+G7_05_T3_EXIT=1
+
+T3_SUITE_EXIT=1
