@@ -1824,6 +1824,25 @@ describe('usage rows and arguments', () => {
       'fail',
       'a reported count that conflicts with the invariant must fail, not be overwritten by the oracle count',
     );
+    // R17-9 (review-g712-17): the conflict is found by TOPIC, not by value equality. A natural anchor ("changed
+    // paragraphs") names the same private count as "changed_paragraphs", so a wrong value under it is a conflict too
+    // and must not be answered with a synthesized oracle count.
+    const naturalConflicting = deriveAnswer(injCase, ask([count('changed paragraphs', '5')], 'get_document_context', ['docs']));
+    assert.equal(
+      score(injCase, naturalConflicting.answer).status,
+      'fail',
+      'a natural-anchored conflicting count must fail, not be overwritten by the oracle count (R17-9)',
+    );
+    assert.ok(
+      !naturalConflicting.answer.structural.some((s) => s.kind === 'count' && String(s.value) === '0'),
+      'no synthetic oracle count may appear beside an explicit conflict (R17-9)',
+    );
+    // The correct natural-anchored count still passes through the ordinary pick.
+    assert.equal(
+      score(injCase, deriveAnswer(injCase, ask([count('changed paragraphs', '0')], 'get_document_context', ['docs'])).answer).status,
+      'pass',
+      'a natural-anchored count that states the invariant still passes (R17-9)',
+    );
     // The unchanged path still passes: a non-edit zero-write case with no conflicting count gets the fact credit.
     assert.equal(score(injCase, deriveAnswer(injCase, ask([], 'get_document_context', ['docs'])).answer).status, 'pass');
   });
