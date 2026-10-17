@@ -1776,6 +1776,15 @@ describe('usage rows and arguments', () => {
     assert.equal(unsupportedBackend.writes(), 0, 'unsupported page-setup/freeze operations must not increment writes');
     assert.equal(unsupportedBackend.denied().length, 1);
   });
+
+  it('H-3: includes the user role in the open-document context header of firstMessages', () => {
+    const viewerCase = cases.find((c) => c.role === 'viewer');
+    const editorCase = cases.find((c) => c.role === 'editor');
+    const viewerMsg = firstMessages(viewerCase, 'vi').at(-1).content;
+    const editorMsg = firstMessages(editorCase, 'en').at(-1).content;
+    assert.match(viewerMsg, /^\[.*Role: viewer\b.*\]\n/);
+    assert.match(editorMsg, /^\[.*Role: editor\b.*\]\n/);
+  });
 });
 
 
