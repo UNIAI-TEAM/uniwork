@@ -161,11 +161,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 	}
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, row := range page.Items {
-		access := row.Access
-		dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
-		dto.EditLock = documentRowEditLockSDO(row.EditLock)
-		dto.ShareScope = documentRowShareScopeSDO(row.ShareScope)
-		out.Documents = append(out.Documents, dto)
+		out.Documents = append(out.Documents, toSharedDocumentSummaryDTO(row))
 	}
 	if page.NextID != "" {
 		cursor := encodeSharedWithMeCursor(page.NextCreatedAt, page.NextID)
@@ -304,26 +300,38 @@ func (h *handlers) documentLifecycleCommand(w http.ResponseWriter, r *http.Reque
 func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, item := range page.Items {
-		var access *service.DocumentAccess
-		// A locked row (AdminScope, no read level) still carries admin_scope.
-		if item.Access.Level != service.DocumentLevelNone || item.Access.AdminScope {
-			access = &item.Access
-		}
-		dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
-		dto.EditLock = documentRowEditLockSDO(item.EditLock)
-		dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
-		if len(item.Path) > 0 {
-			dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
-			for i, p := range item.Path {
-				dto.Path[i] = sdo.DocumentPathItemSDO{ID: p.ID, Title: p.Title}
-			}
-		}
-		out.Documents = append(out.Documents, dto)
+		out.Documents = append(out.Documents, toDocumentSummaryDTO(item))
 	}
 	if page.NextCursor != "" {
 		out.NextCursor = &page.NextCursor
 	}
 	return out
+}
+
+func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO {
+	var access *service.DocumentAccess
+	// A locked row (AdminScope, no read level) still carries admin_scope.
+	if item.Access.Level != service.DocumentLevelNone || item.Access.AdminScope {
+		access = &item.Access
+	}
+	dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
+	dto.EditLock = documentRowEditLockSDO(item.EditLock)
+	dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
+	if len(item.Path) > 0 {
+		dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
+		for i, p := range item.Path {
+			dto.Path[i] = sdo.DocumentPathItemSDO{ID: p.ID, Title: p.Title}
+		}
+	}
+	return dto
+}
+
+func toSharedDocumentSummaryDTO(row service.SharedDocument) sdo.DocumentSummaryDTO {
+	access := row.Access
+	dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
+	dto.EditLock = documentRowEditLockSDO(row.EditLock)
+	dto.ShareScope = documentRowShareScopeSDO(row.ShareScope)
+	return dto
 }
 
 func documentRowShareScopeSDO(scope *service.DocumentShareScope) *sdo.DocumentShareScopeSDO {
