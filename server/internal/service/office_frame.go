@@ -24,9 +24,13 @@ import (
 // next call, and the short lifetime bounds a leaked token.
 type OfficeFrameService struct {
 	documents *DocumentService
-	key       []byte
-	ttl       time.Duration
-	now       func() time.Time
+	// sources serves the "other sources" frame (UNI-1869): the mint and every
+	// read of an ofs1. token re-run the source's own gate through it. Nil
+	// leaves the source routes not_found.
+	sources *DocumentSourceService
+	key     []byte
+	ttl     time.Duration
+	now     func() time.Time
 }
 
 // OfficeFrameTokenTTL is the lifetime of a frame token (a signed image URL of
@@ -37,8 +41,9 @@ type OfficeFrameService struct {
 const OfficeFrameTokenTTL = 10 * time.Minute
 
 const (
-	officeFrameTokenPrefix = "oft1."
-	officeFrameAssetPrefix = "ofa1."
+	officeFrameTokenPrefix  = "oft1."
+	officeFrameAssetPrefix  = "ofa1."
+	officeFrameSourcePrefix = "ofs1."
 )
 
 // ErrOfficeFrameToken is every invalid, expired or foreign frame credential;
@@ -113,6 +118,15 @@ func NewOfficeFrameService(documents *DocumentService, secret string) *OfficeFra
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte("uniwork/office-frame/v1"))
 	return &OfficeFrameService{documents: documents, key: mac.Sum(nil), ttl: OfficeFrameTokenTTL, now: time.Now}
+}
+
+// SetSources wires the source frame (UNI-1869). Without it the source routes
+// answer not_found, the way an unwired domain source is left out of the list.
+func (s *OfficeFrameService) SetSources(sources *DocumentSourceService) {
+	if s == nil {
+		return
+	}
+	s.sources = sources
 }
 
 // SetClock replaces the clock (tests).
@@ -458,4 +472,52 @@ func (s *OfficeFrameService) UploadAsset(ctx context.Context, claims OfficeFrame
 	return s.documents.uploadDocumentAsset(ctx, Human(claims.UserID), claims.DocumentID, in, func(doc db.Document) bool {
 		return doc.Kind == DocumentKindFile && doc.WorkspaceID == claims.WorkspaceID
 	})
+}
+
+// OpenUploadSession opens a chunked multipart upload session (> 20 MiB) for the
+// frame token's document after AuthorizeSave.
+func (s *OfficeFrameService) OpenUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID string, in OpenUploadSessionInput) (UploadSessionView, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionView{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionView{}, err
+	}
+	return s.documents.OpenFrameUploadSession(ctx, claims, documentID, in)
+}
+
+// GetUploadSession returns the status, completed parts, and missing presigned
+// URLs of a frame upload session.
+func (s *OfficeFrameService) GetUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string) (UploadSessionView, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionView{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionView{}, err
+	}
+	return s.documents.GetFrameUploadSession(ctx, claims, documentID, sessionID)
+}
+
+// CompleteUploadSession assembles, validates, and stages a frame upload
+// session.
+func (s *OfficeFrameService) CompleteUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string, in CompleteUploadSessionInput) (UploadSessionCompleteResult, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionCompleteResult{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
+	return s.documents.CompleteFrameUploadSession(ctx, claims, documentID, sessionID, in)
+}
+
+// AbortUploadSession aborts an open frame upload session and releases its
+// reserved storage quota.
+func (s *OfficeFrameService) AbortUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string) error {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return err
+	}
+	return s.documents.AbortFrameUploadSession(ctx, claims, documentID, sessionID)
 }

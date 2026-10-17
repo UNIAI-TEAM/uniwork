@@ -1168,6 +1168,78 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-1645: the document edit lock commands (addendum §5.1).
+		audit.ActionDocumentEditLockAcquired: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditLockReleased: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.ReleaseDocumentEditLock(f.ctx, Human(f.owner.ID), docID, l.Lock.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditLockTakenOver: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			f.addMember(t)
+			l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.member.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-member-editor", Client: DocumentEditClientWebPage})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.TakeOverDocumentEditLock(f.ctx, Human(f.owner.ID), docID, TakeOverDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage, ExpectedLockID: l.Lock.ID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldStarted: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldRenewed: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+			// The first hold ends at now + HOLD_MAX; a shorter first hold leaves
+			// the renewal room to extend it.
+			if _, err := f.pool.Exec(f.ctx, `UPDATE document_edit_locks SET offline_hold_until = now() + interval '1 hour' WHERE id = $1`, lockID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldEnded: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ClearDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditRequestCreated: func(t *testing.T, f *auditFixture) {
+			f.documentEditRequest(t)
+		},
+		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
+			svc, docID, req := f.documentEditRequest(t)
+			if _, err := svc.AnswerDocumentEditRequest(f.ctx, Human(f.owner.ID), docID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "decline", LockID: req.Request.LockID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditRequestCanceled: func(t *testing.T, f *auditFixture) {
+			svc, docID, req := f.documentEditRequest(t)
+			if err := svc.CancelDocumentEditRequest(f.ctx, Human(f.member.ID), docID, req.Request.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// G1-04b (UNI-678): the tree and lifecycle commands.
 		audit.ActionDocumentMoved: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
@@ -1505,6 +1577,73 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal("expected the account to be marked needs-reconnect")
 			}
 		},
+		// UNI-1862 BIGUP: chunked multipart upload sessions (> 20 MiB).
+		audit.ActionDocumentUploadSessionOpened: func(t *testing.T, f *auditFixture) {
+			svc, _, _ := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-open")
+			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-open.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionCompleted: func(t *testing.T, f *auditFixture) {
+			svc, store, _ := auditMultipartDocService(t, f)
+			const size = UploadSessionThresholdBytes + 1024
+			body, probe := buildLargePDF(size, "audit-complete")
+			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-complete.pdf",
+				SizeBytes: size,
+				Probe:     probe})
+			if err != nil {
+				t.Fatal(err)
+			}
+			row, err := f.q.GetFileMultipartUploadByID(f.ctx, opened.SessionID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var parts []CompleteUploadPartInput
+			partSize := int(row.PartSize)
+			for i := 0; i < int(row.TotalParts); i++ {
+				start := i * partSize
+				end := min(start+partSize, len(body))
+				num := i + 1
+				etag, err := store.PutPart(row.ObjectKey, row.StorageUploadID, int32(num), body[start:end])
+				if err != nil {
+					t.Fatal(err)
+				}
+				parts = append(parts, CompleteUploadPartInput{PartNumber: num, ETag: etag})
+			}
+			if _, err := svc.CompleteUploadSession(f.ctx, Human(f.owner.ID), opened.SessionID, CompleteUploadSessionInput{Parts: parts}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionAborted: func(t *testing.T, f *auditFixture) {
+			svc, _, _ := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-abort")
+			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-abort.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.AbortUploadSession(f.ctx, Human(f.owner.ID), opened.SessionID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionExpired: func(t *testing.T, f *auditFixture) {
+			svc, _, clock := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-expire")
+			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-expire.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe}); err != nil {
+				t.Fatal(err)
+			}
+			clock.Advance(25 * time.Hour)
+			n, err := svc.ExpireMultipartUploads(f.ctx, clock.Now())
+			if err != nil || n < 1 {
+				t.Fatalf("ExpireMultipartUploads = %d, err = %v", n, err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -1633,6 +1772,15 @@ func auditActions() []string {
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,
 		audit.ActionDocumentUpdated,
+		audit.ActionDocumentEditLockAcquired,
+		audit.ActionDocumentEditLockReleased,
+		audit.ActionDocumentEditLockTakenOver,
+		audit.ActionDocumentEditHoldStarted,
+		audit.ActionDocumentEditHoldRenewed,
+		audit.ActionDocumentEditHoldEnded,
+		audit.ActionDocumentEditRequestCreated,
+		audit.ActionDocumentEditRequestAnswered,
+		audit.ActionDocumentEditRequestCanceled,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentCommitIntentRenewed,
@@ -1653,6 +1801,10 @@ func auditActions() []string {
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
 		audit.ActionDocumentAssetPurged,
+		audit.ActionDocumentUploadSessionOpened,
+		audit.ActionDocumentUploadSessionCompleted,
+		audit.ActionDocumentUploadSessionAborted,
+		audit.ActionDocumentUploadSessionExpired,
 		audit.ActionSignatureCreated,
 		audit.ActionSignatureDeleted,
 		audit.ActionAICredentialSaved,
@@ -1900,6 +2052,35 @@ func (f *auditFixture) wrote(t *testing.T, action string) bool {
 
 // document wires a DocumentService on the fixture's gates and inserts one
 // workspace-visible page the organization owner manages (ACL owner).
+// documentEditHold is a document with the owner's edit lock acquired from a
+// live desktop device session (R6 needs one).
+func (f *auditFixture) documentEditHold(t *testing.T) (*DocumentService, string, string, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	sid := insertEditLockDeviceSession(t, f.ctx, f.pool, f.owner.ID)
+	l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientDesktop, SessionID: sid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, l.Lock.ID, sid
+}
+
+// documentEditRequest is a document the owner holds and the member asked
+// to edit (R8).
+func (f *auditFixture) documentEditRequest(t *testing.T) (*DocumentService, string, DocumentEditRequestView) {
+	t.Helper()
+	svc, docID := f.document(t)
+	f.addMember(t)
+	if _, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage}); err != nil {
+		t.Fatal(err)
+	}
+	req, err := svc.CreateDocumentEditRequest(f.ctx, Human(f.member.ID), docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, req
+}
+
 func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
 	t.Helper()
 	w := f.build(t)
@@ -2073,4 +2254,36 @@ func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
 			}
 		})
 	}
+}
+
+func auditMultipartDocService(t *testing.T, f *auditFixture) (*DocumentService, *switchStore, *fileTestClock) {
+	t.Helper()
+	f.build(t)
+	backend := localFileBackend()
+	clock := newFileTestClock()
+	store := newSwitchStore(backend.build(t))
+	store.enableMultipart(true)
+	signer := newLocalTestSigner(t, store, clock)
+	ent := NewEntitlementService(f.pool, f.q)
+	fs, err := NewFileService(FileServiceOptions{
+		Pool:               f.pool,
+		Store:              store,
+		Bucket:             backend.bucket,
+		Registry:           documentsOpenRegistry(t),
+		Signer:             signer,
+		Quota:              ent,
+		Clock:              clock.Now,
+		SpoolDir:           t.TempDir(),
+		ReferenceProviders: productionProviders(),
+		GC:                 FileGCConfig{Mode: FileGCDestructive},
+	})
+	if err != nil {
+		t.Fatalf("NewFileService: %v", err)
+	}
+	svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+	svc.SetFiles(fs)
+	svc.SetEntitlements(ent)
+	svc.SetClock(clock.Now)
+	svc.store.spoolDir = t.TempDir()
+	return svc, store, clock
 }

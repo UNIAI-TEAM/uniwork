@@ -7,6 +7,11 @@ import "strings"
 // strings are the same as notifications.kind.* in packages/core/i18n/locales
 // so a person sees one wording everywhere; titles_test.go reads the JSON files
 // and fails when they drift.
+//
+// document_edit_request_answered has two sentences, one per decision
+// (UNI-1645 addendum §5.2): the kind's own entry is the accepted one and
+// editRequestDeclinedTitleKey - not a kind - the declined one, picked by
+// Title when params["decision"] is "decline".
 var titles = map[string]map[string]string{
 	"vi": {
 		KindTaskAssigned:                "{{actor}} đã giao bạn việc “{{task}}”",
@@ -28,6 +33,10 @@ var titles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "{{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”.",
 		KindDocumentDiscussionReplied:   "{{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu “{{document}}”.",
 		KindDocumentCommentResolved:     "{{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết.",
+		KindDocumentEditRequested:       "{{actor}} muốn sửa “{{document}}”",
+		KindDocumentEditRequestAnswered: "{{actor}} đã nhường quyền sửa “{{document}}” cho bạn",
+		editRequestDeclinedTitleKey:     "{{actor}} chưa nhả quyền sửa “{{document}}”",
+		KindDocumentEditTakenOver:       "{{actor}} đã lấy quyền sửa “{{document}}”. Thay đổi chưa lưu của bạn vẫn còn trong tài liệu đang mở.",
 		KindDocumentBreakGlass:          "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “{{document}}”.",
 		KindChatMentioned:               "{{actor}} đã nhắc đến bạn trong {{room}}",
 		KindChatDM:                      "{{actor}} đã nhắn tin cho bạn",
@@ -57,6 +66,10 @@ var titles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "{{actor}} mentioned you in a discussion on “{{document}}”.",
 		KindDocumentDiscussionReplied:   "{{actor}} replied to your discussion post in “{{document}}”.",
 		KindDocumentCommentResolved:     "{{actor}} marked your comment in “{{document}}” as resolved.",
+		KindDocumentEditRequested:       "{{actor}} wants to edit “{{document}}”",
+		KindDocumentEditRequestAnswered: "{{actor}} handed you editing of “{{document}}”",
+		editRequestDeclinedTitleKey:     "{{actor}} is still editing “{{document}}”",
+		KindDocumentEditTakenOver:       "{{actor}} took over editing of “{{document}}”. Your unsaved changes are still in the open document.",
 		KindDocumentBreakGlass:          "{{actor}} opened emergency view access (24h) to “{{document}}”.",
 		KindChatMentioned:               "{{actor}} mentioned you in {{room}}",
 		KindChatDM:                      "{{actor}} sent you a message",
@@ -101,12 +114,20 @@ var kindTitles = map[string]map[string]string{
 	},
 }
 
+// editRequestDeclinedTitleKey keys the declined sentence of
+// document_edit_request_answered in titles and in notifications.kind.* of the
+// client locales; it is not a kind.
+const editRequestDeclinedTitleKey = KindDocumentEditRequestAnswered + "_declined"
+
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
 	loc := titles[locale]
 	if loc == nil {
 		loc = titles["en"]
+	}
+	if kind == KindDocumentEditRequestAnswered && params["decision"] == editDecisionDecline {
+		kind = editRequestDeclinedTitleKey
 	}
 	s := loc[kind]
 	if s == "" {

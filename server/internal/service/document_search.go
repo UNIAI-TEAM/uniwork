@@ -148,6 +148,10 @@ type DocumentListItem struct {
 	Document db.Document
 	Snippet  string
 	Facts    DocumentListFacts
+	// EditLock is who is editing this row's document right now, when a live
+	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
+	// carries the tenure id - that is R1's or the holder's.
+	EditLock *DocumentEditLockSummary
 	// Access is the actor's level on the row (document_list_access.go); the
 	// zero value means the service did not compute it.
 	Access DocumentAccess
@@ -321,7 +325,10 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	if err != nil {
 		return DocumentListPage{}, err
 	}
-	return page, s.attachListFacts(ctx, page.Items)
+	if err := s.attachListFacts(ctx, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListEditLocks(ctx, actor, page.Items)
 }
 
 func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
@@ -617,7 +624,10 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 	if err != nil {
 		return DocumentListPage{}, err
 	}
-	return page, s.attachListFacts(ctx, page.Items)
+	if err := s.attachListFacts(ctx, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListEditLocks(ctx, actor, page.Items)
 }
 
 func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {

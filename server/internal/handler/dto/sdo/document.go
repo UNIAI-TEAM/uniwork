@@ -197,17 +197,21 @@ type DocumentSummaryDTO struct {
 	MyLevel        *string `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view, trừ khi admin_scope (dòng bị khóa)" example:"view"`
 	Via            *string `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"share"`
 	AdminScope     bool    `json:"admin_scope,omitempty" description:"true = người xem là owner/admin workspace trên dòng restricted mà họ không phải ACL owner; không có my_level = dòng bị khóa" example:"true"`
-	OwnerKind      *string `json:"owner_kind,omitempty" example:"work_product"`
-	OwnerID        *string `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
-	ArchivedAt     *string `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
-	ArchivedBy     *string `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	PurgeAfter     *string `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
-	CreatedBy      string  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedByKind  string  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
-	UpdatedBy      string  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedByKind  string  `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
-	UpdatedAt      string  `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+	// EditLock is who is editing this row's document right now (UNI-1645
+	// §3.2); absent when nobody holds the lock. A list row never carries
+	// lock_id, whatever the viewer's level (C2-1 is R1 only).
+	EditLock      *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
+	OwnerKind     *string                     `json:"owner_kind,omitempty" example:"work_product"`
+	OwnerID       *string                     `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
+	ArchivedAt    *string                     `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	ArchivedBy    *string                     `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	PurgeAfter    *string                     `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
+	CreatedBy     string                      `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind string                      `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	UpdatedBy     string                      `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedByKind string                      `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt     string                      `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	UpdatedAt     string                      `json:"updated_at" example:"2026-09-27T09:00:00Z"`
 	// Path rides only on a search (q) result row (E6/FD-05, UNI-1465).
 	Path []DocumentPathItemSDO `json:"path,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha trực tiếp; cắt ở tổ tiên đầu tiên người gọi không đọc được; chỉ có trên dòng kết quả tìm bằng q" example:"[{\"id\":\"01J8X4DOC0N1P2Q3R4S5T6U7W9\",\"title\":\"Tài liệu nội bộ\"}]"`
 }
@@ -232,6 +236,9 @@ type DocumentTreeNodeDTO struct {
 	SystemKind *string               `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Position   float64               `json:"position" description:"Thứ tự giữa các sibling" example:"0"`
 	Children   []DocumentTreeNodeDTO `json:"children" description:"Con đã sắp theo position; rỗng khi hết cấp 5"`
+	// EditLock is who is editing this node's document right now (UNI-1645
+	// §3.2); absent when nobody holds the lock. Never carries lock_id.
+	EditLock *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
 }
 
 // DocumentTreeSDO is GET /workspaces/{ws}/documents/tree.
@@ -595,4 +602,51 @@ type MentionCandidateDTO struct {
 // the people the picker may show, ordered by display name.
 type MentionCandidateListSDO struct {
 	Candidates []MentionCandidateDTO `json:"candidates"`
+}
+
+// UploadSessionSDO answers the create and GET routes of the large upload flow
+// (addendum §6.2/§6.3): the session id, the part geometry, the parts the
+// storage already holds, a fresh presigned URL for every part still missing,
+// and the session deadline. `status` rides only on GET (open | validating |
+// completed) and `parts` is present only while the session is open: once the
+// server is validating the assembled object there is nothing left to PUT.
+type UploadSessionSDO struct {
+	SessionID      string                          `json:"session_id" description:"ULID phiên tải lên, dùng cho GET/complete/DELETE" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+	Status         string                          `json:"status,omitempty" description:"open, validating hoặc completed; chỉ có trên GET" example:"open"`
+	PartSize       int64                           `json:"part_size" description:"Kích thước mỗi phần trừ phần cuối (byte)" example:"8388608"`
+	TotalParts     int                             `json:"total_parts" description:"Số phần phải PUT, ceil(size_bytes / part_size)" example:"10"`
+	CompletedParts []UploadSessionCompletedPartSDO `json:"completed_parts" description:"Các phần storage đã nhận (từ ListParts); rỗng ngay sau khi tạo"`
+	Parts          []UploadSessionPartURLSDO       `json:"parts,omitempty" description:"URL PUT đã ký cho từng phần còn thiếu, mỗi URL sống 1 giờ; chỉ có khi phiên đang open"`
+	ExpiresAt      string                          `json:"expires_at" description:"Hạn của phiên (24 giờ kể từ lúc tạo)" example:"2026-10-18T15:00:00Z"`
+}
+
+// UploadSessionCompletedPartSDO is one part the storage holds.
+type UploadSessionCompletedPartSDO struct {
+	PartNumber int    `json:"part_number" description:"Số thứ tự phần" example:"1"`
+	ETag       string `json:"etag" description:"ETag storage trả về, kể cả dấu ngoặc kép" example:"\"3858f62230ac3c915f300c664312c63f\""`
+	Size       int64  `json:"size" description:"Số byte storage đã nhận cho phần này" example:"8388608"`
+}
+
+// UploadSessionPartURLSDO is one presigned part URL the client PUTs directly
+// (credentials omitted; the ETag response header is what complete needs).
+type UploadSessionPartURLSDO struct {
+	PartNumber int               `json:"part_number" description:"Số thứ tự phần URL này ký" example:"2"`
+	Method     string            `json:"method" description:"HTTP method của URL; luôn là PUT" example:"PUT"`
+	URL        string            `json:"url" description:"URL đã ký tới khoá object của phiên; không log, không chia sẻ" example:"https://storage.example.test/documents/files/01J8X4FILEN1P2Q3R4S5T6U7V8?partNumber=2&uploadId=..."`
+	Headers    map[string]string `json:"headers" description:"Header phải gửi kèm request PUT (rỗng với S3 mặc định)" example:"{}"`
+	ExpiresAt  string            `json:"expires_at" description:"Hạn của URL (1 giờ)" example:"2026-10-17T16:00:00Z"`
+}
+
+// UploadSessionCompleteSDO is the OpenAPI union for
+// POST /api/v1/upload-sessions/{sessionID}/complete: a session opened on the
+// workspace route (/workspaces/{workspaceID}/documents/upload-sessions) creates
+// the file document and answers DocumentSDO, while a session opened on the
+// document route (/documents/{documentID}/upload-sessions) stages the candidate
+// version bytes and answers DocumentUploadSDO.
+type UploadSessionCompleteSDO struct{}
+
+// JSONSchemaOneOf implements jsonschema.OneOfExposer so OpenAPI documents both
+// route-family success envelopes on the shared completion endpoint.
+func (UploadSessionCompleteSDO) JSONSchemaOneOf() []interface{} {
+	return []interface{}{DocumentSDO{}, DocumentUploadSDO{}}
 }

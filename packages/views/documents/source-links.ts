@@ -1,6 +1,8 @@
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { LucideIcon } from "lucide-react";
 import { ExternalLink, Mail } from "lucide-react";
+import { officeModuleForFormat } from "@uniwork/core/office/office-modules";
+import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 
 /** The workspace paths a source link needs; `paths.workspace(orgSlug, wsSlug)` satisfies it. */
 export interface SourceLinkPaths {
@@ -16,17 +18,41 @@ const IMAGE_EXTENSIONS: Record<string, true> = { png: true, jpg: true, jpeg: tru
 const IMAGE_MIMES: Record<string, true> = { "image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true, "image/avif": true, "image/bmp": true };
 
 /**
- * What the primary click of a "Từ nơi khác" row does with the file (U-SRC1):
- * an image opens view-only (the blob of the download route, read never
- * written); every other kind downloads. U-SRC1 wants Office formats
- * (docx/xlsx/pptx/pdf/md/html) in the Office viewer — the office-frame API is
- * bound to a saved document's id, so a source file has no view-only frame
- * route yet (UNI-1815 server gap); they download until one lands.
+ * What the primary click of a "Từ nơi khác" row does with the file (U-SRC1,
+ * UNI-1869): an image opens view-only in the preview dialog; a file the
+ * server marks openable AND a web module exists for opens in its module
+ * frame, view-only; every other kind downloads.
  */
-export function sourceOpenAction(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension">): "image" | "download" {
+export function sourceOpenAction(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension" | "can_open_in_app">): "image" | "office" | "download" {
   if (IMAGE_MIMES[source.mime_type.toLowerCase()] === true) return "image";
   const ext = source.extension.toLowerCase() || source.name.split(".").pop()?.toLowerCase() || "";
-  return IMAGE_EXTENSIONS[ext] === true ? "image" : "download";
+  if (IMAGE_EXTENSIONS[ext] === true) return "image";
+  // The server vouches (can_open_in_app) and the client can map a module: the
+  // office viewer. A flag on a format this build has no module for still downloads.
+  if (source.can_open_in_app && sourceOfficeModule(source) !== null) return "office";
+  return "download";
+}
+
+const FORMAT_BY_EXTENSION: Record<string, string> = { docx: "docx", xlsx: "xlsx", pptx: "pptx", pdf: "pdf", md: "md", markdown: "md", html: "html", htm: "html" };
+
+/** The `officeModuleForFormat` id of a source file: its extension first, then its mime type (the document host's rule). */
+function sourceFormat(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension">): string {
+  const ext = (source.extension.toLowerCase() || source.name.split(".").pop()?.toLowerCase() || "").replace(/^\./, "");
+  const byExtension = FORMAT_BY_EXTENSION[ext];
+  if (byExtension) return byExtension;
+  const mime = source.mime_type.toLowerCase();
+  if (mime.includes("wordprocessingml.document")) return "docx";
+  if (mime.includes("spreadsheetml.sheet")) return "xlsx";
+  if (mime.includes("presentationml.presentation")) return "pptx";
+  if (mime === "application/pdf") return "pdf";
+  if (mime === "text/markdown") return "md";
+  if (mime === "text/html") return "html";
+  return "unknown";
+}
+
+/** The genoffice web module a source file opens in; null when none does (the row downloads). */
+export function sourceOfficeModule(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension">): OfficeModule | null {
+  return officeModuleForFormat(sourceFormat(source));
 }
 
 /**

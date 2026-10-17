@@ -653,3 +653,186 @@ func (e *docStorageEnv) inTx(t *testing.T, fn func(q *db.Queries) error) error {
 	}
 	return tx.Commit(ctx)
 }
+
+func docxWithCorruptCentralDir(t *testing.T) []byte {
+	t.Helper()
+	b := append([]byte(nil), docxBody(t, "corrupt-cd")...)
+	if len(b) < 22 {
+		t.Fatalf("docx body too short: %d", len(b))
+	}
+	copy(b[len(b)-22:], []byte("not-a-zip-central-dir!"))
+	return b
+}
+
+// TestDocumentUploadValidatesOnSpoolBeforePut (UNI-1870, SIZE-S2): single-request
+// document uploads run document.ValidateFile on FileService's local spool
+// before quota reservation and store.Put, never reading the stored object back
+// on a fresh upload, while an idempotent replay falls back to checkStoredFile
+// so facts stay identical.
+func TestDocumentUploadValidatesOnSpoolBeforePut(t *testing.T) {
+	env := newRealDocStorageEnv(t, localFileBackend())
+	ctx := context.Background()
+	member := human(env.tn.member)
+	scope := documentScope(env.tn.orgID, env.tn.wsA)
+	baseDoc := env.createFile(t, member, "seed.pdf", pdfBody("seed-s2"))
+	page := env.f.doc(t, env.tn, docSpec{ws: env.tn.wsA, visibility: "workspace", createdBy: env.tn.member.ID})
+
+	t.Run("refused file stores nothing and leaves no reservation or ready row", func(t *testing.T) {
+		puts0, _ := env.store.counts()
+		ready0 := fileCountRows(t, env.f.pool, `SELECT count(*) FROM files WHERE organization_id = $1 AND status = 'ready'`, env.tn.orgID)
+		usage0 := env.usage(t)
+
+		cases := []struct {
+			name     string
+			filename string
+			body     []byte
+			reason   string
+		}{
+			{
+				name:     "docx with corrupt central directory",
+				filename: "corrupt.docx",
+				body:     docxWithCorruptCentralDir(t),
+				reason:   "zip_unreadable",
+			},
+			{
+				name:     "docx missing word/document.xml",
+				filename: "missing-part.docx",
+				body:     docxBodyWithout(t),
+				reason:   "ooxml_missing_part",
+			},
+			{
+				name:     "docx that is not a zip",
+				filename: "not-a-zip.docx",
+				body:     append([]byte("MZ\x90\x00"), make([]byte, 60)...),
+				reason:   files.CodeTypeRejected,
+			},
+			{
+				name:     "pdf without EOF trailer",
+				filename: "broken.pdf",
+				body:     append([]byte("%PDF-1.4\n"), bytes.Repeat([]byte("x"), 2048)...),
+				reason:   "pdf_trailer",
+			},
+		}
+
+		for _, tc := range cases {
+			_, err := env.svc.UploadDocumentFile(ctx, member, baseDoc.Document.ID, DocumentUploadInput{
+				Filename: tc.filename,
+				Body:     bytes.NewReader(tc.body),
+			})
+			ce := wantCode(t, err, "unsupported_media_type")
+			if ce.Status != 415 || ce.Fields["reason"] != tc.reason {
+				t.Fatalf("%s: got status=%d reason=%v (%+v), want 415 reason=%s", tc.name, ce.Status, ce.Fields["reason"], ce, tc.reason)
+			}
+		}
+
+		if got := env.usage(t); got != usage0 {
+			t.Fatalf("reserved/stored usage after refused uploads = %d, want %d", got, usage0)
+		}
+		puts, _ := env.store.counts()
+		if got := puts - puts0; got != 0 {
+			t.Fatalf("refused uploads called store.Put %d times, want 0", got)
+		}
+		ready := fileCountRows(t, env.f.pool, `SELECT count(*) FROM files WHERE organization_id = $1 AND status = 'ready'`, env.tn.orgID)
+		if got := ready - ready0; got != 0 {
+			t.Fatalf("refused uploads left %d ready file rows, want 0", got)
+		}
+	})
+
+	t.Run("accepted file returns facts with zero Open after upload", func(t *testing.T) {
+		puts0, reads0 := env.store.counts()
+
+		docxBytes := docxBody(t, "spool-docx")
+		upDocx, factsDocx, err := env.svc.uploadChecked(
+			ctx, env.fs, member, files.DocumentFile, scope,
+			fileUploadKey("documents.upload", baseDoc.Document.ID, util.NewID()),
+			DocumentUploadInput{Filename: "report.docx", Body: bytes.NewReader(docxBytes)},
+		)
+		mustf(t, err, "uploadChecked docx")
+		if factsDocx.Format != "docx" || factsDocx.Width != 0 || factsDocx.Height != 0 {
+			t.Fatalf("docx facts = %+v, want {Format:docx Width:0 Height:0}", factsDocx)
+		}
+		if upDocx.File.ChecksumSHA256 != sha(docxBytes) || upDocx.File.SizeBytes != int64(len(docxBytes)) {
+			t.Fatalf("docx file = %+v", upDocx.File)
+		}
+
+		imgBytes := pngBody(t, 15, 9)
+		asset, err := env.svc.UploadDocumentAsset(ctx, member, page.ID, DocumentUploadInput{
+			Filename: "chart.png", Body: bytes.NewReader(imgBytes),
+		})
+		mustf(t, err, "UploadDocumentAsset png")
+		if asset.Width.Int32 != 15 || asset.Height.Int32 != 9 || asset.MimeType != "image/png" {
+			t.Fatalf("asset = %+v, want 15x9 image/png", asset)
+		}
+
+		puts, reads := env.store.counts()
+		if got := puts - puts0; got != 2 {
+			t.Fatalf("accepted uploads called store.Put %d times, want 2", got)
+		}
+		if got := reads - reads0; got != 0 {
+			t.Fatalf("accepted uploads called store.Open %d times after upload, want 0", got)
+		}
+	})
+
+	t.Run("idempotent replay returns the same result and facts as the first call", func(t *testing.T) {
+		imgBytes := pngBody(t, 18, 11)
+		rawKey := util.NewID()
+		fullKey := fileUploadKey("documents.asset", page.ID, rawKey)
+
+		up1, facts1, err := env.svc.uploadChecked(
+			ctx, env.fs, member, files.DocumentAsset, scope, fullKey,
+			DocumentUploadInput{Filename: "diagram.png", Body: bytes.NewReader(imgBytes)},
+		)
+		mustf(t, err, "first uploadChecked")
+		if facts1.Format != "image" || facts1.Width != 18 || facts1.Height != 11 {
+			t.Fatalf("first facts = %+v, want {Format:image Width:18 Height:11}", facts1)
+		}
+
+		putsBeforeReplay, _ := env.store.counts()
+
+		up2, facts2, err := env.svc.uploadChecked(
+			ctx, env.fs, member, files.DocumentAsset, scope, fullKey,
+			DocumentUploadInput{Filename: "diagram.png", Body: forbiddenReader{t}},
+		)
+		mustf(t, err, "replayed uploadChecked")
+		if up2.File.ID != up1.File.ID || up2.UploadSessionID != up1.UploadSessionID || !up2.ClaimExpiresAt.Equal(up1.ClaimExpiresAt) {
+			t.Fatalf("replayed upload = %+v, want %+v", up2, up1)
+		}
+		if facts2 != facts1 {
+			t.Fatalf("replayed facts = %+v, want %+v", facts2, facts1)
+		}
+		putsAfterReplay, _ := env.store.counts()
+		if putsAfterReplay != putsBeforeReplay {
+			t.Fatalf("replay called store.Put %d times, want 0", putsAfterReplay-putsBeforeReplay)
+		}
+	})
+
+	t.Run("replay after a Check refusal answers the generic type-rejected reason", func(t *testing.T) {
+		puts0, _ := env.store.counts()
+		fullKey := fileUploadKey("documents.upload", baseDoc.Document.ID, util.NewID())
+		corrupt := docxWithCorruptCentralDir(t)
+
+		_, _, err := env.svc.uploadChecked(
+			ctx, env.fs, member, files.DocumentFile, scope, fullKey,
+			DocumentUploadInput{Filename: "corrupt.docx", Body: bytes.NewReader(corrupt)},
+		)
+		ce := wantCode(t, err, "unsupported_media_type")
+		if ce.Status != 415 || ce.Fields["reason"] != "zip_unreadable" {
+			t.Fatalf("first refusal: status=%d reason=%v, want 415 zip_unreadable", ce.Status, ce.Fields["reason"])
+		}
+
+		// A replay after a Check refusal answers the generic type-rejected reason
+		// because the FileService session only records the failure code (accepted
+		// in review SIZE-S2 r1, R1-1).
+		_, _, err = env.svc.uploadChecked(
+			ctx, env.fs, member, files.DocumentFile, scope, fullKey,
+			DocumentUploadInput{Filename: "corrupt.docx", Body: forbiddenReader{t}},
+		)
+		ce = wantCode(t, err, "unsupported_media_type")
+		if ce.Status != 415 || ce.Fields["reason"] != files.CodeTypeRejected {
+			t.Fatalf("replayed refusal: status=%d reason=%v, want 415 %s", ce.Status, ce.Fields["reason"], files.CodeTypeRejected)
+		}
+		if puts, _ := env.store.counts(); puts != puts0 {
+			t.Fatalf("refused upload and its replay called store.Put %d times, want 0", puts-puts0)
+		}
+	})
+}

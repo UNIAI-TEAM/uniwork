@@ -322,7 +322,7 @@
       "shareTasks": "Your tasks and tasks in your workspaces, with comments",
       "shareProjects": "Projects and their tasks",
       "shareMeetings": "Meetings and their AI summaries, without transcripts",
-      "shareDocuments": "Documents you can see: pages and text files in full, other files by name",
+      "shareDocuments": "Documents you can see: UniNotes and text files in full, other files by name",
       "shareNot": "Never chat messages or email",
       "allowWrite": "Allow create and edit",
       "allowWriteHint": "Many AI apps ask before each change, but UniWork cannot check that. Each change is recorded with your name and the app's, and can be undone.",
@@ -575,6 +575,9 @@
         "document_discussion_mentioned": "Mentioned in a discussion",
         "document_discussion_replied": "Reply in a discussion",
         "document_comment_resolved": "Comment resolved",
+        "document_edit_requested": "Edit request on a document",
+        "document_edit_request_answered": "Answer to your edit request",
+        "document_edit_taken_over": "Editing taken over",
         "document_break_glass": "Emergency access to a document",
         "chat_mentioned": "Mentioned in chat",
         "chat_dm": "Direct messages",
@@ -582,7 +585,7 @@
         "document_access_requested": "Document access requests",
         "document_access_approved": "Document access granted",
         "document_access_declined": "Document access request declined",
-        "document_trashed_by_other": "Your document moved to trash by someone else"
+        "document_trashed_by_other": "Your document moved to the trash"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -5123,6 +5126,10 @@
       "document_discussion_replied_untitled": "{{actor}} replied to your discussion post in a document.",
       "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
       "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
+      "document_edit_requested": "{{actor}} wants to edit “{{document}}”",
+      "document_edit_request_answered": "{{actor}} handed you editing of “{{document}}”",
+      "document_edit_request_answered_declined": "{{actor}} is still editing “{{document}}”",
+      "document_edit_taken_over": "{{actor}} took over editing of “{{document}}”. Your unsaved changes are still in the open document.",
       "document_break_glass": "{{actor}} opened emergency view access (24h) to “{{document}}”.",
       "document_break_glass_untitled": "{{actor}} opened emergency view access (24h) to a document.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
@@ -8677,12 +8684,12 @@
       "md": "Markdown document",
       "html": "HTML document",
       "file": "File",
-      "page": "UniWork page",
+      "page": "UniNote",
       "folder": "Folder"
     },
     "page": {
       "title": "Documents",
-      "new_page": "New page",
+      "new_page": "New UniNote",
       "off_title": "Documents are off",
       "off_description": "Documents are not enabled for this workspace.",
       "checking_title": "Checking whether documents are available…",
@@ -8699,12 +8706,12 @@
       "error_title": "Could not load the document list",
       "error_description": "Check your connection and try again.",
       "retry": "Try again",
-      "permission_title": "Manage access is required to view the archive",
-      "permission_description": "The archive is only open to document managers.",
+      "permission_title": "Manage access is required to view the trash",
+      "permission_description": "The trash is only open to document managers.",
       "load_more": "Load more",
       "loading_more": "Loading more…",
       "clear_filters": "Clear filters",
-      "archived_badge": "Archived"
+      "archived_badge": "In trash"
     },
     "tree": {
       "aria_label": "Document tree",
@@ -8817,7 +8824,8 @@
       "readonly_title": "You have view access only",
       "readonly_description": "You can read and download the committed copy, but not edit it. Editing needs the edit level.",
       "revoked_title": "You no longer have access to this document",
-      "revoked_description": "Its content is hidden under your current access. Ask for access again if you need it."
+      "revoked_description": "Its content is hidden under your current access. Ask for access again if you need it.",
+      "archived_banner": "This document is in the trash — read-only."
     },
     "save": {
       "status_label": "Save status",
@@ -8850,6 +8858,59 @@
       "load_server_confirm_description": "Unsaved changes in the editor are lost and cannot be undone.",
       "confirm_load": "Load the new copy",
       "cancel": "Later"
+    },
+    "editLock": {
+      "bannerOther": "{{name}} has been editing since {{time}}. You’re viewing read‑only.",
+      "bannerOfflineHold": "{{name}} is keeping editing offline until {{time}}.",
+      "bannerSelfElsewhere": "You’re editing this document in another window.",
+      "editHere": "Edit here",
+      "bannerFree": "No one is editing this document now.",
+      "editNow": "Edit now",
+      "acquiring": "Getting editing access…",
+      "acquireFailed": "Couldn’t get editing access. Try again in a few minutes.",
+      "takeOver": "Take over editing",
+      "takeOverTitle": "Take over editing from {{name}}?",
+      "takeOverBody": "{{name}} will switch to read-only. Their unsaved changes aren’t deleted and they can still download them.",
+      "takeOverConfirm": "Take over",
+      "cancel": "Cancel",
+      "takeOverChanged": "Someone else is editing now. Check and try again.",
+      "takeOverRereading": "Checking who is editing…",
+      "takeOverFailed": "Couldn’t take over editing. Try again.",
+      "request": "Request to edit",
+      "requestSent": "Request sent to {{name}}. It expires at {{time}}.",
+      "requestCancel": "Cancel request",
+      "requestNotReleased": "{{name}} is still editing.",
+      "requestAgain": "Ask again",
+      "requestRateLimited": "You’ve asked several times. Try again in {{minutes}} min.",
+      "requestFailed": "Couldn’t send the request. Try again.",
+      "incomingTitle": "{{name}} wants to edit this document",
+      "incomingJustNow": "Just now",
+      "incomingCaption": "Just now · expires in {{minutes}} minutes",
+      "incomingCaptionAged": "{{age}} · expires in {{minutes}} minutes",
+      "incomingAccept": "Save and hand over",
+      "incomingDecline": "Decline",
+      "incomingSaveFailed": "Couldn’t save, so editing wasn’t handed over. Try again.",
+      "handedToYou": "{{name}} handed editing to you.",
+      "lostTitle": "You’re no longer editing",
+      "lostTakenOver": "{{name}} took over editing. Your unsaved changes are still here.",
+      "lostExpired": "Editing expired because we couldn’t reach the server for a while (no network or the device slept). Your unsaved changes are still here.",
+      "lostHandedOver": "You handed editing to {{name}}. Your unsaved changes are still here.",
+      "lostMovedHere": "You’re now editing this document in another window. The unsaved changes in this window are still here.",
+      "lostAccessLost": "You no longer have permission to edit this document. Your unsaved changes are still here.",
+      "lostGeneric": "You’re no longer editing. Your unsaved changes are still here.",
+      "lostSomeone": "Someone",
+      "lostDownload": "Download my copy",
+      "lostReload": "Reload latest version",
+      "lostReloadConfirm": "Reloading discards the unsaved changes on this page. Continue?",
+      "reloadFailed": "Could not load the latest version. Your unsaved changes are still here.",
+      "myCopyName": "{{title}} (my copy)",
+      "holdStart": "Keep editing offline",
+      "holdActive": "Editing kept until {{time}}",
+      "holdEnd": "Stop keeping editing",
+      "holdCapReached": "Maximum hold reached. Reconnect to keep editing.",
+      "rowEditing": "editing",
+      "rowEditingOffline": "editing · offline until {{time}}",
+      "rowEditingLabel": "{{name}} is editing"
     },
     "leave": {
       "title": "Unsaved changes",
@@ -8929,7 +8990,7 @@
       "done": "Created the copy \"{{title}}\"",
       "consent_required": "An explicit confirmation is required before copying.",
       "owner_requires_copy": "This document belongs to a Work Product: copy it through the owning screen.",
-      "page_not_supported": "Only file documents can be copied at this step. Page copies come later.",
+      "page_not_supported": "Only file documents can be copied at this step. UniNote copies come later.",
       "unavailable": "This deployment does not have the copy feature yet."
     },
     "actions": {
@@ -8940,7 +9001,7 @@
       "share": "Share",
       "access_log": "Access log",
       "copy": "Create a copy",
-      "archive": "Archive",
+      "archive": "Move to trash",
       "restore": "Restore"
     },
     "versions": {
@@ -9195,19 +9256,20 @@
       "menu_workspace": "Workspace access report"
     },
     "archive": {
-      "archive_title": "Archive document",
-      "archive_description": "The document and its whole subtree move to the trash. They can be restored later.",
+      "archive_title": "Move document to trash?",
+      "archive_description": "The document and its whole subtree will stay in the trash for 30 days before permanent deletion. Managers can restore them during this window.",
       "impact_title": "Impact",
       "impact_loading": "Reading the subtree…",
-      "impact_error": "Could not read the subtree. Retry before archiving.",
-      "impact_count_one": "1 document will be archived.",
-      "impact_count_other": "{{count}} documents will be archived.",
+      "impact_error": "Could not read the subtree. Retry before moving to trash.",
+      "impact_count_one": "1 document will move to the trash.",
+      "impact_count_other": "{{count}} documents will move to the trash.",
       "impact_more": "…and {{count}} more.",
       "impact_empty": "This document has no subtree.",
       "retry": "Retry",
-      "archive_confirm": "Archive",
-      "archive_submitting": "Archiving…",
-      "archive_failed": "Could not archive. Nothing changed.",
+      "archive_confirm": "Move to trash",
+      "archive_submitting": "Moving to trash…",
+      "archive_failed": "Could not move to trash. Nothing changed.",
+      "archive_toast": "Moved to trash",
       "archive_forbidden": "A child you cannot manage blocks the whole group from the trash.",
       "restore_title": "Restore document",
       "restore_description": "Restores this item and the items inside it that you manage. It lands back in its old folder if the folder is still there, otherwise at the workspace root.",
@@ -9215,8 +9277,8 @@
       "restore_submitting": "Restoring…",
       "restore_failed": "Could not restore. Nothing changed.",
       "restore_not_archived": "This document is not in the trash.",
-      "archive_folder_title": "Archive folder",
-      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later.",
+      "archive_folder_title": "Move folder to trash",
+      "archive_folder_description": "The folder and everything in it (subfolders, UniNotes, files) go to the trash together. You can restore them later.",
       "delete_title": "Delete folder",
       "delete_subfolders_one": "{{count}} subfolder",
       "delete_subfolders_other": "{{count}} subfolders",
@@ -9231,8 +9293,9 @@
       "delete_failed": "Couldn't delete. Nothing changed."
     },
     "trash": {
-      "intro": "Deleted items are kept for 30 days, then permanently deleted. You can restore items you manage; items you can only edit show as read-only.",
-      "note": "Restore is per item: a document returns to its old folder if the folder is still there, otherwise to the workspace root. Restoring a folder brings along only the children you manage.",
+      "title": "Trash",
+      "subtitle": "Deleted items are kept for 30 days before permanent deletion. You can restore items you manage; items you can only edit are shown as read-only.",
+      "note": "Per-item restore: documents return to their previous folder if it still exists, otherwise to the workspace root. Restoring a folder only brings back child items you manage. Document owners are notified when someone else moves their document to the trash.",
       "columns": {
         "name": "Name",
         "deleted_by": "Deleted by",
@@ -9262,6 +9325,8 @@
       "not_in_trash": "This item is no longer in the trash.",
       "too_large": "The folder holds too many items to delete in one go. Delete what's inside in parts first.",
       "no_permission": "You do not manage this item.",
+      "row_in_folder": "In folder “{{folder}}”",
+      "row_from_root": "From Workspace documents",
       "toast": {
         "restored": "Restored {{title}}",
         "restored_root": "Restored {{title}} to the workspace root",
@@ -9458,85 +9523,93 @@
         "name_too_long": "A document name is at most {{max}} characters.",
         "failed": "Could not rename the document. Try again."
       },
-      "greeting": {
-        "morning": "Good morning. What would you like to create today?",
-        "morning_named": "Good morning, {{name}}. What would you like to create today?",
-        "afternoon": "Good afternoon. What would you like to create today?",
-        "afternoon_named": "Good afternoon, {{name}}. What would you like to create today?",
-        "evening": "Good evening. What would you like to create today?",
-        "evening_named": "Good evening, {{name}}. What would you like to create today?",
+      "quick_create": {
         "hint_root": "New files go to the workspace root and open straight in the editor.",
-        "hint_folder": "New files go to the {{folder}} folder and open straight in the editor.",
-        "morning_read_only": "Good morning.",
-        "morning_read_only_named": "Good morning, {{name}}.",
-        "afternoon_read_only": "Good afternoon.",
-        "afternoon_read_only_named": "Good afternoon, {{name}}.",
-        "evening_read_only": "Good evening.",
-        "evening_read_only_named": "Good evening, {{name}}.",
-        "hint_read_only": "You can only view the {{folder}} folder: open files to read them, not to create or edit.",
-        "hint_read_only_plain": "You can only view this folder: open files to read them, not to create or edit."
+        "label": "Quick create"
       },
       "create": {
-        "label": "Create",
         "menu": "New",
-        "ai_badge": "AI",
         "unavailable_hint": "Not available on this server yet",
         "page": {
-          "card": "Page",
-          "hint": "UniWork page with tasks and mentions",
-          "menu": "Page",
+          "chip": "UniNote",
+          "hint": "A private or shared UniNote with tasks and mentions",
+          "menu": "UniNote",
           "ext": "UniWork"
         },
         "docx": {
-          "card": "AI Docs",
+          "chip": "Document",
           "hint": ".docx",
           "menu": "Docs document",
           "ext": ".docx"
         },
         "xlsx": {
-          "card": "AI Sheets",
+          "chip": "Spreadsheet",
           "hint": ".xlsx",
           "menu": "Sheets spreadsheet",
           "ext": ".xlsx"
         },
         "pptx": {
-          "card": "AI Slides",
+          "chip": "Presentation",
           "hint": ".pptx",
           "menu": "Slides presentation",
           "ext": ".pptx"
         },
         "md": {
-          "card": "AI Markdown",
+          "chip": "Markdown file",
           "hint": ".md",
           "menu": "Markdown",
           "ext": ".md"
         },
         "html": {
-          "card": "AI HTML",
+          "chip": "HTML",
           "hint": ".html",
           "menu": "HTML",
           "ext": ".html"
         },
         "pdf": {
-          "card": "AI PDF",
+          "chip": "PDF",
           "hint": ".pdf",
           "menu": "PDF",
           "ext": ".pdf"
         },
         "upload": {
-          "card": "Upload file",
-          "hint": "docx, xlsx, pptx, pdf, md, html, images"
+          "button": "Upload"
         },
         "folder": {
           "menu": "Folder"
         }
       },
+      "sections": {
+        "folders": "Folders",
+        "subfolders": "Subfolders",
+        "documents": "Documents"
+      },
+      "folder": {
+        "info_banner": "New and uploaded files here will be placed in “{{folder}}”. Drag and drop files into the list to upload.",
+        "menu": "Folder actions"
+      },
+      "folder_card": {
+        "folders_one": "{{count}} folder",
+        "folders_other": "{{count}} folders"
+      },
+      "filters": {
+        "type": "Type",
+        "editor": "Edited by",
+        "updated": "Updated",
+        "editor_any": "Any",
+        "editor_me": "Me",
+        "updated_any": "Any time",
+        "updated_today": "Today",
+        "updated_7d": "Past 7 days",
+        "updated_30d": "Past 30 days"
+      },
       "sidebar": {
         "label": "Documents navigation",
-        "home": "Documents home",
+        "home": "Workspace documents",
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
+        "trash": "Trash",
         "folders": "Folders",
         "elsewhere": "From elsewhere",
         "open": "Browse"
@@ -9562,17 +9635,11 @@
         "meeting": "Meetings",
         "email": "Email"
       },
-      "scope_label": "Scope",
-      "scope": {
-        "home": "All",
-        "recent": "Recent",
-        "shared": "Shared",
-        "archived": "Trash"
-      },
+
       "chips_label": "Filter by type",
       "chips": {
         "all": "All",
-        "page": "Pages",
+        "page": "UniNote",
         "docx": "Docs",
         "xlsx": "Sheets",
         "pptx": "Slides",
@@ -9589,13 +9656,15 @@
         "restricted": "Restricted"
       },
       "access": {
-        "view": "View",
+        "view": "View only",
         "comment": "Comment",
-        "edit": "Edit",
-        "manage": "Manage"
+        "edit": "Can edit",
+        "manage": "Manage",
+        "owner": "Owner",
+        "you_prefix": "You: {{level}}"
       },
       "visibility": {
-        "workspace": "Whole workspace",
+        "workspace": "Workspace",
         "restricted": "Restricted"
       },
       "group_by": {
@@ -9608,7 +9677,7 @@
       "groups": {
         "unfiled": "Not in a folder",
         "type": {
-          "page": "Pages",
+          "page": "UniNote",
           "folder": "Folders",
           "docx": "Docs",
           "xlsx": "Sheets",
@@ -9621,8 +9690,9 @@
       },
       "columns": {
         "name": "Name",
+        "access": "Access",
         "source": "Source",
-        "editor": "Edited by",
+        "editor": "Last edited by",
         "updated": "Updated",
         "size": "Size",
         "actions": "Actions",
@@ -9642,13 +9712,14 @@
         "preview_loading": "Loading image…",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
+        "view_only_notice": "View only · changes will not be saved",
         "download": "Download",
         "save_to_folder": "Save to folder",
         "menu": "Actions for {{title}}",
         "download_failed": "Could not download the file. Try again.",
         "star_failed": "Could not update the star. Try again.",
         "move": "Move",
-        "archive": "Archive",
+        "archive": "Move to trash",
         "open_email": "Open Email",
         "open_email_named": "Open Email: {{title}}",
         "new_subfolder": "New subfolder",
@@ -9721,6 +9792,7 @@
       "breadcrumb_more": "Hidden levels",
       "search": {
         "placeholder": "Search folders and documents",
+        "placeholder_folder": "Search in this folder",
         "label": "Search Documents",
         "clear": "Clear search",
         "filter_label": "Filter results",
@@ -9737,11 +9809,11 @@
       }
     },
     "errors": {
-      "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
+      "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; UniNotes and files sit in a UniNote or a folder.",
       "document_cycle": "An item can't move into itself or into something inside it.",
       "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
-      "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
+      "folder_too_large": "The folder holds more than 1,000 items, so it can't move to the trash in one go. Move what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
@@ -9934,6 +10006,8 @@
       "errors": {
         "unauthorized": "Your editing session expired. Try again.",
         "forbidden": "You do not have permission to do that in this document.",
+        "read_only_source": "This file is view-only and can't be saved.",
+        "read_only_source_export": "This file is view-only and can't be exported.",
         "not_found": "This document no longer exists or was moved.",
         "conflict": "Someone saved a newer version. Reopen the document to see it before saving.",
         "too_large": "The file is too large to upload.",
@@ -9947,11 +10021,20 @@
       }
     },
     "too_large": {
-      "title": "File is too large to edit on the web",
-      "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",
-      "description_download_only": "This {{format}} file exceeds the browser size limit. Download it to keep working.",
+      "title": "Can’t open this file on the web",
+      "description": "This {{format}} file is too large for the browser to open. Open it in the UniWork Office desktop app to keep working.",
+      "description_download_only": "This {{format}} file is too large for the browser to open. Download it to keep working.",
+      "engine_out_of_memory": "The browser ran out of memory opening this {{format}} file. Open it in the UniWork Office desktop app to keep working.",
+      "engine_out_of_memory_download_only": "The browser ran out of memory opening this {{format}} file. Download it to keep working.",
+      "too_complex": "This {{format}} file has more content than the browser can handle. Open it in the UniWork Office desktop app to keep working.",
+      "too_complex_download_only": "This {{format}} file has more content than the browser can handle. Download it to keep working.",
       "download": "Download",
       "download_failed": "The file could not be downloaded. Try again."
+    },
+    "lag_banner": {
+      "body": "This file is large and may run slowly in the browser. Open it in the UniWork Office app for a better experience.",
+      "open_app": "Open in app",
+      "continue": "Continue on web"
     },
     "shell": {
       "save": "Save",
@@ -10154,6 +10237,15 @@
       "loading": "Loading editor…",
       "capability_unavailable": "This editor is unavailable",
       "editor_pending": "{{format}} editing is not available yet."
+    },
+    "size": {
+      "warn_chip": "Approaching the {{max}} limit (currently {{size}}).",
+      "save_blocked": {
+        "title": "Couldn’t save to UniWork",
+        "body": "This document is over {{max}}. Your changes are still here. Download your copy to your computer, then reduce image sizes or split the document.",
+        "download": "Download my copy",
+        "close": "Close"
+      }
     }
   },
   "officeDesktop": {

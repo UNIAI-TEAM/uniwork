@@ -207,12 +207,19 @@ fails on drift. One flat namespace, keys nested by section:
 | graph timeline | **dòng thời gian** | Timeline | khác "Hoạt động" (audit + bình luận) của trang việc |
 | Work Graph | **Work Graph** | Work Graph | tên hệ thống, không dịch |
 | folder (Documents) | **thư mục** | Folder | dùng lại khóa `"folder": "Thư mục"` có sẵn; UNI-1425 (phụ lục thư mục §3.6) |
+| Page (the rich-text document kind, `kind=page`) | **UniNote** | UniNote | tên sản phẩm, không dịch ở mọi ngôn ngữ (U-UN1, UNI-1812); `documents.file_types.page`, `documents.page.new_page` = "UniNote mới" / "New UniNote"; chỉ chữ trên UI — `kind=page`, route, `documentKeys` giữ nguyên. "Trang" vẫn là phân trang ("Trang sau"), trang chủ ("Trang chủ") và trang in ("Trang in"). `packages/core/i18n/uninote-copy.test.ts` giữ danh sách khóa |
 | subfolder | **thư mục con** | Subfolder | luôn đủ cụm, không "mục con" |
 | new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Tài liệu (gốc)" (tiêu đề hộp thoại từ (+) sidebar) |
 | rename | **đổi tên** | Rename | |
 | move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
 | trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |
 | path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |
+| editing (the document edit lock as a person sees it) | **quyền sửa** | Editing | `documents.editLock.*` (UNI-1645); never "khóa" in copy, which reads as locking or restricting the document |
+| editing (someone is, now) | **đang sửa** | Editing | `rowEditing` "đang sửa" / "editing", `bannerOther` "{{name}} đang sửa từ {{time}}" |
+| take over editing | **lấy quyền sửa** | Take over editing | manage level only, takes effect at once; the button and the confirm say the same words |
+| request to edit | **yêu cầu quyền sửa** | Request to edit | edit level; the holder answers "Lưu và nhường quyền" / "Từ chối" |
+| keep editing offline | **giữ quyền sửa khi offline** | Keep editing offline | desktop only; others read "{{name}} giữ quyền sửa offline đến {{time}}" |
+| offline (the app working without a network) | **offline** | offline | kept lowercase English inside Vietnamese, like workspace: "thư viện offline", "giữ quyền sửa offline"; **Ngoại tuyến** is only a person's presence (`presence_offline`), never the app's mode |
 | origin link of a file from another module (Documents) | **Xem nơi đính kèm** | View where attached | `documents.home.row.go_to_source`; một nhãn cho việc, bình luận việc, cuộc họp và Trò chuyện (mở đúng phòng và tin nhắn); email giữ `open_email` = "Mở Email" vì Email Hub chưa có đường dẫn tới từng thread; không dùng "Đi tới bản gốc" |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian

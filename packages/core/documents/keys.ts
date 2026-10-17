@@ -29,7 +29,10 @@ export const documentKeys = {
   // `document.*` realtime invalidation still refreshes all of them; the
   // filter is part of the key so two filtered lists never share an entry.
   list: (wsId: string, filterKey: string = "") =>
-    [...documentKeys.workspace(wsId), "list", filterKey] as const,
+    [...documentKeys.listRoot(wsId), filterKey] as const,
+  // Prefix of every filtered list entry; `document.lock_changed` invalidates
+  // it (rows carry `edit_lock`) without touching detail (UNI-1645).
+  listRoot: (wsId: string) => [...documentKeys.workspace(wsId), "list"] as const,
   // Files from chat/task/meeting/email; under the workspace root so a
   // `document.*` invalidation refreshes the section too.
   sources: (wsId: string, filterKey: string = "") =>
@@ -56,8 +59,17 @@ export const documentKeys = {
   // its prefix and one tree invalidation refreshes both.
   tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>
     foldersOnly
-      ? ([...documentKeys.workspace(wsId), "tree", root, "folders_only"] as const)
-      : ([...documentKeys.workspace(wsId), "tree", root] as const),
+      ? ([...documentKeys.treeRoot(wsId), root, "folders_only"] as const)
+      : ([...documentKeys.treeRoot(wsId), root] as const),
+  // Prefix of every tree entry (UNI-1645 `document.lock_changed`).
+  treeRoot: (wsId: string) => [...documentKeys.workspace(wsId), "tree"] as const,
+  /**
+   * Who holds the document's edit lock (UNI-1645, R1). Under the workspace
+   * root, so a reconnect refreshes it, but outside `detail`: a lock frame
+   * must never refetch the document an editor has open.
+   */
+  editLock: (wsId: string, documentId: string) =>
+    [...documentKeys.workspace(wsId), "edit-lock", documentId] as const,
   // What archiving a subtree would move (FD-06). Under the workspace root so
   // a `document.moved`/`archived`/`restored` frame refreshes open counts.
   archiveImpact: (wsId: string, documentId: string) =>

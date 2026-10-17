@@ -18,11 +18,25 @@ const prefs = [
   { kind: "mentioned", in_app: true, push: true, email: false },
 ];
 
+/** The PUT body and read-back call shape the transport hands the mock. */
+type PrefsBody = { preferences: { kind: string; email: boolean }[] };
+type RequestCall = [string, { method?: string; body?: PrefsBody }?];
+
 function mockApi(pushEnabled: boolean) {
-  requestMock.mockImplementation((path: string, init?: { method?: string; body?: unknown }) => {
+  requestMock.mockImplementation((path: string, init?: { method?: string; body?: PrefsBody }) => {
     if (path === "/api/v1/notifications/push/config") return Promise.resolve({ enabled: pushEnabled, public_key: "BOr" });
     if (path === "/api/v1/me/notification-preferences") {
-      if (init?.method === "PUT") return Promise.resolve({ preferences: (init.body as { preferences: unknown[] }).preferences });
+      if (init?.method === "PUT") {
+        // The real server answers with the effective rows: document_trashed_by_other
+        // can never hold email (Matrix.For's ceiling), so echoing the request would
+        // show a state the backend never returns (BE-TN-11).
+        return Promise.resolve({
+          preferences: (init.body?.preferences ?? []).map((p) => ({
+            ...p,
+            email: p.email && p.kind !== "document_trashed_by_other",
+          })),
+        });
+      }
       return Promise.resolve({ preferences: prefs });
     }
     return Promise.resolve({ status: "ok" });
@@ -92,22 +106,33 @@ describe("NotificationsTab", () => {
     await waitFor(() => expect(mentionedEmail).not.toHaveAttribute("aria-busy"));
   });
 
-  it("turns one channel off for every kind in a single request", async () => {
+  it("bulk-toggles email for every kind that can hold it, never the trash kind", async () => {
     mockApi(false);
     render(wrap(<NotificationsTab />));
-    const allEmail = await screen.findByRole("checkbox", { name: "Email cho mọi loại" });
     // "mentioned" has email off, so the channel is on for some kinds: mixed, not off.
-    expect(allEmail).toHaveAttribute("aria-checked", "mixed");
-    fireEvent.click(allEmail);
+    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "mixed");
 
-    await waitFor(() => expect(requestMock.mock.calls.filter(([, init]) => (init as { method?: string })?.method === "PUT")).toHaveLength(1));
-    const put = requestMock.mock.calls.find(([, init]) => (init as { method?: string })?.method === "PUT")!;
-    const sent = (put[1] as { body: { preferences: { kind: string; email: boolean }[] } }).body.preferences;
-    // Only the kinds that were off are written, all of them switched on: the
-    // stored "mentioned" and the trash notice, which is off by default.
-    expect(sent.map((p) => p.kind)).toEqual(["mentioned", "document_trashed_by_other"]);
-    expect(sent.every((p) => p.email)).toBe(true);
+    const puts = () => (requestMock.mock.calls as RequestCall[]).filter(([, init]) => init?.method === "PUT");
+    const sentOf = (call: RequestCall | undefined) => call?.[1]?.body?.preferences ?? [];
+
+    // Mixed turns everything on: only the kinds that were off are written, all of
+    // them switched on. The omitted trash kind defaults email off (Q-R2) but can
+    // never hold it, so the bulk control does not claim it (BE-TN-11).
+    fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại" }));
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    expect(sentOf(puts()[0]).map((p) => p.kind)).toEqual(["mentioned"]);
+    expect(sentOf(puts()[0]).every((p) => p.email)).toBe(true);
     expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "true");
+
+    // Every eligible kind is on now, so the same click switches them all off -
+    // and still leaves the ineligible trash kind out of the write.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại" }));
+    await waitFor(() => expect(puts()).toHaveLength(2));
+    const off = sentOf(puts()[1]);
+    expect(off).toHaveLength(NOTIFICATION_KINDS.length - 1);
+    expect(off.every((p) => !p.email)).toBe(true);
+    expect(off.map((p) => p.kind)).not.toContain("document_trashed_by_other");
+    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "false");
   });
 
   it("shows the push column and the browser switch when push is available", async () => {
@@ -147,6 +172,48 @@ describe("NotificationsTab", () => {
     expect(await push("Truy cập khẩn cấp vào tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Được nhắc đến trong thảo luận")).toHaveAttribute("aria-checked", "true");
     expect(await push("Phản hồi bình luận")).toHaveAttribute("aria-checked", "false");
+    // The root's edit-lock kinds push by default too, except the answer.
+    expect(await push("Yêu cầu quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Bị lấy quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Trả lời yêu cầu quyền sửa")).toHaveAttribute("aria-checked", "false");
+  });
+
+  // BE-TN-2: the trash kind carries a translated label, not a raw key, in vi.
+  it("renders the trash kind with its settings label and switch labels", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    const header = await screen.findByRole("rowheader", { name: "Tài liệu của bạn bị chuyển vào thùng rác" });
+    expect(header).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Tài liệu của bạn bị chuyển vào thùng rác · Email" })).toBeInTheDocument();
+  });
+
+  // BE-TN-5: a kind the server omitted falls back to the server's own
+  // defaults - for document_trashed_by_other that is in-app only, never
+  // email; a toggle on the row must write that effective value back.
+  it("omits the trash kind's email and writes it back off", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    const email = await screen.findByRole("switch", {
+      name: "Tài liệu của bạn bị chuyển vào thùng rác · Email",
+    });
+    expect(email).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Tài liệu của bạn bị chuyển vào thùng rác · Hộp việc" }),
+    );
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notification-preferences",
+        expect.objectContaining({
+          method: "PUT",
+          body: {
+            preferences: [
+              { kind: "document_trashed_by_other", in_app: false, push: false, email: false },
+            ],
+          },
+        }),
+      ),
+    );
   });
 
   // TRASH-NOTIFY-01: the trash notice is in-app only (prefs.go: push off, no digest email).

@@ -431,3 +431,45 @@ func TestRateLimitBucketRefusalCode(t *testing.T) {
 		t.Fatalf("a bucket without a code = %d %s, want 429 rate_limited", code, refusal)
 	}
 }
+
+// The document edit requests (UNI-1645 R8) answer edit_request_rate_limited
+// with fields.retry_after_s from this limiter and from their database cap
+// alike, so the client reads one shape.
+func TestRateLimitBucketRetryAfter_CarriesCodeAndRetryAfterField(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	user := func(r *http.Request) string { return r.Header.Get("X-Test-User") }
+	handler := RateLimitByIdentityBucketRetryAfter(rdb, "edit-request", 1, time.Minute, nil, user, "edit_request_rate_limited")(okHandler)
+	send := func(path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.3.1:9000"
+		req.Header.Set("X-Test-User", "u1")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := send("/documents/a/edit-requests"); rec.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec.Code)
+	}
+	rec := send("/documents/b/edit-requests")
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("second document: expected 429 (one budget across documents), got %d", rec.Code)
+	}
+	var body struct {
+		Error struct {
+			Code   string         `json:"code"`
+			Fields map[string]any `json:"fields"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
+	}
+	if body.Error.Code != "edit_request_rate_limited" {
+		t.Errorf("code = %q, want edit_request_rate_limited", body.Error.Code)
+	}
+	if got, ok := body.Error.Fields["retry_after_s"].(float64); !ok || got != 60 {
+		t.Errorf("fields.retry_after_s = %v, want 60", body.Error.Fields["retry_after_s"])
+	}
+	if rec.Header().Get("Retry-After") != "60" {
+		t.Errorf("Retry-After = %q, want 60", rec.Header().Get("Retry-After"))
+	}
+}

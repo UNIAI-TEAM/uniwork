@@ -6,30 +6,34 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentLimits } from "@uniwork/core/documents/limits";
-import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
-import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
-import { docsFrameApiBase, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
+import { officeFrameKeys, useOfficeFrameSourceToken, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
+import type { OfficeFrameSourceToken, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
+import { docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
-import { DocsProtocolError, type FrameRequests, type InitPayload, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
-import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-session-key";
-import { officeModuleSpec } from "@uniwork/core/office/office-modules";
+import { DocsProtocolError, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
 import {
-  BOOT_TIMEOUT_MS,
-  SLOW_AFTER_MS,
   armWatchdog,
-  officeModuleCapabilities,
+  attachFrameBundleProbe,
+  lockAwareSave,
+  onSizeEvents,
+  postDocDownload,
   readOnly,
+  saveBlockedMaxBytes,
   shapeOf,
+  toFrameLimits,
   unauthorized,
   type DocsFrameBundleFailure,
+  type DocsFrameSaveBlocked,
   type DocsFrameSaveOutcome,
   type DocsFrameSaveState,
   type DocsFrameSession,
   type DocsFrameSessionOptions,
+  type DocsFrameSizeWarning,
   type DocsFrameStatus,
   type FrameLife,
   type HostSaveWatch,
 } from "./docs-frame-session-model";
+import { composeFrameInit } from "./docs-frame-init";
 import { deliverFrameDownload, frameDownloadMaxBytes } from "./frame-download";
 import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave } from "./frame-remote-version";
 import { useFrameRemote } from "./use-frame-remote-source";
@@ -41,8 +45,12 @@ import { useFrameRemote } from "./use-frame-remote-source";
  * `api.*` proxy, and the dirty / title / theme / language / resize wiring.
  */
 export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrameSession {
-  const { iframeRef, frameOrigin, wsId, documentId, locale, theme } = options;
+  const { iframeRef, frameOrigin, wsId, fileRef, locale, theme } = options;
   const module = options.module ?? "docs";
+  // A file from another module (UNI-1869) mints on the workspace source route
+  // and is view-only by construction: no write route accepts `ofs1.`.
+  const isSource = fileRef.kind === "source";
+  const fileId = fileRef.id;
   // Display data for the editors (comment and note authors), never an identity the frame authorises with.
   const displayName = useAuthStore((s) => s.user?.display_name ?? "");
   const userId = useAuthStore((s) => s.user?.id ?? "");
@@ -50,12 +58,19 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const queryClient = useQueryClient();
   // The document the frame edits: the page's, until a save-as moves it to the copy.
   const [savedAs, setSavedAs] = useState<{ from: string; to: string } | null>(null);
-  const scopeId = savedAs?.from === documentId ? savedAs.to : documentId;
-  const tokenQuery = useOfficeFrameToken(wsId, scopeId);
+  const scopeId = savedAs?.from === fileId ? savedAs.to : fileId;
+  const docTokenQuery = useOfficeFrameToken(wsId, scopeId, { enabled: !isSource });
+  const sourceTokenQuery = useOfficeFrameSourceToken(wsId, scopeId, { enabled: isSource });
+  const tokenQuery = isSource ? sourceTokenQuery : docTokenQuery;
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
   // A module other than Docs also honours the minted token's can_edit, so a view-only user is
   // treated as readonly even when the page did not say so (Docs keeps the page's readonly).
-  const viewOnly = options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false);
+  // Not holding the page's edit lock (acquiring, someone else, lost) is view-only too (UNI-1645).
+  // A source has no lock to hold: it is view-only already and never reads one.
+  const editLock = isSource ? null : options.editLock;
+  const lockedOut = editLock != null && !editLock.held;
+  const viewOnly = isSource || options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false) || lockedOut;
+  const editLockId = editLock?.held ? editLock.lockId : undefined;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [slow, setSlow] = useState(false);
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
@@ -65,14 +80,19 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [height, setHeight] = useState<number | null>(null);
   const [host, setHost] = useState<DocsFrameHost | null>(null);
   const [aiRunning, setAiRunning] = useState(false);
+  const [sizeWarning, setSizeWarning] = useState<DocsFrameSizeWarning | null>(null);
+  const [saveBlocked, setSaveBlocked] = useState<DocsFrameSaveBlocked | null>(null);
   const syncFeed = useFlag("office_sync_feed", false);
-  const uploadMaxBytes = useDocumentLimits().upload_max_bytes;
+  const documentLimits = useDocumentLimits();
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, uploadMaxBytes });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, uploadMaxBytes };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, documentLimits, isSource });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, documentLimits, isSource };
+  // The current frame was initialised read-only because the lock was not held: holding it later
+  // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
+  const initLockedOut = useRef(false);
   // New-version bookkeeping of the current endpoint (frame-remote-version.ts); a block outlives a retry.
-  const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, scopeId, syncFeed);
+  const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, isSource ? "" : scopeId, syncFeed);
   const sentToken = useRef<string | null>(null);
   // The Save the page has in flight, and whether the frame shows a dialog right now.
   const hostSave = useRef<HostSaveWatch | null>(null);
@@ -81,6 +101,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const frameLife = useRef<FrameLife>({ state: "disposed" });
   // A clean frame after a save reads "saved"; one never saved reads "ready".
   const savedOnce = useRef(false);
+  const sizeWarnedDoc = useRef<string | null>(null);
+  const saveBlockedOpen = useRef(false);
+  const downloadPending = useRef(false);
+  const initDownloadMaxBytes = useRef<number>(frameDownloadMaxBytes(documentLimits.upload_max_bytes));
 
   useEffect(() => {
     setStatus("booting");
@@ -90,6 +114,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     setSaveState("ready");
     setModal(false);
     setAiRunning(false);
+    if (sizeWarnedDoc.current !== latest.current.scopeId) {
+      sizeWarnedDoc.current = null;
+      setSizeWarning(null);
+    }
+    saveBlockedOpen.current = false;
+    downloadPending.current = false;
+    setSaveBlocked(null);
+    initDownloadMaxBytes.current = frameDownloadMaxBytes(latest.current.documentLimits.upload_max_bytes);
     modalOpen.current = false;
     sentToken.current = null;
     savedOnce.current = false;
@@ -97,7 +129,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     frameLife.current = life;
     // `endpoint` is assigned below, before any frame can open anything to announce.
     const remote = createFrameRemoteVersion({
-      documentId: latest.current.scopeId, enabled: () => latest.current.syncFeed,
+      // A source is not a documents row: there is no remote feed for it.
+      documentId: latest.current.scopeId, enabled: () => latest.current.syncFeed && !latest.current.isSource,
       notify: (payload) => { if (life.state === "live") endpoint.notifyRemoteVersion(payload); },
       notifyBlocked: (payload) => { if (life.state === "live") endpoint.notifyBlocked(payload); },
     });
@@ -131,9 +164,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
 
     const currentToken = async (): Promise<TokenPayload> => {
-      const { options: { wsId: ws }, scopeId: doc } = latest.current;
+      const { options: { wsId: ws }, scopeId: doc, isSource: source } = latest.current;
       // The cache may hold a token this render has not seen yet.
-      const cached = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(ws, doc));
+      const cached = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+        source ? officeFrameKeys.sourceToken(ws, doc) : officeFrameKeys.token(ws, doc),
+      );
       if (cached) return docsFrameToken(cached);
       // The first mint may still be in flight: join it rather than mint twice.
       const { data } = await latest.current.refetch({ cancelRefetch: false });
@@ -142,17 +177,26 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
       async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current, scopeId: doc, viewOnly: refused } = latest.current;
-        if (write && refused) throw readOnly(type);
+        const { options: current, scopeId: doc, viewOnly: refused, isSource: source, editLockId: lockId } = latest.current;
+        if ((write || (source && type === "api.export")) && refused) { if (source) current.onSourceWriteRefused?.(type === "api.export" ? "export" : "write"); throw readOnly(type); }
         const run = pick(current.api);
         if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
         const { token: frameToken } = await currentToken();
-        return run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal } as never) as Promise<FrameRequests[K]["result"]>;
+        try {
+          return (await run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal, ...(lockId ? { editLockId: lockId } : {}) } as never)) as FrameRequests[K]["result"];
+        } catch (error) {
+          throw error instanceof DocsProtocolError ? error : docsFrameError(error);
+        }
       };
 
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
     const open = proxy("api.open", false, (api) => api.open);
-    const save = remoteAwareSave(proxy("api.save", true, (api) => api.save), remote, applyBlock);
+    const upload = proxy("api.save", true, (api) => api.save);
+    // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
+    // read-only) and the frame hears the same refusal the host gives a viewer, so it opens no
+    // conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
+    const lockAware = lockAwareSave(upload, (fields) => latest.current.editLock?.onLocked(fields));
+    const save = remoteAwareSave(lockAware, remote, applyBlock);
     // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
     // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session
     // that replaced it keeps its own state.
@@ -162,11 +206,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         (result) => { if (life.state !== "disposed") setSaveState(settled(result)); return result; },
         (error: unknown) => {
           if (life.state === "disposed") throw error;
+          const blockedMax = saveBlockedMaxBytes(error, latest.current.documentLimits.upload_max_bytes);
+          if (blockedMax !== null && life.state === "live") {
+            saveBlockedOpen.current = true;
+            setSaveBlocked({ maxBytes: blockedMax });
+          }
           // While the page's own Save is open its answer decides the header: a 409 here is the
           // frame's conflict dialog opening, not the end of that Save.
           if (hostSave.current) setSaveState("saving");
-          // A save the user cancelled leaves the edits unsaved, not failed.
-          else setSaveState(shapeOf(error).code === "cancelled" ? "dirty" : "error");
+          // A save the user cancelled, or one the size dialog already explains, leaves the edits unsaved, not failed.
+          else setSaveState(shapeOf(error).code === "cancelled" || blockedMax !== null ? "dirty" : "error");
           throw error;
         },
       );
@@ -221,38 +270,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
-        const { options: current, scopeId: doc, displayName: name, userId: uid } = latest.current;
-        const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
-        // The server derives the module from the stored file; a frame mounted for another
-        // module would edit bytes of a format it does not own (older servers send none).
-        if (minted?.module && minted.module !== module) {
-          throw new DocsProtocolError({
-            code: "malformed", message: `token is for module ${minted.module}, frame is ${module}`,
-            details: { tokenModule: minted.module, expectedModule: module },
-          });
-        }
-        // Same rule as the hook's viewOnly, read from the token this init carries.
-        const viewOnly = current.readonly || (module !== "docs" && minted?.can_edit === false);
-        // Draft recovery (CONTRACT C18): the session's key, again on every init so a reloaded
-        // frame reads the drafts it wrote. A viewer has nothing unsaved to recover.
-        const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
-          ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
-          : null;
-        const capabilities = officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true);
-        const downloadMaxBytes = frameDownloadMaxBytes(latest.current.uploadMaxBytes);
-        const init: Omit<InitPayload, "protocolVersion"> = {
-          ...frameToken,
-          documentId: doc, workspaceId: current.wsId,
-          apiBase: docsFrameApiBase(), apiMode: "host-proxy",
-          locale: current.locale, theme: current.theme,
-          capabilities,
-          // The cap api.download enforces, told up front so the conflict dialog can disable its
-          // download choice before a 413; only with the capability (the frame ignores it otherwise).
-          ...(capabilities.download ? { downloadMaxBytes } : {}),
-          ...(name ? { user: { displayName: name } } : {}),
-          ...(recovery ? { recovery } : {}),
-        };
-        return current.comments ? current.comments.augmentInit(init, { canEdit: minted?.can_edit, readonly: viewOnly }) : init;
+        const { options: current, scopeId: doc, displayName: name, userId: uid, documentLimits: limits, isSource: source, editLock: lock } = latest.current;
+        const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+          source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
+        );
+        const { init, lockedOut, downloadMaxBytes } = await composeFrameInit({ module, frameToken, current, doc, name, uid, minted, limits, source, editLock: lock });
+        initLockedOut.current = lockedOut;
+        initDownloadMaxBytes.current = downloadMaxBytes;
+        return init;
       },
       refreshToken: async () => {
         const { data } = await latest.current.refetch();
@@ -263,14 +288,27 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       },
       api: {
         ...latest.current.options.comments?.api,
-        "api.open": (payload, context) => openWithRevision(() => open(payload, context), payload, remote, context.signal),
+        "api.open": (payload, context) =>
+          openWithRevision(
+            async () => ({ ...(await open(payload, context)), limits: toFrameLimits(latest.current.documentLimits) }),
+            payload,
+            remote,
+            context.signal,
+          ).catch((error: unknown) => { const shape = shapeOf(error); if (latest.current.isSource && shape.code !== "cancelled") failSession(shape); throw error; }),
         "api.save": async (payload, context) => {
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
           const watch = hostSave.current?.life === life ? hostSave.current : null;
           if (watch) { watch.busy += 1; armWatchdog(watch); }
           try {
             return await tracked(() => save(payload, context), (result) => {
-              if (!result.ok) return "dirty";
+              if (!result.ok) {
+                const blockedMax = saveBlockedMaxBytes(result.error, latest.current.documentLimits.upload_max_bytes);
+                if (blockedMax !== null && life.state === "live") {
+                  saveBlockedOpen.current = true;
+                  setSaveBlocked({ maxBytes: blockedMax });
+                }
+                return "dirty";
+              }
               savedOnce.current = true;
               if (watch) watch.stored = true;
               return "saved";
@@ -289,9 +327,13 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           const { options: current } = latest.current;
           queryClient.setQueryData(officeFrameKeys.token(current.wsId, rebind.documentId), rebind.token);
           latest.current.scopeId = rebind.documentId;
+          sizeWarnedDoc.current = null;
+          setSizeWarning(null);
+          saveBlockedOpen.current = false;
+          setSaveBlocked(null);
           remote.rebind(rebind.documentId);
           if (saved.ok) remote.committed(saved.file, saved.versionId);
-          setSavedAs({ from: current.documentId, to: rebind.documentId });
+          setSavedAs({ from: current.fileRef.id, to: rebind.documentId });
           const frameToken = docsFrameToken(rebind.token);
           sentToken.current = frameToken.token;
           endpoint.pushToken(frameToken);
@@ -310,11 +352,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.assets.resolve": proxy("api.assets.resolve", false, (api) => api.resolveAssets),
         // The conflict dialog's "download my version": bytes only; name, type and size are the host's.
         "api.download": async (payload) => {
-          const { options: current, scopeId: doc, viewOnly: refused, uploadMaxBytes: uploadMax } = latest.current;
-          const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
-          if (refused || minted?.can_edit !== true) throw readOnly("api.download");
-          const ceiling = frameDownloadMaxBytes(uploadMax);
-          return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc, ceiling);
+          const { options: current, scopeId: doc, viewOnly: refused, isSource: source } = latest.current;
+          const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+            source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
+          );
+          if (refused || minted?.can_edit !== true) { if (source) current.onSourceWriteRefused?.("write"); throw readOnly("api.download"); }
+          return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc, initDownloadMaxBytes.current);
         },
         "app.open": async () => {
           const { options: current, viewOnly: refused } = latest.current;
@@ -374,57 +417,43 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       void queryClient.invalidateQueries({ queryKey: documentKeys.detail(ws, doc) });
       onSaved?.(saved);
     });
+    onSizeEvents(endpoint, {
+      onSizeWarning: ({ bytes, max_bytes, warn_ratio }) => {
+        if (life.state !== "live" || frameDocGone) return;
+        const doc = latest.current.scopeId;
+        if (sizeWarnedDoc.current === doc) return;
+        sizeWarnedDoc.current = doc;
+        setSizeWarning({ bytes, maxBytes: max_bytes, warnRatio: warn_ratio });
+      },
+      onSaveBlocked: ({ max_bytes }) => {
+        if (life.state !== "live" || frameDocGone) return;
+        saveBlockedOpen.current = true;
+        setSaveBlocked({ maxBytes: max_bytes });
+      },
+    });
     endpoint.on("error", ({ error, fatal: isFatal }) => {
       if (isFatal) failSession(error);
       // A save conflict is answered inside the frame (its own Cancel / Reload / Overwrite dialog) and
       // reaches the host only as this event: a toast here would say it twice.
       if (error.code === "conflict" && !isFatal) return;
-      latest.current.options.onError(error);
+      if (error.code === "too_large" && !isFatal && saveBlockedOpen.current) return;
+      latest.current.options.onError(error, { fatal: isFatal });
     });
-    const probe = new AbortController();
-    const bootTimer = setTimeout(() => failBoot("timeout"), latest.current.options.bootTimeoutMs ?? BOOT_TIMEOUT_MS);
-    const slowTimer = setTimeout(() => { if (!booted) setSlow(true); }, latest.current.options.slowAfterMs ?? SLOW_AFTER_MS);
-    const frameSrc = latest.current.options.frameSrc;
-    if (frameSrc) {
-      // Only an HTTP answer >= 400 counts: a probe that cannot run (offline, blocked) leaves the
-      // verdict to the timer and the handshake.
-      void fetch(frameSrc, { credentials: "same-origin", signal: probe.signal }).then(
-        (response) => { if (response.status >= 400) failBoot("missing"); },
-        () => undefined,
-      );
-    }
-    // A module script that failed to load (404/5xx, a blocked or dropped request) leaves a frame that
-    // loads fine and then never starts: its script error does not reach the page, and the load event
-    // still fires. Once the frame document has loaded, probe its scripts (served from the HTTP cache
-    // when they did load) and fall back at once instead of waiting out the boot timer.
-    // The first load is the frame document itself; any later one replaced it. A load of a document
-    // other than the one that shook hands replaced it too, even when its first load was never seen.
-    let loads = 0;
-    const onFrameLoad = () => {
-      loads += 1;
-      let current: Document | null = null;
-      try { current = iframe?.contentDocument ?? null; } catch { /* not same-origin: the count decides */ }
-      if (loads > 1 || (frameDoc !== null && current !== frameDoc)) docGone();
-      if (booted) return;
-      let sources: string[] = [];
-      try {
-        sources = Array.from(iframe?.contentDocument?.querySelectorAll("script[src]") ?? []).map((el) => (el as HTMLScriptElement).src);
-      } catch { return; /* a frame that is not same-origin cannot be inspected; the timer decides */ }
-      for (const source of sources) {
-        void fetch(source, { credentials: "same-origin", cache: "force-cache", signal: probe.signal }).then(
-          (response) => { if (response.status >= 400) failBoot("script"); },
-          (error: unknown) => { if (!(error instanceof DOMException && error.name === "AbortError")) failBoot("script"); },
-        );
-      }
-    };
-    iframe?.addEventListener("load", onFrameLoad);
+    const detachProbe = attachFrameBundleProbe({
+      iframe,
+      frameSrc: latest.current.options.frameSrc,
+      bootTimeoutMs: latest.current.options.bootTimeoutMs,
+      slowAfterMs: latest.current.options.slowAfterMs,
+      isBooted: () => booted,
+      getFrameDoc: () => frameDoc,
+      onSlow: () => setSlow(true),
+      onDocGone: docGone,
+      onFailBoot: failBoot,
+    });
     setHost(endpoint);
     return () => {
-      clearTimeout(bootTimer);
-      clearTimeout(slowTimer);
-      iframe?.removeEventListener("load", onFrameLoad);
+      detachProbe();
       unbindFrameDoc?.();
-      probe.abort();
       booted = true;
       // Retired at once: a Save still open here is cancelled by the dispose below, and nothing of
       // this endpoint may arm a timer or write state after this line.
@@ -436,7 +465,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (remoteRef.current === remote) remoteRef.current = null;
       setHost(null);
     };
-  }, [applyBlock, attempt, documentId, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, wsId]);
+  }, [applyBlock, attempt, fileId, isSource, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, wsId]);
+
+  // The lock arrived after the frame opened read-only ("Edit now", a handover, the first R2):
+  // re-attach it in edit mode.
+  const lockHeld = editLock?.held === true;
+  useEffect(() => {
+    if (!lockHeld || !initLockedOut.current) return;
+    initLockedOut.current = false;
+    setAttempt((n) => n + 1);
+  }, [lockHeld]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.
   const tokenValue = token?.token;
@@ -460,8 +498,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     armWatchdog(watch);
     setSaveState("saving");
     const fail = (error: ProtocolErrorShape): DocsFrameSaveOutcome => {
-      setSaveState("error");
-      latest.current.options.onError(error);
+      const blockedMax = saveBlockedMaxBytes(error, latest.current.documentLimits.upload_max_bytes);
+      // The size dialog already explains a blocked save: the header says unsaved, not "could not be confirmed".
+      setSaveState(blockedMax !== null ? "dirty" : "error");
+      if (blockedMax !== null) {
+        saveBlockedOpen.current = true;
+        setSaveBlocked({ maxBytes: blockedMax });
+        return "failed";
+      }
+      if (error.code === "too_large" && saveBlockedOpen.current) return "failed";
+      latest.current.options.onError(error, { fatal: false });
       return "failed";
     };
     try {
@@ -504,10 +550,28 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     try {
       return (await host.print({ mode: "dialog" }, { timeoutMs: 10 * 60_000 })).printed;
     } catch (error) {
-      latest.current.options.onError(shapeOf(error));
+      latest.current.options.onError(shapeOf(error), { fatal: false });
       return false;
     }
   }, [host]);
+
+  const dismissSaveBlocked = useCallback(() => {
+    saveBlockedOpen.current = false;
+    setSaveBlocked(null);
+  }, []);
+
+  const downloadCopy = useCallback(() => {
+    const life = frameLife.current;
+    if (life.state !== "live" || downloadPending.current) return;
+    downloadPending.current = true;
+    void postDocDownload(iframeRef.current?.contentWindow ?? null, frameOrigin)
+      .catch((error: unknown) => {
+        if (life.state === "live") latest.current.options.onError(shapeOf(error), { fatal: false });
+      })
+      .finally(() => {
+        downloadPending.current = false;
+      });
+  }, [frameOrigin, iframeRef]);
 
   const tokenFailure = !token && (tokenQuery.isError || (tokenQuery.isSuccess && tokenQuery.data === null))
     ? shapeOf(tokenQuery.error ?? unauthorized())
@@ -522,5 +586,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
     modal: modal && status === "ready" && !failure,
-    height, aiRunning: aiRunning && status === "ready" && !failure, blocked, save, print, attempt, retry };
+    height, aiRunning: aiRunning && status === "ready" && !failure, blocked,
+    sizeWarning: status === "ready" && !failure ? sizeWarning : null,
+    saveBlocked: status === "ready" && !failure ? saveBlocked : null,
+    dismissSaveBlocked, downloadCopy, save, print, attempt, retry };
 }

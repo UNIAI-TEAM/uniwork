@@ -1,0 +1,144 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { ChevronRight, Pencil } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
+import { Input } from "@uniwork/ui/components/ui/input";
+import { cn } from "@uniwork/ui/lib/utils";
+
+export interface FolderBreadcrumbProps {
+  /** Ancestors then the open folder, outermost first. */
+  path: { id: string; title: string }[];
+  canRename: boolean;
+  renaming: boolean;
+  onRoot: () => void;
+  onFolder: (folderId: string) => void;
+  onRename: (title: string) => void;
+}
+
+const MAX_UNCOLLAPSED_FOLDER_LEVELS = 3;
+const ELLIPSIS = "…";
+
+/** Tài liệu của workspace › folder › subfolder; paths over 3 folder levels collapse intermediate ancestors into a "…" menu, and the open folder renames in place. */
+export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, onRename }: FolderBreadcrumbProps) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  // One submit per edit: Enter removes the focused input, which fires blur, and
+  // Escape must not commit the draft through that blur.
+  const settled = useRef(false);
+  const leaf = path.at(-1);
+  if (!leaf) return null;
+  const submit = () => {
+    if (settled.current) return;
+    settled.current = true;
+    const title = draft.trim();
+    setEditing(false);
+    if (title && title !== leaf.title) onRename(title);
+  };
+  const collapsed = path.length > MAX_UNCOLLAPSED_FOLDER_LEVELS;
+  const hiddenAncestors = collapsed ? path.slice(0, -2) : [];
+  const visibleAncestors = collapsed ? [path.at(-2)!] : path.slice(0, -1);
+  const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+  return (
+    <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 items-center gap-1">
+      <button type="button" className={cn(crumb, "shrink-0")} onClick={onRoot}>
+        {t("documents.home.sidebar.home")}
+      </button>
+      {hiddenAncestors.length > 0 ? (
+        <span className="flex shrink-0 items-center gap-1">
+          <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={t("documents.home.breadcrumb_more")}
+              title={t("documents.home.breadcrumb_more")}
+              className={crumb}
+            >
+              {ELLIPSIS}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {hiddenAncestors.map((node) => (
+                <DropdownMenuItem
+                  key={node.id}
+                  className="px-2 py-2 pointer-coarse:min-h-11"
+                  onClick={() => onFolder(node.id)}
+                >
+                  {node.title}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </span>
+      ) : null}
+      {visibleAncestors.map((node) => (
+        <span key={node.id} className="flex min-w-0 items-center gap-1">
+          <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          <button
+            type="button"
+            className={cn(crumb, "min-w-0 truncate")}
+            onClick={() => onFolder(node.id)}
+          >
+            {node.title}
+          </button>
+        </span>
+      ))}
+      <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+      {editing ? (
+        <form
+          className="flex min-w-0 items-center gap-1"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          <Input
+            aria-label={t("documents.home.folders.rename_label")}
+            value={draft}
+            ref={(el) => el?.focus()}
+            maxLength={255}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={submit}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                settled.current = true;
+                setEditing(false);
+              }
+            }}
+            className="h-8 w-56 max-w-full"
+          />
+        </form>
+      ) : (
+        <span className="flex min-w-0 items-center gap-1">
+          <span aria-current="page" className="truncate px-1 text-body font-medium text-foreground">
+            {leaf.title}
+          </span>
+          {canRename ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("documents.home.folders.rename")}
+              title={t("documents.home.folders.rename")}
+              aria-disabled={renaming || undefined}
+              onClick={() => {
+                if (renaming) return;
+                settled.current = false;
+                setDraft(leaf.title);
+                setEditing(true);
+              }}
+            >
+              <Pencil aria-hidden />
+            </Button>
+          ) : null}
+        </span>
+      )}
+    </nav>
+  );
+}

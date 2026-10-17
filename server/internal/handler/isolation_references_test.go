@@ -190,6 +190,16 @@ var isoReferences = []isoReference{
 	// 409 for a parent of another tenant - the parent gate decides first.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent folder", body: map[string]any{
 		"title": isoUnique("ref folder"), "kind": "folder", "parent_id": isoRef("folder")}},
+	// The large-upload create route (BIGUP-S1): parent_id names a page or
+	// folder of the same workspace, checked before any session or part URL is
+	// created. Its control is also the route's write control, because the
+	// 4-open-per-person limit leaves no budget for a third seeded session.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/upload-sessions", what: "parent page", idempotent: true,
+		body: map[string]any{
+			"filename": "iso-ref-big.md", "size_bytes": isoUploadSessionSize,
+			"probe":     map[string]any{"head_b64": isoUploadSessionHead, "central_dir_b64": "", "cd_offset": 0, "cd_size": 0},
+			"parent_id": isoRef("document"),
+		}, covers: []string{"CreateUploadSessionSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "user principal", body: map[string]any{
 		"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentSDI.principal_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares/batch", what: "user principals", body: map[string]any{
@@ -292,6 +302,19 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/move", what: "folder into a foreign folder", docKey: "folder",
 		body:      map[string]any{"parent_id": isoRef("folder"), "revision": "1"},
 		noControl: "the own-ids control would move B's folder into itself, which is a cycle, and every later case then reads a stale revision"},
+	// The document edit lock (UNI-1645 §6 step 6). A lock id is looked up
+	// under the path's document in its organization, so A's id is "another
+	// tenure": 409 edit_lock_changed, or 423 on the gated write, before any
+	// revision check - never a read of A's row.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/edit-requests/{requestID}/answer", what: "lock of the request",
+		body: map[string]any{"decision": "decline", "lock_id": isoRef("docEditLock")}, covers: []string{"AnswerDocumentEditRequestSDI.lock_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/edit-lock/take-over", what: "expected tenure",
+		body:   map[string]any{"editor_id": "01J8X4ED1T0R0000000000000B", "client": "desktop", "expected_lock_id": isoRef("peerEditLock")},
+		covers: []string{"TakeOverDocumentEditLockSDI.expected_lock_id"}},
+	{method: "PATCH", pattern: "/api/v1/documents/{documentID}", what: "edit lock of the write", docKey: "lockDocument",
+		body: map[string]any{"revision": isoOwn("lockDocumentRevision"), "edit_lock_id": isoRef("docEditLock"),
+			"content": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": "edited"}}}}}},
+		covers: []string{"PatchDocumentSDI.edit_lock_id"}},
 	{method: "POST", pattern: "/api/v1/tasks/{taskID}/subscribe", what: "subscriber", body: map[string]any{"user_id": isoRef("owner"), "user_type": "member"},
 		covers: []string{"SubscribeTaskSDI.user_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "thread", body: map[string]any{
@@ -352,6 +375,10 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 
 // isoRefFieldExempt lists request DTO id fields no reference case attacks,
 // each with the reason another pass covers it or it names no tenant row.
+// editLockIDExempt is why the three other gated writes need no reference
+// case of their own (UNI-1645 §6 step 6).
+const editLockIDExempt = "compared, never stored: the same checkDocumentEditLock gate the PatchDocumentSDI.edit_lock_id case attacks; a control would need its own upload/version and base revision, which the existing commit cases consume; TestEditLockIDFromAnotherTenantIsRefused sends another organization's live tenure id to all four writes"
+
 var isoRefFieldExempt = map[string]string{
 	"FlagOverrideSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
 	"FlagOverrideDeleteSDI.scope_id":        "platform console: an override names any organization or user by design (RequirePlatformRole)",
@@ -385,6 +412,13 @@ var isoRefFieldExempt = map[string]string{
 	"SwitchResolutionSDI.organization_id":            "compared only with the caller's own active organizations, read under their membership lock; any other id is a mismatch answered 409 with the caller's own conflicts before a row of it is read, locked or written (TestSwitchResolveMustMatchTheConflicts: another tenant's organization)",
 	"SwitchResolutionSDI.transfer_to_user_id":        "only ever looked up as a member of the caller's own organization they own; somebody outside it has no such row and the switch rolls back with the caller's own conflicts (TestSwitchResolveMustMatchTheConflicts: a transfer to somebody outside the organization)",
 	"McpConsentSDI.organization_id":                  "the self pass sends A's live CSRF token and B's own organization against A's claimed attempt (400 csrf_invalid); TestIsolationMCP approves B's own attempt with B's own CSRF token into A's organization (403), and TestMcpApproveRefusals holds the same refusal against a stand-alone organization",
+
+	// The document edit lock (UNI-1645 §6 step 6).
+	"CommitDocumentVersionSDI.edit_lock_id":    editLockIDExempt,
+	"RestoreDocumentVersionSDI.edit_lock_id":   editLockIDExempt,
+	"CommitOfficeFrameVersionSDI.edit_lock_id": editLockIDExempt,
+	"AcquireDocumentEditLockSDI.editor_id":     "a client-minted editor instance id, not a row",
+	"TakeOverDocumentEditLockSDI.editor_id":    "a client-minted editor instance id, not a row",
 }
 
 // A body field that names another row is an attack surface the path passes

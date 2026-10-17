@@ -510,20 +510,37 @@ type Routes struct {
 	ListDocumentSources    http.HandlerFunc
 	DownloadDocumentSource http.HandlerFunc
 	SaveDocumentSource     http.HandlerFunc
-	GetDocument            http.HandlerFunc
-	PatchDocument          http.HandlerFunc
-	UploadDocumentFile     http.HandlerFunc
-	CommitDocumentVersion  http.HandlerFunc
-	LookupCommitIntent     http.HandlerFunc
-	ListDocumentVersions   http.HandlerFunc
-	CreateDocumentVersion  http.HandlerFunc
-	GetDocumentVersion     http.HandlerFunc
-	RestoreDocumentVersion http.HandlerFunc
-	UploadDocumentAsset    http.HandlerFunc
-	GetDocumentAsset       http.HandlerFunc
-	DownloadDocument       http.HandlerFunc
-	CreatePreviewScope     http.HandlerFunc
-	GetPreviewAsset        http.HandlerFunc
+	// A view-only Office frame over a source file (UNI-1869): the session
+	// mint, then the frame-token routes Deps.OfficeFrameAuth guards.
+	MintSourceOfficeFrameToken  http.HandlerFunc
+	OpenOfficeFrameSource       http.HandlerFunc
+	GetOfficeFrameSourceContent http.HandlerFunc
+	GetDocument                 http.HandlerFunc
+	PatchDocument               http.HandlerFunc
+	UploadDocumentFile          http.HandlerFunc
+	CommitDocumentVersion       http.HandlerFunc
+	LookupCommitIntent          http.HandlerFunc
+	ListDocumentVersions        http.HandlerFunc
+	CreateDocumentVersion       http.HandlerFunc
+	GetDocumentVersion          http.HandlerFunc
+	RestoreDocumentVersion      http.HandlerFunc
+	UploadDocumentAsset         http.HandlerFunc
+	GetDocumentAsset            http.HandlerFunc
+	DownloadDocument            http.HandlerFunc
+	CreatePreviewScope          http.HandlerFunc
+	GetPreviewAsset             http.HandlerFunc
+
+	// Large upload sessions (BIGUP-S1, UNI-1862): the three create routes, and
+	// the session routes a session token or a frame token reaches.
+	CreateWorkspaceUploadSession http.HandlerFunc
+	CreateDocumentUploadSession  http.HandlerFunc
+	CreateFrameUploadSession     http.HandlerFunc
+	GetUploadSession             http.HandlerFunc
+	GetFrameUploadSession        http.HandlerFunc
+	CompleteUploadSession        http.HandlerFunc
+	CompleteFrameUploadSession   http.HandlerFunc
+	AbortUploadSession           http.HandlerFunc
+	AbortFrameUploadSession      http.HandlerFunc
 
 	// Office Docs web frame (UNI-1013): the session mint, and the frame-token
 	// routes Deps.OfficeFrameAuth guards.
@@ -588,8 +605,21 @@ type Routes struct {
 	ListRecentDocuments http.HandlerFunc
 	ListDocumentChanges http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
-	PutOfficeOfflineLease      http.HandlerFunc
-	DeleteOfficeOfflineLease   http.HandlerFunc
+	PutOfficeOfflineLease    http.HandlerFunc
+	DeleteOfficeOfflineLease http.HandlerFunc
+
+	// Document edit lock and edit requests (UNI-1645, R1-R10).
+	GetDocumentEditLock       http.HandlerFunc
+	AcquireDocumentEditLock   http.HandlerFunc
+	HeartbeatDocumentEditLock http.HandlerFunc
+	ReleaseDocumentEditLock   http.HandlerFunc
+	TakeOverDocumentEditLock  http.HandlerFunc
+	PutDocumentEditHold       http.HandlerFunc
+	ClearDocumentEditHold     http.HandlerFunc
+	CreateDocumentEditRequest http.HandlerFunc
+	AnswerDocumentEditRequest http.HandlerFunc
+	CancelDocumentEditRequest http.HandlerFunc
+
 	ListSharedWithMe           http.HandlerFunc
 	DocumentAccessReport       http.HandlerFunc
 	ExportDocumentAccessReport http.HandlerFunc

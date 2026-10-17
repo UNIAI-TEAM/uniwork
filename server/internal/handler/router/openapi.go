@@ -89,6 +89,8 @@ func (c *apiCatalog) marshalJSON() ([]byte, error) {
 				cu.HTTPStatus = status
 				cu.ContentType = op.produces
 			})
+		case op.status == http.StatusNoContent:
+			oc.AddRespStructure(nil, func(cu *openapi.ContentUnit) { cu.HTTPStatus = status })
 		}
 		oc.AddRespStructure(new(sdo.ErrorSDO), func(cu *openapi.ContentUnit) { cu.HTTPStatus = http.StatusBadRequest })
 		if op.auth {
@@ -435,9 +437,22 @@ func pathParamSDI(path string) any {
 			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			SourceFileID string `path:"sourceFileID" description:"Id tệp nguồn <source>:<ULID dòng gốc> (chat, task, meeting, email)" example:"chat:01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "sourceFileID":
+		return struct {
+			SourceFileID string `path:"sourceFileID" description:"Id tệp nguồn <source>:<ULID dòng gốc> (chat, task, meeting, email)" example:"chat:01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "documentID":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+		}{}
+	case "sessionID":
+		return struct {
+			SessionID string `path:"sessionID" description:"ULID phiên tải lên nhiều phần" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "documentID,sessionID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu của token khung" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			SessionID  string `path:"sessionID" description:"ULID phiên tải lên nhiều phần mở bằng frame token của tài liệu này" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
 		}{}
 	case "documentID,aiProvider":
 		return struct {
@@ -468,6 +483,16 @@ func pathParamSDI(path string) any {
 		return struct {
 			DocumentID       string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			LinkedDocumentID string `path:"linkedDocumentID" description:"ULID tài liệu file cùng thư mục (ảnh, CSS, JS) mà tài liệu Markdown/HTML tham chiếu bằng đường dẫn tương đối" example:"01J8X4DOC1N1P2Q3R4S5T6U7"`
+		}{}
+	case "documentID,lockID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			LockID     string `path:"lockID" description:"ULID nhiệm kỳ khóa sửa (lock_id) của chính người gọi" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
+		}{}
+	case "documentID,requestID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			RequestID  string `path:"requestID" description:"ULID yêu cầu quyền sửa" example:"01J8X4REQ0N1P2Q3R4S5T6U7V8"`
 		}{}
 	case "documentID,shareID":
 		return struct {

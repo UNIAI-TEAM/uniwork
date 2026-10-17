@@ -152,7 +152,7 @@ describe("OfficeModuleHost", () => {
     expect(failed()).toBeNull();
     await until(() => (mocks.frameProps.mock.calls.at(-1)?.[0] as { desktopOpen?: { deploymentId?: string } }).desktopOpen?.deploymentId !== undefined);
     expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({
-      module: "sheets", wsId: "ws-1", documentId: "doc-1", title: "Deck", frameVersion: "0.2.0-abc1234", readonly: true, className: "c",
+      module: "sheets", wsId: "ws-1", fileRef: { kind: "document", id: "doc-1" }, title: "Deck", frameVersion: "0.2.0-abc1234", readonly: true, className: "c",
     }));
     // "Open in desktop app", with the organization's deployment binding once config answers.
     const last = mocks.frameProps.mock.calls.at(-1)![0] as { desktopOpen: { deploymentId?: string; channel?: string; launch?: unknown; loadInstallers?: unknown } };
@@ -265,16 +265,16 @@ describe("OfficeModuleHost", () => {
     const expectNoEditor = () => {
       expect(frame()).toBeNull();
       expect(failed()).toBeNull();
-      expect(tooLargeNotice()?.textContent).toContain("File is too large to edit on the web");
+      expect(tooLargeNotice()?.textContent).toContain("Can’t open this file on the web");
     };
 
-    it("opens a workbook over 10 MiB of stored xlsx in the frame (no stored-size pre-check block)", async () => {
+    it("opens a workbook over 10 MiB of stored xlsx in the frame (no stored-size pre-check block) and forwards fileSizeBytes", async () => {
       mocks.frameOutcome.kind = undefined;
       await render(host("sheets", false, big));
       await until(() => frame() !== null);
       expect(tooLargeNotice()).toBeNull();
       expect(failed()).toBeNull();
-      expect(mocks.frameProps).toHaveBeenCalled();
+      expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({ fileSizeBytes: 10 * 1024 * 1024 + 1 }));
     });
 
     it("shows the open-in-the-app notice when the frame reports the worksheet gate (too_large)", async () => {

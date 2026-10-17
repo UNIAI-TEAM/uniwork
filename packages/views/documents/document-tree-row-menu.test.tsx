@@ -230,6 +230,42 @@ describe("DocumentTreeRowMenu permissions", () => {
   });
 });
 
+describe("DocumentTreeRowMenu star item", () => {
+  const actions = (onToggleStar: (node: DocumentTreeNode, starred: boolean) => void) => ({
+    onNewSubfolder: vi.fn(),
+    onRename: vi.fn(),
+    onMoveTo: vi.fn(),
+    onDelete: vi.fn(),
+    onToggleStar,
+  });
+
+  it("offers Gắn sao for an unstarred folder and reports the current state on click", async () => {
+    const onToggleStar = vi.fn();
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="view" actions={actions(onToggleStar)} />));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.unstar") })).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.star") }));
+    expect(onToggleStar).toHaveBeenCalledWith(folderNode, false);
+  });
+
+  it("offers Bỏ gắn sao for a starred folder, even to a view-only member", async () => {
+    const onToggleStar = vi.fn();
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="view" starred actions={actions(onToggleStar)} />));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.star") })).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.unstar") }));
+    expect(onToggleStar).toHaveBeenCalledWith(folderNode, true);
+  });
+
+  it("shows no star item where the host wires none", async () => {
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="manage" />));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") });
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.star") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.unstar") })).toBeNull();
+  });
+});
+
 describe("DocumentTree row menu triggers and keyboard", () => {
   it("shows the (...) button on focus and opens the same menu on Shift+F10, ContextMenu key, and right-click", async () => {
     requestMock.mockImplementation((path: string) => {

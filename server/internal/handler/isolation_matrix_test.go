@@ -485,6 +485,9 @@ var isoTenantParams = map[string]bool{
 	// A launch receipt names a document of one organization; revoke answers
 	// 404 to every account but its creator.
 	"{launchSessionID}": true,
+	// An edit lock tenure and an edit request are rows of one organization
+	// (UNI-1645 §6 step 3).
+	"{lockID}": true, "{requestID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -612,6 +615,13 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "message")
 	case "{followUpID}":
 		return tn.get(t, "followUp")
+	case "{sessionID}":
+		// The large-upload session routes (BIGUP-S1): the frame family acts on
+		// the session the frame opened, the session routes on the workspace one.
+		if under("/office-frame/") {
+			return tn.get(t, "frameUploadSession")
+		}
+		return tn.get(t, "uploadSession")
 	case "{documentID}":
 		// The restore and purge routes act on a folder in the trash (E6 FD-02,
 		// RESTORE-01 §2): the folder kind is what the matrix varies on it, so
@@ -619,6 +629,15 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		// pass. The page kind is held by the repo's own lifecycle tests.
 		if pattern == "/api/v1/documents/{documentID}/restore" || pattern == "/api/v1/documents/{documentID}/purge" {
 			return tn.get(t, "archivedFolder")
+		}
+		// The large-upload session routes (BIGUP-S1): a markdown document on
+		// the frame family (the module its token opens) and the file document
+		// whose new version the session route stages.
+		if under("/upload-sessions") {
+			if under("/office-frame/") {
+				return tn.get(t, "frameMarkdown")
+			}
+			return tn.get(t, "fileDocument")
 		}
 		if under("/office-frame/") && (under("/linked/") || under("/assets/resolve")) {
 			return tn.get(t, "frameMarkdown")
@@ -634,12 +653,24 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}
+		// The edit lock (UNI-1645 §6 step 3): the owner holds lockDocument and
+		// the peer peerLockDocument, which the owner's take-over targets.
+		if under("/edit-lock/take-over") {
+			return tn.get(t, "peerLockDocument")
+		}
+		if under("/edit-lock") || under("/edit-requests") {
+			return tn.get(t, "lockDocument")
+		}
 		// The break-glass routes act on a restricted page the tenant's owner
 		// administers without owning (DOC-05).
 		if under("/break-glass") {
 			return tn.get(t, "restrictedDocument")
 		}
 		return tn.get(t, "document")
+	case "{lockID}":
+		return tn.get(t, "docEditLock")
+	case "{requestID}":
+		return tn.get(t, "docEditRequest")
 	case "{assetID}":
 		if under("/office-frame/") {
 			return tn.get(t, "frameAsset")
@@ -701,6 +732,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		// send the id percent-escaped (its colon travels as %3A, UNI-1815;
 		// url.PathEscape would keep a raw colon), so the matrix names it
 		// the way the wire does.
+		// The Office frame routes (UNI-1869) mint and serve a source token
+		// for a source one of the web modules opens: the seeded docx
+		// attachment, not the png one the download/save rows use.
+		if strings.Contains(pattern, "/office-frame/sources/") || strings.HasSuffix(pattern, "/office/frame-token") {
+			return "task%3A" + tn.get(t, "sourceDocx")
+		}
 		return "task%3A" + tn.get(t, "attachment")
 	case "{provider}":
 		return "google"
