@@ -217,12 +217,84 @@ function topicSegments(anchor) {
     .filter((seg) => seg.length > 0 && !PRIVATE_DSL_SEGMENT_RE.test(seg));
 }
 
+const COUNT_WORD_NUMBERS = new Map([
+  ['zero', 0], ['one', 1], ['two', 2], ['three', 3], ['four', 4], ['five', 5], ['six', 6], ['seven', 7],
+  ['eight', 8], ['nine', 9], ['ten', 10], ['eleven', 11], ['twelve', 12], ['thirteen', 13], ['fourteen', 14],
+  ['fifteen', 15], ['sixteen', 16], ['seventeen', 17], ['eighteen', 18], ['nineteen', 19], ['twenty', 20],
+  ['khong', 0], ['mot', 1], ['hai', 2], ['ba', 3], ['bon', 4], ['tu', 4], ['nam', 5], ['sau', 6], ['bay', 7],
+  ['tam', 8], ['chin', 9], ['muoi', 10], ['muoi mot', 11], ['muoi hai', 12], ['muoi ba', 13], ['muoi bon', 14],
+  ['muoi tu', 14], ['muoi lam', 15], ['muoi nam', 15], ['muoi sau', 16], ['muoi bay', 17], ['muoi tam', 18],
+  ['muoi chin', 19], ['hai muoi', 20],
+]);
+
+const COUNT_PHRASE_SYNONYMS = [
+  [/\b(?:thay doi|chinh sua|cap nhat|da sua|da doi)\b/g, 'changed'],
+  [/\bghi de\b/g, 'overwritten'],
+  [/\bdoan van\b/g, 'paragraph'],
+  [/\btrang chieu\b/g, 'slide'],
+  [/\btrang tinh\b/g, 'sheet'],
+  [/\bkhoi ma\b/g, 'code block'],
+  [/\bmuc cong viec\b/g, 'task item'],
+  [/\bmuc danh sach\b/g, 'list item'],
+  [/\bchangedcells\b/g, 'changed cell'],
+  [/\boverwrittencells\b/g, 'overwritten cell'],
+  [/\bsheetnames\b/g, 'sheet name'],
+];
+
+const COUNT_TOKEN_SYNONYMS = new Map([
+  ['changed', 'changed'], ['change', 'changed'], ['changes', 'changed'],
+  ['modified', 'changed'], ['modify', 'changed'], ['edited', 'changed'], ['edit', 'changed'], ['edits', 'changed'],
+  ['updated', 'changed'], ['update', 'changed'], ['updates', 'changed'], ['revised', 'changed'], ['rewritten', 'changed'],
+  ['sua', 'changed'], ['doi', 'changed'],
+  ['overwritten', 'overwritten'], ['overwrite', 'overwritten'], ['overwrites', 'overwritten'],
+  ['paragraphs', 'paragraph'], ['paragraph', 'paragraph'], ['paras', 'paragraph'], ['para', 'paragraph'], ['doan', 'paragraph'],
+  ['tables', 'table'], ['table', 'table'], ['bang', 'table'],
+  ['slides', 'slide'], ['slide', 'slide'],
+  ['cells', 'cell'], ['cell', 'cell'], ['o', 'cell'],
+  ['shapes', 'shape'], ['shape', 'shape'], ['hinh', 'shape'],
+  ['runs', 'run'], ['run', 'run'],
+  ['texts', 'text'], ['text', 'text'], ['van', 'text'], ['chu', 'text'],
+  ['blocks', 'block'], ['block', 'block'], ['khoi', 'block'],
+  ['codes', 'code'], ['code', 'code'], ['ma', 'code'],
+  ['tasks', 'task'], ['task', 'task'],
+  ['lists', 'list'], ['list', 'list'],
+  ['items', 'item'], ['item', 'item'], ['muc', 'item'],
+  ['sheets', 'sheet'], ['sheet', 'sheet'],
+  ['names', 'name'], ['name', 'name'], ['ten', 'name'],
+  ['rows', 'row'], ['row', 'row'], ['dong', 'row'], ['hang', 'row'],
+  ['columns', 'column'], ['column', 'column'], ['cols', 'column'], ['col', 'column'], ['cot', 'column'],
+]);
+
+const COUNT_FILLER_TOKENS = new Set(['so', 'tong', 'count', 'counts', 'number', 'total', 'of', 'the', 'in', 'cac', 'nhung', 'da', 'bi', 'duoc']);
+
 /**
- * The topic of a count anchor, independent of how it is written (review-g712-17 R17-9): "changed_paragraphs" and
- * "changed paragraphs" name the same count, so conflict detection must compare topics, not raw anchor text.
+ * Parses a count item's value (review-g712-18 R18-4): digits or number words 0–20 in English and Vietnamese, accepted
+ * ONLY inside a count item. "nam" is accepted only as the value of a count phrase, never when the anchor names a year.
+ */
+function countValueNumber(value, anchor = '') {
+  const direct = toNumber(value);
+  if (direct !== null) return direct;
+  if (typeof value !== 'string') return null;
+  const word = normalizeTopicText(value).replace(/[-_]+/g, ' ').trim();
+  if (!word || !COUNT_WORD_NUMBERS.has(word)) return null;
+  if (word === 'nam' && /\b(?:year|years|nam)\b/.test(normalizeTopicText(anchor))) return null;
+  return COUNT_WORD_NUMBERS.get(word);
+}
+
+/**
+ * The canonical topic of a count anchor (review-g712-17 R17-9, review-g712-18 R18-4): normalises synonyms and word
+ * order ("changed_paragraphs", "changed paragraphs", "paragraphs modified", "đoạn văn đã sửa") to one key so matching
+ * and conflict detection use the same topic identity.
  */
 export function countTopicKey(anchor) {
-  return normalizeTopicText(stripSheetQuotes(splitAnchor(anchor).base)).replace(/[\s_]+/g, '');
+  let text = normalizeTopicText(stripSheetQuotes(splitAnchor(anchor).base)).replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const [re, rep] of COUNT_PHRASE_SYNONYMS) text = text.replace(re, rep);
+  const rawTokens = text.split(/\s+/).filter(Boolean);
+  const mapped = rawTokens
+    .filter((tok) => rawTokens.length === 1 || !COUNT_FILLER_TOKENS.has(tok))
+    .map((tok) => COUNT_TOKEN_SYNONYMS.get(tok) ?? tok);
+  const unique = [...new Set(mapped)].sort();
+  return unique.join('_');
 }
 
 function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedValue = undefined) {
@@ -232,7 +304,7 @@ function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedVa
   // expectedValue (true on the byTopicAndValue path in takeMatch and the sameValue && atAnchor path in
   // deriveAnswer, and false on unverified fallback calls).
   if (segs.length === 0) {
-    return expectedValue !== undefined && valuesEqual(expectedValue, actualValue, kind);
+    return expectedValue !== undefined && valuesEqual(expectedValue, actualValue, kind, expected);
   }
   const b = normalizeTopicText(stripSheetQuotes(splitAnchor(actual).base));
   const combined = actualValue ? `${b} ${normalizeTopicText(actualValue)}` : b;
@@ -242,7 +314,7 @@ function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedVa
   return segs.every((seg) => combined.includes(seg));
 }
 
-export function valuesEqual(expected, actual, kind = null) {
+export function valuesEqual(expected, actual, kind = null, anchor = '') {
   if (kind === 'formula') {
     const a = normalizeFormulaText(expected);
     const b = normalizeFormulaText(actual);
@@ -262,10 +334,15 @@ export function valuesEqual(expected, actual, kind = null) {
     const normActual = normalizeTopicText(String(actual ?? ''));
     if (segs.length > 0 && segs.every((seg) => normActual.includes(seg))) return true;
   }
-  if (kind === 'count' && typeof expected === 'string' && expected.includes('|')) {
-    const parts = expected.split('|').map((s) => s.trim()).filter(Boolean);
-    const n = toNumber(actual);
-    if (parts.length > 0 && n !== null && Math.abs(n - parts.length) < 1e-9) return true;
+  if (kind === 'count') {
+    if (typeof expected === 'string' && expected.includes('|')) {
+      const parts = expected.split('|').map((s) => s.trim()).filter(Boolean);
+      const n = countValueNumber(actual, anchor);
+      if (parts.length > 0 && n !== null && Math.abs(n - parts.length) < 1e-9) return true;
+    }
+    const ca = countValueNumber(expected, anchor);
+    const cb = countValueNumber(actual, anchor);
+    if (ca !== null && cb !== null) return Math.abs(ca - cb) < 1e-9;
   }
   if (typeof expected === 'number' && typeof actual === 'number') return Math.abs(expected - actual) < 1e-9;
   const a = toNumber(expected);
@@ -293,6 +370,11 @@ export function anchorMatches(kind, expected, actual, actualValue = '', expected
   // incomplete address, and generic `a.includes(b)`/`b.includes(a)` would credit it on a coincidentally equal value.
   // Only the every-segment topic matcher decides, and the all-DSL fallback inside it still needs the value.
   if (kind === 'table_cell') return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
+  if (kind === 'count') {
+    const ka = countTopicKey(expected);
+    const kb = countTopicKey(actual);
+    if (ka && ka === kb) return true;
+  }
   const a = normalizeTopicText(stripSheetQuotes(splitAnchor(expected).base));
   const b = normalizeTopicText(stripSheetQuotes(splitAnchor(actual).base));
   if (a === b || (b.length > 0 && (a.includes(b) || b.includes(a)))) return true;
@@ -309,10 +391,10 @@ function takeMatch(expected, candidates, consumed) {
   const wanted = splitAnchor(expected.anchor);
   const free = candidates.filter((item) => !consumed.has(item));
   const sameProbe = (item) => splitAnchor(item.anchor).probe === wanted.probe;
-  const exact = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base) && (!VALUE_KINDS.has(expected.kind) || valuesEqual(expected.value, item.value, expected.kind)));
+  const exact = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base) && (!VALUE_KINDS.has(expected.kind) || valuesEqual(expected.value, item.value, expected.kind, item.anchor || expected.anchor)));
   if (exact) return exact;
   if (VALUE_KINDS.has(expected.kind)) {
-    const byTopicAndValue = free.find((item) => sameProbe(item) && valuesEqual(expected.value, item.value, expected.kind) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value, expected.value));
+    const byTopicAndValue = free.find((item) => sameProbe(item) && valuesEqual(expected.value, item.value, expected.kind, item.anchor || expected.anchor) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value, expected.value));
     if (byTopicAndValue) return byTopicAndValue;
   }
   const exactAnchorOnly = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base));
@@ -625,13 +707,13 @@ export function score(caseDoc, answer) {
     }
     consumed.add(match);
     if (VALUE_KINDS.has(expected.kind)) {
-      const ok = valuesEqual(expected.value, match.value, expected.kind);
+      const ok = valuesEqual(expected.value, match.value, expected.kind, match.anchor || expected.anchor);
       // R17-9 (review-g712-17): a count is never laundered. When the answer also states a DIFFERENT value for the same
       // count topic ("changed_paragraphs" / "changed paragraphs"), the right value beside it does not earn the item.
       const conflicting =
         expected.kind === 'count' &&
         structuralAnswer.some(
-          (it) => it !== match && it.kind === 'count' && countTopicKey(it.anchor) === countTopicKey(expected.anchor) && !valuesEqual(expected.value, it.value, 'count'),
+          (it) => it !== match && it.kind === 'count' && countTopicKey(it.anchor) === countTopicKey(expected.anchor) && !valuesEqual(expected.value, it.value, 'count', it.anchor || expected.anchor),
         );
       if (conflicting) add(label, 'fail', 'the answer also reports a conflicting value for this count');
       else add(label, ok ? 'pass' : 'fail', ok ? `value ${JSON.stringify(match.value)}` : `${JSON.stringify(match.value)} != ${JSON.stringify(expected.value)}`);
