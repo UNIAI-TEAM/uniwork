@@ -337,6 +337,12 @@ const (
 	DocumentReadable   DocumentReadState = "readable"
 	DocumentAccessLost DocumentReadState = "access_lost"
 	DocumentGone       DocumentReadState = "gone"
+	// DocumentTrashable is an archived row the recipient still administers:
+	// in the trash and restorable (TRASH-NOTIFY-01). A trashed document is
+	// visible to manage (the archive-root decision), so a notice that links
+	// to it keeps its title only while that holds; the caller decides which
+	// kinds treat the state as live - every other kind reads it as gone.
+	DocumentTrashable DocumentReadState = "trashable"
 )
 
 // maxFilterReadableDocuments bounds one batch: an inbox page holds at most
@@ -352,10 +358,13 @@ const maxFilterReadableDocuments = 100
 // by the number of distinct documents on the page (roughly 100 × a few
 // queries), and only for rows whose resource_type is document.
 //
-// A document that is missing, archived or deleted is gone (mirrors
-// decideDocumentAccess hiding archived rows below manage); one the recipient
-// may no longer read is access_lost; anything else is readable. Ids past the
-// batch cap are refused rather than silently half-answered.
+// A document that is missing or hard-deleted is gone; an archived one is
+// trashable while the recipient administers it (the archive-root manage
+// gate) and gone otherwise, so a revoked recipient's row still gets gone
+// before any level work. One the recipient may no longer read is
+// access_lost; anything else is readable. Ids past the batch cap are
+// refused rather than silently half-answered. Callers that never link into
+// the trash treat trashable as gone.
 func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID string, documentIDs []string) (map[string]DocumentReadState, error) {
 	out := make(map[string]DocumentReadState, len(documentIDs))
 	if userID == "" {
@@ -389,11 +398,27 @@ func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID st
 	orgOK := make(map[string]bool, 2)
 	for _, id := range ids {
 		row, ok := live[id]
-		if !ok || row.ArchivedAt.Valid {
+		if !ok {
 			out[id] = DocumentGone
 			continue
 		}
-		ok, err := s.orgReadable(ctx, row.OrganizationID, userID, orgOK)
+		if row.ArchivedAt.Valid {
+			// The trash gate answer (decideArchiveRootAccess): a person who
+			// administers the row still sees it in the trash, everyone else
+			// is told the resource is gone - including a non-member, who
+			// must not learn the row merely changed state.
+			trashable, err := s.documentTrashLevel(ctx, userID, id)
+			if err != nil {
+				return nil, err
+			}
+			if trashable {
+				out[id] = DocumentTrashable
+			} else {
+				out[id] = DocumentGone
+			}
+			continue
+		}
+		ok, err = s.orgReadable(ctx, row.OrganizationID, userID, orgOK)
 		if err != nil {
 			return nil, err
 		}
@@ -488,4 +513,29 @@ func (s *DocumentService) documentReadLevel(ctx context.Context, userID, documen
 		return false, err
 	}
 	return decideDocumentAccess(doc, access, DocumentLevelView) == nil, nil
+}
+
+// documentTrashLevel is documentReadLevel's sibling for a document already
+// in the trash: the answer is whether the recipient may administer the row
+// (decideArchiveRootAccess's manage -> visible), not whether they may read
+// it - nobody reads a trashed document. The caller ran the organization gate
+// already (FilterReadableDocuments memoizes it per organization); a refusal
+// is not trashable, and a row that vanished between the existence read and
+// here is not either.
+func (s *DocumentService) documentTrashLevel(ctx context.Context, userID, documentID string) (bool, error) {
+	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	access, err := s.resolveLevelInTenant(ctx, s.q, Human(userID), doc)
+	if err != nil {
+		if isGateRefusal(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return access.canAdminister(), nil
 }
