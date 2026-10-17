@@ -1034,6 +1034,11 @@ test('A5: a heading value is compared as normalised equality, never as a substri
   assert.equal(valuesEqual('Approved', '## Approved', 'heading'), true, 'a markdown heading marker is presentation');
   assert.equal(valuesEqual('Approved', '"Approved"', 'heading'), true, 'surrounding quotes are presentation');
   assert.equal(valuesEqual('Approved', '  Approved  ', 'heading'), true, 'surrounding whitespace is presentation');
+  // R17-10 (review-g712-17): the arrow rewrite is a CELL-specific normalization ("New value -> Old value" reports the
+  // cell's value), so a heading must not reach it. "Wrong -> Approved" is a different heading, not "Approved".
+  assert.equal(valuesEqual('Approved', 'Wrong -> Approved', 'heading'), false, 'a heading must not be arrow-stripped (R17-10)');
+  assert.equal(valuesEqual('Approved', 'Wrong → Approved', 'heading'), false, 'a heading must not be arrow-stripped (R17-10)');
+  assert.equal(valuesEqual('Approved', 'Wrong -> Approved', 'cell'), true, 'a cell value still reports the value after the arrow');
 
   const headingCase = allCases.find((c) => c.expected.structural.some((i) => i.kind === 'heading' && typeof i.value === 'string' && i.value.length > 3));
   assert.ok(headingCase, 'the set has a heading case to mutate');
