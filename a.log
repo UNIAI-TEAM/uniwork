@@ -1,0 +1,9 @@
+$ git fetch -q origin fix/UNI-923-root-e2e-reds && git checkout -q --detach 1eb3fb70f && git rev-parse HEAD && pnpm install --frozen-lockfile > /tmp/rf1-install.log 2>&1; rc=$?; tail -n 5 /tmp/rf1-install.log; echo; echo "ROOT_CHECKOUT_EXIT=$rc"
+1eb3fb70fbf969f05a2ff3f665a1731fe603916f
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 5.6s using pnpm v10.28.2
+
+ROOT_CHECKOUT_EXIT=0

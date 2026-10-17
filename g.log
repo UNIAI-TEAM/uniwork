@@ -1,0 +1,211 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18551 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18551 PREVIEW_ORIGIN=http://localhost:13452 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads FF_DOCUMENTS=true NEXT_PUBLIC_API_URL=http://localhost:18551 NEXT_PUBLIC_WS_URL=ws://localhost:18551 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18551 OFFICE_FORK_SHA=$(node -p "require(\"./apps/web/platform/office-frame/docs.pin.json\").gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-folders.spec.ts documents-isolation.spec.ts documents-source-chat.spec.ts landing-current-screens.spec.ts landing-product-menu.spec.ts --repeat-each=1 --reporter=list > /tmp/rf1-e2e.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rf1-e2e.log | tail -n 200; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; echo "##### JUMP-DIAG"; sed -n '/\[jump-diag\] begin/,/\[jump-diag\] end/p' /tmp/rf1-e2e.log | head -c 80000; echo "##### END JUMP-DIAG"; grep -E "[0-9]+ (skipped|did not run)" /tmp/rf1-e2e.log; grep -qE "[0-9]+ passed" /tmp/rf1-e2e.log || { echo "no passing test"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+
+Running 44 tests using 1 worker
+
+(node:18084) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18084) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 documents-folders.spec.ts:34:1 › FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to depth 20; rejects blank, >255 chars, and depth 21 (6.7s)
+  ✓   2 documents-folders.spec.ts:198:1 › FD-A02 sidebar folder tree expands/collapses independently, reveals active ?folder= ancestors, and stays collapsed across a refetch (6.8s)
+  ✓   3 documents-folders.spec.ts:347:1 › FD-A03 open folder content view lists only direct children, folders first, sorted by name or updated per viewer (3.1s)
+  ✓   4 documents-folders.spec.ts:452:1 › FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă after A) or by last update, folders first, and the choice is remembered (15.8s)
+  ✓   5 documents-folders.spec.ts:556:1 › FD-A03 upload into the open folder places the uploaded file under the open folder (not at root) (2.8s)
+  ✓   6 documents-folders.spec.ts:616:1 › FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search (4.3s)
+  ✓   7 documents-folders.spec.ts:724:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live (9.7s)
+  ✓   8 documents-folders.spec.ts:962:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast (4.8s)
+  ✓   9 documents-folders.spec.ts:1049:1 › FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop (2.7s)
+  ✓  10 documents-folders.spec.ts:1151:1 › FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable aria-disabled rows with the reason Nằm trong chính nó and refuses to select them (2.9s)
+  ✓  11 documents-folders.spec.ts:1227:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision (4.3s)
+  ✓  12 documents-folders.spec.ts:1320:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành (3.2s)
+  ✓  13 documents-folders.spec.ts:1376:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder= (6.2s)
+  ✓  14 documents-folders.spec.ts:1519:1 › FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and the … menu Các cấp ẩn opens and navigates by keyboard (2.5s)
+  ✓  15 documents-folders.spec.ts:1578:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches (5.2s)
+  ✓  16 documents-folders.spec.ts:1726:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing (2.9s)
+  -  17 documents-folders.spec.ts:1983:1 › FD-A10 (entity/email link API) structured graph DOCUMENT links and email-hub thread links resolve after move
+  ✓  18 documents-folders.spec.ts:1991:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (3.6s)
+  ✓  19 documents-folders.spec.ts:2172:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 (12.0s)
+FD-A12 seeded 1000 pages in 2256 ms
+  ✓  20 documents-folders.spec.ts:2386:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button (5.6s)
+  ✓  21 documents-folders.spec.ts:2452:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts (2.7s)
+  ✓  22 documents-isolation.spec.ts:108:1 › another organization answers not found across read, history, comments and download (37ms)
+  ✓  23 documents-isolation.spec.ts:120:1 › an organization member outside the document workspace answers not found (23ms)
+  ✓  24 documents-isolation.spec.ts:124:1 › an account in no organization answers not found (29ms)
+  ✓  25 documents-isolation.spec.ts:129:1 › a deactivated member is refused with member_deactivated (5ms)
+  ✓  26 documents-isolation.spec.ts:136:1 › two saves from one base: the first wins, the stale one conflicts (13ms)
+  ✓  27 documents-isolation.spec.ts:159:1 › a create replay returns the same page; a changed payload under the same key is refused (14ms)
+  ✓  28 documents-isolation.spec.ts:175:1 › a plain member creates, types and reloads a page in the browser (5.9s)
+  ✓  29 documents-isolation.spec.ts:196:1 › a workspace member without access sees the locked card, not the content (3.4s)
+  ✓  30 documents-isolation.spec.ts:207:1 › the other organization's shell sends a foreign document URL to the picker (2.1s)
+  ✓  31 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (2.7s)
+  ✓  32 landing-current-screens.spec.ts:7:3 › current product screens fit the preview at 1440px (5.0s)
+  ✓  33 landing-current-screens.spec.ts:7:3 › current product screens fit the preview at 390px (5.4s)
+  ✓  34 landing-current-screens.spec.ts:32:1 › documents use the current library and retain a locally edited page (2.5s)
+  ✘  35 landing-current-screens.spec.ts:57:1 › the current chat composer sends locally and creates a task from a message (1.5s)
+(node:18598) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18598) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  36 landing-current-screens.spec.ts:82:1 › projects and people use the shared list controls (2.9s)
+  ✓  37 landing-current-screens.spec.ts:106:1 › feature pages share the current Documents preview (1.1s)
+  ✓  38 landing-current-screens.spec.ts:119:1 › a compact calendar keeps its grid and planner reachable (2.2s)
+  ✓  39 landing-product-menu.spec.ts:7:3 › the product menu operates the landing demo at 1440px (3.5s)
+  ✓  40 landing-product-menu.spec.ts:7:3 › the product menu operates the landing demo at 390px (3.6s)
+  ✓  41 landing-product-menu.spec.ts:49:1 › the marketing product menu opens a demo directly (2.5s)
+  ✓  42 landing-product-menu.spec.ts:62:1 › create, search and save stay inside the demo across view switches (5.0s)
+  ✓  43 landing-product-menu.spec.ts:100:3 › the app shell stays readable in dark mode 1440 (1.4s)
+  ✓  44 landing-product-menu.spec.ts:100:3 › the app shell stays readable in dark mode 390 (1.3s)
+
+
+  1) landing-current-screens.spec.ts:57:1 › the current chat composer sends locally and creates a task from a message 
+
+    Error: locator.click: Error: strict mode violation: locator('[data-action=toggle-presentation]') resolved to 2 elements:
+        1) <button tabindex="0" type="button" data-slot="button" aria-label="Tự khám phá" data-action="toggle-presentation" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled…>…</button> aka getByRole('button', { name: 'Tự khám phá' })
+        2) <button tabindex="0" type="button" data-slot="button" data-action="toggle-presentation" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-padding font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer…>Xem demo</button> aka getByText('Xem demo')
+
+    Call log:
+      - waiting for locator('[data-action=toggle-presentation]')
+
+
+      62 |   await page.waitForLoadState('networkidle');
+      63 |   await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'chat');
+    > 64 |   await page.locator('[data-action=toggle-presentation]').click();
+         |                                                           ^
+      65 |   const panel = page.locator('.preview-main > [role=tabpanel]:not([hidden])');
+      66 |   await panel.getByRole('textbox', { name: vi.landing.demo.messagePlaceholder }).fill('Tin nhắn được gửi trong demo mới.');
+      67 |   await panel.getByRole('button', { name: vi.landing.demo.send, exact: true }).click();
+
+    Error Context: test-results/landing-current-screens-th-fc4e2-eates-a-task-from-a-message/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-current-screens-th-fc4e2-eates-a-task-from-a-message/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-current-screens-th-fc4e2-eates-a-task-from-a-message/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    landing-current-screens.spec.ts:57:1 › the current chat composer sends locally and creates a task from a message 
+  1 skipped
+  42 passed (3.2m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-folders.spec.ts documents-isolation.spec.ts documents-source-chat.spec.ts landing-current-screens.spec.ts landing-product-menu.spec.ts --repeat-each=1 --reporter=list
+===== e2e/test-results/landing-current-screens-th-fc4e2-eates-a-task-from-a-message/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-current-screens.spec.ts >> the current chat composer sends locally and creates a task from a message
+- Location: landing-current-screens.spec.ts:57:1
+
+# Error details
+
+```
+Error: locator.click: Error: strict mode violation: locator('[data-action=toggle-presentation]') resolved to 2 elements:
+    1) <button tabindex="0" type="button" data-slot="button" aria-label="Tự khám phá" data-action="toggle-presentation" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled…>…</button> aka getByRole('button', { name: 'Tự khám phá' })
+    2) <button tabindex="0" type="button" data-slot="button" data-action="toggle-presentation" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-padding font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer…>Xem demo</button> aka getByText('Xem demo')
+
+Call log:
+  - waiting for locator('[data-action=toggle-presentation]')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Giải pháp" [ref=e23] [cursor=pointer]
+          - button "Office" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e81]:
+                    - generic [ref=e82]:
+                      - tab "Trang chủ" [ref=e83]
+                      - tab "Hộp việc" [ref=e86]
+                    - generic [ref=e89]:
+                      - generic [ref=e90]: Làm việc
+                      - tab "Công việc" [ref=e91]
+                      - tab "Việc của tôi" [ref=e94]
+                      - tab "Dự án" [ref=e97]
+                      - tab "Lịch" [ref=e100]
+                    - generic [ref=e103]:
+                      - generic [ref=e104]: Trao đổi
+                      - tab "Email Hub" [ref=e105]
+                      - tab "Cuộc họp" [ref=e108]
+                      - tab "Tài liệu" [ref=e111]
+                      - tab "Trò chuyện" [selected] [ref=e114]
+                      - tab "Danh bạ" [ref=e117]
+                    - generic [ref=e120]:
+                      - generic [ref=e121]: Công việc & dự án
+                      - tab "Quy trình" [ref=e122]
+                    - generic [ref=e125]:
+                      - generic [ref=e126]: Kết quả
+                      - tab "Kết quả công việc" [ref=e127]
+                      - tab "Phê duyệt kết quả" [ref=e130]
+                      - tab "Duyệt quyết định" [ref=e133]
+                      - tab "Lịch sử quyết định" [ref=e136]
+                    - generic [ref=e139]:
+                      - generic [ref=e140]: Tri thức
+                      - tab "Kho tri thức" [ref=e141]
+                    - generic [ref=e144]:
+                      - generic [ref=e145]: AI & tự động hóa
+                      - tab "Hỏi UNI" [ref=e146]
+                      - tab "Nhân sự AI" [ref=e149]
+                      - tab "Tự động hóa" [ref=e152]
+                      - tab "AI Brain" [ref=e155]
+                      - tab ##### JUMP-DIAG
+##### END JUMP-DIAG
+  1 skipped
+
+E2E_EXIT=1
