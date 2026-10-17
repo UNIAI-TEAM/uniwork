@@ -4,8 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { errorCode } from "@uniwork/core/api";
-import { classifyDocumentError } from "@uniwork/core/documents/errors";
+import { classifyDocumentError, isDocumentShelvedError, isFolderTooLargeError } from "@uniwork/core/documents/errors";
 import { useShelveDocument, useUnshelveDocument } from "@uniwork/core/documents/hooks-collections";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import type { DocumentArchive } from "@uniwork/core/types/document";
@@ -54,13 +53,14 @@ function titleOf(doc: Pick<DocumentSummaryRow, "id" | "title">, fallback: string
   return doc.title || fallback;
 }
 
-/** The error copy of a failed shelve/unshelve: `folder_too_large` and 403 use
- *  the archive list's own lines, `document_shelved` says the item is already
- *  read-only, anything else gets the fallback. */
+/** The error copy of a failed shelve/unshelve: `folder_too_large` and the
+ *  permission class use the archive list's own lines, `document_shelved`
+ *  (already shelved, e.g. a race) says the item is read-only, anything else
+ *  gets the fallback. */
 function shelveErrorMessage(error: unknown, t: (key: string, options?: Record<string, unknown>) => string, fallbackKey: string): string {
-  const code = errorCode(error);
-  if (code === "folder_too_large") return t("documents.shelved_list.too_large");
-  if (code === "forbidden" || code === "document_shelved") return t("documents.shelved_list.no_permission");
+  if (isFolderTooLargeError(error)) return t("documents.shelved_list.too_large");
+  if (isDocumentShelvedError(error)) return t("documents.shelved_doc.write_blocked");
+  if (classifyDocumentError(error).cls === "permission") return t("documents.shelved_list.no_permission");
   return t(fallbackKey);
 }
 
@@ -110,7 +110,11 @@ export function useShelvedActions({ wsId, rows }: { wsId: string; rows: LibraryR
           },
         });
       },
-      (failure: unknown) => toast.error(shelveErrorMessage(failure, t, "documents.shelved_list.shelve_failed")),
+      (failure: unknown) => {
+        toast.error(shelveErrorMessage(failure, t, "documents.shelved_list.shelve_failed"));
+        // Already shelved by someone else: the row is stale, so reread the lists.
+        if (isDocumentShelvedError(failure)) void qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+      },
     ).finally(() => track(shelvingRef, setShelving, doc.id, false));
   };
 

@@ -571,3 +571,43 @@ describe("shelve from a live row's menu (U-4)", () => {
     }
   });
 });
+
+// RAR-05: a refused shelve reads its permission class, and an "already shelved" answer is not a permission error.
+describe("shelve refusals (RAR-05)", () => {
+  async function shelveFromMenu(title: string) {
+    const row = await rowOf(title);
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.shelved_list.shelve") }));
+  }
+
+  it("maps any permission-class 403 to the no-permission copy", async () => {
+    route({
+      list: (path) => (query(path).get("shelved") === "true" ? [] : [live({ id: "e1", title: "Ghế trống" })]),
+      post: (path) => {
+        if (path === "/api/v1/documents/e1/shelve") throw new ApiError("seat", "workspace_seat_required", 403);
+        return {};
+      },
+    });
+    renderView();
+    await shelveFromMenu("Ghế trống");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.shelved_list.no_permission")));
+  });
+
+  it("treats document_shelved as already shelved: the read-only line and a reread, never no-permission", async () => {
+    route({
+      list: (path) => (query(path).get("shelved") === "true" ? [] : [live({ id: "e2", title: "Đã có người lưu" })]),
+      post: (path) => {
+        if (path === "/api/v1/documents/e2/shelve") throw new ApiError("shelved", "document_shelved", 409);
+        return {};
+      },
+    });
+    renderView();
+    await shelveFromMenu("Đã có người lưu");
+    const listCallsBefore = requestMock.mock.calls.filter(([path]) => String(path).startsWith(LIST_BASE)).length;
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.shelved_doc.write_blocked")));
+    expect(toast.error).not.toHaveBeenCalledWith(t("documents.shelved_list.no_permission"));
+    await waitFor(() =>
+      expect(requestMock.mock.calls.filter(([path]) => String(path).startsWith(LIST_BASE)).length).toBeGreaterThan(listCallsBefore),
+    );
+  });
+});
