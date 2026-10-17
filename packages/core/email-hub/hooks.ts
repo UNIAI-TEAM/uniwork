@@ -203,7 +203,6 @@ export function useEmailHubThread(
   const bodyRetryRef = useRef({ threadId: "", attempts: 0 });
   const [bodyAutoRetrying, setBodyAutoRetrying] = useState(false);
   const [bodyAutoRetriesExhausted, setBodyAutoRetriesExhausted] = useState(false);
-  const refetchDetail = detail.refetch;
   useEffect(() => {
     if (!accountId || !threadId) return;
     if (threadId !== bodyRetryRef.current.threadId) {
