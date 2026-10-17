@@ -52,6 +52,7 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
   "chat_mentioned",
   "chat_dm",
   "chat_reminder",
+  "chat_call_incoming",
 ]);
 
 function serverDefault(kind: Kind): NotificationPreference {

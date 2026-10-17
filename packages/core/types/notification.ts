@@ -25,6 +25,7 @@ export const NOTIFICATION_KINDS = [
   "chat_mentioned",
   "chat_dm",
   "chat_thread_replied",
+  "chat_call_incoming",
   "document_access_requested",
   "document_access_approved",
   "document_access_declined",

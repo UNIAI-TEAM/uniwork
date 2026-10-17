@@ -584,6 +584,7 @@
         "chat_mentioned": "Được nhắc đến trong chat",
         "chat_dm": "Tin nhắn riêng",
         "chat_thread_replied": "Trả lời trong thread bạn theo dõi",
+        "chat_call_incoming": "Cuộc gọi đến",
         "document_access_requested": "Yêu cầu truy cập tài liệu",
         "document_access_approved": "Được cấp quyền truy cập tài liệu",
         "document_access_declined": "Yêu cầu truy cập bị từ chối"
@@ -5185,6 +5186,7 @@
       "chat_mentioned": "{{actor}} đã nhắc đến bạn trong {{room}}",
       "chat_dm": "{{actor}} đã nhắn tin cho bạn",
       "chat_thread_replied": "{{actor}} đã trả lời thread trong {{room}}",
+      "chat_call_incoming": "{{actor}} đang gọi",
       "document_access_requested": "{{actor}} xin quyền truy cập tài liệu “{{document}}”.",
       "document_access_requested_untitled": "{{actor}} xin quyền truy cập một tài liệu.",
       "document_access_approved": "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",

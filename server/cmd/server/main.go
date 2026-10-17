@@ -475,6 +475,8 @@ func main() {
 	}
 	notifConsumer.SetDocumentReaders(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
+	// A call ring is delivered only while the call still rings for that person.
+	notifConsumer.SetCallRinging(chatSvc)
 	var webSender notification.PushSender
 	if cfg.PushEnabled() {
 		webSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}

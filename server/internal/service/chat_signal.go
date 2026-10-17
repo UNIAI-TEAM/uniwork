@@ -41,7 +41,15 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if callerName == "" {
 		callerName = u.Email
 	}
-	if err := s.trackVoiceCallInvite(room, callID, userID, callerName, video); err != nil {
+	invitees, err := s.voiceCallInvitees(ctx, room, userID)
+	if err != nil {
+		return err
+	}
+	if err := s.trackVoiceCallInvite(room, callID, userID, callerName, video, invitees); err != nil {
+		return err
+	}
+	if err := s.emitVoiceCallRings(ctx, room, userID, callID, invitees); err != nil {
+		dropVoiceCallInvite(room.ID, callID)
 		return err
 	}
 	ev := Event{
@@ -69,6 +77,7 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 	}
 	s.trackVoiceCallAccept(roomID, callID, userID)
 	s.trackVoiceCallParticipant(roomID, callID, userID)
+	s.closeVoiceCallRings(ctx, roomID, []string{userID})
 	ev := Event{
 		Type: "chat.voice.accept",
 		Payload: map[string]string{

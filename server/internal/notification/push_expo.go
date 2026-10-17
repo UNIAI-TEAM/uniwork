@@ -58,7 +58,7 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 	payload, err := json.Marshal([]expoMessage{{
 		To: sub.Endpoint, Title: msg.Title, Body: msg.Body,
 		Data:  map[string]string{"url": msg.URL, "tag": msg.Tag},
-		Sound: "default", ChannelID: "chat", TTL: int(time.Hour / time.Second), Priority: "high",
+		Sound: "default", ChannelID: "chat", TTL: msg.ttl(), Priority: "high",
 	}})
 	if err != nil {
 		return err

@@ -76,6 +76,10 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if n.PushedAt.Valid || n.ReadAt.Valid {
 		return nil // already delivered, or read on another device before the push went out
 	}
+	// A ring the lane reaches after it stopped ringing is not worth a phone call.
+	if n.Kind == KindChatCallIncoming && c.now().Sub(n.CreatedAt.Time) > callRingWindow {
+		return c.q.MarkNotificationPushed(ctx, n.ID)
+	}
 	subs, err := c.q.ListActivePushSubscriptions(ctx, n.UserID)
 	if err != nil {
 		return err
@@ -131,6 +135,10 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	var params map[string]string
 	_ = json.Unmarshal([]byte(n.Params), &params)
 	msg := PushMessage{Title: PushTitle(user.Locale, n.Kind, params), Body: body, URL: link, Tag: n.GroupKey}
+	if n.Kind == KindChatCallIncoming {
+		// The push rings only as long as the call does (spec M3 §2).
+		msg.TTL = int(callRingWindow / time.Second)
+	}
 	var failed error
 	for _, sub := range subs {
 		err := c.sender.Send(ctx, sub, msg)
@@ -215,6 +223,15 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 			return "", err
 		}
 		return chatMessageURL(base, msg.RoomID, msg.ID), nil
+	case "chat_room":
+		// A ringing call opens its room; ?call= lets the app answer it if it still rings.
+		link := base + "/chat?room=" + url.QueryEscape(n.ResourceID)
+		var params map[string]string
+		_ = json.Unmarshal([]byte(n.Params), &params)
+		if callID := params["call_id"]; callID != "" {
+			link += "&call=" + url.QueryEscape(callID)
+		}
+		return link, nil
 	case "email_account":
 		return base + "/email", nil
 	default:

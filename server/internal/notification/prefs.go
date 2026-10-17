@@ -16,11 +16,12 @@ type Prefs struct {
 // DefaultPrefs is what applies when the user never touched the row (spec §2
 // #6): in-app everything, push only what is time-sensitive, digest on.
 // Replies and resolves stay in-app only (G8-D4: push on for mentions); an
-// emergency access to a restricted document pushes (DOC-05).
+// emergency access to a restricted document pushes (DOC-05), and so does a
+// ringing call.
 func DefaultPrefs(kind string) Prefs {
 	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindTaskAssigned || kind == KindMeetingStarting ||
-		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM
+		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM || kind == KindChatCallIncoming
 	return Prefs{InApp: true, Push: push, Email: true}
 }
 

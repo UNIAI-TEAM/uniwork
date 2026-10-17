@@ -68,6 +68,10 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[ok]"}, PushMessage{Title: "t"}); err != nil || got[0]["body"] != nil {
 		t.Fatalf("empty body must be omitted: %v %v", got[0]["body"], err)
 	}
+	// A call ring lives as long as it rings (spec M3 §2), not the hour of a message.
+	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[ok]"}, PushMessage{Title: "t", TTL: 60}); err != nil || got[0]["ttl"] != float64(60) {
+		t.Fatalf("ttl = %v, want the message's 60: %v", got[0]["ttl"], err)
+	}
 }
 
 func TestPrefixSenderRoutesByEndpoint(t *testing.T) {

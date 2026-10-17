@@ -47,6 +47,9 @@ const (
 	KindChatMentioned     = "chat_mentioned"
 	KindChatDM            = "chat_dm"
 	KindChatThreadReplied = "chat_thread_replied"
+	// A chat call ringing (UniChat M3): one row per room, closed when the
+	// person answers or the call ends; its push lives 60 seconds.
+	KindChatCallIncoming = "chat_call_incoming"
 	// Document access requests (W-DOC07): registered so the inbox, titles and
 	// preference matrix know them; the producers land with S-DOC07.
 	KindDocumentAccessRequested = "document_access_requested"
@@ -62,7 +65,7 @@ var Kinds = []string{
 	KindDocumentCommented, KindDocumentMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
 	KindDocumentBreakGlass,
-	KindChatMentioned, KindChatDM, KindChatThreadReplied,
+	KindChatMentioned, KindChatDM, KindChatThreadReplied, KindChatCallIncoming,
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 }
 
