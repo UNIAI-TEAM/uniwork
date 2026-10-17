@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+4323d7b962303ba54b7c8a5d010684745d5af180
+4323d7b96 refactor(office): split the frame session hook under the 500-line limit
+de2351001 chore(merge): G5-G7 root 06f65e141 (UNI-1645 phase 2 edit lock) into the size-cap lane
+06f65e141 chore: merge UNI-1645 phase 2 edit lock (cards a+b, edb3c7ec6) into the G5-G7 root
+f78b2b552 chore(office): re-pin the six office frames to web-0.1.0-c9181fa
+edb3c7ec6 test(documents): drop the archived prop RESTORE-01 removed from LibraryRowView
+b4b0dad08 chore: merge server lane ee644d3b3 (root 907fef493: RESTORE-01, size cap) into the edit-lock web lane
+ee644d3b3 chore: merge root 907fef493 (RESTORE-01, size cap) into the edit-lock server lane
+74e8c4aec fix(office): warning tone for the size chip, no duplicate failure badge, stacked lag banner on phones
