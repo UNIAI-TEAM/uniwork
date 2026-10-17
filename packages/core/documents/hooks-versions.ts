@@ -92,12 +92,14 @@ export function useCommitDocumentVersion(wsId: string, documentId: string) {
 export function useRestoreDocumentVersion(wsId: string, documentId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { versionNo: number; idempotencyKey?: string; baseRevision?: string }) =>
+    mutationFn: async (input: { versionNo: number; idempotencyKey?: string; baseRevision?: string; editLockId?: string }) =>
       requireVerifiableVersionResult(
         await restoreDocumentVersion(documentId, input.versionNo, {
           idempotencyKey: input.idempotencyKey,
           // File restores must name the base revision; page restores omit it.
           baseRevision: input.baseRevision,
+          // A restore replaces content: the holder's own restore names its lock (UNI-1645).
+          editLockId: input.editLockId,
         }),
       ),
     onSuccess: (res) => {

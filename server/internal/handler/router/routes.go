@@ -588,8 +588,21 @@ type Routes struct {
 	ListRecentDocuments http.HandlerFunc
 	ListDocumentChanges http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
-	PutOfficeOfflineLease      http.HandlerFunc
-	DeleteOfficeOfflineLease   http.HandlerFunc
+	PutOfficeOfflineLease    http.HandlerFunc
+	DeleteOfficeOfflineLease http.HandlerFunc
+
+	// Document edit lock and edit requests (UNI-1645, R1-R10).
+	GetDocumentEditLock       http.HandlerFunc
+	AcquireDocumentEditLock   http.HandlerFunc
+	HeartbeatDocumentEditLock http.HandlerFunc
+	ReleaseDocumentEditLock   http.HandlerFunc
+	TakeOverDocumentEditLock  http.HandlerFunc
+	PutDocumentEditHold       http.HandlerFunc
+	ClearDocumentEditHold     http.HandlerFunc
+	CreateDocumentEditRequest http.HandlerFunc
+	AnswerDocumentEditRequest http.HandlerFunc
+	CancelDocumentEditRequest http.HandlerFunc
+
 	ListSharedWithMe           http.HandlerFunc
 	DocumentAccessReport       http.HandlerFunc
 	ExportDocumentAccessReport http.HandlerFunc
@@ -598,6 +611,7 @@ type Routes struct {
 	ArchiveDocument            http.HandlerFunc
 	ArchiveImpact              http.HandlerFunc
 	RestoreDocument            http.HandlerFunc
+	PurgeDocument              http.HandlerFunc
 	ListDocumentShares         http.HandlerFunc
 	CreateDocumentShare        http.HandlerFunc
 	CreateDocumentShareBatch   http.HandlerFunc

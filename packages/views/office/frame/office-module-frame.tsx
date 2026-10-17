@@ -27,6 +27,7 @@ import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
 import { FrameSaveBlockedDialog, FrameSizeWarningChip } from "./frame-size-ui";
 import { useDocsFrameSession } from "./use-docs-frame-session";
+import { useFrameEditLock } from "./frame-edit-lock";
 import { useFrameComments } from "./use-frame-comments";
 
 export interface OfficeModuleFrameControls {
@@ -137,8 +138,10 @@ export function OfficeModuleFrame({
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
+  // The document page's edit lock, when this frame is its editor (UNI-1645).
+  const editLock = useFrameEditLock();
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
+    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly, editLock,
     comments: frameComments.binding,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },

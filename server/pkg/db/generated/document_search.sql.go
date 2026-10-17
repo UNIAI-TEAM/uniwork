@@ -26,85 +26,84 @@ WHERE d.organization_id = $1
   AND (($3
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4))
        OR ($5 AND d.acl_owner_id = $4)
-       OR ($6 AND EXISTS (
+       OR ($6 AND NOT $7::boolean
+           AND d.visibility = 'workspace'
+           AND d.workspace_level = 'edit')
+       OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = 'manage'
+              AND s.level IN ('manage', 'edit')
               AND ((s.principal_type = 'user' AND s.principal_id = $4)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($7::text[]))))))
-  AND ($8::text IS NULL OR d.kind = $8)
-  AND ($9::text IS NULL OR d.kind <> $9)
-  AND ($10::text IS NULL OR d.updated_by = $10)
-  AND ($11::timestamptz IS NULL OR d.archived_at >= $11)
-  AND ($12::timestamptz IS NULL OR d.archived_at < $12)
-  AND ($13::text IS NULL
+                       AND s.principal_id = ANY($9::text[]))))))
+  AND ($10::text IS NULL OR d.kind = $10)
+  AND ($11::text IS NULL OR d.kind <> $11)
+  AND ($12::text IS NULL OR d.updated_by = $12)
+  AND ($13::timestamptz IS NULL OR d.archived_at >= $13)
+  AND ($14::timestamptz IS NULL OR d.archived_at < $14)
+  AND ($15::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
-           AND (cv.mime_type = $14::text
-                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($15::text[])))
-                    AND length(d.title) > length($13::text) + 1
-                    AND right(lower(d.title), length($13::text) + 1) = '.' || $13::text))))
+           AND (cv.mime_type = $16::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($17::text[])))
+                    AND length(d.title) > length($15::text) + 1
+                    AND right(lower(d.title), length($15::text) + 1) = '.' || $15::text))))
   -- UNI-1868: every row this view can return is already manage (the ladder
   -- above is manage-only), so the service refuses access=manage/edit here and
   -- 'restricted' - the row's visibility - is the one access filter it takes.
-  AND ($16::text IS NULL OR d.visibility = 'restricted')
-  AND ($17::text IS NULL
-       OR (NOT $18::boolean
-           AND (NOT $3::boolean
-                 OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
-                 OR EXISTS (
-                      SELECT 1 FROM document_shares rs
-                      WHERE rs.organization_id = d.organization_id
-                        AND rs.workspace_id = d.workspace_id
-                        AND rs.document_id = d.id
-                        AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
-                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
-                             OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY($7::text[]))))
-                 OR EXISTS (
-                      SELECT 1 FROM document_break_glass_grants g
-                      WHERE g.organization_id = d.organization_id
-                        AND g.workspace_id = d.workspace_id
-                        AND g.document_id = d.id
-                        AND g.actor_id = $4
-                        AND g.actor_kind = 'human'
-                        AND g.revoked_at IS NULL
-                        AND g.expires_at > now()))
-           AND d.search_text ILIKE '%' || $17::text || '%' ESCAPE '\')
-       OR (($18::boolean OR NOT (NOT $3::boolean
-                 OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
-                 OR EXISTS (
-                      SELECT 1 FROM document_shares rs
-                      WHERE rs.organization_id = d.organization_id
-                        AND rs.workspace_id = d.workspace_id
-                        AND rs.document_id = d.id
-                        AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
-                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
-                             OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY($7::text[]))))
-                 OR EXISTS (
-                      SELECT 1 FROM document_break_glass_grants g
-                      WHERE g.organization_id = d.organization_id
-                        AND g.workspace_id = d.workspace_id
-                        AND g.document_id = d.id
-                        AND g.actor_id = $4
-                        AND g.actor_kind = 'human'
-                        AND g.revoked_at IS NULL
-                        AND g.expires_at > now())))
-           AND uw_fold_search(d.title) ILIKE '%' || $17::text || '%' ESCAPE '\'))
-  AND ($19::timestamptz IS NULL
-       OR (d.archived_at, d.id) < ($19, $20::text))
+  AND ($18::text IS NULL OR d.visibility = 'restricted')
+  -- A term can match on title for every row this view returns; it may match
+  -- on content (search_text) only for a row the caller can act on AND read:
+  -- managed by the caller's own access (flagged ACL owner - an effective
+  -- member the resolver grants manage to - or a live manage share), or admin
+  -- scope (see_all) on a non-restricted row. A break-glass grant is capped at
+  -- view, so it never qualifies here and its holder falls to the title
+  -- branch. A restricted trashed row reached only through AdminScope matches
+  -- on title alone - admins administer it but never read its content, and an
+  -- edit holder's trash is read-only metadata either way (RESTORE-01 §3).
+  AND ($19::text IS NULL
+       OR (NOT $20::boolean
+           AND (($3
+                 AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
+                 AND d.visibility <> 'restricted')
+                OR ($5::boolean AND d.acl_owner_id = $4)
+                OR ($8 AND EXISTS (
+                     SELECT 1 FROM document_shares rs
+                     WHERE rs.organization_id = d.organization_id
+                       AND rs.workspace_id = d.workspace_id
+                       AND rs.document_id = d.id
+                       AND rs.revoked_at IS NULL
+                       AND rs.level = 'manage'
+                       AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
+                            OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                            OR (rs.principal_type = 'workspace'
+                                AND rs.principal_id = ANY($9::text[]))))))
+           AND d.search_text ILIKE '%' || $19::text || '%' ESCAPE '\')
+       OR (($20::boolean
+            OR NOT (($3
+                     AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
+                     AND d.visibility <> 'restricted')
+                    OR ($5::boolean AND d.acl_owner_id = $4)
+                    OR ($8 AND EXISTS (
+                         SELECT 1 FROM document_shares rs
+                         WHERE rs.organization_id = d.organization_id
+                           AND rs.workspace_id = d.workspace_id
+                           AND rs.document_id = d.id
+                           AND rs.revoked_at IS NULL
+                           AND rs.level = 'manage'
+                           AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
+                                OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                                OR (rs.principal_type = 'workspace'
+                                    AND rs.principal_id = ANY($9::text[])))))))
+           AND uw_fold_search(d.title) ILIKE '%' || $19::text || '%' ESCAPE '\'))
+  AND ($21::timestamptz IS NULL
+       OR (d.archived_at, d.id) < ($21, $22::text))
 ORDER BY d.archived_at DESC, d.id DESC
-LIMIT $21
+LIMIT $23
 `
 
 type ListArchivedDocumentsPageParams struct {
@@ -113,6 +112,8 @@ type ListArchivedDocumentsPageParams struct {
 	SeeAll          interface{}        `json:"see_all"`
 	ActorID         pgtype.Text        `json:"actor_id"`
 	AclOwner        interface{}        `json:"acl_owner"`
+	MemberVisible   interface{}        `json:"member_visible"`
+	Agent           bool               `json:"agent"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
@@ -131,8 +132,10 @@ type ListArchivedDocumentsPageParams struct {
 	PageLimit       int32              `json:"page_limit"`
 }
 
-// The trash view: manage-only (workspace admin, the ACL owner, or a manage
-// share), ordered by archive time descending.
+// The trash view: manage or edit (workspace admin, the ACL owner, a
+// workspace-visible document with workspace_level = 'edit' for a human
+// workspace member, or a manage/edit share), ordered by archive time
+// descending.
 func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchivedDocumentsPageParams) ([]Document, error) {
 	rows, err := q.db.Query(ctx, listArchivedDocumentsPage,
 		arg.OrganizationID,
@@ -140,6 +143,8 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 		arg.SeeAll,
 		arg.ActorID,
 		arg.AclOwner,
+		arg.MemberVisible,
+		arg.Agent,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 		arg.Kind,

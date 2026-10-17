@@ -38,6 +38,10 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   unauthorized: "session",
   invalid_token: "session",
   invalid_code: "session",
+  // 423: someone else holds the edit lock (UNI-1645). The server carries no
+  // class for it, so this entry is the only path to "locked" - without it a
+  // 423 classifies unknown and the save machine keeps retrying.
+  document_locked: "locked",
   // Client-only fallbacks for plausible codes the server table omits.
   document_version_unchanged: "conflict",
   file_too_large: "quota",
@@ -132,4 +136,22 @@ export function shareLevelNotAllowedMax(err: unknown): DocumentAccessLevel | nul
   const max = errorFields(err)?.max;
   if (typeof max !== "string") return null;
   return DOCUMENT_ACCESS_LEVELS.find((level) => level === max) ?? null;
+}
+
+/**
+ * True when a purge or restore request targeted a document that is not in the
+ * trash (`400 document_not_in_trash`, RESTORE-01 §2 P-1). Deliberately
+ * unclassified so it does not trigger save-conflict, quota or gone recovery.
+ */
+export function isDocumentNotInTrashError(err: unknown): boolean {
+  return errorCode(err) === "document_not_in_trash";
+}
+
+/**
+ * True when an archive or purge subtree exceeded the per-command node bound
+ * (`400`/`422 folder_too_large`, FD-06 / RESTORE-01 §2 P-7). Deliberately
+ * unclassified so it does not trigger billing quota or save-conflict recovery.
+ */
+export function isFolderTooLargeError(err: unknown): boolean {
+  return errorCode(err) === "folder_too_large";
 }

@@ -29,15 +29,14 @@ export interface LibraryRowDialogs {
   onRename: (doc: DocumentSummaryRow) => void;
   onMove: (doc: DocumentSummaryRow) => void;
   onArchive: (doc: DocumentSummaryRow) => void;
-  onRestore: (doc: DocumentSummaryRow) => void;
   dialogs: ReactNode;
 }
 
 /**
  * The library row commands that need a dialog: save a file from another
  * module into a folder, create a folder / subfolder, rename a folder or
- * document, move a document to another folder, archive one, restore a
- * trashed folder.
+ * document, move a document to another folder, archive one. Restore and
+ * purge belong to the trash table's own actions (use-trash-actions).
  * Each awaits the server; a refusal stays in the dialog (create, rename,
  * move, save) or the archive dialog's own message, and nothing on screen
  * moves before that.
@@ -62,7 +61,7 @@ export function useLibraryRowDialogs({
   const [saving, setSaving] = useState<SourceRow | null>(null);
   const [naming, setNaming] = useState<NameDialogState | null>(null);
   const [moving, setMoving] = useState<DocumentSummaryRow | null>(null);
-  const [archiving, setArchiving] = useState<{ doc: DocumentSummaryRow; mode: "archive" | "restore" } | null>(null);
+  const [archiving, setArchiving] = useState<DocumentSummaryRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [moveLoading, setMoveLoading] = useState(false);
   // One key per source and target: a retry after a timeout replays the same save, a new target is a new one.
@@ -174,8 +173,8 @@ export function useLibraryRowDialogs({
             if (!next) setArchiving(null);
           }}
           wsId={wsId}
-          doc={archiving.doc}
-          mode={archiving.mode}
+          doc={archiving}
+          mode="archive"
         />
       ) : null}
     </>
@@ -193,8 +192,7 @@ export function useLibraryRowDialogs({
       setError(null);
       setMoving(doc);
     },
-    onArchive: (doc) => setArchiving({ doc, mode: "archive" }),
-    onRestore: (doc) => setArchiving({ doc, mode: "restore" }),
+    onArchive: (doc) => setArchiving(doc),
     dialogs,
   };
 }

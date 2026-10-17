@@ -76,6 +76,11 @@ export type DocumentDisposition = (typeof DOCUMENT_DISPOSITIONS)[number];
  * codes map onto these classes — so the union is what save-state and the UI
  * reason about, and an unknown class degrades to `unknown` via
  * classifyDocumentError, never a throw.
+ *
+ * `locked` is the one client-only class (UNI-1645): the server stamps no class
+ * on 423 document_locked, so it is absent from API_ERROR_CLASSES and only the
+ * code maps onto it. It is not a conflict: a locked writer never reaches the
+ * overwrite path.
  */
 export const DOCUMENT_ERROR_CLASSES = [
   "conflict",
@@ -85,6 +90,7 @@ export const DOCUMENT_ERROR_CLASSES = [
   "missing",
   "incompatible",
   "session",
+  "locked",
 ] as const;
 export type DocumentErrorClass = (typeof DOCUMENT_ERROR_CLASSES)[number];
 
@@ -137,7 +143,9 @@ export const DocumentSchema = z.object({
   breadcrumbs: z.array(DocumentBreadcrumbSchema).optional().default([]),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
-  archived_at: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional().catch(undefined),
+  archived_by: z.string().nullable().optional().catch(undefined),
+  purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
   updated_by: z.string().optional().default(""),
@@ -163,6 +171,24 @@ export function isMyFolder(
 ): boolean {
   switch (doc?.system_kind) {
     case "my_folder":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** True when the caller manages a trashed row (RESTORE-01): views use this to
+ *  enable Restore / Delete forever and disable them for view/edit/unknown.
+ *  A workspace admin on a restricted row arrives with no my_level and
+ *  admin_scope: true instead - they administer it, so the controls stay on. */
+export function canManageTrashed(
+  item: { my_level?: string | null; admin_scope?: boolean | null } | null | undefined,
+): boolean {
+  if (item?.admin_scope === true) {
+    return true;
+  }
+  switch (item?.my_level) {
+    case "manage":
       return true;
     default:
       return false;
@@ -282,6 +308,17 @@ export function isDocumentNotVerifiable(err: unknown): err is DocumentNotVerifia
 
 const DocumentPathItemSchema = z.object({ id: z.string(), title: z.string() });
 
+// UNI-1645 (addendum §3.2): who holds a row's edit lock, never its lock id.
+// A newer field: a drifted value reads as no holder rather than failing the page.
+const DocumentRowEditLockSchema = z.object({
+  holder_id: z.string(),
+  holder_name: z.string().catch(""),
+  holder_avatar_url: z.string().nullable().optional().catch(undefined),
+  since: z.string().catch(""),
+  offline_hold_until: z.string().nullable().optional().catch(undefined),
+  held_by_me: z.boolean().catch(false),
+});
+
 export const DocumentSummarySchema = z.object({
   id: z.string(),
   organization_id: z.string().optional().default(""),
@@ -306,6 +343,7 @@ export const DocumentSummarySchema = z.object({
   format: z.string().nullable().optional().catch(undefined),
   origin: z.string().nullable().optional().catch(undefined),
   snippet: z.string().nullable().optional(),
+  edit_lock: DocumentRowEditLockSchema.nullable().optional().catch(undefined),
   // The viewer's level on this row (every list route carries it); a drifted
   // value reads as absent, which the views treat as view-only.
   my_level: z.string().nullable().optional().catch(undefined),
@@ -313,7 +351,9 @@ export const DocumentSummarySchema = z.object({
   admin_scope: z.boolean().optional().catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
-  archived_at: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional().catch(undefined),
+  archived_by: z.string().nullable().optional().catch(undefined),
+  purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
   updated_by: z.string().optional().default(""),
