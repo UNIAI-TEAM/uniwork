@@ -1,7 +1,8 @@
 // G7-08 (UNI-1385) W2 web frame driver per format family and provider ('uniwork' | 'byok').
 // Reuses harness/web.mjs, g7-04/cross-host.mjs (listVersions), g7-10/tracer.mjs, and docx-roundtrip.mjs.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fmtVi, q1Shares } from '../fixtures-lib/data.mjs';
 import { listVersions } from '../g7-04/cross-host.mjs';
 import { callTracerApi, cleanupSeededOrganization, seedFixtureDocument } from '../g7-10/tracer.mjs';
@@ -13,7 +14,7 @@ import { startStubFacade } from '../holdout-stub-facade.helper.mjs';
 import { computeTruth } from '../holdout-xlsx-truth.mjs';
 import { docxRoundTripHook, runDocxRoundTrip } from './docx-roundtrip.mjs';
 import {
-  VERDICT, blockedVerdict, extractPdfTextFromBytes, failVerdict,
+  VERDICT, blockedVerdict, diffDocxNonDocumentParts, extractPdfTextFromBytes, failVerdict,
   oracleCapabilityAndToolSurface, oracleDocxEdit, oracleDocxRead, oracleHitlWord,
   oracleHtmlEdit, oracleHtmlRead, oracleMarkdownEdit, oracleMarkdownRead,
   oraclePdfEdit, oraclePdfRead, oraclePptxEdit, oraclePptxRead,
@@ -317,38 +318,23 @@ export async function runWebMatrixRow(runEntry, {
     });
     const hostReady = await web.page.waitForSelector(sel.ready, { state: 'visible', timeout: timeoutMs }).catch(() => null);
     if (!hostReady) {
-      return evaluatePreconditions({
-        server: serverEvidence,
-        host: { met: false, failureReason: `host frame container ${sel.ready} did not reach ready` },
-        frame: { met: false },
-      });
+      return evaluatePreconditions({ server: serverEvidence, host: { met: false, failureReason: `host frame container ${sel.ready} did not reach ready` }, frame: { met: false } });
     }
     const iframeHandle = await web.page.$(sel.iframe);
     const frame = iframeHandle ? await iframeHandle.contentFrame() : null;
     if (!frame) {
-      return evaluatePreconditions({
-        server: serverEvidence,
-        host: { met: false, failureReason: `host iframe ${sel.iframe} not attached` },
-        frame: { met: false },
-      });
+      return evaluatePreconditions({ server: serverEvidence, host: { met: false, failureReason: `host iframe ${sel.iframe} not attached` }, frame: { met: false } });
     }
 
-    const precondVerdict = await verifyHostAndFramePreconditions({
-      page: web.page, frame, row, provider, runDir, serverEvidence, timeoutMs,
-    });
+    const precondVerdict = await verifyHostAndFramePreconditions({ page: web.page, frame, row, provider, runDir, serverEvidence, timeoutMs });
     const preconditions = precondVerdict.preconditions;
     const screenshotPath = preconditions?.frame?.screenshotPath ?? null;
-    if (precondVerdict.status !== VERDICT.PASS) {
-      return { ...precondVerdict, documentId, preconditions, screenshotPath };
-    }
+    if (precondVerdict.status !== VERDICT.PASS) return { ...precondVerdict, documentId, preconditions, screenshotPath };
 
     if (row.id === 'F-E1') {
       const pdfEditBtn = await frame.$('[data-tool="edit_text"], [data-capability="pdf_text_edit"]');
       if (!pdfEditBtn) {
-        const fe1Verdict = evaluateRowObserved(row, {
-          hostSupportsPdfTextEdit: false, offeredTools: ['read_pages', 'search_text', 'goto_page', 'get_outline'],
-          controls: [], executedTools: [],
-        });
+        const fe1Verdict = evaluateRowObserved(row, { hostSupportsPdfTextEdit: false, offeredTools: ['read_pages', 'search_text', 'goto_page', 'get_outline'], controls: [], executedTools: [] });
         return { ...fe1Verdict, documentId, preconditions, screenshotPath };
       }
     }
@@ -359,21 +345,12 @@ export async function runWebMatrixRow(runEntry, {
       await modelChip.click().catch(() => {});
       await sleep(200);
       const byokOpt = await frame.$(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`);
-      if (!byokOpt) {
-        return {
-          ...missingSelectorVerdict(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`, { rowId: row.id }),
-          preconditions,
-          screenshotPath,
-        };
-      }
+      if (!byokOpt) return { ...missingSelectorVerdict(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`, { rowId: row.id }), preconditions, screenshotPath };
       await byokOpt.click().catch(() => {});
     }
 
     const ackBefore = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
-    if (ackBefore) {
-      await ackBefore.click().catch(() => {});
-      await sleep(150);
-    }
+    if (ackBefore) { await ackBefore.click().catch(() => {}); await sleep(150); }
 
     const composer = await frame.$(FRAME_AI_SELECTORS.composer);
     if (!composer) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.composer, { rowId: row.id }), preconditions, screenshotPath };
@@ -384,10 +361,7 @@ export async function runWebMatrixRow(runEntry, {
     await composer.fill(row.prompt);
     await sleep(150);
     const ackBtn = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
-    if (ackBtn) {
-      await ackBtn.click().catch(() => {});
-      await sleep(100);
-    }
+    if (ackBtn) { await ackBtn.click().catch(() => {}); await sleep(100); }
     await sendBtn.click();
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -404,20 +378,10 @@ export async function runWebMatrixRow(runEntry, {
     ).catch(() => '');
     if (!replyText) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.assistantAnswer, { rowId: row.id }), preconditions, screenshotPath };
 
-    const stepTitles = await frame.$$eval(
-      FRAME_AI_SELECTORS.stepTitle,
-      (els) => els.map((el) => el.getAttribute('data-tip') || (el.textContent ?? '').trim()).filter(Boolean),
-    ).catch(() => []);
-    const panelFootprintText = await frame.$$eval(
-      FRAME_AI_SELECTORS.footprint,
-      (els) => els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).join(' | '),
-    ).catch(() => '');
+    const stepTitles = await frame.$$eval(FRAME_AI_SELECTORS.stepTitle, (els) => els.map((el) => el.getAttribute('data-tip') || (el.textContent ?? '').trim()).filter(Boolean)).catch(() => []);
+    const panelFootprintText = await frame.$$eval(FRAME_AI_SELECTORS.footprint, (els) => els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).join(' | ')).catch(() => '');
     const controls = await frame.$$eval('[data-capability], [data-tool]', (els) =>
-      els.map((el) => ({
-        capability: el.getAttribute('data-capability') || el.getAttribute('data-tool') || '',
-        present: true,
-        disabled: el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true',
-      })),
+      els.map((el) => ({ capability: el.getAttribute('data-capability') || el.getAttribute('data-tool') || '', present: true, disabled: el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true' })),
     ).catch(() => []);
 
     const versionsAfterAiTurn = await listVersions({ apiOrigin, fetchImpl, documentId, token });
@@ -462,24 +426,33 @@ export async function runWebMatrixRow(runEntry, {
 
       const saveKind = ['docs', 'sheets', 'slides', 'pdf'].includes(row.module) ? row.module : 'docs';
       const saved = await webSave(web.page, { kind: saveKind, timeoutMs });
-      if (saved.status !== 'saved') {
-        return { ...failVerdict('web_save_failed_after_ai_edit', { saved }), documentId, preconditions, screenshotPath };
-      }
+      if (saved.status !== 'saved') return { ...failVerdict('web_save_failed_after_ai_edit', { saved }), documentId, preconditions, screenshotPath };
 
       const versionsAfterSave = await listVersions({ apiOrigin, fetchImpl, documentId, token });
       const headAfterSave = await readFrameHead({ apiOrigin, fetchImpl, documentId, token });
       rawObserved.versionsAfterSave = versionsAfterSave;
       rawObserved.revisionAfterSave = headAfterSave.revision;
-      rawObserved.saveUsedCurrentBaseRevision =
-        String(lastCommitBaseRevision ?? headAfterAiTurn.revision) === String(headAfterAiTurn.revision);
+      rawObserved.saveUsedCurrentBaseRevision = String(lastCommitBaseRevision ?? headAfterAiTurn.revision) === String(headAfterAiTurn.revision);
       rawObserved.doubleClickVersionsCreated = versionsAfterSave - versionsAfterAiTurn;
       rawObserved.afterBytes = headAfterSave.bytes;
       rawObserved.afterSha256 = headAfterSave.sha256;
-      if (row.format === 'docx') rawObserved.roundTrip = await runDocxRoundTrip(headAfterSave.bytes);
+      if (row.format === 'docx') {
+        rawObserved.roundTrip = await runDocxRoundTrip(headAfterSave.bytes);
+        if (runDir) {
+          const artDir = join(runDir, 'g7-08', 'artifacts');
+          mkdirSync(artDir, { recursive: true });
+          rawObserved.oldDocxPath = join(artDir, `${row.id}-${provider}-web-old.docx`);
+          rawObserved.newDocxPath = join(artDir, `${row.id}-${provider}-web-new.docx`);
+          rawObserved.partsDiffPath = join(artDir, `${row.id}-${provider}-web-parts.diff`);
+          writeFileSync(rawObserved.oldDocxPath, Buffer.from(headAfterAiTurn.bytes));
+          writeFileSync(rawObserved.newDocxPath, Buffer.from(headAfterSave.bytes));
+          writeFileSync(rawObserved.partsDiffPath, diffDocxNonDocumentParts(headAfterAiTurn.bytes, headAfterSave.bytes), 'utf8');
+        }
+      }
     }
 
     const verdict = evaluateRowObserved(row, rawObserved);
-    const details = row.operation === 'edit' ? { ...verdict.details, explicitSave: true, versionsBefore, versionsAfterAiTurn, versionsAfterSave: rawObserved.versionsAfterSave, versionDelta: (rawObserved.versionsAfterSave ?? 0) - versionsAfterAiTurn, downloadedBytes: rawObserved.afterBytes?.length ?? 0, afterSha256: rawObserved.afterSha256 ?? null, oldVersionSha256: headAfterAiTurn.sha256, roundTrip: rawObserved.roundTrip ?? null } : verdict.details;
+    const details = row.operation === 'edit' ? { ...verdict.details, explicitSave: true, versionsBefore, versionsAfterAiTurn, versionsAfterSave: rawObserved.versionsAfterSave, versionDelta: (rawObserved.versionsAfterSave ?? 0) - versionsAfterAiTurn, downloadedBytes: rawObserved.afterBytes?.length ?? 0, afterSha256: rawObserved.afterSha256 ?? null, oldVersionSha256: headAfterAiTurn.sha256, roundTrip: rawObserved.roundTrip ?? null, ...(rawObserved.oldDocxPath ? { oldDocxPath: rawObserved.oldDocxPath, newDocxPath: rawObserved.newDocxPath, partsDiffPath: rawObserved.partsDiffPath } : {}) } : verdict.details;
     return { ...verdict, details, documentId, usage, preconditions, screenshotPath };
   } finally {
     if (web?.close) await web.close().catch(() => {});

@@ -9,20 +9,10 @@ import { buildPptx } from '../fixtures-lib/pptx.mjs';
 import { ooxmlEntries, zipStore } from '../fixtures-lib/zip.mjs';
 import { readZipEntries, sha256Hex } from '../harness/fixture-files.mjs';
 import {
-  HARNESS_EXIT,
-  VERDICT,
-  blockedVerdict,
-  decodeXml,
-  extractPdfTextFromBytes,
-  failVerdict,
-  oracleDocxEdit,
-  oracleDocxRead,
-  oraclePptxEdit,
-  oraclePptxRead,
-  parseDocxStructure,
-  parsePptxStructure,
-  passVerdict,
-  validateOoxmlPackage,
+  ALLOWED_CORE_PROPS_ELEMENTS, HARNESS_EXIT, VERDICT, blockedVerdict, decodeXml,
+  diffDocxNonDocumentParts, extractPdfTextFromBytes, failVerdict, findDisallowedDocxPartChange,
+  oracleDocxEdit, oracleDocxRead, oraclePptxEdit, oraclePptxRead,
+  parseDocxStructure, parsePptxStructure, passVerdict, validateOoxmlPackage,
 } from './ooxml.mjs';
 
 const docxFixture = buildDocx();
@@ -61,27 +51,18 @@ test('verdict helpers enforce exit codes 0 / 1 / 77 and reject unnamed BLOCKED',
 });
 
 test('validateOoxmlPackage PASSes real DOCX and PPTX fixtures and BLOCKs/FAILs each package violation', () => {
-  assert.equal(
-    validateOoxmlPackage(docxFixture.bytes, { mainPart: 'word/document.xml' }).status,
-    VERDICT.PASS,
-  );
-  assert.equal(
-    validateOoxmlPackage(pptxFixture.bytes, { mainPart: 'ppt/presentation.xml' }).status,
-    VERDICT.PASS,
-  );
+  assert.equal(validateOoxmlPackage(docxFixture.bytes, { mainPart: 'word/document.xml' }).status, VERDICT.PASS);
+  assert.equal(validateOoxmlPackage(pptxFixture.bytes, { mainPart: 'ppt/presentation.xml' }).status, VERDICT.PASS);
 
-  // Guard: missing bytes -> BLOCKED (77)
   const missing = validateOoxmlPackage(null);
   assert.equal(missing.status, VERDICT.BLOCKED);
   assert.equal(missing.exitCode, 77);
   assert.equal(missing.reason, 'missing_ooxml_bytes');
 
-  // Guard: non-zip bytes -> FAIL
   const badZip = validateOoxmlPackage(Buffer.from('not-a-zip'));
   assert.equal(badZip.status, VERDICT.FAIL);
   assert.equal(badZip.reason, 'ooxml_invalid_zip');
 
-  // Guard: corrupt zip entry (unsupported compression method in central directory) -> FAIL
   const corruptZip = Buffer.from(docxFixture.bytes);
   const cdPos = corruptZip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
   corruptZip.writeUInt16LE(99, cdPos + 10);
@@ -89,22 +70,17 @@ test('validateOoxmlPackage PASSes real DOCX and PPTX fixtures and BLOCKs/FAILs e
   assert.equal(corruptRes.status, VERDICT.FAIL);
   assert.equal(corruptRes.reason, 'ooxml_corrupt_zip_entry');
 
-  // Guard: duplicate zip entry -> FAIL
   const entries = readZipEntries(docxFixture.bytes);
   const dupZip = zipStore([...entries, entries[0]]);
   const dupRes = validateOoxmlPackage(dupZip, { mainPart: 'word/document.xml' });
   assert.equal(dupRes.status, VERDICT.FAIL);
   assert.equal(dupRes.reason, 'ooxml_duplicate_zip_entry');
 
-  // Guard: missing required part -> FAIL
-  const noStylesMain = mutateZipParts(docxFixture.bytes, (parts) => {
-    delete parts['word/document.xml'];
-  });
+  const noStylesMain = mutateZipParts(docxFixture.bytes, (parts) => { delete parts['word/document.xml']; });
   const missingMain = validateOoxmlPackage(noStylesMain, { mainPart: 'word/document.xml' });
   assert.equal(missingMain.status, VERDICT.FAIL);
   assert.equal(missingMain.reason, 'ooxml_missing_required_part');
 
-  // Guard: malformed XML in a part -> FAIL
   const badXml = mutateZipParts(docxFixture.bytes, (parts) => {
     parts['word/styles.xml'] = Buffer.from('<w:styles><unclosed></w:other>', 'utf8');
   });
@@ -112,7 +88,6 @@ test('validateOoxmlPackage PASSes real DOCX and PPTX fixtures and BLOCKs/FAILs e
   assert.equal(badXmlRes.status, VERDICT.FAIL);
   assert.equal(badXmlRes.reason, 'ooxml_malformed_xml');
 
-  // Guard: [Content_Types].xml override points to missing part -> FAIL
   const orphanOverride = mutateZipParts(docxFixture.bytes, (parts) => {
     const ct = parts['[Content_Types].xml'].toString('utf8');
     parts['[Content_Types].xml'] = Buffer.from(
@@ -124,7 +99,6 @@ test('validateOoxmlPackage PASSes real DOCX and PPTX fixtures and BLOCKs/FAILs e
   assert.equal(orphanRes.status, VERDICT.FAIL);
   assert.equal(orphanRes.reason, 'ooxml_content_types_mismatch');
 
-  // Guard: untyped binary part not covered by [Content_Types].xml -> FAIL
   const untypedPart = mutateZipParts(docxFixture.bytes, (parts) => {
     parts['word/media/unknown.bin'] = Buffer.from([1, 2, 3]);
   });
@@ -132,19 +106,14 @@ test('validateOoxmlPackage PASSes real DOCX and PPTX fixtures and BLOCKs/FAILs e
   assert.equal(untypedRes.status, VERDICT.FAIL);
   assert.equal(untypedRes.reason, 'ooxml_content_types_mismatch');
 
-  // Guard: broken internal relationship target -> FAIL
   const brokenRel = mutateZipParts(docxFixture.bytes, (parts) => {
     const rels = parts['word/_rels/document.xml.rels'].toString('utf8');
-    parts['word/_rels/document.xml.rels'] = Buffer.from(
-      rels.replace('styles.xml', 'missing-styles.xml'),
-      'utf8',
-    );
+    parts['word/_rels/document.xml.rels'] = Buffer.from(rels.replace('styles.xml', 'missing-styles.xml'), 'utf8');
   });
   const brokenRelRes = validateOoxmlPackage(brokenRel, { mainPart: 'word/document.xml' });
   assert.equal(brokenRelRes.status, VERDICT.FAIL);
   assert.equal(brokenRelRes.reason, 'ooxml_broken_relationship_target');
 
-  // Guard: duplicate relationship Id -> FAIL
   const dupRel = mutateZipParts(docxFixture.bytes, (parts) => {
     const rels = parts['word/_rels/document.xml.rels'].toString('utf8');
     parts['word/_rels/document.xml.rels'] = Buffer.from(rels.replace('rId2', 'rId1'), 'utf8');
@@ -153,7 +122,6 @@ test('validateOoxmlPackage PASSes real DOCX and PPTX fixtures and BLOCKs/FAILs e
   assert.equal(dupRelRes.status, VERDICT.FAIL);
   assert.equal(dupRelRes.reason, 'ooxml_duplicate_relationship_id');
 
-  // Guard: _rels/.rels does not point to mainPart -> FAIL
   const noMainRel = mutateZipParts(docxFixture.bytes, (parts) => {
     const rels = parts['_rels/.rels'].toString('utf8');
     parts['_rels/.rels'] = Buffer.from(rels.replace('word/document.xml', 'word/styles.xml'), 'utf8');
@@ -181,46 +149,18 @@ test('oracleDocxRead (D-R1) PASSes faithful cited read and FAILs/BLOCKs every gu
   };
   assert.equal(oracleDocxRead(faithful).status, VERDICT.PASS);
 
-  // BLOCKED on missing artifact
   const blockedRead = oracleDocxRead({ fixtureBytes: docxFixture.bytes, replyText: '' });
   assert.equal(blockedRead.status, VERDICT.BLOCKED);
   assert.equal(blockedRead.reason, 'missing_docx_read_artifact');
-
-  // FAIL on invalid fixture bytes
-  assert.equal(
-    oracleDocxRead({ ...faithful, fixtureBytes: Buffer.from('not-a-docx') }).reason,
-    'docx_read_invalid_fixture_bytes',
-  );
-
-  // FAIL on missing anchors
+  assert.equal(oracleDocxRead({ ...faithful, fixtureBytes: Buffer.from('not-a-docx') }).reason, 'docx_read_invalid_fixture_bytes');
   assert.equal(oracleDocxRead({ ...faithful, citedAnchors: [] }).reason, 'docx_read_missing_anchors');
-
-  // FAIL on out-of-range anchor
-  assert.equal(
-    oracleDocxRead({ ...faithful, citedAnchors: [{ blockIndex: 99, text: 'x' }] }).reason,
-    'docx_read_anchor_out_of_range',
-  );
-
-  // FAIL on mismatched anchor text
-  assert.equal(
-    oracleDocxRead({ ...faithful, citedAnchors: [{ blockIndex: 2, text: 'Không có câu này' }] }).reason,
-    'docx_read_anchor_text_mismatch',
-  );
-
-  // FAIL on missing expected fact
-  assert.equal(
-    oracleDocxRead({ ...faithful, replyText: 'Chỉ nêu khu vực Bắc, thiếu tổng số.' }).reason,
-    'docx_read_missing_expected_fact',
-  );
-
-  // FAIL on invented/forbidden fact
-  assert.equal(
-    oracleDocxRead({ ...faithful, replyText: `${faithful.replyText} 99.999.999` }).reason,
-    'docx_read_invented_or_forbidden_fact',
-  );
+  assert.equal(oracleDocxRead({ ...faithful, citedAnchors: [{ blockIndex: 99, text: 'x' }] }).reason, 'docx_read_anchor_out_of_range');
+  assert.equal(oracleDocxRead({ ...faithful, citedAnchors: [{ blockIndex: 2, text: 'Không có câu này' }] }).reason, 'docx_read_anchor_text_mismatch');
+  assert.equal(oracleDocxRead({ ...faithful, replyText: 'Chỉ nêu khu vực Bắc, thiếu tổng số.' }).reason, 'docx_read_missing_expected_fact');
+  assert.equal(oracleDocxRead({ ...faithful, replyText: `${faithful.replyText} 99.999.999` }).reason, 'docx_read_invented_or_forbidden_fact');
 });
 
-test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BLOCKs every guard', () => {
+test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and core.xml save metadata, FAILs/BLOCKs every guard', () => {
   const beforeBytes = docxFixture.bytes;
   const beforeSha = sha256Hex(beforeBytes);
   const parsedBefore = parseDocxStructure(beforeBytes);
@@ -248,18 +188,76 @@ test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BL
 
   assert.equal(oracleDocxEdit(baseObserved).status, VERDICT.PASS);
 
+  // W2c: metadata-only change in docProps/core.xml (dcterms:modified, cp:lastModifiedBy, cp:revision) PASSes
+  assert.deepEqual(ALLOWED_CORE_PROPS_ELEMENTS, ['dcterms:modified', 'cp:lastModifiedBy', 'cp:revision']);
+  const coreMetaUpdatedBytes = mutateZipParts(afterBytes, (parts) => {
+    const core = parts['docProps/core.xml'].toString('utf8');
+    parts['docProps/core.xml'] = Buffer.from(
+      core
+        .replace('<cp:lastModifiedBy>UniWork synthetic fixtures</cp:lastModifiedBy>', '<cp:lastModifiedBy>UniWork Save</cp:lastModifiedBy><cp:revision>2</cp:revision>')
+        .replace('<dcterms:modified xsi:type="dcterms:W3CDTF">2026-01-01T00:00:00Z</dcterms:modified>', '<dcterms:modified xsi:type="dcterms:W3CDTF">2026-10-17T15:00:00Z</dcterms:modified>'),
+      'utf8',
+    );
+  });
+  const coreMetaRes = oracleDocxEdit({ ...baseObserved, afterBytes: coreMetaUpdatedBytes });
+  assert.equal(coreMetaRes.status, VERDICT.PASS);
+  assert.equal(coreMetaRes.reason, 'docx_edit_ok');
+  const diffText = diffDocxNonDocumentParts(beforeBytes, coreMetaUpdatedBytes);
+  assert.match(diffText, /--- a\/docProps\/core\.xml/);
+  assert.match(diffText, /\+<dcterms:modified xsi:type="dcterms:W3CDTF">2026-10-17T15:00:00Z<\/dcterms:modified>/);
+
+  // W2c: dc:title change in docProps/core.xml FAILs naming part and element dc:title
+  const titleChangedBytes = mutateZipParts(afterBytes, (parts) => {
+    parts['docProps/core.xml'] = Buffer.from(
+      parts['docProps/core.xml'].toString('utf8').replace('<dc:title>Báo cáo kinh doanh quý 1 năm 2026</dc:title>', '<dc:title>Tiêu đề bị sửa</dc:title>'),
+      'utf8',
+    );
+  });
+  const titleFail = oracleDocxEdit({ ...baseObserved, afterBytes: titleChangedBytes });
+  assert.equal(titleFail.status, VERDICT.FAIL);
+  assert.equal(titleFail.reason, 'docx_non_document_part_modified');
+  assert.deepEqual(titleFail.details, { part: 'docProps/core.xml', element: 'dc:title' });
+
+  // W2c: dc:creator change in docProps/core.xml FAILs naming part and element dc:creator
+  const creatorChangedBytes = mutateZipParts(afterBytes, (parts) => {
+    parts['docProps/core.xml'] = Buffer.from(
+      parts['docProps/core.xml'].toString('utf8').replace('<dc:creator>UniWork synthetic fixtures</dc:creator>', '<dc:creator>Người tạo khác</dc:creator>'),
+      'utf8',
+    );
+  });
+  const creatorFail = oracleDocxEdit({ ...baseObserved, afterBytes: creatorChangedBytes });
+  assert.equal(creatorFail.status, VERDICT.FAIL);
+  assert.equal(creatorFail.reason, 'docx_non_document_part_modified');
+  assert.deepEqual(creatorFail.details, { part: 'docProps/core.xml', element: 'dc:creator' });
+
+  // W2c: attribute change on dcterms:modified in docProps/core.xml FAILs naming part and element dcterms:modified
+  const attrChangedBytes = mutateZipParts(afterBytes, (parts) => {
+    parts['docProps/core.xml'] = Buffer.from(
+      parts['docProps/core.xml'].toString('utf8').replace('<dcterms:modified xsi:type="dcterms:W3CDTF">', '<dcterms:modified xsi:type="custom:Type">'),
+      'utf8',
+    );
+  });
+  const attrFail = oracleDocxEdit({ ...baseObserved, afterBytes: attrChangedBytes });
+  assert.equal(attrFail.status, VERDICT.FAIL);
+  assert.equal(attrFail.reason, 'docx_non_document_part_modified');
+  assert.deepEqual(attrFail.details, { part: 'docProps/core.xml', element: 'dcterms:modified' });
+
+  // W2c: synthetic docProps/app.xml change FAILs naming part and element
+  assert.deepEqual(
+    findDisallowedDocxPartChange(
+      'docProps/app.xml',
+      Buffer.from('<Properties><Application>UniWork</Application></Properties>', 'utf8'),
+      Buffer.from('<Properties><Application>OtherApp</Application></Properties>', 'utf8'),
+    ),
+    { part: 'docProps/app.xml', element: 'Application' },
+  );
+
   // BLOCKED on missing bytes, missing oldVersionSha256, missing roundTrip, missing target, or missing expected tokens
   const missingBytes = oracleDocxEdit({ beforeBytes });
   assert.equal(missingBytes.status, VERDICT.BLOCKED);
   assert.equal(missingBytes.reason, 'missing_docx_edit_bytes');
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, oldVersionSha256: null }).reason,
-    'missing_docx_old_version_sha256',
-  );
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, roundTripHook: undefined, roundTrip: null }).reason,
-    'missing_docx_round_trip_result',
-  );
+  assert.equal(oracleDocxEdit({ ...baseObserved, oldVersionSha256: null }).reason, 'missing_docx_old_version_sha256');
+  assert.equal(oracleDocxEdit({ ...baseObserved, roundTripHook: undefined, roundTrip: null }).reason, 'missing_docx_round_trip_result');
   const missingTarget = oracleDocxEdit({ ...baseObserved, targetParagraphIndex: undefined });
   assert.equal(missingTarget.status, VERDICT.BLOCKED);
   assert.equal(missingTarget.reason, 'missing_docx_target_paragraph');
@@ -267,91 +265,45 @@ test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BL
   assert.equal(missingTokens.status, VERDICT.BLOCKED);
   assert.equal(missingTokens.reason, 'missing_docx_expected_tokens');
 
-  // FAIL on G6-A05 old-version sha256 mutated
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, oldVersionSha256: '0'.repeat(64) }).reason,
-    'docx_old_version_sha256_changed',
-  );
+  assert.equal(oracleDocxEdit({ ...baseObserved, oldVersionSha256: '0'.repeat(64) }).reason, 'docx_old_version_sha256_changed');
+  assert.equal(oracleDocxEdit({ ...baseObserved, roundTripHook: () => ({ normalizedOk: true, roundTripOk: false }) }).reason, 'docx_ooxml_normalize_or_round_trip_failed');
 
-  // FAIL on ooxml-normalize / round-trip failure
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, roundTripHook: () => ({ normalizedOk: true, roundTripOk: false }) }).reason,
-    'docx_ooxml_normalize_or_round_trip_failed',
-  );
-
-  // FAIL on unparseable beforeBytes structure
   const badBefore = Buffer.from('not-a-docx');
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, beforeBytes: badBefore, oldVersionSha256: sha256Hex(badBefore) }).reason,
-    'docx_edit_unparseable_structure',
-  );
+  assert.equal(oracleDocxEdit({ ...baseObserved, beforeBytes: badBefore, oldVersionSha256: sha256Hex(badBefore) }).reason, 'docx_edit_unparseable_structure');
 
-  // FAIL when non-document part (styles.xml) is modified
+  // FAIL when non-document part (word/styles.xml) is modified, naming part and element
   const touchedStyles = mutateZipParts(afterBytes, (parts) => {
-    parts['word/styles.xml'] = Buffer.from(`${parts['word/styles.xml'].toString('utf8')}\n`, 'utf8');
+    parts['word/styles.xml'] = Buffer.from(parts['word/styles.xml'].toString('utf8').replace('w:val="22"', 'w:val="26"'), 'utf8');
   });
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, afterBytes: touchedStyles }).reason,
-    'docx_non_document_part_modified',
-  );
+  const stylesFail = oracleDocxEdit({ ...baseObserved, afterBytes: touchedStyles });
+  assert.equal(stylesFail.reason, 'docx_non_document_part_modified');
+  assert.equal(stylesFail.details.part, 'word/styles.xml');
+  assert.ok(stylesFail.details.element);
 
-  // FAIL when table content is modified
   const touchedTable = mutateZipParts(afterBytes, (parts) => {
-    parts['word/document.xml'] = Buffer.from(
-      parts['word/document.xml'].toString('utf8').replace('100,0%', '99,0%'),
-      'utf8',
-    );
+    parts['word/document.xml'] = Buffer.from(parts['word/document.xml'].toString('utf8').replace('100,0%', '99,0%'), 'utf8');
   });
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, afterBytes: touchedTable }).reason,
-    'docx_tables_modified',
-  );
+  assert.equal(oracleDocxEdit({ ...baseObserved, afterBytes: touchedTable }).reason, 'docx_tables_modified');
 
-  // FAIL when paragraph count changes
   const extraPara = mutateZipParts(afterBytes, (parts) => {
-    parts['word/document.xml'] = Buffer.from(
-      parts['word/document.xml'].toString('utf8').replace('</w:body>', '<w:p><w:r><w:t>Extra</w:t></w:r></w:p></w:body>'),
-      'utf8',
-    );
+    parts['word/document.xml'] = Buffer.from(parts['word/document.xml'].toString('utf8').replace('</w:body>', '<w:p><w:r><w:t>Extra</w:t></w:r></w:p></w:body>'), 'utf8');
   });
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, afterBytes: extraPara }).reason,
-    'docx_paragraph_count_changed',
-  );
+  assert.equal(oracleDocxEdit({ ...baseObserved, afterBytes: extraPara }).reason, 'docx_paragraph_count_changed');
 
-  // FAIL when untouched paragraph is modified
   const touchedOtherPara = mutateZipParts(afterBytes, (parts) => {
-    parts['word/document.xml'] = Buffer.from(
-      parts['word/document.xml'].toString('utf8').replace('1. Tóm tắt điều hành', '1. Đã sửa nhầm'),
-      'utf8',
-    );
+    parts['word/document.xml'] = Buffer.from(parts['word/document.xml'].toString('utf8').replace('1. Tóm tắt điều hành', '1. Đã sửa nhầm'), 'utf8');
   });
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, afterBytes: touchedOtherPara }).reason,
-    'docx_untouched_paragraph_modified',
-  );
+  assert.equal(oracleDocxEdit({ ...baseObserved, afterBytes: touchedOtherPara }).reason, 'docx_untouched_paragraph_modified');
+  assert.equal(oracleDocxEdit({ ...baseObserved, afterBytes: beforeBytes }).reason, 'docx_target_paragraph_unchanged');
 
-  // FAIL when target paragraph is unchanged
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, afterBytes: beforeBytes }).reason,
-    'docx_target_paragraph_unchanged',
-  );
-
-  // FAIL when target paragraph rewrites with wrong figure (e.g. 9.560.000 instead of 9.060.000, R1-7)
   const wrongFigureBytes = mutateZipParts(beforeBytes, (parts) => {
     const xml = parts['word/document.xml'].toString('utf8');
     parts['word/document.xml'] = Buffer.from(
-      xml.replace(
-        originalPara2,
-        'Báo cáo quý 1 ghi nhận tổng doanh thu 22.060.000 đồng, dẫn đầu là khu vực Bắc (9.560.000 đồng).',
-      ),
+      xml.replace(originalPara2, 'Báo cáo quý 1 ghi nhận tổng doanh thu 22.060.000 đồng, dẫn đầu là khu vực Bắc (9.560.000 đồng).'),
       'utf8',
     );
   });
-  assert.equal(
-    oracleDocxEdit({ ...baseObserved, afterBytes: wrongFigureBytes }).reason,
-    'docx_target_paragraph_missing_expected_token',
-  );
+  assert.equal(oracleDocxEdit({ ...baseObserved, afterBytes: wrongFigureBytes }).reason, 'docx_target_paragraph_missing_expected_token');
 });
 
 test('oraclePptxRead (P-R1) and oraclePptxEdit (P-E1) PASS faithful cases and FAIL/BLOCK every guard', () => {
