@@ -55,11 +55,8 @@ export function missingSelectorVerdict(what, details = {}) {
   return { ...base, owner: FORK_SELECTOR_OWNER };
 }
 
-export function moduleFrameSelectors(module) {
-  if (['docs', 'sheets', 'slides', 'pdf'].includes(module)) return webFrameSelectors(module);
-  const host = `[data-office-docs-frame][data-office-module="${module}"]`;
-  return { host, ready: `${host}[data-state="ready"]`, iframe: `${host} iframe[data-testid="office-docs-frame-iframe"]` };
-}
+// Every module host is `data-office-module={module}` (office-module-frame.tsx:334-335); harness/web.mjs knows all six.
+export const moduleFrameSelectors = webFrameSelectors;
 
 export function extractWireToolCalls(requests = [], responses = []) {
   const offeredSet = new Set();

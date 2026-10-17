@@ -142,7 +142,7 @@ test("web: webSave (§13) defaults to a saved new version per call and is script
   assert.ok(first.versionId && second.versionId && first.versionId !== second.versionId, "each default save is a new version");
   script.queue("web.webSave", { status: "timeout", reason: "no frame commit within the bound" });
   assert.equal((await web.webSave(s.page, { kind: "sheets" })).status, "timeout");
-  await assert.rejects(web.webSave(s.page, { kind: "html" }), /kind must be one of/);
+  await assert.rejects(web.webSave(s.page, { kind: "spreadsheet" }), /kind must be one of/);
   assert.deepEqual(calls.web.filter((c) => c.key === "webSave").map((c) => c.args[1].kind), ["docs", "docs", "sheets"]);
   script.queue("web.webFrameEval", { status: "ok" });
   assert.deepEqual(await web.webFrameEval(s.page, "docs", () => 0, { type: "key" }), { status: "ok" });
