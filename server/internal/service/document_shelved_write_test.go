@@ -685,6 +685,78 @@ func TestShelvedWriteBlockVisibility(t *testing.T) {
 	})
 }
 
+// TestUploadSessionCompleteReDecidesAccessBeforeShelvedState is BE-AR-3: the
+// version/frame completion authorizes the caller before storage assembly, so
+// a caller who loses access while the parts are assembled - and whose
+// document a manager shelves in the same window - must still get the access
+// gate's answer, not_found. Returning 409 document_shelved would tell someone
+// who may no longer see the row that it exists and was just shelved. The
+// storage beforeComplete hook lands both changes after the open and after
+// Complete's own preflight authorization, before the commit transaction takes
+// the document row lock.
+func TestUploadSessionCompleteReDecidesAccessBeforeShelvedState(t *testing.T) {
+	const size = UploadSessionThresholdBytes + 1
+
+	// revokeThenShelve drops member's workspace membership and shelves the
+	// document as its manager: the exact pair the finding describes, both
+	// landed between the initial authorization and the locked re-read.
+	revokeThenShelve := func(t *testing.T, env *docStorageEnv, docID string) {
+		t.Helper()
+		if _, err := env.f.pool.Exec(env.f.ctx,
+			`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`,
+			env.tn.wsA, env.tn.member.ID); err != nil {
+			t.Fatalf("revoke membership: %v", err)
+		}
+		if _, err := env.svc.ShelveDocument(env.f.ctx, Human(env.tn.aclOwner.ID), docID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("shelve after the revoke: %v", err)
+		}
+	}
+	// wantNotFound is the BE-AR-3 assertion: the access gate's answer, and
+	// never the shelved refusal that would leak the fresh state.
+	wantNotFound := func(t *testing.T, err error) {
+		t.Helper()
+		if !errors.Is(err, ErrNotFound) || errors.Is(err, ErrDocumentShelved) {
+			t.Fatalf("complete after access loss + shelve = %v, want not_found (never document_shelved)", err)
+		}
+	}
+
+	t.Run("version", func(t *testing.T) {
+		env := newMultipartDocEnv(t)
+		member := human(env.tn.member)
+		file := env.createFile(t, Human(env.tn.aclOwner.ID), "ar3-"+util.NewID()[20:]+".pdf", pdfBody("ar3-version"))
+		in, body := sessionOpenInputFor(size, "ar3-version")
+		sess, err := env.svc.OpenVersionUploadSession(env.f.ctx, member, file.Document.ID, in)
+		if err != nil {
+			t.Fatalf("open version session: %v", err)
+		}
+		parts := uploadAllParts(t, env, sess.SessionID, body)
+
+		env.store.beforeComplete = func() { revokeThenShelve(t, env, file.Document.ID) }
+		defer func() { env.store.beforeComplete = nil }()
+
+		_, err = env.svc.CompleteUploadSession(env.f.ctx, member, sess.SessionID, CompleteUploadSessionInput{Parts: parts})
+		wantNotFound(t, err)
+	})
+
+	t.Run("frame", func(t *testing.T) {
+		env := newMultipartDocEnv(t)
+		file := env.createFile(t, Human(env.tn.aclOwner.ID), "ar3-"+util.NewID()[20:]+".pdf", pdfBody("ar3-frame"))
+		claims := frameClaims(env, file.Document.ID, env.tn.member.ID)
+		in, body := sessionOpenInputFor(size, "ar3-frame")
+		sess, err := env.svc.OpenFrameUploadSession(env.f.ctx, claims, file.Document.ID, in)
+		if err != nil {
+			t.Fatalf("open frame session: %v", err)
+		}
+		parts := uploadAllParts(t, env, sess.SessionID, body)
+
+		env.store.beforeComplete = func() { revokeThenShelve(t, env, file.Document.ID) }
+		defer func() { env.store.beforeComplete = nil }()
+
+		_, err = env.svc.CompleteFrameUploadSession(env.f.ctx, claims, file.Document.ID, sess.SessionID, CompleteUploadSessionInput{Parts: parts})
+		wantNotFound(t, err)
+	})
+}
+
 // TestShelvedOfficeFrame is the SH-6 frame half: Mint keeps opening the
 // shelved document but with can_edit=false, and the frame's upload asset
 // route answers document_shelved through the same service gate.

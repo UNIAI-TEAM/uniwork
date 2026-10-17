@@ -1347,13 +1347,24 @@ func (s *DocumentService) completeVersionOrFrameUploadSessionInTx(
 	// transaction (addendum §3): a shelve that landed between open and
 	// complete must refuse the commit, and the lock is the same one every
 	// other document write takes, so a shelve waits for this transaction
-	// instead of interleaving with it. The access gate stays where it was -
-	// the open and the version commit each decide it.
+	// instead of interleaving with it. Access is decided again on that locked
+	// row, the answer the open and the version commit both give: the caller
+	// was authorized before storage assembly, so a caller who lost access
+	// while the parts were assembled must get the gate's refusal (not_found),
+	// never 409 document_shelved, which would leak the fresh state of a row
+	// they may no longer see (BE-AR-3).
 	doc, err := q.LockDocumentByID(ctx, sess.DocumentID.String)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UploadSessionCompleteResult{}, ErrNotFound
 	}
 	if err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
+	access, err := s.effectiveLevel(ctx, q, actor, doc)
+	if err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
+	if err := decideFileSave(doc, access); err != nil {
 		return UploadSessionCompleteResult{}, err
 	}
 	if err := requireNotShelved(doc); err != nil {
