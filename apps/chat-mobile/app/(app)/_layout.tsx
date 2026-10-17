@@ -11,6 +11,7 @@ import { registerPushToken } from "@/data/push";
 
 export default function AppLayout() {
   const userId = useAuthStore((s) => s.user?.id ?? null);
+  const isLoading = useAuthStore((s) => s.isLoading);
 
   useEffect(() => {
     if (!userId) return;
@@ -22,6 +23,8 @@ export default function AppLayout() {
     );
   }, [userId]);
 
+  // A cold-start deep route mounts here before the session is restored.
+  if (isLoading) return null;
   if (!userId) return <Redirect href="/login" />;
   return <Stack screenOptions={{ headerShown: false }} />;
 }

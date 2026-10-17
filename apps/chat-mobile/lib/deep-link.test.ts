@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deepLinkHref, parseDeepLink, setPendingDeepLink, takePendingDeepLink } from "./deep-link";
+import { deepLinkHref, parseDeepLink, setPendingDeepLink, systemPathToRoute, takePendingDeepLink } from "./deep-link";
 
 const APP_URL = "https://app.uniworkos.com";
 const SCHEME = "uniworkchat";
@@ -66,5 +66,22 @@ describe("pending deep link", () => {
     setPendingDeepLink(link);
     expect(takePendingDeepLink()).toBe(link);
     expect(takePendingDeepLink()).toBeNull();
+  });
+});
+
+describe("systemPathToRoute (+native-intent)", () => {
+  it("maps a chat link, wrapped or universal, onto its route", () => {
+    expect(systemPathToRoute(`${APP_URL}/acme/hq/chat?room=r1`, APP_URL, SCHEME)).toBe("/acme/hq/chat?room=r1");
+    const wrapped = `${SCHEME}://open?url=${encodeURIComponent("/acme/hq/chat?dm=u2")}`;
+    expect(systemPathToRoute(wrapped, APP_URL, SCHEME)).toBe("/acme/hq/chat?dm=u2");
+  });
+
+  it("sends the PKCE callback to the login screen, which the Linking listener completes", () => {
+    expect(systemPathToRoute(`${SCHEME}://auth/callback?code=c&state=s`, APP_URL, SCHEME)).toBe("/login");
+  });
+
+  it("leaves any other URL to expo-router", () => {
+    expect(systemPathToRoute(`${APP_URL}/settings`, APP_URL, SCHEME)).toBe(`${APP_URL}/settings`);
+    expect(systemPathToRoute("/select-workspace", APP_URL, SCHEME)).toBe("/select-workspace");
   });
 });

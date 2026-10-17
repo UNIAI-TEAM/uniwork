@@ -29,16 +29,18 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 // Before the first request: every data/* module reads runtimeConfig() per call.
 configureRuntime(runtimeFromExtra(Constants.expoConfig?.extra));
 
-/** A URL from the OS: the PKCE callback completes the sign-in, a chat link opens or waits for one. */
-function openUrl(url: string) {
+/** A URL from the OS: the PKCE callback completes the sign-in; a chat link waits
+ *  for one, or is pushed only when expo-router did not already route it
+ *  (+native-intent routes Linking URLs; a notification tap is not one). */
+function openUrl(url: string, navigate = false) {
   if (isAuthCallbackUrl(url, authConfig.scheme)) {
     void session.completeCallback(url);
     return;
   }
   const link = parseDeepLink(url, runtimeConfig().appUrl, authConfig.scheme);
   if (!link) return;
-  if (useAuthStore.getState().user) router.push(deepLinkHref(link));
-  else setPendingDeepLink(link);
+  if (!useAuthStore.getState().user) setPendingDeepLink(link);
+  else if (navigate) router.push(deepLinkHref(link));
 }
 
 function AuthInitializer({ children }: { children: ReactNode }) {
@@ -50,8 +52,8 @@ function AuthInitializer({ children }: { children: ReactNode }) {
       if (signingOut.current) return;
       signingOut.current = true;
       void (async () => {
+        // logout() clears the workspace store too.
         await useAuthStore.getState().logout();
-        await useWorkspaceStore.getState().clear();
         queryClient.clear();
         router.replace("/login");
         signingOut.current = false;
@@ -70,7 +72,7 @@ function AuthInitializer({ children }: { children: ReactNode }) {
     // The server's push payload carries the web URL of the message in `data.url`.
     const pushSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const url: unknown = response.notification.request.content.data?.url;
-      if (typeof url === "string") openUrl(url);
+      if (typeof url === "string") openUrl(url, true);
     });
     return () => {
       urlSub.remove();

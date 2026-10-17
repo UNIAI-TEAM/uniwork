@@ -12,15 +12,19 @@
  * Lifecycle signals:
  *   AppState 'background'  → pause socket (iOS will kill it anyway; clean
  *                            close avoids a kernel-level reset on resume)
- *   AppState 'active'      → resume socket
+ *   AppState 'active'      → resume socket after 'background', or when the
+ *                            socket is not authenticated (iOS zombie)
  *   AppState 'inactive'    → ignore (transient: app switcher / Control
  *                            Center / incoming call — tearing down here
  *                            causes spurious reconnect storms)
  *   NetInfo offline → online edge → force reconnect (don't wait for TCP
  *                                    keepalive timeout to notice the dead
  *                                    socket after wifi↔cellular handoff)
- *   close 4001 → refreshSession() → a token rebuilds the socket now, no
- *                token (signed out) disconnects it.
+ *   close 4001 / pre-auth "invalid token" → refreshSession() → a token
+ *                rebuilds the socket now, null (signed out) disconnects it, a
+ *                rejection (transient) leaves it down for the next signal.
+ *   other pre-auth refusal (not a member, too many connections) → stays
+ *                down until the next foreground return or network edge.
  *
  * Provider does NOT register business event handlers — those live in
  * per-feature hooks so the realtime layer scales without one giant file.
@@ -46,7 +50,8 @@ export interface RealtimeProviderProps {
   workspaceSlug: string | null;
   /** Current access token, read at each dial. */
   getToken: () => Promise<string | null> | string | null;
-  /** Called on close 4001; resolves the new access token, or null when signed out. */
+  /** Called on close 4001; resolves the new access token, null when signed
+   *  out, and rejects on a transient failure (see refresh-for-socket.ts). */
   refreshSession: () => Promise<string | null>;
   children: ReactNode;
 }
@@ -74,7 +79,11 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
       workspaceSlug,
       clientOs: Platform.OS,
       logger: console,
-      onSessionEnded: () => {
+      onSessionEnded: (error) => {
+        if (error !== undefined && error !== "invalid token") {
+          console.warn("[realtime] socket refused, waiting for the next foreground return", error);
+          return;
+        }
         sessionRef.current.refreshSession().then(
           (token) => (token ? ws.forceReconnect() : ws.disconnect()),
           // A transient failure keeps the session: the next foreground
@@ -87,16 +96,16 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
     setClient(ws);
 
     // ── AppState ────────────────────────────────────────────────
+    let previous: AppStateStatus = "active";
     const appStateSub = AppState.addEventListener("change", (status: AppStateStatus) => {
       if (status === "active") {
-        // Foreground. The socket may have been paused (we put it there on
-        // background) or it may be a zombie (iOS killed it silently).
-        // resume() handles both with one fresh socket.
-        ws.resume();
+        // Foreground after background (we paused) or a zombie (iOS killed it
+        // silently): one fresh socket. An inactive blip keeps a healthy one.
+        if (previous === "background" || !ws.isAuthenticated()) ws.resume();
       } else if (status === "background") {
         ws.pause();
       }
-      // 'inactive' (iOS-only, transient) → ignore.
+      previous = status;
     });
 
     // ── NetInfo ─────────────────────────────────────────────────

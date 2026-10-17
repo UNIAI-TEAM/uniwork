@@ -107,7 +107,7 @@ describe("RealtimeProvider", () => {
     expect(url.searchParams.get("client_platform")).toBe("mobile");
   });
 
-  it("opens exactly one socket per background or inactive return", async () => {
+  it("opens one socket per background return; an inactive blip keeps an authenticated socket", async () => {
     ({ cleanup } = await mount());
     expect(MockWebSocket.instances).toHaveLength(1);
 
@@ -116,8 +116,15 @@ describe("RealtimeProvider", () => {
     lifecycle.onAppState!("active");
     expect(MockWebSocket.instances).toHaveLength(2);
 
+    // Control Center / app switcher: the socket is healthy, so it stays.
+    latest().authenticate();
     lifecycle.onAppState!("inactive");
+    lifecycle.onAppState!("active");
     expect(MockWebSocket.instances).toHaveLength(2);
+
+    // The same blip over a socket that never authenticated redials.
+    latest().readyState = 0;
+    lifecycle.onAppState!("inactive");
     lifecycle.onAppState!("active");
     expect(MockWebSocket.instances).toHaveLength(3);
   });
@@ -149,7 +156,31 @@ describe("RealtimeProvider", () => {
     expect(mounted.refreshSession).toHaveBeenCalledTimes(1);
   });
 
-  it("a refresh that yields no session disconnects instead of redialling", async () => {
+  it("a pre-auth refusal that is not a token problem leaves the socket down until the next foreground return", async () => {
+    const mounted = await mount();
+    cleanup = mounted.cleanup;
+    latest().onopen?.();
+    latest().onmessage?.({ data: JSON.stringify({ error: "not a member of this workspace" }) });
+    await flush();
+    expect(mounted.refreshSession).not.toHaveBeenCalled();
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] socket refused"), "not a member of this workspace");
+    lifecycle.onAppState!("background");
+    lifecycle.onAppState!("active");
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it("a pre-auth invalid-token refusal goes through the refresh path", async () => {
+    const mounted = await mount();
+    cleanup = mounted.cleanup;
+    latest().onopen?.();
+    latest().onmessage?.({ data: JSON.stringify({ error: "invalid token" }) });
+    await flush();
+    expect(mounted.refreshSession).toHaveBeenCalledTimes(1);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it("a refresh that yields no session (signed out) disconnects instead of redialling", async () => {
     ({ cleanup } = await mount({ refreshSession: async () => null }));
     latest().authenticate();
     latest().onclose!({ code: 4001 });

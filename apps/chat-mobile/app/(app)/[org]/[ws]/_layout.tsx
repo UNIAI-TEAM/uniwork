@@ -3,11 +3,12 @@
 // the store, and the realtime socket lives for the workspace session.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect, Stack, useLocalSearchParams } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { RealtimeProvider } from "@/data/realtime/realtime-provider";
+import { socketTokenReaders } from "@/data/realtime/refresh-for-socket";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 
@@ -32,8 +33,9 @@ function RealtimeSubscriptions() {
 export default function WorkspaceLayout() {
   const { org, ws } = useLocalSearchParams<{ org: string; ws: string }>();
   const userId = useAuthStore((s) => s.user?.id ?? null);
-  const { data: workspaces, isLoading } = useQuery(workspaceListOptions());
+  const { data: workspaces, isError } = useQuery(workspaceListOptions());
   const setCurrent = useWorkspaceStore((s) => s.setCurrent);
+  const tokens = useMemo(() => socketTokenReaders(session), []);
 
   const matched = workspaces?.find((w) => w.organization_slug === org && w.slug === ws);
 
@@ -41,16 +43,17 @@ export default function WorkspaceLayout() {
     if (matched) void setCurrent({ orgSlug: matched.organization_slug, wsSlug: matched.slug, wsId: matched.id });
   }, [matched, setCurrent]);
 
-  // Decide membership only once the list is in; a valid link must not bounce on cold start.
-  if (isLoading) return null;
+  // Decide membership only on a loaded list: offline, the query is paused with
+  // no data and isLoading false, and a valid link must not bounce then.
+  if (!workspaces && !isError) return null;
   if (!matched) return <Redirect href="/select-workspace" />;
 
   return (
     <RealtimeProvider
       userId={userId}
       workspaceSlug={`${org}/${ws}`}
-      getToken={() => session.getAccessToken()}
-      refreshSession={() => session.refresh()}
+      getToken={tokens.getToken}
+      refreshSession={tokens.refreshSession}
     >
       <RealtimeSubscriptions />
       <Stack>

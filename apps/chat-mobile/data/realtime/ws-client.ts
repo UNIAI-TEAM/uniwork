@@ -57,8 +57,10 @@ export interface WSClientOptions {
   /** Defaults to "mobile". */
   clientPlatform?: string;
   logger?: Logger;
-  /** The server closed the socket with 4001: expired token or revoked session. */
-  onSessionEnded?: () => void;
+  /** The server ended this socket: close 4001 (no reason) or a pre-auth
+   *  `{error}` refusal (its text: invalid token, not a member, too many
+   *  connections). The client does not redial either; the host decides. */
+  onSessionEnded?: (error?: string) => void;
 }
 
 const RECONNECT_BASE_MS = 1_000;
@@ -214,14 +216,16 @@ export class WSClient {
       return;
     }
     ids.add(id);
-    this.sendSubscribe(scope, id);
+    // Before auth_ack the auth frame must stay first; onAuthenticated replays the set.
+    if (this.authenticated) this.sendSubscribe(scope, id);
   }
 
   /** Drop a scoped subscription established via subscribe(). */
   unsubscribe(scope: string, id: string) {
     if (!scope || !id) return;
-    this.scopeSubscriptions.get(scope)?.delete(id);
-    this.send({ type: "unsubscribe", payload: { scope, id } });
+    // A scope not held was never sent; one held on an authenticated socket was.
+    if (!this.scopeSubscriptions.get(scope)?.delete(id)) return;
+    if (this.authenticated) this.send({ type: "unsubscribe", payload: { scope, id } });
   }
 
   // ── internal ────────────────────────────────────────────────────────
@@ -247,8 +251,12 @@ export class WSClient {
     ws.onopen = () => {
       const token = this.opts.getToken();
       if (token instanceof Promise) {
-        // Drop the frame if this socket was replaced while the token resolved.
-        void token.then((t) => this.ws === ws && this.sendAuth(ws, t));
+        // Drop the frame if this socket was replaced while the token resolved;
+        // a reader that throws is "no token" (the server closes in 10s).
+        void token.then(
+          (t) => this.ws === ws && this.sendAuth(ws, t),
+          () => this.ws === ws && this.sendAuth(ws, null),
+        );
       } else {
         this.sendAuth(ws, token);
       }
@@ -263,6 +271,13 @@ export class WSClient {
         return;
       }
 
+      // A pre-auth {error} refusal is terminal: redialling would only repeat it.
+      const error = (msg as { error?: unknown } | null)?.error;
+      if (!this.authenticated && typeof error === "string") {
+        this.teardownSocket();
+        this.onSessionEnded(error);
+        return;
+      }
       // Validate the envelope before transport frames or business dispatch.
       // JSON primitives (including null) and non-string types are not events.
       const type = (msg as { type?: unknown } | null)?.type;
@@ -322,9 +337,10 @@ export class WSClient {
 
   /** The token is dead: redialling with it would only earn another 4001, so
    *  the host refreshes and calls forceReconnect() (or disconnect()). */
-  private onSessionEnded() {
-    this.logger.warn("[ws] session ended by server");
-    this.opts.onSessionEnded?.();
+  private onSessionEnded(error?: string) {
+    this.logger.warn("[ws] session ended by server", error);
+    if (error === undefined) this.opts.onSessionEnded?.();
+    else this.opts.onSessionEnded?.(error);
   }
 
   private onAuthenticated() {

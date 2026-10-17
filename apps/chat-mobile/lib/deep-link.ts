@@ -5,6 +5,8 @@
 // `<scheme>://open?url=<percent-encoded path>` for builds without verified
 // universal links. Expo installs a WHATWG URL on Hermes, so `new URL` is safe.
 
+import { isAuthCallbackUrl } from "@/data/auth/callback";
+
 export interface DeepLink {
   orgSlug: string;
   wsSlug: string;
@@ -53,6 +55,16 @@ export function deepLinkHref(link: DeepLink): string {
   if (link.dmUserId) query.set("dm", link.dmUserId);
   const search = query.toString();
   return `/${link.orgSlug}/${link.wsSlug}/chat${search ? `?${search}` : ""}`;
+}
+
+/** For app/+native-intent.ts: the route expo-router opens for an OS URL. A
+ *  chat link becomes its href, the PKCE callback lands on the login screen
+ *  (the Linking listener in app/_layout completes the sign-in), anything else
+ *  is left to expo-router untouched. */
+export function systemPathToRoute(url: string, appUrl: string, scheme: string): string {
+  if (isAuthCallbackUrl(url, scheme)) return "/login";
+  const link = parseDeepLink(url, appUrl, scheme);
+  return link ? deepLinkHref(link) : url;
 }
 
 // A link that arrives before sign-in waits here; app/index.tsx takes it once

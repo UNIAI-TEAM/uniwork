@@ -196,6 +196,21 @@ describe("WSClient token re-read", () => {
     client.disconnect();
   });
 
+  it("a token reader that rejects sends no auth frame and lets the server close the socket", async () => {
+    const warn = vi.fn();
+    const client = makeClient({
+      getToken: () => Promise.reject(new Error("keychain")),
+      logger: { info: vi.fn(), warn, debug: vi.fn() },
+    });
+    client.connect();
+    latest().open();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(latest().sent).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("no token"));
+    client.disconnect();
+  });
+
   it("sends no auth frame without a token and lets the server close the socket", () => {
     const warn = vi.fn();
     const client = makeClient({
@@ -313,9 +328,9 @@ describe("WSClient scope subscriptions", () => {
     client.unsubscribe("chat", "room-1");
     client.unsubscribe("meeting", "never-subscribed");
     client.unsubscribe("", "room-2");
+    // A scope never held was never sent, so it needs no frame.
     expect(socket.frames().slice(4)).toEqual([
       { type: "unsubscribe", payload: { scope: "chat", id: "room-1" } },
-      { type: "unsubscribe", payload: { scope: "meeting", id: "never-subscribed" } },
     ]);
 
     client.forceReconnect();
@@ -362,6 +377,33 @@ describe("WSClient scope subscriptions", () => {
     ]);
     client.disconnect();
     expect(client.isAuthenticated()).toBe(false);
+  });
+
+  it("send() drops a frame while the socket is not open", () => {
+    const client = makeClient();
+    client.connect();
+    client.send({ type: "subscribe", payload: { scope: "chat", id: "room-1" } });
+    expect(latest().sent).toEqual([]);
+    client.disconnect();
+  });
+
+  it("holds a subscribe between open and auth_ack and sends it exactly once after auth_ack", () => {
+    const client = makeClient();
+    client.connect();
+    const socket = latest();
+    socket.open();
+    client.subscribe("chat", "room-1");
+    client.subscribe("chat", "room-2");
+    client.unsubscribe("chat", "room-2");
+    // The auth frame must be the first one the server reads.
+    expect(socket.frames()).toEqual([{ type: "auth", payload: { token: "token" } }]);
+
+    socket.receive({ type: "auth_ack" });
+    expect(socket.frames().filter((f) => (f as { type: string }).type !== "ping")).toEqual([
+      { type: "auth", payload: { token: "token" } },
+      { type: "subscribe", payload: { scope: "chat", id: "room-1" } },
+    ]);
+    client.disconnect();
   });
 });
 
@@ -437,6 +479,34 @@ describe("WSClient session end (close 4001)", () => {
     client.resume();
     expect(MockWebSocket.instances).toHaveLength(2);
     expect(onSessionEnded).toHaveBeenCalledTimes(1);
+    client.disconnect();
+  });
+
+  it("treats a pre-auth error frame as terminal: onSessionEnded with the reason, no redial", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const onSessionEnded = vi.fn();
+    const client = makeClient({ onSessionEnded });
+    client.connect();
+    const socket = latest();
+    socket.open();
+    socket.receive({ error: "not a member of this workspace" });
+    expect(onSessionEnded).toHaveBeenCalledExactlyOnceWith("not a member of this workspace");
+    expect(socket.readyState).toBe(MockWebSocket.CLOSED);
+    socket.onclose?.({ code: 1008 });
+    vi.advanceTimersByTime(60_000);
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    // The host still owns recovery: a forceReconnect dials again.
+    client.forceReconnect();
+    expect(MockWebSocket.instances).toHaveLength(2);
+    client.disconnect();
+  });
+
+  it("a close 4001 hands onSessionEnded no reason", () => {
+    const onSessionEnded = vi.fn();
+    const { client, socket } = connectAuthenticatedClient({ onSessionEnded });
+    socket.close(4001);
+    expect(onSessionEnded).toHaveBeenCalledExactlyOnceWith();
     client.disconnect();
   });
 

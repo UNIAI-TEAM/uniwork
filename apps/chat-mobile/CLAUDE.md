@@ -40,7 +40,17 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   Realtime ba tầng: `ws-client` (socket, auth frame, scope/replay, 4001 →
   refresh → reconnect), `realtime-provider` (mount theo auth + workspace,
   AppState/NetInfo), `use-<feature>-realtime` (hook theo feature, patch rồi
-  invalidate hẹp).
+  invalidate hẹp). Luật socket: frame `subscribe`/`unsubscribe` chỉ đi sau
+  `auth_ack` (server đòi auth là frame đầu; replay lo phần còn lại); frame
+  `{error}` trước auth là kết thúc — `onSessionEnded(error)`, không backoff,
+  provider chỉ refresh với `invalid token`; `active` chỉ `resume()` sau
+  `background` hoặc khi socket chưa auth. Reader token cho provider là
+  `realtime/refresh-for-socket.ts` (thuần): thử token hiện tại trước, refresh
+  khi vẫn là token đã chết, thất bại tạm thời thì reject để giữ phiên.
+- `app/+native-intent.ts` — expo-router tự route mọi URL từ OS; file này map
+  `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
+  systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ
+  `router.push` cho chạm thông báo; URL Linking không push lần hai.
 - `assets/icon.png` — `shortcut:` placeholder 180px copy từ
   `apps/web/app/apple-icon.png`, thay bằng icon 1024² UniChat ở M4.
 
