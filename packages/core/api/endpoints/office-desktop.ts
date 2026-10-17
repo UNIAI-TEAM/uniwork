@@ -72,8 +72,8 @@ export interface OfficeDesktopDownload {
 }
 
 /** Normalize the public config catalogue at the API boundary as well. */
-export function officeInstallerOptions(raw: unknown, channel: OfficeChannel): OfficeInstallerOption[] {
-  const rows = parseWithFallback<z.infer<typeof InstallerSchema>[]>(raw, InstallersSchema, [], { endpoint: "GET /api/v1/config office_installers" });
+export function officeInstallerOptions(raw: unknown, channel: OfficeChannel, field = "office_installers"): OfficeInstallerOption[] {
+  const rows = parseWithFallback<z.infer<typeof InstallerSchema>[]>(raw, InstallersSchema, [], { endpoint: `GET /api/v1/config ${field}` });
   const options: OfficeInstallerOption[] = [];
   for (const platform of DESKTOP_PLATFORMS) {
     const row = rows.find((item) => item.platform === platform);
