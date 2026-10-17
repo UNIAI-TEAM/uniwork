@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+c7ff396aad4504cac7c21cedec91661de8d4bbfd
+c7ff396aad4504cac7c21cedec91661de8d4bbfd
+c7ff396a fix(shell): show ufFolderNoAccess notice when a folder children read returns forbidden
+80f9e9b1 test(shell): add forbidden/deleted/empty-index fallback tests and strengthen folder-menu keydown test
+ba941269 test(e2e): fix openUniworkFolderBrowser root selector, race openHomeFiles roots, and restore area after a2
