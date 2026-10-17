@@ -1,0 +1,433 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t6-perf.mjs; rc=$?; echo; echo "T6_PERF_EXIT=$rc"
+[g7-05/t6] Starting T6 measurements (3 runs per fixture) using /home/ubuntu/work/uniwork-office/apps/shell/release/linux-unpacked/uniwork-office...
+[g7-05/t6] fx-xlsx-revenue-xyz.xlsx (run 1/3): firstPaint=1949.5ms, save=26.84ms, peakRSS=1034.85MiB (8 procs), userData=1873.3KiB
+[g7-05/t6] fx-xlsx-revenue-xyz.xlsx (run 2/3): firstPaint=1863.74ms, save=25.82ms, peakRSS=1031.02MiB (8 procs), userData=1873.3KiB
+[g7-05/t6] fx-xlsx-revenue-xyz.xlsx (run 3/3): firstPaint=1850.25ms, save=26.41ms, peakRSS=1035.74MiB (8 procs), userData=1873.3KiB
+[g7-05/t6] fx-docx-report-vi.docx (run 1/3): firstPaint=1118.5ms, save=52.1ms, peakRSS=874.64MiB (7 procs), userData=1882.1KiB
+[g7-05/t6] fx-docx-report-vi.docx (run 2/3): firstPaint=1134.64ms, save=52.05ms, peakRSS=875.64MiB (7 procs), userData=1882.1KiB
+[g7-05/t6] fx-docx-report-vi.docx (run 3/3): firstPaint=1134.7ms, save=51.79ms, peakRSS=875.34MiB (7 procs), userData=1882.1KiB
+[g7-05/t6] fx-pptx-deck-vi.pptx (run 1/3): firstPaint=924.85ms, save=27.17ms, peakRSS=927.06MiB (7 procs), userData=1876.3KiB
+[g7-05/t6] fx-pptx-deck-vi.pptx (run 2/3): firstPaint=952.64ms, save=26.53ms, peakRSS=924.7MiB (7 procs), userData=1876.3KiB
+[g7-05/t6] fx-pptx-deck-vi.pptx (run 3/3): firstPaint=954.22ms, save=30.28ms, peakRSS=947.28MiB (7 procs), userData=1876.5KiB
+[g7-05/t6] fx-pdf-invoice-vi.pdf (run 1/3): firstPaint=868.74ms, save=8.18ms, peakRSS=838.16MiB (7 procs), userData=1860.6KiB
+[g7-05/t6] fx-pdf-invoice-vi.pdf (run 2/3): firstPaint=864.22ms, save=7.84ms, peakRSS=831.36MiB (7 procs), userData=1860.6KiB
+[g7-05/t6] fx-pdf-invoice-vi.pdf (run 3/3): firstPaint=857.07ms, save=7.68ms, peakRSS=829.4MiB (7 procs), userData=1860.6KiB
+[g7-05/t6] fx-md-notes-vi.md (run 1/3): firstPaint=851.27ms, save=32.29ms, peakRSS=809.13MiB (7 procs), userData=1860.3KiB
+[g7-05/t6] fx-md-notes-vi.md (run 2/3): firstPaint=860.19ms, save=29.05ms, peakRSS=820.06MiB (7 procs), userData=1860.3KiB
+[g7-05/t6] fx-md-notes-vi.md (run 3/3): firstPaint=854.74ms, save=29.63ms, peakRSS=809.2MiB (7 procs), userData=1860.3KiB
+[g7-05/t6] fx-html-page-vi.html (run 1/3): firstPaint=745.61ms, save=27.56ms, peakRSS=912.04MiB (8 procs), userData=1859.2KiB
+[g7-05/t6] fx-html-page-vi.html (run 2/3): firstPaint=738.29ms, save=42.3ms, peakRSS=904.32MiB (8 procs), userData=1859.2KiB
+[g7-05/t6] fx-html-page-vi.html (run 3/3): firstPaint=989.01ms, save=28.32ms, peakRSS=913.02MiB (8 procs), userData=1859.2KiB
+
+# G7-05 W1 — T6 Linux Desktop Performance & Footprint Report
+
+## Build & Environment Metadata
+
+- **Fork SHA**: `db29e1d59d7859218105166ce3c19f222b999494`
+- **git describe --tags**: `web-0.1.0-c9181fa-99-gdb29e1d5`
+- **Latest release tag**: `web-0.1.0-c9181fa`
+- **App version (`apps/shell/package.json`)**: `1.0.0` (root `package.json`: `0.1.0`)
+- **Server version**: `unknown`
+- **Platform / Arch**: `linux / x64` (Node `v22.23.3`)
+- **Collected at**: `2026-10-17T17:26:02.477Z`
+
+## Disk Footprint
+
+| Item | Source / Path | Bytes | MiB |
+| --- | --- | ---: | ---: |
+| Installed App Tree | `/opt/UniWork Office (recorded during T1 deb install)` | 574,957,129 | 548.32 |
+| Packaged `.AppImage` | `UniWork-Office-1.0.0-x86_64.AppImage` | 187,334,013 | 178.66 |
+| Packaged `.deb` | `UniWork-Office_1.0.0_amd64.deb` | 152,616,716 | 145.55 |
+| User-Data Dir (after run, median per fixture) | `$XDG_CONFIG_HOME/UniWork Office` | 1,911,741 | 1866.93 KiB |
+| Offline Library Dir (signed-out run) | `$XDG_CONFIG_HOME/UniWork Office/uniwork-sync` | 0 | 0.00 KiB |
+
+## Per-Fixture T6 Measurements (Median of 3 Runs) vs BENCH-01
+
+| Fixture | Format | Size (B) | Launch-to-First-Paint Median (ms) | Local Save Median (ms) | Peak Tree RSS Median (MiB) | UserData After Run (KiB) | BENCH-01 Cold Open (ms) | BENCH-01 Save (ms) | BENCH-01 Peak JS Heap (MiB) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `fx-xlsx-revenue-xyz.xlsx` | `xlsx` | 18,806 | 1863.74 | 26.41 | 1034.85 | 1873.26 | 49.9 (Playwright web (dist-web)) | 11.1 | 7.89 |
+| `fx-docx-report-vi.docx` | `docx` | 11,187 | 1134.64 | 52.05 | 875.34 | 1882.13 | 67.1 (Playwright web (dist-web)) | 2.6 | 14.55 |
+| `fx-pptx-deck-vi.pptx` | `pptx` | 25,849 | 952.64 | 27.17 | 927.06 | 1876.27 | 2115.6 (Electron desktop) | 41.1 | 15.72 |
+| `fx-pdf-invoice-vi.pdf` | `pdf` | 99,002 | 864.22 | 7.84 | 831.36 | 1860.61 | 107.6 (Playwright web (dist-web)) | 1.5 | 9.77 |
+| `fx-md-notes-vi.md` | `md` | 723 | 854.74 | 29.63 | 809.20 | 1860.28 | N/A | N/A | N/A |
+| `fx-html-page-vi.html` | `html` | 955 | 745.61 | 28.32 | 912.04 | 1859.24 | N/A | N/A | N/A |
+
+> **Note on BENCH-01 comparison**: In `BENCH-01.md`, `.docx`, `.xlsx`, and `.pdf` were measured inside a running Playwright web browser against `dist-web` (measuring in-page bundle load + parse), while `.pptx` was measured in the Electron desktop app (`2115.6 ms` cold open, `41.1 ms` save). In G7-05 T6, all 6 G7-06 fixtures are measured end-to-end in the packaged Linux Electron desktop app from process spawn to document content first paint, and memory is whole-process-tree RSS (`/proc/<pid>/status` `VmRSS` across main, zygote, GPU, utility, shell, and editor renderer processes sampled every 250 ms) rather than single-renderer V8 `usedJSHeapSize`.
+
+G7_05_T6_PERF_JSON_BEGIN
+{
+  "test": "T6_PERF",
+  "status": "passed",
+  "metadata": {
+    "forkSha": "db29e1d59d7859218105166ce3c19f222b999494",
+    "forkShortSha": "db29e1d59d78",
+    "gitDescribe": "web-0.1.0-c9181fa-99-gdb29e1d5",
+    "latestReleaseTag": "web-0.1.0-c9181fa",
+    "appVersion": "1.0.0",
+    "rootPackageVersion": "0.1.0",
+    "serverVersion": "unknown",
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v22.23.3",
+    "collectedAt": "2026-10-17T17:26:02.477Z"
+  },
+  "binary": {
+    "binaryPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/linux-unpacked/uniwork-office",
+    "isAppImage": false
+  },
+  "rssSamplingIntervalMs": 250,
+  "runsPerFixture": 3,
+  "diskFootprint": {
+    "installedAppBytes": 574957129,
+    "installedAppMib": 548.32,
+    "installedAppSource": "/opt/UniWork Office (recorded during T1 deb install)",
+    "linuxUnpackedBytes": 574957129,
+    "linuxUnpackedMib": 548.32,
+    "appImageArtifactBytes": 187334013,
+    "appImageArtifactMib": 178.66,
+    "debArtifactBytes": 152616716,
+    "debArtifactMib": 145.55,
+    "medianUserDataBytes": 1911741,
+    "medianUserDataKib": 1866.93,
+    "offlineLibraryBytes": 0
+  },
+  "results": [
+    {
+      "id": "fx-xlsx-revenue-xyz",
+      "name": "fx-xlsx-revenue-xyz.xlsx",
+      "ext": "xlsx",
+      "bytes": 18806,
+      "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "runsCount": 3,
+      "medianLaunchToFirstPaintMs": 1863.74,
+      "medianSaveMs": 26.41,
+      "medianPeakRssKb": 1059684,
+      "medianPeakRssMib": 1034.85,
+      "medianPeakProcessCount": 8,
+      "medianUserDataBytes": 1918218,
+      "medianUserDataKib": 1873.26,
+      "runs": [
+        {
+          "run": 1,
+          "launchToFirstPaintMs": 1949.5,
+          "saveMs": 26.84,
+          "peakRssKb": 1059684,
+          "peakRssMib": 1034.85,
+          "peakProcessCount": 8,
+          "rssSampleCount": 16,
+          "userDataBytes": 1918218,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 2,
+          "launchToFirstPaintMs": 1863.74,
+          "saveMs": 25.82,
+          "peakRssKb": 1055760,
+          "peakRssMib": 1031.02,
+          "peakProcessCount": 8,
+          "rssSampleCount": 16,
+          "userDataBytes": 1918218,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 3,
+          "launchToFirstPaintMs": 1850.25,
+          "saveMs": 26.41,
+          "peakRssKb": 1060596,
+          "peakRssMib": 1035.74,
+          "peakProcessCount": 8,
+          "rssSampleCount": 16,
+          "userDataBytes": 1918218,
+          "offlineLibraryBytes": 0
+        }
+      ],
+      "bench01Comparison": {
+        "benchFixture": "xlsx-small.xlsx (17.5 KB, 100x10)",
+        "harness": "Playwright web (dist-web)",
+        "coldOpenMs": 49.9,
+        "warmOpenMs": 22.9,
+        "saveMs": 11.1,
+        "peakJsHeapMib": 7.89
+      }
+    },
+    {
+      "id": "fx-docx-report-vi",
+      "name": "fx-docx-report-vi.docx",
+      "ext": "docx",
+      "bytes": 11187,
+      "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "runsCount": 3,
+      "medianLaunchToFirstPaintMs": 1134.64,
+      "medianSaveMs": 52.05,
+      "medianPeakRssKb": 896344,
+      "medianPeakRssMib": 875.34,
+      "medianPeakProcessCount": 7,
+      "medianUserDataBytes": 1927297,
+      "medianUserDataKib": 1882.13,
+      "runs": [
+        {
+          "run": 1,
+          "launchToFirstPaintMs": 1118.5,
+          "saveMs": 52.1,
+          "peakRssKb": 895628,
+          "peakRssMib": 874.64,
+          "peakProcessCount": 7,
+          "rssSampleCount": 8,
+          "userDataBytes": 1927297,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 2,
+          "launchToFirstPaintMs": 1134.64,
+          "saveMs": 52.05,
+          "peakRssKb": 896660,
+          "peakRssMib": 875.64,
+          "peakProcessCount": 7,
+          "rssSampleCount": 8,
+          "userDataBytes": 1927297,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 3,
+          "launchToFirstPaintMs": 1134.7,
+          "saveMs": 51.79,
+          "peakRssKb": 896344,
+          "peakRssMib": 875.34,
+          "peakProcessCount": 7,
+          "rssSampleCount": 8,
+          "userDataBytes": 1927297,
+          "offlineLibraryBytes": 0
+        }
+      ],
+      "bench01Comparison": {
+        "benchFixture": "docx-small.docx (37.3 KB, 1p)",
+        "harness": "Playwright web (dist-web)",
+        "coldOpenMs": 67.1,
+        "warmOpenMs": 39.1,
+        "saveMs": 2.6,
+        "peakJsHeapMib": 14.55
+      }
+    },
+    {
+      "id": "fx-pptx-deck-vi",
+      "name": "fx-pptx-deck-vi.pptx",
+      "ext": "pptx",
+      "bytes": 25849,
+      "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20",
+      "runsCount": 3,
+      "medianLaunchToFirstPaintMs": 952.64,
+      "medianSaveMs": 27.17,
+      "medianPeakRssKb": 949308,
+      "medianPeakRssMib": 927.06,
+      "medianPeakProcessCount": 7,
+      "medianUserDataBytes": 1921304,
+      "medianUserDataKib": 1876.27,
+      "runs": [
+        {
+          "run": 1,
+          "launchToFirstPaintMs": 924.85,
+          "saveMs": 27.17,
+          "peakRssKb": 949308,
+          "peakRssMib": 927.06,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1921304,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 2,
+          "launchToFirstPaintMs": 952.64,
+          "saveMs": 26.53,
+          "peakRssKb": 946892,
+          "peakRssMib": 924.7,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1921304,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 3,
+          "launchToFirstPaintMs": 954.22,
+          "saveMs": 30.28,
+          "peakRssKb": 970016,
+          "peakRssMib": 947.28,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1921534,
+          "offlineLibraryBytes": 0
+        }
+      ],
+      "bench01Comparison": {
+        "benchFixture": "pptx-small.pptx (32.7 KB, 5 slides)",
+        "harness": "Electron desktop",
+        "coldOpenMs": 2115.6,
+        "warmOpenMs": 86.2,
+        "saveMs": 41.1,
+        "peakJsHeapMib": 15.72
+      }
+    },
+    {
+      "id": "fx-pdf-invoice-vi",
+      "name": "fx-pdf-invoice-vi.pdf",
+      "ext": "pdf",
+      "bytes": 99002,
+      "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd",
+      "runsCount": 3,
+      "medianLaunchToFirstPaintMs": 864.22,
+      "medianSaveMs": 7.84,
+      "medianPeakRssKb": 851316,
+      "medianPeakRssMib": 831.36,
+      "medianPeakProcessCount": 7,
+      "medianUserDataBytes": 1905263,
+      "medianUserDataKib": 1860.61,
+      "runs": [
+        {
+          "run": 1,
+          "launchToFirstPaintMs": 868.74,
+          "saveMs": 8.18,
+          "peakRssKb": 858280,
+          "peakRssMib": 838.16,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1905263,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 2,
+          "launchToFirstPaintMs": 864.22,
+          "saveMs": 7.84,
+          "peakRssKb": 851316,
+          "peakRssMib": 831.36,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1905263,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 3,
+          "launchToFirstPaintMs": 857.07,
+          "saveMs": 7.68,
+          "peakRssKb": 849308,
+          "peakRssMib": 829.4,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1905263,
+          "offlineLibraryBytes": 0
+        }
+      ],
+      "bench01Comparison": {
+        "benchFixture": "pdf-small.pdf (2.7 KB, 5p)",
+        "harness": "Playwright web (dist-web)",
+        "coldOpenMs": 107.6,
+        "warmOpenMs": 85.1,
+        "saveMs": 1.5,
+        "peakJsHeapMib": 9.77
+      }
+    },
+    {
+      "id": "fx-md-notes-vi",
+      "name": "fx-md-notes-vi.md",
+      "ext": "md",
+      "bytes": 723,
+      "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def",
+      "runsCount": 3,
+      "medianLaunchToFirstPaintMs": 854.74,
+      "medianSaveMs": 29.63,
+      "medianPeakRssKb": 828616,
+      "medianPeakRssMib": 809.2,
+      "medianPeakProcessCount": 7,
+      "medianUserDataBytes": 1904928,
+      "medianUserDataKib": 1860.28,
+      "runs": [
+        {
+          "run": 1,
+          "launchToFirstPaintMs": 851.27,
+          "saveMs": 32.29,
+          "peakRssKb": 828548,
+          "peakRssMib": 809.13,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1904928,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 2,
+          "launchToFirstPaintMs": 860.19,
+          "saveMs": 29.05,
+          "peakRssKb": 839740,
+          "peakRssMib": 820.06,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1904928,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 3,
+          "launchToFirstPaintMs": 854.74,
+          "saveMs": 29.63,
+          "peakRssKb": 828616,
+          "peakRssMib": 809.2,
+          "peakProcessCount": 7,
+          "rssSampleCount": 5,
+          "userDataBytes": 1904928,
+          "offlineLibraryBytes": 0
+        }
+      ],
+      "bench01Comparison": null
+    },
+    {
+      "id": "fx-html-page-vi",
+      "name": "fx-html-page-vi.html",
+      "ext": "html",
+      "bytes": 955,
+      "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884",
+      "runsCount": 3,
+      "medianLaunchToFirstPaintMs": 745.61,
+      "medianSaveMs": 28.32,
+      "medianPeakRssKb": 933924,
+      "medianPeakRssMib": 912.04,
+      "medianPeakProcessCount": 8,
+      "medianUserDataBytes": 1903863,
+      "medianUserDataKib": 1859.24,
+      "runs": [
+        {
+          "run": 1,
+          "launchToFirstPaintMs": 745.61,
+          "saveMs": 27.56,
+          "peakRssKb": 933924,
+          "peakRssMib": 912.04,
+          "peakProcessCount": 8,
+          "rssSampleCount": 5,
+          "userDataBytes": 1903863,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 2,
+          "launchToFirstPaintMs": 738.29,
+          "saveMs": 42.3,
+          "peakRssKb": 926028,
+          "peakRssMib": 904.32,
+          "peakProcessCount": 8,
+          "rssSampleCount": 5,
+          "userDataBytes": 1903863,
+          "offlineLibraryBytes": 0
+        },
+        {
+          "run": 3,
+          "launchToFirstPaintMs": 989.01,
+          "saveMs": 28.32,
+          "peakRssKb": 934932,
+          "peakRssMib": 913.02,
+          "peakProcessCount": 8,
+          "rssSampleCount": 5,
+          "userDataBytes": 1903863,
+          "offlineLibraryBytes": 0
+        }
+      ],
+      "bench01Comparison": null
+    }
+  ]
+}
+G7_05_T6_PERF_JSON_END
+
+T6_PERF_EXIT=0
