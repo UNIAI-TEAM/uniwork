@@ -769,22 +769,20 @@ describe("documents endpoints", () => {
     expect(badFileMeta).toBeDefined();
   });
 
-  // ---- SH-W2 (UNI-1785): create visibility + workspace_level --------------
+  // ---- SH-W2 (UNI-1785): create visibility (no level on the wire) ---------
 
-  it("createDocument and createDocumentFile send visibility and workspace_level before file", async () => {
+  it("createDocument and createDocumentFile send visibility and no workspace_level, before file", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ document: docBody({ visibility: "workspace" }) }),
     );
     await createDocument("w1", {
       title: "Kế hoạch",
       visibility: "workspace",
-      workspace_level: "view",
     });
     const [, docInit] = vi.mocked(fetch).mock.calls[0]!;
     expect(JSON.parse(String(docInit?.body))).toEqual({
       title: "Kế hoạch",
       visibility: "workspace",
-      workspace_level: "view",
     });
 
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -797,7 +795,6 @@ describe("documents endpoints", () => {
         parentId: "fo1",
         title: "Báo cáo",
         visibility: "workspace",
-        workspace_level: "view",
       },
     );
     const [, fileInit] = vi.mocked(fetch).mock.calls[1]!;
@@ -806,10 +803,9 @@ describe("documents endpoints", () => {
       "parent_id",
       "title",
       "visibility",
-      "workspace_level",
       "file",
     ]);
     expect(form.get("visibility")).toBe("workspace");
-    expect(form.get("workspace_level")).toBe("view");
+    expect(form.has("workspace_level")).toBe(false);
   });
 });

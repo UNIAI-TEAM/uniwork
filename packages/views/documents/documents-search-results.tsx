@@ -215,8 +215,9 @@ export function DocumentsSearchResults({
                       </span>
                       <DocumentShareScopeBadge
                         shareScope={item.share_scope}
-                        visibility={item.visibility}
+                        workspaceId={item.workspace_id}
                         compact
+                        focusable={false}
                       />
                     </button>
                   </li>

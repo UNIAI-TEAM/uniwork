@@ -45,6 +45,8 @@ export interface FolderNameDialogProps {
   parentId?: string | null;
   /** True when the parent folder already shares with the home workspace. */
   parentShared?: boolean;
+  /** Start with the share toggle on (the New menu's toggle was on when it opened this dialog). */
+  initialShareWithWorkspace?: boolean;
   /** Target folder or document ID for rename mode. */
   folderId?: string;
   /** Target item kind in rename mode (`"folder"` max 255, document kinds max 500 per FD-D3). */
@@ -76,6 +78,7 @@ export function FolderNameDialog({
   wsId = "",
   parentId = null,
   parentShared,
+  initialShareWithWorkspace = false,
   folderId = "",
   kind = "folder",
   revision: initialRevision,
@@ -98,10 +101,10 @@ export function FolderNameDialog({
     if (open) {
       setDraft(initialName);
       setFieldError(null);
-      setShareWithWorkspace(false);
+      setShareWithWorkspace(initialShareWithWorkspace);
       keyRef.current = null;
     }
-  }, [open, mode, initialName]);
+  }, [open, mode, initialName, initialShareWithWorkspace]);
 
   const resolvedParentShared =
     mode === "create" &&
@@ -203,7 +206,7 @@ export function FolderNameDialog({
         ) {
           keyRef.current = { title: trimmed, parentId, shared: sendShare, key: createSafeId() };
         }
-        const shareFields = sendShare ? ({ visibility: "workspace", workspace_level: "view" } as const) : {};
+        const shareFields = sendShare ? ({ visibility: "workspace" } as const) : {};
         const created = await createFolder.mutateAsync({
           title: trimmed,
           ...(parentId ? { parentId } : {}),

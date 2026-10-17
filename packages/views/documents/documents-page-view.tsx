@@ -202,7 +202,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     const invalid = documentUploadValidationMessage(file, limits.upload_max_bytes, t, i18n.language);
     if (invalid) return setUploadError(invalid);
     setUploadError(null);
-    const shareMeta = options?.shareWithWorkspace ? ({ visibility: "workspace", workspace_level: "view" } as const) : {};
+    const shareMeta = options?.shareWithWorkspace ? ({ visibility: "workspace" } as const) : {};
     const meta = parentForCreate || options?.shareWithWorkspace ? { ...(parentForCreate ? { parent_id: parentForCreate } : {}), ...shareMeta } : undefined;
     try {
       const doc = await createFile.mutateAsync({ file, meta });
@@ -282,7 +282,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         description: canCreate ? t("documents.home.empty.description") : t("documents.home.empty.view_only"),
         actions:
           folderId && canCreate ? (
-            <Button type="button" variant="outline" size="sm" onClick={rowDialogs.onCreateFolder}>
+            <Button type="button" variant="outline" size="sm" onClick={() => rowDialogs.onCreateFolder()}>
               <FolderPlus aria-hidden className="size-3.5" />
               {t("documents.home.folders.create_title")}
             </Button>
@@ -306,7 +306,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     pending: creator.pending,
     unavailable: creator.unavailable,
     parentShared,
-    onCreate: (type: Parameters<typeof creator.create>[0], options?: CreateShareOptions) => void creator.create(type, parentForCreate, options),
+    onCreate: (type: Parameters<typeof creator.create>[0], options: CreateShareOptions) => void creator.create(type, parentForCreate, options),
     onUpload: () => setUploadOpen(true),
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };

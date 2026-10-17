@@ -20,7 +20,6 @@ import {
 import {
   DocumentNotVerifiableError,
   type Document,
-  type DocumentAccessLevel,
   type DocumentVisibility,
 } from "../types/document";
 import { documentKeys } from "./keys";
@@ -54,7 +53,6 @@ type CreateDocumentFileBase = {
   file: Blob;
   title?: string;
   visibility?: DocumentVisibility;
-  workspace_level?: DocumentAccessLevel;
   idempotencyKey?: string;
 };
 
@@ -68,7 +66,6 @@ export type CreateDocumentFileInput =
       meta?: {
         title?: string;
         visibility?: DocumentVisibility;
-        workspace_level?: DocumentAccessLevel;
         parent_id?: string;
         parentId?: string;
         destination?: never;
@@ -81,7 +78,6 @@ export type CreateDocumentFileInput =
       meta?: {
         title?: string;
         visibility?: DocumentVisibility;
-        workspace_level?: DocumentAccessLevel;
         destination?: DocumentCreateDestination;
         parent_id?: never;
         parentId?: never;
@@ -153,11 +149,9 @@ export function useCreateDocumentFile(wsId: string) {
       }
       const title = input.meta?.title ?? input.title;
       const visibility = input.meta?.visibility ?? input.visibility;
-      const workspace_level = input.meta?.workspace_level ?? input.workspace_level;
       const extraMeta = {
         ...(title !== undefined ? { title } : {}),
         ...(visibility !== undefined ? { visibility } : {}),
-        ...(workspace_level !== undefined ? { workspace_level } : {}),
       };
       const meta: CreateDocumentFileMeta | undefined =
         destination !== undefined

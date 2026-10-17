@@ -15,7 +15,6 @@ import {
 } from "../api/endpoints/documents-sources";
 import type {
   Document,
-  DocumentAccessLevel,
   DocumentVisibility,
 } from "../types/document";
 import { useEnsureMyFolder, type CreateDocumentPlacementInput } from "./hooks";
@@ -28,14 +27,12 @@ export type CreateBlankFileInput = {
   format: BlankDocumentFormat;
   title: string;
   visibility?: DocumentVisibility;
-  workspace_level?: DocumentAccessLevel;
   idempotencyKey?: string;
 } & CreateDocumentPlacementInput;
 
 export type CreateFolderInput = {
   title: string;
   visibility?: DocumentVisibility;
-  workspace_level?: DocumentAccessLevel;
   idempotencyKey?: string;
 } & CreateDocumentPlacementInput;
 
@@ -102,7 +99,6 @@ export function useCreateBlankFile(wsId: string) {
       const parent_id = input.parent_id ?? input.parentId;
       const share = {
         ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
-        ...(input.workspace_level !== undefined ? { workspace_level: input.workspace_level } : {}),
       };
       const body: CreateBlankDocumentBody =
         input.destination !== undefined
@@ -128,7 +124,6 @@ export function useCreateFolder(wsId: string) {
       const parent_id = input.parent_id ?? input.parentId;
       const share = {
         ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
-        ...(input.workspace_level !== undefined ? { workspace_level: input.workspace_level } : {}),
       };
       const body: CreateDocumentBody =
         input.destination !== undefined

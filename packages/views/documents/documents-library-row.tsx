@@ -25,7 +25,6 @@ import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-op
 import {
   DocumentShareScopeBadge,
   isPlainHomeWorkspaceScope,
-  resolveDocumentShareScope,
 } from "./document-share-scope-badge";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
@@ -133,7 +132,8 @@ export function LibraryRowView({
   // the viewer's level on line 2, "Chủ sở hữu" when the row's via is owner.
   // The narrow secondary line shows the level word and any non-default scope until the column joins.
   const levelKey = rowAccessLabelKey(row);
-  const scope = doc ? resolveDocumentShareScope(doc.share_scope, doc.visibility) : null;
+  // A row without `share_scope` shows no scope; it is never guessed from `visibility`.
+  const scope = doc?.share_scope ?? null;
   const showNarrowScope = Boolean(scope && !isPlainHomeWorkspaceScope(scope));
   const levelLabel = doc?.via === "owner" ? t("documents.home.access.owner") : levelKey ? t(levelKey) : null;
   const starred = Boolean(doc && handlers.isStarred(doc.id));
@@ -277,7 +277,7 @@ export function LibraryRowView({
             {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
             {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
             {showNarrowScope ? (
-              <DocumentShareScopeBadge shareScope={doc?.share_scope} visibility={doc?.visibility} compact />
+              <DocumentShareScopeBadge shareScope={doc?.share_scope} workspaceId={doc?.workspace_id} compact focusable={false} />
             ) : null}
           </span>
         ) : null}
@@ -305,7 +305,7 @@ export function LibraryRowView({
           {scope ? (
             <DocumentShareScopeBadge
               shareScope={doc?.share_scope}
-              visibility={doc?.visibility}
+              workspaceId={doc?.workspace_id}
               className="flex gap-1.5"
             />
           ) : (

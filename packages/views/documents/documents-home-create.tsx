@@ -28,24 +28,11 @@ export interface CreateChoicesProps {
   unavailable: ReadonlySet<CreateType>;
   /** True when the open folder already shares with the home workspace. */
   parentShared?: boolean;
-  onCreate: (type: CreateType, options?: never) => void;
+  /** Always called with the share options the toggle resolved, so a wrapped or bound handler still gets them. */
+  onCreate: (type: CreateType, options: CreateShareOptions) => void;
   onUpload: () => void;
-  /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). */
-  onNewFolder?: () => void;
-}
-
-function invokeCreate(
-  onCreate: CreateChoicesProps["onCreate"],
-  type: CreateType,
-  sendShare: boolean,
-) {
-  if (sendShare && onCreate.length <= 2) {
-    (onCreate as (type: CreateType, options?: CreateShareOptions) => void)(type, {
-      shareWithWorkspace: true,
-    });
-    return;
-  }
-  (onCreate as (type: CreateType) => unknown)(type);
+  /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). The menu's toggle state rides along. */
+  onNewFolder?: (options: CreateShareOptions) => void;
 }
 
 /**
@@ -87,7 +74,7 @@ export function QuickCreateRow({
             onClick={() => {
               if (pending || off) return;
               setShareWithWorkspace(false);
-              invokeCreate(onCreate, type, sendShare);
+              onCreate(type, { shareWithWorkspace: sendShare });
             }}
             className={cn(
               "flex h-9 items-center gap-2 rounded-full border border-border bg-card pl-1.5 pr-3 text-caption text-foreground transition-colors hover:bg-accent/40 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:h-11",
@@ -113,11 +100,10 @@ export function QuickCreateRow({
         />
         <span>{t("documents.home.create.share_workspace_toggle")}</span>
       </label>
-      {hintText ? (
-        <p id={hintId} className="w-full text-caption text-muted-foreground">
-          {hintText}
-        </p>
-      ) : null}
+      {/* Always mounted and one line tall, so switching the toggle neither moves the pills nor goes unannounced. */}
+      <p id={hintId} role="status" className="min-h-4 w-full text-caption text-muted-foreground">
+        {hintText}
+      </p>
     </section>
   );
 }
@@ -172,7 +158,7 @@ export function CreateMenu({
                 <DropdownMenuItem
                   className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending}
-                  onClick={() => onNewFolder?.()}
+                  onClick={() => onNewFolder?.({ shareWithWorkspace: sendShare })}
                 >
                   <DocumentTypeIcon format="folder" className="size-4" decorative />
                   <span className="flex-1">{t("documents.home.create.folder.menu")}</span>
@@ -184,7 +170,7 @@ export function CreateMenu({
                 <DropdownMenuItem
                   className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending || unavailable.has(type)}
-                  onClick={() => invokeCreate(onCreate, type, sendShare)}
+                  onClick={() => onCreate(type, { shareWithWorkspace: sendShare })}
                 >
                   <DocumentTypeIcon format={type} className="size-4" decorative />
                   <span className="flex-1">{t(`documents.home.create.${type}.menu`)}</span>
@@ -206,20 +192,22 @@ export function CreateMenu({
             closeOnClick={false}
             checked={effectiveShare}
             aria-disabled={parentShared || pending || undefined}
-            aria-describedby={hintText ? hintId : undefined}
+            aria-label={t("documents.home.create.share_workspace_toggle")}
+            aria-describedby={hintId}
             onCheckedChange={(next) => {
               if (parentShared || pending) return;
               setShareWithWorkspace(next);
             }}
             className="gap-2 px-2 py-2 pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
           >
-            <span className="flex-1">{t("documents.home.create.share_workspace_toggle")}</span>
+            <span className="flex flex-1 flex-col">
+              <span>{t("documents.home.create.share_workspace_toggle")}</span>
+              {/* Inside the item so aria-describedby resolves within it; a live region so the change is announced. */}
+              <span id={hintId} role="status" className="text-caption font-normal text-muted-foreground">
+                {hintText}
+              </span>
+            </span>
           </DropdownMenuCheckboxItem>
-          {hintText ? (
-            <p id={hintId} className="px-2 pb-1.5 pt-0.5 text-caption text-muted-foreground">
-              {hintText}
-            </p>
-          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </>

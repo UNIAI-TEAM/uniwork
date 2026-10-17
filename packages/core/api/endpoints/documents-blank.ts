@@ -1,7 +1,6 @@
 import {
   DocumentEnvelopeSchema,
   type Document,
-  type DocumentAccessLevel,
   type DocumentVisibility,
 } from "../../types/document";
 import { request } from "../http";
@@ -24,7 +23,6 @@ export type CreateBlankDocumentBody = {
   format: BlankDocumentFormat;
   title: string;
   visibility?: DocumentVisibility;
-  workspace_level?: DocumentAccessLevel;
 } & (
   | { parent_id?: string; destination?: never }
   | { destination?: DocumentCreateDestination; parent_id?: never }
