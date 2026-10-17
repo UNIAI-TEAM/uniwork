@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git describe --tags --always; rc=$?; echo; echo "SHA_EXIT=$rc"
+7aac0d5042350836725a471d3d8b6c7ba49b759c
+web-0.1.0-c9181fa-4-g7aac0d50
+
+SHA_EXIT=0

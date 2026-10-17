@@ -1,0 +1,12 @@
+$ echo "=== T4 ==="; xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t4-pre-guard.mjs; rc=$?; echo; echo "T4_PRE_GUARD_EXIT=$rc"
+=== T4 ===
+[g7-05/t4] FATAL: Error: Missing upgrade matrix manifest at /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/upgrade-matrix-artifacts.json. Run build-upgrade-matrix.sh first.
+    at main (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:95:11)
+    at file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:253:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+T4_PRE_GUARD_EXIT=1
+G7_05_T4_EXIT=1
+
+T4_PRE_GUARD_EXIT=1
