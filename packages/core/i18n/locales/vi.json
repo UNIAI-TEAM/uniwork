@@ -307,7 +307,8 @@
       "libraryWorkspace": "Thư viện tài liệu",
       "unichat_login_title": "Đăng nhập UniChat",
       "unichat_login_hint": "Trình duyệt sẽ mở để bạn đăng nhập UniWork, rồi đưa bạn trở lại ứng dụng này.",
-      "unichat_login_button": "Mở trình duyệt để đăng nhập"
+      "unichat_login_button": "Mở trình duyệt để đăng nhập",
+      "unichat_login_failed": "Không mở được trình duyệt để đăng nhập. Thử lại."
     },
     "connect": {
       "eyebrow": "Kết nối trợ lý AI",

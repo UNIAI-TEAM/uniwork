@@ -175,7 +175,7 @@ describe("auth store with a session provider", () => {
     getAccessToken: vi.fn(async () => token),
     refresh: vi.fn(async () => token),
     logout: vi.fn(async () => undefined),
-    onChange: vi.fn(() => () => undefined),
+    onChange: vi.fn((_cb: (token: string | null) => void) => () => undefined),
   });
 
   beforeEach(() => {
@@ -220,6 +220,51 @@ describe("auth store with a session provider", () => {
       return user;
     });
     await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
+  });
+
+  it("a token the host emits after anon upgrades the store to authed through /me", async () => {
+    let emit: ((token: string | null) => void) | undefined;
+    const p = provider(null);
+    p.onChange.mockImplementation((cb) => {
+      emit = cb;
+      return () => undefined;
+    });
+    registerSessionProvider(p);
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState().status).toBe("anon");
+    vi.mocked(auth.me).mockResolvedValueOnce(user);
+    emit?.("t");
+    await vi.waitFor(() => expect(useAuthStore.getState()).toMatchObject({ user, status: "authed" }));
+    expect(auth.me).toHaveBeenCalledTimes(1);
+    expect(getAccessToken()).toBe("t");
+  });
+
+  it("a stale /me answer is dropped when the host ends the session before it lands", async () => {
+    let emit: ((token: string | null) => void) | undefined;
+    const p = provider(null);
+    p.onChange.mockImplementation((cb) => {
+      emit = cb;
+      return () => undefined;
+    });
+    registerSessionProvider(p);
+    await useAuthStore.getState().initialize();
+    vi.mocked(auth.me).mockImplementationOnce(async () => {
+      emit?.(null);
+      return user;
+    });
+    emit?.("t");
+    await vi.waitFor(() => expect(auth.me).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
+  });
+
+  it("a token set while anon without a provider changes nothing (cookie path)", async () => {
+    vi.mocked(auth.refreshSession).mockResolvedValueOnce(null);
+    await useAuthStore.getState().initialize();
+    setAccessToken("x");
+    await Promise.resolve();
+    expect(auth.me).not.toHaveBeenCalled();
     expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
   });
 

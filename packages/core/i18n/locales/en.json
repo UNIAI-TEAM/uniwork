@@ -307,7 +307,8 @@
       "libraryWorkspace": "Document library",
       "unichat_login_title": "Sign in to UniChat",
       "unichat_login_hint": "Your browser will open to sign in to UniWork, then bring you back to this app.",
-      "unichat_login_button": "Open the browser to sign in"
+      "unichat_login_button": "Open the browser to sign in",
+      "unichat_login_failed": "Could not open the browser to sign in. Try again."
     },
     "connect": {
       "eyebrow": "Connect an AI assistant",
