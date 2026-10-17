@@ -25,6 +25,10 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(config.name).toBe(name);
     expect(config.slug).toBe("uniwork-chat");
     expect(config.updates).toEqual({ enabled: false });
+    // knip's expo plugin and NativeWind both read it; "automatic" follows the OS.
+    expect(config.userInterfaceStyle).toBe("automatic");
+    // no EAS account yet: push registration is skipped until the id exists
+    expect(config.extra?.eas).toBeUndefined();
     expect(config.scheme).toBe(scheme);
     expect(config.ios).toMatchObject({
       bundleIdentifier: appId,

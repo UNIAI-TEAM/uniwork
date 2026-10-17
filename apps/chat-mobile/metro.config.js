@@ -16,6 +16,17 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, "node_modules"),
 ];
 config.resolver.unstable_enableSymlinks = true;
+// NativeWind's babel preset rewrites every JSX file to import
+// react-native-css-interop/jsx-runtime, a dependency of nativewind the app
+// never names; pnpm's isolated layout does not hoist it. Pointing Metro at
+// nativewind's own copy keeps exactly one css-interop in the bundle (two
+// would split the style registry), without hoisting. knip lists it under
+// ignoreDependencies: it is nativewind's dependency, not the app's.
+config.resolver.extraNodeModules = {
+  "react-native-css-interop": path.dirname(
+    require.resolve("react-native-css-interop/package.json", { paths: [path.dirname(require.resolve("nativewind/package.json"))] }),
+  ),
+};
 
 // Absolute paths: tools that load this file from the repo root (knip) must
 // not resolve the CSS and the Tailwind config against their own cwd.

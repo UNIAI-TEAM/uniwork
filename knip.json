@@ -38,23 +38,13 @@
     },
     "apps/chat-desktop": {},
     "apps/chat-mobile": {
-      "ignore": [
-        "global.css",
-        "lib/theme.ts",
-        "lib/use-color-scheme.ts"
-      ],
       "ignoreDependencies": [
-        "@expo/vector-icons",
         "@rn-primitives/avatar",
-        "@rn-primitives/portal",
-        "@rn-primitives/radio-group",
-        "@rn-primitives/separator",
-        "@rn-primitives/slot",
         "@rn-primitives/switch",
-        "class-variance-authority",
-        "expo-status-bar",
-        "i18next",
-        "react-i18next"
+        "react-native-css-interop"
+      ],
+      "entry": [
+        "scripts/sync-i18n.mjs"
       ]
     },
     "packages/*": {},

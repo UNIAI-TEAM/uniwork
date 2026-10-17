@@ -80,6 +80,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       appUrl: process.env.UNICHAT_APP_URL ?? "http://localhost:3000",
       authClientId: "uniwork-chat-mobile",
       deploymentId: "default",
+      // `eas.projectId` arrives with the EAS account (M4); without it data/push.ts
+      // skips registration, so the key is deliberately absent for now.
     },
   };
 };

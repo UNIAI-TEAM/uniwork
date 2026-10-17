@@ -28,6 +28,8 @@ export default [
     languageOptions: { sourceType: "commonjs", globals: { require: "readonly", module: "writable", __dirname: "readonly" } },
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
+  // Node scripts (scripts/sync-i18n.mjs) run outside the bundle.
+  { files: ["scripts/*.mjs"], languageOptions: { globals: { process: "readonly", console: "readonly" } } },
   {
     files: ["**/*.{ts,tsx,js,mjs}"],
     rules: {
