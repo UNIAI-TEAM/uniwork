@@ -391,7 +391,7 @@ func (q *Queries) ListDocumentChangeSnapshotItems(ctx context.Context, arg ListD
 const listDocumentsForChangeFeed = `-- name: ListDocumentsForChangeFeed :many
 SELECT
   d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
-  d.current_version, d.file_version_id, d.archived_at,
+  d.current_version, d.file_version_id, d.archived_at, d.shelved_at,
   d.owner_id, d.visibility, d.acl_owner_id, d.workspace_level
 FROM documents d
 WHERE d.organization_id = $1
@@ -412,6 +412,7 @@ type ListDocumentsForChangeFeedRow struct {
 	CurrentVersion int32              `json:"current_version"`
 	FileVersionID  pgtype.Text        `json:"file_version_id"`
 	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	ShelvedAt      pgtype.Timestamptz `json:"shelved_at"`
 	OwnerID        pgtype.Text        `json:"owner_id"`
 	Visibility     string             `json:"visibility"`
 	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
@@ -441,6 +442,7 @@ func (q *Queries) ListDocumentsForChangeFeed(ctx context.Context, arg ListDocume
 			&i.CurrentVersion,
 			&i.FileVersionID,
 			&i.ArchivedAt,
+			&i.ShelvedAt,
 			&i.OwnerID,
 			&i.Visibility,
 			&i.AclOwnerID,

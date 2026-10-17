@@ -168,7 +168,7 @@ SELECT COALESCE((
 -- which would drag content, content_text and search_text through a hot read.
 SELECT
   d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
-  d.current_version, d.file_version_id, d.archived_at,
+  d.current_version, d.file_version_id, d.archived_at, d.shelved_at,
   d.owner_id, d.visibility, d.acl_owner_id, d.workspace_level
 FROM documents d
 WHERE d.organization_id = sqlc.arg(organization_id)
