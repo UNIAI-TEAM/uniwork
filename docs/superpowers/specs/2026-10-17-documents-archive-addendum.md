@@ -1,6 +1,6 @@
 # Documents — Phụ lục: Lưu trữ thật (ARCHIVE-01, UNI-1845)
 
-> **Trạng thái:** in-progress — v0.2 hợp đồng (Advisor duyệt v0.1 2026-10-17: Q-AR1 (a), Q-AR2 (a), Q-AR3 (a); S-4 chỉ ghi TODO). Phần UI §8 do e6-web viết 2026-10-17 (chờ Advisor duyệt).
+> **Trạng thái:** in-progress — v0.2 hợp đồng (Advisor duyệt 2026-10-17: Q-AR1..Q-AR3 = (a), S-4 chỉ ghi TODO; §8 UI của e6-web và Q-UI1..Q-UI3 đã duyệt). Phần UI §8 do e6-web viết 2026-10-17 (chờ Advisor duyệt).
 
 **Nguồn quyết định:** gói quyết định 2026-10-16 D-T2 (Lưu trữ là tính năng riêng, tách khỏi Thùng rác: trạng thái mới, không bị dọn sau 30 ngày) và Q-A1 (chỉ đọc, không bình luận; lưu trữ thư mục = cả cây; cần quyền quản lý; mục "Lưu trữ" riêng ở sub-nav + nhãn "Đã lưu trữ" trong tìm kiếm; "Bỏ lưu trữ" đưa về như cũ).
 **Quan hệ:** [phụ lục khôi phục/xóa vĩnh viễn](2026-10-17-documents-restore-purge-addendum.md) (Thùng rác), [phụ lục My Folder](2026-10-16-documents-my-folder-addendum.md), [phụ lục khóa sửa](2026-10-15-documents-edit-lock-addendum.md).
