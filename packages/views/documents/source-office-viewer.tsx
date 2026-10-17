@@ -67,8 +67,8 @@ export function useSourceOfficeViewer({ wsId, organizationId, frameVersion, onDo
           <>
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
               <DialogTitle className="min-w-0 flex-1 truncate text-body font-medium">{view.source.name}</DialogTitle>
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">
-                {t("documents.home.row.view_only")}
+              <span className="max-w-[60%] truncate rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground sm:max-w-none sm:shrink-0">
+                {t("documents.home.row.view_only_notice")}
               </span>
               <DialogClose
                 render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("documents.home.row.preview_close")} />}

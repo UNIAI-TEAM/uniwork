@@ -223,8 +223,28 @@ describe("file from another module", () => {
     nameButton.focus();
     fireEvent.click(nameButton);
     const dialog = await screen.findByRole("dialog", { name: /Kế hoạch\.docx/ });
-    expect((await within(dialog).findByTestId("office-docs-frame-iframe")).getAttribute("src")).toBe("/office-frame/docs/9.9.9-test/index.html");
-    expect(within(dialog).getByText(t("documents.home.row.view_only"))).toBeInTheDocument();
+    const iframe = (await within(dialog).findByTestId("office-docs-frame-iframe")) as HTMLIFrameElement;
+    expect(iframe.getAttribute("src")).toBe("/office-frame/docs/9.9.9-test/index.html");
+    expect(within(dialog).getByText("Chỉ xem · thay đổi sẽ không được lưu")).toBeInTheDocument();
+    // Complete the frame handshake so the frame reaches ready state; the header notice stays in the dialog (not a transient toast).
+    const win = iframe.contentWindow!;
+    const envelope = (kind: Envelope["kind"], type: string, payload: unknown, id: string): Envelope =>
+      ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, payload });
+    const post = (data: unknown) => act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin, source: win }));
+    });
+    vi.spyOn(win, "postMessage").mockImplementation((message: unknown) => {
+      const m = message as Envelope;
+      if (m.kind === "request" && m.type === "init") {
+        queueMicrotask(() => {
+          void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id));
+        });
+      }
+    });
+    await post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, module: "docs" }, "r-open"));
+    await waitFor(() => expect(dialog.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+    expect(within(dialog).getByText("Chỉ xem · thay đổi sẽ không được lưu")).toBeInTheDocument();
+    expect(within(dialog).getByText(t("documents.home.row.view_only_notice"))).toBeInTheDocument();
     // One close control, in the header (no second default × over the frame).
     expect(within(dialog).getAllByRole("button", { name: t("documents.home.row.preview_close") })).toHaveLength(1);
     expect(downloadBlob).not.toHaveBeenCalled();
