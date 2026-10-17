@@ -236,6 +236,29 @@ describe('fixture backend: arguments, write log and number formats', () => {
     assert.deepEqual(viewer.writeLog().map((w) => w.applied), [false]);
   });
 
+  it('A3: a literal write over a formula cell clears the formula before recalculating (review-g712-16 A3)', () => {
+    const view = () => ({
+      format: 'xlsx',
+      workbook: {
+        sheets: { SheetZ: { cells: { A1: { v: 12, t: 'n', f: 'B1+C1' }, B1: { v: 5, t: 'n' }, C1: { v: 7, t: 'n' } }, hiddenRows: new Set() } },
+        formatKinds: {},
+      },
+    });
+    const c = synthCase({ fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }] });
+    const backend = createBackend(c, { views: [view()] });
+    assert.equal(backend.execute('read_cells', { addresses: ['A1'] }).cells.A1, '12 [formula =B1+C1]', 'the cell starts as a formula');
+    const res = backend.execute('propose_operations', { operations: [{ sheetId: 'sheet-1', address: 'A1', value: 99 }] });
+    assert.equal(res.status, 'applied');
+    // The old formula must not survive: a literal replacement reads back as the literal, not as the pre-write result.
+    assert.equal(backend.execute('read_cells', { addresses: ['A1'] }).cells.A1, '99', 'a literal replacement clears the old formula');
+    assert.equal(backend.execute('trace_precedents', { address: 'A1' }).formula, null, 'no stale formula remains at the cell');
+
+    // A format-only write keeps the formula: a percent format beside the address must not clear it.
+    const fmtBackend = createBackend(c, { views: [view()] });
+    fmtBackend.execute('propose_operations', { operations: [{ sheetId: 'sheet-1', address: 'A1', numberFormat: '0%' }] });
+    assert.equal(fmtBackend.execute('read_cells', { addresses: ['A1'] }).cells.A1, '12 [formula =B1+C1]', 'a format-only write keeps the formula');
+  });
+
   it('reads the number format of a cell from the workbook, as the #numberFormat probe of the cases needs (G712-13)', () => {
     const probe = cases.find((c) => c.expected.structural.some((i) => i.anchor.includes('#numberFormat')));
     assert.ok(probe, 'the set has a #numberFormat case');
