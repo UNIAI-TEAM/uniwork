@@ -1,7 +1,9 @@
 "use client";
 
-import { ArchiveRestore, Ellipsis, ExternalLink, Star, StarOff, Trash2 } from "lucide-react";
+import { ArchiveRestore, Download, Ellipsis, ExternalLink, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { useDocumentDownload } from "@uniwork/core/documents/hooks";
 import type { Member } from "@uniwork/core/types/workspace";
 import { canManageTrashed } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -18,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { CommentActorAvatar } from "../comments/comment-actor-avatar";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { formatShortWhen } from "./document-format";
@@ -52,7 +55,7 @@ interface ShelvedMenuAction {
  * generic label, a null `shelved_by` is the system), Lưu trữ lúc is the short
  * stamp the trash's "Xóa lúc" uses, and the actions column is Bỏ lưu trữ for
  * rows the viewer manages (`canManageTrashed` — my_level manage or
- * admin_scope) plus the keep-list menu: open, star, unarchive, trash. Every
+ * admin_scope) plus the keep-list menu: open, download, star, unarchive, trash. Every
  * row opens its document read-only; shelved folders never browse.
  */
 export function ShelvedRowView({
@@ -73,6 +76,8 @@ export function ShelvedRowView({
   onOpen: (documentId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const wsId = useOptionalWorkspace()?.workspace.id ?? "";
+  const downloadFile = useDocumentDownload(wsId, row.type === "document" ? row.doc.id : "");
   if (row.type !== "document") return null;
   const doc = row.doc;
   const folder = doc.kind === "folder";
@@ -95,11 +100,34 @@ export function ShelvedRowView({
 
   const accessKey = rowAccessLabelKey(row);
 
-  // U-4 keep-list on a shelved row: open, star, Bỏ lưu trữ and Chuyển vào
-  // thùng rác (manage). Rename/move/create-child/share-new never appear.
+  // Reading is allowed on a shelved item, so any reader may take the bytes of a file out (U-4, the file view's rule).
+  const download = () => {
+    if (downloadFile.isPending) return;
+    void downloadFile.mutateAsync({}).then(
+      (blob) => {
+        const url = URL.createObjectURL(blob);
+        const anchor = window.document.createElement("a");
+        anchor.href = url;
+        anchor.download = doc.title;
+        anchor.rel = "noopener";
+        window.document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      },
+      () => toast.error(t("documents.file.download_failed")),
+    );
+  };
+
+  // U-4 keep-list on a shelved row: open, download (file rows), star, Bỏ lưu
+  // trữ and Chuyển vào thùng rác (manage). Rename/move/create-child/share-new
+  // never appear; export PDF and copy are not row commands on live rows either.
   const menuActions: ShelvedMenuAction[] = [
     { id: "open", label: t("documents.home.row.open_web"), icon: ExternalLink, run: () => onOpen(doc.id) },
   ];
+  if (doc.kind === "file" && doc.current_version > 0) {
+    menuActions.push({ id: "download", label: t("documents.home.row.download"), icon: Download, run: download });
+  }
   if (shelved.onToggleStar) {
     menuActions.push({
       id: "star",

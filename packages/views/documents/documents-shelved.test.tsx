@@ -611,3 +611,62 @@ describe("shelve refusals (RAR-05)", () => {
     );
   });
 });
+
+// RAR-01 (U-4 keep-list): a shelved file row lets any reader get the bytes out; a page row has nothing to download.
+describe("shelved row keep-list (RAR-01)", () => {
+  it("keeps open, download (file rows), Bỏ lưu trữ and the trash command for a manager; never rename or move", async () => {
+    route({
+      list: (path) =>
+        query(path).get("shelved") === "true"
+          ? [shelved({ id: "f1", kind: "file", title: "bao-cao.pdf", format: "pdf", current_version: 1 }), shelved({ id: "p1", title: "Trang cũ" })]
+          : [],
+    });
+    const fetchMock = vi.fn((_input: RequestInfo | URL) =>
+      Promise.resolve(new Response(new Blob(["bytes"], { type: "application/pdf" }), { status: 200, headers: { "Content-Type": "application/pdf" } })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:document"), revokeObjectURL: vi.fn() });
+    // jsdom cannot navigate; the synthetic anchor's click would log an unimplemented-navigation error.
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      renderView();
+      await openShelved();
+      fireEvent.click(within(await rowOf("bao-cao.pdf")).getByRole("button", { name: t("documents.home.row.menu", { title: "bao-cao.pdf" }) }));
+      const names = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          t("documents.home.row.open_web"),
+          t("documents.home.row.download"),
+          t("documents.shelved_list.unshelve"),
+          t("documents.actions.archive"),
+        ]),
+      );
+      expect(names).not.toContain(t("documents.home.row.rename"));
+      expect(names).not.toContain(t("documents.tree.menu.move_to"));
+      fireEvent.click(screen.getByRole("menuitem", { name: t("documents.home.row.download") }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/v1/documents/f1/download");
+      await waitFor(() => expect(click).toHaveBeenCalled());
+
+      fireEvent.click(within(await rowOf("Trang cũ")).getByRole("button", { name: t("documents.home.row.menu", { title: "Trang cũ" }) }));
+      await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+      expect(screen.queryByRole("menuitem", { name: t("documents.home.row.download") })).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+      click.mockRestore();
+    }
+  });
+
+  it("offers a viewer the download of a shelved file too, without the manage commands", async () => {
+    route({
+      list: (path) =>
+        query(path).get("shelved") === "true" ? [shelved({ id: "f2", kind: "file", title: "so-lieu.xlsx", format: "xlsx", current_version: 2, my_level: "view" })] : [],
+    });
+    renderView();
+    await openShelved();
+    fireEvent.click(within(await rowOf("so-lieu.xlsx")).getByRole("button", { name: t("documents.home.row.menu", { title: "so-lieu.xlsx" }) }));
+    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.unshelve") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
+  });
+});
