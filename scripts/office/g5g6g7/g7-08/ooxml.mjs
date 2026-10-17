@@ -279,9 +279,28 @@ export function oracleDocxEdit(observed) {
     });
   }
 
-  const targets = new Set(
-    Array.isArray(observed.targetParagraphIndexes) ? observed.targetParagraphIndexes : [observed.targetParagraphIndex ?? 2],
-  );
+  const rawTargets = Array.isArray(observed.targetParagraphIndexes)
+    ? observed.targetParagraphIndexes
+    : Number.isInteger(observed.targetParagraphIndex)
+      ? [observed.targetParagraphIndex]
+      : null;
+  if (!rawTargets || rawTargets.length === 0 || !rawTargets.every((idx) => Number.isInteger(idx) && idx >= 0)) {
+    return blockedVerdict('missing_docx_target_paragraph');
+  }
+  const rawTokens =
+    observed.requiredTokens ??
+    observed.target?.requiredTokens ??
+    (typeof observed.expectedText === 'string' && observed.expectedText.trim()
+      ? [observed.expectedText.trim()]
+      : null);
+  const requiredTokens = Array.isArray(rawTokens)
+    ? rawTokens.filter((t) => typeof t === 'string' && t.trim().length > 0)
+    : [];
+  if (requiredTokens.length === 0) {
+    return blockedVerdict('missing_docx_expected_tokens');
+  }
+
+  const targets = new Set(rawTargets);
   let targetChanged = false;
   for (let i = 0; i < before.paragraphs.length; i += 1) {
     const same = before.paragraphs[i].text === after.paragraphs[i].text;
@@ -293,6 +312,16 @@ export function oracleDocxEdit(observed) {
   }
   if (!targetChanged) {
     return failVerdict('docx_target_paragraph_unchanged', { targetParagraphIndexes: [...targets] });
+  }
+
+  const combinedTargetText = [...targets].map((idx) => after.paragraphs[idx]?.text ?? '').join('\n');
+  for (const token of requiredTokens) {
+    if (!combinedTargetText.includes(token)) {
+      return failVerdict('docx_target_paragraph_missing_expected_token', {
+        token,
+        actual: combinedTargetText,
+      });
+    }
   }
 
   return passVerdict('docx_edit_ok', {
@@ -356,6 +385,12 @@ export function oraclePptxEdit(observed) {
   if (!observed || !observed.beforeBytes || !observed.afterBytes) {
     return blockedVerdict('missing_pptx_edit_bytes');
   }
+  if (!Number.isInteger(observed.targetSlideIndex) || !Number.isInteger(observed.targetShapeId)) {
+    return blockedVerdict('missing_pptx_target_shape');
+  }
+  if (typeof observed.expectedText !== 'string' || !observed.expectedText.trim()) {
+    return blockedVerdict('missing_pptx_expected_text');
+  }
   const pkgCheck = validateOoxmlPackage(observed.afterBytes, { mainPart: 'ppt/presentation.xml' });
   if (pkgCheck.status !== VERDICT.PASS) return pkgCheck;
 
@@ -367,8 +402,8 @@ export function oraclePptxEdit(observed) {
     return failVerdict('pptx_slide_count_changed', { before: before.slideCount, after: after.slideCount });
   }
 
-  const targetSlide = observed.targetSlideIndex ?? 1;
-  const targetShapeId = observed.targetShapeId ?? 3;
+  const targetSlide = observed.targetSlideIndex;
+  const targetShapeId = observed.targetShapeId;
   let targetModified = false;
 
   for (let s = 0; s < before.slides.length; s += 1) {
@@ -386,7 +421,7 @@ export function oraclePptxEdit(observed) {
       const isTarget = bSlide.index === targetSlide && bShape.id === targetShapeId;
       if (isTarget) {
         if (bShape.text !== aShape.text && aShape.text.trim().length > 0) {
-          if (observed.expectedText && aShape.text.trim() !== observed.expectedText.trim()) {
+          if (aShape.text.trim() !== observed.expectedText.trim()) {
             return failVerdict('pptx_target_shape_unexpected_text', {
               expected: observed.expectedText,
               actual: aShape.text,

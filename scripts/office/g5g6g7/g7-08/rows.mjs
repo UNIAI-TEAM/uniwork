@@ -9,6 +9,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadManifest, loadVerifiedFixture } from '../harness/fixture-files.mjs';
+import { BOUND_DOCUMENT_FORBIDDEN_TOOLS, PDF_FILE_LEVEL_PAGE_TOOLS } from './tools.mjs';
+
+export { BOUND_DOCUMENT_FORBIDDEN_TOOLS, PDF_FILE_LEVEL_PAGE_TOOLS };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_REPO_ROOT = resolve(HERE, '../../../..');
@@ -26,22 +29,6 @@ export const FORMAT_FEATURE_FLAGS = Object.freeze({
   md: 'office_ai_uniwork_md',
   html: 'office_ai_uniwork_html',
 });
-
-export const PDF_FILE_LEVEL_PAGE_TOOLS = Object.freeze([
-  'insert_blank_page',
-  'set_page_size',
-  'crop_pages',
-  'replace_pages',
-  'extract_pages',
-  'split_pdf',
-  'split_pages',
-  'merge_pages',
-]);
-
-export const BOUND_DOCUMENT_FORBIDDEN_TOOLS = Object.freeze([
-  'create_document',
-  ...PDF_FILE_LEVEL_PAGE_TOOLS,
-]);
 
 export const EXPECTED_FIXTURE_SHAS = Object.freeze({
   'fx-xlsx-revenue-xyz': 'a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446',
@@ -140,9 +127,13 @@ export const MATRIX_ROWS = Object.freeze([
     mode: 'automated',
     fixtureId: 'fx-docx-report-vi',
     fixtureSha256: EXPECTED_FIXTURE_SHAS['fx-docx-report-vi'],
-    target: { paragraphIndex: 2, heading: '1. Tóm tắt điều hành' },
+    target: {
+      paragraphIndex: 2,
+      heading: '1. Tóm tắt điều hành',
+      requiredTokens: ['22.060.000', '9.060.000'],
+    },
     prompt:
-      'Chỉ viết lại đoạn văn thứ 3 (block ngay dưới tiêu đề "1. Tóm tắt điều hành") thành một câu ngắn gọn nêu tổng doanh thu quý 1 đạt 22.060.000 đồng và khu vực Bắc đạt 9.560.000 đồng; giữ nguyên bảng doanh thu và mọi đoạn văn khác.',
+      'Chỉ viết lại đoạn văn thứ 3 (block ngay dưới tiêu đề "1. Tóm tắt điều hành") thành một câu ngắn gọn nêu tổng doanh thu quý 1 đạt 22.060.000 đồng và khu vực Bắc đạt 9.060.000 đồng; giữ nguyên bảng doanh thu và mọi đoạn văn khác.',
     expectedTools: ['get_document_context', 'read_blocks', 'replace_selection', 'replace_blocks', 'apply_ops'],
     primaryTools: ['replace_selection', 'replace_blocks', 'apply_ops'],
     forbiddenTools: [...BOUND_DOCUMENT_FORBIDDEN_TOOLS],
@@ -196,7 +187,12 @@ export const MATRIX_ROWS = Object.freeze([
     mode: 'automated',
     fixtureId: 'fx-pptx-deck-vi',
     fixtureSha256: EXPECTED_FIXTURE_SHAS['fx-pptx-deck-vi'],
-    target: { slideIndex: 1, shapeId: 3, shapeName: 'Nội dung 2' },
+    target: {
+      slideIndex: 1,
+      shapeId: 3,
+      shapeName: 'Nội dung 2',
+      expectedText: 'Báo cáo tổng hợp doanh thu quý 1 năm 2026',
+    },
     prompt:
       'Trên slide 1, chỉ sửa văn bản của text shape phụ đề "Nội dung 2" (shape id 3: "Bản trình bày tổng hợp từ dữ liệu mẫu") thành "Báo cáo tổng hợp doanh thu quý 1 năm 2026"; giữ nguyên tiêu đề slide 1 và toàn bộ slide 2, slide 3.',
     expectedTools: ['read_slide', 'apply_ops', 'execute_slide_script'],
@@ -231,7 +227,11 @@ export const MATRIX_ROWS = Object.freeze([
     mode: 'automated',
     fixtureId: 'fx-pdf-invoice-vi',
     fixtureSha256: EXPECTED_FIXTURE_SHAS['fx-pdf-invoice-vi'],
-    target: { page: 1, targetText: 'Số hóa đơn: HD-2026-0001' },
+    target: {
+      page: 1,
+      targetText: 'Số hóa đơn: HD-2026-0001',
+      expectedPatchText: 'Số hóa đơn: HD-2026-0001-AI',
+    },
     prompt:
       'Trên trang 1 của hóa đơn PDF, chỉ sửa dòng văn bản "Số hóa đơn: HD-2026-0001" thành "Số hóa đơn: HD-2026-0001-AI"; giữ nguyên mọi dòng văn bản và bảng khác trên trang.',
     expectedTools: ['read_pages', 'edit_text', 'edit_block', 'move_text_block', 'insert_text'],
@@ -364,15 +364,14 @@ export function verifyRowFixtures({ rows = MATRIX_ROWS, repoRoot = DEFAULT_REPO_
   return true;
 }
 
-verifyRowFixtures();
-
 export function getRowById(rowId) {
   return MATRIX_ROWS.find((row) => row.id === rowId) ?? null;
 }
 
 function buildRunEntry(row, provider, host, mode) {
+  const runId = mode === 'hitl' ? `${row.id}:${provider}:${host}:hitl` : `${row.id}:${provider}:${host}`;
   return {
-    runId: `${row.id}:${provider}:${host}`,
+    runId,
     rowId: row.id,
     format: row.format,
     module: row.module,
@@ -393,7 +392,13 @@ function buildRunEntry(row, provider, host, mode) {
   };
 }
 
+let canonicalFixturesVerified = false;
+
 export function expandMatrixRuns({ rows = MATRIX_ROWS, providers = PROVIDERS, hosts = HOSTS } = {}) {
+  if (rows === MATRIX_ROWS && !canonicalFixturesVerified) {
+    verifyRowFixtures({ rows: MATRIX_ROWS, repoRoot: DEFAULT_REPO_ROOT });
+    canonicalFixturesVerified = true;
+  }
   const capabilityRows = rows.filter((r) => r.mode === 'automated');
   const hitlRows = rows.filter((r) => r.mode === 'hitl');
   const orderedHosts = [...hosts].sort((a, b) => (a === 'web' ? -1 : b === 'web' ? 1 : a.localeCompare(b)));
@@ -407,9 +412,9 @@ export function expandMatrixRuns({ rows = MATRIX_ROWS, providers = PROVIDERS, ho
     }
   }
   const hitl = [];
-  for (const host of orderedHosts) {
+  for (const provider of providers) {
     for (const row of hitlRows) {
-      hitl.push(buildRunEntry(row, 'hitl', host, 'hitl'));
+      hitl.push(buildRunEntry(row, provider, 'web', 'hitl'));
     }
   }
   return [...automated, ...hitl];
