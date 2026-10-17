@@ -1772,7 +1772,7 @@ describe('usage rows and arguments', () => {
     assert.equal(score(permCase, derivedForbidden.answer).status, 'fail');
   });
 
-  it('H-2: updates the in-turn backend view on applied writes while keeping sourceText as opened, and denies unsupported page-setup operations', () => {
+  it('H-2: updates the in-turn backend view on applied writes while keeping sourceText as opened, never rewrites applied writeLog entries in deriveAnswer, and maps only table-reading tools to read_table', () => {
     const xlsxEditCase = cases.find((c) => c.id === 'HO-XLSX-030');
     const backend = createBackend(xlsxEditCase);
     const openedText = backend.sourceText();
@@ -1789,17 +1789,23 @@ describe('usage rows and arguments', () => {
     assert.equal(fmtAfter.rows[0].formats.F4, 'percent', 'subsequent read_formats in the same turn sees the written percent format');
     assert.equal(backend.sourceText(), openedText, 'sourceText stays the initial document text as opened');
 
-    const unsupportedCase = cases.find((c) => c.id === 'HO-CROSS-013');
-    const unsupportedBackend = createBackend(unsupportedCase);
-    const unsupRes = unsupportedBackend.execute('propose_operations', JSON.stringify({
-      operations: [
-        { type: 'set_print_area', sheetId: 'sheet-1', range: 'A1:G7' },
-        { type: 'freeze_panes', sheetId: 'sheet-1', rows: 1 },
-      ],
-    }));
-    assert.equal(unsupRes.error, 'unsupported_operation');
-    assert.equal(unsupportedBackend.writes(), 0, 'unsupported page-setup/freeze operations must not increment writes');
-    assert.equal(unsupportedBackend.denied().length, 1);
+    const pageSetupWriteAsk = {
+      reply: `Applied setup.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+      calls: [{ name: 'propose_operations', write: true, denied: null }],
+      writes: 1,
+      denied: [],
+      writeLog: [{ name: 'propose_operations', applied: true, args: { operations: [{ type: 'set_page_setup', sheetId: 'sheet-1', printArea: 'A1:G7' }, { type: 'set_freeze', sheetId: 'sheet-1', rows: 1 }] } }],
+      dropped: [],
+      modules: ['sheets'],
+    };
+    const derivedSetup = deriveAnswer(xlsxEditCase, pageSetupWriteAsk);
+    assert.equal(derivedSetup.answer.writes, 1, 'deriveAnswer must not rewrite applied writeLog entries into unapplied writes');
+    assert.equal(derivedSetup.adapter.appliedWrites, 1);
+
+    assert.deepEqual(opsOfTool(['markdown'], 'get_document_context'), ['read_document']);
+    assert.deepEqual(opsOfTool(['markdown'], 'read_blocks'), ['read_document', 'read_table']);
+    assert.deepEqual(opsOfTool(['html'], 'get_outline'), ['read_document']);
+    assert.deepEqual(opsOfTool(['html'], 'read_source'), ['read_document', 'read_table']);
   });
 
   it('H-3: includes the user role in the open-document context header of firstMessages', () => {
