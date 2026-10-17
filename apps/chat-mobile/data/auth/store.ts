@@ -4,6 +4,8 @@
 import type { User } from "@uniwork/core/types/user";
 import { create } from "zustand";
 import { ApiError, api } from "../api";
+import { queryClient } from "../query-client";
+import { useChatSendStore } from "../stores/chat-send-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { session } from "./flow";
 
@@ -70,8 +72,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // the session moves the epoch first, then clears the Keychain and revokes the device
     set({ user: null });
     await session.logout();
-    // the next account on this device must not land in this one's workspace
+    // the next account on this device must not land in this one's workspace,
+    // nor see its cached rooms, messages or unsent bubbles
     await useWorkspaceStore.getState().clear();
+    queryClient.clear();
+    useChatSendStore.getState().clear();
   },
 
   setUser: (user) => set({ user }),

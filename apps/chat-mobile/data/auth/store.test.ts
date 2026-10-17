@@ -12,6 +12,9 @@ vi.mock("./flow", () => ({ session: sessionMock }));
 const workspaceClear = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("../stores/workspace-store", () => ({ useWorkspaceStore: { getState: () => ({ clear: workspaceClear }) } }));
 
+const queryClear = vi.hoisted(() => vi.fn());
+vi.mock("../query-client", () => ({ queryClient: { clear: queryClear } }));
+
 const apiMock = vi.hoisted(() => ({ getMe: vi.fn() }));
 vi.mock("../api", () => {
   class ApiError extends Error {
@@ -27,6 +30,7 @@ vi.mock("../api", () => {
 });
 
 import { ApiError } from "../api";
+import { useChatSendStore } from "../stores/chat-send-store";
 import { useAuthStore } from "./store";
 
 const user = {
@@ -125,5 +129,13 @@ describe("auth store", () => {
     expect(sessionMock.logout).toHaveBeenCalledTimes(1);
     expect(workspaceClear).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it("logout drops the cached rooms and messages and the unsent queue, so the next account on this phone sees none of them", async () => {
+    useChatSendStore.setState({ entries: [{ clientMsgId: "c1" } as never] });
+    useAuthStore.getState().setUser(user);
+    await useAuthStore.getState().logout();
+    expect(queryClear).toHaveBeenCalledTimes(1);
+    expect(useChatSendStore.getState().entries).toEqual([]);
   });
 });
