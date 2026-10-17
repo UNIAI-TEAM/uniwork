@@ -176,7 +176,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
         signal: inFlightAbort.signal,
       });
     }
-    return getUploadSession(id, { fetch: opts.fetch, signal: inFlightAbort.signal });
+    return getUploadSession(id, { signal: inFlightAbort.signal });
   }
 
   async function refreshSession(): Promise<void> {
@@ -226,7 +226,6 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
 
     const reqOpts = {
       idempotencyKey: opts.idempotencyKey,
-      fetch: opts.fetch,
       signal: inFlightAbort.signal,
     };
     let created: UploadSession | null = null;
@@ -253,7 +252,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       created = await createFrameUploadSession(
         opts.target.documentId,
         { filename: opts.filename, size_bytes: totalBytes, probe },
-        { ...reqOpts, frameToken: opts.target.frameToken },
+        { ...reqOpts, frameToken: opts.target.frameToken, fetch: opts.fetch },
       );
     }
 
@@ -392,7 +391,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
           out = await completeUploadSession(
             sessionId,
             { parts },
-            { fetch: opts.fetch, signal: inFlightAbort.signal },
+            { signal: inFlightAbort.signal },
           );
         }
 
@@ -487,7 +486,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
               fetch: opts.fetch,
             });
           } else {
-            await abortUploadSession(id, { fetch: opts.fetch });
+            await abortUploadSession(id);
           }
         } catch (err) {
           if (!isClearedSessionError(err)) throw err;

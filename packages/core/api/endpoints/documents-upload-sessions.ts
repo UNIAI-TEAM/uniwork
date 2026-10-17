@@ -6,9 +6,8 @@ import {
   type Document,
   type DocumentUpload,
 } from "../../types/document";
-import { ApiError, CORRELATION_HEADER, request, type ApiErrorClass } from "../http";
+import { request, throwFromFailedResponse } from "../http";
 import { parseWithFallback } from "../schema";
-import { getAccessToken } from "../session";
 
 const enc = encodeURIComponent;
 
@@ -129,8 +128,6 @@ const PartETagSchema = z.object({
 
 export interface UploadSessionRequestOpts {
   signal?: AbortSignal;
-  fetch?: typeof fetch;
-  apiUrl?: string;
 }
 
 export interface UploadSessionCreateOpts extends UploadSessionRequestOpts {
@@ -139,6 +136,8 @@ export interface UploadSessionCreateOpts extends UploadSessionRequestOpts {
 
 export interface FrameUploadSessionRequestOpts extends UploadSessionRequestOpts {
   frameToken: string;
+  fetch?: typeof fetch;
+  apiUrl?: string;
 }
 
 export interface FrameUploadSessionCreateOpts extends FrameUploadSessionRequestOpts {
@@ -151,106 +150,6 @@ export interface UploadSessionPartPutOpts {
   fetch?: typeof fetch;
 }
 
-const KNOWN_ERROR_CLASSES: readonly ApiErrorClass[] = [
-  "conflict",
-  "gone",
-  "quota",
-  "permission",
-  "missing",
-  "incompatible",
-  "session",
-];
-
-function parseRetryAfter(value: string | null): number | undefined {
-  if (value === null) return undefined;
-  const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) return Number(trimmed);
-  const at = Date.parse(trimmed);
-  if (!Number.isFinite(at)) return undefined;
-  return Math.max(0, Math.ceil((at - Date.now()) / 1000));
-}
-
-async function throwApiError(res: Response): Promise<never> {
-  let code = "internal";
-  let message = res.statusText || `HTTP ${res.status}`;
-  let fields: Record<string, unknown> | undefined;
-  let errorClass: ApiErrorClass | undefined;
-  try {
-    const body = (await res.json()) as {
-      error?: {
-        code?: unknown;
-        message?: unknown;
-        fields?: unknown;
-        error_class?: unknown;
-      };
-    };
-    if (typeof body.error?.code === "string") code = body.error.code;
-    if (typeof body.error?.message === "string") message = body.error.message;
-    if (
-      body.error?.fields &&
-      typeof body.error.fields === "object" &&
-      !Array.isArray(body.error.fields)
-    ) {
-      fields = body.error.fields as Record<string, unknown>;
-    }
-    errorClass = KNOWN_ERROR_CLASSES.find((c) => c === body.error?.error_class);
-  } catch {
-    /* non-JSON error body */
-  }
-  throw new ApiError(
-    message,
-    code,
-    res.status,
-    res.headers.get(CORRELATION_HEADER) ?? undefined,
-    fields,
-    errorClass,
-    parseRetryAfter(res.headers.get("Retry-After")),
-  );
-}
-
-async function sessionRequest(
-  path: string,
-  init: {
-    method: "GET" | "POST" | "DELETE";
-    body?: unknown;
-    headers?: Record<string, string>;
-    opts?: UploadSessionRequestOpts;
-  },
-): Promise<unknown> {
-  if (!init.opts?.fetch && !init.opts?.apiUrl) {
-    return request(path, {
-      method: init.method,
-      body: init.body,
-      headers: init.headers,
-      signal: init.opts?.signal,
-    });
-  }
-  const doFetch = init.opts.fetch ?? ((input: RequestInfo | URL, reqInit?: RequestInit) => fetch(input, reqInit));
-  const base = init.opts.apiUrl ?? runtimeConfig().apiUrl;
-  const headers: Record<string, string> = { ...init.headers };
-  const token = getAccessToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  let body: BodyInit | undefined;
-  if (init.body !== undefined) {
-    headers["Content-Type"] = "application/json";
-    body = JSON.stringify(init.body);
-  }
-  const res = await doFetch(base + path, {
-    method: init.method,
-    headers,
-    credentials: "include",
-    body,
-    signal: init.opts.signal,
-  });
-  if (!res.ok) await throwApiError(res);
-  if (res.status === 204) return undefined;
-  try {
-    return (await res.json()) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
 async function frameRequest(
   path: string,
   init: {
@@ -260,7 +159,8 @@ async function frameRequest(
     opts: FrameUploadSessionRequestOpts;
   },
 ): Promise<unknown> {
-  const doFetch = init.opts.fetch ?? ((input: RequestInfo | URL, reqInit?: RequestInit) => fetch(input, reqInit));
+  const doFetch =
+    init.opts.fetch ?? ((input: RequestInfo | URL, reqInit?: RequestInit) => fetch(input, reqInit));
   const base = init.opts.apiUrl ?? runtimeConfig().apiUrl;
   const headers: Record<string, string> = {
     Authorization: `Bearer ${init.opts.frameToken}`,
@@ -278,7 +178,7 @@ async function frameRequest(
     body,
     signal: init.opts.signal,
   });
-  if (!res.ok) await throwApiError(res);
+  if (!res.ok) await throwFromFailedResponse(res);
   if (res.status === 204) return undefined;
   try {
     return (await res.json()) as unknown;
@@ -292,11 +192,11 @@ export async function createWorkspaceUploadSession(
   body: CreateWorkspaceUploadSessionBody,
   opts: UploadSessionCreateOpts,
 ): Promise<UploadSession | null> {
-  const raw = await sessionRequest(`/api/v1/workspaces/${enc(wsId)}/documents/upload-sessions`, {
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/upload-sessions`, {
     method: "POST",
     body,
     headers: { "Idempotency-Key": opts.idempotencyKey },
-    opts,
+    signal: opts.signal,
   });
   return parseWithFallback<UploadSession | null>(raw, UploadSessionSchema, null, {
     endpoint: "POST /api/v1/workspaces/{workspaceID}/documents/upload-sessions",
@@ -308,11 +208,11 @@ export async function createDocumentUploadSession(
   body: CreateDocumentUploadSessionBody,
   opts: UploadSessionCreateOpts,
 ): Promise<UploadSession | null> {
-  const raw = await sessionRequest(`/api/v1/documents/${enc(documentId)}/upload-sessions`, {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/upload-sessions`, {
     method: "POST",
     body,
     headers: { "Idempotency-Key": opts.idempotencyKey },
-    opts,
+    signal: opts.signal,
   });
   return parseWithFallback<UploadSession | null>(raw, UploadSessionSchema, null, {
     endpoint: "POST /api/v1/documents/{documentID}/upload-sessions",
@@ -342,9 +242,9 @@ export async function getUploadSession(
   sessionId: string,
   opts?: UploadSessionRequestOpts,
 ): Promise<UploadSession | null> {
-  const raw = await sessionRequest(`/api/v1/upload-sessions/${enc(sessionId)}`, {
+  const raw = await request(`/api/v1/upload-sessions/${enc(sessionId)}`, {
     method: "GET",
-    opts,
+    signal: opts?.signal,
   });
   return parseWithFallback<UploadSession | null>(raw, UploadSessionSchema, null, {
     endpoint: "GET /api/v1/upload-sessions/{sessionID}",
@@ -373,10 +273,10 @@ export async function completeUploadSession(
   body: CompleteUploadSessionBody,
   opts?: UploadSessionRequestOpts,
 ): Promise<UploadSessionCompleteResponse | null> {
-  const raw = await sessionRequest(`/api/v1/upload-sessions/${enc(sessionId)}/complete`, {
+  const raw = await request(`/api/v1/upload-sessions/${enc(sessionId)}/complete`, {
     method: "POST",
     body,
-    opts,
+    signal: opts?.signal,
   });
   return parseWithFallback<UploadSessionCompleteResponse | null>(
     raw,
@@ -409,9 +309,9 @@ export async function abortUploadSession(
   sessionId: string,
   opts?: UploadSessionRequestOpts,
 ): Promise<void> {
-  const raw = await sessionRequest(`/api/v1/upload-sessions/${enc(sessionId)}`, {
+  const raw = await request(`/api/v1/upload-sessions/${enc(sessionId)}`, {
     method: "DELETE",
-    opts,
+    signal: opts?.signal,
   });
   parseWithFallback(raw, z.undefined(), undefined, {
     endpoint: "DELETE /api/v1/upload-sessions/{sessionID}",
@@ -456,7 +356,7 @@ export async function putUploadSessionPart(
     body,
     signal: opts?.signal,
   });
-  if (!res.ok) await throwApiError(res);
+  if (!res.ok) await throwFromFailedResponse(res);
   const rawEtag = res.headers.get("ETag") ?? res.headers.get("etag") ?? "";
   const parsed = parseWithFallback<{ etag: string } | null>(
     { etag: rawEtag },

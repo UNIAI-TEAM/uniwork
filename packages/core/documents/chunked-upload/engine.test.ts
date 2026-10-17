@@ -128,6 +128,7 @@ describe("chunked upload engine", () => {
       throw new Error(`unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const upload = startChunkedUpload({
       file,
       filename: file.name,
@@ -187,6 +188,7 @@ describe("chunked upload engine", () => {
       throw new Error(`unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const upload = startChunkedUpload({
       file,
       filename: file.name,
@@ -227,6 +229,7 @@ describe("chunked upload engine", () => {
       throw new Error(`unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const upload = startChunkedUpload({
       file,
       filename: file.name,
@@ -280,6 +283,7 @@ describe("chunked upload engine", () => {
       throw new Error(`unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const upload = startChunkedUpload({
       file,
       filename: file.name,
@@ -319,6 +323,7 @@ describe("chunked upload engine", () => {
       throw new Error(`unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const upload = startChunkedUpload({
       file,
       filename: file.name,
@@ -383,6 +388,7 @@ describe("chunked upload engine", () => {
     });
 
     const phases: string[] = [];
+    vi.stubGlobal("fetch", fakeFetch);
     const upload = startChunkedUpload({
       file,
       filename: file.name,
@@ -436,6 +442,7 @@ describe("chunked upload engine", () => {
       throw new Error(`unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const upload = startChunkedUpload({
       file,
       filename: file.name,
@@ -481,6 +488,7 @@ describe("chunked upload engine", () => {
       throw new Error(`unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const upload = startChunkedUpload({
       file,
       filename: file.name,

@@ -212,22 +212,23 @@ function parseRetryAfter(value: string | null): number | undefined {
   return Math.max(0, Math.ceil((at - Date.now()) / 1000));
 }
 
-async function throwFromFailedResponse(res: Response): Promise<never> {
+export async function throwFromFailedResponse(res: Response): Promise<never> {
   let code = "internal";
-  let message = res.statusText;
+  let message = res.statusText || `HTTP ${res.status}`;
   let fields: Record<string, unknown> | undefined;
   let errorClass: ApiErrorClass | undefined;
   try {
     const body = (await res.json()) as {
       error?: {
-        code: string;
-        message: string;
+        code?: unknown;
+        message?: unknown;
         fields?: Record<string, unknown>;
         error_class?: unknown;
       };
     };
     if (body.error) {
-      ({ code, message } = body.error);
+      if (typeof body.error.code === "string") code = body.error.code;
+      if (typeof body.error.message === "string") message = body.error.message;
       if (body.error.fields && typeof body.error.fields === "object" && !Array.isArray(body.error.fields)) {
         fields = body.error.fields;
       }

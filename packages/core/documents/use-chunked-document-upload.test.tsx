@@ -129,6 +129,7 @@ describe("useChunkedDocumentUpload", () => {
       throw new Error(`Unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const { result } = renderHook(
       () =>
         useChunkedDocumentUpload(target, {
@@ -221,6 +222,7 @@ describe("useChunkedDocumentUpload", () => {
       throw new Error(`Unexpected ${method} ${url}`);
     });
 
+    vi.stubGlobal("fetch", fakeFetch);
     const { result } = renderHook(
       () => useChunkedDocumentUpload(target, { storage, fetch: fakeFetch, concurrency: 1 }),
       { wrapper: makeWrapper(qc) },
