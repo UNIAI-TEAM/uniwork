@@ -5,6 +5,8 @@
 // room records, so web and phone show the same numbers.
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import {
+  chatRoomToContact,
+  isDefaultWorkspaceChannel,
   mentionUnreadMapFromRooms,
   roomPreviewMapFromRooms,
   sidebarFromChatRooms,
@@ -34,6 +36,22 @@ export function workspaceRoomTitle(roomName: string | null | undefined, workspac
   const name = roomName?.trim();
   if (!name || name === workspaceName?.trim()) return defaultLabel;
   return name;
+}
+
+/** A room's name in a conversation's header, worded as its list row is. */
+export function roomTitle(
+  room: ChatRoomRecord,
+  options: { nicknamesByUserId: Record<string, string>; workspaceName: string; t: TranslateFn },
+): string {
+  if (isDefaultWorkspaceChannel(room)) return workspaceRoomTitle(room.name, options.workspaceName, options.t("chat.workspace_room"));
+  switch (room.kind) {
+    case "channel":
+      return room.visibility === "private" ? room.name : `#${room.name}`;
+    case "dm":
+      return displayLabelForChatContact(chatRoomToContact(room), options.nicknamesByUserId);
+    default:
+      return room.name;
+  }
 }
 
 export interface RoomListRow {

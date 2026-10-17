@@ -1,9 +1,10 @@
 // Copied from packages/core/chat/sidebar-typing-store.ts (zustand is off the
-// mobile allowlist); chat-typing-store.test.ts runs the core cases.
+// mobile allowlist), without the selector the phone does not use;
+// chat-typing-store.test.ts runs the core cases.
 import { create } from "zustand";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 
-export const CHAT_TYPING_TTL_MS = 3_000;
+const CHAT_TYPING_TTL_MS = 3_000;
 
 interface SidebarTypingState {
   byRoomId: Record<string, string[]>;
@@ -13,15 +14,12 @@ interface SidebarTypingState {
 
 const roomTimers = new Map<string, Map<string, ReturnType<typeof setTimeout>>>();
 
-function clearRoomTimers(roomId: string) {
-  const userTimers = roomTimers.get(roomId);
-  if (!userTimers) return;
-  for (const timer of userTimers.values()) clearTimeout(timer);
-  roomTimers.delete(roomId);
-}
-
+// The core clears room by room through a lookup that cannot miss; one pass is the same.
 function clearAllTimers() {
-  for (const roomId of roomTimers.keys()) clearRoomTimers(roomId);
+  for (const userTimers of roomTimers.values()) {
+    for (const timer of userTimers.values()) clearTimeout(timer);
+  }
+  roomTimers.clear();
 }
 
 export const useSidebarTypingStore = create<SidebarTypingState>((set) => ({
@@ -75,10 +73,3 @@ export const useSidebarTypingStore = create<SidebarTypingState>((set) => ({
   },
 }));
 
-export function selectSidebarTypingUserIds(
-  state: SidebarTypingState,
-  roomId: string | null | undefined,
-): string[] {
-  if (!roomId) return [];
-  return state.byRoomId[roomId] ?? [];
-}

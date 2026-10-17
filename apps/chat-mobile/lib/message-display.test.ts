@@ -1,11 +1,14 @@
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { ChatMessageSchema } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
+import { i18n } from "./i18n/singleton";
 import {
   KNOWN_MESSAGE_KINDS,
   formatFileSize,
   formatVoiceCallDuration,
+  isChatMediaUrlFresh,
   isReminderDue,
+  messagePreviewText,
   messageView,
   pollResults,
   voiceCallLogLabel,
@@ -94,6 +97,29 @@ describe("labels", () => {
     expect(pollResults(secret).hideCounts).toBe(true);
     expect(pollResults({ ...secret, viewer_option_ids: ["o2"] })).toMatchObject({ hideCounts: false, options: [{ mine: false }, { mine: true }] });
     expect(pollResults({ ...poll, options: [{ id: "o1", label: "x", votes: 0 }] }).options[0]?.percent).toBe(0);
+  });
+
+  it("treats a signed URL as dead a minute before it expires", () => {
+    const now = Date.parse("2026-10-17T10:00:00Z");
+    expect(isChatMediaUrlFresh("https://s/a", "2026-10-17T10:05:00Z", now)).toBe(true);
+    expect(isChatMediaUrlFresh("https://s/a", "2026-10-17T10:00:30Z", now)).toBe(false);
+    expect(isChatMediaUrlFresh("https://s/a", "", now)).toBe(false);
+    expect(isChatMediaUrlFresh("", "2026-10-17T11:00:00Z", now)).toBe(false);
+    expect(isChatMediaUrlFresh("https://s/a", undefined)).toBe(false);
+  });
+
+  it("puts a message in one line for a reply quote", () => {
+    const tVi = i18n.getFixedT("vi");
+    expect(messagePreviewText({ ...base, body: "[@Lan](mention://member/u2) ơi" }, tVi)).toBe("@Lan ơi");
+    expect(messagePreviewText(byKind.file, tVi)).toBe("plan.pdf");
+    expect(messagePreviewText({ ...byKind.file, file: undefined, body: "" }, tVi)).toBe("Tệp đính kèm");
+    expect(messagePreviewText(byKind.voice, tVi)).toBe("Tin nhắn thoại");
+    expect(messagePreviewText(byKind.poll, tVi)).toBe("Ăn gì?");
+    expect(messagePreviewText(byKind.post, tVi)).toBe("Tin");
+    expect(messagePreviewText(byKind.note, tVi)).toBe("Ghi chú");
+    expect(messagePreviewText(byKind.reminder, tVi)).toBe("Họp");
+    expect(messagePreviewText({ ...base, body: "![gif:vui](https://media.tenor.com/a.gif)" }, tVi)).toBe("GIF · vui");
+    expect(messagePreviewText({ ...base, body: " " }, tVi)).toBe("");
   });
 
   it("says whether a reminder is due", () => {

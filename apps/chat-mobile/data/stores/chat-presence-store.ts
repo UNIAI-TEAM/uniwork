@@ -1,5 +1,6 @@
 // Copied from packages/core/chat/presence-store.ts (zustand is off the mobile
-// allowlist); chat-presence-store.test.ts runs the core cases.
+// allowlist), without the selector the phone does not use;
+// chat-presence-store.test.ts runs the core cases.
 import { create } from "zustand";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 
@@ -110,10 +111,3 @@ export const usePresenceStore = create<PresenceState>((set) => ({
   },
 }));
 
-export function selectIsUserOnline(
-  state: PresenceState,
-  userId: string | null | undefined,
-): boolean {
-  if (!userId) return false;
-  return Boolean(state.onlineUserIds[normalizeTypingUserId(userId)]);
-}

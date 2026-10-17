@@ -61,7 +61,7 @@ export function roomTimelineHas(data: RoomTimeline | undefined, messageId: strin
 }
 
 /** The newest loaded message, the point a catch-up reads after. */
-export function newestTimelineMessage(data: RoomTimeline | undefined): ChatMessageRecord | undefined {
+function newestTimelineMessage(data: RoomTimeline | undefined): ChatMessageRecord | undefined {
   const head = data?.pages[0];
   return head?.[head.length - 1];
 }

@@ -32,6 +32,10 @@ describe("chat pins store", () => {
     expect(useChatPinsStore.getState()).toMatchObject({ wsId: "w2", byRoomId: {} });
     await useChatPinsStore.getState().load("w1");
     expect(useChatPinsStore.getState().byRoomId).toEqual({ r2: { pinned: true, pinnedAt: 200 } });
+    // Loading the same workspace again keeps its pins on screen while it reads.
+    const again = useChatPinsStore.getState().load("w1");
+    expect(useChatPinsStore.getState().byRoomId).toEqual({ r2: { pinned: true, pinnedAt: 200 } });
+    await again;
   });
 
   it("reads garbage as no pins, and drops a load overtaken by a workspace switch", async () => {

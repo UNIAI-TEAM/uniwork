@@ -4,7 +4,7 @@
 import { ChatRoomSchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
 import { i18n } from "./i18n/singleton";
-import { buildRoomList, workspaceRoomTitle } from "./room-list";
+import { buildRoomList, roomTitle, workspaceRoomTitle } from "./room-list";
 
 const room = (raw: Record<string, unknown>): ChatRoomRecord =>
   ChatRoomSchema.parse({ workspace_id: "w1", name: "", member_count: 0, ...raw });
@@ -96,6 +96,13 @@ describe("buildRoomList", () => {
   it("keeps a group's own empty preview empty", () => {
     const rows = buildRoomList({ ...base, rooms: [room({ id: "g2", kind: "group", name: "Mới" })] });
     expect(rows.find((row) => row.key === "group:g2")?.subtitle).toBeNull();
+  });
+});
+
+describe("roomTitle", () => {
+  it("words a room's header as its row", () => {
+    const options = { nicknamesByUserId: { U2: "Anh Bình" }, workspaceName: "Acme", t: i18n.getFixedT("vi") };
+    expect(rooms.map((r) => roomTitle(r, options))).toEqual(["Chung", "Anh Bình", "Thiết kế", "sales", "#dev"]);
   });
 });
 

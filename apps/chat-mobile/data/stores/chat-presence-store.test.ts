@@ -94,4 +94,24 @@ describe("usePresenceStore", () => {
     reconcile(["USER_B"], "USER_A", Date.now());
     expect(usePresenceStore.getState().onlineUserIds).toBe(before);
   });
+
+  // Mobile additions: the edges the core suite leaves out.
+  it("ignores blank ids and an offline frame for someone not online", () => {
+    const { bump, markOffline } = usePresenceStore.getState();
+    bump(" ", "USER_A");
+    markOffline(" ");
+    const before = usePresenceStore.getState();
+    markOffline("USER_Z");
+    expect(usePresenceStore.getState()).toBe(before);
+    expect(before.onlineUserIds).toEqual({});
+  });
+
+  it("drops a peer the store holds without a bump on the next snapshot or prune", () => {
+    usePresenceStore.setState({ onlineUserIds: { USER_X: true } });
+    usePresenceStore.getState().reconcile([], "USER_A", Date.now());
+    expect(usePresenceStore.getState().onlineUserIds).toEqual({});
+    usePresenceStore.setState({ onlineUserIds: { USER_Y: true } });
+    usePresenceStore.getState().prune();
+    expect(usePresenceStore.getState().onlineUserIds).toEqual({});
+  });
 });

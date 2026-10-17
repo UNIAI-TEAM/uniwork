@@ -7,6 +7,7 @@
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isChatImageContentType, resolveChatFileContentType } from "./file-accept";
 import { parseChatMediaMessageBody } from "./media-body";
+import { formatChatSidebarPreviewText } from "./rooms-display";
 
 /** Every `chat_messages.kind` the server writes (migration 181's check). */
 export const KNOWN_MESSAGE_KINDS = ["text", "system", "voice_call_log", "poll", "reminder", "note", "voice", "file", "post"] as const;
@@ -112,4 +113,45 @@ export function pollResults(poll: Poll) {
 export function isReminderDue(remindAt: string, now: number = Date.now()): boolean {
   const at = Date.parse(remindAt);
   return Number.isFinite(at) && at <= now;
+}
+
+/** A signed URL counts as dead this long before it ends, so a tap never lands on one. */
+const CHAT_MEDIA_URL_MARGIN_MS = 60_000;
+
+/**
+ * Whether a file or voice message's signed storage URL can still be used
+ * (packages/core/chat/chat-hooks-messages.ts › isChatMediaUrlFresh). A screen
+ * left open past url_expires_at holds dead ones; the message is then fetched
+ * again for fresh ones.
+ */
+export function isChatMediaUrlFresh(url: string | undefined, expiresAt: string | undefined, now: number = Date.now()): boolean {
+  if (!url) return false;
+  const at = Date.parse(expiresAt ?? "");
+  return Number.isFinite(at) && at - CHAT_MEDIA_URL_MARGIN_MS > now;
+}
+
+/**
+ * One line for a message (a reply quote, the copy of a card): the list
+ * preview's words for it, without the sender prefix.
+ */
+export function messagePreviewText(
+  record: Pick<ChatMessageRecord, "body" | "kind" | "sender_id" | "created_at" | "file" | "poll" | "note" | "post" | "reminder">,
+  t: TranslateFn,
+): string {
+  const body =
+    record.kind === "file"
+      ? (record.file?.filename ?? record.body)
+      : (record.poll?.question ?? record.post?.title ?? record.note?.body ?? record.reminder?.body ?? record.body);
+  const preview = { body, kind: record.kind, senderId: record.sender_id, senderName: "", createdAt: record.created_at };
+  return (
+    formatChatSidebarPreviewText(preview, {
+      currentUserId: "",
+      isGroup: false,
+      youLabel: "",
+      voiceCallLabel: t("chat.sidebar_voice_call_preview"),
+      voiceMessageLabel: t("chat.sidebar_voice_message_preview"),
+      fileMessageLabel: t("chat.sidebar_file_message_preview"),
+      mediaLabels: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
+    }) ?? ""
+  );
 }

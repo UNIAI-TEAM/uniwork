@@ -87,7 +87,7 @@ export function mergeOptimisticChatMessages<T extends ServerLikeMessage>(
 }
 
 export const CHAT_SEND_MAX_ATTEMPTS = 3;
-export const CHAT_SEND_RETRY_DELAYS_MS = [400, 1_200] as const;
+const CHAT_SEND_RETRY_DELAYS_MS = [400, 1_200] as const;
 /** A Retry-After longer than this is handed back: the sender should not watch a spinner. */
 const CHAT_SEND_MAX_RETRY_AFTER_MS = 5_000;
 

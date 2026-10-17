@@ -2,9 +2,8 @@
 // chatKeys sits behind web-only modules); every key carries the workspace id
 // right after "chat", so one workspace's chat drops with a single prefix.
 export const chatKeys = {
-  all: (wsId: string) => ["chat", wsId] as const,
   rooms: (wsId: string) => ["chat", wsId, "rooms"] as const,
-  /** One room's main timeline (`ChatTimeline`, patched in place by realtime and sends). */
+  /** One room's main timeline (`RoomTimeline`, patched in place by realtime and sends). */
   roomMessages: (wsId: string, roomId: string) => ["chat", wsId, "room-messages", roomId] as const,
   /** Prefix: every loaded room timeline of the workspace (reconnect). */
   roomMessagesRoot: (wsId: string) => ["chat", wsId, "room-messages"] as const,
