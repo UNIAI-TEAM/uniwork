@@ -1,0 +1,13 @@
+$ git fetch -q --rootbshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+2e91628cdfab37c1e1658c7667576e1c236607ec
+06f65e141cf57af6d6d47de56ac60e8cd68e06e6
+2e91628cd docs: glossary Page = UniNote and the copy lines of the Documents specs
+70d2fd468 feat(i18n): name the rich-text document kind UniNote in vi and en
+26187bc5d test(i18n): pin UniNote as the name of the rich-text document kind
+06f65e141 chore: merge UNI-1645 phase 2 edit lock (cards a+b, edb3c7ec6) into the G5-G7 root
+edb3c7ec6 test(documents): drop the archived prop RESTORE-01 removed from LibraryRowView
+b4b0dad08 chore: merge server lane ee644d3b3 (root 907fef493: RESTORE-01, size cap) into the edit-lock web lane
+ee644d3b3 chore: merge root 907fef493 (RESTORE-01, size cap) into the edit-lock server lane
+907fef493 chore: merge RESTORE-01 web (UNI-1843, 1dafe7b8f) into the G5-G7 root
+313ffbb40 chore: merge RESTORE-01 server + core (UNI-1843, dd780a249) into the G5-G7 root
+dd780a249 fix(documents): flag the trash-search ACL-owner leg and drop break-glass (UNI-1843)

@@ -1,0 +1,4 @@
+$ pnpm --filter @rootbiwork/e2e exec playwright install --with-deps chromium; rc=$?; echo; echo "PW_INSTALL_EXIT=$rc"
+No projects matched the filters in "/workspace"
+
+PW_INSTALL_EXIT=0
