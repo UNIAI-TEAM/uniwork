@@ -1236,4 +1236,43 @@ func TestDocumentTrashEditHolders(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("TR-3: a content-only term names the row to a manager but never to an edit holder", func(t *testing.T) {
+		// search_text carries title + content (as documentSearchText writes it);
+		// the term lives in the content part only, so the title branch cannot
+		// match it and the row proves a content match happened.
+		contentHit := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			title: "Biên bản họp", searchText: "Biên bản họp xylophone secret body",
+		})
+		if _, err := f.svc.ArchiveDocument(f.ctx, owner, contentHit.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("archive contentHit: %v", err)
+		}
+
+		// The manager (acl owner) still gets the row on a content match.
+		managerTrash, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, Query: "xylophone", Limit: 100})
+		if err != nil {
+			t.Fatalf("manager trash search: %v", err)
+		}
+		if !containsID(listIDs(managerTrash), contentHit.ID) {
+			t.Fatalf("manager content search missing %s (got %v)", contentHit.ID, listIDs(managerTrash))
+		}
+
+		// The edit holder sees the row by title but a content-only term must
+		// not name it (BE-RS-3).
+		editorTrash, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "xylophone", Limit: 100})
+		if err != nil {
+			t.Fatalf("editor trash search: %v", err)
+		}
+		if containsID(listIDs(editorTrash), contentHit.ID) {
+			t.Fatalf("editor content search leaked %s (got %v)", contentHit.ID, listIDs(editorTrash))
+		}
+		titleHit, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "Biên bản", Limit: 100})
+		if err != nil {
+			t.Fatalf("editor title search: %v", err)
+		}
+		if !containsID(listIDs(titleHit), contentHit.ID) {
+			t.Fatalf("editor title search missing %s (got %v)", contentHit.ID, listIDs(titleHit))
+		}
+	})
 }
