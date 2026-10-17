@@ -166,6 +166,26 @@ func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d D
 	if n == 0 {
 		return nil // already delivered to this user by an earlier attempt
 	}
+	// The once-per-group claim (BE-TN-3): the open-row merge index only
+	// dedupes a notification nobody has touched yet. A kind that is one
+	// notice per recipient and batch forever - the trash notice, whose
+	// elected top node can change under a pending event - must not write a
+	// second row when the first was already read or archived. The existence
+	// check runs here, inside the same transaction as the delivery claim,
+	// so a concurrent sibling event either waits on the row lock and then
+	// sees the committed row, or merges into the still-open one through the
+	// upsert.
+	if d.OncePerGroup {
+		exists, err := q.HasNotificationGroupRow(ctx, db.HasNotificationGroupRowParams{
+			UserID: d.UserID, Kind: d.Kind, GroupKey: d.GroupKey,
+		})
+		if err != nil {
+			return err
+		}
+		if exists {
+			return nil
+		}
+	}
 	// The mention claim shares this transaction with the notification row
 	// and its outbox rows (contract-collab section 8.2): the UPDATE only
 	// matches while nobody claimed the row, so concurrent consumers and

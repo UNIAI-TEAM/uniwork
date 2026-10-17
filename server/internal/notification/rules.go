@@ -81,6 +81,12 @@ type Draft struct {
 	// Claim is set on mention drafts: the rule only reads mention rows, the
 	// consumer's write() claims the row in the notification's own tx.
 	Claim *MentionClaim
+	// OncePerGroup is set on drafts that may never write a second row for
+	// the same (user, kind, group_key) - the open-row merge upsert alone
+	// does not cover a first row already read or archived (BE-TN-3). The
+	// consumer checks for an existing group row inside the notification's
+	// own transaction and treats it as already delivered.
+	OncePerGroup bool
 }
 
 // env is what a rule may touch: read queries, the membership gate and the
@@ -638,11 +644,16 @@ func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p 
 // answers with a draft only on the event whose document is the recipient's
 // top-most node of the batch - the owned node with the fewest ancestors also
 // in the batch, the smaller id breaking a tie. The group key carries
-// recipient and batch, so the merge can never produce a second row, and
-// notification_deliveries still makes a redelivery idempotent. A node
-// restored or purged before the event is consumed dropped its batch id and
-// leaves the read; an archived event arriving after the batch was purged
-// reads an empty batch and emits nothing, and purge itself emits
+// recipient and batch, and OncePerGroup makes the write path treat any
+// existing row of the group - read, archived or still open - as the claim
+// already taken, so a re-elected top after a restore or purge can never
+// produce a second row nor bump the merge count (BE-TN-3). The batch read
+// itself is the narrow ACL projection: one event per node would otherwise
+// re-read a full Document row, content included, for every sibling
+// (BE-TN-7); only the elected top's title is fetched, once per owner.
+// A node restored or purged before the event is consumed dropped its batch
+// id and leaves the read; an archived event arriving after the batch was
+// purged reads an empty batch and emits nothing, and purge itself emits
 // document.deleted, which has no rule (N-5).
 func ruleDocumentTrashed(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 	docID, batchID, wsID := p["document_id"], p["archive_batch_id"], p["workspace_id"]
@@ -656,23 +667,23 @@ func ruleDocumentTrashed(ctx context.Context, e env, ev outbox.Row, p map[string
 	if err != nil {
 		return nil, err
 	}
-	nodes, err := e.q.ListDocumentArchiveBatch(ctx, db.ListDocumentArchiveBatchParams{
+	nodes, err := e.q.ListDocumentArchiveBatchAcl(ctx, db.ListDocumentArchiveBatchAclParams{
 		OrganizationID: orgID, WorkspaceID: wsID, ArchiveBatchID: pgtype.Text{String: batchID, Valid: true},
 	})
 	if err != nil || len(nodes) == 0 {
 		return nil, err
 	}
-	inBatch := make(map[string]db.Document, len(nodes))
+	inBatch := make(map[string]db.ListDocumentArchiveBatchAclRow, len(nodes))
 	for _, d := range nodes {
 		inBatch[d.ID] = d
 	}
-	depth := func(d db.Document) (n int) {
+	depth := func(d db.ListDocumentArchiveBatchAclRow) (n int) {
 		for p := d.ParentID; p.Valid && inBatch[p.String].ID != ""; p = inBatch[p.String].ParentID {
 			n++
 		}
 		return n
 	}
-	byOwner := map[string][]db.Document{}
+	byOwner := map[string][]db.ListDocumentArchiveBatchAclRow{}
 	purgeAfter := ""
 	for _, d := range nodes {
 		if !d.ArchivedAt.Valid {
@@ -696,16 +707,29 @@ func ruleDocumentTrashed(ctx context.Context, e env, ev outbox.Row, p map[string
 		if top.ID != docID {
 			continue // this owner's draft rides the event of their top node
 		}
+		// The elected node's title is the one full-row read: the batch
+		// projection carries no content columns, and a node purged between
+		// the two reads means the batch is gone and no notice is owed (N-5).
+		doc, err := e.q.GetDocumentByID(ctx, top.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
 		r := newRecipients(ctx, e, ev, wsID)
 		r.add(owner)
 		params := map[string]string{
-			"actor": actorName(ctx, e.q, ev), "document": top.Title, "date": purgeAfter,
+			"actor": actorName(ctx, e.q, ev), "document": doc.Title, "date": purgeAfter,
 			"document_id": top.ID, "archive_batch_id": batchID, "count": strconv.Itoa(len(docs) - 1),
 		}
 		ds, err := r.drafts(orgID, KindDocumentTrashedByOther,
 			"document:"+batchID+":trashed:"+owner, "document", top.ID, params)
 		if err != nil {
 			return nil, err
+		}
+		for i := range ds {
+			ds[i].OncePerGroup = true
 		}
 		out = append(out, ds...)
 	}
