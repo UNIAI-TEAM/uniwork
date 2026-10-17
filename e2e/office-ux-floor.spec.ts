@@ -1,7 +1,7 @@
 import { expect, test, type Frame } from "@playwright/test";
 import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 import { auditText } from "./contrast";
-import { seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
+import { releaseSeededEditLock, seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
   COMPOSER, EDITOR, FRAME_SELECTOR, PICKER_POP, S5_CARD, S5_MASK, S6_BAR, aiFlagsBeforeAll, clippedLabels, commitElsewhere, contrastIn, docsFrameInstalled,
   expectFocus, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
@@ -57,6 +57,10 @@ test.beforeAll(async ({ browser, request }) => {
   }
   await setFlag("office_engine", seeded.organizationId, true);
   test.info().annotations.push({ type: "frame", description: pinnedVersion() });
+});
+
+test.afterEach(async ({ request }) => {
+  await releaseSeededEditLock(request, seeded);
 });
 
 async function audit(frame: Frame, root: string, label: string, mode: Mode): Promise<void> {
