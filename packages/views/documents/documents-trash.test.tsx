@@ -646,7 +646,7 @@ describe("focused trash row", () => {
   it("ignores focus outside the trash", async () => {
     route({ list: () => [trashed()] });
     renderView(nav("focus=d1"));
-    await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) });
+    await screen.findAllByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) });
     expect(scrollIntoView).not.toHaveBeenCalled();
     expect(document.querySelector("[data-focused]")).toBeNull();
   });
@@ -742,8 +742,9 @@ describe("focused trash row", () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect(restore).not.toHaveFocus();
     // Leaving the trash and coming back remounts the rows: still no second jump.
-    fireEvent.click(screen.getByRole("tab", { name: new RegExp(t("documents.home.scope.recent")) }));
-    fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+    const recent = await screen.findAllByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) });
+    fireEvent.click(recent[0]!);
+    await openTrash();
     const again = await rowOf("Kế hoạch Q4");
     expect(again).toHaveAttribute("data-focused", "true");
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
