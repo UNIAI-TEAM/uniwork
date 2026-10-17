@@ -143,6 +143,9 @@ export function OfficeModuleFrame({
     },
     // "Download my version" in the frame's conflict dialog: "<title> (my version)", the host adds the extension.
     downloadName: () => tRootRef.current("office.docsFrame.mine_file_name", { title: stripExtension(frameTitleRef.current ?? title) }),
+    // The save was refused because the document went to "Lưu trữ" (ARCHIVE-01 U-8): one sentence; the
+    // session turns read-only and the page reads the document again for its banner.
+    onShelved: () => { toast.error(tRootRef.current("documents.shelved_doc.frame_save_blocked")); },
     onError: (error: ProtocolErrorShape) => {
       if (error.code === "cancelled") return;
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";

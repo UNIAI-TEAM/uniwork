@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useDocumentSave, useUploadDocumentAsset } from "@uniwork/core/documents/hooks";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
-import type { Document } from "@uniwork/core/types/document";
+import { isShelved, type Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -32,6 +32,8 @@ import type { DocumentEditorHandle } from "./document-editor";
 import { DocumentFileView, useDocumentOfficeGate, usesOfficeEditor } from "./document-file-view";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 import { DocumentPageHeader } from "./document-page-header";
+import { DocumentShelvedBadge, DocumentShelvedBanner } from "./document-shelved-banner";
+import { useShelvedWriteGuard } from "./use-shelved-write-guard";
 import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 
 /**
@@ -104,7 +106,15 @@ export function DocumentWorkspace({
   // One live gate for the layout and the file view: a pending leave guard keeps both on the editor (R3).
   const officeGate = useDocumentOfficeGate(doc);
   const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeGate.editorOpen, Boolean(officeEditorHost));
-  const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
+  // ARCHIVE-01: a shelved document is read-only at every level, and so is one whose autosave was just
+  // refused with document_shelved (someone shelved it while this page was open): the unsaved editor
+  // content stays, nothing more is sent, and the document is read again.
+  const writeRefusedShelved = useShelvedWriteGuard(wsId, doc.id, state.errorCode);
+  const shelved = isShelved(doc) || writeRefusedShelved;
+  const canEdit = !shelved && (doc.my_level === "edit" || doc.my_level === "manage");
+  const shelvedRef = useRef(shelved);
+  shelvedRef.current = shelved;
+  const wasShelvedRef = useRef(false);
   const editorRef = useRef<DocumentEditorHandle>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [pageTitle, setPageTitle] = useState(doc.title);
@@ -151,6 +161,18 @@ export function DocumentWorkspace({
     () => stateRef.current.dirty || bodyQueuedRef.current || pendingUploadsRef.current > 0 || Boolean(metadataRef.current?.hasUnsavedWork()),
     [],
   );
+
+  // Unarchived while this page still holds a draft the server refused: send it again on the same key.
+  useEffect(() => {
+    if (isShelved(doc)) {
+      wasShelvedRef.current = true;
+    } else if (wasShelvedRef.current) {
+      wasShelvedRef.current = false;
+      if (stateRef.current.errorCode === "document_shelved") save.retry();
+    }
+    // Only the shelved marker matters; `save` is rebuilt on every state change and is read fresh here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.shelved_at]);
 
   // The machine stops on a stale base; the dialog is the only way forward.
   useEffect(() => {
@@ -379,6 +401,7 @@ export function DocumentWorkspace({
   const handleChange = useCallback(
     (content: unknown) => {
       lastLocalContentRef.current = content;
+      if (shelvedRef.current) return;
       if (metadataStatusRef.current.pending || bodyQueuedRef.current) {
         queuedBodyRef.current = content;
         bodyQueuedRef.current = true;
@@ -472,8 +495,11 @@ export function DocumentWorkspace({
         // The back control stands in for the crumbs on a phone, where the title needs the width.
         collapseAncestors={Boolean(backHref)}
         leaf={
-          <span className="truncate font-medium text-foreground" title={(doc.kind === "page" ? pageTitle : doc.title) || t("documents.detail.untitled")}>
-            {(doc.kind === "page" ? pageTitle : doc.title) || t("documents.detail.untitled")}
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-medium text-foreground" title={(doc.kind === "page" ? pageTitle : doc.title) || t("documents.detail.untitled")}>
+              {(doc.kind === "page" ? pageTitle : doc.title) || t("documents.detail.untitled")}
+            </span>
+            {shelved && doc.kind !== "page" ? <DocumentShelvedBadge /> : null}
           </span>
         }
         actions={
@@ -483,7 +509,7 @@ export function DocumentWorkspace({
             {doc.kind === "page" && canEdit && !recoveryNotice ? saveIndicator : null}
             {/* A file's view-only state is announced once, by the banner below with its explanation;
                 a page keeps the chip where that banner is hidden (a phone). */}
-            {!canEdit && doc.kind === "page" ? (
+            {!canEdit && !shelved && doc.kind === "page" ? (
               <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground sm:hidden"
                 title={t("documents.detail.readonly_description")}>
                 <Eye aria-hidden className="size-3.5" />
@@ -496,7 +522,9 @@ export function DocumentWorkspace({
         }
       />
 
-      {!canEdit ? (
+      {shelved ? (
+        <DocumentShelvedBanner wsId={wsId} doc={doc} />
+      ) : !canEdit ? (
         <Notice tone="info" icon={Eye} className={doc.kind === "page" ? "hidden sm:flex" : undefined}>
           {doc.kind === "page" ? null : <strong className="font-semibold">{t("documents.detail.readonly_title")}. </strong>}
           {t("documents.detail.readonly_description")}
@@ -519,7 +547,7 @@ export function DocumentWorkspace({
       >
         {doc.kind === "page" ? (
           <div className="mx-auto w-full min-w-0 max-w-3xl">
-            <DocumentPageHeader wsId={wsId} doc={doc} editable={canEdit} titleRef={titleRef} metadataRef={metadataRef}
+            <DocumentPageHeader wsId={wsId} doc={doc} editable={canEdit} shelved={shelved} titleRef={titleRef} metadataRef={metadataRef}
               onTitleChange={setPageTitle} onFocusBody={() => editorRef.current?.focus("start")}
               canPersist={!dirty && state.phase !== "saving" && pendingUploads === 0}
               getRevision={() => stateRef.current.revision}

@@ -124,6 +124,11 @@ export interface DocsFrameSessionOptions {
   /** Non-fatal frame or proxy errors the user should hear about. */
   onError: (error: ProtocolErrorShape) => void;
   /**
+   * A write answered `document_shelved` (ARCHIVE-01 U-8): the document went to "Lưu trữ" under the open
+   * frame. Called once per session; the session is read-only from then on and the page says so.
+   */
+  onShelved?: () => void;
+  /**
    * The page's "Open in desktop app" flow, answering the frame's `app.open`. Present = the host grants
    * `desktopOpen` (to a user who may edit); absent = the frame shows its "use the app" message alone.
    */
@@ -137,8 +142,9 @@ export interface DocsFrameSession {
   /** Still booting after `slowAfterMs`: the page explains the wait instead of showing a bare skeleton. */
   slow: boolean;
   /**
-   * The page's readonly, or (a module other than Docs) a minted token that
-   * cannot edit: writes are refused in the host and desktop-open is hidden.
+   * The page's readonly, a minted token that cannot edit (can_edit=false: every module, a shelved
+   * document included), or a write the server refused with document_shelved: writes are refused in
+   * the host and desktop-open is hidden.
    */
   viewOnly: boolean;
   /** Why the session failed: a token that could not be minted, or a fatal frame error. */
@@ -209,3 +215,35 @@ export const unauthorized = () => new DocsProtocolError({ code: "unauthorized", 
 export const readOnly = (type: string) => new DocsProtocolError({ code: "forbidden", message: `${type} is not allowed for a read-only viewer`, status: 403 });
 
 export const shapeOf = (error: unknown): ProtocolErrorShape => docsFrameError(error).toShape();
+
+/**
+ * The refusal of a write on a shelved document (ARCHIVE-01 §3), as `docsFrameError` shapes the 409:
+ * a `conflict` that carries the stable code. The frame must not read it as a stale base.
+ */
+export const isShelvedShape = (shape: ProtocolErrorShape | undefined): boolean => shape?.details?.["apiCode"] === "document_shelved";
+
+/** What the frame hears instead: a read-only refusal, like any write a viewer attempts. */
+export const shelvedRefusal = () => new DocsProtocolError({ code: "forbidden", message: "document is archived and read-only", status: 403 });
+
+/**
+ * Runs a write of the frame's api and turns `document_shelved` — thrown by an upload step or returned
+ * as a failed save — into one read-only refusal, after telling the session once (`onShelved`).
+ */
+export function shelvedGuard<P, C, R>(run: (payload: P, context: C) => Promise<R>, onShelved: () => void): (payload: P, context: C) => Promise<R> {
+  return async (payload, context) => {
+    let result: R;
+    try {
+      result = await run(payload, context);
+    } catch (error) {
+      if (!isShelvedShape(shapeOf(error))) throw error;
+      onShelved();
+      throw shelvedRefusal();
+    }
+    const failed = typeof result === "object" && result !== null && "ok" in result && result.ok === false && "error" in result;
+    if (failed && isShelvedShape((result as { error: ProtocolErrorShape }).error)) {
+      onShelved();
+      throw shelvedRefusal();
+    }
+    return result;
+  };
+}

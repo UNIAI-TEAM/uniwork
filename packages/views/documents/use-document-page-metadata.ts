@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import type { Document } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
+import { documentErrorMessage } from "./document-error-message";
 
 export interface DocumentPageMetadataStatus { dirty: boolean; pending: boolean; failed: boolean }
 export interface DocumentPageMetadataHandle {
@@ -121,7 +121,7 @@ export function useDocumentPageMetadata(
         return !hasChanges();
       } catch (error) {
         failed.current = true;
-        toast.error(apiErrorMessage(error) ?? t("documents.page_ui.metadata_failed"));
+        toast.error(documentErrorMessage(error, t, "documents.page_ui.metadata_failed"));
         return false;
       } finally {
         saving.current = false;

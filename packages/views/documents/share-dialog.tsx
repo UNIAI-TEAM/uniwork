@@ -9,7 +9,7 @@ import { useDocumentShares, useRevokeDocumentShare, useShareDocument } from "@un
 import { useOrgWorkspaces } from "@uniwork/core/organizations";
 import { canAdministerDocument } from "@uniwork/core/permissions";
 import { paths } from "@uniwork/core/paths";
-import type { DocumentAccess, DocumentAccessLevel } from "@uniwork/core/types/document";
+import { isShelved, type DocumentAccess, type DocumentAccessLevel } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
@@ -69,6 +69,10 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   const adminOnly = hasAdminScope(doc) && doc.my_level !== "manage";
   const descriptionId = useId();
   const adminNoteId = useId();
+  // ARCHIVE-01 U-9 (Q-AR2): a shelved document only lets access be taken away, never given.
+  const shelved = isShelved(doc);
+  const shelvedNoteId = useId();
+  const lockedBy = shelved ? shelvedNoteId : undefined;
   const owned = !!doc.owner_kind;
 
   const access = useDocumentShares(wsId, doc.id, { enabled: open && canAdminister && !owned });
@@ -132,6 +136,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   }, [principalType, orgWorkspaces.data, doc.workspace_id, doc.organization_id, workspace.organization_name]);
 
   const submitShare = async () => {
+    if (shelved) return;
     if (principalType === "user") {
       if (!people.ids.length || pending) return;
       return people.submit(level);
@@ -149,7 +154,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   };
 
   const saveVisibility = async (next: "workspace" | "restricted") => {
-    if (update.isPending || next === doc.visibility || doc.revision === undefined) return;
+    if (shelved || update.isPending || next === doc.visibility || doc.revision === undefined) return;
     setVisibilityError(null);
     try {
       await update.mutateAsync({ patch: { visibility: next, revision: doc.revision } });
@@ -229,6 +234,11 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
               {members.error ? (
                 <ShareMembersErrorLine error={members.error} retrying={members.retrying} onRetry={members.retry} />
               ) : null}
+              {shelved ? (
+                <p id={shelvedNoteId} className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
+                  {t("documents.shelved_doc.share_note")}
+                </p>
+              ) : null}
               <ShareDialogBreakGlassSection wsId={wsId} docId={doc.id} grants={access.data.break_glass} initialOpen={initialSection === "break_glass"} resolveName={memberName} />
               <section aria-labelledby="share-add-title" className="flex flex-col gap-2 rounded-lg border border-border p-3">
                 <h3 id="share-add-title" className="text-label font-medium text-foreground">
@@ -244,6 +254,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                         label: t(`documents.share.principal_${value}`),
                       }))}
                       value={principalType}
+                      disabled={shelved}
                       onValueChange={(next) => {
                         const picked = next as PrincipalType;
                         setPrincipalType(picked);
@@ -279,11 +290,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                         shares={shares}
                         alreadySharedUserIds={[access.data.acl_owner?.user_id, user?.id]}
                         people={people}
+                        locked={shelved}
                       />
                     ) : (
                       <Select
                         items={principalItems}
                         value={principalId || null}
+                        disabled={shelved}
                         onValueChange={(next) => {
                           setPrincipalId(typeof next === "string" ? next : "");
                           setAddError(null);
@@ -307,6 +320,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                     <Select
                       items={LEVELS.map((value) => ({ value, label: levelLabel(value) }))}
                       value={level}
+                      disabled={shelved}
                       onValueChange={(next) => setLevel(next as DocumentAccessLevel)}
                     >
                       <SelectTrigger id="share-level" className="w-full">
@@ -325,7 +339,8 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                     <Button
                       type="button"
                       className="w-full"
-                      aria-disabled={((principalType === "user" ? !people.ids.length : !principalId) || pending) || undefined}
+                      aria-disabled={(shelved || (principalType === "user" ? !people.ids.length : !principalId) || pending) || undefined}
+                      aria-describedby={lockedBy}
                       aria-busy={pending || undefined}
                       onClick={() => void submitShare()}
                     >
@@ -447,6 +462,8 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                 <VisibilitySection
                   doc={doc}
                   pending={update.isPending}
+                  locked={shelved}
+                  lockedNoteId={lockedBy}
                   error={visibilityError}
                   onSave={(next) => void saveVisibility(next)}
                 />
@@ -457,6 +474,8 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                 doc={doc}
                 onOpenSettings={() => push(`${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=documents`)}
                 locale={i18n.language}
+                locked={shelved}
+                lockedNoteId={lockedBy}
               />
             </div>
           )}
@@ -471,9 +490,10 @@ function NameOrSkeleton({ name }: { name: string | null }) {
 }
 
 function VisibilitySection({
-  doc, pending, error, onSave,
+  doc, pending, locked, lockedNoteId, error, onSave,
 }: {
-  doc: Pick<ShareDialogTarget, "visibility">; pending: boolean; error: string | null; onSave: (next: "workspace" | "restricted") => void;
+  doc: Pick<ShareDialogTarget, "visibility">; pending: boolean; locked: boolean; lockedNoteId?: string; error: string | null;
+  onSave: (next: "workspace" | "restricted") => void;
 }) {
   const { t } = useTranslation();
   const [choice, setChoice] = useState<"workspace" | "restricted" | null>(null);
@@ -490,7 +510,9 @@ function VisibilitySection({
             type="button"
             aria-pressed={current === value}
             disabled={pending}
-            onClick={() => setChoice(value)}
+            aria-disabled={locked || undefined}
+            aria-describedby={locked ? lockedNoteId : undefined}
+            onClick={() => { if (!locked) setChoice(value); }}
             className={
               current === value
                 ? "rounded-lg border border-primary bg-primary/5 px-3 py-2 text-left"
@@ -508,10 +530,11 @@ function VisibilitySection({
           type="button"
           variant="outline"
           size="sm"
-          aria-disabled={(!changed || pending) || undefined}
+          aria-disabled={(locked || !changed || pending) || undefined}
+          aria-describedby={locked ? lockedNoteId : undefined}
           aria-busy={pending || undefined}
           onClick={() => {
-            if (!changed || pending) return;
+            if (locked || !changed || pending) return;
             if (current === "workspace" || current === "restricted") onSave(current);
           }}
         >

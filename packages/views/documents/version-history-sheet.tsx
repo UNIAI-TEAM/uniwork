@@ -4,7 +4,6 @@ import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { Download, Eye, RotateCcwClock, RotateCcw, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useDocumentDownload } from "@uniwork/core/documents/hooks";
 import {
@@ -12,7 +11,7 @@ import {
   useDocumentVersions,
   useRestoreDocumentVersion,
 } from "@uniwork/core/documents/hooks-versions";
-import type { Document, DocumentVersion } from "@uniwork/core/types/document";
+import { isShelved, type Document, type DocumentVersion } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { useMembers } from "@uniwork/core/workspaces";
 import {
@@ -36,6 +35,7 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { documentErrorMessage } from "./document-error-message";
 import { formatFileSize, formatWhen } from "./document-format";
 import { VersionAuthor } from "./version-author";
 
@@ -80,7 +80,9 @@ function reasonLabel(
  */
 export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHistorySheetProps) {
   const { t, i18n } = useTranslation();
-  const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
+  // A shelved document keeps its history readable but takes no new or restored version (ARCHIVE-01 §3).
+  const shelved = isShelved(doc);
+  const canEdit = !shelved && (doc.my_level === "edit" || doc.my_level === "manage");
   const versions = useDocumentVersions(wsId, doc.id, { enabled: open });
   const create = useCreateDocumentVersion(wsId, doc.id);
   const restore = useRestoreDocumentVersion(wsId, doc.id);
@@ -120,7 +122,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
       setLabel("");
       toast.success(t("documents.versions.name_done", { no: version.version }));
     } catch (err) {
-      setCreateError(apiErrorMessage(err) ?? t("documents.versions.name_failed"));
+      setCreateError(documentErrorMessage(err, t, "documents.versions.name_failed"));
     }
   };
 
@@ -150,7 +152,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
         restoreKeyRef.current = null;
         setRestoreError(t("documents.versions.restore_conflict"));
       } else {
-        setRestoreError(apiErrorMessage(err) ?? t("documents.versions.restore_failed"));
+        setRestoreError(documentErrorMessage(err, t, "documents.versions.restore_failed"));
       }
     }
   };
@@ -225,7 +227,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
             </form>
           ) : (
             <p className="mb-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
-              {t("documents.versions.manage_only")}
+              {t(shelved ? "documents.shelved_doc.write_blocked" : "documents.versions.manage_only")}
             </p>
           )}
 

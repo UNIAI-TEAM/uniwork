@@ -25,6 +25,10 @@ export interface ShareLinksSectionProps {
   onOpenSettings: () => void;
   /** Active locale, for the created/expiry times. */
   locale: string;
+  /** The document is shelved (ARCHIVE-01 U-9): links can be revoked, not created. */
+  locked?: boolean;
+  /** The explanation line a locked create button points at. */
+  lockedNoteId?: string;
 }
 
 /**
@@ -37,7 +41,7 @@ export interface ShareLinksSectionProps {
  * action is theirs. Revoking is immediate; losing the URL means creating
  * another link.
  */
-export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLinksSectionProps) {
+export function ShareLinksSection({ wsId, doc, onOpenSettings, locale, locked = false, lockedNoteId }: ShareLinksSectionProps) {
   const { t } = useTranslation();
   const [expiry, setExpiry] = useState("7");
   const [created, setCreated] = useState<{ url: string } | null>(null);
@@ -59,7 +63,7 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
   const now = Date.now();
 
   const submitCreate = async () => {
-    if (createLink.isPending) return;
+    if (createLink.isPending || locked) return;
     setCreateError(null);
     setCopied(false);
     const days = Number.parseInt(expiry, 10);
@@ -128,7 +132,7 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
             min={1}
             max={90}
             value={expiry}
-            disabled={createLink.isPending}
+            disabled={createLink.isPending || locked}
             onChange={(event) => setExpiry(event.target.value)}
           />
         </div>
@@ -136,6 +140,8 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
           type="button"
           size="sm"
           disabled={createLink.isPending}
+          aria-disabled={locked || undefined}
+          aria-describedby={locked ? lockedNoteId : undefined}
           aria-busy={createLink.isPending || undefined}
           onClick={() => void submitCreate()}
         >
