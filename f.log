@@ -1,0 +1,209 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t2-net-zero.mjs; rc=$?; echo; echo "T2_NET_EXIT=$rc"
+[g7-05/t2] Launching /home/ubuntu/work/uniwork-office/apps/shell/release/linux-unpacked/uniwork-office (isAppImage=false) with fresh empty userData...
+[g7-05/t2] Opening fixture fx-docx-report-vi.docx (11187B, sha256=5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c)
+[g7-05/t2] Fixture fx-docx-report-vi.docx rendered; performing local edit + Save...
+[g7-05/t2] Local Save completed in 52.18 ms
+G7_05_T2_NET_JSON_BEGIN
+{
+  "test": "T2_NET_ZERO",
+  "status": "failed",
+  "metadata": {
+    "forkSha": "2d1ca32576d8f6b85c77f9020b1cd9f9ec125b47",
+    "forkShortSha": "2d1ca32576d8",
+    "gitDescribe": "web-0.1.0-c9181fa-2-g2d1ca325",
+    "latestReleaseTag": "web-0.1.0-c9181fa",
+    "appVersion": "1.0.0",
+    "rootPackageVersion": "0.1.0",
+    "serverVersion": "unknown",
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v22.23.3",
+    "collectedAt": "2026-10-17T09:03:11.331Z"
+  },
+  "binary": {
+    "binaryPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/linux-unpacked/uniwork-office",
+    "isAppImage": false
+  },
+  "fixture": {
+    "name": "fx-docx-report-vi.docx",
+    "preEditBytes": 11187,
+    "preEditSha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "postSaveBytes": 4413,
+    "postSaveSha256": "c21d80fefcb27ab479cd5b0998f0a3a6a30b9c8b88d672218cae1ecad555106e",
+    "saveMs": 52.18
+  },
+  "freshEmptyUserDataVerified": true,
+  "decisionCriteria": {
+    "straceSyscalls": "strace -f -s 256 -e trace=connect,sendto across full process tree",
+    "allowedLoopback": [
+      "127.0.0.1 (non-53)",
+      "::1 (non-53)",
+      "::ffff:127.0.0.1 (non-53)"
+    ],
+    "countedAsOutbound": [
+      "Any AF_INET or AF_INET6 connect/sendto to an IP other than 127.0.0.1 or ::1 (including 127.0.0.53)",
+      "Any connect/sendto to port 53 (DNS), even on 127.0.0.1 or ::1",
+      "Any non-localhost http/https/ws/wss URL or non-localhost DNS host resolution in --log-net-log",
+      "Any non-local URL in session.defaultSession.webRequest.onBeforeRequest"
+    ]
+  },
+  "strace": {
+    "logBytes": 1134013,
+    "totalInetEvents": 8,
+    "loopbackCount": 0,
+    "outboundCount": 8,
+    "dnsCount": 4,
+    "outboundEvents": [
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET6",
+        "addr": "2001:4860:4860::8888",
+        "port": 443,
+        "raw": "10069 connect(23, {sa_family=AF_INET6, sin6_port=htons(443), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, \"2001:4860:4860::8888\", &sin6_addr), sin6_scope_id=0}, 28) = -1 ENETUNREACH (Network is unreachable)",
+        "reason": "non_loopback_ip"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "198.18.0.53",
+        "port": 53,
+        "raw": "10069 connect(23, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"198.18.0.53\")}, 16) = 0",
+        "reason": "dns_port_53"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "198.18.0.53",
+        "port": 53,
+        "raw": "10069 connect(25, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"198.18.0.53\")}, 16) = 0",
+        "reason": "dns_port_53"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "142.250.73.142",
+        "port": 443,
+        "raw": "10069 connect(22, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr(\"142.250.73.142\")}, 16 <unfinished ...>",
+        "reason": "non_loopback_ip"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "198.18.0.53",
+        "port": 53,
+        "raw": "10069 connect(23, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"198.18.0.53\")}, 16) = 0",
+        "reason": "dns_port_53"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "198.18.0.53",
+        "port": 53,
+        "raw": "10069 connect(25, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"198.18.0.53\")}, 16) = 0",
+        "reason": "dns_port_53"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "173.194.56.200",
+        "port": 443,
+        "raw": "10069 connect(23, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr(\"173.194.56.200\")}, 16) = 0",
+        "reason": "non_loopback_ip"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "173.194.56.200",
+        "port": 443,
+        "raw": "10069 connect(25, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr(\"173.194.56.200\")}, 16 <unfinished ...>",
+        "reason": "non_loopback_ip"
+      }
+    ],
+    "dnsEvents": [
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "198.18.0.53",
+        "port": 53,
+        "raw": "10069 connect(23, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"198.18.0.53\")}, 16) = 0"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "198.18.0.53",
+        "port": 53,
+        "raw": "10069 connect(25, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"198.18.0.53\")}, 16) = 0"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "198.18.0.53",
+        "port": 53,
+        "raw": "10069 connect(23, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"198.18.0.53\")}, 16) = 0"
+      },
+      {
+        "pid": 10069,
+        "syscall": "connect",
+        "family": "AF_INET",
+        "addr": "198.18.0.53",
+        "port": 53,
+        "raw": "10069 connect(25, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"198.18.0.53\")}, 16) = 0"
+      }
+    ]
+  },
+  "netLog": {
+    "logBytes": 212742,
+    "parsedOk": true,
+    "totalEvents": 744,
+    "loopbackUrlCount": 0,
+    "outboundUrlCount": 2,
+    "outboundDnsCount": 5,
+    "outboundUrls": [
+      "https://redirector.gvt1.com/edgedl/chrome/dict/en-us-10-1.bdic",
+      "https://rr3---sn-nx57ynsk.gvt1.com/edgedl/chrome/dict/en-us-10-1.bdic?cms_redirect=yes&met=1792227792,&mh=7g&mip=34.214.152.11&mm=28&mn=sn-nx57ynsk&ms=nvh&mt=1792227465&mv=u&mvi=3&pl=22&rmhost=rr5---sn-nx57ynsk.gvt1.com&rms=nvh,nvh&shardbypass=sd&smhost=rr2---sn-2onx5c-5w.gvt1.com"
+    ],
+    "outboundDnsHosts": [
+      "redirector.gvt1.com",
+      "https://redirector.gvt1.com",
+      "redirector.gvt1.com:443",
+      "rr3---sn-nx57ynsk.gvt1.com",
+      "https://rr3---sn-nx57ynsk.gvt1.com"
+    ]
+  },
+  "webRequestObserver": {
+    "outboundCount": 2,
+    "outboundRequests": [
+      {
+        "url": "genoffice-docx-media://handoff/621db8c6-a171-4b5d-b256-538939540847",
+        "method": "GET",
+        "resourceType": "xhr",
+        "timestamp": 1792227792934
+      },
+      {
+        "url": "genoffice-app://docs/assets/send-enter-off-B0IfWMyy.png",
+        "method": "GET",
+        "resourceType": "image",
+        "timestamp": 1792227793216
+      }
+    ]
+  },
+  "nonDocumentStartupUrls": [
+    "https://redirector.gvt1.com/edgedl/chrome/dict/en-us-10-1.bdic",
+    "https://rr3---sn-nx57ynsk.gvt1.com/edgedl/chrome/dict/en-us-10-1.bdic?cms_redirect=yes&met=1792227792,&mh=7g&mip=34.214.152.11&mm=28&mn=sn-nx57ynsk&ms=nvh&mt=1792227465&mv=u&mvi=3&pl=22&rmhost=rr5---sn-nx57ynsk.gvt1.com&rms=nvh,nvh&shardbypass=sd&smhost=rr2---sn-2onx5c-5w.gvt1.com"
+  ]
+}
+G7_05_T2_NET_JSON_END
+[g7-05/t2] FAILED: detected outbound network activity (strace=8, netLogUrls=2, netLogDns=5, webRequest=2)
+
+T2_NET_EXIT=1

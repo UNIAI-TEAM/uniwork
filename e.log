@@ -1,0 +1,95 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t1-smoke.mjs --target appimage; rc=$?; echo; echo "T1_APPIMAGE_EXIT=$rc"
+[g7-05/t1:appimage] Running AppImage smoke (--appimage-extract-and-run) on /home/ubuntu/work/uniwork-office/apps/shell/release/UniWork-Office-1.0.0-x86_64.AppImage (187288852 bytes, sha256=6c5a40e97cded9532a11b9ad908a57c9c502759e983ffeddd4a97c4299c298d8)...
+[g7-05/t1:appimage] Shell ready in 3013.43 ms
+[g7-05/t1:appimage] Opened and rendered fx-xlsx-revenue-xyz.xlsx (xlsx) in 1343.92 ms
+[g7-05/t1:appimage] Opened and rendered fx-docx-report-vi.docx (docx) in 608.56 ms
+[g7-05/t1:appimage] Opened and rendered fx-pptx-deck-vi.pptx (pptx) in 430.72 ms
+[g7-05/t1:appimage] Opened and rendered fx-pdf-invoice-vi.pdf (pdf) in 307.29 ms
+[g7-05/t1:appimage] Opened and rendered fx-md-notes-vi.md (md) in 369.19 ms
+[g7-05/t1:appimage] Opened and rendered fx-html-page-vi.html (html) in 253.4 ms
+G7_05_T1_APPIMAGE_JSON_BEGIN
+{
+  "test": "T1_APPIMAGE",
+  "status": "passed",
+  "metadata": {
+    "forkSha": "2d1ca32576d8f6b85c77f9020b1cd9f9ec125b47",
+    "forkShortSha": "2d1ca32576d8",
+    "gitDescribe": "web-0.1.0-c9181fa-2-g2d1ca325",
+    "latestReleaseTag": "web-0.1.0-c9181fa",
+    "appVersion": "1.0.0",
+    "rootPackageVersion": "0.1.0",
+    "serverVersion": "unknown",
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v22.23.3",
+    "collectedAt": "2026-10-17T09:02:55.797Z"
+  },
+  "artifact": {
+    "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/UniWork-Office-1.0.0-x86_64.AppImage",
+    "bytes": 187288852,
+    "mib": 178.61,
+    "sha256": "6c5a40e97cded9532a11b9ad908a57c9c502759e983ffeddd4a97c4299c298d8"
+  },
+  "launchMode": "--appimage-extract-and-run",
+  "shellReadyMs": 3013.43,
+  "fixturesChecked": 6,
+  "fixtures": [
+    {
+      "id": "fx-xlsx-revenue-xyz",
+      "name": "fx-xlsx-revenue-xyz.xlsx",
+      "ext": "xlsx",
+      "bytes": 18806,
+      "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "openRenderMs": 1343.92,
+      "status": "passed"
+    },
+    {
+      "id": "fx-docx-report-vi",
+      "name": "fx-docx-report-vi.docx",
+      "ext": "docx",
+      "bytes": 11187,
+      "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "openRenderMs": 608.56,
+      "status": "passed"
+    },
+    {
+      "id": "fx-pptx-deck-vi",
+      "name": "fx-pptx-deck-vi.pptx",
+      "ext": "pptx",
+      "bytes": 25849,
+      "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20",
+      "openRenderMs": 430.72,
+      "status": "passed"
+    },
+    {
+      "id": "fx-pdf-invoice-vi",
+      "name": "fx-pdf-invoice-vi.pdf",
+      "ext": "pdf",
+      "bytes": 99002,
+      "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd",
+      "openRenderMs": 307.29,
+      "status": "passed"
+    },
+    {
+      "id": "fx-md-notes-vi",
+      "name": "fx-md-notes-vi.md",
+      "ext": "md",
+      "bytes": 723,
+      "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def",
+      "openRenderMs": 369.19,
+      "status": "passed"
+    },
+    {
+      "id": "fx-html-page-vi",
+      "name": "fx-html-page-vi.html",
+      "ext": "html",
+      "bytes": 955,
+      "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884",
+      "openRenderMs": 253.4,
+      "status": "passed"
+    }
+  ]
+}
+G7_05_T1_APPIMAGE_JSON_END
+
+T1_APPIMAGE_EXIT=0

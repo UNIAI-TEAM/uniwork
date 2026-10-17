@@ -1,0 +1,102 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t1-smoke.mjs --target deb; rc=$?; echo; echo "T1_DEB_EXIT=$rc"
+[g7-05/t1:deb] Installing /home/ubuntu/work/uniwork-office/apps/shell/release/UniWork-Office_1.0.0_amd64.deb (152579300 bytes, sha256=ec76ac59590c9ee153d1994ba5cdcacc992e59f6c45f44eb2c171f226b1c6eec)...
+[g7-05/t1:deb] Installed size of "/opt/UniWork Office": 574764888 bytes (548.14 MiB)
+[g7-05/t1:deb] Shell ready in 746.2 ms
+[g7-05/t1:deb] Opened and rendered fx-xlsx-revenue-xyz.xlsx (xlsx) in 1369.47 ms
+[g7-05/t1:deb] Opened and rendered fx-docx-report-vi.docx (docx) in 617.83 ms
+[g7-05/t1:deb] Opened and rendered fx-pptx-deck-vi.pptx (pptx) in 481.26 ms
+[g7-05/t1:deb] Opened and rendered fx-pdf-invoice-vi.pdf (pdf) in 334.36 ms
+[g7-05/t1:deb] Opened and rendered fx-md-notes-vi.md (md) in 384.04 ms
+[g7-05/t1:deb] Opened and rendered fx-html-page-vi.html (html) in 260.26 ms
+[g7-05/t1:deb] Uninstalling uniwork-office...
+[g7-05/t1:deb] Verified "/opt/UniWork Office" and "/usr/bin/uniwork-office" are removed.
+G7_05_T1_DEB_JSON_BEGIN
+{
+  "test": "T1_DEB",
+  "status": "passed",
+  "metadata": {
+    "forkSha": "2d1ca32576d8f6b85c77f9020b1cd9f9ec125b47",
+    "forkShortSha": "2d1ca32576d8",
+    "gitDescribe": "web-0.1.0-c9181fa-2-g2d1ca325",
+    "latestReleaseTag": "web-0.1.0-c9181fa",
+    "appVersion": "1.0.0",
+    "rootPackageVersion": "0.1.0",
+    "serverVersion": "unknown",
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v22.23.3",
+    "collectedAt": "2026-10-17T09:02:32.635Z"
+  },
+  "artifact": {
+    "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/UniWork-Office_1.0.0_amd64.deb",
+    "bytes": 152579300,
+    "mib": 145.51,
+    "sha256": "ec76ac59590c9ee153d1994ba5cdcacc992e59f6c45f44eb2c171f226b1c6eec"
+  },
+  "installedDir": "/opt/UniWork Office",
+  "installedSizeBytes": 574764888,
+  "installedSizeMib": 548.14,
+  "uninstalledCleanly": true,
+  "keepInstalled": false,
+  "shellReadyMs": 746.2,
+  "fixturesChecked": 6,
+  "fixtures": [
+    {
+      "id": "fx-xlsx-revenue-xyz",
+      "name": "fx-xlsx-revenue-xyz.xlsx",
+      "ext": "xlsx",
+      "bytes": 18806,
+      "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "openRenderMs": 1369.47,
+      "status": "passed"
+    },
+    {
+      "id": "fx-docx-report-vi",
+      "name": "fx-docx-report-vi.docx",
+      "ext": "docx",
+      "bytes": 11187,
+      "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "openRenderMs": 617.83,
+      "status": "passed"
+    },
+    {
+      "id": "fx-pptx-deck-vi",
+      "name": "fx-pptx-deck-vi.pptx",
+      "ext": "pptx",
+      "bytes": 25849,
+      "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20",
+      "openRenderMs": 481.26,
+      "status": "passed"
+    },
+    {
+      "id": "fx-pdf-invoice-vi",
+      "name": "fx-pdf-invoice-vi.pdf",
+      "ext": "pdf",
+      "bytes": 99002,
+      "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd",
+      "openRenderMs": 334.36,
+      "status": "passed"
+    },
+    {
+      "id": "fx-md-notes-vi",
+      "name": "fx-md-notes-vi.md",
+      "ext": "md",
+      "bytes": 723,
+      "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def",
+      "openRenderMs": 384.04,
+      "status": "passed"
+    },
+    {
+      "id": "fx-html-page-vi",
+      "name": "fx-html-page-vi.html",
+      "ext": "html",
+      "bytes": 955,
+      "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884",
+      "openRenderMs": 260.26,
+      "status": "passed"
+    }
+  ]
+}
+G7_05_T1_DEB_JSON_END
+
+T1_DEB_EXIT=0
