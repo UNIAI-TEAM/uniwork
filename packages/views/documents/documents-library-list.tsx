@@ -13,11 +13,17 @@ import type { RowGroup } from "./library-rows";
 
 const COLUMN_LABEL: Record<LibraryColumnId, string> = {
   name: "documents.home.columns.name",
+  type: "documents.home.columns.type",
+  source: "documents.home.columns.source",
   access: "documents.home.columns.access",
+  visibility: "documents.home.columns.visibility",
   editor: "documents.home.columns.editor",
   updated: "documents.home.columns.updated",
   size: "documents.home.columns.size",
   actions: "documents.home.columns.actions",
+  deleted_by: "documents.trash.columns.deleted_by",
+  deleted_at: "documents.trash.columns.deleted_at",
+  purge_in: "documents.trash.columns.purge_in",
 };
 
 export interface DocumentsLibraryListProps {

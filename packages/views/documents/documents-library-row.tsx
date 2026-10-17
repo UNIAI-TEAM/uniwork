@@ -245,7 +245,8 @@ export function LibraryRowView({
       <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="truncate text-body text-foreground">{title}</span>
+          {/* TV-12: the truncated name still reads in full on hover. */}
+          <span title={title} className="truncate text-body text-foreground">{title}</span>
           {starred ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}

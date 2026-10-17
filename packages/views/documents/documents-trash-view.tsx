@@ -13,7 +13,7 @@ import { CommentActorAvatar } from "../comments/comment-actor-avatar";
 import { formatShortWhen } from "./document-format";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { isFolderRow, rowFormat, documentRow, type DocumentSummaryRow } from "./library-rows";
-import type { TrashRowActions } from "./use-trash-actions";
+import type { TrashActions } from "./use-trash-actions";
 
 /** At or under this many days left the countdown turns red. */
 const URGENT_DAYS = 7;
@@ -25,7 +25,7 @@ export interface DocumentsTrashViewProps {
   failure: "error" | "permission" | null;
   onRetry: () => void;
   /** The row commands RESTORE-01 wires: restore (direct) and purge (dialog the page renders). */
-  actions: TrashRowActions;
+  actions: TrashActions;
   /** The workspace member list by user id, feeding the Xóa bởi column. */
   members: ReadonlyMap<string, Member>;
   /** True once the members query has answered; until then an unknown id is "still loading", not "former member". */
@@ -186,7 +186,8 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
                 <>
                   <DocumentTypeIcon format={folder ? "folder" : rowFormat(documentRow(doc))} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-body font-medium text-foreground">{title}</span>
+                    {/* TV-12: the truncated name still reads in full on hover. */}
+                    <span title={title} className="block truncate text-body font-medium text-foreground">{title}</span>
                     {origin ? <span className="block truncate text-caption text-muted-foreground">{origin}</span> : null}
                   </span>
                 </>

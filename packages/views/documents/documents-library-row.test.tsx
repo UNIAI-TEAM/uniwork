@@ -61,7 +61,7 @@ function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers
       groups={[{ key: "all", title: "", rows: rows.map(documentRow) }]}
       loading={false}
       failure={null}
-      filtered={false}
+      filteredBy={null}
       hasMore={false}
       loadingMore={false}
       onLoadMore={vi.fn()}

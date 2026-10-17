@@ -4,7 +4,7 @@ import { setLocale } from "@uniwork/core/i18n";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import type { Member } from "@uniwork/core/types/workspace";
 import { DocumentsTrashView, type DocumentsTrashViewProps } from "./documents-trash-view";
-import type { TrashRowActions } from "./use-trash-actions";
+import type { TrashActions } from "./use-trash-actions";
 import type { DocumentSummaryRow } from "./library-rows";
 
 // The Trash.dc.html layout (TRASH-01 Area 4): a dedicated 5-column table, no
@@ -53,7 +53,7 @@ function member(over: Partial<Member> = {}): Member {
   } as Member;
 }
 
-function renderView(over: Partial<DocumentsTrashViewProps> = {}, actions: Partial<TrashRowActions> = {}) {
+function renderView(over: Partial<DocumentsTrashViewProps> = {}, actions: Partial<TrashActions> = {}) {
   const props: DocumentsTrashViewProps = {
     rows: [row("a")],
     loading: false,
@@ -111,6 +111,8 @@ describe("DocumentsTrashView", () => {
     expect(within(rows[4]!).getByText("Từ Tài liệu của workspace")).toBeInTheDocument();
     // A parent id that is in neither the tree nor the rows gets no subtitle.
     expect(within(rows[5]!).queryByText(/Từ |Trong /)).not.toBeInTheDocument();
+    // TV-12: the truncating name keeps the full title on hover (native title).
+    expect(within(rows[1]!).getByText("Biên bản.docx")).toHaveAttribute("title", "Biên bản.docx");
   });
 
   it("names the member who deleted the row in Xóa bởi, and falls back for a former member", () => {

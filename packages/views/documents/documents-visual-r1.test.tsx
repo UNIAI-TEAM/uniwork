@@ -89,6 +89,8 @@ describe("phone row layout (finding 1)", () => {
     // The icon-only app button does not take width from the name until the actions column widens (container, not viewport).
     const quick = document.querySelector("[data-office-desktop-action]");
     expect(quick?.parentElement).toHaveClass("hidden", "@min-[29rem]/library:block");
+    // TV-12: the truncating name keeps the full title on hover (native title).
+    expect(name).toHaveAttribute("title", "Báo giá tháng 10.docx");
   });
 
   it("spans the group header over the two phone columns, then one spanner per ladder rung", () => {
