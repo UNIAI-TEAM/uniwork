@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/web lint; rc=$?; echo; echo "WEB_LINT_EXIT=$rc"
+
+> @uniwork/web@0.0.0 lint /workspace/apps/web
+> eslint . --max-warnings 0
+
+
+WEB_LINT_EXIT=0

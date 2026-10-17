@@ -1,0 +1,4 @@
+$ cd server && unset OPENAI_API_KEY && go test -race -count=1 ./internal/handler/router/ 2>&1 | tail -n 40; rc=${PIPESTATUS[0]}; echo; echo "GO_ROUTER_EXIT=$rc"
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	18.221s
+
+GO_ROUTER_EXIT=0

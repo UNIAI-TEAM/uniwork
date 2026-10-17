@@ -1,0 +1,100 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/service/ -run "TestOfficeFrame|TestDocumentSource|TestViewSource" 2>&1 | grep -E "^(=== RUN|--- (PASS|FAIL|SKIP)|PASS|FAIL|ok|panic|WARNING: DATA RACE)" | tail -n 400; rc=${PIPESTATUS[0]}; echo; echo "GO_SERVICE_EXIT=$rc"
+=== RUN   TestDocumentSourceSaveFollowsTheConfiguredCap
+=== RUN   TestDocumentSourceSaveFollowsTheConfiguredCap/a_cap_raised_past_200_MiB_saves_a_source_it_accepts
+=== RUN   TestDocumentSourceSaveFollowsTheConfiguredCap/a_cap_below_200_MiB_refuses_and_hides_a_source_it_rejects
+--- PASS: TestDocumentSourceSaveFollowsTheConfiguredCap (1.60s)
+=== RUN   TestDocumentSourceSaveableAgreesWithTheUpload
+--- PASS: TestDocumentSourceSaveableAgreesWithTheUpload (0.01s)
+=== RUN   TestDocumentSourceSaveable
+--- PASS: TestDocumentSourceSaveable (0.00s)
+=== RUN   TestDocumentSourceByteRefusalsAreNotFound
+--- PASS: TestDocumentSourceByteRefusalsAreNotFound (0.50s)
+=== RUN   TestDocumentSourceDeactivatedMemberIsRefused
+--- PASS: TestDocumentSourceDeactivatedMemberIsRefused (0.49s)
+=== RUN   TestDocumentSourceRowLookupIsTheGate
+--- PASS: TestDocumentSourceRowLookupIsTheGate (0.48s)
+=== RUN   TestDocumentSourceSaveRefusesWhatTheUploadWouldRefuse
+--- PASS: TestDocumentSourceSaveRefusesWhatTheUploadWouldRefuse (0.49s)
+=== RUN   TestDocumentSourceSaveChecksTheParentFirst
+--- PASS: TestDocumentSourceSaveChecksTheParentFirst (0.56s)
+=== RUN   TestDocumentSourceTaskListSkipsDescriptionImages
+--- PASS: TestDocumentSourceTaskListSkipsDescriptionImages (0.51s)
+=== RUN   TestDocumentSourceEmailSkipsNamelessAndDuplicateParts
+--- PASS: TestDocumentSourceEmailSkipsNamelessAndDuplicateParts (0.50s)
+=== RUN   TestDocumentSourceFoldAgreesWithGo
+--- PASS: TestDocumentSourceFoldAgreesWithGo (0.48s)
+=== RUN   TestDocumentSourceSearchIgnoresDiacritics
+--- PASS: TestDocumentSourceSearchIgnoresDiacritics (0.48s)
+=== RUN   TestDocumentSourceChatFollowsTheRoomGate
+--- PASS: TestDocumentSourceChatFollowsTheRoomGate (0.51s)
+=== RUN   TestDocumentSourceTaskFollowsTheWorkspaceGate
+--- PASS: TestDocumentSourceTaskFollowsTheWorkspaceGate (0.50s)
+=== RUN   TestDocumentSourceMeetingListsOnlyServableRecordings
+--- PASS: TestDocumentSourceMeetingListsOnlyServableRecordings (0.53s)
+=== RUN   TestDocumentSourceEmailIsTheMailboxOwnersAlone
+--- PASS: TestDocumentSourceEmailIsTheMailboxOwnersAlone (0.51s)
+=== RUN   TestDocumentSourceListPagesAcrossSources
+--- PASS: TestDocumentSourceListPagesAcrossSources (0.40s)
+=== RUN   TestDocumentSourceListNamesTheChatMessage
+--- PASS: TestDocumentSourceListNamesTheChatMessage (0.36s)
+=== RUN   TestDocumentSourceItemNamesTheMessageOnlyForChat
+=== RUN   TestDocumentSourceItemNamesTheMessageOnlyForChat/chat_channel_file_names_its_message
+=== RUN   TestDocumentSourceItemNamesTheMessageOnlyForChat/chat_dm_file_names_its_message
+=== RUN   TestDocumentSourceItemNamesTheMessageOnlyForChat/task_file_names_no_message
+=== RUN   TestDocumentSourceItemNamesTheMessageOnlyForChat/task_comment_file_names_no_message
+=== RUN   TestDocumentSourceItemNamesTheMessageOnlyForChat/meeting_file_names_no_message
+=== RUN   TestDocumentSourceItemNamesTheMessageOnlyForChat/email_file_names_no_message
+--- PASS: TestDocumentSourceItemNamesTheMessageOnlyForChat (0.00s)
+=== RUN   TestDocumentSourceSaveCopiesTheBytesIntoANewDocument
+--- PASS: TestDocumentSourceSaveCopiesTheBytesIntoANewDocument (0.55s)
+=== RUN   TestDocumentSourceCursorAndFilters
+--- PASS: TestDocumentSourceCursorAndFilters (0.00s)
+=== RUN   TestDocumentSourceChatParentIncludesMessageID
+--- PASS: TestDocumentSourceChatParentIncludesMessageID (0.00s)
+=== RUN   TestOfficeFrameLinkedSignatureNamesOneFile
+--- PASS: TestOfficeFrameLinkedSignatureNamesOneFile (0.00s)
+=== RUN   TestOfficeFramePathSegments
+--- PASS: TestOfficeFramePathSegments (0.00s)
+=== RUN   TestOfficeFrameRefsFindRelativeLoads
+--- PASS: TestOfficeFrameRefsFindRelativeLoads (0.01s)
+=== RUN   TestOfficeFrameLinkedTypes
+--- PASS: TestOfficeFrameLinkedTypes (0.00s)
+=== RUN   TestOfficeFrameExportPDF
+=== RUN   TestOfficeFrameExportPDF/the_current_version_renders_through_an_export_job_and_the_access_log_records_it
+=== RUN   TestOfficeFrameExportPDF/supplied_bytes_render_instead_of_the_stored_version,_and_a_reused_key_must_carry_the_same_bytes
+=== RUN   TestOfficeFrameExportPDF/the_configured_file_cap_bounds_supplied_bytes
+=== RUN   TestOfficeFrameExportPDF/bytes_that_cannot_be_a_DOCX_are_refused_before_a_job_exists
+=== RUN   TestOfficeFrameExportPDF/a_version_number_picks_the_stored_bytes;_with_supplied_bytes_it_is_invalid
+=== RUN   TestOfficeFrameExportPDF/an_engine_refusal_reaches_the_caller_with_its_code
+=== RUN   TestOfficeFrameExportPDF/an_engine_build_without_export_answers_unsupported_operation
+=== RUN   TestOfficeFrameExportPDF/no_engine_is_office_not_configured
+=== RUN   TestOfficeFrameExportPDF/someone_without_access_to_the_document_gets_nothing
+=== RUN   TestOfficeFrameExportPDF/the_public_job_route_still_refuses_export
+=== RUN   TestOfficeFrameExportPDF/an_export_output_never_becomes_a_version_of_its_source
+--- PASS: TestOfficeFrameExportPDF (3.73s)
+=== RUN   TestOfficeFrameSourceTokenVerifiesOnlyItsOwnClaims
+--- PASS: TestOfficeFrameSourceTokenVerifiesOnlyItsOwnClaims (0.00s)
+=== RUN   TestOfficeFrameSourceMint
+--- PASS: TestOfficeFrameSourceMint (0.42s)
+=== RUN   TestOfficeFrameSourceMintNoModuleCap
+--- PASS: TestOfficeFrameSourceMintNoModuleCap (0.40s)
+=== RUN   TestOfficeFrameSourceAuthorizeRegates
+--- PASS: TestOfficeFrameSourceAuthorizeRegates (0.45s)
+=== RUN   TestOfficeFrameSourceOpenStreamsBytes
+--- PASS: TestOfficeFrameSourceOpenStreamsBytes (0.47s)
+=== RUN   TestViewSourceRunsTheLookupGateOnly
+--- PASS: TestViewSourceRunsTheLookupGateOnly (0.48s)
+=== RUN   TestOfficeFrameSourceTokenExpiryIsVerified
+--- PASS: TestOfficeFrameSourceTokenExpiryIsVerified (0.00s)
+=== RUN   TestOfficeFrameTokenVerifiesOnlyItsOwnUntamperedUnexpiredClaims
+--- PASS: TestOfficeFrameTokenVerifiesOnlyItsOwnUntamperedUnexpiredClaims (0.00s)
+=== RUN   TestOfficeFrameAssetSignatureNamesOneAsset
+--- PASS: TestOfficeFrameAssetSignatureNamesOneAsset (0.00s)
+=== RUN   TestOfficeFrameTokenModuleClaim
+--- PASS: TestOfficeFrameTokenModuleClaim (0.00s)
+=== RUN   TestOfficeFrameModuleIsDerivedFromTheStoredFormat
+--- PASS: TestOfficeFrameModuleIsDerivedFromTheStoredFormat (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	16.580s
+
+GO_SERVICE_EXIT=0

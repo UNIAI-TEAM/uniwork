@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+fff75ba8fec99daaccc6220f2ce1a303ae67dd69
+fff75ba8f test(documents): a source Office frame takes no edit lock (UNI-1869)
+45d318176 chore: merge root 06f65e141 (edit lock) into SRC-02b
+da48d41d5 docs(documents): drop the 413 from the source mint comment (UNI-1869)
+ff7ae2589 feat(documents): open an Office source file view-only in a dialog (UNI-1869)
+01062eb67 test(documents): cover the view-only source Office viewer on the web (UNI-1869)
+06f65e141 chore: merge UNI-1645 phase 2 edit lock (cards a+b, edb3c7ec6) into the G5-G7 root
+edb3c7ec6 test(documents): drop the archived prop RESTORE-01 removed from LibraryRowView
+00a7d8e7c fix(documents): pin source frame email length and clock-free expiry (review R1-R3)
