@@ -574,6 +574,26 @@ describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
     expect(hook.result.current.failure?.code).toBe("not_found");
   });
 
+  it("makes no lock request and ignores an edit lock in scope: view-only, no lock id, no onLocked", async () => {
+    const onLocked = vi.fn();
+    const save = vi.fn();
+    // A lock provider in scope (here: not held, which would lock a document out) must not touch a source.
+    const frame = setup({ fileRef: sourceRef, editLock: { held: false, lockId: undefined, onLocked }, api: { save } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    expect(frame.hook.result.current.viewOnly).toBe(true);
+    const id = frame.request("api.save", { fileId: SOURCE_ID, data: new ArrayBuffer(4), etag: "0" });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(save).not.toHaveBeenCalled();
+    expect(onLocked).not.toHaveBeenCalled();
+    // The only transport calls are the source mint and the flag config: no documents/* lock route.
+    const paths = requestMock.mock.calls.map(([path]) => String(path));
+    expect(paths.filter((path) => !path.startsWith("/api/v1/config") && path !== SOURCE_MINT_PATH)).toEqual([]);
+    expect(paths.some((path) => /lock/i.test(path))).toBe(false);
+    // A lock arriving later never re-attaches a source frame.
+    frame.options.editLock = { held: true, lockId: "L2", onLocked };
+    frame.hook.rerender();
+    expect(frame.hook.result.current.attempt).toBe(0);
+  });
 });
 
 describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)", () => {

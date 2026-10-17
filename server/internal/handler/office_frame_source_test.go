@@ -412,6 +412,40 @@ func TestOfficeFrameSourceTokenCannotWriteDocuments(t *testing.T) {
 	}
 }
 
+// TestOfficeFrameSourceTokenCannotTouchTheEditLock: the document edit lock
+// (UNI-1645) lives on the session routes, /api/v1/documents/{id}/edit-lock*,
+// not under /office-frame/documents/, so the walk above never reaches it. A
+// source has no lock; its ofs1. token is no session and every lock route
+// refuses it with 401.
+func TestOfficeFrameSourceTokenCannotTouchTheEditLock(t *testing.T) {
+	srv, _ := sourceFrameWorld(t)
+	f := setupChatFixtureOn(t, srv, "srcf-l")
+	sourceID := sourceFrameFixture(t, srv, f, "l")
+	srcToken := sourceFrameMint(t, srv, f.wsID, sourceID, f.tokens["a"])["token"].(string)
+
+	var lockRoutes []string
+	err := chi.Walk(srv.Config.Handler.(chi.Routes), func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if strings.Contains(route, "/edit-lock") {
+			lockRoutes = append(lockRoutes, method+" "+strings.TrimSuffix(route, "/"))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lockRoutes) < 5 {
+		t.Fatalf("walked only %d edit-lock routes: %v", len(lockRoutes), lockRoutes)
+	}
+	for _, key := range lockRoutes {
+		method, route, _ := strings.Cut(key, " ")
+		path := strings.NewReplacer("{documentID}", "01J8X4DOC0N1P2Q3R4S5T6U7", "{lockID}", "01J8X4LCK0N1P2Q3R4S5T6U7").Replace(route)
+		res, out := doJSON(t, srv, method, path, srcToken, map[string]any{})
+		if res.StatusCode != http.StatusUnauthorized {
+			t.Errorf("source token %s = %d %v, want 401", key, res.StatusCode, out)
+		}
+	}
+}
+
 // TestOfficeFrameSourceModuleFlagGatesTheFrame: with the module flag off the
 // mint answers 403 feature_disabled and a token minted while it was on stops
 // at the frame routes with 404 feature_disabled — the document frame's rules.
