@@ -657,6 +657,40 @@ describe("shelved row keep-list (RAR-01)", () => {
     }
   });
 
+  // RAR-12: the row saves the file under the name the file view uses; a list row has no stored file name, so a
+  // title without an extension takes the row's format, and a title that already has one stays as it is.
+  it("downloads under a name that keeps the file extension", async () => {
+    route({
+      list: (path) =>
+        query(path).get("shelved") === "true"
+          ? [
+              shelved({ id: "f3", kind: "file", title: "Báo cáo quý", format: "pdf", current_version: 1 }),
+              shelved({ id: "f4", kind: "file", title: "so-lieu.xlsx", format: "xlsx", current_version: 1 }),
+            ]
+          : [],
+    });
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(new Blob(["bytes"]), { status: 200 }))));
+    vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:document"), revokeObjectURL: vi.fn() });
+    const names: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      names.push(this.download);
+    });
+    try {
+      renderView();
+      await openShelved();
+      const titles = ["Báo cáo quý", "so-lieu.xlsx"];
+      for (const [index, title] of titles.entries()) {
+        fireEvent.click(within(await rowOf(title)).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+        fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.download") }));
+        await waitFor(() => expect(names).toHaveLength(index + 1));
+      }
+      expect(names).toEqual(["Báo cáo quý.pdf", "so-lieu.xlsx"]);
+    } finally {
+      vi.unstubAllGlobals();
+      click.mockRestore();
+    }
+  });
+
   it("offers a viewer the download of a shelved file too, without the manage commands", async () => {
     route({
       list: (path) =>
