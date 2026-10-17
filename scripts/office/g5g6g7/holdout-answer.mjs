@@ -196,7 +196,21 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
         if (proof.status === 'self') { writeSelfReported += 1; if (proof.why === 'preserved') writeSelfPreserved += 1; }
         else if (proof.status === 'unbacked') { writeUnbacked += 1; taken.add(pick); pick = undefined; lenient = false; } else { writeBacked += 1; if (proof.via === 'formula') writeFormula += 1; }
       }
-      if (!pick) continue;
+      if (!pick) {
+        // DS-3 (docs/office/g5g6g7/holdout/README.md §Cách chấm & §Chấm ca sửa đổi): when the turn made no write (writes = 0)
+        // on a zero-write case, preserved count invariants hold by fact; when writes happened, keep today's proof rules.
+        if (
+          !editCase &&
+          (ask.writes ?? 0) === 0 &&
+          parsed.status === 'ok' &&
+          expected.kind === 'count' &&
+          caseDoc.category !== 'structure' &&
+          /^(?:tables|paragraphs|slides|code_blocks|task_items|changed_paragraphs|changed_text_shapes|changed_text_runs|changedcells|overwrittencells)$/i.test(norm(expected.anchor))
+        ) {
+          structural.push({ kind: expected.kind, anchor: expected.anchor, value: String(expected.value) });
+        }
+        continue;
+      }
       taken.add(pick);
       if (lenient) lenientAt.push(expected.kind);
       structural.push({ kind: expected.kind, anchor: expected.anchor, value: pick.value });
