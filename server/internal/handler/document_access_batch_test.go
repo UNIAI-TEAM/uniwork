@@ -26,7 +26,7 @@ func TestDocumentAccessBatchAndCandidatesOverHTTP(t *testing.T) {
 	})
 	wantErr(t, res, out, 422, "level_not_allowed", "")
 
-	// GET /documents/{id}/share-candidates returns candidates with is_home_workspace.
+	// GET /documents/{id}/share-candidates returns candidates with secondary, direct_level (null when none), and is_home_workspace.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/share-candidates?q=docs-shs2-member", w.token, nil)
 	if res.StatusCode != 200 {
 		t.Fatalf("share-candidates: %d %v", res.StatusCode, out)
@@ -35,8 +35,15 @@ func TestDocumentAccessBatchAndCandidatesOverHTTP(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("share-candidates items = %v, want 1", items)
 	}
+	cand0, _ := items[0].(map[string]any)
+	if cand0["secondary"] != "docs-shs2-member@example.com" {
+		t.Fatalf("share-candidates[0].secondary = %v, want docs-shs2-member@example.com", cand0["secondary"])
+	}
+	if _, hasDirect := cand0["direct_level"]; !hasDirect || cand0["direct_level"] != nil {
+		t.Fatalf("share-candidates[0].direct_level = %v (present=%v), want explicit null", cand0["direct_level"], hasDirect)
+	}
 
-	// PUT /documents/{id}/access with dry_run=true previews without writing.
+	// PUT /documents/{id}/access with dry_run=true previews without writing (warnings are {code, index}, results carry status + index).
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+doc+"/access", w.token, map[string]any{
 		"dry_run": true,
 		"items": []any{
@@ -46,6 +53,15 @@ func TestDocumentAccessBatchAndCandidatesOverHTTP(t *testing.T) {
 	})
 	if res.StatusCode != 200 || out["dry_run"] != true {
 		t.Fatalf("dry_run PUT /access: %d %v", res.StatusCode, out)
+	}
+	preview, _ := out["preview"].(map[string]any)
+	warnings, _ := preview["warnings"].([]any)
+	if len(warnings) == 0 {
+		t.Fatalf("dry_run preview.warnings = %v, want non-empty {code, index}", warnings)
+	}
+	w0, _ := warnings[0].(map[string]any)
+	if w0["code"] == nil || w0["index"] == nil {
+		t.Fatalf("dry_run preview.warnings[0] = %v, want {code, index}", w0)
 	}
 
 	// PUT /documents/{id}/access live commit: grants organization edit + user view + home ws view.
@@ -59,15 +75,45 @@ func TestDocumentAccessBatchAndCandidatesOverHTTP(t *testing.T) {
 	if res.StatusCode != 200 || out["dry_run"] != false {
 		t.Fatalf("live PUT /access: %d %v", res.StatusCode, out)
 	}
+	results, _ := out["results"].([]any)
+	if len(results) != 3 {
+		t.Fatalf("live PUT /access results = %v, want 3", results)
+	}
+	r0, _ := results[0].(map[string]any)
+	if r0["status"] != "granted" || r0["index"] != float64(0) {
+		t.Fatalf("results[0] = %v, want status=granted index=0", r0)
+	}
 
-	// GET /documents/{id}/shares as manager returns home_workspace, my_sources, and user sources + warnings.
+	// Per-item on_existing=keep keeps existing user share at view.
+	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+doc+"/access", w.token, map[string]any{
+		"items": []any{
+			map[string]any{"principal_type": "user", "principal_id": memberID, "level": "edit", "on_existing": "keep"},
+		},
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("keep PUT /access: %d %v", res.StatusCode, out)
+	}
+	keepRes, _ := out["results"].([]any)[0].(map[string]any)
+	if keepRes["status"] != "kept" || keepRes["level"] != "view" {
+		t.Fatalf("keep result = %v, want status=kept level=view", keepRes)
+	}
+
+	// Revoke uses level: null; level: "none" is refused with 400.
+	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+doc+"/access", w.token, map[string]any{
+		"items": []any{
+			map[string]any{"principal_type": "user", "principal_id": memberID, "level": "none"},
+		},
+	})
+	wantErr(t, res, out, 400, "invalid_request", "")
+
+	// GET /documents/{id}/shares as manager returns home_workspace (with workspace_name), my_sources, and user sources + warnings.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/shares", w.token, nil)
 	if res.StatusCode != 200 {
 		t.Fatalf("manager GET /shares: %d %v", res.StatusCode, out)
 	}
 	hw, _ := out["home_workspace"].(map[string]any)
-	if hw == nil || hw["workspace_id"] != w.wsID || hw["visibility"] != "workspace" || hw["level"] != "view" {
-		t.Fatalf("home_workspace = %v", hw)
+	if hw == nil || hw["workspace_id"] != w.wsID || hw["workspace_name"] == nil || hw["workspace_name"] == "" || hw["visibility"] != "workspace" || hw["level"] != "view" {
+		t.Fatalf("home_workspace = %v, want workspace_name set, visibility=workspace, level=view", hw)
 	}
 	shares, _ := out["shares"].([]any)
 	if len(shares) != 2 {
@@ -83,14 +129,24 @@ func TestDocumentAccessBatchAndCandidatesOverHTTP(t *testing.T) {
 	if out["my_level"] != "edit" || len(mySources) != 3 || out["home_workspace"] != nil || out["shares"] != nil {
 		t.Fatalf("non-manager GET /shares = %v", out)
 	}
+	ms0, _ := mySources[0].(map[string]any)
+	if ms0["via"] == nil || ms0["via"] == "" {
+		t.Fatalf("my_sources[0] = %v, want via set", ms0)
+	}
 
-	// PUT /documents/{id}/access 422 document_access_rejected with fields.rejected[].
+	// PUT /documents/{id}/access 422 document_access_rejected with fields.rejected[].code.
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+doc+"/access", w.token, map[string]any{
 		"items": []any{
 			map[string]any{"principal_type": "organization", "principal_id": w.orgID, "level": "manage"},
 		},
 	})
 	wantErr(t, res, out, 422, "document_access_rejected", "")
+	errObj, _ := out["error"].(map[string]any)
+	fields, _ := errObj["fields"].(map[string]any)
+	rejList, _ := fields["rejected"].([]any)
+	if len(rejList) != 1 || rejList[0].(map[string]any)["code"] != "level_not_allowed" {
+		t.Fatalf("422 fields.rejected = %v (out=%v), want [{code: level_not_allowed}]", rejList, out)
+	}
 
 	// Cross-tenant isolation: neither share-candidates nor the 422 fields.rejected
 	// echo ever returns a name or email of another organization.

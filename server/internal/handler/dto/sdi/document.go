@@ -334,5 +334,5 @@ type ListMentionCandidatesSDI struct {
 type ListDocumentShareCandidatesSDI struct {
 	Q      *string `query:"q" description:"Từ khóa tìm theo tên, email và slug (gấp dấu uw_fold_search)" example:"nguyen"`
 	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"bmd1eWVuAHVzZXIAMDFKOA"`
-	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 100" example:"20"`
+	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 50" example:"20"`
 }

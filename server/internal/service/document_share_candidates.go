@@ -12,7 +12,7 @@ import (
 
 const (
 	DocumentShareCandidateDefaultLimit = 20
-	DocumentShareCandidateMaxLimit     = 100
+	DocumentShareCandidateMaxLimit     = 50
 )
 
 // DocumentShareCandidateFilter is the query of GET /api/v1/documents/{documentID}/share-candidates.
@@ -27,7 +27,7 @@ type DocumentShareCandidate struct {
 	PrincipalType   string
 	PrincipalID     string
 	Name            string
-	Subtitle        string
+	Secondary       string
 	AvatarURL       string
 	IconEmoji       string
 	DirectLevel     string
@@ -132,7 +132,7 @@ func (s *DocumentService) ListShareCandidates(
 			PrincipalType:   r.PrincipalType,
 			PrincipalID:     r.PrincipalID,
 			Name:            r.Name,
-			Subtitle:        r.Subtitle,
+			Secondary:       r.Subtitle,
 			AvatarURL:       r.AvatarUrl.String,
 			IconEmoji:       r.IconEmoji.String,
 			DirectLevel:     directLvl,

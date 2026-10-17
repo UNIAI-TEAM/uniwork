@@ -7,14 +7,18 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// TestDocumentShareCandidates covers SH-S2 (UNI-1781) Item 3:
+// TestListDocumentShareCandidates covers SH-S2 (UNI-1781) Item 3 & fix1 #7:
 // GET /api/v1/documents/{documentID}/share-candidates?q=&cursor=&limit=.
-func TestDocumentShareCandidates(t *testing.T) {
+func TestListDocumentShareCandidates(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "shs2cand")
 	foreign := f.tenant(t, "shs2candf")
 	H := Human
 	mgr := H(tn.aclOwner.ID)
+
+	if DocumentShareCandidateMaxLimit != 50 {
+		t.Fatalf("DocumentShareCandidateMaxLimit = %d, want 50", DocumentShareCandidateMaxLimit)
+	}
 
 	// Add an accented member to verify uw_fold_search folding on name and email.
 	accentUser := registerVerified(t, f.q, f.as, "nguyen-van-an-shs2@example.com", "Nguyễn Văn An")
@@ -47,8 +51,8 @@ func TestDocumentShareCandidates(t *testing.T) {
 
 		// Home workspace carries direct_level from workspace_level ('view') and is_home_workspace = true.
 		homeWS, ok := byKey[DocumentPrincipalWorkspace+":"+tn.wsA]
-		if !ok || !homeWS.IsHomeWorkspace || homeWS.DirectLevel != "view" || homeWS.Subtitle != "shs2cand-a" {
-			t.Fatalf("home workspace candidate = %+v, want is_home_workspace=true direct_level=view", homeWS)
+		if !ok || !homeWS.IsHomeWorkspace || homeWS.DirectLevel != "view" || homeWS.Secondary != "shs2cand-a" {
+			t.Fatalf("home workspace candidate = %+v, want is_home_workspace=true direct_level=view secondary=shs2cand-a", homeWS)
 		}
 		// Other workspace carries direct_level from live share ('view') and is_home_workspace = false.
 		otherWS, ok := byKey[DocumentPrincipalWorkspace+":"+tn.wsB]
@@ -57,8 +61,8 @@ func TestDocumentShareCandidates(t *testing.T) {
 		}
 		// Organization row carries direct_level from live share ('view').
 		orgCand, ok := byKey[DocumentPrincipalOrganization+":"+tn.orgID]
-		if !ok || orgCand.IsHomeWorkspace || orgCand.DirectLevel != "view" || orgCand.Subtitle != "shs2cand" {
-			t.Fatalf("organization candidate = %+v, want direct_level=view subtitle=shs2cand", orgCand)
+		if !ok || orgCand.IsHomeWorkspace || orgCand.DirectLevel != "view" || orgCand.Secondary != "shs2cand" {
+			t.Fatalf("organization candidate = %+v, want direct_level=view secondary=shs2cand", orgCand)
 		}
 		// User with direct share carries direct_level='edit'; user without direct share carries ''.
 		outCand, ok := byKey[DocumentPrincipalUser+":"+tn.outsider.ID]

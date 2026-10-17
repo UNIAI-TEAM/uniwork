@@ -50,7 +50,7 @@ func (h *handlers) listDocumentShareCandidates(w http.ResponseWriter, r *http.Re
 			PrincipalType:   c.PrincipalType,
 			PrincipalID:     c.PrincipalID,
 			Name:            c.Name,
-			Subtitle:        c.Subtitle,
+			Secondary:       c.Secondary,
 			IsHomeWorkspace: c.IsHomeWorkspace,
 		}
 		if c.AvatarURL != "" {

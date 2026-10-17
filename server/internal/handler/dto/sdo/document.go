@@ -690,10 +690,10 @@ type DocumentShareCandidateDTO struct {
 	PrincipalType   string  `json:"principal_type" enums:"user,workspace,organization" example:"user"`
 	PrincipalID     string  `json:"principal_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	Name            string  `json:"name" example:"Nguyễn Văn An"`
-	Subtitle        string  `json:"subtitle,omitempty" example:"an.nguyen@example.com"`
+	Secondary       string  `json:"secondary,omitempty" example:"an.nguyen@example.com"`
 	AvatarURL       *string `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
 	IconEmoji       *string `json:"icon_emoji,omitempty" example:"📁"`
-	DirectLevel     *string `json:"direct_level,omitempty" enums:"view,comment,edit,manage" example:"view"`
+	DirectLevel     *string `json:"direct_level" enums:"view,comment,edit,manage" example:"view"`
 	IsHomeWorkspace bool    `json:"is_home_workspace" example:"false"`
 }
 
