@@ -1,0 +1,91 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-folders.spec.ts documents.spec.ts documents-home.spec.ts documents-versions.spec.ts > /tmp/restore-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/restore-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/restore-E2E.log; grep -E "✘|\[failed\]" /tmp/restore-E2E.log | head -40; echo; echo "E2E_TARGETED_EXIT=$rc"
+      2322 |     expect(doc1After.data?.parent_id).toBe(sub1.id);
+      2323 |     // server/internal/handler/documents.go:868-871 omits archived_at when doc.ArchivedAt is null.
+      2324 |     expect(doc1After.data?.archived_at).toBeUndefined();
+
+    Error Context: test-results/documents-folders-FD-A12-a-59208-re-collision-and-blocks-403/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A12-a-59208-re-collision-and-blocks-403/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A12-a-59208-re-collision-and-blocks-403/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) documents-folders.spec.ts:2386:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button 
+
+    Error: createPage(Mục-9) failed: 404 {"code":"not_found","message":"not found","error_class":"missing"} {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+
+
+    expect(received).toBeTruthy()
+
+    Received: false
+
+
+      431 |     res.ok && res.data,
+      432 |     `createPage(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
+    > 433 |   ).toBeTruthy();
+          |     ^
+      434 |   return res.data!;
+      435 | }
+      436 |
+
+    Error Context: test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) documents-folders.spec.ts:2452:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('tab', { name: /^Lưu trữ/ })
+
+
+      2489 |
+      2490 |   // Restore from the Archive scope: the trashed folder's row menu offers Khôi phục.
+    > 2491 |   await page.getByRole("tab", { name: /^Lưu trữ/ }).click();
+           |                                                     ^
+      2492 |   await expect(contentRow(page, "Xóa Thử")).toBeVisible();
+      2493 |   await page
+      2494 |     .getByRole("table", { name: "Tài liệu" })
+
+    Error Context: test-results/documents-folders-FD-A12-F-23577-en-trash-and-restore-toasts/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A12-F-23577-en-trash-and-restore-toasts/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A12-F-23577-en-trash-and-restore-toasts/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    documents-folders.spec.ts:724:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live 
+    documents-folders.spec.ts:1991:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents 
+    documents-folders.spec.ts:2172:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 
+    documents-folders.spec.ts:2386:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button 
+    documents-folders.spec.ts:2452:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts 
+  1 skipped
+  24 passed (4.5m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-folders.spec.ts documents.spec.ts documents-home.spec.ts documents-versions.spec.ts
+  5 failed
+  1 skipped
+  24 passed (4.5m)
+  ✘   7 documents-folders.spec.ts:724:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live (10.3s)
+  ✘  18 documents-folders.spec.ts:1991:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (380ms)
+  ✘  19 documents-folders.spec.ts:2172:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 (10.9s)
+  ✘  20 documents-folders.spec.ts:2386:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button (766ms)
+  ✘  21 documents-folders.spec.ts:2452:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts (1.0m)
+
+E2E_TARGETED_EXIT=1
