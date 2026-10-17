@@ -182,7 +182,7 @@ describe("My Folder sub-nav row", () => {
     fireEvent.click(row);
     await waitFor(() => expect(nav.searchParams.get("folder")).toBe("mf1"));
     expect(posts(MY_FOLDER_URL)).toHaveLength(1);
-    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(label()));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: label() })).toBeInTheDocument());
     expect(screen.getByRole("heading", { level: 1 })).not.toHaveTextContent("My Folder");
     expect(within(sidebar).getByRole("button", { name: label() })).toHaveAttribute("aria-current", "page");
     expect(within(sidebar).getByRole("button", { name: t("documents.home.sidebar.home") })).not.toHaveAttribute("aria-current");
@@ -367,8 +367,9 @@ describe("guards on the My Folder row", () => {
     });
     renderView(vi.fn(), `/acme/doi/documents?folder=mf1`);
 
-    const heading = await screen.findByRole("heading", { level: 1 });
-    await waitFor(() => expect(heading).toHaveTextContent(label()));
+    const heading = await screen.findByRole("heading", { level: 1, name: label() });
+    expect(heading).toHaveTextContent(label());
+    expect(within(heading).queryByRole("button")).toBeNull();
     const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     expect(within(crumbs).queryByRole("button", { name: t("documents.home.folders.rename") })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.folder.menu") }));

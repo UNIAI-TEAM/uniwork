@@ -85,8 +85,8 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
             }}
           />
         ) : null}
-        <h1 className="flex min-w-0 items-center gap-2 text-title font-semibold">
-          <span className="truncate">{folderLabel}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate text-title font-semibold">{folderLabel}</h1>
           {folderDoc && canMenu ? (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -121,7 +121,7 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
-        </h1>
+        </div>
       </div>
       <DocumentsSearchBox
         search={search}
