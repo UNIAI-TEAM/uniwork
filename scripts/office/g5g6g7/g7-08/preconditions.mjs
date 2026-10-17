@@ -112,7 +112,7 @@ function corsHeadersForOrigin(origin) {
 
 async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_ROOT, ports, fetchImpl = fetch }) {
   const paths = harnessPaths(runDir);
-  const binPath = join(runDir, 'bin', 'harness-server');
+  const binPath = join(repoRoot, 'server', 'bin', 'harness-server');
   if (!existsSync(binPath)) return false;
 
   const pidEntries = existsSync(paths.pidsFile)
@@ -124,21 +124,29 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
     : [];
   const srvEntry = pidEntries.find((e) => e.name === 'server');
   if (srvEntry?.pid) {
+    try { process.kill(-srvEntry.pid, 'SIGTERM'); } catch { /* ignore */ }
     try { process.kill(srvEntry.pid, 'SIGTERM'); } catch { /* ignore */ }
-    await sleep(300);
+    await sleep(400);
   }
 
+  const fileEnv = existsSync(paths.serverEnvFile) ? parseEnvFile(readFileSync(paths.serverEnvFile, 'utf8')) : {};
   const serverEnv = {
-    ...buildServerEnv({ ports, repoRoot }),
+    ...process.env,
+    STORAGE_BACKEND: 'local',
+    JWT_SECRET: 'harness-dev-secret',
+    LOG_LEVEL: 'info',
+    ...fileEnv,
     AI_PROVIDER: 'fake',
     AI_CONVERSATION_KEY: TEST_CONVERSATION_KEY_B64,
   };
+  const serverCwd = join(runDir, 'server-cwd', 'a', 'b', 'c');
+  mkdirSync(serverCwd, { recursive: true });
   mkdirSync(paths.logsDir, { recursive: true });
   const logFd = openSync(join(paths.logsDir, 'server.log'), 'a');
   let childPid = null;
   try {
     const child = spawn(binPath, [], {
-      cwd: join(repoRoot, 'server'),
+      cwd: serverCwd,
       env: serverEnv,
       detached: true,
       stdio: ['ignore', logFd, logFd],
@@ -156,11 +164,11 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
   updatedLines.push(`server ${childPid} ${ports.API_PORT}`);
   writeFileSync(paths.pidsFile, `${updatedLines.join('\n')}\n`, 'utf8');
 
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
-    const ok = await fetchImpl(`${ports.API_ORIGIN}/health`).then((r) => r.ok).catch(() => false);
+    const ok = await fetchImpl(`${ports.API_ORIGIN}/healthz`).then((r) => r.ok).catch(() => false);
     if (ok) return true;
-    await sleep(200);
+    await sleep(250);
   }
   return false;
 }
