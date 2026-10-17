@@ -2028,6 +2028,58 @@ describe('usage rows and arguments', () => {
     };
     assert.equal(score(sumCase, deriveAnswer(sumCase, askProduct).answer).status, 'fail', 'DS-5: product is not an allowed arithmetic derivation');
   });
-});
 
+  it('Item 5: deriveAnswer reports pick.value for table_cell and an anchor-matching table_cell with a wrong value fails', () => {
+    const tblCase = synthCase({
+      id: 'HO-DOCX-907',
+      format: 'docx',
+      category: 'lookup',
+      fixtures: [{ id: 'fx-docx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_document', 'read_table'], required: ['read_table'] },
+      expected: {
+        numeric: [],
+        structural: [{ kind: 'table_cell', anchor: 'table:1/Alpha Dept/Status', value: 'table:1/Alpha Dept/Approved' }],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: {
+        numeric: {},
+        structural: [{ kind: 'table_cell', anchor: 'table:1/Alpha Dept/Status', value: 'table:1/Alpha Dept/Approved' }],
+        writes: 0,
+        text: 'Alpha Dept status is Approved.',
+      },
+    });
+    const rightAsk = {
+      reply: `Alpha Dept is Approved.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [],
+        items: [{ kind: 'table_cell', anchor: 'Alpha Dept — Status', value: 'Alpha Dept: Approved' }],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+      calls: [{ name: 'read_table' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['docs'],
+    };
+    const derivedRight = deriveAnswer(tblCase, rightAsk);
+    assert.equal(derivedRight.answer.structural[0].value, 'Alpha Dept: Approved', 'deriveAnswer must report pick.value, never copy expected.value');
+    assert.equal(score(tblCase, derivedRight.answer).status, 'pass');
+
+    const wrongValueAsk = {
+      ...rightAsk,
+      reply: `Alpha Dept is Pending.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [],
+        items: [{ kind: 'table_cell', anchor: 'Alpha Dept — Status', value: 'Pending' }],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+    };
+    const derivedWrong = deriveAnswer(tblCase, wrongValueAsk);
+    assert.equal(derivedWrong.answer.structural[0].value, 'Pending');
+    assert.equal(score(tblCase, derivedWrong.answer).status, 'fail', 'anchor-matching table_cell with wrong value must fail');
+  });
+});
 
