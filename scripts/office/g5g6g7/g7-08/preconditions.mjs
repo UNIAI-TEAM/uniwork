@@ -146,6 +146,14 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
     ...fileEnv,
     AI_PROVIDER: 'fake',
     AI_CONVERSATION_KEY: TEST_CONVERSATION_KEY_B64,
+    FF_OFFICE_AI_UNIWORK: 'true',
+    FF_OFFICE_AI_BYOK: 'true',
+    FF_OFFICE_AI_UNIWORK_XLSX: 'true',
+    FF_OFFICE_AI_UNIWORK_DOCX: 'true',
+    FF_OFFICE_AI_UNIWORK_PPTX: 'true',
+    FF_OFFICE_AI_UNIWORK_PDF: 'true',
+    FF_OFFICE_AI_UNIWORK_MARKDOWN: 'true',
+    FF_OFFICE_AI_UNIWORK_HTML: 'true',
   };
   mkdirSync(paths.serverCwd, { recursive: true });
   mkdirSync(paths.logDir, { recursive: true });
@@ -216,34 +224,21 @@ export async function ensureServerPreconditions({
 
   if (dbName && seeded?.organizationId && seeded?.userId) {
     const flagValuesSql = allFlags
-      .map((f, i) => `('01J0000000000000000000G70${i}', '${f}', 'global', '', true, '${seeded.userId}', 'g708 w2b precondition')`)
+      .map((f, i) => `('01J0000000000000000000G70${i}', '${f}', 'global', '', true, 'g708 w2b precondition', '${seeded.userId}')`)
       .join(', ');
     const sql = [
       `UPDATE users SET platform_role = 'admin' WHERE id = '${seeded.userId}';`,
       `UPDATE subscriptions SET overrides = COALESCE(overrides, '{}'::jsonb) || '{"office.ai_cloud": true, "ai.tokens": 100000000}'::jsonb WHERE organization_id = '${seeded.organizationId}';`,
-      `INSERT INTO feature_flag_overrides (id, flag_key, scope, scope_id, enabled, updated_by, reason) VALUES ${flagValuesSql} ON CONFLICT (flag_key, scope, scope_id) DO UPDATE SET enabled = true, updated_at = NOW();`,
+      `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by) VALUES ${flagValuesSql} ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = true;`,
     ].join(' ');
     const r1 = spawnSync('docker', ['exec', pgContainer, 'psql', '-U', pgUser, '-d', dbName, '-c', sql], { timeout: 10_000 });
     if (r1.status !== 0 && pgContainer === 'uniwork-postgres-1') {
       spawnSync('docker', ['exec', 'uniwork-postgres', 'psql', '-U', pgUser, '-d', dbName, '-c', sql], { timeout: 10_000 });
     }
-
-    for (const key of ['office_ai_uniwork', formatFlag, 'office_ai_byok']) {
-      await fetchImpl(`${apiOrigin}/api/v1/admin/flags/${key}/overrides`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${seeded.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scope: 'org',
-          scope_id: seeded.organizationId,
-          enabled: true,
-          reason: 'g708 w2b precondition enable flag',
-        }),
-      }).catch(() => null);
-    }
   }
 
   const checkEndpoints = async () => {
-    const capRes = await fetchImpl(`${apiOrigin}/api/v1/orgs/${seeded.organizationSlug}/office/capabilities`, {
+    const capRes = await fetchImpl(`${apiOrigin}/api/v1/orgs/${seeded.organizationId}/office/capabilities`, {
       headers: { Authorization: `Bearer ${seeded.token}` },
     });
     const capBody = capRes.ok ? await capRes.json().catch(() => ({})) : {};
@@ -267,23 +262,29 @@ export async function ensureServerPreconditions({
 
   let { capBody, frameGrant, cloudBody } = await checkEndpoints();
   if ((!cloudBody?.uniwork_model || !cloudBody?.tools?.chat || !frameGrant?.uniwork_ai) && ports.API_PORT) {
-    const restarted = await ensureHarnessServerAiProvider({ runDir, repoRoot, ports });
+    const restarted = await ensureHarnessServerAiProvider({ runDir, repoRoot, ports, fetchImpl });
     if (restarted) {
       ({ capBody, frameGrant, cloudBody } = await checkEndpoints());
     }
   }
 
-  const formatCap = capBody?.formats?.[serverFormatToken] ?? {};
+  const formatsEnabled = Array.isArray(capBody?.ai_uniwork_formats) ? capBody.ai_uniwork_formats : [];
   const needUniwork = provider === 'uniwork';
-  const capabilityMet = needUniwork ? Boolean(formatCap.ai_uniwork && frameGrant.uniwork_ai) : Boolean(formatCap.ai_byok || frameGrant.byok);
+  const capabilityMet = needUniwork
+    ? Boolean(capBody?.ai_uniwork && formatsEnabled.includes(serverFormatToken) && frameGrant.uniwork_ai)
+    : Boolean(frameGrant.ai);
   const providerMet = needUniwork ? Boolean(cloudBody?.uniwork_model && cloudBody?.tools?.chat) : true;
   const stubBound = dryRun ? Boolean(stubUrl) : true;
   const met = Boolean(capabilityMet && providerMet && stubBound);
 
   let failureReason = null;
-  if (!capabilityMet) failureReason = `capability ai_uniwork=${Boolean(formatCap.ai_uniwork)} frameGrant.uniwork_ai=${Boolean(frameGrant.uniwork_ai)}`;
-  else if (!providerMet) failureReason = `cloudStatus uniwork_model="${cloudBody?.uniwork_model ?? ''}" tools.chat=${Boolean(cloudBody?.tools?.chat)}`;
-  else if (!stubBound) failureReason = 'dry_run_stub_upstream_not_bound';
+  if (!capabilityMet) {
+    failureReason = `capability ai_uniwork=${Boolean(capBody?.ai_uniwork)} formats=${JSON.stringify(formatsEnabled)} frameGrant.uniwork_ai=${Boolean(frameGrant.uniwork_ai)}`;
+  } else if (!providerMet) {
+    failureReason = `cloudStatus uniwork_model="${cloudBody?.uniwork_model ?? ''}" tools.chat=${Boolean(cloudBody?.tools?.chat)}`;
+  } else if (!stubBound) {
+    failureReason = 'dry_run_stub_upstream_not_bound';
+  }
 
   return {
     met,
@@ -294,12 +295,15 @@ export async function ensureServerPreconditions({
       serverFormatToken,
     },
     entitlement: 'office.ai_cloud',
-    capabilitiesEndpoint: formatCap,
+    capabilitiesEndpoint: {
+      ai_uniwork: Boolean(capBody?.ai_uniwork),
+      ai_uniwork_formats: formatsEnabled,
+    },
     frameTokenAiGrant: frameGrant,
     cloudStatus: {
       uniworkModel: cloudBody?.uniwork_model ?? '',
       toolsChat: Boolean(cloudBody?.tools?.chat),
-      quotaRemaining: cloudBody?.quota?.remaining ?? null,
+      quotaRemaining: cloudBody?.credits?.remaining ?? null,
     },
     stubUpstreamBound: stubBound,
     stubUrl: stubUrl ? 'bound://holdout-stub-facade' : null,
