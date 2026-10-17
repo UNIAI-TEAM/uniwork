@@ -84,6 +84,7 @@ function historyMessages(caseDoc) {
 
 export function firstMessages(caseDoc, lang) {
   const context = [];
+  if (caseDoc.role) context.push(`Role: ${caseDoc.role} (${caseDoc.role === 'viewer' ? 'read-only; cannot edit' : 'can edit'})`);
   if (caseDoc.setup?.activeSheet) context.push(`Active sheet: "${caseDoc.setup.activeSheet}"`);
   if (caseDoc.setup?.selection) context.push(`Selection: ${caseDoc.setup.selection}`);
   const prefix = context.length > 0 ? `[${context.join('; ')}]\n` : '';
