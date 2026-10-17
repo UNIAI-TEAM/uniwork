@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -294,5 +295,212 @@ func TestDocumentSharedBatchNotifiesEachRisenUser(t *testing.T) {
 	}
 	if got := f.sharedNotifications(t, f.member.ID); len(got) != 0 {
 		t.Fatalf("f.member (already at edit via home row) was notified in batch: %+v", got)
+	}
+}
+
+// batchLevels returns each recipient's notification level for the mixed batch
+// tests, keyed by user id; a recipient with no notification is absent.
+func (f *documentFixture) batchLevels(t *testing.T, userIDs ...string) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	for _, uid := range userIDs {
+		got := f.sharedNotifications(t, uid)
+		if len(got) == 0 {
+			continue
+		}
+		if len(got) != 1 {
+			t.Fatalf("recipient %s has %d document_shared notifications, want 1", uid, len(got))
+		}
+		out[uid] = decodeNotificationParams(t, got[0])["level"]
+	}
+	return out
+}
+
+// TestDocumentAccessBatchNotificationIgnoresItemOrder is the R1-01/R1-02/R1-13
+// regression: a mixed UpdateDocumentAccess batch that changes the home row and
+// grants a direct user share must notify exactly when the recipient's effective
+// level RISES across the whole command, whatever order the items arrive in.
+//
+// Case A (home-edit + user-edit): a restricted document, a workspace member
+// with no access; the home item opens the document to the workspace at edit and
+// the user item grants edit. The recipient ends at edit from none, so the
+// command notifies with edit in BOTH orders - the bug stamped it in only one.
+// Case B (revoke org edit + grant direct view): the recipient read through an
+// organization edit grant; the command replaces it with a direct view, an
+// effective downgrade, so it notifies in NEITHER order.
+func TestDocumentAccessBatchNotificationIgnoresItemOrder(t *testing.T) {
+	type tc struct {
+		name       string
+		userFirst  bool
+		rise       bool
+		wantLevel  string
+		wantNotify bool
+	}
+	cases := []tc{
+		{name: "home edit then user edit", userFirst: false, rise: true, wantLevel: "edit", wantNotify: true},
+		{name: "user edit then home edit", userFirst: true, rise: true, wantLevel: "edit", wantNotify: true},
+		{name: "revoke org then user view", userFirst: false, rise: false, wantLevel: "view", wantNotify: false},
+		{name: "user view then revoke org", userFirst: true, rise: false, wantLevel: "view", wantNotify: false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDocumentFixture(t)
+			recipient := f.addOrgOutsider(t, "order@example.com", "Người Nhận")
+			if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{
+				WorkspaceID: f.wsID, OrganizationID: f.orgID, UserID: recipient.ID, Role: "member",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			docID := f.document(t, "restricted", "Tài liệu lô hỗn hợp")
+
+			var items []service.DocumentAccessBatchItem
+			if c.rise {
+				// Home item opens the document to the workspace at edit (the
+				// recipient, a member, rises none -> edit); the user item
+				// grants edit directly.
+				items = []service.DocumentAccessBatchItem{
+					{PrincipalType: service.DocumentPrincipalWorkspace, PrincipalID: f.wsID, Level: new(service.DocumentLevelEdit)},
+					{PrincipalType: service.DocumentPrincipalUser, PrincipalID: recipient.ID, Level: new(service.DocumentLevelEdit)},
+				}
+			} else {
+				// Seed an organization edit grant, then revoke it while
+				// granting the recipient a direct view: edit -> view is a
+				// downgrade, so no notification.
+				if _, err := f.q.InsertDocumentShare(f.ctx, db.InsertDocumentShareParams{
+					ID: "01J8X4ORGEDIT000000000000", OrganizationID: f.orgID, WorkspaceID: f.wsID,
+					DocumentID: docID, PrincipalType: service.DocumentPrincipalOrganization,
+					PrincipalID: f.orgID, Level: string(service.DocumentLevelEdit),
+					GrantedBy: f.owner.ID, GrantedByKind: "human",
+				}); err != nil {
+					t.Fatal(err)
+				}
+				items = []service.DocumentAccessBatchItem{
+					{PrincipalType: service.DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: nil},
+					{PrincipalType: service.DocumentPrincipalUser, PrincipalID: recipient.ID, Level: new(service.DocumentLevelView)},
+				}
+			}
+			if c.userFirst {
+				items[0], items[1] = items[1], items[0]
+			}
+
+			if _, err := f.docs.UpdateDocumentAccess(f.ctx, service.Human(f.owner.ID), docID, service.UpdateDocumentAccessInput{Items: items}); err != nil {
+				t.Fatalf("UpdateDocumentAccess: %v", err)
+			}
+			f.handleAll(t, "document.shared")
+
+			levels := f.batchLevels(t, recipient.ID)
+			if c.wantNotify {
+				if levels[recipient.ID] != c.wantLevel {
+					t.Fatalf("notified level = %q, want %q (order-independent)", levels[recipient.ID], c.wantLevel)
+				}
+			} else if _, ok := levels[recipient.ID]; ok {
+				t.Fatalf("recipient notified %q, want none (no rise over the whole command)", levels[recipient.ID])
+			}
+		})
+	}
+}
+
+// TestDocumentAccessBatchNotificationHomeRowReplacement is the R1-13
+// home-row shape: a workspace-visible document grants a member view through the
+// home row; the batch turns the home row off and grants that same member a
+// direct view. Access is unchanged (view -> view), so NO notification is due -
+// in either order. Under the old writer a home-row revoke applied first dropped
+// the recipient to none, so the same-level user grant looked like a rise and
+// notified.
+func TestDocumentAccessBatchNotificationHomeRowReplacement(t *testing.T) {
+	for _, homeFirst := range []bool{true, false} {
+		name := "user view then home off"
+		if homeFirst {
+			name = "home off then user view"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newDocumentFixture(t)
+			recipient := f.addOrgOutsider(t, "home-replace@example.com", "Người Nhận Nhà")
+			if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{
+				WorkspaceID: f.wsID, OrganizationID: f.orgID, UserID: recipient.ID, Role: "member",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// workspace_level is 'view' so the member reads view via the home row.
+			docID := f.document(t, "workspace", "Tài liệu thay hàng nhà")
+			if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET workspace_level = 'view' WHERE id = $1`, docID); err != nil {
+				t.Fatal(err)
+			}
+
+			items := []service.DocumentAccessBatchItem{
+				{PrincipalType: service.DocumentPrincipalWorkspace, PrincipalID: f.wsID, Level: nil},
+				{PrincipalType: service.DocumentPrincipalUser, PrincipalID: recipient.ID, Level: new(service.DocumentLevelView)},
+			}
+			if !homeFirst {
+				items[0], items[1] = items[1], items[0]
+			}
+			if _, err := f.docs.UpdateDocumentAccess(f.ctx, service.Human(f.owner.ID), docID, service.UpdateDocumentAccessInput{Items: items}); err != nil {
+				t.Fatalf("UpdateDocumentAccess: %v", err)
+			}
+			f.handleAll(t, "document.shared")
+			if got := f.sharedNotifications(t, recipient.ID); len(got) != 0 {
+				t.Fatalf("unchanged access (view -> view) notified recipient: %+v", got)
+			}
+		})
+	}
+}
+
+// TestDocumentSharedBatchLevelRecoveredByShareID is the R1-09 regression: one
+// HTTP-correlated mixed-level batch grants A view and B edit; both direct
+// shares are revoked before the consumer runs, while an organization grant
+// added after the batch keeps both readable. The delayed event must recover
+// each recipient's ORIGINAL level from the share row its share_id names
+// (revoked history included), so A is told view and B edit - never both view,
+// which the old correlation-keyed audit lookup produced.
+func TestDocumentSharedBatchLevelRecoveredByShareID(t *testing.T) {
+	f := newDocumentFixture(t)
+	a := f.addOrgOutsider(t, "delayed-a@example.com", "Người A")
+	b := f.addOrgOutsider(t, "delayed-b@example.com", "Người B")
+	docID := f.document(t, "restricted", "Tài liệu trì hoãn")
+
+	// One HTTP-style correlation for the whole batch, exactly as middleware
+	// would stamp it: every audit/outbox row in the batch shares it.
+	ctx := audit.WithRequest(f.ctx, audit.RequestInfo{CorrelationID: "corr-batch-0001"})
+
+	res, err := f.docs.UpdateDocumentAccess(ctx, service.Human(f.owner.ID), docID, service.UpdateDocumentAccessInput{Items: []service.DocumentAccessBatchItem{
+		{PrincipalType: service.DocumentPrincipalUser, PrincipalID: a.ID, Level: new(service.DocumentLevelView)},
+		{PrincipalType: service.DocumentPrincipalUser, PrincipalID: b.ID, Level: new(service.DocumentLevelEdit)},
+	}})
+	if err != nil {
+		t.Fatalf("UpdateDocumentAccess: %v", err)
+	}
+	evs := f.events(t, "document.shared")
+	if len(evs) != 2 {
+		t.Fatalf("document.shared events = %d, want 2", len(evs))
+	}
+
+	// An organization view grant keeps both readable once their direct shares
+	// are revoked, so the delivery-time CanReadDocument gate still passes.
+	if _, err := f.q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
+		ID: "01J8X4ORGHOLD00000000000000", OrganizationID: f.orgID, WorkspaceID: f.wsID,
+		DocumentID: docID, PrincipalType: service.DocumentPrincipalOrganization,
+		PrincipalID: f.orgID, Level: string(service.DocumentLevelView),
+		GrantedBy: f.owner.ID, GrantedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range res.Results {
+		if r.ShareID == "" {
+			t.Fatalf("result %d has no share_id: %+v", r.Index, r)
+		}
+		if err := f.docs.RevokeDocumentShare(ctx, service.Human(f.owner.ID), docID, r.ShareID); err != nil {
+			t.Fatalf("revoke %s: %v", r.ShareID, err)
+		}
+	}
+	for _, ev := range evs {
+		if err := f.consumer.Handle(ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	gotA := f.batchLevels(t, a.ID)
+	gotB := f.batchLevels(t, b.ID)
+	if gotA[a.ID] != "view" || gotB[b.ID] != "edit" {
+		t.Fatalf("delayed levels = A %q / B %q, want view/edit", gotA[a.ID], gotB[b.ID])
 	}
 }

@@ -286,7 +286,7 @@ func TestApplyDocumentShareMergesHomeWorkspaceInAList(t *testing.T) {
 				{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: DocumentLevelComment},
 				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.bMember.ID, Level: DocumentLevelEdit},
 			} {
-				sh, err := applyDocumentShare(f.ctx, q, Human(tn.aclOwner.ID), doc, access, in)
+				sh, err := f.svc.applyDocumentShare(f.ctx, q, Human(tn.aclOwner.ID), doc, access, in)
 				if err != nil {
 					return err
 				}

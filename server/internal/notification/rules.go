@@ -672,14 +672,23 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 		}
 		level = sh.Level
 	case errors.Is(err, pgx.ErrNoRows):
-		changes, err := changedFields(ctx, e.q, ev, audit.ActionDocumentShared, doc.ID)
+		// The grant was revoked before delivery. Recover the ORIGINAL level
+		// from the share row the event names - revoked history included -
+		// never from an audit row keyed by correlation/action/document/time,
+		// which cannot tell one batch recipient from another (SH-S3 R1-09).
+		revoked, err := e.q.GetDocumentShareByID(ctx, db.GetDocumentShareByIDParams{
+			ID: p["share_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		if err != nil {
 			return nil, err
 		}
-		level, _ = changeTo(changes, "level")
-		if level == "" {
+		if revoked.PrincipalType != "user" || revoked.PrincipalID != uid {
 			return nil, nil
 		}
+		level = revoked.Level
 	default:
 		return nil, err
 	}
