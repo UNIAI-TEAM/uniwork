@@ -27,7 +27,7 @@
 // keeps that protocol failure apart from a wrong answer.
 
 import { anchorMatches, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
-import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
+import { WRITE_OPERATIONS, hasUnsupportedSheetOp, opsOfTool } from './holdout-backend.mjs';
 import { cellProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
@@ -148,15 +148,24 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const editCase = caseDoc.expected.writes > 0;
   const writeOps = caseDoc.tools.required.filter((op) => WRITE_OPERATIONS.has(op));
   const sourceText = ask.sourceText ?? '';
-  const editWrites = contentfulWrites(ask.writeLog).filter((w) => (opsOfTool(ask.modules, w.name) ?? []).some((op) => writeOps.includes(op)) && introducesNew(w.args, sourceText));
+  let unsupportedAppliedCount = 0;
+  const normalizedWriteLog = (ask.writeLog ?? []).map((w) => {
+    if (w.name === 'propose_operations' && hasUnsupportedSheetOp(w.args)) {
+      if (w.applied) unsupportedAppliedCount += 1;
+      return { ...w, applied: false };
+    }
+    return w;
+  });
+  const effectiveWrites = Math.max(0, (ask.writes ?? 0) - unsupportedAppliedCount);
+  const editWrites = contentfulWrites(normalizedWriteLog).filter((w) => (opsOfTool(ask.modules, w.name) ?? []).some((op) => writeOps.includes(op)) && introducesNew(w.args, sourceText));
   for (const call of ask.calls) {
     const ops = opsOfTool(ask.modules, call.name);
     if (!ops) { used.add(call.name); continue; }
     const callDenied =
       Boolean(call.denied) ||
       (((ask.denied ?? []).some((d) => d.name === call.name) ||
-        (ask.writeLog ?? []).some((w) => w.name === call.name && w.applied === false)) &&
-        !(ask.writeLog ?? []).some((w) => w.name === call.name && w.applied));
+        normalizedWriteLog.some((w) => w.name === call.name && w.applied === false)) &&
+        !normalizedWriteLog.some((w) => w.name === call.name && w.applied));
     // A tool that serves several operations counts under those the case allows; outside all of them it counts as is.
     const inside = ops.filter((op) => caseDoc.tools.allowed.includes(op));
     for (const op of inside.length > 0 ? inside : ops) {
@@ -168,11 +177,11 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   }
   for (const name of ask.dropped ?? []) used.add(name);
   const figures = Array.isArray(report.numbers) ? report.numbers : [];
-  const forbiddenWrite = (ask.writes ?? 0) > caseDoc.expected.writes;
+  const forbiddenWrite = effectiveWrites > caseDoc.expected.writes;
   const backendDenied =
     ask.calls.some((c) => Boolean(c.denied)) ||
     (ask.denied ?? []).length > 0 ||
-    (ask.writeLog ?? []).some((w) => w.applied === false);
+    normalizedWriteLog.some((w) => w.applied === false);
   const refusalProse =
     parsed.status === 'ok' &&
     /(?:not supported|cannot|can't|can not|unable to|read-only|view-only|permission denied|access revoked|version conflict|decline|refuse|not allowed|outside the current document|another organization|không hỗ trợ|không thể|chưa thể|không được phép|không có quyền|chỉ đọc|chỉ-đọc|từ chối|thu hồi quyền|xung đột phiên bản|phiên bản mới hơn|ngoài phạm vi|tổ chức khác|không sửa được|không ghi được|chưa sửa)/i.test(parsed.text);
@@ -185,7 +194,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   strictExtras.forEach((value, i) => { numeric[`extra_figure_${i + 1}`] = value; });
 
   const items = (Array.isArray(report.items) ? report.items : []).filter((it) => it && typeof it === 'object');
-  const applied = (ask.writeLog ?? []).filter((w) => w.applied);
+  const applied = normalizedWriteLog.filter((w) => w.applied);
   const taken = new Set();
   const structural = [];
   const lenientAt = [];
@@ -216,7 +225,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
         // on a zero-write case, preserved count invariants hold by fact; when writes happened, keep today's proof rules.
         if (
           !editCase &&
-          (ask.writes ?? 0) === 0 &&
+          effectiveWrites === 0 &&
           parsed.status === 'ok' &&
           expected.kind === 'count' &&
           caseDoc.category !== 'structure' &&
@@ -243,7 +252,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const mismatch = proseFigureMismatch(parsed.text, figures);
 
   return {
-    answer: { numeric, structural, writes: ask.writes, tools: { used: [...used] }, text: parsed.text },
+    answer: { numeric, structural, writes: effectiveWrites, tools: { used: [...used] }, text: parsed.text },
     adapter: {
       reportStatus: parsed.status,
       figures: figures.length,

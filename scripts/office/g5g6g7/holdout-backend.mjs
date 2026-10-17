@@ -60,14 +60,14 @@ export const TOOL_OPS = {
     ask_clarification: ['ask_clarification'],
   },
   markdown: {
-    get_document_context: ['read_document'],
+    get_document_context: ['read_document', 'read_table'],
     read_blocks: ['read_document', 'read_table'],
     read_frontmatter: ['read_document'],
     apply_ops: ['edit_paragraph'],
     ask_clarification: ['ask_clarification'],
   },
   html: {
-    get_outline: ['read_document'],
+    get_outline: ['read_document', 'read_table'],
     read_source: ['read_document', 'read_table'],
     apply_ops: ['edit_paragraph'],
     ask_clarification: ['ask_clarification'],
@@ -331,6 +331,7 @@ const usedRect = (sheet) => {
 /** Number-format kind of a cell (percent|number|text|currency|date), as the #numberFormat probe of the cases names it. */
 function numberFormatOf(doc, cell) {
   if (!cell) return null;
+  if (cell.formatKind) return cell.formatKind;
   if (cell.t === 's' || cell.t === 'str') return 'text';
   return doc.workbook.formatKinds?.[cell.s ?? 0] ?? 'number';
 }
@@ -464,9 +465,133 @@ function parseArguments(raw) {
   return { ok: true, args: value };
 }
 
+const UNSUPPORTED_SHEET_OP_RE = /(?:print_?area|freeze_?(?:rows|cols|columns|panes)|page_?setup)/i;
+
+/** Returns true when a propose_operations argument asks for page-setup or freeze-pane operations that the tool does not support. */
+export function hasUnsupportedSheetOp(node) {
+  if (Array.isArray(node)) return node.some(hasUnsupportedSheetOp);
+  if (!node || typeof node !== 'object') return false;
+  for (const [k, v] of Object.entries(node)) {
+    if (UNSUPPORTED_SHEET_OP_RE.test(k)) return true;
+    if (/^(?:type|op|operation|kind|action)$/i.test(k) && typeof v === 'string' && UNSUPPORTED_SHEET_OP_RE.test(v)) return true;
+    if (v && typeof v === 'object' && hasUnsupportedSheetOp(v)) return true;
+  }
+  return false;
+}
+
+function recalcSheet(sheet) {
+  for (let pass = 0; pass < 2; pass += 1) {
+    for (const cell of Object.values(sheet.cells)) {
+      if (!cell || typeof cell.f !== 'string') continue;
+      const expr = cell.f.replace(/\$/g, '').trim();
+      const sumMatch = /^SUM\(([A-Z]+\d+:[A-Z]+\d+)\)$/i.exec(expr);
+      if (sumMatch) {
+        const rect = parseRange(sumMatch[1]);
+        if (!rect) continue;
+        let sum = 0;
+        for (let r = rect.r1; r <= rect.r2; r += 1) {
+          for (let c = rect.c1; c <= rect.c2; c += 1) {
+            const v = sheet.cells[`${colName(c)}${r}`]?.v;
+            if (typeof v === 'number' && Number.isFinite(v)) sum += v;
+          }
+        }
+        cell.v = sum;
+        continue;
+      }
+      if (/^[A-Z0-9+\-*/().\s]+$/i.test(expr) && /[A-Z]+\d+/i.test(expr)) {
+        let ok = true;
+        const substituted = expr.replace(/[A-Z]+\d+/gi, (ref) => {
+          const v = sheet.cells[ref.toUpperCase()]?.v;
+          if (typeof v !== 'number' || !Number.isFinite(v)) { ok = false; return '0'; }
+          return String(v);
+        });
+        if (ok && /^[0-9+\-*/().\s]+$/.test(substituted)) {
+          try {
+            const val = Function(`"use strict"; return (${substituted});`)();
+            if (typeof val === 'number' && Number.isFinite(val)) cell.v = val;
+          } catch { /* ignore */ }
+        }
+      }
+    }
+  }
+}
+
+function applyWriteToDoc(doc, name, args, caseDoc) {
+  if (!doc || !args || typeof args !== 'object') return;
+  if (doc.format === 'xlsx' && doc.workbook?.sheets) {
+    const names = Object.keys(doc.workbook.sheets);
+    const defaultSheet = caseDoc.setup?.activeSheet ?? names[0];
+    const resolveSheet = (hint) => {
+      if (!hint) return doc.workbook.sheets[defaultSheet];
+      const clean = String(hint).trim().replace(/^'(.*)'$/, '$1');
+      if (doc.workbook.sheets[clean]) return doc.workbook.sheets[clean];
+      const byIndex = /^sheet-(\d+)$/i.exec(clean);
+      if (byIndex) return doc.workbook.sheets[names[Number(byIndex[1]) - 1]];
+      const found = names.find((n) => n.toLowerCase() === clean.toLowerCase());
+      return doc.workbook.sheets[found ?? defaultSheet];
+    };
+    const visit = (node, inheritedSheet = null) => {
+      if (Array.isArray(node)) { node.forEach((el) => visit(el, inheritedSheet)); return; }
+      if (!node || typeof node !== 'object') return;
+      const ownSheet = node.sheet ?? node.sheetId ?? node.sheetName ?? node.sheet_name ?? node.sheet_id ?? inheritedSheet;
+      const addrRaw = node.address ?? node.range ?? node.cell ?? node.anchor ?? node.target;
+      if (typeof addrRaw === 'string') {
+        const bang = addrRaw.lastIndexOf('!');
+        const addrSheet = bang >= 0 ? addrRaw.slice(0, bang) : ownSheet;
+        const rect = parseRange(bang >= 0 ? addrRaw.slice(bang + 1) : addrRaw);
+        const sheet = resolveSheet(addrSheet);
+        if (sheet && rect) {
+          const fmtStr = String(node.numberFormat ?? node.format ?? '');
+          const isPctFmt = /%|percent/i.test(fmtStr);
+          for (let r = rect.r1; r <= rect.r2; r += 1) {
+            for (let c = rect.c1; c <= rect.c2; c += 1) {
+              const ref = `${colName(c)}${r}`;
+              const prev = sheet.cells[ref] ?? { v: null, f: null, t: 'n' };
+              const next = { ...prev };
+              const rawVal = Array.isArray(node.values)
+                ? (Array.isArray(node.values[r - rect.r1]) ? node.values[r - rect.r1][c - rect.c1] : node.values[(r - rect.r1) * (rect.c2 - rect.c1 + 1) + (c - rect.c1)])
+                : node.value;
+              const rawFormula = typeof node.formula === 'string' ? node.formula : (typeof rawVal === 'string' && rawVal.trim().startsWith('=') ? rawVal : null);
+              if (rawFormula !== null) {
+                next.f = rawFormula.trim().replace(/^=+/, '');
+              } else if (rawVal !== undefined && (typeof rawVal === 'number' || typeof rawVal === 'string' || typeof rawVal === 'boolean')) {
+                if (typeof rawVal === 'string' && rawVal.trim().endsWith('%') && Number.isFinite(Number(rawVal.trim().slice(0, -1)))) {
+                  next.v = Number(rawVal.trim().slice(0, -1)) / 100;
+                  next.t = 'n';
+                  next.formatKind = 'percent';
+                } else {
+                  next.v = rawVal;
+                  next.t = typeof rawVal === 'number' ? 'n' : 'str';
+                }
+              }
+              if (isPctFmt) next.formatKind = 'percent';
+              sheet.cells[ref] = next;
+            }
+          }
+          recalcSheet(sheet);
+        }
+      }
+      for (const [k, v] of Object.entries(node)) {
+        if (v && typeof v === 'object' && k !== 'values') visit(v, ownSheet);
+      }
+    };
+    visit(args);
+    return;
+  }
+  if (doc.format === 'docx' && Array.isArray(doc.blocks)) {
+    const replacement = args.text ?? args.html ?? args.newText ?? args.content;
+    if (typeof replacement === 'string') {
+      const idx = Number(args.blockIndex ?? args.startBlockIndex ?? args.index ?? 0);
+      if (idx >= 0 && idx < doc.blocks.length && doc.blocks[idx].text !== undefined) {
+        doc.blocks[idx] = { ...doc.blocks[idx], text: replacement.replace(/<[^>]*>/g, '').trim() || replacement };
+      }
+    }
+  }
+}
+
 /**
  * One case's tool session. execute(name, args) answers a call; writes() is the number of writes let through;
- * denied() lists calls it refused (revoked access, viewer, stale version) so the runner can record them; writeLog()
+ * denied() lists calls it refused (revoked access, viewer, stale version, unsupported op) so the runner can record them; writeLog()
  * keeps the arguments of every write attempt (applied or refused, a dry run is none) so an edit can be scored from what
  * was proposed; sourceText() is the text of the documents as opened;
  * invalid() lists calls whose arguments the real tool would refuse (answered `invalid_arguments`, never a crash).
@@ -475,7 +600,7 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = nul
   const documents = caseDoc.fixtures.map((fixture, i) => {
     const doc = views?.[i] ?? loadView(fixture.id, fixturesDir);
     applySetup(doc, fixture.id, caseDoc.setup);
-    return { module: MODULE_OF_FORMAT[doc.format] ?? 'docs', role: fixture.role ?? caseDoc.role, read: readTools(caseDoc, doc), sheetNames: doc.workbook ? Object.keys(doc.workbook.sheets) : [], text: viewText(doc) };
+    return { doc, module: MODULE_OF_FORMAT[doc.format] ?? 'docs', role: fixture.role ?? caseDoc.role, read: readTools(caseDoc, doc), sheetNames: doc.workbook ? Object.keys(doc.workbook.sheets) : [], text: viewText(doc) };
   });
   const modules = documents.map((d) => d.module);
   const revokeAfter = caseDoc.setup?.revokeAfterTool ?? Infinity;
@@ -517,8 +642,14 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = nul
       if (isWrite) {
         if (target.role === 'viewer') { denied.push({ name, reason: 'viewer' }); writeLog.push({ name, applied: false, args }); return { error: 'permission_denied', message: 'This document is view-only.' }; }
         if (caseDoc.setup?.serverVersionAhead) { denied.push({ name, reason: 'version_conflict' }); writeLog.push({ name, applied: false, args }); return { error: 'version_conflict', message: 'The server holds a newer version than the copy that is open.' }; }
+        if (name === 'propose_operations' && hasUnsupportedSheetOp(args)) {
+          denied.push({ name, reason: 'unsupported_operation' });
+          writeLog.push({ name, applied: false, args });
+          return { error: 'unsupported_operation', message: 'Page setup and freeze-pane operations are not supported by propose_operations.' };
+        }
         writes += 1;
         writeLog.push({ name, applied: true, args });
+        applyWriteToDoc(target.doc, name, args, caseDoc);
         return { status: 'applied', note: 'Edit applied in the editor (not yet saved).' };
       }
       try {
