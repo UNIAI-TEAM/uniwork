@@ -5,7 +5,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import { useTranslation } from "react-i18next";
@@ -59,7 +59,7 @@ function useIconColor(own: boolean) {
 /** Text with @mentions set apart; a mention of the reader stands out more. */
 function MessageText({ body, own, userId }: { body: string; own: boolean; userId: string }) {
   return (
-    <Text className={cn("text-base", own ? "text-primary-foreground" : "text-foreground")} selectable>
+    <Text className={cn("text-base", own ? "text-primary-foreground" : "text-foreground")}>
       {mentionSegments(body).map((segment, index) =>
         segment.mention ? (
           <Text
@@ -139,6 +139,10 @@ function FileCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord
   );
 }
 
+// iOS defaults to the ambient session, which the silent switch mutes; a voice message is meant to be heard.
+let audioMode: Promise<void> | null = null;
+const ensureAudioMode = () => (audioMode ??= setAudioModeAsync({ playsInSilentMode: true }).catch(() => undefined));
+
 function VoiceCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
   const { t } = useTranslation();
   const longPress = useLongPressProps(onLongPress);
@@ -153,7 +157,7 @@ function VoiceCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecor
       return;
     }
     if (status.didJustFinish || (status.duration > 0 && status.currentTime >= status.duration)) void player.seekTo(0);
-    player.play();
+    void ensureAudioMode().then(() => player.play());
   };
   const total = formatVoiceCallDuration(voice.duration_ms / 1000);
   return (

@@ -5,7 +5,7 @@
 // message has stayed at the bottom for 1.5 s. It is also the room the socket
 // subscribes first and whose messages are not counted unread.
 import { useQueryClient } from "@tanstack/react-query";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useIsFocused } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { markRoomRead } from "@/data/chat-actions";
@@ -22,14 +22,23 @@ function useAppActive(): boolean {
   return active;
 }
 
+// The screen that set the active room last. A thread over its room focuses
+// before the room blurs; the room's cleanup must not clear the thread's room.
+let activeOwner: object | null = null;
+
 /** The room on screen while this screen is focused; `onFocus` runs each time it is. */
 export function useActiveRoom(roomId: string, onFocus?: () => (() => void) | void) {
   useFocusEffect(
     useCallback(() => {
+      const owner = {};
+      activeOwner = owner;
       useActiveChatRoomStore.getState().setRoomId(roomId);
       const cleanup = onFocus?.();
       return () => {
-        if (useActiveChatRoomStore.getState().roomId === roomId) useActiveChatRoomStore.getState().setRoomId(null);
+        if (activeOwner === owner) {
+          activeOwner = null;
+          useActiveChatRoomStore.getState().setRoomId(null);
+        }
         cleanup?.();
       };
     }, [roomId, onFocus]),
@@ -38,7 +47,10 @@ export function useActiveRoom(roomId: string, onFocus?: () => (() => void) | voi
 
 export function useRoomReadMarking(wsId: string, roomId: string, newestMessageId: string | null, atLatest: boolean) {
   const qc = useQueryClient();
-  const active = useAppActive();
+  // In front: the app is active and no thread or details screen covers the room.
+  const appActive = useAppActive();
+  const focused = useIsFocused();
+  const active = appActive && focused;
   const onFocus = useCallback(() => {
     void markRoomRead(qc, wsId, roomId).catch(() => undefined);
     return () => void markRoomRead(qc, wsId, roomId).catch(() => undefined);

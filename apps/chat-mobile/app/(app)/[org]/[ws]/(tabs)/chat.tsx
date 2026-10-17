@@ -75,6 +75,7 @@ export default function ChatTab() {
   const online = usePresenceStore((s) => s.onlineUserIds);
   const [filterText, setFilterText] = useState("");
   const [menuRow, setMenuRow] = useState<RoomListRow | null>(null);
+  const [pulling, setPulling] = useState(false);
 
   const rows = useMemo(
     () =>
@@ -160,7 +161,15 @@ export default function ChatTab() {
           data={rows}
           keyExtractor={(row) => row.key}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={rooms.isRefetching} onRefresh={() => void rooms.refetch()} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={pulling}
+              onRefresh={() => {
+                setPulling(true);
+                void rooms.refetch().finally(() => setPulling(false));
+              }}
+            />
+          }
           ListHeaderComponent={
             <View className="px-4 pt-3 pb-2">
               <TextInput

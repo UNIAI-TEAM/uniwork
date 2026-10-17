@@ -19,8 +19,8 @@ interface Props {
   loadingOlder: boolean;
   /** Under the newest message: who is typing. */
   bottom?: ReactNode;
-  /** Scroll this message into view once it is in the list. */
-  jumpToId?: string | null;
+  /** Scroll this message into view once it is in the list; a new `seq` asks again. */
+  jumpTo?: { id: string; seq: number } | null;
   onAtLatestChange: (atLatest: boolean) => void;
 }
 
@@ -34,21 +34,23 @@ function DayRow({ ts }: { ts: number }) {
   );
 }
 
-export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpToId, onAtLatestChange }: Props) {
+export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpTo, onAtLatestChange }: Props) {
   const list = useRef<FlatList<TimelineRow>>(null);
   const data = useMemo(() => [...rows].reverse(), [rows]);
-  const jumped = useRef<string | null>(null);
+  const jumped = useRef<number | null>(null);
   const atLatest = useRef(true);
 
   useEffect(() => {
-    if (!jumpToId || jumped.current === jumpToId) return;
-    const index = data.findIndex((row) => row.type === "message" && row.message.id === jumpToId);
+    if (!jumpTo || jumped.current === jumpTo.seq) return;
+    const index = data.findIndex((row) => row.type === "message" && row.message.id === jumpTo.id);
     if (index < 0) return;
-    jumped.current = jumpToId;
     // After the first layout pass, or the list does not know the rows' heights yet.
-    const timer = setTimeout(() => list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true }), 50);
+    const timer = setTimeout(() => {
+      jumped.current = jumpTo.seq;
+      list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    }, 50);
     return () => clearTimeout(timer);
-  }, [data, jumpToId]);
+  }, [data, jumpTo]);
 
   return (
     <FlatList

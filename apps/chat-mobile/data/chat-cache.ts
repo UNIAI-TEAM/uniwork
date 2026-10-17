@@ -126,8 +126,14 @@ function patchThreadReplyCaches(qc: QueryClient, wsId: string, roomId: string, m
   );
 }
 
+/** The page around a jumped-to message is read once and never patched: a change refetches it if shown. */
+function refreshAroundPages(qc: QueryClient, wsId: string, roomId: string): void {
+  void qc.invalidateQueries({ queryKey: chatKeys.roomAroundRoot(wsId, roomId) });
+}
+
 /** `created` places a new message; anything else only replaces a loaded one (H4). */
 function patchMessageCaches(qc: QueryClient, wsId: string, roomId: string, message: ChatMessageRecord, created: boolean): void {
+  refreshAroundPages(qc, wsId, roomId);
   if (isChatThreadReply(message)) {
     patchThreadReplyCaches(qc, wsId, roomId, message);
     return;
@@ -251,6 +257,7 @@ export async function fetchAndPatchChatMessage(
 }
 
 export function patchChatMessageDeleted(qc: QueryClient, wsId: string, roomId: string, messageId: string): void {
+  refreshAroundPages(qc, wsId, roomId);
   patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) =>
     roomTimelineHas(existing, messageId) ? mapRoomTimeline(existing, (page) => removeMessageFromList(page, messageId)) : existing,
   );

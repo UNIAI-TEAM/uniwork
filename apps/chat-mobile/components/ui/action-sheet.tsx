@@ -1,9 +1,9 @@
 // A bottom sheet of actions for a long-press, the same on iOS and Android
 // (Alert takes three buttons at most on Android, ActionSheetIOS is iOS only).
 // `header` holds anything above the list, such as the quick reactions.
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, Pressable, View } from "react-native";
+import { Modal, Platform, Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
@@ -25,8 +25,26 @@ interface Props {
 
 export function ActionSheet({ visible, onClose, title, header, actions }: Props) {
   const { t } = useTranslation();
+  // iOS will not present a picker or an alert over a modal that is still closing:
+  // the chosen action runs once the sheet is gone (onDismiss is iOS-only).
+  const pending = useRef<(() => void) | null>(null);
+  const choose = (run: () => void) => {
+    if (Platform.OS === "ios") pending.current = run;
+    onClose();
+    if (Platform.OS !== "ios") run();
+  };
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      onDismiss={() => {
+        const run = pending.current;
+        pending.current = null;
+        run?.();
+      }}
+    >
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="bg-background rounded-t-2xl border-t border-border">
         {title ? (
@@ -41,10 +59,7 @@ export function ActionSheet({ visible, onClose, title, header, actions }: Props)
               key={action.key}
               accessibilityRole="button"
               className="min-h-12 justify-center px-5 active:bg-secondary"
-              onPress={() => {
-                onClose();
-                action.onPress();
-              }}
+              onPress={() => choose(action.onPress)}
             >
               <Text className={cn("text-base", action.destructive ? "text-destructive" : "text-foreground")}>{action.label}</Text>
             </Pressable>

@@ -96,7 +96,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
               <Pressable
                 key={record.id}
                 accessibilityRole="button"
-                onPress={() => router.navigate(chatRoutes.room(chat, roomId, record.id))}
+                onPress={() => router.dismissTo(chatRoutes.room(chat, roomId, record.id))}
                 className="min-h-14 justify-center gap-0.5 px-4 py-2 active:bg-secondary"
               >
                 <Text className="text-xs text-muted-foreground">

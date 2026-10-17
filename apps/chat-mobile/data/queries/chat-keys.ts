@@ -10,6 +10,8 @@ export const chatKeys = {
   /** The page around one message, while a deep link or a reply quote jumps to it. */
   roomMessagesAround: (wsId: string, roomId: string, messageId: string) =>
     ["chat", wsId, "room-around", roomId, messageId] as const,
+  /** Prefix: every around-page of one room; it is never patched, only refetched. */
+  roomAroundRoot: (wsId: string, roomId: string) => ["chat", wsId, "room-around", roomId] as const,
   threadMessages: (wsId: string, roomId: string, rootId: string) =>
     ["chat", wsId, "thread-messages", roomId, rootId] as const,
   /** Prefix: every loaded thread of one room. */

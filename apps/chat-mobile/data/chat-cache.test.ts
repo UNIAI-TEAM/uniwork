@@ -707,6 +707,19 @@ describe("patchChatRoomRead", () => {
   });
 });
 
+describe("the page around a jumped-to message", () => {
+  it("refetches on any change to the room's messages, since nothing patches it", () => {
+    const qc = new QueryClient();
+    const around = chatKeys.roomMessagesAround("ws1", "room1", "m1");
+    qc.setQueryData(around, [sampleMessage("m1", "2026-01-01T10:00:00Z")]);
+    applyChatMessageResponse(qc, "ws1", "room1", { ...sampleMessage("m1", "2026-01-01T10:00:00Z"), reactions: { "👍": 1 } }, false);
+    expect(qc.getQueryState(around)?.isInvalidated).toBe(true);
+    qc.setQueryData(around, []);
+    patchChatMessageDeleted(qc, "ws1", "room1", "m1");
+    expect(qc.getQueryState(around)?.isInvalidated).toBe(true);
+  });
+});
+
 describe("list helpers at their edges", () => {
   it("reads a missing list as empty and sorts rooms without a message last", () => {
     expect(patchRoomSidebarFromMessage(undefined, "room1", sampleMessage("m1", "2026-01-01T10:00:00Z"))).toEqual([]);

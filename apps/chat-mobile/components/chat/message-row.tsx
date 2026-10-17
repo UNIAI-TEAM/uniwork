@@ -70,7 +70,8 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
     <View className={cn("px-3", compactTop ? "pt-0.5" : "pt-2", own ? "items-end" : "items-start", highlighted && "bg-secondary")}>
       {showSender ? <Text className="mb-0.5 ml-3 text-xs font-semibold text-muted-foreground">{senderName}</Text> : null}
       <Pressable
-        accessible={!interactive}
+        // A card with its own button, or a quote that jumps, stays reachable on its own.
+        accessible={!interactive && !quote}
         accessibilityLabel={`${t("chat.message_list.label", { sender: senderName, time })}. ${preview}`}
         accessibilityActions={[{ name: "longpress", label: t("chat.message_actions_aria") }]}
         onAccessibilityAction={longPress}

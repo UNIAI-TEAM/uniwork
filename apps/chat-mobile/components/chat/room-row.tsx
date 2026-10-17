@@ -52,6 +52,8 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
       accessibilityLabel={label}
       onPress={onPress}
       onLongPress={onLongPress}
+      accessibilityActions={[{ name: "longpress", label: t("chat.settings_manage_room") }]}
+      onAccessibilityAction={onLongPress}
       className="flex-row items-center gap-3 px-4 py-2.5 min-h-[72px] active:bg-secondary"
     >
       <RoomAvatar mark={mark} />

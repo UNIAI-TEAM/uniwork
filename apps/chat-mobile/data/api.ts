@@ -18,6 +18,8 @@ import { MeResponseSchema, WorkspacesResponseSchema } from "./schemas";
  * AbortSignal.any(), so one controller is composed by hand below.
  */
 const FETCH_TIMEOUT_MS = 30_000;
+/** A multipart upload (a chat photo or file, up to 25 MB) on a slow mobile link. */
+const UPLOAD_TIMEOUT_MS = 5 * 60_000;
 
 export class ApiError extends Error {
   readonly status: number;
@@ -78,7 +80,8 @@ export function createApiClient(deps: ApiClientDeps) {
     };
     if (token) headers.Authorization = `Bearer ${token}`;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timeoutMs = init.body instanceof FormData ? UPLOAD_TIMEOUT_MS : FETCH_TIMEOUT_MS;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     const caller = init.signal;
     const onCallerAbort = () => controller.abort();
     if (caller?.aborted) controller.abort();
@@ -92,7 +95,7 @@ export function createApiClient(deps: ApiClientDeps) {
       });
     } catch (error) {
       if (controller.signal.aborted && !caller?.aborted) {
-        throw new ApiError(`Request timed out after ${FETCH_TIMEOUT_MS}ms`, 0);
+        throw new ApiError(`Request timed out after ${timeoutMs}ms`, 0);
       }
       throw error;
     } finally {

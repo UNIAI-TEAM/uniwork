@@ -39,9 +39,11 @@ interface Props {
   loading: boolean;
   loadingOlder: boolean;
   onLoadOlder?: () => void;
-  jumpToId: string | null;
+  jumpTo: { id: string; seq: number } | null;
   onQuoteJump: (messageId: string) => void;
   onAtLatestChange: (atLatest: boolean) => void;
+  /** Before a send: the room leaves a jumped-to page for the latest, where the message lands. */
+  onSend?: () => void;
 }
 
 export function Conversation(props: Props) {
@@ -69,14 +71,17 @@ export function Conversation(props: Props) {
   );
 
   const failed = useCallback(() => Alert.alert(t("common.error")), [t]);
+  // The quote goes with this message only: cleared now, not when a slow delivery ends.
+  const takeReply = () => {
+    const replyToMessageId = reply?.id;
+    setReply(null);
+    props.onSend?.();
+    return replyToMessageId;
+  };
   const send = (body: string) =>
-    void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, body, replyToMessageId: reply?.id, threadRootId }, chatSendDeps).finally(() =>
-      setReply(null),
-    );
+    void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, body, replyToMessageId: takeReply(), threadRootId }, chatSendDeps);
   const sendFile = (file: PendingFile) =>
-    void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, body: "", file, replyToMessageId: reply?.id }, chatSendDeps).finally(() =>
-      setReply(null),
-    );
+    void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, body: "", file, replyToMessageId: takeReply() }, chatSendDeps);
   const quoteOf = (message: TimelineMessage) => ({ id: message.id, sender: room.senderName(message), text: message.record ? messagePreviewText(message.record, t) : message.body });
 
   const renderMessage = (row: Extract<TimelineRow, { type: "message" }>) => {
@@ -93,7 +98,7 @@ export function Conversation(props: Props) {
         showSender={room.isGroup && !own && row.showAvatar}
         quote={quotedId ? (quoted ? quoteOf(quoted) : { id: quotedId, sender: t("chat.action_reply"), text: "…" }) : null}
         seen={message.id === seenId}
-        highlighted={message.id === props.jumpToId}
+        highlighted={message.id === props.jumpTo?.id}
         showThread={!threadRootId}
         ctx={ctx}
         onLongPress={setActionMessage}
@@ -120,7 +125,7 @@ export function Conversation(props: Props) {
             renderMessage={renderMessage}
             onLoadOlder={props.onLoadOlder}
             loadingOlder={props.loadingOlder}
-            jumpToId={props.jumpToId}
+            jumpTo={props.jumpTo}
             onAtLatestChange={props.onAtLatestChange}
             bottom={room.typingLabel ? <Text className="px-4 pt-1 text-xs italic text-muted-foreground">{room.typingLabel}</Text> : null}
           />

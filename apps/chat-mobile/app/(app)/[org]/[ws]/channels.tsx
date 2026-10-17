@@ -24,6 +24,7 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
   const channels = useQuery(discoverableChannelsOptions(chat.wsId));
   const [q, setQ] = useState("");
   const [joining, setJoining] = useState<string | null>(null);
+  const [pulling, setPulling] = useState(false);
   const shown = useMemo(
     () => (channels.data ?? []).filter((c) => foldedIncludes(c.name, q) || foldedIncludes(c.topic ?? "", q)),
     [channels.data, q],
@@ -44,8 +45,11 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
         data={shown}
         keyExtractor={(c) => c.id}
         keyboardShouldPersistTaps="handled"
-        onRefresh={() => void channels.refetch()}
-        refreshing={channels.isRefetching}
+        onRefresh={() => {
+          setPulling(true);
+          void channels.refetch().finally(() => setPulling(false));
+        }}
+        refreshing={pulling}
         ListHeaderComponent={
           <View className="px-4 pb-2 pt-3">
             <TextInput

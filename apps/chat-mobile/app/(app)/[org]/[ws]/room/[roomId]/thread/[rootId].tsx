@@ -47,7 +47,7 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
       loading={thread.isPending}
       loadingOlder={thread.isFetchingNextPage}
       onLoadOlder={!thread.hasNextPage || thread.isFetchingNextPage ? undefined : () => void thread.fetchNextPage()}
-      jumpToId={null}
+      jumpTo={null}
       onQuoteJump={() => undefined}
       onAtLatestChange={() => undefined}
     />

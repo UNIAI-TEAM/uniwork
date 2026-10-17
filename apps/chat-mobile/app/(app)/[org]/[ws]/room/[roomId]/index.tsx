@@ -27,13 +27,13 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   const room = useRoomContext(chat, roomId);
   const timeline = useInfiniteQuery(roomTimelineOptions(chat.wsId, roomId));
   const [anchorId, setAnchorId] = useState<string | null>(linkedMessageId);
-  const [jumpId, setJumpId] = useState<string | null>(linkedMessageId);
+  const [jump, setJump] = useState<{ id: string; seq: number } | null>(linkedMessageId ? { id: linkedMessageId, seq: 0 } : null);
   const [atLatest, setAtLatest] = useState(true);
 
   // A new link while the room is open moves the anchor.
   useEffect(() => {
     setAnchorId(linkedMessageId);
-    setJumpId(linkedMessageId);
+    setJump(linkedMessageId ? { id: linkedMessageId, seq: Date.now() } : null);
   }, [linkedMessageId]);
 
   // Reopening a room: drop the older pages scrolled in last time and refresh the newest.
@@ -55,7 +55,7 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
 
   const backToLatest = () => {
     setAnchorId(null);
-    setJumpId(null);
+    setJump(null);
     router.setParams({ message: undefined });
   };
 
@@ -85,12 +85,13 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
       loading={timeline.isPending || (!anchorLoaded && around.isPending)}
       loadingOlder={timeline.isFetchingNextPage}
       onLoadOlder={anchorRows || !timeline.hasNextPage || timeline.isFetchingNextPage ? undefined : () => void timeline.fetchNextPage()}
-      jumpToId={jumpId}
+      jumpTo={jump}
       onQuoteJump={(messageId) => {
         if (!messages.some((m) => m.id === messageId)) setAnchorId(messageId);
-        setJumpId(messageId);
+        setJump({ id: messageId, seq: Date.now() });
       }}
       onAtLatestChange={setAtLatest}
+      onSend={anchorRows ? backToLatest : undefined}
     />
   );
 }
