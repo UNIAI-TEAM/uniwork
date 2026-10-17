@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18530 13450 13451 18540 13460; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18530/tcp 13450/tcp 13451/tcp 18540/tcp 13460/tcp 2>/dev/null; sleep 1; for p in 18540 13460; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+1966c8c081f0479e80ebe2b0090e7e5232a84752
+1966c8c08 chore: merge SH fe-fix-3 review_fe r3 items (UNI-1784, 075fd5600) into the sharing lane
+075fd5600 fix(documents): hide the scope badge's description span from ancestor accessible names (R3-03)
+b308e3ca0 fix(documents): keep an unknown share level null and render it neutrally (R3-02)
+619cb10a6 fix(documents): show an inline retry when the first candidates page fails non-404 (R3-01)

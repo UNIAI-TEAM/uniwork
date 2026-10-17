@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+1966c8c081f0479e80ebe2b0090e7e5232a84752
+bf693b001da6512bbf33d867c35250179106a63b
+1966c8c08 chore: merge SH fe-fix-3 review_fe r3 items (UNI-1784, 075fd5600) into the sharing lane
+075fd5600 fix(documents): hide the scope badge's description span from ancestor accessible names (R3-03)
+b308e3ca0 fix(documents): keep an unknown share level null and render it neutrally (R3-02)
+619cb10a6 fix(documents): show an inline retry when the first candidates page fails non-404 (R3-01)
+07fbc5033 chore: merge SH be-fix-2 review_be r2 medium items (UNI-1781, 2fbdbd145) into the sharing lane
+2fbdbd145 test(documents): exercise the home row and an existing share before a late batch failure
+8b2195acf fix(documents): exclude a direct downgrade from the batch notify decision
+0133258b5 fix(documents): derive the preview count's home role with the resolver's precedence
