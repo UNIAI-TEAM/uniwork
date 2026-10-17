@@ -308,6 +308,41 @@ describe("logout", () => {
     expect(ctx.transport.logout).toHaveBeenCalledWith({ deviceSessionId: "dev_2" }, "at_2");
   });
 
+  it("a Keychain that will not clear still resolves logout() signed out", async () => {
+    const ctx = setup(vi);
+    await ctx.session.login();
+    ctx.storage.clear.mockRejectedValueOnce(new Error("locked"));
+    await ctx.session.logout();
+    expect(ctx.session.status()).toBe("signed-out");
+    expect(ctx.tokens).toEqual(["at_1", null]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("not cleared"));
+  });
+
+  it("a hung refresh of the previous account is never handed to the next one, and its late end does not break single-flight", async () => {
+    const ctx = expiring();
+    let releaseA: (s: DesktopSession) => void = () => undefined;
+    ctx.transport.refresh.mockImplementationOnce(() => new Promise((resolve) => (releaseA = resolve)));
+    void ctx.session.restore();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ctx.session.status()).toBe("refreshing");
+    await ctx.session.logout();
+    await ctx.session.login();
+    expect(ctx.session.status()).toBe("signed-in");
+    vi.setSystemTime(Date.now() + 900_000);
+    let releaseB: (s: DesktopSession) => void = () => undefined;
+    ctx.transport.refresh.mockImplementationOnce(() => new Promise((resolve) => (releaseB = resolve)));
+    const b1 = ctx.session.refresh();
+    await vi.advanceTimersByTimeAsync(0);
+    // A's hung refresh, A's revoke-time refresh, B's refresh
+    expect(ctx.transport.refresh).toHaveBeenCalledTimes(3);
+    releaseA(fakeSession());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ctx.session.refresh()).toBe(b1);
+    releaseB(fakeSession({ accessToken: "at_b" }));
+    expect(await b1).toBe("at_b");
+    expect(ctx.session.status()).toBe("signed-in");
+  });
+
   it("logout during a sign-in cancels the attempt; logout when signed out is a no-op", async () => {
     const ctx = setup(vi);
     let release: (url: string | null) => void = () => undefined;

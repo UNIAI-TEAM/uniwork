@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const sessionMock = vi.hoisted(() => ({
   getAccessToken: vi.fn<() => Promise<string | null>>(async () => "at_1"),
   refresh: vi.fn<() => Promise<string | null>>(async () => "at_2"),
+  status: vi.fn(() => "signed-in"),
 }));
 vi.mock("./auth/flow", () => ({ session: sessionMock }));
 
@@ -23,6 +24,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   sessionMock.getAccessToken.mockReset().mockResolvedValue("at_1");
   sessionMock.refresh.mockReset().mockResolvedValue("at_2");
+  sessionMock.status.mockReset().mockReturnValue("signed-in");
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -153,14 +155,26 @@ describe("api client", () => {
       expect(onUnauthorized).toHaveBeenCalledTimes(2);
     });
 
-    it("a refresh that yields no token (session ended or unreachable) reports onUnauthorized without a retry", async () => {
+    it("a refresh that ends the session reports onUnauthorized once, without a retry", async () => {
       sessionMock.refresh.mockResolvedValue(null);
+      sessionMock.status.mockReturnValue("signed-out");
       const onUnauthorized = vi.fn();
       const client = createApiClient({ session: sessionMock, onUnauthorized });
       fetchMock.mockResolvedValueOnce(json(401, {}));
       await expect(client.getMe()).rejects.toMatchObject({ status: 401 });
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    });
+
+    it("a refresh that fails transiently (session kept) throws ApiError 401 without reporting or a bare retry", async () => {
+      sessionMock.refresh.mockResolvedValue(null);
+      sessionMock.status.mockReturnValue("server-unreachable");
+      const onUnauthorized = vi.fn();
+      const client = createApiClient({ session: sessionMock, onUnauthorized });
+      fetchMock.mockResolvedValueOnce(json(401, { error: { code: "unauthorized", message: "token expired" } }));
+      await expect(client.getMe()).rejects.toMatchObject({ name: "ApiError", status: 401, message: "token expired" });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(onUnauthorized).not.toHaveBeenCalled();
     });
 
     it("never refreshes for the native auth routes themselves", async () => {
@@ -174,6 +188,7 @@ describe("api client", () => {
 
     it("the shared client works without a hook and takes one later (the app wires its sign-out there)", async () => {
       sessionMock.refresh.mockResolvedValue(null);
+      sessionMock.status.mockReturnValue("signed-out");
       fetchMock.mockResolvedValue(json(401, {}));
       await expect(api.getMe()).rejects.toMatchObject({ status: 401 });
       const onUnauthorized = vi.fn();

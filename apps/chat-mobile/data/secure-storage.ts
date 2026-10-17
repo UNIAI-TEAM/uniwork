@@ -7,6 +7,8 @@ import type { SessionStorage, StoredSession } from "./auth/session";
 import { sessionEpochChanged } from "./session-epoch";
 
 const SESSION_KEY = "uniwork_chat_session";
+// the default (WHEN_UNLOCKED) makes a refresh landing while the phone is locked fail to persist
+const ACCESS = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
 
 // Tail of the write queue. Each operation chains onto the previous one so no
 // two can be in flight at once; failures do not stall the queue.
@@ -29,7 +31,7 @@ function isStoredSession(value: unknown): value is StoredSession {
 }
 
 async function read(): Promise<StoredSession | null> {
-  const raw = await SecureStore.getItemAsync(SESSION_KEY);
+  const raw = await SecureStore.getItemAsync(SESSION_KEY, ACCESS);
   if (!raw) return null;
   let parsed: unknown;
   try {
@@ -45,7 +47,7 @@ export type { StoredSession };
 export const secureSessionStorage: SessionStorage = {
   load: read,
 
-  clear: () => serialize(() => SecureStore.deleteItemAsync(SESSION_KEY)),
+  clear: () => serialize(() => SecureStore.deleteItemAsync(SESSION_KEY, ACCESS)),
 
   /**
    * Persist a session, but only if the one it replaces is still the one the
@@ -63,7 +65,7 @@ export const secureSessionStorage: SessionStorage = {
         const current = await read();
         if (current?.refresh_token !== expected.previousRefreshToken) return false;
       }
-      await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(next));
+      await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(next), ACCESS);
       return true;
     }),
 };

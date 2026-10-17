@@ -4,6 +4,7 @@
 import type { User } from "@uniwork/core/types/user";
 import { create } from "zustand";
 import { ApiError, api } from "../api";
+import { useWorkspaceStore } from "../stores/workspace-store";
 import { session } from "./flow";
 
 interface AuthState {
@@ -54,6 +55,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     // the session moves the epoch first, then clears the Keychain and revokes the device
     set({ user: null });
     await session.logout();
+    // the next account on this device must not land in this one's workspace
+    await useWorkspaceStore.getState().clear();
   },
 
   setUser: (user) => set({ user }),

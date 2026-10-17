@@ -11,6 +11,7 @@ const keychain = vi.hoisted(() => ({
 }));
 
 vi.mock("expo-secure-store", () => ({
+  AFTER_FIRST_UNLOCK: "afterFirstUnlock",
   getItemAsync: vi.fn(async () => keychain.value),
   setItemAsync: vi.fn(async (_key: string, value: string) => {
     keychain.log.push(`set:${JSON.parse(value).refresh_token}`);
@@ -30,6 +31,8 @@ vi.mock("expo-secure-store", () => ({
 import * as SecureStore from "expo-secure-store";
 import { secureSessionStorage, type StoredSession } from "./secure-storage";
 import { currentSessionEpoch, invalidateSessionEpoch } from "./session-epoch";
+
+const afterFirstUnlock = { keychainAccessible: "afterFirstUnlock" };
 
 const session = (refresh_token: string): StoredSession => ({
   access_token: `at_${refresh_token}`,
@@ -52,10 +55,12 @@ describe("secure session storage", () => {
   it("stores the whole session as JSON under one key and reads it back", async () => {
     expect(await secureSessionStorage.load()).toBeNull();
     expect(await secureSessionStorage.commit(session("rt_1"), { epoch: currentSessionEpoch() })).toBe(true);
-    expect(SecureStore.setItemAsync).toHaveBeenCalledWith("uniwork_chat_session", JSON.stringify(session("rt_1")));
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith("uniwork_chat_session", JSON.stringify(session("rt_1")), afterFirstUnlock);
     expect(await secureSessionStorage.load()).toEqual(session("rt_1"));
+    // a background refresh must reach the entry while the phone is locked
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith("uniwork_chat_session", afterFirstUnlock);
     await secureSessionStorage.clear();
-    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("uniwork_chat_session");
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("uniwork_chat_session", afterFirstUnlock);
     expect(await secureSessionStorage.load()).toBeNull();
   });
 
@@ -110,5 +115,16 @@ describe("secure session storage", () => {
     const epoch = currentSessionEpoch();
     await expect(secureSessionStorage.commit(session("rt_1"), { epoch })).rejects.toThrow("keychain busy");
     expect(await secureSessionStorage.commit(session("rt_2"), { epoch })).toBe(true);
+  });
+
+  it("a read that throws inside a conditional commit fails that commit without stalling the queue", async () => {
+    const epoch = currentSessionEpoch();
+    await secureSessionStorage.commit(session("rt_1"), { epoch });
+    vi.mocked(SecureStore.getItemAsync).mockRejectedValueOnce(new Error("keychain locked"));
+    await expect(secureSessionStorage.commit(session("rt_2"), { epoch, previousRefreshToken: "rt_1" })).rejects.toThrow(
+      "keychain locked",
+    );
+    expect(await secureSessionStorage.commit(session("rt_3"), { epoch, previousRefreshToken: "rt_1" })).toBe(true);
+    expect(keychain.log).toEqual(["set:rt_1", "set:rt_3"]);
   });
 });

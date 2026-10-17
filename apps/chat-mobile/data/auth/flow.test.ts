@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("expo-crypto", async () => (await import("./expo-crypto-mock")).expoCryptoMock());
-vi.mock("expo-secure-store", () => ({ getItemAsync: vi.fn(), setItemAsync: vi.fn(), deleteItemAsync: vi.fn() }));
+vi.mock("expo-secure-store", () => ({
+  AFTER_FIRST_UNLOCK: "afterFirstUnlock",
+  getItemAsync: vi.fn(),
+  setItemAsync: vi.fn(),
+  deleteItemAsync: vi.fn(),
+}));
 const browser = vi.hoisted(() => ({ openAuthSessionAsync: vi.fn() }));
 vi.mock("expo-web-browser", () => browser);
 vi.mock("expo-constants", () => ({

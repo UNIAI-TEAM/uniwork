@@ -9,6 +9,9 @@ const sessionMock = vi.hoisted(() => ({
 }));
 vi.mock("./flow", () => ({ session: sessionMock }));
 
+const workspaceClear = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("../stores/workspace-store", () => ({ useWorkspaceStore: { getState: () => ({ clear: workspaceClear }) } }));
+
 const apiMock = vi.hoisted(() => ({ getMe: vi.fn() }));
 vi.mock("../api", () => {
   class ApiError extends Error {
@@ -83,11 +86,12 @@ describe("auth store", () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it("logout clears the user at once and hands the rest to the session; setUser overwrites", async () => {
+  it("logout clears the user and the workspace, and hands the rest to the session; setUser overwrites", async () => {
     useAuthStore.getState().setUser(user);
     expect(useAuthStore.getState().user).toEqual(user);
     await useAuthStore.getState().logout();
     expect(sessionMock.logout).toHaveBeenCalledTimes(1);
+    expect(workspaceClear).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().user).toBeNull();
   });
 });

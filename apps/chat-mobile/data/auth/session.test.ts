@@ -67,7 +67,7 @@ describe("sign-in", () => {
     expect(deviceLabel("web")).toBe("UniChat (web)");
   });
 
-  it("a dismissed browser ends the attempt without an exchange; the next tap starts fresh", async () => {
+  it("a dismissed browser fails the login without an exchange; the next tap starts fresh", async () => {
     const ctx = setup(vi);
     ctx.openBrowser.mockResolvedValueOnce(null);
     await ctx.session.login();
@@ -77,6 +77,38 @@ describe("sign-in", () => {
     await ctx.session.login();
     expect(ctx.transport.start).toHaveBeenCalledTimes(2);
     expect(ctx.session.status()).toBe("signed-in");
+  });
+
+  it("a dismissed browser leaves the attempt live, so the redirect arriving later as a deep link still signs in (Android)", async () => {
+    const ctx = setup(vi);
+    ctx.openBrowser.mockResolvedValueOnce(null);
+    await ctx.session.login();
+    expect(ctx.session.status()).toBe("signed-out");
+    await ctx.session.completeCallback(callback(lastState(ctx)));
+    expect(ctx.session.status()).toBe("signed-in");
+    expect(ctx.tokens).toEqual(["at_1"]);
+  });
+
+  it("a deep link that lands while the browser is still open settles login() only once the exchange adopted the session", async () => {
+    const ctx = setup(vi);
+    let releaseBrowser: (url: string | null) => void = () => undefined;
+    ctx.openBrowser.mockImplementationOnce(() => new Promise((resolve) => (releaseBrowser = resolve)));
+    let releaseExchange: (s: DesktopSession) => void = () => undefined;
+    ctx.transport.exchange.mockImplementationOnce(() => new Promise((resolve) => (releaseExchange = resolve)));
+    const pending = ctx.session.login();
+    let settled = false;
+    void pending.then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(0);
+    void ctx.session.completeCallback(callback(lastState(ctx)));
+    await vi.advanceTimersByTimeAsync(0);
+    releaseBrowser(null);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ctx.session.status()).toBe("signing-in");
+    expect(settled).toBe(false);
+    releaseExchange(fakeSession());
+    await pending;
+    expect(ctx.session.status()).toBe("signed-in");
+    expect(ctx.tokens).toEqual(["at_1"]);
   });
 
   it.each([
@@ -197,6 +229,20 @@ describe("sign-in", () => {
     await pending;
     expect(ctx.transport.exchange).not.toHaveBeenCalled();
     expect(ctx.session.status()).toBe("signed-out");
+  });
+
+  it("a browser that fails after a deep link completed the attempt rejects login() but keeps the session", async () => {
+    const ctx = setup(vi);
+    let reject: (e: unknown) => void = () => undefined;
+    ctx.openBrowser.mockImplementationOnce(() => new Promise((_resolve, r) => (reject = r)));
+    const pending = ctx.session.login();
+    await vi.advanceTimersByTimeAsync(0);
+    await ctx.session.completeCallback(callback(lastState(ctx)));
+    expect(ctx.session.status()).toBe("signed-in");
+    reject(new Error("late"));
+    await expect(pending).rejects.toThrow("late");
+    expect(ctx.session.status()).toBe("signed-in");
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("browser_failed"));
   });
 
   it("a second tap while the browser is open or the exchange is on the wire does not start a second attempt", async () => {

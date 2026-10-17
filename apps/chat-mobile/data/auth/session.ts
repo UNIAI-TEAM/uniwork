@@ -7,7 +7,7 @@
 // proactive refresh timer (M2a), a token is refreshed when asked for.
 import { currentSessionEpoch, invalidateSessionEpoch, sessionEpochChanged } from "../session-epoch";
 import { validateCallback } from "./callback";
-import { LoginAttemptStore } from "./pkce";
+import { LoginAttemptStore, type PendingLoginAttempt } from "./pkce";
 import { TransportError, type DesktopSession, type Transport } from "./transport";
 
 export type SessionState = "signed-out" | "signing-in" | "signed-in" | "refreshing" | "server-unreachable";
@@ -89,6 +89,8 @@ export class MobileSession {
   private recoveryTimer: ReturnType<typeof setTimeout> | null = null;
   private recoveryAttempts = 0;
   private refreshInFlight: Promise<string | null> | null = null;
+  /** the exchange a deep link started while login() still waits on the browser */
+  private completing: Promise<void> | null = null;
 
   constructor(deps: MobileSessionDeps) {
     this.deps = deps;
@@ -169,13 +171,19 @@ export class MobileSession {
     try {
       callbackUrl = await this.deps.openBrowser(url, attempt.redirectUri);
     } catch (error) {
-      if (!sessionEpochChanged(epoch)) this.cancelLogin("browser_failed");
+      // a deep link may already have completed this very attempt: that session stays
+      if (!sessionEpochChanged(epoch) && this.attempts.peek() === attempt) this.cancelLogin("browser_failed");
       throw error;
     }
-    // logout meanwhile, or a deep link already completed this very attempt
-    if (sessionEpochChanged(epoch) || this.attempts.peek() !== attempt) return;
+    if (sessionEpochChanged(epoch)) return;
+    // a deep link already took this attempt: login() settles once its exchange has adopted the session
+    if (this.attempts.peek() !== attempt) {
+      await this.completing;
+      return;
+    }
     if (callbackUrl === null) {
-      this.cancelLogin("browser_dismissed");
+      // Android can report dismiss while the redirect still arrives via Linking: the attempt stays for it
+      this.failLogin("browser_dismissed");
       return;
     }
     await this.completeCallback(callbackUrl);
@@ -195,12 +203,17 @@ export class MobileSession {
     }
     // single use: the attempt leaves the store before the exchange call
     this.attempts.cancel();
+    this.completing = this.exchange(attempt, validation.code);
+    return this.completing;
+  }
+
+  private async exchange(attempt: PendingLoginAttempt, code: string): Promise<void> {
     const epoch = currentSessionEpoch();
     let session: DesktopSession;
     try {
       session = await this.deps.transport.exchange({
         clientId: attempt.clientId,
-        code: validation.code,
+        code,
         codeVerifier: attempt.verifier,
         redirectUri: attempt.redirectUri,
       });
@@ -230,9 +243,11 @@ export class MobileSession {
   /** Single in-flight refresh; resolves to the new access token, or null when none could be had. */
   refresh(): Promise<string | null> {
     if (!this.refreshInFlight) {
-      this.refreshInFlight = this.runRefresh().finally(() => {
-        this.refreshInFlight = null;
+      const run: Promise<string | null> = this.runRefresh().finally(() => {
+        // reset() may have dropped it and a later account started its own
+        if (this.refreshInFlight === run) this.refreshInFlight = null;
       });
+      this.refreshInFlight = run;
     }
     return this.refreshInFlight;
   }
@@ -247,7 +262,11 @@ export class MobileSession {
       this.emit(null);
       void this.revoke(live);
     }
-    await this.deps.storage.clear();
+    try {
+      await this.deps.storage.clear();
+    } catch {
+      console.warn("[auth] stored session not cleared");
+    }
   }
 
   private async runRefresh(): Promise<string | null> {
@@ -385,6 +404,8 @@ export class MobileSession {
   private reset(): void {
     this.clearRecoveryTimer();
     this.live = null;
+    // a hung refresh of this session must not be handed to the next one
+    this.refreshInFlight = null;
     this.state = "signed-out";
   }
 

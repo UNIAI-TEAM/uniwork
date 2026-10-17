@@ -34,13 +34,14 @@ export class ApiError extends Error {
 interface ApiSession {
   getAccessToken(): Promise<string | null>;
   refresh(): Promise<string | null>;
+  status(): string;
 }
 
 interface ApiClientDeps {
   session: ApiSession;
   /**
-   * Called once when a request is still 401 after one refresh (or the
-   * refresh yielded no token), re-armed by the next successful request. The
+   * Called once when a request is still 401 after one refresh, or the refresh
+   * left the session signed out; re-armed by the next successful request. The
    * app wires it to its sign-out so stale requests do not loop on 401.
    */
   onUnauthorized?: () => void;
@@ -103,7 +104,9 @@ export function createApiClient(deps: ApiClientDeps) {
     if (res.status === 401 && !path.startsWith("/api/v1/auth/desktop/")) {
       const renewed = await deps.session.refresh();
       if (renewed) res = await send(path, init, renewed);
-      if (res.status === 401 && !unauthorizedReported) {
+      // a transient refresh failure keeps the session (server-unreachable), so the 401 is not a sign-out
+      const ended = renewed ? res.status === 401 : deps.session.status() === "signed-out";
+      if (ended && !unauthorizedReported) {
         unauthorizedReported = true;
         onUnauthorized?.();
       }
