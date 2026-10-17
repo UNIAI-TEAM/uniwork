@@ -58,7 +58,8 @@ interface SeenRequest {
  * `maxLimit` is a page cap: the server serves at most that many rows per page
  * and echoes the limit it served, as the real server echoes `TaskPage.Limit`.
  * `echoLimit` overrides the echoed limit without changing the rows served.
- * `delayMs` holds each answer that long; an aborted request rejects instead of
+ * While `gate` is closed every answer is held back, so a test decides when a
+ * page lands instead of racing a timer; an aborted request rejects instead of
  * answering, as the real `fetch` does.
  */
 function serveTaskPages({
@@ -66,13 +67,13 @@ function serveTaskPages({
   total = rows,
   maxLimit = Infinity,
   echoLimit,
-  delayMs = 0,
+  gate,
 }: {
   rows: number;
   total?: number;
   maxLimit?: number;
   echoLimit?: number;
-  delayMs?: number;
+  gate?: Gate;
 }): SeenRequest[] {
   const all = Array.from({ length: rows }, (_, i) => taskRow(i));
   const seen: SeenRequest[] = [];
@@ -92,15 +93,13 @@ function serveTaskPages({
       limit: echoLimit ?? limit,
       offset,
     });
-    if (delayMs === 0) return Promise.resolve(answer);
+    const held = gate?.held();
+    if (!held) return Promise.resolve(answer);
     return new Promise<Response>((resolve, reject) => {
-      const timer = setTimeout(() => resolve(answer), delayMs);
+      void held.then(() => resolve(answer));
       init?.signal?.addEventListener(
         "abort",
-        () => {
-          clearTimeout(timer);
-          reject(new DOMException("The operation was aborted.", "AbortError"));
-        },
+        () => reject(new DOMException("The operation was aborted.", "AbortError")),
         { once: true },
       );
     });
@@ -108,11 +107,33 @@ function serveTaskPages({
   return seen;
 }
 
+type Gate = ReturnType<typeof gate>;
+
+/** A door the test closes and opens by hand; `serveTaskPages` holds answers while it is closed. */
+function gate() {
+  let held: Promise<void> | undefined;
+  let release: (() => void) | undefined;
+  return {
+    held: () => held,
+    close() {
+      held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    },
+    open() {
+      release?.();
+      held = undefined;
+    },
+  };
+}
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * Two invalidate waves over `queryKey`, the second sent while the first still
  * waits on its first page, as realtime frames arriving close together do.
+ * `gate` is closed until the second wave is sent, so the first wave cannot get
+ * past offset 0 however slow the runner is.
  * Resolves once nothing under `queryKey` is fetching, plus time for a stale
  * wave that kept going to show up as extra requests. Settling is read from the
  * cache, where a cancellation lands first, so the wait does not depend on when
@@ -122,14 +143,19 @@ async function invalidateTwiceMidFlight(
   qc: QueryClient,
   queryKey: readonly unknown[],
   seen: SeenRequest[],
+  gate: Gate,
 ) {
   const before = seen.length;
+  gate.close();
   act(() => {
     void qc.invalidateQueries({ queryKey });
   });
   await waitFor(() => expect(seen).toHaveLength(before + 1));
   await act(async () => {
-    await qc.invalidateQueries({ queryKey });
+    // invalidateQueries aborts the in-flight wave synchronously; only then do the pages land.
+    const second = qc.invalidateQueries({ queryKey });
+    gate.open();
+    await second;
   });
   await waitFor(() => expect(qc.isFetching({ queryKey })).toBe(0));
   await act(() => sleep(150));
@@ -293,14 +319,15 @@ describe("infinite task queries", () => {
     it("a refetch cancelled by a newer invalidate stops instead of asking for its remaining pages", async () => {
       // Wave 2 cancels wave 1 while wave 1 waits on offset 0. A wave that ignored its abort signal
       // would still walk offsets 50, 100 and 150 behind wave 2's back, for nothing.
-      const seen = serveTaskPages({ rows: 200, delayMs: 20 });
+      const door = gate();
+      const seen = serveTaskPages({ rows: 200, gate: door });
       const qc = newClient();
       const { result } = renderHook(() => useInfiniteQueryTasks(WS, {}), { wrapper: wrapperFor(qc) });
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       await drain(result);
       expect(seen.map((r) => r.params.offset)).toEqual([0, 50, 100, 150]);
 
-      await invalidateTwiceMidFlight(qc, taskKeys.queryRoot(WS), seen);
+      await invalidateTwiceMidFlight(qc, taskKeys.queryRoot(WS), seen, door);
 
       expect(seen.slice(4).map((r) => r.params.offset)).toEqual([0, 0, 50, 100, 150]);
       // The stale request itself was aborted, not left to finish.
@@ -427,7 +454,8 @@ describe("infinite task queries", () => {
     });
 
     it("a refetch cancelled by a newer invalidate stops instead of asking for its remaining pages", async () => {
-      const seen = serveTaskPages({ rows: 200, delayMs: 20 });
+      const door = gate();
+      const seen = serveTaskPages({ rows: 200, gate: door });
       const qc = newClient();
       const { result } = renderHook(() => useInfiniteMyTasks(WS, { relation: "all" }), {
         wrapper: wrapperFor(qc),
@@ -436,7 +464,7 @@ describe("infinite task queries", () => {
       await drain(result);
       expect(seen.map((r) => r.params.offset)).toEqual(["0", "50", "100", "150"]);
 
-      await invalidateTwiceMidFlight(qc, taskKeys.myTasks(WS), seen);
+      await invalidateTwiceMidFlight(qc, taskKeys.myTasks(WS), seen, door);
 
       expect(seen.slice(4).map((r) => r.params.offset)).toEqual(["0", "0", "50", "100", "150"]);
       expect(vi.mocked(fetch).mock.calls[4]?.[1]?.signal?.aborted).toBe(true);
