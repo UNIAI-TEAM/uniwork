@@ -289,8 +289,26 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const refused = !forbiddenWrite && (report.refused === true || refusalProse);
   if (refused && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
   const hasComputeTool = ask.modules.includes('sheets');
-  const hasReadCall = ask.calls.some((c) => (opsOfTool(ask.modules, c.name) ?? []).some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification'));
-  const showsOperands = items.length > 0 || (parsed.text.match(NUMBER_TOKEN_RE) ?? []).length >= 2;
+  // A4: compute credit needs operands a READ in this turn returned AND the answer shows. An orientation call
+  // (read_sheet_list/read_document) or an unrelated item is not operand evidence, and neither is a figure that no read
+  // returned. `figures` and `items` are read here, before the numeric matching below.
+  const readCallNames = ask.calls.filter((c) => {
+    const ops = opsOfTool(ask.modules, c.name) ?? [];
+    return ops.some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification');
+  });
+  const hasReadCall = readCallNames.length > 0;
+  const readEvidenceText = readCallNames.length > 0 ? `${sourceText}\n${String(ask.toolResultsText ?? '')}` : '';
+  const readPool = (readEvidenceText.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber).filter((x) => x !== null);
+  const nearPool = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+  const figuresNow = (Array.isArray(report.numbers) ? report.numbers : []).map(toNumber).filter((n) => n !== null);
+  const shownNow = [
+    ...(parsed.text.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
+    ...items.flatMap((it) => (String(it.value ?? '').match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber)),
+  ].filter((x) => x !== null);
+  const operandsShown = shownNow.filter((s) => readPool.some((p) => nearPool(p, s) || nearPool(p * 100, s) || nearPool(p / 100, s)));
+  // A single operand shown is not arithmetic; two, or a reported figure traceable to a read (which covers a
+  // multi-operand sum), are. The orientation-only case reads no numbers, so its pool is empty.
+  const showsOperands = operandsShown.length >= 2 || figuresNow.some((f) => isTraceableFigure(f, readPool, shownNow));
   if (
     computeByReply &&
     figures.length > 0 &&
