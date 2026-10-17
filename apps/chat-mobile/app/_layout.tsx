@@ -59,6 +59,10 @@ function AuthInitializer({ children }: { children: ReactNode }) {
         signingOut.current = false;
       })();
     });
+    // A callback that arrives as a deep link adopts the session outside login(): load /me so index.tsx leaves /login.
+    const unsubscribe = session.onChange((token) => {
+      if (token) void useAuthStore.getState().adoptSession();
+    });
     // The workspace first, so index.tsx sees it the moment isLoading drops.
     void useWorkspaceStore
       .getState()
@@ -75,6 +79,7 @@ function AuthInitializer({ children }: { children: ReactNode }) {
       if (typeof url === "string") openUrl(url, true);
     });
     return () => {
+      unsubscribe();
       urlSub.remove();
       pushSub.remove();
     };

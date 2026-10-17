@@ -61,16 +61,48 @@ describe("auth store", () => {
     expect(useAuthStore.getState()).toMatchObject({ user, isLoading: false });
   });
 
-  it("initialize: only a genuine 401 ends the session; a network blip keeps it", async () => {
+  it("initialize: a 401 ends the session only once the session itself is signed out; a blip keeps it", async () => {
+    sessionMock.status.mockReturnValue("signed-out");
     apiMock.getMe.mockRejectedValueOnce(new ApiError("unauthorized", 401));
     await useAuthStore.getState().initialize();
     expect(sessionMock.logout).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
 
+    sessionMock.status.mockReturnValue("signed-in");
     apiMock.getMe.mockRejectedValueOnce(new TypeError("fetch failed"));
     await useAuthStore.getState().initialize();
     expect(sessionMock.logout).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+  });
+
+  it("initialize: a 401 while the session is only unreachable (refresh 5xx) keeps it for the next attempt", async () => {
+    sessionMock.status.mockReturnValue("server-unreachable");
+    apiMock.getMe.mockRejectedValueOnce(new ApiError("unauthorized", 401));
+    await useAuthStore.getState().initialize();
+    expect(sessionMock.logout).not.toHaveBeenCalled();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+  });
+
+  it("adoptSession: a session adopted outside login() (deep-link callback) loads /me without a restore", async () => {
+    await useAuthStore.getState().adoptSession();
+    expect(sessionMock.restore).not.toHaveBeenCalled();
+    expect(apiMock.getMe).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().user).toEqual(user);
+
+    // a token rotation re-emits: nothing to do with a user already loaded
+    await useAuthStore.getState().adoptSession();
+    expect(apiMock.getMe).toHaveBeenCalledTimes(1);
+  });
+
+  it("adoptSession during login() shares the one /me in flight", async () => {
+    let resolveMe: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (resolveMe = resolve)));
+    const login = useAuthStore.getState().login();
+    const adopt = useAuthStore.getState().adoptSession();
+    resolveMe(user);
+    await Promise.all([login, adopt]);
+    expect(apiMock.getMe).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().user).toEqual(user);
   });
 
   it("login: runs the browser sign-in and loads /me when it ends signed in", async () => {

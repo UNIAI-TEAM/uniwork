@@ -14,25 +14,35 @@ interface AuthState {
   initialize: () => Promise<void>;
   /** the browser sign-in, then /me; resolves without a user when the person dismissed it */
   login: () => Promise<void>;
+  /** a session adopted outside login() (a deep-link callback after a dismissed browser): /me, once, no restore */
+  adoptSession: () => Promise<void>;
   logout: () => Promise<void>;
   /** overwrite the in-memory user after PATCH /me; the server response is the source of truth */
   setUser: (user: User) => void;
 }
 
+let inflight: Promise<User | null> | null = null;
+
 /**
- * Only a genuine 401 (after the api client's own refresh-and-retry) ends the
- * session; a network blip or 5xx keeps it so the next launch can retry.
+ * One /me at a time: login() and the session's onChange may ask together.
+ * A 401 ends the session only when the session already ended it (a server
+ * verdict on refresh); a 401 the api layer let through while the server is
+ * unreachable, a network blip or a 5xx keep it for the next attempt.
  */
-async function loadUser(): Promise<User | null> {
-  try {
-    return await api.getMe();
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) await session.logout();
-    return null;
-  }
+function loadUser(): Promise<User | null> {
+  inflight ??= api
+    .getMe()
+    .catch(async (error: unknown) => {
+      if (error instanceof ApiError && error.status === 401 && session.status() === "signed-out") await session.logout();
+      return null;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
 
@@ -48,6 +58,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async () => {
     await session.login();
     if (session.status() !== "signed-in") return;
+    set({ user: await loadUser() });
+  },
+
+  adoptSession: async () => {
+    if (get().user) return;
     set({ user: await loadUser() });
   },
 
