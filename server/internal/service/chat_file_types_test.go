@@ -41,10 +41,17 @@ func TestChatFileAllowlistsAgree(t *testing.T) {
 	}
 	clientMIME := tsSetEntries(t, string(src), "ALLOWED_MIME")
 	clientExt := tsSetEntries(t, string(src), "ALLOWED_EXT")
-	if len(clientMIME) != len(supportedChatFileContentTypes) {
+	// UNI-1869: files.DetectContentType sniffs .md uploads as text/markdown on
+	// the server, so supportedChatFileContentTypes accepts text/markdown on read
+	// in addition to the client composer's ALLOWED_MIME / ALLOWED_EXT set.
+	serverReadOnly := map[string]bool{"text/markdown": true}
+	if len(clientMIME)+len(serverReadOnly) != len(supportedChatFileContentTypes) {
 		t.Errorf("client ALLOWED_MIME = %v, service allows %v", clientMIME, supportedChatFileContentTypes)
 	}
 	for mime, ext := range supportedChatFileContentTypes {
+		if serverReadOnly[mime] {
+			continue
+		}
 		if !clientMIME[mime] {
 			t.Errorf("client ALLOWED_MIME is missing %s", mime)
 		}

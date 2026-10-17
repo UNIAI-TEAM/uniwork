@@ -176,6 +176,53 @@ func TestOfficeFrameSourceMintAndOpen(t *testing.T) {
 	}
 }
 
+// TestOfficeFrameSourceChatMarkdownOpensAndDownloads (UNI-1869 / S2B-V3): an
+// .md chat file message whose verified content_type is text/markdown opens
+// through the ofs1 frame content route and through the source download route.
+func TestOfficeFrameSourceChatMarkdownOpensAndDownloads(t *testing.T) {
+	srv, _ := sourceFrameWorld(t)
+	f := setupChatFixtureOn(t, srv, "srcf-md")
+	mdBody := []byte("# Probe MD\n\nBody.\n")
+	res, out := uploadChatFile(
+		t, srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
+		"probe-md.md", "text/markdown", "src-frame-md", mdBody,
+	)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("upload chat md: %d %v", res.StatusCode, out)
+	}
+	messageID, _ := out["message"].(map[string]any)["id"].(string)
+	if messageID == "" {
+		t.Fatalf("chat file message = %v", out)
+	}
+	var fileID string
+	if err := testPool.QueryRow(context.Background(),
+		`SELECT file_id::text FROM chat_messages WHERE id = $1`, messageID).Scan(&fileID); err != nil {
+		t.Fatalf("chat file row: %v", err)
+	}
+	if _, err := testPool.Exec(context.Background(), `INSERT INTO files
+		(id, organization_id, storage, object_key, original_filename, content_type, size_bytes, status, ready_at)
+		VALUES ($1, $2, 'local', $3, 'probe-md.md', 'text/markdown', $4, 'ready', now())`,
+		fileID, f.orgID, "chat/"+fileID, int64(len(mdBody))); err != nil {
+		t.Fatalf("files catalog row: %v", err)
+	}
+	sourceID := "chat:" + messageID
+	member := f.tokens["b"]
+
+	minted := sourceFrameMint(t, srv, f.wsID, sourceID, member)
+	token := minted["token"].(string)
+
+	res, body := doBytes(t, srv, "GET", "/api/v1/office-frame/sources/"+sourceID+"/content", token)
+	if res.StatusCode != http.StatusOK || string(body) != string(mdBody) {
+		t.Fatalf("ofs1 frame content(.md) = %d %q, want 200 %q", res.StatusCode, string(body), string(mdBody))
+	}
+
+	res, dlBody := doBytes(t, srv, "GET",
+		"/api/v1/workspaces/"+f.wsID+"/documents/sources/"+sourceID+"/download", member)
+	if res.StatusCode != http.StatusOK || string(dlBody) != string(mdBody) {
+		t.Fatalf("source download(.md) = %d %q, want 200 %q", res.StatusCode, string(dlBody), string(mdBody))
+	}
+}
+
 // TestOfficeFrameSourceEmailHeadPromisesNoLength pins the email half of the
 // content route's HEAD contract: the attachment's size_bytes is the IMAP
 // ENCODED length, so a HEAD must not promise it as Content-Length (the GET
