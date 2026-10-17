@@ -539,6 +539,24 @@ describe("DocumentsPageView", () => {
       expect(screen.getByText(t("documents.home.empty.shared_by_me_description"))).toBeInTheDocument();
     });
 
+    it("offers Rename, Move and Archive on a shared-by-me row the caller manages", async () => {
+      route({
+        list: (path) =>
+          queryOf(path).get("shared_by_me") === "true"
+            ? [summary({ id: "sbm3", title: "Đề xuất ngân sách Q4.docx", my_level: "manage", via: "owner", visibility: "restricted" })]
+            : [],
+      });
+      renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
+      const row = await rowOf("Đề xuất ngân sách Q4.docx");
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách Q4.docx" }) }));
+      await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+      expect(screen.getByRole("menuitem", { name: t("documents.home.row.rename") })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: t("documents.home.row.archive") })).toBeInTheDocument();
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
+    });
+
     it("degrades a malformed shared_by_me response to the retryable error state without crashing", async () => {
       let calls = 0;
       requestMock.mockImplementation((path: string) => {

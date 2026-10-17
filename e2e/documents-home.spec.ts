@@ -274,9 +274,9 @@ test.describe("a view-only member", () => {
       await loginViaUi(ownerPage, m.aOwner.email);
       await openLibrary(ownerPage, m.aOwner.orgSlug, m.aOwner.wsSlug);
 
-      await sidebar(ownerPage).getByRole("button", { name: "Tôi đã chia sẻ" }).click();
+      await sidebar(ownerPage).getByRole("button", { name: "Tôi đã chia sẻ", exact: true }).click();
       await expect(ownerPage).toHaveURL(/\/documents\?view=shared-by-me$/);
-      await expect(ownerPage.getByRole("heading", { level: 2, name: "Tôi đã chia sẻ" })).toBeVisible({
+      await expect(ownerPage.getByRole("heading", { level: 2, name: "Tôi đã chia sẻ", exact: true })).toBeVisible({
         timeout: 30_000,
       });
       await expect(libraryRowButton(library(ownerPage), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
@@ -286,12 +286,12 @@ test.describe("a view-only member", () => {
       await loginViaUi(recipientPage, m.aOther.email);
       await openLibrary(recipientPage, m.aOwner.orgSlug, m.aOwner.wsSlug);
 
-      await sidebar(recipientPage).getByRole("button", { name: "Tôi đã chia sẻ" }).click();
+      await sidebar(recipientPage).getByRole("button", { name: "Tôi đã chia sẻ", exact: true }).click();
       await expect(recipientPage).toHaveURL(/\/documents\?view=shared-by-me$/);
-      await expect(recipientPage.getByText("Bạn chưa chia sẻ tài liệu nào")).toBeVisible({ timeout: 30_000 });
-      await expect(recipientPage.getByText(sharedPageTitle)).toHaveCount(0);
+      await expect(recipientPage.getByText("Chưa chia sẻ tài liệu nào", { exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(recipientPage.getByText(sharedPageTitle, { exact: true })).toHaveCount(0);
 
-      await sidebar(recipientPage).getByRole("button", { name: "Được chia sẻ với tôi" }).click();
+      await sidebar(recipientPage).getByRole("button", { name: "Được chia sẻ với tôi", exact: true }).click();
       await expect(libraryRowButton(library(recipientPage), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
     } finally {
       await ownerCtx.close();
