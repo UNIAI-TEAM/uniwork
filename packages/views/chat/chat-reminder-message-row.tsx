@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Clock, Trash2 } from "lucide-react";
+import { Bell, Clock, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -90,24 +90,25 @@ export function ChatReminderMessageRow({
       ts={ts}
       showSenderName={showSenderName}
       compactTop={compactTop}
-      status={isDue ? <ChatCardStatus>{t("chat.reminder_due_status")}</ChatCardStatus> : null}
+      status={
+        isDue ? (
+          <ChatCardStatus tone="warning">
+            <Bell aria-hidden />
+            {t("chat.reminder_due_status")}
+          </ChatCardStatus>
+        ) : null
+      }
     >
       <p className="whitespace-pre-wrap text-body font-medium text-foreground text-pretty [overflow-wrap:anywhere]">
         {reminder.body}
       </p>
-      <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground tabular-nums">
+      <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-label text-muted-foreground tabular-nums">
         <Clock className="size-3.5" aria-hidden />
         {scheduleLabel}
         {reminder.repeat !== "none" ? <span>· {t(repeatLabelKey(reminder.repeat))}</span> : null}
       </p>
       {onDelete ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mt-2 h-8 gap-1 px-2 text-destructive hover:text-destructive"
-          onClick={onDelete}
-        >
+        <Button type="button" variant="destructive" size="sm" className="mt-2.5 h-8 rounded-full px-3" onClick={onDelete}>
           <Trash2 className="size-3.5" aria-hidden />
           {t("chat.reminder_delete")}
         </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Clock3 } from "lucide-react";
+import { CheckCheck, Clock3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
@@ -44,7 +44,7 @@ export function ChatReactionChips({
   if (entries.length === 0) return null;
   const mine = new Set(message.myReactions ?? []);
   return (
-    <div className={cn("flex flex-wrap gap-1", isOwn && "justify-end")}>
+    <div className={cn("mt-0.5 flex flex-wrap gap-1", isOwn && "justify-end")}>
       {entries.map(([emoji, count]) => {
         const pressed = mine.has(emoji);
         return (
@@ -59,18 +59,23 @@ export function ChatReactionChips({
                 : t("chat.message_list.reaction_aria", { emoji, count })
             }
             onClick={() => onToggleReaction?.(message, emoji)}
-            // The chip stays 24px to the eye; on touch an invisible ::after
+            // The pill stays 28px to the eye; on touch an invisible ::after
             // extends the target to 44px so a thumb lands on it.
             className={cn(
-              "relative inline-flex h-6 items-center gap-1 rounded-full border px-2 text-caption transition-colors duration-(--duration-fast) disabled:cursor-default pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:content-['']",
+              "relative inline-flex h-7 items-center gap-1 rounded-full border px-2 text-label transition-colors duration-(--duration-fast) disabled:cursor-default pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2 pointer-coarse:after:content-['']",
               pressed
-                ? "border-brand bg-surface-selected hover:bg-surface-selected"
+                ? "border-brand bg-brand-subtle hover:bg-brand/15 disabled:hover:bg-brand-subtle"
                 : "border-border bg-surface hover:bg-surface-hover disabled:hover:bg-surface",
             )}
           >
             <span aria-hidden>{emoji}</span>
             {count > 1 ? (
-              <span className={cn("font-medium tabular-nums", pressed ? "text-foreground" : "text-muted-foreground")}>
+              <span
+                className={cn(
+                  "font-semibold tabular-nums",
+                  pressed ? "text-brand-subtle-foreground" : "text-muted-foreground",
+                )}
+              >
                 {count}
               </span>
             ) : null}
@@ -84,34 +89,47 @@ export function ChatReactionChips({
 /**
  * Time, edited mark, delivery state and read receipt — the one line of meta a
  * message carries. Shown on the last message of a run (and always while a
- * message is on its way). The time for a screen reader lives in the
- * message's accessible name instead (ChatMessageA11yLabel).
+ * message is on its way). Inside a bubble it sits at the bottom-right in the
+ * bubble's own meta colour; `onWall` draws it as a small chip on the chat
+ * wall instead (under a sticker, GIF or anything drawn without a bubble).
+ * The time for a screen reader lives in the message's accessible name
+ * instead (ChatMessageA11yLabel).
  */
 export function ChatMessageMeta({
   message,
   isOwn,
   showTime,
   showReadReceipt = false,
+  onWall = false,
 }: {
   message: ChatMessage;
   isOwn: boolean;
   showTime: boolean;
   showReadReceipt?: boolean;
+  onWall?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const pending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
   if (!showTime && !pending && !message.editedAt && !showReadReceipt) return null;
+  const onBrand = isOwn && !onWall;
   return (
     <p
       className={cn(
-        "mt-0.5 flex items-center gap-1 text-micro text-muted-foreground tabular-nums",
-        isOwn ? "justify-end" : "justify-start",
+        "flex items-center gap-1 text-micro tabular-nums",
+        onWall
+          ? cn("mt-0.5 w-fit rounded-md bg-chat-chip px-2 py-0.5 text-chat-chip-foreground", isOwn && "self-end")
+          : cn("mt-0.5 ml-auto justify-end", onBrand ? "text-chat-bubble-own-meta" : "text-muted-foreground"),
       )}
     >
       {pending ? (
         // Full contrast while on its way: the state is in words and a glyph,
         // not in a faded bubble.
-        <span className="inline-flex items-center gap-1 text-foreground">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1",
+            onBrand ? "text-chat-bubble-own-foreground" : "text-foreground",
+          )}
+        >
           <Clock3 className="size-3" aria-hidden />
           {message.deliveryStatus === "queued" ? t("chat.message_queued") : t("chat.message_sending")}
         </span>
@@ -122,8 +140,13 @@ export function ChatMessageMeta({
       ) : null}
       {message.editedAt ? <span>· {t("chat.edited_label")}</span> : null}
       {showReadReceipt ? (
-        <span className="inline-flex items-center gap-0.5 text-brand-subtle-foreground">
-          <Check className="size-3" aria-hidden />
+        <span
+          className={cn(
+            "inline-flex items-center gap-0.5 font-semibold",
+            onBrand ? "text-chat-bubble-own-foreground" : "text-brand",
+          )}
+        >
+          <CheckCheck className="size-3.5" aria-hidden />
           <span className="sr-only sm:not-sr-only">{t("chat.read_receipt")}</span>
         </span>
       ) : null}

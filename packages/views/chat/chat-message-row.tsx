@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Bell, CircleAlert } from "lucide-react";
+import { Bell, ChevronRight, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -22,20 +22,28 @@ import { useMessageActionsReveal } from "./use-message-actions-reveal";
 const INCOMING_AVATAR_SLOT_CLASS = "w-8 shrink-0";
 
 /**
- * The two bubble fills. Mine is the brand wash, theirs the muted wash: both
- * pale, so body text, links and the time read the same in either and a long
- * thread does not become a wall of saturated blue.
+ * The two bubble fills. Mine is the brand fill with its own text colour (the
+ * body, links and meta all read it); theirs is the raised white bubble with
+ * a hairline shadow on the chat wall.
  */
-export const CHAT_BUBBLE_OWN = "bg-brand-subtle";
-export const CHAT_BUBBLE_OTHER = "bg-muted";
+export const CHAT_BUBBLE_OWN = "bg-chat-bubble-own text-chat-bubble-own-foreground";
+export const CHAT_BUBBLE_OTHER = "bg-chat-bubble-other text-foreground shadow-chat-bubble";
 
-/** Rounded bubble with a tighter corner on the sender's side for the first of a run. */
-export function chatBubbleShape(isOwn: boolean, firstOfRun: boolean): string {
-  if (!firstOfRun) return "rounded-2xl";
-  return isOwn ? "rounded-2xl rounded-tr-md" : "rounded-2xl rounded-tl-md";
+/**
+ * A bubble's corners by its place in the run: round everywhere except the
+ * sender's side, where bubbles of one run join (sm) and the last one ends in
+ * a smaller tail corner (xs). Canvas: 18 / 6 / 4.
+ */
+export function chatBubbleShape(isOwn: boolean, firstOfRun: boolean, lastOfRun = true): string {
+  if (isOwn) {
+    if (firstOfRun) return lastOfRun ? "rounded-2xl rounded-br-xs" : "rounded-2xl rounded-br-sm";
+    return lastOfRun ? "rounded-2xl rounded-tr-sm rounded-br-xs" : "rounded-2xl rounded-r-sm";
+  }
+  if (firstOfRun) return lastOfRun ? "rounded-2xl rounded-bl-xs" : "rounded-2xl rounded-bl-sm";
+  return lastOfRun ? "rounded-2xl rounded-tl-sm rounded-bl-xs" : "rounded-2xl rounded-l-sm";
 }
 
-/** Important is a warning, urgent is a danger — never the same red. */
+/** Important is a warning, urgent is a danger — never the same red. A pill at the bubble's top. */
 export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority"] }) {
   const { t } = useTranslation();
   if (priority !== "important" && priority !== "urgent") return null;
@@ -43,7 +51,7 @@ export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-micro font-semibold",
+        "inline-flex h-5.5 w-fit items-center gap-1 rounded-full px-2 text-caption font-semibold",
         urgent
           ? "bg-destructive-soft text-destructive-soft-foreground"
           : "bg-warning-soft text-warning-soft-foreground",
@@ -55,7 +63,7 @@ export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority
   );
 }
 
-/** "3 phản hồi" under a thread root: opens the thread. */
+/** "3 phản hồi" under a thread root: a small brand pill on the wall that opens the thread. */
 export function ChatThreadRepliesLink({
   message,
   isOwn,
@@ -70,14 +78,19 @@ export function ChatThreadRepliesLink({
   return (
     <Button
       type="button"
-      variant="link"
-      size="xs"
-      className={cn("h-auto px-1 py-0.5 text-brand-subtle-foreground", isOwn && "self-end")}
+      variant="ghost"
+      size="sm"
+      className={cn(
+        "h-8 w-fit gap-1.5 rounded-full bg-chat-chip pr-2 pl-3 text-label font-semibold text-brand hover:bg-surface hover:text-brand",
+        isOwn && "self-end",
+      )}
       onClick={() => onThread(message)}
     >
       {message.threadUnread
         ? t("chat.thread_replies_unread", { count: message.replyCount })
         : t("chat.thread_replies", { count: message.replyCount })}
+      {message.threadUnread ? <span aria-hidden className="size-2 rounded-full bg-brand" /> : null}
+      <ChevronRight aria-hidden className="text-muted-foreground" />
     </Button>
   );
 }
@@ -88,6 +101,8 @@ type ChatMessageRowProps = {
   isOwn: boolean;
   showReadReceipt: boolean;
   replyToMessage?: ChatMessage;
+  /** Who wrote the quoted message, named inside the quote. */
+  replyToSenderLabel?: string;
   workspaceId?: string;
   roomId?: string;
   onReply?: (message: ChatMessage) => void;
@@ -120,6 +135,7 @@ function ChatMessageRowImpl({
   isOwn,
   showReadReceipt,
   replyToMessage,
+  replyToSenderLabel,
   workspaceId,
   roomId,
   onReply,
@@ -149,6 +165,21 @@ function ChatMessageRowImpl({
   // A sticker or GIF is not text: there is nothing to edit in it.
   const isMedia = isChatMediaMessageBody(message.body);
   const canEdit = isOwn && !isPending && message.kind !== "voice_call_log" && !message.voiceCall && !isMedia;
+  // A sticker, GIF or image is the message itself: no bubble behind it, its
+  // time on a chip under it — unless it answers another message.
+  const bare = isMedia && !replyToMessage;
+  // Their name opens the first bubble of a run in a group, in their colour.
+  const showName = !isOwn && showSenderName && showAvatar;
+  const urgent = message.priority === "urgent";
+  const meta = (
+    <ChatMessageMeta
+      message={message}
+      isOwn={isOwn}
+      showTime={lastOfRun}
+      showReadReceipt={showReadReceipt}
+      onWall={bare}
+    />
+  );
 
   return (
     <article
@@ -187,43 +218,62 @@ function ChatMessageRowImpl({
           isOwn ? "items-end" : "items-start",
         )}
       >
-        {!isOwn && showSenderName && showAvatar ? (
-          <p className={cn("px-1 text-caption font-semibold", nameClass)} aria-hidden>
+        {bare && showName ? (
+          <p className={cn("px-1 text-label font-semibold", nameClass)} aria-hidden>
             {senderLabel}
           </p>
         ) : null}
 
         <div className={chatMessageActionsRailClass(isOwn)}>
-          <div className="flex min-w-0 flex-col gap-1">
-            <ChatPriorityFlag priority={message.priority} />
+          <div className={cn("flex min-w-0 flex-col gap-1", isOwn ? "items-end" : "items-start")}>
+            {bare ? <ChatPriorityFlag priority={message.priority} /> : null}
 
             <div
               title={formatMessageDateTime(message.ts, i18n.language)}
               className={cn(
                 "w-fit max-w-full",
-                // A sticker, GIF or image is the message itself: no bubble behind
-                // it, only the time under it — unless it answers another message.
-                isMedia && !replyToMessage
-                  ? "p-0"
-                  : cn("px-3 py-2", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
+                !bare &&
+                  cn(
+                    "px-3 pt-1.5 pb-2",
+                    chatBubbleShape(isOwn, !compactTop, lastOfRun),
+                    isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
+                    urgent && "ring-1 ring-destructive/30",
+                  ),
               )}
             >
+              {!bare && (showName || message.priority === "important" || urgent) ? (
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  {showName ? (
+                    <span className={cn("text-label font-semibold", nameClass)} aria-hidden>
+                      {senderLabel}
+                    </span>
+                  ) : null}
+                  <ChatPriorityFlag priority={message.priority} />
+                </div>
+              ) : null}
+
               {replyToMessage ? (
                 <ChatReplyQuote
                   message={replyToMessage}
                   isOwn={isOwn}
+                  senderLabel={replyToSenderLabel}
                   onJump={onJumpToMessage}
                 />
               ) : null}
 
-              <ChatMessageBody body={message.body} isOwn={isOwn} nameContext={nameContext} />
-              <ChatMessageMeta
-                message={message}
-                isOwn={isOwn}
-                showTime={lastOfRun}
-                showReadReceipt={showReadReceipt}
-              />
+              {bare ? (
+                <ChatMessageBody body={message.body} isOwn={isOwn} nameContext={nameContext} />
+              ) : (
+                // Short text keeps the time on its line; long text pushes it
+                // under the last line, still at the bubble's bottom-right.
+                <div className="flex flex-wrap items-end gap-x-3">
+                  <ChatMessageBody body={message.body} isOwn={isOwn} nameContext={nameContext} />
+                  {meta}
+                </div>
+              )}
             </div>
+
+            {bare ? meta : null}
 
             <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
 
@@ -237,26 +287,27 @@ function ChatMessageRowImpl({
               />
             ) : null}
           </div>
-
-          {!isPending ? (
-            <ChatMessageHoverActions
-              message={message}
-              isOwn={isOwn}
-              onReply={onReply}
-              onReact={onReact}
-              onThread={onThread}
-              onEdit={onEdit}
-              onPin={onPin}
-              onCopy={onCopy}
-              onDelete={onDelete}
-              onCreateTask={onCreateTask}
-              onLinkTask={onLinkTask}
-              onFollowUp={onFollowUp}
-              canEdit={canEdit}
-              forceOpen={reveal.open}
-            />
-          ) : null}
         </div>
+
+        {!isPending ? (
+          <ChatMessageHoverActions
+            message={message}
+            isOwn={isOwn}
+            onReply={onReply}
+            onReact={onReact}
+            onToggleReaction={onToggleReaction}
+            onThread={onThread}
+            onEdit={onEdit}
+            onPin={onPin}
+            onCopy={onCopy}
+            onDelete={onDelete}
+            onCreateTask={onCreateTask}
+            onLinkTask={onLinkTask}
+            onFollowUp={onFollowUp}
+            canEdit={canEdit}
+            forceOpen={reveal.open}
+          />
+        ) : null}
       </div>
     </article>
   );

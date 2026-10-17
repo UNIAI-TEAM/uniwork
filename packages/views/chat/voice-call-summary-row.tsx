@@ -1,6 +1,6 @@
 "use client";
 
-import { ListChecks, PhoneCall, Sparkles } from "lucide-react";
+import { ListChecks, PhoneCall, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatMessage } from "./chat-messages";
@@ -74,14 +74,14 @@ export function VoiceCallSummaryRow({
           onJumpToMessage ? (
             <button
               type="button"
-              className="mb-2 inline-flex items-center gap-1.5 rounded-md text-caption font-medium text-brand-subtle-foreground hover:underline"
+              className="mb-2 inline-flex items-center gap-1.5 rounded-md text-label font-medium text-brand tabular-nums hover:underline"
               onClick={() => onJumpToMessage(callLogId)}
             >
               <PhoneCall aria-hidden className="size-3.5" />
               {sourceLabel}
             </button>
           ) : (
-            <p className="mb-2 inline-flex items-center gap-1.5 text-caption text-muted-foreground">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-label text-muted-foreground tabular-nums">
               <PhoneCall aria-hidden className="size-3.5" />
               {sourceLabel}
             </p>
@@ -119,27 +119,32 @@ export function VoiceCallSummaryRow({
                 const canCreate = Boolean(item.source_message_id.trim());
                 const detail =
                   item.owner || item.due ? (
-                    <span className="mt-0.5 block text-caption text-muted-foreground">
+                    <span className="mt-0.5 block text-caption text-muted-foreground tabular-nums">
                       {[item.owner, item.due].filter(Boolean).join(" · ")}
                     </span>
                   ) : null;
                 return (
                   <li key={`${index}-${item.source_message_id}-${item.title}`}>
                     {canCreate ? (
+                      // The whole row stays the button (the bigger target); the
+                      // pill on its right says what pressing it does.
                       <button
                         type="button"
-                        className="w-full rounded-lg bg-muted px-3 py-2 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover"
+                        className="flex w-full items-center gap-3 rounded-xl bg-muted py-2 pr-2 pl-3 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover"
                         onClick={() => setCreateFor(item)}
                       >
-                        <span className="block text-body font-medium text-foreground">{item.title}</span>
-                        {detail}
-                        <span className="mt-1 block text-caption font-medium text-brand-subtle-foreground">
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-body font-semibold text-foreground">{item.title}</span>
+                          {detail}
+                        </span>
+                        <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-brand-subtle px-3 text-label font-semibold text-brand-subtle-foreground">
+                          <Plus aria-hidden className="size-3.5" />
                           {t("chat.link.create_task")}
                         </span>
                       </button>
                     ) : (
-                      <div className="rounded-lg bg-muted px-3 py-2">
-                        <span className="block text-body font-medium text-foreground">{item.title}</span>
+                      <div className="rounded-xl bg-muted px-3 py-2">
+                        <span className="block text-body font-semibold text-foreground">{item.title}</span>
                         {detail}
                       </div>
                     )}

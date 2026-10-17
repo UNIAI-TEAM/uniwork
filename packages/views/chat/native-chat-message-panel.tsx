@@ -439,33 +439,37 @@ export function NativeChatMessagePanel({
         <div
           ref={scrollRef}
           onScroll={onScroll}
-          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-2 pb-4 sm:px-4"
+          // The chat wall: a cool tint with a faint dot grid behind the bubbles.
+          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-chat-wall bg-[radial-gradient(var(--chat-wall-dot)_1.2px,transparent_1.4px)] bg-size-[22px_22px] px-3 pt-2 pb-4 sm:px-4"
           role="log"
           aria-live="off"
           aria-label={t("chat.messages_region")}
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard to scroll it (axe scrollable-region-focusable)
           tabIndex={0}
         >
-          <ChatMessageLinksProvider value={linksValue}>
-            <VirtualChatMessageList
-              key={roomId}
-              messages={messages}
-              scrollRef={scrollRef}
-              stickToBottomRef={stickToBottomRef}
-              programmaticScrollRef={programmaticScrollRef}
-              highlightMessageId={highlightMessageId}
-              onHighlightShown={focusChatMessage}
-              header={listHeader}
-              empty={
-                latestPending ? (
-                  <ChatMessagesSkeleton className="px-0" />
-                ) : (
-                  (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
-                )
-              }
-              renderMessage={renderMessage}
-            />
-          </ChatMessageLinksProvider>
+          {/* One readable column however wide the window is. */}
+          <div className="mx-auto w-full max-w-3xl">
+            <ChatMessageLinksProvider value={linksValue}>
+              <VirtualChatMessageList
+                key={roomId}
+                messages={messages}
+                scrollRef={scrollRef}
+                stickToBottomRef={stickToBottomRef}
+                programmaticScrollRef={programmaticScrollRef}
+                highlightMessageId={highlightMessageId}
+                onHighlightShown={focusChatMessage}
+                header={listHeader}
+                empty={
+                  latestPending ? (
+                    <ChatMessagesSkeleton className="px-0" />
+                  ) : (
+                    (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
+                  )
+                }
+                renderMessage={renderMessage}
+              />
+            </ChatMessageLinksProvider>
+          </div>
         </div>
         <NativeChatLiveRegion
           roomId={roomId}
@@ -478,6 +482,7 @@ export function NativeChatMessagePanel({
       {replyTo ? (
         <ChatReplyComposerBar
           message={replyTo}
+          senderLabel={layout.find((_, index) => messages[index]?.id === replyTo.id)?.senderLabel}
           onCancel={() => {
             onReplyToChange(null);
             onFocusComposer?.();

@@ -21,6 +21,9 @@ import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
 
+/** A fixed sound-wave silhouette: decoration, not the recording's real levels (percent heights). */
+const WAVE_BARS = [30, 50, 75, 45, 90, 65, 100, 60, 40, 80, 100, 50, 30, 65, 90, 45, 75, 100, 60, 40, 50, 80, 65, 30, 45, 90, 75, 50, 100, 60, 40, 65];
+
 function formatDuration(durationMs: number): string {
   const seconds = Math.max(0, Math.ceil(durationMs / 1000));
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -32,7 +35,17 @@ function formatDuration(durationMs: number): string {
  * so scrolling the row away does not stop the sound and starting another
  * message pauses this one.
  */
-function VoicePlayer({ workspaceId, roomId, message }: { workspaceId: string; roomId: string; message: ChatMessage }) {
+function VoicePlayer({
+  workspaceId,
+  roomId,
+  message,
+  isOwn,
+}: {
+  workspaceId: string;
+  roomId: string;
+  message: ChatMessage;
+  isOwn: boolean;
+}) {
   const { t } = useTranslation();
   const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
   // The audio streams straight from storage through the signed URL.
@@ -44,15 +57,19 @@ function VoicePlayer({ workspaceId, roomId, message }: { workspaceId: string; ro
   const durationMs = message.voice?.duration_ms || mediaDurationMs;
   const playing = status === "playing";
   const active = status === "playing" || status === "paused";
+  const played = active && durationMs > 0 ? Math.min(positionMs / durationMs, 1) : 0;
 
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-3">
         <Button
           type="button"
-          size="icon-lg"
-          variant="outline"
-          className="shrink-0 rounded-full bg-surface"
+          size="icon"
+          className={cn(
+            "size-11 shrink-0 rounded-full",
+            // On my brand bubble the button inverts so it does not vanish into it.
+            isOwn && "bg-chat-bubble-own-foreground text-chat-bubble-own hover:bg-chat-bubble-own-foreground/90",
+          )}
           aria-label={playing ? t("chat.voice_pause") : t("chat.voice_play")}
           aria-busy={status === "loading" || undefined}
           onClick={() => void toggleChatVoicePlayback(message.id, resolveUrl)}
@@ -60,14 +77,32 @@ function VoicePlayer({ workspaceId, roomId, message }: { workspaceId: string; ro
           {status === "loading" ? (
             <Spinner />
           ) : playing ? (
-            <Pause className="size-4" aria-hidden />
+            <Pause className="size-4 fill-current" aria-hidden />
           ) : (
-            <Play className="size-4" aria-hidden />
+            <Play className="size-4 fill-current" aria-hidden />
           )}
         </Button>
-        <span className="min-w-0 flex-1">
-          <span className="block text-body font-medium">{t("chat.voice_message")}</span>
-          <span className="block text-caption text-muted-foreground tabular-nums">
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="sr-only">{t("chat.voice_message")}</span>
+          <span aria-hidden className="flex h-7 items-center justify-between gap-0.5">
+            {WAVE_BARS.map((height, index) => (
+              <span
+                key={index}
+                className={cn(
+                  "w-0.75 shrink-0 rounded-full",
+                  index / WAVE_BARS.length < played
+                    ? isOwn
+                      ? "bg-chat-bubble-own-foreground"
+                      : "bg-brand"
+                    : isOwn
+                      ? "bg-chat-bubble-own-foreground/45"
+                      : "bg-faint-foreground/50",
+                )}
+                style={{ height: `${height}%` }}
+              />
+            ))}
+          </span>
+          <span className={cn("text-caption tabular-nums", isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
             {active ? `${formatDuration(positionMs)} / ${formatDuration(durationMs)}` : formatDuration(durationMs)}
           </span>
         </span>
@@ -85,11 +120,14 @@ function VoicePlayer({ workspaceId, roomId, message }: { workspaceId: string; ro
             duration: formatDuration(durationMs),
           })}
           onChange={(event) => seekChatVoicePlayback(message.id, Number(event.target.value))}
-          className="h-1.5 w-full cursor-pointer accent-brand pointer-coarse:h-6"
+          className={cn(
+            "h-1.5 w-full cursor-pointer pointer-coarse:h-6",
+            isOwn ? "accent-chat-bubble-own-foreground" : "accent-brand",
+          )}
         />
       ) : null}
       {status === "error" ? (
-        <p className="text-caption text-destructive" role="alert">
+        <p className={cn("text-caption", !isOwn && "text-destructive")} role="alert">
           {t("chat.voice_load_failed")}
         </p>
       ) : null}
@@ -149,7 +187,7 @@ function ChatVoiceMessageRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
-        compactTop ? "mt-2" : "mt-4",
+        compactTop ? "mt-0.5" : "mt-3",
         isOwn ? "justify-end" : "justify-start gap-2",
       )}
     >
@@ -174,21 +212,21 @@ function ChatVoiceMessageRowImpl({
           isOwn ? "items-end" : "items-start",
         )}
       >
-        {!isOwn && showSenderName && showAvatar ? (
-          <p className={cn("px-1 text-caption font-semibold", senderNameClass(message.sender, isOwn))} aria-hidden>
-            {senderLabel}
-          </p>
-        ) : null}
         <div className={chatMessageActionsRailClass(isOwn)}>
           <div className="flex min-w-0 flex-col gap-1">
             <div
               className={cn(
-                "min-w-48 px-3 py-2 text-foreground",
+                "w-72 max-w-full px-3 py-2",
                 chatBubbleShape(isOwn, !compactTop),
                 isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
               )}
             >
-              <VoicePlayer workspaceId={workspaceId} roomId={roomId} message={message} />
+              {!isOwn && showSenderName && showAvatar ? (
+                <p className={cn("mb-1 text-label font-semibold", senderNameClass(message.sender, isOwn))} aria-hidden>
+                  {senderLabel}
+                </p>
+              ) : null}
+              <VoicePlayer workspaceId={workspaceId} roomId={roomId} message={message} isOwn={isOwn} />
               <ChatMessageMeta message={message} isOwn={isOwn} showTime />
             </div>
             <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
@@ -199,6 +237,7 @@ function ChatVoiceMessageRowImpl({
             isOwn={isOwn}
             onReply={onReply}
             onReact={onReact}
+            onToggleReaction={onToggleReaction}
             onThread={onThread}
             onPin={onPin}
             onCopy={onCopy}

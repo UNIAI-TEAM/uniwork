@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
-import { ChatMessageRow } from "./chat-message-row";
+import { ChatMessageRow, chatBubbleShape } from "./chat-message-row";
 import type { ChatMessage } from "./chat-messages";
 
 beforeAll(() => {
@@ -117,4 +117,33 @@ describe("ChatMessageRow", () => {
     expect(onReact).toHaveBeenCalledWith(row);
     expect(onReply).toHaveBeenCalledWith(row);
   });
+
+  it("names the quoted sender inside the quote", () => {
+    render(
+      wrap(
+        <ChatMessageRow
+          message={message({ body: "Đồng ý" })}
+          senderLabel="Alice"
+          isOwn={false}
+          showReadReceipt={false}
+          replyToMessage={message({ id: "m0", sender: "@lan:localhost", body: "Chốt lịch" })}
+          replyToSenderLabel="Hoàng Lan"
+          onJumpToMessage={vi.fn()}
+        />,
+      ),
+    );
+    const quote = screen.getByRole("button", { name: "Xem tin gốc: Chốt lịch" });
+    expect(quote).toHaveTextContent("Hoàng Lan");
+  });
 });
+
+describe("chatBubbleShape", () => {
+  it("joins a run on the sender's side and ends it in a tail corner", () => {
+    expect(chatBubbleShape(false, true)).toBe("rounded-2xl rounded-bl-xs");
+    expect(chatBubbleShape(false, true, false)).toBe("rounded-2xl rounded-bl-sm");
+    expect(chatBubbleShape(false, false, false)).toBe("rounded-2xl rounded-l-sm");
+    expect(chatBubbleShape(false, false, true)).toBe("rounded-2xl rounded-tl-sm rounded-bl-xs");
+    expect(chatBubbleShape(true, false, true)).toBe("rounded-2xl rounded-tr-sm rounded-br-xs");
+  });
+});
+

@@ -6,13 +6,14 @@ import { useTranslation } from "react-i18next";
 import { useUnlinkChatMessage } from "@uniwork/core/chat";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
 import { useTask } from "@uniwork/core/tasks";
-import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
+import { IconTile, tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { StatusIcon } from "../tasks/icons/status-icon";
+import { STATUS_CONFIG } from "../tasks/modes/status-config";
 import { ConfirmDialog } from "../common/form-dialog";
 import { ChatTaskPeekDialog } from "./chat-task-peek-dialog";
 import { toastChatError } from "./chat-error-message";
@@ -39,23 +40,24 @@ function MessageTaskLinkRow({
   const title = task?.title ?? t("chat.link.task_loading");
   const identifier = task?.identifier || task?.id.slice(0, 8);
   const openLabel = t("chat.link.open_task", { identifier, title });
+  const statusTone = task?.status ? STATUS_CONFIG[task.status]?.tone : undefined;
 
   return (
     <>
       {/* A linked task reads as a task everywhere: the tasks tint on its glyph,
           its identifier, and its status in the status's own words and icon. */}
-      <div className="flex w-full max-w-full items-center gap-2 rounded-lg border border-border bg-surface py-1 pr-1 pl-2.5">
-        <MODULE_ICONS.tasks className={cn("size-3.5 shrink-0", tintForegroundClass[moduleTone("tasks")])} aria-hidden />
+      <div className="flex min-h-12 w-full max-w-full items-center gap-2.5 rounded-lg border border-border bg-surface py-1 pr-1 pl-2.5 shadow-chat-bubble">
+        <IconTile icon={MODULE_ICONS.tasks} tone={moduleTone("tasks")} size="sm" />
         {task ? (
           <button
             type="button"
-            className="min-w-0 flex-1 truncate rounded-sm py-1 text-left text-caption font-medium text-foreground hover:underline"
+            className="min-w-0 flex-1 truncate rounded-sm py-1 text-left text-body text-foreground hover:underline"
             aria-label={openLabel}
             onClick={() => setPeekOpen(true)}
           >
             <span className="text-muted-foreground tabular-nums">{identifier}</span>
             <span className="mx-1 text-muted-foreground">·</span>
-            <span>{title}</span>
+            <span className="font-medium">{title}</span>
           </button>
         ) : (
           <span className="flex min-w-0 flex-1 items-center gap-2 py-1" aria-busy>
@@ -65,8 +67,13 @@ function MessageTaskLinkRow({
           </span>
         )}
         {task?.status ? (
-          <span className="inline-flex shrink-0 items-center gap-1 text-caption text-muted-foreground">
-            <StatusIcon status={task.status} className="size-3.5" />
+          <span
+            className={cn(
+              "inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-caption font-semibold",
+              statusTone ? tintClass[statusTone] : "bg-muted text-muted-foreground",
+            )}
+          >
+            <StatusIcon status={task.status} className="size-3.5" inheritColor />
             {t(`tasks.status_${task.status}`, { defaultValue: task.status })}
           </span>
         ) : null}
@@ -74,8 +81,8 @@ function MessageTaskLinkRow({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            size="icon"
+            className="shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
             aria-label={t("chat.message_list.unlink_named", { identifier: identifier ?? "", title })}
             disabled={unlink.isPending}
             onClick={() => setConfirmOpen(true)}

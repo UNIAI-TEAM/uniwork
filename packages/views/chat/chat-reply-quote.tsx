@@ -8,6 +8,7 @@ import type { ChatMessage } from "./chat-messages";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
 import { isChatMediaUrlFresh } from "@uniwork/core/chat";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { senderNameClass, senderQuoteClass } from "./sender-colors";
 
 function isImageFileMessage(message: ChatMessage): boolean {
   return message.kind === "file" && Boolean(message.file?.content_type?.startsWith("image/"));
@@ -38,14 +39,33 @@ export function replyPreviewLabel(
   return media ?? deserializeMessageBodyToComposerDraft(message.body).trim();
 }
 
+/** The quoted photo, or a placeholder while its link is stale. */
+function QuoteThumbnail({ url, label, className }: { url: string | null; label: string; className: string }) {
+  return (
+    <span className={cn("relative shrink-0 overflow-hidden rounded-md", className)}>
+      {url ? (
+        <img src={url} alt={label} className="size-full object-cover" />
+      ) : (
+        <span className="flex size-full items-center justify-center">
+          <ImageIcon className="size-4" aria-hidden />
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function ChatReplyQuote({
   message,
-  isOwn: _isOwn = false,
+  isOwn = false,
+  senderLabel,
   compact = false,
   onJump,
 }: {
   message: ChatMessage;
+  /** The quote sits in my (brand) bubble: drawn in the bubble's own colours. */
   isOwn?: boolean;
+  /** Who wrote the quoted message; shown above the preview in their colour. */
+  senderLabel?: string;
   /** Composer banner uses a lighter layout. */
   compact?: boolean;
   /** Scrolls to the quoted message; the quote becomes a button when set. */
@@ -62,56 +82,69 @@ export function ChatReplyQuote({
 
   if (compact) {
     return (
-      <div className="flex min-w-0 items-center gap-2">
+      <span className="flex min-w-0 items-center gap-2.5">
         {isImage ? (
-          <span className="relative size-9 shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border">
-            {previewUrl ? (
-              <img src={previewUrl} alt={label} className="size-full object-cover" />
-            ) : (
-              <span className="flex size-full items-center justify-center text-muted-foreground">
-                <ImageIcon className="size-4" aria-hidden />
-              </span>
-            )}
-          </span>
+          <QuoteThumbnail url={previewUrl} label={label} className="size-10 bg-muted text-muted-foreground" />
         ) : null}
-        <p className="min-w-0 truncate text-caption text-muted-foreground">
-          {t("chat.replying_to", { preview: label })}
-        </p>
-      </div>
+        <span className="flex min-w-0 flex-col">
+          {senderLabel ? (
+            <span className="truncate text-label font-semibold text-brand">{senderLabel}</span>
+          ) : null}
+          <span className="truncate text-label text-muted-foreground">
+            {t("chat.replying_to", { preview: label })}
+          </span>
+        </span>
+      </span>
     );
   }
 
-  // Both bubbles are pale washes, so one quote style serves mine and theirs:
-  // an inset of the page surface inside the bubble, led by a reply glyph —
-  // a quote reads as "set into" the message rather than a coloured side rule.
+  // A side bar and a light wash in the quoted sender's colour; on my brand
+  // bubble both turn to the bubble's own white so the quote stays legible.
+  const tile = isOwn
+    ? "bg-chat-bubble-own-foreground/20 text-chat-bubble-own-foreground"
+    : "bg-surface text-muted-foreground";
   const content = (
     <>
-      <Reply aria-hidden className="size-3.5 shrink-0 text-brand-subtle-foreground" />
       {isImage ? (
-        <span className="relative size-10 shrink-0 overflow-hidden rounded-md bg-surface ring-1 ring-border">
-          {previewUrl ? (
-            <img src={previewUrl} alt={label} className="size-full object-cover" />
-          ) : (
-            <span className="flex size-full items-center justify-center text-muted-foreground">
-              <ImageIcon className="size-4" aria-hidden />
-            </span>
-          )}
-        </span>
+        <QuoteThumbnail url={previewUrl} label={label} className={cn("size-9", tile)} />
       ) : message.kind === "file" ? (
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface text-muted-foreground">
-          <FileText className="size-3.5" aria-hidden />
+        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-md", tile)}>
+          <FileText className="size-4" aria-hidden />
         </span>
       ) : null}
-      <span className="min-w-0 flex-1 truncate text-caption">{label}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        {senderLabel ? (
+          <span
+            className={cn(
+              "truncate text-label font-semibold",
+              isOwn ? "text-chat-bubble-own-foreground" : senderNameClass(message.sender, false),
+            )}
+          >
+            {senderLabel}
+          </span>
+        ) : null}
+        <span
+          className={cn(
+            "truncate text-label",
+            isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground",
+          )}
+        >
+          {label}
+        </span>
+      </span>
     </>
   );
-  const quoteClass =
-    "mb-1.5 flex w-full min-w-0 items-center gap-2 rounded-lg bg-surface px-2 py-1 text-left text-muted-foreground";
+  const quoteClass = cn(
+    "mb-1.5 flex w-full min-w-0 items-center gap-2.5 rounded-control border-l-3 py-1 pr-2.5 pl-2 text-left",
+    isOwn
+      ? "border-chat-bubble-own-foreground bg-chat-bubble-own-foreground/15"
+      : senderQuoteClass(message.sender),
+  );
   if (onJump) {
     return (
       <button
         type="button"
-        className={cn(quoteClass, "transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-foreground")}
+        className={cn(quoteClass, "transition-[filter] duration-(--duration-fast) hover:brightness-95")}
         aria-label={t("chat.reply_quote_jump", { preview: label })}
         onClick={() => onJump(message.id)}
       >
@@ -122,31 +155,39 @@ export function ChatReplyQuote({
   return <div className={quoteClass}>{content}</div>;
 }
 
+/**
+ * Above the composer while replying: a card on the chat wall led by a brand
+ * bar — who is quoted, what they said, and the way out.
+ */
 export function ChatReplyComposerBar({
   message,
+  senderLabel,
   onCancel,
 }: {
   message: ChatMessage;
+  senderLabel?: string;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-1.5">
-      <span className="flex min-w-0 items-center gap-2">
-        <Reply aria-hidden className="size-4 shrink-0 text-brand-subtle-foreground" />
-        <ChatReplyQuote message={message} compact />
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0 text-muted-foreground hover:text-foreground"
-        aria-label={t("chat.cancel_reply")}
-        title={t("chat.cancel_reply")}
-        onClick={onCancel}
-      >
-        <X aria-hidden />
-      </Button>
+    <div className="bg-chat-wall px-3 pt-2 sm:px-4">
+      <div className="mx-auto flex max-w-3xl items-center gap-2.5 rounded-2xl border-l-3 border-brand bg-surface py-1.5 pr-1 pl-3 shadow-chat-bubble">
+        <Reply aria-hidden className="size-4.5 shrink-0 text-brand" />
+        <span className="min-w-0 flex-1">
+          <ChatReplyQuote message={message} senderLabel={senderLabel} compact />
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-lg"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label={t("chat.cancel_reply")}
+          title={t("chat.cancel_reply")}
+          onClick={onCancel}
+        >
+          <X aria-hidden />
+        </Button>
+      </div>
     </div>
   );
 }

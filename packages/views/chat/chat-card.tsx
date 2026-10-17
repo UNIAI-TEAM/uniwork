@@ -6,12 +6,15 @@ import { useTranslation } from "react-i18next";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
+import { CHAT_BUBBLE_OTHER, chatBubbleShape } from "./chat-message-row";
 import { senderNameClass } from "./sender-colors";
 
 /**
  * The frame every structured message shares — note, post, reminder, poll,
  * call summary. One header pattern (kind tile, overline, sender, time,
  * status) so the kinds differ by their tint and glyph, not by their chrome.
+ * It sits in the sender's column like a bubble: theirs on the left behind
+ * the avatar gutter, mine on the right, both on the light card fill.
  */
 export function ChatCard({
   icon,
@@ -48,7 +51,11 @@ export function ChatCard({
     <article
       aria-labelledby={labelId}
       tabIndex={-1}
-      className={cn("flex w-full max-w-full justify-center rounded-xl focus-visible:outline-offset-2", compactTop ? "mt-2" : "mt-4")}
+      className={cn(
+        "flex w-full max-w-full gap-2 rounded-xl focus-visible:outline-offset-2",
+        isOwn ? "justify-end" : "justify-start",
+        compactTop ? "mt-0.5" : "mt-3",
+      )}
     >
       <span id={labelId} className="sr-only">
         {ts
@@ -59,25 +66,28 @@ export function ChatCard({
             })
           : t("chat.message_list.card_label_no_time", { kind: label, sender: senderLabel })}
       </span>
+      {isOwn ? null : <span className="w-8 shrink-0" aria-hidden />}
       <div
         className={cn(
-          "w-full rounded-xl border border-border bg-surface p-3.5",
-          wide ? "max-w-lg" : "max-w-md",
+          "min-w-0 flex-1 px-3.5 pt-3 pb-2.5",
+          chatBubbleShape(isOwn, !compactTop),
+          CHAT_BUBBLE_OTHER,
+          wide ? "max-w-[min(85%,32rem)]" : "max-w-[min(85%,26rem)]",
         )}
       >
         <header className="flex items-center gap-2.5">
           <IconTile icon={icon} tone={tone} size="sm" />
           <div className="min-w-0 flex-1" aria-hidden>
-            {/* The kind and who made it, always: in a DM nothing else says
-                whether this poll or note is mine or theirs. */}
+            {/* The kind, and whose it is when the column does not say: mine
+                sit on the right, so only theirs carry the name. */}
             <p className="truncate text-overline text-muted-foreground uppercase">
               {label}
-              {showSenderName ? null : <span className="normal-case"> · {senderLabel}</span>}
+              {showSenderName || isOwn ? null : <span className="normal-case"> · {senderLabel}</span>}
             </p>
-            {showSenderName ? (
+            {showSenderName && !isOwn ? (
               <p
                 className={cn(
-                  "truncate text-caption font-semibold",
+                  "truncate text-label font-semibold",
                   senderId ? senderNameClass(senderId, isOwn) : "text-foreground",
                 )}
               >
@@ -114,7 +124,7 @@ export function ChatCardStatus({
   return (
     <span
       className={cn(
-        "shrink-0 rounded-md px-1.5 py-0.5 text-micro font-semibold",
+        "inline-flex h-5.5 shrink-0 items-center gap-1 rounded-full px-2 text-micro font-semibold [&_svg]:size-3",
         tone === "muted" && "bg-muted text-muted-foreground",
         tone === "success" && "bg-success-soft text-success-soft-foreground",
         tone === "warning" && "bg-warning-soft text-warning-soft-foreground",

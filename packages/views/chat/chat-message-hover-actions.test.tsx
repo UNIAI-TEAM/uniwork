@@ -57,4 +57,30 @@ describe("ChatMessageHoverActions", () => {
     await user.tab({ shift: true });
     expect(document.activeElement).toBe(moved);
   });
+
+  it("leads with six quick reactions that toggle that emoji, mine drawn pressed", async () => {
+    const user = userEvent.setup();
+    const onToggleReaction = vi.fn();
+    const row: ChatMessage = { ...message("m1"), reactions: { "❤️": 2 }, myReactions: ["❤️"] };
+    render(
+      wrap(
+        <ChatMessageHoverActions
+          message={row}
+          isOwn={false}
+          onReply={vi.fn()}
+          onReact={vi.fn()}
+          onToggleReaction={onToggleReaction}
+        />,
+      ),
+    );
+    for (const emoji of ["👍", "❤️", "😂", "😮", "😢", "🙏"]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${emoji} `) })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("button", { name: "Thả 👍" })).not.toBeInTheDocument();
+    const heart = screen.getByRole("button", { name: /^❤️ 2 / });
+    expect(heart).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: /^😢 0 / }));
+    expect(onToggleReaction).toHaveBeenCalledWith(row, "😢");
+  });
 });
+

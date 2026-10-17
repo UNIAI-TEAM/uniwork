@@ -60,6 +60,8 @@ export type NativeChatRowLayout = {
   senderLabel: string;
   senderAvatarUrl?: string;
   replyTarget: ChatMessage | undefined;
+  /** Who wrote replyTarget ("Bạn" for me), named inside the quote. */
+  replySenderLabel: string | undefined;
 };
 
 /**
@@ -83,9 +85,18 @@ export function layoutNativeChatMessages(
   const receiptIndex = latestSeenOwnMessageIndex(messages, input.currentUserId, input.peerLastReadAt);
   const grouping = messages.map((_, index) => messageGrouping(messages, index));
   const unreadIndex = firstUnreadIndex(messages, input.currentUserId, input.unreadSince ?? null);
+  const labelOf = (sender: string) =>
+    sender === input.currentUserId ? input.youLabel : names.get(sender) || sender;
   return messages.map((message, index) => {
     const previous = messages[index - 1];
     const next = grouping[index + 1];
+    // The message this row points back to: its reply parent, or — for an
+    // AI call summary — the call's log row.
+    const replyTarget = message.replyToEventId
+      ? byId.get(message.replyToEventId)
+      : message.voiceCallSummary
+        ? byId.get(message.voiceCallSummary.call_log_message_id)
+        : undefined;
     return {
       opensDay: !previous || messageDayKey(previous.ts) !== messageDayKey(message.ts),
       opensUnread: index === unreadIndex,
@@ -93,19 +104,13 @@ export function layoutNativeChatMessages(
       showAvatar: grouping[index]?.showAvatar ?? true,
       lastOfRun: !next || !next.compactTop,
       showReadReceipt: index === receiptIndex,
-      senderLabel:
-        message.sender === input.currentUserId ? input.youLabel : names.get(message.sender) || message.sender,
+      senderLabel: labelOf(message.sender),
       senderAvatarUrl:
         message.sender === input.currentUserId
           ? undefined
           : resolveAvatarUrlFromNameContext(input.nameContext, message.sender),
-      // The message this row points back to: its reply parent, or — for an
-      // AI call summary — the call's log row.
-      replyTarget: message.replyToEventId
-        ? byId.get(message.replyToEventId)
-        : message.voiceCallSummary
-          ? byId.get(message.voiceCallSummary.call_log_message_id)
-          : undefined,
+      replyTarget,
+      replySenderLabel: replyTarget ? labelOf(replyTarget.sender) : undefined,
     };
   });
 }
@@ -226,13 +231,21 @@ function MessageBody({
     return <ChatVoiceMessageRow {...common} />;
   }
   if (message.kind === "file" && message.file) {
-    return <ChatFileMessageRow {...common} replyToMessage={layout.replyTarget} onJumpToMessage={actions.onJumpToMessage} />;
+    return (
+      <ChatFileMessageRow
+        {...common}
+        replyToMessage={layout.replyTarget}
+        replyToSenderLabel={layout.replySenderLabel}
+        onJumpToMessage={actions.onJumpToMessage}
+      />
+    );
   }
   return (
     <ChatMessageRow
       {...common}
       showReadReceipt={layout.showReadReceipt}
       replyToMessage={layout.replyTarget}
+      replyToSenderLabel={layout.replySenderLabel}
       onJumpToMessage={actions.onJumpToMessage}
       onEdit={live ? actions.onEdit : undefined}
       nameContext={nameContext}
@@ -288,6 +301,7 @@ function sameRow(
     a.lastOfRun === b.lastOfRun &&
     a.showReadReceipt === b.showReadReceipt &&
     a.senderLabel === b.senderLabel &&
-    a.replyTarget === b.replyTarget
+    a.replyTarget === b.replyTarget &&
+    a.replySenderLabel === b.replySenderLabel
   );
 }

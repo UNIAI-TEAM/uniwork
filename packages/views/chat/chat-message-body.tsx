@@ -150,12 +150,16 @@ export function ChatMessageBody({
   nameContext: ChatNameContextEntry[];
 }) {
   const { t } = useTranslation();
-  // Both bubbles are pale fills (brand-subtle for mine, muted for theirs), so
-  // the body is always the foreground colour; long words and URLs wrap
-  // anywhere instead of pushing the bubble past its column.
-  const textClass = "whitespace-pre-wrap text-body leading-relaxed text-foreground text-pretty [overflow-wrap:anywhere]";
-  const linkClass =
-    "font-medium text-brand-subtle-foreground underline decoration-1 underline-offset-2 hover:decoration-2";
+  // The body takes the bubble's text colour (white on my brand bubble, ink on
+  // theirs); long words and URLs wrap anywhere instead of pushing the bubble
+  // past its column.
+  const textClass = "min-w-0 whitespace-pre-wrap text-body-lg text-pretty [overflow-wrap:anywhere]";
+  // On the brand bubble a link is the bubble's own text, underlined; a
+  // mention is a translucent chip of the same colour.
+  const linkClass = cn(
+    "font-medium underline decoration-1 underline-offset-2 hover:decoration-2",
+    isOwn ? "text-chat-bubble-own-foreground" : "text-brand-subtle-foreground",
+  );
 
   if (isChatMediaMessageBody(body)) {
     return (
@@ -166,8 +170,10 @@ export function ChatMessageBody({
   }
 
   const mentionClass = cn(
-    "rounded-sm font-semibold text-brand-subtle-foreground",
-    isOwn ? "" : "bg-brand-subtle px-0.5",
+    "rounded-sm px-1 font-semibold",
+    isOwn
+      ? "bg-chat-bubble-own-foreground/20 text-chat-bubble-own-foreground"
+      : "bg-brand-subtle text-brand-subtle-foreground",
   );
   return (
     <p className={textClass}>

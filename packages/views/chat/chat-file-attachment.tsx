@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 import { Download, Eye, EyeOff, FileText } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
+import { tintClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { ChatAnimatedImage } from "./chat-animated-image";
 import { isChatImageContentType, isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
 import { formatChatFileSize } from "./chat-file-size";
@@ -23,37 +25,54 @@ type ChatFile = NonNullable<ChatMessage["file"]>;
  */
 const imageAspectByMessage = new Map<string, number>();
 
+/** The family a file belongs to, by extension: its type tile wears that tint. */
+const FILE_TINTS: Record<string, Tint> = { pdf: "red", docx: "blue", xlsx: "green" };
+
+/** A soft control on the bubble: a white wash on my brand bubble, the muted fill on theirs. */
+function bubbleControlClass(isOwn: boolean): string {
+  return isOwn
+    ? "bg-chat-bubble-own-foreground/15 text-chat-bubble-own-foreground hover:bg-chat-bubble-own-foreground/25 hover:text-chat-bubble-own-foreground aria-expanded:bg-chat-bubble-own-foreground/25 aria-expanded:text-chat-bubble-own-foreground"
+    : "bg-muted text-foreground hover:bg-surface-hover";
+}
+
 /** The file's name, size and a download button: every attachment has one. */
 function FileCard({
   file,
+  isOwn,
   busy,
   onDownload,
-  trailing,
 }: {
   file: ChatFile | undefined;
+  isOwn: boolean;
   busy: boolean;
   onDownload: () => void;
-  trailing?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const name = file?.filename || t("chat.file_untitled");
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-muted-foreground">
-        <FileText className="size-4" aria-hidden />
+    <div className="flex min-w-64 items-center gap-3">
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-12 shrink-0 items-center justify-center rounded-lg font-display text-micro font-extrabold uppercase",
+          tintClass[FILE_TINTS[ext] ?? "gray"],
+        )}
+      >
+        {ext && ext.length <= 4 ? ext : <FileText className="size-6" />}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-body font-medium text-foreground">{name}</p>
-        <p className="text-caption text-muted-foreground tabular-nums">
+        <p className="truncate text-body font-semibold">{name}</p>
+        <p className={cn("text-caption tabular-nums", isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
           {formatChatFileSize(file?.size_bytes ?? 0, i18n.language)}
         </p>
       </div>
-      {trailing}
       <Button
         type="button"
         size="icon"
-        variant="ghost"
-        className="size-9 shrink-0 pointer-coarse:size-11"
+        variant="toolbar"
+        className={cn("size-11 shrink-0 rounded-full", bubbleControlClass(isOwn))}
         disabled={busy}
         aria-label={t("chat.message_list.file_download_named", { name })}
         onClick={onDownload}
@@ -165,7 +184,7 @@ function ImageAttachment({
   if (status === "error") {
     return (
       <div className="flex min-h-40 min-w-48 items-center justify-center px-4 py-8">
-        <p className="text-center text-caption text-muted-foreground">{t("chat.file_download_failed")}</p>
+        <p className="text-center text-caption">{t("chat.file_download_failed")}</p>
       </div>
     );
   }
@@ -173,7 +192,7 @@ function ImageAttachment({
     return (
       <div role="status" className="w-56 max-w-full" style={boxStyle}>
         <span className="sr-only">{t("chat.file_loading")}</span>
-        <Skeleton className="size-full rounded-none" />
+        <Skeleton className="size-full rounded-xl" />
       </div>
     );
   }
@@ -192,13 +211,20 @@ function ImageAttachment({
     // The GIF carries its own play/pause button, so the preview is a button
     // of its own rather than the whole picture.
     return (
-      <div className="relative w-fit max-w-full" style={aspect ? undefined : boxStyle}>
-        <ChatAnimatedImage src={url} alt={name} imgClassName={imgClass} onLoad={rememberAspect} onError={preview.onError} />
+      <div className="relative w-fit max-w-full overflow-hidden rounded-xl" style={aspect ? undefined : boxStyle}>
+        <ChatAnimatedImage
+          src={url}
+          alt={name}
+          imgClassName={imgClass}
+          onLoad={rememberAspect}
+          onError={preview.onError}
+          gifBadge
+        />
         <Button
           type="button"
           size="icon-sm"
           variant="secondary"
-          className="absolute top-1.5 right-1.5 pointer-coarse:size-11"
+          className="absolute top-1.5 right-1.5 rounded-full shadow-menu pointer-coarse:size-11"
           aria-label={openLabel}
           onClick={openPreview}
         >
@@ -212,7 +238,7 @@ function ImageAttachment({
     <>
       <button
         type="button"
-        className="block max-w-full overflow-hidden"
+        className="block max-w-full overflow-hidden rounded-xl"
         style={aspect ? undefined : boxStyle}
         aria-label={openLabel}
         onClick={openPreview}
@@ -239,12 +265,14 @@ function PdfAttachment({
   workspaceId,
   roomId,
   message,
+  isOwn,
   busy,
   onDownload,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
+  isOwn: boolean;
   busy: boolean;
   onDownload: () => void;
 }) {
@@ -259,27 +287,8 @@ function PdfAttachment({
     previewOpen,
   );
   return (
-    <div className="space-y-2 p-2">
-      <div className="px-1">
-        <FileCard
-          file={message.file}
-          busy={busy}
-          onDownload={onDownload}
-          trailing={
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-9 shrink-0 pointer-coarse:size-11"
-              aria-expanded={previewOpen}
-              aria-label={previewOpen ? t("chat.message_list.pdf_preview_hide") : t("chat.message_list.pdf_preview_show")}
-              onClick={() => setPreviewOpen((open) => !open)}
-            >
-              {previewOpen ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
-            </Button>
-          }
-        />
-      </div>
+    <div className="w-80 max-w-full space-y-2 p-1">
+      <FileCard file={message.file} isOwn={isOwn} busy={busy} onDownload={onDownload} />
       {!previewOpen ? null : status === "ready" && url ? (
         <iframe
           title={t("chat.file_pdf_preview")}
@@ -287,7 +296,7 @@ function PdfAttachment({
           className="h-72 w-full rounded-lg border border-border bg-background"
         />
       ) : status === "error" ? (
-        <p className="px-1 pb-1 text-caption text-muted-foreground" role="alert">
+        <p className="px-1 text-caption" role="alert">
           {t("chat.file_download_failed")}
         </p>
       ) : (
@@ -296,6 +305,18 @@ function PdfAttachment({
           <Skeleton className="size-full rounded-lg" />
         </div>
       )}
+      <Button
+        type="button"
+        variant="toolbar"
+        size="sm"
+        className={cn("h-8 rounded-full px-3 font-semibold", bubbleControlClass(isOwn))}
+        aria-expanded={previewOpen}
+        aria-label={previewOpen ? t("chat.message_list.pdf_preview_hide") : t("chat.message_list.pdf_preview_show")}
+        onClick={() => setPreviewOpen((open) => !open)}
+      >
+        {previewOpen ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+        {previewOpen ? t("chat.message_list.pdf_preview_hide") : t("chat.message_list.pdf_preview_show")}
+      </Button>
     </div>
   );
 }
@@ -305,10 +326,13 @@ export function ChatFileAttachment({
   workspaceId,
   roomId,
   message,
+  isOwn = false,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
+  /** On my brand bubble the card's controls and secondary text invert. */
+  isOwn?: boolean;
 }) {
   const file = message.file;
   const { busy, download } = useDownload(workspaceId, roomId, message);
@@ -318,10 +342,17 @@ export function ChatFileAttachment({
   }
   if (isChatPdfContentType(contentType)) {
     return (
-      <PdfAttachment workspaceId={workspaceId} roomId={roomId} message={message} busy={busy} onDownload={download} />
+      <PdfAttachment
+        workspaceId={workspaceId}
+        roomId={roomId}
+        message={message}
+        isOwn={isOwn}
+        busy={busy}
+        onDownload={download}
+      />
     );
   }
-  return <FileCard file={file} busy={busy} onDownload={download} />;
+  return <FileCard file={file} isOwn={isOwn} busy={busy} onDownload={download} />;
 }
 
 /** Image and PDF attachments sit edge to edge in the bubble; a file card gets padding. */

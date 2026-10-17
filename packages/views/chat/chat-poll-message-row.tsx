@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
-import { ChartColumn } from "lucide-react";
+import { ChartColumn, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useVoteChatPollMessage } from "@uniwork/core/chat";
@@ -121,7 +121,7 @@ export function ChatPollMessageRow({
         compactTop={compactTop}
         status={expired ? <ChatCardStatus>{t("chat.poll_closed_status")}</ChatCardStatus> : null}
       >
-        <p id={questionId} className="text-body font-semibold text-balance text-foreground">
+        <p id={questionId} className="font-display text-body-lg font-bold text-balance text-foreground">
           {poll.question}
         </p>
         <p id={hintId} className="mt-0.5 mb-3 text-caption text-muted-foreground">
@@ -147,7 +147,7 @@ export function ChatPollMessageRow({
               <div key={option.id}>
                 <div
                   className={cn(
-                    "relative flex overflow-hidden rounded-lg border transition-colors duration-(--duration-fast)",
+                    "relative flex overflow-hidden rounded-xl border transition-colors duration-(--duration-fast)",
                     selected ? "border-brand" : "border-border",
                   )}
                 >
@@ -164,7 +164,7 @@ export function ChatPollMessageRow({
                     }
                     onClick={() => void handleVote(option.id)}
                     className={cn(
-                      "relative min-h-9 min-w-0 flex-1 px-3 py-2 text-left pointer-coarse:min-h-11",
+                      "relative flex min-h-10 min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left pointer-coarse:min-h-11",
                       !locked && "hover:bg-surface-hover",
                       locked && "cursor-default",
                     )}
@@ -180,7 +180,18 @@ export function ChatPollMessageRow({
                         aria-hidden
                       />
                     ) : null}
-                    <span className={cn("relative text-body text-foreground", selected && "font-semibold")}>
+                    {/* The radio / checkbox mark: my pick is the one in the brand. */}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "relative flex size-5 shrink-0 items-center justify-center border-2",
+                        multiple ? "rounded-md" : "rounded-full",
+                        selected ? "border-brand bg-brand text-brand-foreground" : "border-faint-foreground",
+                      )}
+                    >
+                      {selected ? <Check className="size-3" strokeWidth={3} /> : null}
+                    </span>
+                    <span className={cn("relative min-w-0 text-body text-foreground", selected && "font-semibold")}>
                       {option.label}
                     </span>
                   </button>
@@ -193,12 +204,12 @@ export function ChatPollMessageRow({
                           label: option.label,
                         })}
                         onClick={() => openVoters(option.id)}
-                        className="relative shrink-0 border-l border-border px-3 py-2 text-caption font-semibold text-brand-subtle-foreground tabular-nums hover:bg-surface-hover"
+                        className="relative shrink-0 px-3 py-2 text-label font-semibold text-brand-subtle-foreground tabular-nums hover:bg-surface-hover"
                       >
                         {option.votes}
                       </button>
                     ) : (
-                      <span className="relative shrink-0 border-l border-border px-3 py-2 text-caption text-muted-foreground tabular-nums">
+                      <span className="relative flex shrink-0 items-center px-3 py-2 text-label text-muted-foreground tabular-nums">
                         {option.votes}
                       </span>
                     )
@@ -209,7 +220,7 @@ export function ChatPollMessageRow({
           })}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border pt-2">
           <p className="text-caption text-muted-foreground tabular-nums">
             {expired
               ? t("chat.poll_closed")
@@ -223,7 +234,13 @@ export function ChatPollMessageRow({
                 : t("chat.poll_vote_hint", { count: totalVotes })}
           </p>
           {canViewVoters && totalVotes > 0 ? (
-            <Button type="button" variant="link" size="xs" className="h-auto px-0" onClick={() => openVoters()}>
+            <Button
+              type="button"
+              variant="link"
+              size="xs"
+              className="h-auto px-0 text-label font-semibold text-brand"
+              onClick={() => openVoters()}
+            >
               {t("chat.poll_view_voters")}
             </Button>
           ) : null}

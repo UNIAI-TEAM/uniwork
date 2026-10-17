@@ -26,6 +26,7 @@ function ChatFileMessageRowImpl({
   showAvatar,
   nameContext = [],
   replyToMessage,
+  replyToSenderLabel,
   onReply,
   onReact,
   onToggleReaction,
@@ -49,6 +50,8 @@ function ChatFileMessageRowImpl({
   showAvatar: boolean;
   nameContext?: ChatNameContextEntry[];
   replyToMessage?: ChatMessage;
+  /** Who wrote the quoted message, named inside the quote. */
+  replyToSenderLabel?: string;
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
   onToggleReaction?: (message: ChatMessage, emoji: string) => void;
@@ -72,7 +75,7 @@ function ChatFileMessageRowImpl({
       className={cn(
         "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
         isOwn ? "justify-end" : "justify-start",
-        compactTop ? "mt-2" : "mt-4",
+        compactTop ? "mt-0.5" : "mt-3",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
@@ -97,34 +100,44 @@ function ChatFileMessageRowImpl({
             isOwn ? "items-end" : "items-start",
           )}
         >
-          {showSenderName && !isOwn ? (
-            <p className={cn("px-1 text-caption font-semibold", senderNameClass(message.sender, isOwn))} aria-hidden>
-              {senderLabel}
-            </p>
-          ) : null}
           <div className={chatMessageActionsRailClass(isOwn)}>
             <div className="flex min-w-0 flex-col gap-1">
+              {/* The file sits in the sender's bubble like text: name on top,
+                  time under it, both inside. A photo or PDF keeps a thin rim. */}
               <div
                 className={cn(
                   "max-w-full overflow-hidden",
                   chatBubbleShape(isOwn, !compactTop),
                   isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
-                  !edgeToEdge && "px-3 py-2",
+                  edgeToEdge ? "p-1" : "px-3 py-2",
                 )}
               >
+                {showSenderName && !isOwn && showAvatar ? (
+                  <p
+                    className={cn(
+                      "text-label font-semibold",
+                      senderNameClass(message.sender, isOwn),
+                      edgeToEdge ? "px-2 pt-1 pb-1" : "mb-1",
+                    )}
+                    aria-hidden
+                  >
+                    {senderLabel}
+                  </p>
+                ) : null}
                 {replyToMessage ? (
-                  <div className={cn(edgeToEdge ? "px-2 pt-2" : undefined)}>
+                  <div className={cn(edgeToEdge ? "px-1 pt-1" : undefined)}>
                     <ChatReplyQuote
                       message={replyToMessage}
                       isOwn={isOwn}
+                      senderLabel={replyToSenderLabel}
                       onJump={onJumpToMessage}
                     />
                   </div>
                 ) : null}
-                <ChatFileAttachment workspaceId={workspaceId} roomId={roomId} message={message} />
-              </div>
-              <div className={cn(edgeToEdge ? "px-1" : undefined)}>
-                <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+                <ChatFileAttachment workspaceId={workspaceId} roomId={roomId} message={message} isOwn={isOwn} />
+                <div className={cn(edgeToEdge ? "px-2 pb-0.5" : undefined)}>
+                  <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+                </div>
               </div>
               <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
               <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
@@ -139,6 +152,7 @@ function ChatFileMessageRowImpl({
               isOwn={isOwn}
               onReply={onReply}
               onReact={onReact}
+              onToggleReaction={onToggleReaction}
               onThread={onThread}
               onPin={onPin}
               onCopy={onCopy}

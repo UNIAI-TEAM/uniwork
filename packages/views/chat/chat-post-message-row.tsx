@@ -39,7 +39,7 @@ export function ChatPostMessageRow({
       compactTop={compactTop}
       wide
     >
-      <h3 className="text-title-sm font-semibold text-balance text-foreground">{post.title}</h3>
+      <h3 className="text-title-sm font-bold text-balance text-foreground">{post.title}</h3>
       {post.body.trim() ? (
         <p className="mt-1.5 whitespace-pre-wrap text-body leading-relaxed text-foreground text-pretty [overflow-wrap:anywhere]">
           {post.body}

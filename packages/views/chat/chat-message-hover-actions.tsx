@@ -19,6 +19,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import {
@@ -31,13 +32,17 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { MODULE_ICONS } from "../layout/module-icons";
 
-/** Bubble + toolbar row: in-flow on sm+ so hover reaches the bar across the gap. */
+/**
+ * The column a message's bubble and its extras sit in. The actions bar floats
+ * above it (absolute), so the rail itself only lines the column up with the
+ * sender's side.
+ */
 export function chatMessageActionsRailClass(isOwn: boolean): string {
-  return cn(
-    "flex w-fit max-w-full items-start gap-1 sm:gap-2",
-    isOwn ? "flex-row-reverse self-end" : "flex-row self-start",
-  );
+  return cn("flex w-fit max-w-full flex-col", isOwn ? "self-end" : "self-start");
 }
+
+/** The quick reactions the bar offers before the other actions. */
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
 
 function MessageActionButton({
   label,
@@ -59,7 +64,7 @@ function MessageActionButton({
           <Button
             type="button"
             variant={pressed ? "secondary" : "ghost"}
-            size="icon-sm"
+            size="icon-lg"
             className="shrink-0 text-muted-foreground hover:text-foreground aria-pressed:text-foreground"
             aria-label={label}
             aria-pressed={pressed ? true : undefined}
@@ -80,6 +85,7 @@ export function ChatMessageHoverActions({
   isOwn,
   onReply,
   onReact,
+  onToggleReaction,
   onThread,
   onEdit,
   onPin,
@@ -95,6 +101,8 @@ export function ChatMessageHoverActions({
   isOwn: boolean;
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
+  /** When set, the bar leads with the quick reactions instead of the single 👍. */
+  onToggleReaction?: (message: ChatMessage, emoji: string) => void;
   onThread?: (message: ChatMessage) => void;
   onEdit?: (message: ChatMessage) => void;
   onPin?: (message: ChatMessage) => void;
@@ -146,11 +154,14 @@ export function ChatMessageHoverActions({
     bar.dataset.roving = "on";
   };
 
+  const mine = new Set(message.myReactions ?? []);
+
   return (
-    // Desktop: sits in the actions rail beside the bubble (in flow) so moving
-    // the pointer into the bar keeps group/message hovered. Mobile: overlays
-    // the bubble top edge — absolute children do not widen the hover box.
-    // Hidden until hover/focus; buttons stay in the tab order (roving tabindex).
+    // Floats above the bubble on the sender's side; an invisible ::after
+    // bridges the gap so the pointer can travel from the bubble into the bar
+    // without losing group/message hover. Hidden until hover/focus (or a long
+    // press on touch); buttons stay in the tab order (roving tabindex). On a
+    // phone the bar wraps to two rows instead of running off the screen.
     <div
       ref={barRef}
       role="toolbar"
@@ -159,37 +170,55 @@ export function ChatMessageHoverActions({
       onKeyDown={onKeyDown}
       onFocusCapture={onFocusCapture}
       className={cn(
-        "pointer-events-none z-10 flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-surface-raised p-0.5 opacity-0 shadow-[var(--menu-shadow)]",
+        "pointer-events-none absolute bottom-full z-10 mb-1.5 flex w-max items-center gap-0.5 rounded-xl border border-border bg-popover p-1 opacity-0 shadow-floating",
+        "after:absolute after:inset-x-0 after:top-full after:h-1.5 after:content-['']",
         forceOpen && "pointer-events-auto opacity-100",
         "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
-        "max-sm:absolute max-sm:-top-2",
-        isOwn ? "max-sm:right-0" : "max-sm:left-0",
-        "sm:relative sm:top-auto sm:mt-0.5",
+        "max-sm:max-w-72 max-sm:flex-wrap",
+        isOwn ? "right-0" : "left-0",
       )}
     >
       <TooltipProvider delay={300}>
-        <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
-          <FaceSlightlySmilingPlus className="size-4" aria-hidden />
-        </MessageActionButton>
+        {onToggleReaction ? (
+          <>
+            {QUICK_REACTIONS.map((emoji) => (
+              <MessageActionButton
+                key={emoji}
+                label={t("chat.reaction_toggle_aria", { emoji, count: message.reactions[emoji] ?? 0 })}
+                onClick={() => onToggleReaction(message, emoji)}
+                pressed={mine.has(emoji)}
+              >
+                <span aria-hidden className="text-title-lg leading-none">
+                  {emoji}
+                </span>
+              </MessageActionButton>
+            ))}
+            <span aria-hidden className="mx-1 h-6 w-px bg-border max-sm:hidden" />
+          </>
+        ) : (
+          <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
+            <FaceSlightlySmilingPlus className="size-5" aria-hidden />
+          </MessageActionButton>
+        )}
         <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)}>
-          <Reply className="size-4" aria-hidden />
+          <Reply className="size-5" aria-hidden />
         </MessageActionButton>
         {onThread ? (
           <MessageActionButton
             label={t("chat.action_thread")}
             onClick={() => onThread(message)}
           >
-            <MessageSquareText className="size-4" aria-hidden />
+            <MessageSquareText className="size-5" aria-hidden />
           </MessageActionButton>
         ) : null}
         {canEdit && onEdit ? (
           <MessageActionButton label={t("chat.action_edit")} onClick={() => onEdit(message)}>
-            <Pencil className="size-4" aria-hidden />
+            <Pencil className="size-5" aria-hidden />
           </MessageActionButton>
         ) : null}
         {onPin ? (
           <MessageActionButton label={pinLabel} onClick={() => onPin(message)} pressed={message.pinned}>
-            <Pin className="size-4" aria-hidden />
+            <Pin className="size-5" aria-hidden />
           </MessageActionButton>
         ) : null}
         <DropdownMenu>
@@ -198,11 +227,11 @@ export function ChatMessageHoverActions({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
+                size="icon-lg"
+                className="shrink-0 text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground"
                 aria-label={t("chat.action_more")}
               >
-                <Ellipsis className="size-4" aria-hidden />
+                <Ellipsis className="size-5" aria-hidden />
               </Button>
             }
           />
@@ -231,10 +260,13 @@ export function ChatMessageHoverActions({
               {t("chat.action_copy")}
             </DropdownMenuItem>
             {canDelete ? (
-              <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(message)}>
-                <Trash2 className="size-4" aria-hidden />
-                {t("chat.action_delete")}
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(message)}>
+                  <Trash2 className="size-4" aria-hidden />
+                  {t("chat.action_delete")}
+                </DropdownMenuItem>
+              </>
             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
