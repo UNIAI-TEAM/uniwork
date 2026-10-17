@@ -239,7 +239,7 @@ export type DocumentShareWarningCode = "direct_below_group";
 export const DocumentHomeWorkspaceAccessSchema = z.object({
   workspace_id: z.string().min(1),
   workspace_name: z.string().optional().default(""),
-  level: z.enum(["view", "comment", "edit", "manage"]).nullable().optional().default(null),
+  level: z.string().nullable().optional().default(null),
 });
 export type DocumentHomeWorkspaceAccess = {
   workspace_id: string;

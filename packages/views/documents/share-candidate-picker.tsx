@@ -16,6 +16,7 @@ import type {
 } from "@uniwork/core/types/document";
 import type { OrgMember } from "@uniwork/core/types/people";
 import { Badge } from "@uniwork/ui/components/ui/badge";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import {
@@ -47,8 +48,12 @@ export function foldSearchText(value: string): string {
     .trim();
 }
 
-export function resolveShareCandidates(
-  serverItems: DocumentShareCandidate[],
+/**
+ * The local directory the picker falls back to when the candidates endpoint is
+ * unavailable. It is only a fallback: it cannot know who the server would
+ * refuse, so it is never used to answer a request the server did answer.
+ */
+export function buildLocalShareCandidates(
   shares: DocumentShare[],
   homeWorkspace: DocumentHomeWorkspaceAccess | null | undefined,
   docWorkspaceId: string | undefined,
@@ -56,7 +61,6 @@ export function resolveShareCandidates(
   orgWorkspaces: Array<{ id: string; name: string }>,
   organization: { id: string; name: string } | null | undefined,
 ): DocumentShareCandidate[] {
-  if (serverItems.length > 0) return serverItems;
   const directByKey = new Map<string, DocumentAccessLevel>();
   for (const s of shares) {
     if (s.active) directByKey.set(`${s.principal_type}:${s.principal_id}`, s.level);
@@ -112,6 +116,16 @@ export function resolveShareCandidates(
   return fallback;
 }
 
+/** Narrow a locally built directory by the typed query (the server does this for its own answers). */
+export function filterShareCandidates(items: DocumentShareCandidate[], query: string): DocumentShareCandidate[] {
+  const needle = foldSearchText(query);
+  if (!needle) return items;
+  return items.filter((c) => foldSearchText(c.name).includes(needle) || foldSearchText(c.secondary).includes(needle));
+}
+
+/** Pixels from the bottom of the list at which the next page is requested. */
+const LOAD_MORE_THRESHOLD_PX = 48;
+
 export interface ShareCandidatePickerProps {
   inputId: string;
   listboxId: string;
@@ -119,7 +133,11 @@ export interface ShareCandidatePickerProps {
   onQueryChange: (value: string) => void;
   selected: SelectedShareCandidate[];
   selectedKeys: Set<string>;
-  filteredCandidates: DocumentShareCandidate[];
+  /** The candidates to list, in server order. */
+  candidates: DocumentShareCandidate[];
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   alreadySharedUserIds?: readonly (string | null | undefined)[];
   isLoading: boolean;
   disabled: boolean;
@@ -140,7 +158,10 @@ export function ShareCandidatePicker({
   onQueryChange,
   selected,
   selectedKeys,
-  filteredCandidates,
+  candidates,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   alreadySharedUserIds,
   isLoading,
   disabled,
@@ -258,16 +279,16 @@ export function ShareCandidatePicker({
             } else if (event.key === "ArrowDown") {
               event.preventDefault();
               setDropdownOpen(true);
-              setActiveIndex((i) => (filteredCandidates.length ? (i + 1) % filteredCandidates.length : 0));
+              setActiveIndex((i) => (candidates.length ? (i + 1) % candidates.length : 0));
             } else if (event.key === "ArrowUp") {
               event.preventDefault();
               setDropdownOpen(true);
               setActiveIndex((i) =>
-                filteredCandidates.length ? (i - 1 + filteredCandidates.length) % filteredCandidates.length : 0,
+                candidates.length ? (i - 1 + candidates.length) % candidates.length : 0,
               );
-            } else if (event.key === "Enter" && dropdownOpen && filteredCandidates[activeIndex]) {
+            } else if (event.key === "Enter" && dropdownOpen && candidates[activeIndex]) {
               event.preventDefault();
-              onSelectCandidate(filteredCandidates[activeIndex]);
+              onSelectCandidate(candidates[activeIndex]);
               setDropdownOpen(false);
             }
           }}
@@ -279,19 +300,25 @@ export function ShareCandidatePicker({
             role="listbox"
             aria-label={t("documents.share.principal_placeholder")}
             className="mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              if (hasMore && !loadingMore && el.scrollHeight - el.scrollTop - el.clientHeight <= LOAD_MORE_THRESHOLD_PX) {
+                onLoadMore();
+              }
+            }}
           >
-            {isLoading && filteredCandidates.length === 0 ? (
+            {isLoading && candidates.length === 0 ? (
               <div className="flex items-center gap-2 px-2.5 py-2 text-caption text-muted-foreground">
                 <Spinner aria-hidden role="presentation" />
                 {t("documents.share.people_loading")}
               </div>
-            ) : filteredCandidates.length === 0 ? (
+            ) : candidates.length === 0 ? (
               <div className="px-2.5 py-2 text-caption text-muted-foreground">
                 {t("documents.share.principal_empty")}
               </div>
             ) : (
               PRINCIPAL_GROUPS.map((groupType) => {
-                const groupItems = filteredCandidates.filter((c) => c.principal_type === groupType);
+                const groupItems = candidates.filter((c) => c.principal_type === groupType);
                 if (groupItems.length === 0) return null;
                 const groupTitle =
                   groupType === "user"
@@ -368,6 +395,23 @@ export function ShareCandidatePicker({
                 );
               })
             )}
+            {hasMore || loadingMore ? (
+              <div role="presentation" className="flex justify-center py-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-disabled={loadingMore || undefined}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    if (!loadingMore) onLoadMore();
+                  }}
+                >
+                  {loadingMore ? <Spinner aria-hidden role="presentation" /> : null}
+                  {loadingMore ? t("documents.share.people_loading") : t("documents.share.candidates_more")}
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

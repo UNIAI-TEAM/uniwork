@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
@@ -10,6 +11,10 @@ import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ShareDialog } from "./share-dialog";
 
 const { t } = initI18n();
+
+// The candidates endpoint answers 404 here, so the picker uses its local
+// fallback directory (a server answer, even an empty one, is never replaced).
+const candidatesUnavailable = () => Promise.reject(new ApiError("not found", "not_found", 404));
 
 const WS = "ws1";
 const ORG = "o1";
@@ -87,6 +92,7 @@ function serve(fails: { page1?: number; page2?: number }) {
   requestMock.mockReset();
   requestMock.mockImplementation((path: string) => {
     if (path === "/api/v1/documents/d1/shares") return Promise.resolve(accessPayload);
+    if (path.includes("/share-candidates")) return candidatesUnavailable();
     if (path.startsWith("/api/v1/orgs/acme/members")) {
       const second = path.includes("cursor=c2");
       const key = second ? "page2" : "page1";
@@ -227,6 +233,7 @@ describe("ShareDialog member loading errors", () => {
     requestMock.mockReset();
     requestMock.mockImplementation((path: string) => {
       if (path === "/api/v1/documents/d1/shares") return Promise.resolve(accessPayload);
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) {
         // Every page names a next cursor, as a runaway server would.
         return Promise.resolve({ members: [], next_cursor: `c${Math.random()}` });

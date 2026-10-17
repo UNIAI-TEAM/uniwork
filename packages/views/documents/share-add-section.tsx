@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -38,13 +38,16 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import {
-  foldSearchText,
-  resolveShareCandidates,
+  buildLocalShareCandidates,
+  filterShareCandidates,
   ShareCandidatePicker,
   type ShareMembersDirectory,
 } from "./share-candidate-picker";
 import { shareErrorMessage } from "./share-dialog-break-glass";
-import { SHARE_PEOPLE_MAX } from "./share-people-picker";
+import { warningSentence } from "./share-preview-sentences";
+
+/** The server caps one batch at 100 items; the picker stops well short of it. */
+const SHARE_PEOPLE_MAX = 50;
 
 export type { ShareMembersDirectory };
 
@@ -109,6 +112,9 @@ export function ShareAddSection({
   const [rejectedByKey, setRejectedByKey] = useState<Record<string, DocumentAccessRejectedCode>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  // `updateAccess.isPending` is false between the dry_run resolving and the
+  // real call, so a fast second click would run both again; the ref closes it.
+  const inFlight = useRef(false);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -149,29 +155,25 @@ export function ShareAddSection({
     code === "principal_not_in_organization" ? t("documents.share.rejected_not_in_org")
     : code === "level_not_allowed" ? t("documents.share.rejected_level_not_allowed")
     : code === "duplicate_principal" ? t("documents.share.rejected_duplicate")
-    : t("documents.share.rejected_break_glass");
+    : code === "break_glass_required" ? t("documents.share.rejected_break_glass")
+    : t("documents.share.rejected_unknown");
 
-  const allCandidates = useMemo(
+  // The server's answer is shown as it is, an empty one included: no match is
+  // "no result", not a cue to offer people the server just left out. Only a
+  // request that failed (the endpoint is unavailable) falls back to the local
+  // directory, which the server cannot filter, so the query applies here.
+  const endpointUnavailable = candidatesQuery.isError;
+  const serverItems = candidatesQuery.items;
+  const candidates = useMemo(
     () =>
-      resolveShareCandidates(
-        candidatesQuery.data?.items ?? [],
-        shares,
-        homeWorkspace,
-        doc.workspace_id,
-        members,
-        orgWorkspaces,
-        organization,
-      ),
-    [candidatesQuery.data?.items, shares, homeWorkspace, doc.workspace_id, members, orgWorkspaces, organization],
+      endpointUnavailable
+        ? filterShareCandidates(
+            buildLocalShareCandidates(shares, homeWorkspace, doc.workspace_id, members, orgWorkspaces, organization),
+            debouncedQuery,
+          )
+        : serverItems,
+    [endpointUnavailable, serverItems, debouncedQuery, shares, homeWorkspace, doc.workspace_id, members, orgWorkspaces, organization],
   );
-
-  const filteredCandidates = useMemo(() => {
-    const needle = foldSearchText(query);
-    if (!needle) return allCandidates;
-    return allCandidates.filter(
-      (c) => foldSearchText(c.name).includes(needle) || foldSearchText(c.secondary).includes(needle),
-    );
-  }, [allCandidates, query]);
 
   const selectedKeys = useMemo(() => new Set(selected.map((s) => s.key)), [selected]);
   const atLimit = selected.length >= SHARE_PEOPLE_MAX;
@@ -218,6 +220,13 @@ export function ShareAddSection({
     });
     setPendingPreview(null);
     setAnnouncement(t("documents.share.people_removed", { name }));
+  };
+
+  // Any change to what would be written drops a shown preview: the confirm box
+  // must never commit items other than the ones its sentences describe.
+  const updateSelected = (key: string, patch: Partial<SelectedShareCandidate>) => {
+    setSelected((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
+    setPendingPreview(null);
   };
 
   const confirmApplyAll = (targetLevel: DocumentAccessLevel) => {
@@ -275,6 +284,8 @@ export function ShareAddSection({
   };
 
   const executeCommit = async (items: DocumentAccessUpdateItemInput[]) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setSubmitError(null);
     setRejectedByKey({});
     try {
@@ -286,48 +297,50 @@ export function ShareAddSection({
       setPendingPreview(null);
     } catch (err) {
       handleMutationError(err, items);
+    } finally {
+      inFlight.current = false;
     }
   };
 
   const handleSubmit = async () => {
-    if (!selected.length || updateAccess.isPending) return;
+    if (!selected.length || updateAccess.isPending || inFlight.current) return;
+    inFlight.current = true;
     setSubmitError(null);
     setRejectedByKey({});
     const items = buildRequestItems();
+    let preview: DocumentAccessPreview;
     try {
-      const dryRunResult = await updateAccess.mutateAsync({ items, dry_run: true });
-      if (dryRunResult.preview.warnings.length > 0) {
-        setPendingPreview({ items, preview: dryRunResult.preview });
-        return;
-      }
-      await executeCommit(items);
+      preview = (await updateAccess.mutateAsync({ items, dry_run: true })).preview;
     } catch (err) {
+      inFlight.current = false;
       handleMutationError(err, items);
+      return;
     }
+    inFlight.current = false;
+    if (preview.warnings.length > 0) {
+      setPendingPreview({ items, preview });
+      return;
+    }
+    await executeCommit(items);
   };
 
   const renderWarningSentence = (warning: { code: string; index: number }) => {
     const item = selected[warning.index];
-    const name = item?.candidate.name ?? "";
-    const targetLevel = item ? levelLabel(effectiveItemLevel(item)) : levelLabel(commonLevel);
-    if (warning.code === "wide_scope") {
-      const group = pendingPreview?.preview.groups.find(
-        (g) => g.principal_type === item?.candidate.principal_type && g.principal_id === item?.candidate.principal_id,
-      );
-      const count = group?.member_count ?? 0;
-      return item?.candidate.principal_type === "organization"
-        ? t("documents.share.warning_wide_scope_organization", { name, count, level: targetLevel })
-        : t("documents.share.warning_wide_scope_workspace", { name, count, level: targetLevel });
-    }
-    if (warning.code === "direct_below_group") {
-      const userPreview = pendingPreview?.preview.users.find((u) => u.user_id === item?.candidate.principal_id);
-      const effectiveLevel = levelLabel(userPreview?.after.level || "edit");
-      const source = viaLabel(userPreview?.after.via || "member");
-      return t("documents.share.warning_direct_below_group", { name, effectiveLevel, source });
-    }
-    const userPreview = pendingPreview?.preview.users.find((u) => u.user_id === item?.candidate.principal_id);
-    const before = levelLabel(userPreview?.before.level || item?.candidate.direct_level || "edit");
-    return t("documents.share.warning_downgrade_person", { name, before, after: targetLevel });
+    const principalId = item?.candidate.principal_id;
+    return warningSentence(
+      { t, levelLabel, sourceLabel: viaLabel },
+      {
+        code: warning.code,
+        name: item?.candidate.name ?? "",
+        principalType: item?.candidate.principal_type ?? "user",
+        targetLevel: item ? effectiveItemLevel(item) : commonLevel,
+        beforeLevel: item?.candidate.direct_level ?? undefined,
+        user: pendingPreview?.preview.users.find((u) => u.user_id === principalId),
+        group: pendingPreview?.preview.groups.find(
+          (g) => g.principal_type === item?.candidate.principal_type && g.principal_id === principalId,
+        ),
+      },
+    ).confirm;
   };
 
   return (
@@ -347,14 +360,14 @@ export function ShareAddSection({
 
       <ShareCandidatePicker
         inputId={inputId} listboxId={listboxId} query={query} onQueryChange={setQuery}
-        selected={selected} selectedKeys={selectedKeys} filteredCandidates={filteredCandidates}
+        selected={selected} selectedKeys={selectedKeys} candidates={candidates}
+        hasMore={!endpointUnavailable && Boolean(candidatesQuery.hasNextPage)}
+        loadingMore={candidatesQuery.isFetchingNextPage} onLoadMore={() => void candidatesQuery.fetchNextPage()}
         alreadySharedUserIds={alreadySharedUserIds}
         isLoading={candidatesQuery.isLoading || Boolean(members.loading || members.isLoading)}
         disabled={updateAccess.isPending} atLimit={atLimit} rejectedByKey={rejectedByKey}
         onSelectCandidate={selectCandidate} onRemoveCandidate={removeCandidate}
-        onChangeOnExisting={(key, onExisting) =>
-          setSelected((prev) => prev.map((s) => (s.key === key ? { ...s, onExisting } : s)))
-        }
+        onChangeOnExisting={(key, onExisting) => updateSelected(key, { onExisting })}
         effectiveItemLevel={effectiveItemLevel} levelLabel={levelLabel} rejectedReasonLabel={rejectedReasonLabel}
       />
 
@@ -388,6 +401,9 @@ export function ShareAddSection({
                 ))}
               </SelectContent>
             </Select>
+            {commonLevel === "manage" && selected.some((s) => !allowedLevelsForPrincipal(s.candidate.principal_type, s.candidate.is_home_workspace).includes("manage")) ? (
+              <p role="status" className="text-caption text-muted-foreground">{t("documents.share.level_manage_capped_hint")}</p>
+            ) : null}
           </div>
           {selected.length > 1 ? (
             <Button type="button" variant="outline" size="sm" aria-expanded={customMode} onClick={() => setCustomMode((p) => !p)}>
@@ -446,9 +462,7 @@ export function ShareAddSection({
                     <Select
                       value={currentLvl}
                       items={allowed.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
-                      onValueChange={(v) =>
-                        setSelected((prev) => prev.map((s) => (s.key === item.key ? { ...s, customLevel: v as DocumentAccessLevel } : s)))
-                      }
+                      onValueChange={(v) => updateSelected(item.key, { customLevel: v as DocumentAccessLevel })}
                     >
                       <SelectTrigger aria-label={`${t("documents.share.level_label")} ${item.candidate.name}`}>
                         <SelectValue>{levelLabel(currentLvl)}</SelectValue>

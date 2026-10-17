@@ -12,6 +12,10 @@ import { ShareDialog } from "./share-dialog";
 
 const { t } = initI18n();
 
+// The candidates endpoint answers 404 here, so the picker uses its local
+// fallback directory (a server answer, even an empty one, is never replaced).
+const candidatesUnavailable = () => Promise.reject(new ApiError("not found", "not_found", 404));
+
 const WS = "ws1";
 const ORG = "o1";
 
@@ -188,6 +192,7 @@ function serve(over: Options = {}) {
     if (path.startsWith("/api/v1/documents/d1/links/") && opts?.method === "DELETE") {
       return Promise.resolve({});
     }
+    if (path.includes("/share-candidates")) return candidatesUnavailable();
     if (path.startsWith("/api/v1/orgs/acme/members")) {
       return Promise.resolve(membersPayload);
     }
@@ -300,6 +305,7 @@ describe("ShareDialog", () => {
     };
     requestMock.mockImplementation((path: string) => {
       if (path === "/api/v1/documents/d1/shares") return Promise.resolve(comment);
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
       return Promise.resolve({});
@@ -327,6 +333,7 @@ describe("ShareDialog", () => {
         if (fail) return Promise.reject(new Error("offline"));
         return Promise.resolve(accessPayload);
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       return Promise.resolve({});
     });
@@ -368,6 +375,7 @@ describe("ShareDialog", () => {
         if (!opts.body?.dry_run) puts.push(opts.body);
         return Promise.resolve(okAccessUpdate(opts.body));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
       return Promise.resolve({});
@@ -389,6 +397,7 @@ describe("ShareDialog", () => {
   it("caps the document's own home workspace at edit in the unified picker (Q-S1)", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) {
         return Promise.resolve({
@@ -421,6 +430,7 @@ describe("ShareDialog", () => {
         if (!opts.body?.dry_run) puts.push(opts.body);
         return Promise.resolve(okAccessUpdate(opts.body));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) {
         return Promise.resolve({
@@ -453,6 +463,7 @@ describe("ShareDialog", () => {
           }),
         );
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
       return Promise.resolve({});
@@ -501,6 +512,7 @@ describe("ShareDialog", () => {
         }
         return Promise.resolve(okAccessUpdate(opts.body));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(threeMembersPayload);
       return Promise.resolve({});
     });
@@ -547,6 +559,7 @@ describe("ShareDialog", () => {
           }),
         );
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(threeMembersPayload);
       return Promise.resolve({});
     });
@@ -626,6 +639,7 @@ describe("ShareDialog", () => {
           }),
         );
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       return Promise.resolve({});
     });
@@ -655,6 +669,7 @@ describe("ShareDialog", () => {
         if (!opts.body?.dry_run) puts.push(opts.body);
         return Promise.resolve(okAccessUpdate(opts.body));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       return Promise.resolve({});
     });
@@ -681,6 +696,7 @@ describe("ShareDialog", () => {
       if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
         return Promise.reject(new Error("visibility failed"));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       return Promise.resolve({});
     });
@@ -731,6 +747,7 @@ describe("ShareDialog", () => {
         if (!opts.body?.dry_run) puts.push(opts.body);
         return Promise.resolve(okAccessUpdate(opts.body));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
       return Promise.resolve({});
@@ -779,6 +796,7 @@ describe("ShareDialog", () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
       if (opts?.method === "DELETE" && path.includes("/links/")) calls.push(path);
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       return Promise.resolve({});
     });
@@ -799,6 +817,7 @@ describe("ShareDialog", () => {
         if (!opts.body?.dry_run) puts.push(opts.body);
         return Promise.resolve(okAccessUpdate(opts.body));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
       return Promise.resolve({});
@@ -824,6 +843,7 @@ describe("ShareDialog", () => {
       if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
         return Promise.reject(new ApiError("break glass required", "break_glass_required", 403));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
       return Promise.resolve({});
@@ -860,6 +880,7 @@ describe("ShareDialog", () => {
         deleted.push(path);
         return Promise.resolve({ status: "ok" });
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       return Promise.resolve({});
     });
@@ -887,6 +908,7 @@ describe("ShareDialog", () => {
         if (!opts.body?.dry_run) onPut?.(opts.body);
         return Promise.resolve(okAccessUpdate(opts.body));
       }
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) {
         memberPaths.push(path);
         if (path.includes("cursor=c2")) {
@@ -980,6 +1002,7 @@ describe("ShareDialog", () => {
   it("marks the caller / ACL owner with people_already_shared in the people picker (VIS-SHS1-16)", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === "/api/v1/documents/d1/shares") return Promise.resolve(accessPayload);
+      if (path.includes("/share-candidates")) return candidatesUnavailable();
       if (path.startsWith("/api/v1/orgs/acme/members")) {
         return Promise.resolve({
           members: [

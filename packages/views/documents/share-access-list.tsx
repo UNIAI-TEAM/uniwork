@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Building2, FolderKanban, ShieldCheck, UserRound, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import { allowedLevelsForPrincipal } from "./share-add-section";
 import { foldSearchText } from "./share-candidate-picker";
 import { shareErrorMessage } from "./share-dialog-break-glass";
 import type { ShareDialogTarget } from "./share-dialog-target";
+import { revokeSentence, warningSentence, type PreviewSentence } from "./share-preview-sentences";
 
 export interface ShareAccessListProps {
   wsId: string;
@@ -44,7 +45,7 @@ interface PendingRowConfirm {
   rowKey: string;
   name: string;
   item: DocumentAccessUpdateItemInput;
-  sentence: string;
+  sentence: PreviewSentence;
 }
 
 const FILTER_THRESHOLD = 20;
@@ -64,6 +65,9 @@ export function ShareAccessList({
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const [pendingConfirm, setPendingConfirm] = useState<PendingRowConfirm | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // `isPending` is false between the dry_run resolving and the real call, so a
+  // fast second click would write twice; the ref closes that gap.
+  const inFlight = useRef(false);
 
   const myLevel = access?.my_level ?? "";
   const aclOwner = access?.acl_owner ?? null;
@@ -151,7 +155,13 @@ export function ShareAccessList({
   );
 
   const totalRowCount = (aclOwner ? 1 : 0) + (homeRow ? 1 : 0) + orderedShares.length;
-  const filterNeedle = foldSearchText(filterQuery);
+  const filterVisible = totalRowCount > FILTER_THRESHOLD;
+  // A filter typed while the box showed must not keep hiding rows once the box
+  // is gone (rows revoked down to the threshold): it stops applying and resets.
+  const filterNeedle = filterVisible ? foldSearchText(filterQuery) : "";
+  useEffect(() => {
+    if (!filterVisible) setFilterQuery("");
+  }, [filterVisible]);
   const matchesFilter = (label: string) => !filterNeedle || foldSearchText(label).includes(filterNeedle);
 
   if (!canManage && !adminScope) {
@@ -176,54 +186,33 @@ export function ShareAccessList({
     );
   }
 
+  const sentenceDeps = { t, levelLabel, sourceLabel: (via: string) => formatSourceOrigin({ via: via as DocumentAccessVia }) };
+
   const buildConfirmSentence = (
     item: DocumentAccessUpdateItemInput, name: string, beforeLevel: DocumentAccessLevel, preview: DocumentAccessPreview,
-  ): string | null => {
-    if (item.level === null) {
-      if (item.principal_type === "user") {
-        const u = preview.users.find((x) => x.user_id === item.principal_id);
-        if (u && u.after.level) {
-          const source = formatSourceOrigin({ via: u.after.via as DocumentAccessVia });
-          return t("documents.share.revoke_confirm_keep", { name, level: levelLabel(u.after.level), source });
-        }
-        return t("documents.share.revoke_confirm_lose", { name });
-      }
-      const g = preview.groups.find((x) => x.principal_type === item.principal_type && x.principal_id === item.principal_id);
-      return t("documents.share.revoke_confirm_group", { name, memberCount: g?.member_count ?? 0, losingCount: g?.losing_count ?? 0 });
-    }
-    if (preview.warnings.length === 0) return null;
-    const w = preview.warnings[0]!;
-    if (w.code === "direct_below_group") {
-      const u = preview.users.find((x) => x.user_id === item.principal_id);
-      const effectiveLevel = levelLabel(u?.after.level || "edit");
-      const source = formatSourceOrigin({ via: (u?.after.via || "member") as DocumentAccessVia });
-      return t("documents.share.warning_direct_below_group", { name, effectiveLevel, source });
-    }
-    if (w.code === "wide_scope") {
-      const g = preview.groups.find((x) => x.principal_type === item.principal_type && x.principal_id === item.principal_id);
-      const count = g?.member_count ?? 0;
-      return item.principal_type === "organization"
-        ? t("documents.share.warning_wide_scope_organization", { name, count, level: levelLabel(item.level) })
-        : t("documents.share.warning_wide_scope_workspace", { name, count, level: levelLabel(item.level) });
-    }
-    if (item.principal_type === "user") {
-      return t("documents.share.warning_downgrade_person", { name, before: levelLabel(beforeLevel), after: levelLabel(item.level) });
-    }
-    const g = preview.groups.find((x) => x.principal_type === item.principal_type && x.principal_id === item.principal_id);
-    return t("documents.share.warning_downgrade_group", {
-      name, before: levelLabel(beforeLevel), after: levelLabel(item.level), count: g?.member_count ?? 0,
+  ): PreviewSentence | null => {
+    const user = preview.users.find((x) => x.user_id === item.principal_id);
+    const group = preview.groups.find((x) => x.principal_type === item.principal_type && x.principal_id === item.principal_id);
+    if (item.level === null) return revokeSentence(sentenceDeps, { name, principalType: item.principal_type, user, group });
+    const w = preview.warnings[0];
+    if (!w) return null;
+    return warningSentence(sentenceDeps, {
+      code: w.code, name, principalType: item.principal_type, targetLevel: item.level, beforeLevel, user, group,
     });
   };
 
-  const commitRowChange = async (item: DocumentAccessUpdateItemInput, name: string) => {
+  const commitRowChange = async (item: DocumentAccessUpdateItemInput, done: string) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setActionError(null);
     try {
       await updateAccess.mutateAsync({ items: [item], dry_run: false });
       setPendingConfirm(null);
-      if (item.level === null) toast.success(t("documents.share.revoked_toast", { name }));
-      else toast.success(t("documents.share.updated_toast", { name, level: levelLabel(item.level) }));
+      toast.success(done);
     } catch (err) {
       setActionError(shareErrorMessage(err, t) ?? (item.level === null ? t("documents.share.revoke_failed") : t("documents.share.submit_failed")));
+    } finally {
+      inFlight.current = false;
     }
   };
 
@@ -231,23 +220,28 @@ export function ShareAccessList({
     rowKey: string, principalType: DocumentPrincipalType, principalId: string,
     name: string, beforeLevel: DocumentAccessLevel, nextLevel: DocumentAccessLevel | null,
   ) => {
-    if (updateAccess.isPending) return;
+    if (updateAccess.isPending || inFlight.current) return;
+    inFlight.current = true;
     setActionError(null);
     const item: DocumentAccessUpdateItemInput = {
       principal_type: principalType, principal_id: principalId, level: nextLevel,
       ...(nextLevel !== null ? { on_existing: "update" as const } : {}),
     };
+    let sentence: PreviewSentence | null;
     try {
       const dryRun = await updateAccess.mutateAsync({ items: [item], dry_run: true });
-      const sentence = buildConfirmSentence(item, name, beforeLevel, dryRun.preview);
-      if (sentence) {
-        setPendingConfirm({ rowKey, name, item, sentence });
-        return;
-      }
-      await commitRowChange(item, name);
+      sentence = buildConfirmSentence(item, name, beforeLevel, dryRun.preview);
     } catch (err) {
+      inFlight.current = false;
       setActionError(shareErrorMessage(err, t) ?? (nextLevel === null ? t("documents.share.revoke_failed") : t("documents.share.submit_failed")));
+      return;
     }
+    inFlight.current = false;
+    if (sentence) {
+      setPendingConfirm({ rowKey, name, item, sentence });
+      return;
+    }
+    await commitRowChange(item, t("documents.share.updated_toast", { name, level: levelLabel(item.level ?? "view") }));
   };
 
   const renderDirectBelowGroupWarning = (share: DocumentShare, personName: string) => {
@@ -278,7 +272,7 @@ export function ShareAccessList({
         {myLevel ? <span className="text-caption text-muted-foreground">{t("documents.share.my_level", { level: levelLabel(myLevel) })}</span> : null}
       </div>
 
-      {totalRowCount > FILTER_THRESHOLD ? (
+      {filterVisible ? (
         <Input
           aria-label={t("documents.share.access_filter_label")}
           placeholder={t("documents.share.access_filter_placeholder")}
@@ -410,6 +404,7 @@ export function ShareAccessList({
                     <div className="w-32">
                       <Select
                         value={share.level}
+                        disabled={!share.active}
                         items={allowedLevels.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
                         onValueChange={(v) =>
                           void requestRowChange(rowKey, share.principal_type as DocumentPrincipalType, share.principal_id, displayLabel, share.level, v as DocumentAccessLevel)
@@ -462,9 +457,9 @@ export function ShareAccessList({
           data-testid="share-access-confirm"
           className="flex flex-col gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-caption text-foreground"
         >
-          <p>{pendingConfirm.sentence}</p>
+          <p>{pendingConfirm.sentence.confirm}</p>
           <div className="flex items-center gap-2">
-            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => void commitRowChange(pendingConfirm.item, pendingConfirm.name)}>
+            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => void commitRowChange(pendingConfirm.item, pendingConfirm.sentence.done)}>
               {updateAccess.isPending ? <Spinner aria-hidden role="presentation" /> : null}
               {t("documents.share.confirm_accept")}
             </Button>

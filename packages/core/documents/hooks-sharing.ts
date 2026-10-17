@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDocumentLink,
@@ -42,18 +43,27 @@ export function useDocumentShares(wsId: string, documentId: string, opts?: { ena
   });
 }
 
-/** Share-picker candidates (people, workspaces, organization) with existing direct levels (SH-W1). */
+/** Share-picker candidates (people, workspaces, organization) with existing
+ *  direct levels (SH-W1). The server pages them users -> workspaces ->
+ *  organization, so later groups are reachable only by following `next_cursor`
+ *  (`fetchNextPage`); `items` is every loaded page, flattened in server order. */
 export function useDocumentShareCandidates(
   wsId: string,
   documentId: string,
   opts?: { q?: string; limit?: number; enabled?: boolean },
 ) {
   const q = opts?.q?.trim() ?? "";
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: documentKeys.shareCandidates(wsId, documentId, q),
-    queryFn: ({ signal }) => listShareCandidates(documentId, { q, limit: opts?.limit }, signal),
+    queryFn: ({ pageParam, signal }) =>
+      listShareCandidates(documentId, { q, cursor: pageParam || undefined, limit: opts?.limit }, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
   });
+  const pages = query.data?.pages;
+  const items = useMemo(() => pages?.flatMap((page) => page.items) ?? [], [pages]);
+  return { ...query, items };
 }
 
 /** Unified batch grant/update/revoke with optional dry_run impact preview (SH-W1).
