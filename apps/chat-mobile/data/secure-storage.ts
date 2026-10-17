@@ -7,8 +7,9 @@ import type { SessionStorage, StoredSession } from "./auth/session";
 import { sessionEpochChanged } from "./session-epoch";
 
 const SESSION_KEY = "uniwork_chat_session";
-// the default (WHEN_UNLOCKED) makes a refresh landing while the phone is locked fail to persist
-const ACCESS = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
+// the default (WHEN_UNLOCKED) makes a refresh landing while the phone is locked fail to persist;
+// THIS_DEVICE_ONLY keeps the refresh token out of iCloud/iTunes backups and off a restored phone
+const ACCESS = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 // Tail of the write queue. Each operation chains onto the previous one so no
 // two can be in flight at once; failures do not stall the queue.
