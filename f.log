@@ -1,0 +1,156 @@
+$ pnpm exec turbo build typecheck; rc=$?; echo; echo "CI_BUILD_TC_EXIT=$rc"
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/e2e, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running build, typecheck in 11 packages
+   • Remote caching disabled
+
+@uniwork/office-contracts:typecheck: cache miss, executing afb0c21305e0afcd
+@uniwork/office-upstream:build: cache miss, executing 58fe3f9fc83624bf
+@uniwork/ui:typecheck: cache miss, executing f2e0f522df55d825
+@uniwork/core:typecheck: cache miss, executing d1a12ec37f1e6cdd
+@uniwork/web:build: cache miss, executing 52a63b9ca4c70d0e
+@uniwork/office-engine-app:build: cache miss, executing 0eb09014d0eb4688
+@uniwork/core:typecheck: 
+@uniwork/core:typecheck: > @uniwork/core@0.0.0 typecheck /workspace/packages/core
+@uniwork/core:typecheck: > tsc --noEmit
+@uniwork/core:typecheck: 
+@uniwork/ui:typecheck: 
+@uniwork/ui:typecheck: > @uniwork/ui@0.0.0 typecheck /workspace/packages/ui
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/web:build: 
+@uniwork/web:build: > @uniwork/web@0.0.0 build /workspace/apps/web
+@uniwork/web:build: > node scripts/office-frame-sync.mjs --ensure && next build
+@uniwork/web:build: 
+@uniwork/office-upstream:build: 
+@uniwork/office-upstream:build: > @uniwork/office-upstream@0.0.0 build /workspace/packages/office-upstream
+@uniwork/office-upstream:build: > node ../../scripts/office/build-upstream.mjs
+@uniwork/office-upstream:build: 
+@uniwork/office-engine-app:build: 
+@uniwork/office-engine-app:build: > @uniwork/office-engine-app@0.0.0 build /workspace/apps/office-engine
+@uniwork/office-engine-app:build: > node scripts/build.mjs
+@uniwork/office-engine-app:build: 
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-contracts:typecheck: > @uniwork/office-contracts@0.0.0 typecheck /workspace/packages/office-contracts
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-engine-app:build: office-engine bundle written to dist/
+@uniwork/web:build: office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-5a72c13
+@uniwork/office-engine:typecheck: cache miss, executing f52f7cf5489182d6
+@uniwork/web:build: office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-5a72c13
+@uniwork/web:build: office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-5a72c13
+@uniwork/web:build: office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-5a72c13
+@uniwork/web:build: office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-5a72c13
+@uniwork/web:build: office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-5a72c13
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/web:build: ▲ Next.js 16.3.8 (Turbopack)
+@uniwork/web:build: ✓ Running next.config.mjs took 208ms
+@uniwork/web:build: Attention: Next.js now collects completely anonymous telemetry regarding usage.
+@uniwork/web:build: This information is used to shape Next.js' roadmap and prioritize features.
+@uniwork/web:build: You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+@uniwork/web:build: https://nextjs.org/telemetry
+@uniwork/web:build: 
+@uniwork/web:build: 
+@uniwork/web:build:   Creating an optimized production build ...
+@uniwork/office-engine-app:typecheck: cache miss, executing ed370d17abe3adbd
+@uniwork/office-upstream:build: {"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-engine-app:typecheck: > @uniwork/office-engine-app@0.0.0 typecheck /workspace/apps/office-engine
+@uniwork/office-engine-app:typecheck: > tsc --noEmit
+@uniwork/office-engine-app:typecheck: 
+@uniwork/views:typecheck: cache miss, executing fd9e1337086b7203
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/web:build: Found 2 warnings while optimizing generated CSS:
+@uniwork/web:build: 
+@uniwork/web:build: Issue #1:
+@uniwork/web:build: [2m│   }[22m
+@uniwork/web:build: [2m│ }[22m
+@uniwork/web:build: [2m│[22m ::highlight(task-find) {
+@uniwork/web:build: [2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+@uniwork/web:build: [2m┆[22m
+@uniwork/web:build: [2m│   background-color: var(--selection);[22m
+@uniwork/web:build: [2m│   color: var(--selection-foreground);[22m
+@uniwork/web:build: 
+@uniwork/web:build: Issue #2:
+@uniwork/web:build: [2m│   color: var(--selection-foreground);[22m
+@uniwork/web:build: [2m│ }[22m
+@uniwork/web:build: [2m│[22m ::highlight(task-find-active) {
+@uniwork/web:build: [2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+@uniwork/web:build: [2m┆[22m
+@uniwork/web:build: [2m│   background-color: var(--brand);[22m
+@uniwork/web:build: [2m│   color: var(--brand-foreground);[22m
+@uniwork/web:build: 
+@uniwork/web:typecheck: cache miss, executing 39f5042fdb92caf4
+@uniwork/web:typecheck: 
+@uniwork/web:typecheck: > @uniwork/web@0.0.0 typecheck /workspace/apps/web
+@uniwork/web:typecheck: > tsc --noEmit
+@uniwork/web:typecheck: 
+@uniwork/web:build: ✓ Compiled successfully in 54s
+@uniwork/web:build:   Running TypeScript ...
+@uniwork/web:typecheck: features/landing/product-documents-preview.tsx(72,2968): error TS2353: Object literal may only specify known properties, and 'onRestore' does not exist in type 'LibraryRowHandlers'.
+@uniwork/web:typecheck: features/landing/product-documents-preview.tsx(72,2979): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+@uniwork/web:typecheck:  ELIFECYCLE  Command failed with exit code 2.
+@uniwork/web:build: Turbopack build encountered 2 warnings:
+@uniwork/web:build: ./apps/web/app/globals.css:2:303209
+@uniwork/web:build: Warning: Parsing CSS source code failed
+@uniwork/web:build:   [90m1 |[0m ...
+@uniwork/web:build: [33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+@uniwork/web:build:   [90m  |[0m                                                [33m[1m^[0m
+@uniwork/web:build:   [90m3 |[0m ...
+@uniwork/web:build: 
+@uniwork/web:build: 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+@uniwork/web:build: 
+@uniwork/web:build: Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+@uniwork/web:build: ./apps/web/app/globals.css:2:303209
+@uniwork/web:build:   [90m1 |[0m ...
+@uniwork/web:build: [33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+@uniwork/web:build:   [90m  |[0m                                                [33m[1m^[0m
+@uniwork/web:build:   [90m3 |[0m ...
+@uniwork/web:build: 
+@uniwork/web:build: Import trace:
+@uniwork/web:build:   Client Component Browser:
+@uniwork/web:build:     ./apps/web/app/globals.css [Client Component Browser]
+@uniwork/web:build:     ./apps/web/app/layout.tsx [Server Component]
+@uniwork/web:build: 
+@uniwork/web:build: 
+@uniwork/web:build: ./apps/web/app/globals.css:2:303300
+@uniwork/web:build: Warning: Parsing CSS source code failed
+@uniwork/web:build:   [90m1 |[0m ...
+@uniwork/web:build: [33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+@uniwork/web:build:   [90m  |[0m                                                [33m[1m^[0m
+@uniwork/web:build:   [90m3 |[0m ...
+@uniwork/web:build: 
+@uniwork/web:build: 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+@uniwork/web:build: 
+@uniwork/web:build: Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+@uniwork/web:build: ./apps/web/app/globals.css:2:303300
+@uniwork/web:build:   [90m1 |[0m ...
+@uniwork/web:build: [33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+@uniwork/web:build:   [90m  |[0m                                                [33m[1m^[0m
+@uniwork/web:build:   [90m3 |[0m ...
+@uniwork/web:build: 
+@uniwork/web:build: Import trace:
+@uniwork/web:build:   Client Component Browser:
+@uniwork/web:build:     ./apps/web/app/globals.css [Client Component Browser]
+@uniwork/web:build:     ./apps/web/app/layout.tsx [Server Component]
+@uniwork/web:build: 
+@uniwork/web:build: 
+@uniwork/web:build:  ELIFECYCLE  Command failed.
+@uniwork/web#typecheck:  ERROR  command (/workspace/apps/web) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run typecheck exited (2)
+
+ Tasks:    8 successful, 10 total
+Cached:    0 cached, 10 total
+  Time:    1m29.672s 
+Failed:    @uniwork/web#typecheck
+
+ WARNING  no output files found for task @uniwork/office-upstream#build. Please check your `outputs` key in `turbo.json`
+ ERROR  run failed: command  exited (2)
+
+CI_BUILD_TC_EXIT=2
