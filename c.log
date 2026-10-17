@@ -1,0 +1,3 @@
+$ git checkout origin/feature/UNI-1387-g7-05-platform -- tools/g7-05 && git reset -q tools/g7-05; rc=$?; echo; echo "HARNESS_EXIT=$rc"
+
+HARNESS_EXIT=0

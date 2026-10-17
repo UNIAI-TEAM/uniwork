@@ -1,0 +1,78 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t2-net-zero.mjs; rc=$?; echo; echo "T2_NET_EXIT=$rc"
+[g7-05/t2] Launching /home/ubuntu/work/uniwork-office/apps/shell/release/linux-unpacked/uniwork-office (isAppImage=false) with fresh empty userData...
+[g7-05/t2] Opening fixture fx-docx-report-vi.docx (11187B, sha256=5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c)
+[g7-05/t2] Fixture fx-docx-report-vi.docx rendered; performing local edit + Save...
+[g7-05/t2] Local Save completed in 53.79 ms
+G7_05_T2_NET_JSON_BEGIN
+{
+  "test": "T2_NET_ZERO",
+  "status": "passed",
+  "metadata": {
+    "forkSha": "d5fdf60e5495b74e94246d7b889248725f1cb3c7",
+    "forkShortSha": "d5fdf60e5495",
+    "gitDescribe": "web-0.1.0-5d5b089-2-gd5fdf60e",
+    "latestReleaseTag": "web-0.1.0-5d5b089",
+    "appVersion": "1.0.0",
+    "rootPackageVersion": "0.1.0",
+    "serverVersion": "unknown",
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v22.23.3",
+    "collectedAt": "2026-10-17T11:29:27.598Z"
+  },
+  "binary": {
+    "binaryPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/linux-unpacked/uniwork-office",
+    "isAppImage": false
+  },
+  "fixture": {
+    "name": "fx-docx-report-vi.docx",
+    "preEditBytes": 11187,
+    "preEditSha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "postSaveBytes": 4412,
+    "postSaveSha256": "ad5802d3235abcd68bdbd4a786ff0dae3e2a36edeeec3f77bf6f08ea2c6c889f",
+    "saveMs": 53.79
+  },
+  "freshEmptyUserDataVerified": true,
+  "decisionCriteria": {
+    "straceSyscalls": "strace -f -s 256 -e trace=connect,sendto across full process tree",
+    "allowedLoopback": [
+      "127.0.0.1 (non-53)",
+      "::1 (non-53)",
+      "::ffff:127.0.0.1 (non-53)"
+    ],
+    "countedAsOutbound": [
+      "Any AF_INET or AF_INET6 connect/sendto to an IP other than 127.0.0.1 or ::1 (including 127.0.0.53)",
+      "Any connect/sendto to port 53 (DNS), even on 127.0.0.1 or ::1",
+      "Any non-localhost http/https/ws/wss/ftp URL or non-localhost DNS host resolution in --log-net-log",
+      "Any non-localhost http/https/ws/wss/ftp URL in session.defaultSession.webRequest.onBeforeRequest"
+    ]
+  },
+  "strace": {
+    "logBytes": 1120921,
+    "totalInetEvents": 0,
+    "loopbackCount": 0,
+    "outboundCount": 0,
+    "dnsCount": 0,
+    "outboundEvents": [],
+    "dnsEvents": []
+  },
+  "netLog": {
+    "logBytes": 54592,
+    "parsedOk": true,
+    "totalEvents": 23,
+    "loopbackUrlCount": 0,
+    "outboundUrlCount": 0,
+    "outboundDnsCount": 0,
+    "outboundUrls": [],
+    "outboundDnsHosts": []
+  },
+  "webRequestObserver": {
+    "outboundCount": 0,
+    "outboundRequests": []
+  },
+  "nonDocumentStartupUrls": []
+}
+G7_05_T2_NET_JSON_END
+[g7-05/t2] PASSED: 0 outbound network or DNS requests detected.
+
+T2_NET_EXIT=0
