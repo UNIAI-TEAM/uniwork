@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+85dbcd4478fcc9a787d43d062aa233982dfbc8db
+85dbcd447 chore(merge): BIGUP-LOCKCHECK web half into the lockcheck branch (UNI-1890)
+f998562f4 chore(merge): G5-G7 root 98c210422 into BIGUP-LOCKCHECK (UNI-1890)
+7f73e2144 test(documents): wait for the upload limits before dropping in the chunked upload tests
+f53062023 fix(documents): keep lock_id out of the pre-check refusal fields (UNI-1890 R1-2)
+380bb2215 test(documents): pin a genuine same-actor replay and the lock's read-only state
+eb26d9485 feat(documents): pre-check edit lock before chunked version upload
+76d5181e3 feat(documents): map 423 document_locked on session create to lock refusal
+8976ddf6c feat(documents): refuse a version upload-session create while the edit lock is held
