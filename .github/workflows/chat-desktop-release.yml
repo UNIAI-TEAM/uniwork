@@ -93,7 +93,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # The app and what it imports only: other workspaces' prepare scripts
+      # (the Office engine build) have no business on these runners.
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-desktop..."
       - name: Build and package
         shell: bash
         working-directory: apps/chat-desktop
