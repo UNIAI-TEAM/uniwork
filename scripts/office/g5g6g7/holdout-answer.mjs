@@ -311,7 +311,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
         // on a zero-write case, preserved count invariants hold by fact; when writes happened, keep today's proof rules.
         if (
           !editCase &&
-          effectiveWrites === 0 &&
+          (ask.writes ?? 0) === 0 &&
           parsed.status === 'ok' &&
           expected.kind === 'count' &&
           caseDoc.category !== 'structure' &&
@@ -323,8 +323,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       }
       taken.add(pick);
       if (lenient) lenientAt.push(expected.kind);
-      const outVal = expected.kind === 'table_cell' && /^table:\d+\//i.test(String(expected.value ?? '').trim()) ? expected.value : pick.value;
-      structural.push({ kind: expected.kind, anchor: expected.anchor, value: outVal });
+      structural.push({ kind: expected.kind, anchor: expected.anchor, value: pick.value });
     } else if (
       (expected.kind === 'clarification' && asked) ||
       (expected.kind === 'refusal' && refused) ||

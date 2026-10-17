@@ -232,7 +232,9 @@ export function valuesEqual(expected, actual, kind = null, actualAnchor = '') {
     if (a && (a === b || (a.length > 3 && b.includes(a)) || cleanHeadingText(actualAnchor) === a)) return true;
   }
   if (kind === 'table_cell' && /^table:\d+\//i.test(String(expected ?? '').trim())) {
-    if (topicAnchorMatches('table_cell', String(expected), actualAnchor, String(actual ?? ''))) return true;
+    const segs = topicSegments(String(expected));
+    const normActual = normalizeAnchor(String(actual ?? ''));
+    if (segs.length > 0 && segs.every((seg) => normActual.includes(seg))) return true;
   }
   if (kind === 'count' && typeof expected === 'string' && expected.includes('|')) {
     const parts = expected.split('|').map((s) => s.trim()).filter(Boolean);
