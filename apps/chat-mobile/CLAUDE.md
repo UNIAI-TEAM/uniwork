@@ -26,10 +26,12 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
 
 - `app.config.ts` — cấu hình duy nhất, không `app.json`, **không `.env`**
   (pre-commit từ chối). Biến build: `UNICHAT_ENV` (`dev`|`staging`|`production`),
-  `UNICHAT_API_URL`, `UNICHAT_APP_URL`; kết quả nằm ở `extra` (`apiUrl`,
-  `appUrl`, `authClientId=uniwork-chat-mobile`, `deploymentId`) và app gọi
-  `configureRuntime()` lúc boot. Bundle id `com.uniworkos.chat{.dev,.staging}`,
-  scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh
+  `UNICHAT_API_URL`, `UNICHAT_APP_URL` (bắt buộc với staging/production: thiếu
+  thì config ném lỗi thay vì ship bản trỏ `localhost`), `UNICHAT_EAS_PROJECT_ID`
+  (ghi đè hằng `EAS_PROJECT_ID`); kết quả nằm ở `extra` (`apiUrl`,
+  `appUrl`, `authClientId=uniwork-chat-mobile`, `deploymentId`, `eas.projectId`
+  khi có dự án EAS) và app gọi `configureRuntime()` lúc boot. Bundle id
+  `com.uniworkos.chat{.dev,.staging}`, scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh
   với id prod.
 - `lib/` — helper thuần + test vitest (env node). `theme.ts`/`global.css`/
   `tailwind.config.js` mirror nhau; giá trị là `packages/ui/styles/tokens.css`
@@ -93,3 +95,27 @@ app kiểm ở `.github/workflows/mobile-verify.yml`. Không có script `build`.
 Thêm gói native bằng `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`;
 nếu Metro kẹt vì layout isolated của pnpm thì dừng và báo, không thêm
 `.npmrc` hoist.
+
+## Phát hành (M4, UNI-1836)
+
+Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
+`docs/superpowers/plans/2026-10-17-unichat-mobile-release.md`.
+
+- `eas.json`: `development` (dev client), `preview` (cài trực tiếp, pilot trước
+  store), `internal` (TestFlight + Play internal, staging), `production`. Mỗi
+  profile ghim `UNICHAT_ENV`, kênh OTA cùng tên và môi trường EAS chứa URL
+  server. Build number do EAS giữ (`appVersionSource: remote`), không commit.
+- `version` trong `app.config.ts` là `runtimeVersion` (`policy: appVersion`):
+  đổi native (gói native, plugin, quyền, SDK) thì bump nó; chỉ đổi JS thì phát
+  OTA. Chưa có `EAS_PROJECT_ID` thì `updates.enabled: false` và push bỏ qua.
+  `knip.json` bỏ qua `expo-updates` vì knip đọc config dev.
+- Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`
+  (EAS build + auto-submit, Environment `chat-mobile-release`, chỉ
+  `EXPO_TOKEN`; thiếu thì notice và xanh).
+- `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
+  có lối tắt phiên thử nghiệm trong bản nào), `flows/*.yaml` là luồng vàng chạy
+  hằng đêm bởi `.github/workflows/chat-mobile-verify.yml` với server staging
+  (biến `MAESTRO_*`; thiếu thì notice và xanh). Flow chọn theo chữ vi|en; màn
+  mới cho flow nên có `testID`.
+- `store/listing.md`: mô tả vi/en, privacy labels, lý do từng quyền, tài khoản
+  demo cho review. Thêm quyền native thì cập nhật bảng quyền ở đó.

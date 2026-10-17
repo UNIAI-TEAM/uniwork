@@ -21,6 +21,7 @@ const RUNBOOK_DIR = "docs/runbooks";
 const OPERATOR_RUNBOOKS = new Set([
   "documents-folder-name-index.md", // FD-02 (UNI-1462): release-order check after the folder-name index deploy
   "unichat-desktop-release.md", // UniChat D2 (UNI-1835): cutting, checking and rolling back a desktop release
+  "unichat-mobile-release.md", // UniChat M4 (UNI-1836): store builds, OTA and rollback of the mobile app
 ]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */
