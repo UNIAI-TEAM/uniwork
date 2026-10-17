@@ -268,13 +268,13 @@ describe("OfficeModuleHost", () => {
       expect(tooLargeNotice()?.textContent).toContain("File is too large to edit on the web");
     };
 
-    it("opens a workbook over 10 MiB of stored xlsx in the frame (no stored-size pre-check block)", async () => {
+    it("opens a workbook over 10 MiB of stored xlsx in the frame (no stored-size pre-check block) and forwards fileSizeBytes", async () => {
       mocks.frameOutcome.kind = undefined;
       await render(host("sheets", false, big));
       await until(() => frame() !== null);
       expect(tooLargeNotice()).toBeNull();
       expect(failed()).toBeNull();
-      expect(mocks.frameProps).toHaveBeenCalled();
+      expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({ fileSizeBytes: 10 * 1024 * 1024 + 1 }));
     });
 
     it("shows the open-in-the-app notice when the frame reports the worksheet gate (too_large)", async () => {

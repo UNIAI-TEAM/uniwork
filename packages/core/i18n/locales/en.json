@@ -9906,6 +9906,11 @@
       "download": "Download",
       "download_failed": "The file could not be downloaded. Try again."
     },
+    "lag_banner": {
+      "body": "This file is large and may run slowly in the browser. Open it in the UniWork Office app for a better experience.",
+      "open_app": "Open in app",
+      "continue": "Continue on web"
+    },
     "shell": {
       "save": "Save",
       "save_to_cloud": "Save to UniWork"

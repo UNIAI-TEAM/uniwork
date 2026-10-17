@@ -9900,6 +9900,11 @@
       "download": "Tải xuống",
       "download_failed": "Không thể tải tệp xuống. Hãy thử lại."
     },
+    "lag_banner": {
+      "body": "Tệp lớn nên có thể chạy chậm trên trình duyệt. Mở bằng app UniWork Office cho trải nghiệm tốt hơn.",
+      "open_app": "Mở bằng app",
+      "continue": "Tiếp tục trên web"
+    },
     "shell": {
       "save": "Lưu",
       "save_to_cloud": "Lưu vào UniWork"

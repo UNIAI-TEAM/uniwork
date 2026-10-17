@@ -17,7 +17,9 @@ import { registerLeaveGuard } from "../../navigation/leave-guard";
 import type { DesktopOpenOutcome } from "../desktop-open-action";
 import { LeaveDialog } from "../leave-dialog";
 import { SaveStatus } from "../save-status";
-import { OfficeFileActions } from "../too-large-notice";
+import { OfficeFileActions, OfficeTooLargeNotice } from "../too-large-notice";
+import { FrameLagBanner, useFrameLagBanner } from "./frame-lag-banner";
+import type { StorageAdapter } from "@uniwork/core/types/storage";
 import { DocsFrameFailure } from "./docs-frame-failure";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
@@ -63,6 +65,12 @@ export interface OfficeModuleFrameProps {
   revealCommentId?: string | null;
   /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
   onFrameCommentsChange?: (framePanel: boolean) => void;
+  /** Stored document size in bytes, for the size-based lag banner fallback when the browser lacks a lag PerformanceObserver. */
+  fileSizeBytes?: number | null;
+  /** Injectable feature-detection seam for `PerformanceObserver` `longtask`/`event` support. */
+  hasLagObserver?: () => boolean;
+  /** Injectable StorageAdapter seam for per-document lag banner dismissal (`office.lagBanner.dismissed:<documentId>`). */
+  lagStorage?: Pick<StorageAdapter, "getItem" | "setItem">;
   className?: string;
 }
 
@@ -98,7 +106,8 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, onFrameCommentsChange, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId,
+  onFrameCommentsChange, fileSizeBytes, hasLagObserver, lagStorage, className,
 }: OfficeModuleFrameProps) {
   const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
@@ -118,18 +127,23 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
+  const lag = useFrameLagBanner({
+    iframeRef, frameOrigin, module, documentId, api: frameApi,
+    fileSizeBytes, hasLagObserver, lagStorage,
+  });
   const frameComments = useFrameComments({ wsId, documentId, myLevel, revealCommentId });
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
+    iframeRef, frameOrigin, frameSrc: src, api: lag.api, module, wsId, documentId, readonly,
     comments: frameComments.binding,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
     onAppOpen: desktopOpen ? async () => (await appOpenRef.current?.()) ?? "unavailable" : undefined,
     onSavedAs: (copyId, name) => {
+      lag.rebindDocument(copyId);
       // Say a copy was made: the copy opens in place and otherwise looks like the source.
       toast.success(tRootRef.current("documents.copy.done", { title: stripExtension(name) }));
       onSavedAs?.(copyId, name);
@@ -282,11 +296,16 @@ export function OfficeModuleFrame({
 
   // The server refused the token mint because the module's flag is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
-  // Sheets (or any module with a size cap): a frame that answers its open with
-  // too_large (worksheet XML gate) tells the switch to show the too-large notice.
-  const tooLarge = (module === "sheets" || officeModuleSpec(module).maxBytes !== undefined) && session.failure?.code === "too_large";
+  // `open_refused` from the frame (or Sheets `too_large` error) replaces the frame with the refusal notice.
+  const tooLarge = lag.openRefused !== null || (module === "sheets" && session.failure?.code === "too_large");
   const refuse = useDocsFrameRefusal();
+  const resetLagAttempt = lag.resetAttempt;
+  useEffect(() => { if (session.attempt > 0) resetLagAttempt(); }, [resetLagAttempt, session.attempt]);
   useEffect(() => { if (tooLarge) refuse?.(); }, [tooLarge, refuse]);
+
+  if (tooLarge) {
+    return <OfficeTooLargeNotice format={officeModuleSpec(module).format} />;
+  }
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
@@ -318,6 +337,11 @@ export function OfficeModuleFrame({
         // The page header around the frame says whether the frame's edits are saved.
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
+      <FrameLagBanner
+        open={lag.shouldShow(!booting)}
+        onOpenApp={desktopOpen && !session.viewOnly ? () => { void appOpenRef.current?.(); } : undefined}
+        onContinue={lag.dismiss}
+      />
       {desktopOpen && !booting && !session.viewOnly ? (
         <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={save} requestRef={appOpenRef} />
       ) : null}
