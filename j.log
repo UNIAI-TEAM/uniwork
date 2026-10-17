@@ -1,0 +1,118 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --shard=4/6 > /tmp/tn-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/tn-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/tn-E2E.log; grep -E "✘|\[failed\]" /tmp/tn-E2E.log | head -40; echo; echo "E2E_SUITE4_EXIT=$rc"
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-updates-unified-wo-e1998-er-in-both-themes-mobile-en/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-updates-unified-wo-e1998-er-in-both-themes-mobile-en/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  33) landing-workspace.spec.ts:42:1 › local state survives view switches across the demo ──────────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('#product-preview').getByRole('tabpanel').locator('.product-task-open')
+    Expected: 9
+    Received: 11
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('#product-preview').getByRole('tabpanel').locator('.product-task-open')
+        14 × locator resolved to 11 elements
+           - unexpected value "11"
+
+
+      53 |   await page.getByRole('dialog').getByRole('button', { name: vi.common.create, exact: true }).click();
+      54 |   await selectWorkspaceFeature(page, "tasks");
+    > 55 |   await expect(stage.getByRole("tabpanel").locator(".product-task-open")).toHaveCount(9);
+         |                                                                           ^
+      56 |   await expect(stage.getByRole("tabpanel").locator(".product-task-open").filter({ hasText: "Cập nhật onboarding từ trao đổi của nhóm" })).toBeVisible();
+      57 |   await selectWorkspaceFeature(page, "meetings");
+      58 |   await stage.getByRole("button", { name: "Mic", exact: true }).click();
+
+    Error Context: test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  33 failed
+    landing-product-menu.spec.ts:7:3 › the product menu operates the landing demo at 390px ─────────
+    landing-product-menu.spec.ts:49:1 › the marketing product menu opens a demo directly ───────────
+    landing-product-menu.spec.ts:59:1 › create, search and save stay inside the demo across view switches 
+    landing-product-menu.spec.ts:95:3 › the app shell stays readable in dark mode 1440 ─────────────
+    landing-product-menu.spec.ts:95:3 › the app shell stays readable in dark mode 390 ──────────────
+    landing-product-pages.spec.ts:6:1 › product menu opens demos while feature introductions remain available 
+    landing-product-pages.spec.ts:60:3 › public pages render without overflow 390-dark ─────────────
+    landing-realism.spec.ts:45:1 › My tasks scopes and Projects open the current task details ──────
+    landing-realism.spec.ts:61:1 › chat waits for creation before attaching the task ───────────────
+    landing-realism.spec.ts:86:1 › email keeps the same thread and Ask UNI only opens its cited source 
+    landing-realism.spec.ts:115:1 › assignment opens details and a member picker without completing the task 
+    landing-realism.spec.ts:137:1 › screen sharing needs source selection and confirmation; planned entries never autoplay 
+    landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 1440px 
+    landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 390px 
+    landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 1440px 
+    landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 390px 
+    landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+    landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: en 
+    landing-scroll.spec.ts:38:1 › grouped feature navigation supports keyboard selection ───────────
+    landing-scroll.spec.ts:118:1 › feature selector stays visible in reduced motion without a decorative rail 
+    landing-studio.spec.ts:8:1 › studio demo switches views and tabs locally, with keyboard support 
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop ──────────────────
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile ───────────────────
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: user-1294 ────────────────
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop-dark-en ──────────
+    landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile-dark-en ───────────
+    landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark ──────────────
+    landing-updates.spec.ts:8:1 › new product stories are local demos with truthful availability ───
+    landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-vi ───────
+    landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-en ───────
+    landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-vi ────────
+    landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-en ────────
+    landing-workspace.spec.ts:42:1 › local state survives view switches across the demo ────────────
+  30 passed (19.7m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=4/6
+  33 failed
+  30 passed (19.7m)
+  ✘   2 landing-product-menu.spec.ts:7:3 › the product menu operates the landing demo at 390px (1.0m)
+  ✘   3 landing-product-menu.spec.ts:49:1 › the marketing product menu opens a demo directly (1.0m)
+  ✘   4 landing-product-menu.spec.ts:59:1 › create, search and save stay inside the demo across view switches (8.5s)
+  ✘   5 landing-product-menu.spec.ts:95:3 › the app shell stays readable in dark mode 1440 (6.1s)
+  ✘   6 landing-product-menu.spec.ts:95:3 › the app shell stays readable in dark mode 390 (6.1s)
+  ✘   7 landing-product-pages.spec.ts:6:1 › product menu opens demos while feature introductions remain available (6.7s)
+  ✘  10 landing-product-pages.spec.ts:60:3 › public pages render without overflow 390-dark (9.3s)
+  ✘  14 landing-realism.spec.ts:45:1 › My tasks scopes and Projects open the current task details (1.0m)
+  ✘  15 landing-realism.spec.ts:61:1 › chat waits for creation before attaching the task (10.0s)
+  ✘  16 landing-realism.spec.ts:86:1 › email keeps the same thread and Ask UNI only opens its cited source (12.1s)
+  ✘  17 landing-realism.spec.ts:115:1 › assignment opens details and a member picker without completing the task (9.0s)
+  ✘  18 landing-realism.spec.ts:137:1 › screen sharing needs source selection and confirmation; planned entries never autoplay (7.9s)
+  ✘  19 landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 1440px (6.1s)
+  ✘  20 landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 390px (6.1s)
+  ✘  21 landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 1440px (1.0m)
+  ✘  22 landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 390px (1.0m)
+  ✘  24 landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves (5.4s)
+  ✘  30 landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: en (3.5s)
+  ✘  31 landing-scroll.spec.ts:38:1 › grouped feature navigation supports keyboard selection (1.0m)
+  ✘  35 landing-scroll.spec.ts:118:1 › feature selector stays visible in reduced motion without a decorative rail (6.6s)
+  ✘  36 landing-studio.spec.ts:8:1 › studio demo switches views and tabs locally, with keyboard support (7.1s)
+  ✘  38 landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop (1.0m)
+  ✘  39 landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile (1.0m)
+  ✘  40 landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: user-1294 (1.0m)
+  ✘  41 landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop-dark-en (1.0m)
+  ✘  42 landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile-dark-en (1.0m)
+  ✘  44 landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark (1.0m)
+  ✘  49 landing-updates.spec.ts:8:1 › new product stories are local demos with truthful availability (6.9s)
+  ✘  50 landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-vi (29.2s)
+  ✘  51 landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-en (31.0s)
+  ✘  52 landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-vi (32.6s)
+  ✘  53 landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-en (35.6s)
+  ✘  62 landing-workspace.spec.ts:42:1 › local state survives view switches across the demo (8.5s)
+
+E2E_SUITE4_EXIT=1
