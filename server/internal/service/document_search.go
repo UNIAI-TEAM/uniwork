@@ -48,12 +48,16 @@ const (
 //   - Query runs the folded-text search over the whole workspace - it
 //     ignores ParentID, the way search behaves in the client.
 //   - Archived switches to the trash view (manage-only).
+//   - Shelved switches to the archive shelf (ARCHIVE-01): the shelved rows
+//     the caller can view, keyset shelved_at DESC, id DESC, filters allowed.
+//     Shelved with Archived is 400 invalid_filter.
 type ListDocumentsInput struct {
 	ParentID    *string
 	Query       string
 	Kind        string
 	Match       string
 	Archived    bool
+	Shelved     bool
 	UpdatedBy   string
 	UpdatedFrom time.Time
 	UpdatedTo   time.Time
@@ -161,8 +165,8 @@ type DocumentListPage struct {
 }
 
 // documentCursor pins the ordering value of the last row returned. At pairs
-// with the (updated_at|archived_at, id) descending lists, Pos with the
-// position-ordered children list; exactly one is set.
+// with the (updated_at|archived_at|shelved_at, id) descending lists, Pos
+// with the position-ordered children list; exactly one is set.
 type documentCursor struct {
 	At  *time.Time `json:"t,omitempty"`
 	Pos *float64   `json:"p,omitempty"`
@@ -332,6 +336,11 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	if in.SharedByMe && in.ParentID != nil {
 		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shared_by_me không thể dùng cùng parent_id")
 	}
+	if in.Shelved && in.Archived {
+		// ARCHIVE-01 (Q-AR3 = a): the shelf and the trash are two views; a
+		// trashed-and-shelved row lives in the trash only.
+		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shelved không thể dùng cùng archived")
+	}
 	cursor, err := decodeDocumentCursor(in.Cursor)
 	if err != nil {
 		return DocumentListPage{}, err
@@ -409,6 +418,41 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		for i, d := range rows {
 			if i == limit {
 				out.NextCursor = encodeDocumentCursor(documentCursor{At: &rows[limit-1].ArchivedAt.Time, ID: rows[limit-1].ID})
+				break
+			}
+			out.Items = append(out.Items, DocumentListItem{Document: d})
+		}
+
+	case in.Shelved:
+		// ARCHIVE-01 §4: the archive shelf. Every caller sees the shelved
+		// rows they can view - the flat list's own permission ladder, not the
+		// trash's manage/edit gate - ordered shelved_at DESC, id DESC. A
+		// parent_id or search term still applies; the filters resolve with
+		// archived=false so access=manage/edit stays legal here.
+		var cursorAt pgtype.Timestamptz
+		if cursor.At != nil {
+			cursorAt = pgtype.Timestamptz{Time: *cursor.At, Valid: true}
+		}
+		rows, err := s.q.ListShelvedDocumentsPage(ctx, db.ListShelvedDocumentsPageParams{
+			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
+			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
+			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
+			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
+			ShareLevels: shareLevelsFor(DocumentLevelView),
+			Kind:        kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(),
+			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
+			SharedByMe: in.SharedByMe,
+			Query:      query, MatchTitle: matchTitle,
+			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
+		})
+		if err != nil {
+			return DocumentListPage{}, err
+		}
+		for i, d := range rows {
+			if i == limit {
+				out.NextCursor = encodeDocumentCursor(documentCursor{At: &rows[limit-1].ShelvedAt.Time, ID: rows[limit-1].ID})
 				break
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: d})
@@ -694,6 +738,12 @@ func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 		CreatedBy: r.CreatedBy, CreatedByKind: r.CreatedByKind, UpdatedBy: r.UpdatedBy,
 		UpdatedByKind: r.UpdatedByKind, ContentSavedAt: r.ContentSavedAt, LastVersionAt: r.LastVersionAt,
 		ArchivedAt: r.ArchivedAt, ArchivedBy: r.ArchivedBy, PurgeAfter: r.PurgeAfter,
-		ArchiveBatchID: r.ArchiveBatchID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		ArchiveBatchID: r.ArchiveBatchID,
+		// ARCHIVE-01 (Q-AR3 = a): search rows the shelf holds must report the
+		// state so the client can label them "Đã lưu trữ".
+		ShelvedAt:     r.ShelvedAt,
+		ShelvedBy:     r.ShelvedBy,
+		ShelvedByKind: r.ShelvedByKind, ShelveBatchID: r.ShelveBatchID,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }

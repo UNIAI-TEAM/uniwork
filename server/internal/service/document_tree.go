@@ -132,6 +132,11 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	if doc.ArchivedAt.Valid {
 		return DocumentView{}, errDocumentDeleted()
 	}
+	// A shelved document is read-only: it cannot move, and a shelved
+	// destination cannot take it (checked on the locked parent below).
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentView{}, err
+	}
 	if in.Revision != doc.Revision {
 		return DocumentView{}, errRevisionConflict(doc.Revision)
 	}
@@ -201,6 +206,12 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 			return DocumentView{}, err
 		}
 		if err := decideDocumentAccess(parent, paccess, DocumentLevelEdit); err != nil {
+			return DocumentView{}, err
+		}
+		// A shelved destination is read-only: named only to a caller who
+		// already passed its edit gate, so the 409 leaks nothing the refusal
+		// would hide.
+		if err := requireNotShelved(parent); err != nil {
 			return DocumentView{}, err
 		}
 		// After the access gate, like lockPageParent: a parent the caller

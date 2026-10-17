@@ -141,6 +141,12 @@ func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, d
 	if err := decideFileSave(doc, access); err != nil {
 		return DocumentUpload{}, err
 	}
+	// A shelved document is read-only (addendum §3): the upload that stages
+	// bytes for a commit is refused before any byte leaves the client, and
+	// the commit's own gate answers the same if it raced the shelve.
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentUpload{}, err
+	}
 	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, documentScope(doc.OrganizationID, doc.WorkspaceID),
 		fileUploadKey("documents.upload", doc.ID, in.IdempotencyKey), in)
 	if err != nil {
@@ -616,6 +622,11 @@ func (s *DocumentService) uploadDocumentAsset(ctx context.Context, actor Actor, 
 	}
 	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
 	if err != nil {
+		return db.DocumentAsset{}, err
+	}
+	// A shelved document is read-only (addendum §3): refuse before the bytes
+	// are stored; the mutation gate answers the same for a raced shelve.
+	if err := requireNotShelved(doc); err != nil {
 		return db.DocumentAsset{}, err
 	}
 	if err := refuseFolder(doc); err != nil {

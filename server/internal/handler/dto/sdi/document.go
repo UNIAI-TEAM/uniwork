@@ -192,6 +192,7 @@ type ListDocumentsSDI struct {
 	Format      *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề). Thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter; dùng cùng kind=page -> 400 invalid_filter" example:"pdf"`
 	Access      *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted). Áp cho cả thư mục theo cấp của chính nó; giá trị khác -> 400 invalid_filter" example:"edit"`
 	Archived    *bool   `query:"archived" description:"1 = thùng rác (chỉ manage); bỏ trống = tài liệu sống. Trên thùng rác chỉ nhận access=restricted: access=manage/edit -> 400 invalid_filter" example:"false"`
+	Shelved     *bool   `query:"shelved" description:"1 = kho lưu trữ (mọi người xem được đều thấy mục mình được xem, sắp shelved_at mới nhất trước); kết hợp format/access được; cùng archived=1 -> 400 invalid_filter; mục vừa lưu trữ vừa vào thùng rác chỉ hiện ở thùng rác" example:"true"`
 	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
 	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`

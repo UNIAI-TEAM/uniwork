@@ -369,7 +369,7 @@ func TestDocumentChangesFeedRemovalIsIDsOnly(t *testing.T) {
 	if removal.Kind != "" || removal.CurrentVersion != 0 || removal.FileVersionID != "" {
 		t.Fatalf("a removal carries document fields: %+v", removal)
 	}
-	if removal.Archived || removal.Removal != DocumentChangeRemovalPermissionRevoked {
+	if removal.Archived || removal.Shelved || removal.Removal != DocumentChangeRemovalPermissionRevoked {
 		t.Fatalf("removal = %+v, want an unarchived permission_revoked removal", removal)
 	}
 	// The row struct itself is the payload the handler maps to the SDO: assert
@@ -387,7 +387,7 @@ func TestDocumentChangesFeedRemovalIsIDsOnly(t *testing.T) {
 	want := map[string]any{
 		"DocumentID": doc.ID, "ChangeKind": DocumentChangeKindRemoval, "Kind": "",
 		"Revision": float64(removal.Revision), "CurrentVersion": float64(0),
-		"FileVersionID": "", "Archived": false, "Removal": DocumentChangeRemovalPermissionRevoked,
+		"FileVersionID": "", "Archived": false, "Shelved": false, "Removal": DocumentChangeRemovalPermissionRevoked,
 	}
 	if len(wire) != len(want) {
 		t.Fatalf("the removal row carries %d fields, want %d: %s", len(wire), len(want), body)
