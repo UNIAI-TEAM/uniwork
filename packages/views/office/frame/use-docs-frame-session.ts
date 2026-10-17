@@ -157,6 +157,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       };
 
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
+    const saveCopy = proxy("api.saveCopy", true, (api) => api.saveCopy);
     const open = proxy("api.open", false, (api) => api.open);
     const upload = proxy("api.save", true, (api) => api.save);
     // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
@@ -324,6 +325,15 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           setDirty(false);
           current.onSavedAs?.(rebind.documentId, name);
           return saved;
+        },
+        "api.saveCopy": async (payload, context) => {
+          if (remote.blocked) throw frameBlockError(remote.blocked);
+          const { options: current, scopeId: doc } = latest.current;
+          const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
+          if (minted?.can_edit === false) throw readOnly("api.saveCopy");
+          const result = await saveCopy(payload, context);
+          void queryClient.invalidateQueries({ queryKey: documentKeys.listRoot(current.wsId) });
+          return result;
         },
         "api.recents": proxy("api.recents", false, (api) => api.recents),
         "api.export": proxy("api.export", false, (api) => api.export),

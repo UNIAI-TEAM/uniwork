@@ -190,16 +190,18 @@ export interface DocsFrameSession {
  */
 export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false): Capabilities {
   const spec = officeModuleSpec(module);
-  const grant = spec.grant;
-  const on = (key: keyof Capabilities) => grant[key] === true;
+  const { saveCopy: _saveCopy, ...grant } = spec.grant;
+  const on = (key: keyof Capabilities) => spec.grant[key] === true;
   const ai = spec.ai === true && aiGrant?.ai === true;
   // UniWork AI (G6-05) is its own grant, independent of BYOK `ai`.
   const uniworkAi = spec.ai === true && aiGrant?.uniwork_ai === true;
   // The cloud tools serve either AI, so an organization with only UniWork AI still gets the ones it is granted.
   const cloud = ai || uniworkAi;
+  const saveCopy = module === "docs" && on("saveCopy") && !readonly && download && Boolean(api.saveCopy);
   return {
     ...grant,
     save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
+    ...(saveCopy ? { saveCopy: true } : {}),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, uniworkAi, webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,

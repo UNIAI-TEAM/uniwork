@@ -329,3 +329,106 @@ describe("createDocsFrameApi saveAs", () => {
     await expect(api.saveAs!({ name: "Big.docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "too_large", status: 413 });
   });
 });
+
+describe("createDocsFrameApi saveCopy (UNI-1872)", () => {
+  const COPY = {
+    id: "doc-copy-1", organization_id: "org-1", workspace_id: "ws-1", parent_id: null, kind: "file", title: "Plan (copy)",
+    visibility: "restricted", revision: "1", current_version: 1, position: 0, created_by: "u1", created_by_kind: "human",
+    updated_by: "u1", updated_by_kind: "human", created_at: "2026-10-17T10:00:00Z", updated_at: "2026-10-17T10:00:00Z",
+  };
+  const UPLOAD = { upload_id: "up-copy-1", checksum_sha256: "abc", size_bytes: 4, claim_expires_at: "2026-10-17T11:00:00Z" };
+
+  function setup(routes: Record<string, Route>) {
+    configureRuntime({ apiUrl: API });
+    setAccessToken("session-tok");
+    const fake = fakeFetch(routes);
+    vi.stubGlobal("fetch", fake.fetch);
+    return { ...fake, api: createDocsFrameApi({ apiUrl: API, fetch: fake.fetch }) };
+  }
+
+  it("stages the frame's bytes on the source document and creates the copy via /documents/{id}/copies without rebinding", async () => {
+    const { api, calls } = setup({
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),
+      "POST /api/v1/documents/doc-1/copies": () => json({ document: COPY }),
+    });
+    const result = await api.saveCopy!({ name: "Plan (copy)", data: new Uint8Array([1, 2, 3, 4]).buffer }, call());
+    expect(result).toEqual({ documentId: "doc-copy-1", title: "Plan (copy)" });
+    expect(calls).toHaveLength(2);
+    const [uploadCall, copyCall] = calls;
+    const uploadForm = uploadCall!.init.body as FormData;
+    expect((uploadForm.get("file") as File).name).toBe("Plan (copy).docx");
+    expect(header(uploadCall!.init, "Authorization")).toBe("Bearer frame-tok");
+    const uploadKey = header(uploadCall!.init, "Idempotency-Key");
+    const copyKey = new Headers(copyCall!.init.headers).get("Idempotency-Key");
+    expect(copyKey).toMatch(/^frame-savecopy-/);
+    expect(uploadKey).toBe(`${copyKey}:upload`);
+    expect(new Headers(copyCall!.init.headers).get("Authorization")).toBe("Bearer session-tok");
+    expect(JSON.parse(String(copyCall!.init.body))).toEqual({
+      consent: "copy",
+      upload_id: "up-copy-1",
+      title: "Plan (copy)",
+    });
+  });
+
+  it("keys one saveCopy by source document, name and bytes, so a retry replays the same upload and copy", async () => {
+    const keyOf = async (bytes: number[], name = "Plan (copy)", documentId = "doc-1") => {
+      const { api, calls } = setup({
+        [`POST /api/v1/office-frame/documents/${documentId}/uploads`]: () => json(UPLOAD),
+        [`POST /api/v1/documents/${documentId}/copies`]: () => json({ document: COPY }),
+      });
+      await api.saveCopy!({ name, data: new Uint8Array(bytes).buffer }, { ...call(), documentId });
+      return new Headers(calls[1]!.init.headers).get("Idempotency-Key");
+    };
+    expect(await keyOf([1, 2])).toBe(await keyOf([1, 2]));
+    expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 3]));
+    expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 2], "Other (copy)"));
+    expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 2], "Plan (copy)", "doc-9"));
+  });
+
+  it("degrades a malformed upload or copy answer to a typed internal error", async () => {
+    const badUpload = setup({ "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "" }) });
+    await expect(badUpload.api.saveCopy!({ name: "Plan (copy).docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "internal" });
+
+    const badCopy = setup({
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),
+      "POST /api/v1/documents/doc-1/copies": () => json({ document: { id: 7 } }),
+    });
+    await expect(badCopy.api.saveCopy!({ name: "Plan (copy).docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "internal" });
+  });
+
+  it("maps 404, 409, 413 (preserving max_bytes on upload or copy) and 423 to protocol error codes", async () => {
+    const uploadTooLarge = setup({
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        json({ error: { code: "file_too_large", message: "big", fields: { max_bytes: 52_428_800 } } }, 413),
+    });
+    await expect(uploadTooLarge.api.saveCopy!({ name: "Big", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({
+      code: "too_large",
+      status: 413,
+      details: { apiCode: "file_too_large", max_bytes: 52_428_800 },
+    });
+
+    const copyTooLarge = setup({
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),
+      "POST /api/v1/documents/doc-1/copies": () =>
+        json({ error: { code: "file_too_large", message: "big", fields: { max_bytes: 10_485_760 } } }, 413),
+    });
+    await expect(copyTooLarge.api.saveCopy!({ name: "Big", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({
+      code: "too_large",
+      status: 413,
+      details: { apiCode: "file_too_large", max_bytes: 10_485_760 },
+    });
+
+    for (const [status, apiCode, code] of [
+      [404, "not_found", "not_found"],
+      [409, "conflict", "conflict"],
+      [423, "document_locked", "forbidden"],
+    ] as const) {
+      const { api } = setup({
+        "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),
+        "POST /api/v1/documents/doc-1/copies": () => json({ error: { code: apiCode, message: apiCode } }, status),
+      });
+      await expect(api.saveCopy!({ name: "Copy", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code, status });
+    }
+  });
+});
+
