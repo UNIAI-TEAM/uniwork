@@ -88,7 +88,7 @@ function graded({ verdictOf = () => 'pass', spot = () => undefined, over = {} } 
   };
 }
 const key = (r) => `${r.id}/${r.lang}/${r.run}`;
-const thresholds = () => parseThresholds(JSON.parse(fs.readFileSync(path.join(repoRoot, 'docs/office/g5g6g7/holdout/thresholds-G7-D1.json'), 'utf8')));
+const thresholds = () => parseThresholds({ ...JSON.parse(fs.readFileSync(path.join(repoRoot, 'docs/office/g5g6g7/holdout/thresholds-G7-D1.json'), 'utf8')), caseSetSha256: CASE_SHA });
 const judge = (doc, { session = base.session } = {}) => buildReport(session.runs, { thresholds: thresholds(), reviews: doc === null ? null : parseReviews(doc), session });
 // Every mandatory item plus the random passes, spot-checked as the grader said (what a user who agrees with the grader files).
 const spotAll = (doc) => {
