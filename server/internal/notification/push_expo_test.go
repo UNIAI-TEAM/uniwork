@@ -24,7 +24,7 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 		case "ExponentPushToken[gone]":
 			_, _ = io.WriteString(w, `{"data":[{"status":"error","message":"x","details":{"error":"DeviceNotRegistered"}}]}`)
 		case "ExponentPushToken[big]":
-			_, _ = io.WriteString(w, `{"data":[{"status":"error","message":"x","details":{"error":"MessageTooBig"}}]}`)
+			_, _ = io.WriteString(w, `{"data":[{"status":"error","message":"\"ExponentPushToken[big]\" payload is too big","details":{"error":"MessageTooBig"}}]}`)
 		case "ExponentPushToken[busy]":
 			w.WriteHeader(http.StatusTooManyRequests)
 		case "ExponentPushToken[unauth]":
@@ -58,6 +58,11 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 		if err := s.Send(context.Background(), db.PushSubscription{Endpoint: to}, msg); err == nil || errors.Is(err, ErrSubscriptionGone) {
 			t.Fatalf("%s → %v, want a retryable error", to, err)
 		}
+	}
+	// A ticket error keeps Expo's code but never its message, which quotes the
+	// device token into last_error and the dead-letter log.
+	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[big]"}, msg); err == nil || !strings.Contains(err.Error(), "MessageTooBig") || strings.Contains(err.Error(), "ExponentPushToken[") {
+		t.Fatalf("ticket error → %v, want the code without the token", err)
 	}
 	// A 4xx carries Expo's error code (never its message, which can echo
 	// request values) into the error, so a wrong EXPO_ACCESS_TOKEN reads as
