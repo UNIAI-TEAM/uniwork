@@ -59,7 +59,8 @@ export function notificationTitleKey(n: Notification): string {
  */
 export function NotificationTitle({ notification: n, unread }: { notification: Notification; unread: boolean }) {
   const { t } = useTranslation();
-  const parts = titleParts((params) => t(notificationTitleKey(n), { ...params, defaultValue: n.kind }), n.params);
+  const effectiveParams = n.kind === "document_shared" ? { level: "", ...n.params } : n.params;
+  const parts = titleParts((params) => t(notificationTitleKey(n), { ...params, defaultValue: n.kind }), effectiveParams);
   const isAgent = n.actor_kind === "agent";
 
   const render = (param: string, value: string): ReactNode => {
@@ -96,6 +97,12 @@ export function NotificationTitle({ notification: n, unread }: { notification: N
       }
       case "role":
         return <span className="font-medium text-foreground">{t(`people.role_${value}`, { defaultValue: value })}</span>;
+      case "level":
+        return (
+          <span className="font-medium text-foreground">
+            {value ? t(`documents.share.level_${value}`, { defaultValue: value }) : ""}
+          </span>
+        );
       default:
         return value;
     }
