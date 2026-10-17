@@ -141,12 +141,27 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 		PrincipalType:  in.PrincipalType,
 		PrincipalID:    in.PrincipalID,
 	})
-	var before map[string]any
-	switch {
-	case err == nil:
-		if prev.Level == string(in.Level) {
-			return prev, nil
+	if err == nil && prev.Level == string(in.Level) {
+		return prev, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return db.DocumentShare{}, err
+	}
+	// SH-S3 (UNI-1782; addendum §8, §10 Q-S2): notify a user recipient only
+	// when the command strictly raises their effective level on the document
+	// compared to before the grant is written.
+	var notifyUserID string
+	if in.PrincipalType == DocumentPrincipalUser && !(actor.Kind == audit.KindHuman && in.PrincipalID == actor.ID) {
+		beforeAccess, err := (&DocumentService{orgs: &OrganizationService{}, ws: &WorkspaceService{}}).effectiveLevel(ctx, q, Human(in.PrincipalID), doc)
+		if err != nil && !isGateRefusal(err) {
+			return db.DocumentShare{}, err
 		}
+		if err == nil && in.Level.rank() > beforeAccess.Level.rank() {
+			notifyUserID = in.PrincipalID
+		}
+	}
+	var before map[string]any
+	if err == nil {
 		if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 			ID: prev.ID, OrganizationID: prev.OrganizationID, WorkspaceID: prev.WorkspaceID,
 			DocumentID: prev.DocumentID, RevokedBy: nullText(actor.ID),
@@ -154,9 +169,6 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 			return db.DocumentShare{}, err
 		}
 		before = map[string]any{"level": prev.Level}
-	case errors.Is(err, pgx.ErrNoRows):
-	default:
-		return db.DocumentShare{}, err
 	}
 	sh, err := q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
 		ID:             util.NewID(),
@@ -172,6 +184,14 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 	if err != nil {
 		return db.DocumentShare{}, err
 	}
+	payload := map[string]string{
+		"document_id":  doc.ID,
+		"workspace_id": doc.WorkspaceID,
+		"share_id":     sh.ID,
+	}
+	if notifyUserID != "" {
+		payload["notify_user_id"] = notifyUserID
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
@@ -185,11 +205,7 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 			"principal_type": sh.PrincipalType,
 			"principal_id":   sh.PrincipalID,
 		},
-	}, audit.Event{Topic: "document.shared", Payload: map[string]string{
-		"document_id":  doc.ID,
-		"workspace_id": doc.WorkspaceID,
-		"share_id":     sh.ID,
-	}}); err != nil {
+	}, audit.Event{Topic: "document.shared", Payload: payload}); err != nil {
 		return db.DocumentShare{}, err
 	}
 	return sh, nil

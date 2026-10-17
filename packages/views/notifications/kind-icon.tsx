@@ -51,6 +51,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_access_requested: KeyRound,
   document_access_approved: CircleCheck,
   document_access_declined: CircleX,
+  document_shared: CircleCheck,
 };
 
 /**

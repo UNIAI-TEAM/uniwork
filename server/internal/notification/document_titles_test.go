@@ -41,6 +41,7 @@ var documentNameCases = []struct {
 	{KindDocumentDiscussionReplied, `An đã phản hồi nội dung thảo luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your discussion post in “A "b" & <c>”.`},
 	{KindDocumentCommentResolved, `An đã đánh dấu bình luận của bạn trong tài liệu “A "b" & <c>” là đã giải quyết.`, `An marked your comment in “A "b" & <c>” as resolved.`},
 	{KindDocumentBreakGlass, `An đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “A "b" & <c>”.`, `An opened emergency view access (24h) to “A "b" & <c>”.`},
+	{KindDocumentShared, `An đã chia sẻ tài liệu “A "b" & <c>” với bạn.`, `An shared “A "b" & <c>” with you.`},
 }
 
 // shortPushTitleCases is the short titles OQ-C8 splits out, vi and en.
@@ -57,6 +58,7 @@ var shortPushTitleCases = []struct {
 	{KindDocumentDiscussionReplied, "Có phản hồi thảo luận mới", "New reply in a discussion"},
 	{KindDocumentCommentResolved, "Bình luận đã được giải quyết", "Comment resolved"},
 	{KindDocumentBreakGlass, "Truy cập khẩn cấp vào tài liệu", "Emergency access to document"},
+	{KindDocumentShared, "Tài liệu được chia sẻ", "Document shared"},
 }
 
 // htmlEscapeMarks are the byte sequences a stray HTML-escape would leave in a
