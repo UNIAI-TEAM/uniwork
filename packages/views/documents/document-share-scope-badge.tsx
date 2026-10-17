@@ -180,7 +180,7 @@ export function DocumentShareScopeBadge({
         </TooltipContent>
       </Tooltip>
       {tooltipText !== label ? (
-        <span id={descriptionId} className="sr-only">
+        <span id={descriptionId} hidden>
           {tooltipText}
         </span>
       ) : null}

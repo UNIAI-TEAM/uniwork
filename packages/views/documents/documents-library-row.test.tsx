@@ -154,6 +154,24 @@ describe("access column", () => {
     const line = document.querySelector('[data-library-row="c"] [data-library-access-line]')!;
     expect(line.textContent).not.toMatch(/Bạn:/);
   });
+
+  it("keeps the scope tooltip out of the name button's accessible name while it still describes the badge (R3-03)", () => {
+    renderList([
+      doc("a", "Kế hoạch Q4", {
+        share_scope: { users: 2, home_workspace: true, workspaces: 0, organization: false, public_link: false },
+      }),
+    ]);
+
+    const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
+    const nameButton = within(row).getAllByRole("button")[0]!;
+    expect(nameButton).toHaveAccessibleName(/Kế hoạch Q4/);
+    expect(nameButton).not.toHaveAccessibleName(/Workspace · 2 người/);
+
+    const badge = within(row).getAllByTestId("document-share-scope-badge")[0]!;
+    const descId = badge.getAttribute("aria-describedby");
+    expect(descId).toBeTruthy();
+    expect(document.getElementById(descId!)?.textContent).toBe("Workspace · 2 người");
+  });
 });
 
 describe("size column", () => {
