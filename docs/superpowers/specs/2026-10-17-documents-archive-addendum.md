@@ -17,7 +17,7 @@ Chữ hiển thị vẫn là "Lưu trữ" / "Archive" (vi/en), chỉ ở i18n.
 
 ## 1. Mô hình
 
-- Migration `9991792100200005_documents_shelved` (số tiền tố lấy lại lúc code: số kế tiếp còn trống trên root) (ALTER, 4 cột NULL, CHECK: bốn cột cùng NULL hoặc cùng có giá trị; `shelved_by_kind IN ('human','agent','system')`). Index (nếu cần cho danh sách Lưu trữ): `CREATE INDEX CONCURRENTLY idx_documents_shelved` trên `(workspace_id, shelved_at DESC, id DESC) WHERE shelved_at IS NOT NULL AND archived_at IS NULL AND owner_id IS NULL`, file riêng `...0006`.
+- Migration `9991792262447467_documents_shelved` (số tiền tố lấy lại lúc code: số kế tiếp còn trống trên root, sau mọi tiền tố BIGUP-S1) (ALTER, 4 cột NULL, CHECK: bốn cột cùng NULL hoặc cùng có giá trị; `shelved_by_kind IN ('human','agent','system')`). Index (nếu cần cho danh sách Lưu trữ): `CREATE INDEX CONCURRENTLY idx_documents_shelved` trên `(workspace_id, shelved_at DESC, id DESC) WHERE shelved_at IS NOT NULL AND archived_at IS NULL AND owner_id IS NULL`, file riêng `9991792262447468_documents_shelved_idx`.
 - Một tài liệu có thể vừa `shelved` vừa vào Thùng rác: chuyển vào thùng rác một mục đã lưu trữ được phép (quản lý); khôi phục từ thùng rác trả về đúng trạng thái `shelved` cũ. `shelved` không bao giờ bị purge, cũng không có `purge_after`.
 - My Folder không lưu trữ được (`my_folder_locked`); mục BÊN TRONG My Folder thì được.
 
