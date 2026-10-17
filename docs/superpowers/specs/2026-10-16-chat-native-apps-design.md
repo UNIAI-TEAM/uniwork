@@ -143,8 +143,9 @@ provider của §3.2 đã đủ chỗ cắm; việc mới là CORS cho scheme ri
   15s / TTL 90s) có nhịp trong 120 giây gần nhất. Presence là theo người, không theo thiết
   bị; app mobile ở foreground cũng đập nhịp, khi đó push không cần thiết nên rule không
   làm mất gì. Chỉ nhịp mang `visible: true` mới chặn push (lát N2 §3.5): web gửi
-  `document.visibilityState === "visible"`, mobile gửi `AppState === "active"`; nhịp thiếu
-  `visible` coi là ẩn.
+  `document.visibilityState === "visible"`, host desktop gửi focus của cửa sổ shell
+  (`useHostFocus`/`isHostFocused`) vì `visibilityState` của Electron không đổi khi cửa sổ
+  mất focus, mobile gửi `AppState === "active"`; nhịp thiếu `visible` coi là ẩn.
 
 ### 3.5 Gọi thoại/video
 
