@@ -901,9 +901,14 @@
         "numeric": [],
         "structural": [
           {
-            "kind": "count",
-            "anchor": "page_setup_operations",
-            "value": 2
+            "kind": "config_op",
+            "anchor": "set_page_setup",
+            "value": "Doanh thu Q1|printArea=A1:G7"
+          },
+          {
+            "kind": "config_op",
+            "anchor": "set_freeze",
+            "value": "Doanh thu Q1|rows=1,columns=0"
           }
         ],
         "writes": 1,
@@ -911,15 +916,20 @@
       },
       "oracle": {
         "type": "deterministic",
-        "source": "User decision 2026-10-17 21:05 UTC+7: the product supports both through propose_operations (harness op write_range): set_page_setup with printArea A1:G7 (uniwork-office packages/xlsx-gateway/src/domain/workbook-dsl.ts:623-663 and 866-867) and set_freeze with rows 1, columns 0 (workbook-dsl.ts:657-663 schema, 866-867 union); tool wiring apps/sheets/src/renderer/ai/tools.ts:1271-1286. Spec 6.5 XLSX edit row: one proposal with two operations, one write, no figure to compute."
+        "source": "User decision 2026-10-17 21:05 UTC+7: the product supports both through propose_operations (harness op write_range): set_page_setup with printArea A1:G7 (uniwork-office packages/xlsx-gateway/src/domain/workbook-dsl.ts:623-663) and set_freeze with rows 1, columns 0 (workbook-dsl.ts:657-663 schema, 866-867 union); tool wiring apps/sheets/src/renderer/ai/tools.ts:1271-1286. Spec 6.5 XLSX edit row: one proposal with two operations, one write, no figure to compute. Each operation is proven from the APPLIED propose_operations arguments (config_op, review-g712-16 A2), never from new text or a self-reported count."
       },
       "referenceAnswer": {
         "numeric": {},
         "structural": [
           {
-            "kind": "count",
-            "anchor": "page_setup_operations",
-            "value": 2
+            "kind": "config_op",
+            "anchor": "set_page_setup",
+            "value": "Doanh thu Q1|printArea=A1:G7"
+          },
+          {
+            "kind": "config_op",
+            "anchor": "set_freeze",
+            "value": "Doanh thu Q1|rows=1,columns=0"
           }
         ],
         "writes": 1,
