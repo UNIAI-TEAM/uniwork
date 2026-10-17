@@ -128,7 +128,10 @@ export default function ContactsTab() {
         )}
         ListEmptyComponent={empty}
         refreshing={members.isRefetching}
-        onRefresh={() => void Promise.all([members.refetch(), deactivated.refetch(), nicknames.refetch()])}
+        onRefresh={() => {
+          // refetch() ignores `enabled`, so a pull waits for a workspace too.
+          if (wsId) void Promise.all([members.refetch(), deactivated.refetch(), nicknames.refetch()]);
+        }}
       />
     </View>
   );

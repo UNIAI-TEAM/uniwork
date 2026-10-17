@@ -77,13 +77,14 @@ export default function CallsTab() {
   const userId = useAuthStore((s) => s.user?.id ?? "");
   const logs = useInfiniteQuery({ ...callLogsOptions(wsId), enabled: !!wsId });
   const nicknames = useQuery({ ...chatNicknamesOptions(wsId), enabled: !!wsId });
-  const { isStale, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = logs;
+  const { isStale, isFetching, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = logs;
 
   // A call ended in a room since the last look shows when the tab comes back.
   useFocusEffect(
     useCallback(() => {
-      if (isStale) void refetch();
-    }, [isStale, refetch]),
+      // refetch() ignores `enabled`, so it waits for a workspace too.
+      if (wsId && isStale && !isFetching) void refetch();
+    }, [wsId, isStale, isFetching, refetch]),
   );
 
   const items = logs.data?.pages.flatMap((page) => page.call_logs) ?? [];
@@ -124,7 +125,14 @@ export default function CallsTab() {
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
         }}
-        refreshControl={<RefreshControl refreshing={logs.isRefetching && !isFetchingNextPage} onRefresh={() => void refetch()} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={logs.isRefetching && !isFetchingNextPage}
+            onRefresh={() => {
+              if (wsId) void refetch();
+            }}
+          />
+        }
         contentContainerClassName={items.length === 0 ? "flex-grow" : undefined}
       />
     </View>
