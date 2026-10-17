@@ -1,0 +1,11 @@
+$ tail -40 /tmp/restore-web.log; tail -40 /tmp/restore-server.log; true
+tail: cannot open '/tmp/restore-web.log' for reading: No such file or directory
+01:40:15.241 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+01:40:15.241 INF local storage adapter ready dir=/tmp/uniwork-uploads
+01:40:15.243 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/17 01:40:15 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+01:40:15.244 INF mail: log mode, messages are printed component=server
+01:40:15.244 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+01:40:15.244 INF uniwork ai transcript store not configured component=server
+01:40:15.793 INF mail: outbox worker started component=server tick=5s
+01:40:15.793 INF listening component=server port=18550 swagger=http://localhost:18550/swagger/index.html
