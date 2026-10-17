@@ -47,12 +47,18 @@ const CHAT_MOBILE_ONLY = {
     unsupported_message: "Tin nhắn loại này chưa xem được trên điện thoại.",
     send_queued: "Chờ có mạng để gửi",
     send_sending: "Đang gửi…",
+    unmute_notifications: "Bật thông báo",
+    unpin_conversation: "Bỏ ghim hội thoại",
+    room_info: "Thông tin cuộc trò chuyện",
   },
   en: {
     open_on_web: "Open on the web",
     unsupported_message: "This kind of message can't be shown on the phone yet.",
     send_queued: "Waiting for a connection to send",
     send_sending: "Sending…",
+    unmute_notifications: "Turn notifications on",
+    unpin_conversation: "Unpin conversation",
+    room_info: "Conversation details",
   },
 };
 

@@ -1053,7 +1053,10 @@
       "open_on_web": "Open on the web",
       "unsupported_message": "This kind of message can't be shown on the phone yet.",
       "send_queued": "Waiting for a connection to send",
-      "send_sending": "Sending…"
+      "send_sending": "Sending…",
+      "unmute_notifications": "Turn notifications on",
+      "unpin_conversation": "Unpin conversation",
+      "room_info": "Conversation details"
     }
   },
   "mobile": {

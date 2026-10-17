@@ -1053,7 +1053,10 @@
       "open_on_web": "Mở trên web",
       "unsupported_message": "Tin nhắn loại này chưa xem được trên điện thoại.",
       "send_queued": "Chờ có mạng để gửi",
-      "send_sending": "Đang gửi…"
+      "send_sending": "Đang gửi…",
+      "unmute_notifications": "Bật thông báo",
+      "unpin_conversation": "Bỏ ghim hội thoại",
+      "room_info": "Thông tin cuộc trò chuyện"
     }
   },
   "mobile": {
