@@ -681,6 +681,40 @@ describe("focused trash row", () => {
     expect(screen.queryByText(t("documents.trash.focus_further"))).toBeNull();
   });
 
+  it("keeps the further-down line in an always-present live region, empty when there is nothing to say", async () => {
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1", title: "Biên bản" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    const region = await screen.findByRole("status");
+    expect(region).toHaveTextContent(t("documents.trash.focus_further"));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.load_more") }));
+    await rowOf("Hợp đồng");
+    // The same node empties; it is not removed and re-inserted with its text.
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toBeEmptyDOMElement();
+  });
+
+  it("scrolls to and highlights a row that first appears after Load more, and leaves the keyboard on Load more", async () => {
+    // A third page exists, so the Load more button the keyboard sits on stays in the document.
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1", title: "Biên bản" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? "c3" : "c2"),
+    });
+    renderView(nav("view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    const row = await rowOf("Hợp đồng");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    expect(scrollIntoView.mock.contexts[0]).toBe(row);
+    expect(row).toHaveAttribute("data-focused", "true");
+    expect(more).toHaveFocus();
+  });
+
   it("shows no further-down line once the list is exhausted without the row", async () => {
     route({ list: () => [trashed({ id: "d2", title: "Hợp đồng" })] });
     renderView(nav("view=archived&focus=gone"));

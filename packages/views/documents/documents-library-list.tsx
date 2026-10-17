@@ -65,7 +65,7 @@ export interface DocumentsLibraryListProps {
     /** The trashed document a notification pointed at (`?focus=`); its row is highlighted and scrolled to. */
     focusId?: string | null;
     /** Claims the one-time scroll + focus for a focus id; false once it was applied. */
-    claimFocus?: (documentId: string) => boolean;
+    claimFocus?: (documentId: string) => "focus" | "reveal" | null;
   };
   /** Show the Type column (`documents.home.columns.type`) when an open folder is displayed. */
   showType?: boolean;

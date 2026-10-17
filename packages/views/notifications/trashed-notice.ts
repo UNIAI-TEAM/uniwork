@@ -9,8 +9,13 @@ export function isPurgeDate(raw: string): boolean {
   return Boolean(raw) && !Number.isNaN(new Date(raw).getTime());
 }
 
-export function purgeDate(raw: string, locale: string): string {
-  return isPurgeDate(raw) ? new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(raw)) : "";
+export function purgeDate(raw: string, locale: string, now: Date = new Date()): string {
+  if (!isPurgeDate(raw)) return "";
+  const date = new Date(raw);
+  // The year is noise inside the viewer's current year, and the inbox clamps this sentence.
+  const options: Intl.DateTimeFormatOptions =
+    date.getFullYear() === now.getFullYear() ? { day: "numeric", month: "short" } : { dateStyle: "medium" };
+  return new Intl.DateTimeFormat(locale, options).format(date);
 }
 
 /** How many other items of the batch the recipient owns; anything unreadable counts as none. */

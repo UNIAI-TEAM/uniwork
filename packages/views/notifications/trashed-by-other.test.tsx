@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Notification, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -61,6 +61,21 @@ describe("document_trashed_by_other sentence", () => {
     expect(text).not.toMatch(/16 /);
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
     expect(text).not.toMatch(/2026-11|T17|Z$|\{\{/);
+  });
+
+  it("leaves the year off a date in the viewer's current year and keeps it for another year", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-17T03:00:00Z"));
+      expect(sentence(trashed())).not.toMatch(/2026/);
+      expect(sentence(trashed({ date: "2027-01-05T10:00:00Z" }))).toMatch(/2027/);
+      await i18n.changeLanguage("en");
+      expect(sentence(trashed())).toMatch(/Nov 17$/);
+      expect(sentence(trashed({ date: "2027-01-05T10:00:00Z" }))).toMatch(/Jan 5, 2027$/);
+    } finally {
+      vi.useRealTimers();
+      await i18n.changeLanguage("vi");
+    }
   });
 
   it("moves the date to the previous day for a viewer west of UTC", () => {

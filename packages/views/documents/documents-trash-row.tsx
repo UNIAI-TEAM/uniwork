@@ -62,15 +62,17 @@ export function TrashRowView({
   trash: TrashRowActions;
   /** The row a notification pointed at: highlighted, scrolled into view, its Khôi phục focused. */
   focused?: boolean;
-  /** True the first time a focus id is claimed; later mounts of the row (scope switch, refetch) only keep the highlight. */
-  claimFocus?: (documentId: string) => boolean;
+  /** The first time a focus id is claimed: "focus" scrolls and moves the keyboard, "reveal" only scrolls (the row came in through a Load more the user pressed). Later mounts (scope switch, refetch) get null and keep the highlight. */
+  claimFocus?: (documentId: string) => "focus" | "reveal" | null;
   onOpen: (documentId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const rowRef = useRef<HTMLTableRowElement>(null);
   useEffect(() => {
-    if (!focused || !claimFocus?.(row.id)) return;
+    const claim = focused ? claimFocus?.(row.id) : null;
+    if (!claim) return;
     rowRef.current?.scrollIntoView?.({ block: "center" });
+    if (claim === "reveal") return;
     // focusVisible: the move comes from a pointer click on a notification, which alone would hide the ring.
     rowRef.current?.querySelector<HTMLElement>("[data-trash-restore]")?.focus({ focusVisible: true } as FocusOptions);
   }, [focused, claimFocus, row.id]);

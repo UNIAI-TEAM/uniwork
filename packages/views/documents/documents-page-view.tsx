@@ -124,10 +124,12 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
   const focusId = searchParams.get("focus");
   const appliedFocus = useRef<string | null>(null);
+  // A row present on the first render takes the keyboard; one that only comes in after the user pressed Load more is scrolled to and highlighted, never focused.
+  const pagedByUser = useRef(false);
   const claimFocus = useCallback((documentId: string) => {
-    if (appliedFocus.current === documentId) return false;
+    if (appliedFocus.current === documentId) return null;
     appliedFocus.current = documentId;
-    return true;
+    return pagedByUser.current ? "reveal" : "focus";
   }, []);
 
   const urlFolderId = searchParams.get("folder") || null;
@@ -442,7 +444,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   showType={view.kind === "home" && Boolean(folderId)}
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}
-                  onLoadMore={state.loadMore}
+                  onLoadMore={() => {
+                    pagedByUser.current = true;
+                    state.loadMore();
+                  }}
                   onRetry={state.refetch}
                   onClearFilters={() => {
                     setChip("all");
@@ -451,8 +456,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   handlers={handlers}
                   empty={emptyCopy}
                 />
-                {focusId && view.kind === "archived" && !listLoading && state.hasMore && !state.rows.some((row) => row.id === focusId) ? (
-                  <p role="status" className="text-caption text-muted-foreground">{t("documents.trash.focus_further")}</p>
+                {view.kind === "archived" ? (
+                  // Always rendered so a screen reader hears the text when it appears; empty it takes no room.
+                  <p role="status" className="text-caption text-muted-foreground empty:sr-only">
+                    {focusId && !listLoading && state.hasMore && !state.rows.some((row) => row.id === focusId) ? t("documents.trash.focus_further") : null}
+                  </p>
                 ) : null}
                 {view.kind === "archived" && !listLoading && state.rows.length > 0 ? (
                   <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-caption text-muted-foreground">{t("documents.trash.note")}</p>
