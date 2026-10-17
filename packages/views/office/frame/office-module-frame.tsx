@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -17,11 +17,15 @@ import { registerLeaveGuard } from "../../navigation/leave-guard";
 import type { DesktopOpenOutcome } from "../desktop-open-action";
 import { LeaveDialog } from "../leave-dialog";
 import { SaveStatus } from "../save-status";
-import { OfficeFileActions } from "../too-large-notice";
+import { OfficeFileActions, OfficeTooLargeNotice } from "../too-large-notice";
+import { FrameLagBanner, useFrameLagBanner } from "./frame-lag-banner";
+import type { StorageAdapter } from "@uniwork/core/types/storage";
 import { DocsFrameFailure } from "./docs-frame-failure";
+import { useFrameFocus } from "./frame-focus";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
+import { FrameSaveBlockedDialog, FrameSizeWarningChip } from "./frame-size-ui";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 import { useFrameEditLock } from "./frame-edit-lock";
 import { useFrameComments } from "./use-frame-comments";
@@ -64,6 +68,12 @@ export interface OfficeModuleFrameProps {
   revealCommentId?: string | null;
   /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
   onFrameCommentsChange?: (framePanel: boolean) => void;
+  /** Stored document size in bytes, for the size-based lag banner fallback when the browser lacks a lag PerformanceObserver. */
+  fileSizeBytes?: number | null;
+  /** Injectable feature-detection seam for `PerformanceObserver` `longtask`/`event` support. */
+  hasLagObserver?: () => boolean;
+  /** Injectable StorageAdapter seam for per-document lag banner dismissal (`office.lagBanner.dismissed:<documentId>`). */
+  lagStorage?: Pick<StorageAdapter, "getItem" | "setItem">;
   className?: string;
 }
 
@@ -99,7 +109,8 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, onFrameCommentsChange, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId,
+  onFrameCommentsChange, fileSizeBytes, hasLagObserver, lagStorage, className,
 }: OfficeModuleFrameProps) {
   const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
@@ -119,6 +130,10 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
+  const lag = useFrameLagBanner({
+    iframeRef, frameOrigin, module, documentId,
+    fileSizeBytes, hasLagObserver, lagStorage,
+  });
   const frameComments = useFrameComments({ wsId, documentId, myLevel, revealCommentId });
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
@@ -133,6 +148,7 @@ export function OfficeModuleFrame({
     onSaved,
     onAppOpen: desktopOpen ? async () => (await appOpenRef.current?.()) ?? "unavailable" : undefined,
     onSavedAs: (copyId, name) => {
+      lag.rebindDocument(copyId);
       // Say a copy was made: the copy opens in place and otherwise looks like the source.
       toast.success(tRootRef.current("documents.copy.done", { title: stripExtension(name) }));
       onSavedAs?.(copyId, name);
@@ -235,27 +251,26 @@ export function OfficeModuleFrame({
     return () => { unregister(); window.removeEventListener("beforeunload", onBeforeUnload); };
   }, [dirty, failed]);
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
-  // Closing the leave dialog (Stay, Escape, the close button) hands keyboard focus back to the
-  // editor in the frame, so Ctrl+S works without a click. Returning false keeps Base UI from
-  // putting it on the page element that had it before; the frame document keeps its own
-  // active element, so focusing its window lands in the editor.
-  const unmounting = useRef(false);
-  // A layout cleanup runs before the dialog's own on unmount: a leave that navigates away has no frame to refocus.
-  useLayoutEffect(() => () => { unmounting.current = true; }, []);
-  const focusFrame = () => {
-    const iframe = iframeRef.current;
-    if (unmounting.current || !iframe?.isConnected) return true;
-    iframe.focus();
-    try { iframe.contentWindow?.focus(); } catch { /* a frame that is not same-origin keeps the iframe focus */ }
-    return false;
-  };
+  // Closing a page dialog (leave, save blocked) hands keyboard focus back to the editor in the
+  // frame, so Ctrl+S works without a click, not to the page element that had it before.
+  const { focusFrame, finalFocus } = useFrameFocus(iframeRef);
+
+  // "Continue on web" removes the button that has focus: the frame takes focus only once the
+  // banner is gone, or the browser drops focus to the body when it unmounts the button.
+  const lagOpen = lag.shouldShow(session.status === "ready");
+  const refocusAfterLag = useRef(false);
+  useEffect(() => {
+    if (lagOpen || !refocusAfterLag.current) return;
+    refocusAfterLag.current = false;
+    focusFrame();
+  }, [lagOpen, focusFrame]);
 
   // When the frame's dialog closes, the keyboard goes back into the frame, not to the page's body.
   const wasModal = useRef(false);
   useEffect(() => {
     if (wasModal.current && !session.modal) focusFrame();
     wasModal.current = session.modal;
-  }, [session.modal]);
+  }, [session.modal, focusFrame]);
 
   // Save stays reachable in the page header at every width (an icon on a phone, labelled from `sm`).
   // It is quiet while nothing is unsaved and stays in the tab order when it is.
@@ -288,11 +303,17 @@ export function OfficeModuleFrame({
 
   // The server refused the token mint because the module's flag is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
-  // Sheets (or any module with a size cap): a frame that answers its open with
-  // too_large (worksheet XML gate) tells the switch to show the too-large notice.
-  const tooLarge = (module === "sheets" || officeModuleSpec(module).maxBytes !== undefined) && session.failure?.code === "too_large";
+  // `open_refused` from the frame (or Sheets `too_large` error) replaces the frame with the refusal notice.
+  const refusalReason = lag.openRefused?.reason
+    ?? (module === "sheets" && session.failure?.code === "too_large" ? "too_large_to_open" : null);
   const refuse = useDocsFrameRefusal();
-  useEffect(() => { if (tooLarge) refuse?.(); }, [tooLarge, refuse]);
+  const resetLagAttempt = lag.resetAttempt;
+  useEffect(() => { if (session.attempt > 0) resetLagAttempt(); }, [resetLagAttempt, session.attempt]);
+  useEffect(() => { if (refusalReason) refuse?.(refusalReason); }, [refusalReason, refuse]);
+
+  if (refusalReason) {
+    return <OfficeTooLargeNotice format={officeModuleSpec(module).format} reason={refusalReason} />;
+  }
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
@@ -324,9 +345,15 @@ export function OfficeModuleFrame({
         // The page header around the frame says whether the frame's edits are saved.
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
+      <FrameLagBanner
+        open={lagOpen}
+        onOpenApp={desktopOpen && !session.viewOnly ? () => { void appOpenRef.current?.(); } : undefined}
+        onContinue={() => { refocusAfterLag.current = true; lag.dismiss(); }}
+      />
       {desktopOpen && !booting && !session.viewOnly ? (
         <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={save} requestRef={appOpenRef} />
       ) : null}
+      <FrameSizeWarningChip warning={session.sizeWarning} />
       <iframe
         key={session.attempt}
         ref={iframeRef}
@@ -363,6 +390,12 @@ export function OfficeModuleFrame({
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : null}
+      <FrameSaveBlockedDialog
+        saveBlocked={session.saveBlocked}
+        onDownload={session.downloadCopy}
+        onDismiss={session.dismissSaveBlocked}
+        finalFocus={finalFocus}
+      />
       {/*
         A Save from here may meet a newer version: the frame then shows its own conflict dialog,
         which owns the page meanwhile, so this one steps aside until the frame answers. The leave
@@ -384,7 +417,7 @@ export function OfficeModuleFrame({
         }}
         onDiscard={async () => true}
         onChoice={(choice) => { if (choice !== "stay") finishLeave(true); }}
-        finalFocus={focusFrame}
+        finalFocus={finalFocus}
       />
     </div>
   );

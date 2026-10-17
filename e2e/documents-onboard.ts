@@ -72,12 +72,12 @@ export async function signIn(page: Page, w: WorkspaceSeed) {
   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
 }
 
-/** The "Page" create card of the Documents home (it keeps today's New page flow). */
+/** The "UniNote" create card of the Documents home (it keeps the New UniNote flow). */
 export function newPageCard(page: Page) {
-  return page.getByRole("list", { name: "Tạo mới" }).getByRole("button", { name: /^Trang/ });
+  return page.getByRole("list", { name: "Tạo mới" }).getByRole("button", { name: /^UniNote/ });
 }
 
-/** New page from the library, `text` typed and confirmed saved; returns its URL. */
+/** New UniNote from the library, `text` typed and confirmed saved; returns its URL. */
 export async function createPageWithText(page: Page, w: WorkspaceSeed, text: string): Promise<string> {
   await page.goto(`/${w.orgSlug}/${w.wsSlug}/documents`);
   await newPageCard(page).click();

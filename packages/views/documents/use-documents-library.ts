@@ -124,7 +124,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   );
 
   // The server-side pair of the type chips (UNI-1868): the file chips become
-  // `format`, "Trang" keeps `kind=page`, and the access buttons become
+  // `format`, "UniNote" keeps `kind=page`, and the access buttons become
   // `access`. The trash accepts only `format` and `access=restricted` — a
   // manage/edit carried in from another tab is clamped here, and the toolbar
   // hides those options while the trash is open.
@@ -307,7 +307,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   // + cache) and the sources view keep the client predicates on every row, and
   // on a merged home they run on the source rows only — a document row there
   // is the server's answer. Recent and shared-with-me take `format`/`access`
-  // but no `kind`, so the "Trang" chip there is narrowed on the client, and
+  // but no `kind`, so the "UniNote" chip there is narrowed on the client, and
   // the empty state says "in what is loaded". A merged home counts only while
   // source rows actually merged — an empty sources answer leaves the doc list
   // fully server-filtered.

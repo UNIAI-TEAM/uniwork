@@ -14,7 +14,6 @@ export function officeFormatsTable(locale: SupportedLocale): GuideTable {
       const actions = [vi ? "Lưu, lưu thành bản mới và in" : "Save, save as and print"];
       if (spec.grant.exportPdf) actions.push(vi ? "xuất PDF" : "export PDF");
       if (spec.grant.exportHtml) actions.push(vi ? "xuất HTML" : "export HTML");
-      if (spec.maxBytes) actions.push(vi ? `tệp tối đa ${spec.maxBytes / 1024 / 1024} MiB trên web` : `up to ${spec.maxBytes / 1024 / 1024} MiB per file on the web`);
       const label = { docs: "Docs", sheets: "Sheets", slides: "Slides", pdf: "PDF", html: "HTML", markdown: "Markdown" }[module];
       return [label, `.${spec.extension}`, actions.join("; ")];
     }),

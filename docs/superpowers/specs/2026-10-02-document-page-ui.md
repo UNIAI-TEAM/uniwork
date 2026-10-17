@@ -50,7 +50,7 @@ Map vào primitives `packages/ui` và token ngữ nghĩa; CLAUDE.md thắng khi 
   `useUpdateDocument` (PATCH title) với debounce 600ms và khi blur; breadcrumb cập nhật theo. Rỗng lưu thành
   `documents.detail.untitled` hiển thị, không gửi chuỗi rỗng nếu server từ chối.
 - `Enter` ở tiêu đề → focus vào đầu nội dung; `↑`/`Backspace` ở đầu dòng nội dung đầu tiên (rỗng) → về tiêu đề.
-- Trang mới tạo (`Trang mới`): focus tiêu đề và chọn toàn bộ chữ để gõ đè.
+- UniNote mới tạo (`UniNote mới`): focus tiêu đề và chọn toàn bộ chữ để gõ đè.
 - Biểu tượng: nút ghost `Thêm biểu tượng` (icon `SmilePlus`) hiện khi hover/focus vùng tiêu đề. Bấm mở Popover lưới
   emoji nhỏ (bộ cố định ~48 emoji thường dùng, không thêm dependency picker) + `Xoá biểu tượng`. Lưu PATCH `icon`.
 - Chỉ đọc (`editable = false`): tiêu đề là `h1` thường, không có nút biểu tượng.

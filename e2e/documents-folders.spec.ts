@@ -417,7 +417,7 @@ test("FD-A03 open folder content view lists only direct children, folders first,
   await expect(contentRow(page, "An toàn kho")).toBeVisible();
   await expect(
     contentRow(page, "An toàn kho").getByRole("img", {
-      name: "Trang UniWork",
+      name: "UniNote",
     }),
   ).toBeVisible();
   await expect(contentRow(page, "Biên bản kiểm kê.docx")).toBeVisible();
