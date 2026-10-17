@@ -541,6 +541,10 @@ function applyWriteToDoc(doc, name, args, caseDoc) {
               if (rawFormula !== null) {
                 next.f = rawFormula.trim().replace(/^=+/, '');
               } else if (rawVal !== undefined && (typeof rawVal === 'number' || typeof rawVal === 'string' || typeof rawVal === 'boolean')) {
+                // A literal replacement replaces the cell's content, so the previous formula must not survive: without
+                // this, recalcSheet below would evaluate the old formula and a later read would return the pre-write
+                // result (review-g712-16 A3). A format-only write carries no value and keeps the formula.
+                next.f = null;
                 if (typeof rawVal === 'string' && rawVal.trim().endsWith('%') && Number.isFinite(Number(rawVal.trim().slice(0, -1)))) {
                   next.v = Number(rawVal.trim().slice(0, -1)) / 100;
                   next.t = 'n';
