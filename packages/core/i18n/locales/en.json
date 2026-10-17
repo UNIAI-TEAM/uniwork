@@ -5139,7 +5139,9 @@
       "document_access_approved_untitled": "{{actor}} gave you access to a document.",
       "document_access_declined": "Your request to access a document was declined.",
       "document_shared": "{{actor}} shared “{{document}}” with you ({{level}}).",
-      "document_shared_untitled": "{{actor}} shared a document with you ({{level}})."
+      "document_shared_untitled": "{{actor}} shared a document with you ({{level}}).",
+      "document_shared_nolevel": "{{actor}} shared “{{document}}” with you.",
+      "document_shared_untitled_nolevel": "{{actor}} shared a document with you."
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
