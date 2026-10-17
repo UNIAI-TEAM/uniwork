@@ -219,10 +219,9 @@ function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedVa
   }
   const b = normalizeAnchor(splitAnchor(actual).base);
   const combined = actualValue ? `${b} ${normalizeAnchor(actualValue)}` : b;
-  if (kind === 'table_cell') {
-    const primary = segs.length > 1 && /^slide\s+\d+$/i.test(segs[0]) ? segs.slice(0, 2) : [segs[0]];
-    return primary.every((seg) => combined.includes(seg));
-  }
+  // Every topic segment must appear (review-g712-16 A8): a table_cell anchor names a row AND a column, so keeping only
+  // the first segment credits a coincidentally equal value under another column. Private table identifiers
+  // ("table:1", "level_1", "paragraphs", …) are already dropped by topicSegments, so the row and the column both remain.
   return segs.every((seg) => combined.includes(seg));
 }
 
