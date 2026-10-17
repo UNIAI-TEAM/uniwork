@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1360-g5-05u-offline-library-ui; git log --oneline -3
+490a30799686ce906bee88d9ff096f8ed9736df2
+490a30799686ce906bee88d9ff096f8ed9736df2
+490a3079 chore: merge fork main d5fdf60e5 (NET-OFF-01) into the G5-05u lane branch
+faeb9650 test(shell): verify rejected copy operation never wedges the offline copies queue (G5-05u BE-R3-2)
+cf07d5af fix(shell): re-check active boundary after awaiting hasLocalWork in unpin (G5-05u BE-R3-1)
