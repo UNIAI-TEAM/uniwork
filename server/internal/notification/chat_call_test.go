@@ -10,6 +10,7 @@ import (
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -182,6 +183,45 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 		t.Fatalf("a ring past its window was pushed or left open: %+v", spy.sent)
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-5"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A phone whose device session was revoked (UNI-1838) does not ring: the
+// call push reads the same live subscriptions as every other push.
+func TestCallPushSkipsAPhoneWhoseDeviceWasRevoked(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	f.consumer.SetCallRinging(chat)
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for endpoint, family := range map[string]string{"ExponentPushToken[lost]": "family-lost", "ExponentPushToken[kept]": "family-kept"} {
+		if _, err := f.q.UpsertPushSubscription(f.ctx, db.UpsertPushSubscriptionParams{
+			ID: util.NewID(), UserID: f.member.ID, Endpoint: endpoint, SessionID: pgtype.Text{String: family, Valid: true},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// What revoking the lost phone's device session runs (service.revokeDesktopFamily).
+	if err := f.q.RevokePushSubscriptionsForSession(f.ctx, db.RevokePushSubscriptionsForSessionParams{UserID: f.member.ID, SessionID: pgtype.Text{String: "family-lost", Valid: true}}); err != nil {
+		t.Fatal(err)
+	}
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	pc.SetCallRinging(chat)
+	if err := chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-revoked", true); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.voice.invite_received")
+	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.endpoints) != 1 || spy.endpoints[0] != "ExponentPushToken[kept]" {
+		t.Fatalf("call pushed to %v, want the phone that is still signed in only", spy.endpoints)
+	}
+	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-revoked"); err != nil {
 		t.Fatal(err)
 	}
 }
