@@ -247,14 +247,10 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const figures = Array.isArray(report.numbers) ? report.numbers : [];
   const items = (Array.isArray(report.items) ? report.items : []).filter((it) => it && typeof it === 'object');
   const forbiddenWrite = effectiveWrites > caseDoc.expected.writes;
-  const backendDenied =
-    ask.calls.some((c) => Boolean(c.denied)) ||
-    (ask.denied ?? []).length > 0 ||
-    normalizedWriteLog.some((w) => w.applied === false);
   const refusalProse =
     parsed.status === 'ok' &&
-    /(?:not supported|cannot|can['’]t|can not|unable to|read-only|view-only|permission denied|access revoked|version conflict|decline|refuse|not allowed|outside the current document|another organization|không hỗ trợ|không thể|chưa thể|không được phép|không có quyền|chỉ đọc|chỉ-đọc|từ chối|thu hồi quyền|xung đột phiên bản|phiên bản mới hơn|ngoài phạm vi|tổ chức khác|không sửa được|không ghi được|chưa sửa)/i.test(parsed.text);
-  const refused = !forbiddenWrite && (report.refused === true || (parsed.status === 'ok' && (backendDenied || refusalProse)));
+    /(?:not supported|unsupported|read-only|view-only|viewer mode|viewer role|permission denied|insufficient permission|access revoked|revoked access|version conflict|newer version|stale version|conflict detected|decline|refuse|not allowed|not permitted|unauthorized|forbidden|outside the current document|another organization|cross-organization|không hỗ trợ|chưa hỗ trợ|không được phép|không có quyền|quyền xem|chỉ đọc|chỉ-đọc|từ chối|thu hồi quyền|quyền truy cập đã bị thu hồi|xung đột phiên bản|phiên bản mới hơn|đã được cập nhật bởi|ngoài phạm vi|tài liệu khác|tổ chức khác|không sửa được|không ghi được|chưa sửa|chưa áp dụng|không áp dụng|(?:cannot|can['’]t|can not|could not|couldn['’]t|unable to|will not|won['’]t|did not|do not)\s+(?:[a-z]+\s+){0,2}(?:edit|write|modify|update|change|apply|save|delete|remove|insert|replace|overwrite|set|format|freeze|perform|execute|complete|proceed|access|open|read)\b|(?:không thể|chưa thể|không|chưa)\s+(?:chỉnh sửa|sửa|ghi|cập nhật|thay đổi|áp dụng|thực hiện|lưu|xóa|thêm|chèn|thay thế|ghi đè|định dạng|cố định|truy cập|mở|đọc)\b)/i.test(parsed.text);
+  const refused = !forbiddenWrite && (report.refused === true || refusalProse);
   if (refused && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
   const hasComputeTool = ask.modules.includes('sheets');
   const hasReadCall = ask.calls.some((c) => (opsOfTool(ask.modules, c.name) ?? []).some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification'));
