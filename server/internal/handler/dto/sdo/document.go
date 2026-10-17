@@ -603,3 +603,53 @@ type MentionCandidateDTO struct {
 type MentionCandidateListSDO struct {
 	Candidates []MentionCandidateDTO `json:"candidates"`
 }
+
+// DocumentAccessBatchSDO is the 200 response of PUT /api/v1/documents/{documentID}/access
+// (SH-S2, UNI-1781).
+type DocumentAccessBatchSDO struct {
+	BatchID string                        `json:"batch_id" description:"ULID định danh lô thao tác" example:"01J8X4BAT0N1P2Q3R4S5T6U7V8"`
+	DryRun  bool                          `json:"dry_run" description:"true khi chỉ chạy thử không ghi DB" example:"false"`
+	Results []DocumentAccessItemResultSDO `json:"results" description:"Kết quả từng mục theo đúng thứ tự gửi lên"`
+	Preview DocumentAccessPreviewSDO      `json:"preview" description:"Tác động dự kiến và cảnh báo"`
+}
+
+// DocumentAccessItemResultSDO is the outcome for one item in DocumentAccessBatchSDO.
+type DocumentAccessItemResultSDO struct {
+	PrincipalType string  `json:"principal_type" enums:"user,workspace,organization" example:"user"`
+	PrincipalID   string  `json:"principal_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Action        string  `json:"action" enums:"granted,updated,revoked,kept,unchanged" example:"granted"`
+	ShareID       string  `json:"share_id,omitempty" example:"01J8X4SHR0N1P2Q3R4S5T6U7V8"`
+	Level         *string `json:"level" example:"view"`
+	PreviousLevel *string `json:"previous_level" example:"edit"`
+}
+
+// DocumentAccessPreviewSDO is the preview block of DocumentAccessBatchSDO.
+type DocumentAccessPreviewSDO struct {
+	Users    []DocumentAccessPreviewUserSDO  `json:"users"`
+	Groups   []DocumentAccessPreviewGroupSDO `json:"groups"`
+	Warnings []string                        `json:"warnings"`
+}
+
+// DocumentAccessPreviewLevelSDO is one effective level + via pair in DocumentAccessPreviewUserSDO.
+type DocumentAccessPreviewLevelSDO struct {
+	Level string `json:"level" enums:"view,comment,edit,manage" example:"view"`
+	Via   string `json:"via" example:"share"`
+}
+
+// DocumentAccessPreviewUserSDO is one user item's before/after effective standing.
+type DocumentAccessPreviewUserSDO struct {
+	UserID      string                         `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	DisplayName string                         `json:"display_name" example:"Nguyễn Văn An"`
+	Before      *DocumentAccessPreviewLevelSDO `json:"before"`
+	After       *DocumentAccessPreviewLevelSDO `json:"after"`
+}
+
+// DocumentAccessPreviewGroupSDO is one workspace/organization item's summary counts.
+type DocumentAccessPreviewGroupSDO struct {
+	PrincipalType string  `json:"principal_type" enums:"workspace,organization" example:"workspace"`
+	PrincipalID   string  `json:"principal_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	Name          string  `json:"name" example:"Kỹ thuật"`
+	Level         *string `json:"level" example:"edit"`
+	MemberCount   int     `json:"member_count" example:"12"`
+	LosingCount   int     `json:"losing_count" example:"0"`
+}

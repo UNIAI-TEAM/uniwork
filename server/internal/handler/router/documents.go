@@ -582,6 +582,16 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		status: http.StatusCreated,
 		auth:   true,
 	})
+	d.Put("/documents/{documentID}/access", h.UpdateDocumentAccess, apiOp{
+		summary: "Batch update document access with dry-run preview",
+		description: "Cấp, cập nhật, giữ nguyên (on_existing=keep) hoặc thu hồi (level=null) quyền cho 1–100 mục hỗn hợp (user, workspace, organization) trong một transaction (SH-S2, UNI-1781). " +
+			"Mục nhắm vào workspace gốc của tài liệu được ghi vào dòng Workspace gốc (visibility/workspace_level), không tạo dòng document_shares. " +
+			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB.",
+		tags: []string{"documents"},
+		sdi:  sdi.UpdateDocumentAccessSDI{},
+		sdo:  sdo.DocumentAccessBatchSDO{},
+		auth: true,
+	})
 	d.Delete("/documents/{documentID}/shares/{shareID}", h.RevokeDocumentShare, apiOp{
 		summary:     "Revoke a document share",
 		description: "Thu hồi một grant đang sống (ghi revoked_at, giữ lịch sử). Chỉ manage; share không thuộc tài liệu -> 404.",

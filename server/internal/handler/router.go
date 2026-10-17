@@ -810,6 +810,7 @@ func New(d Deps) http.Handler {
 		ListDocumentShares:         h.listDocumentShares,
 		CreateDocumentShare:        h.createDocumentShare,
 		CreateDocumentShareBatch:   h.createDocumentShareBatch,
+		UpdateDocumentAccess:       h.updateDocumentAccess,
 		RevokeDocumentShare:        h.revokeDocumentShare,
 		CreateDocumentBreakGlass:   h.createDocumentBreakGlass,
 		RevokeDocumentBreakGlass:   h.revokeDocumentBreakGlass,

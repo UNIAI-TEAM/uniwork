@@ -276,6 +276,24 @@ type ShareDocumentBatchSDI struct {
 	Level        string   `json:"level" description:"Cấp quyền, cùng tập giá trị với POST /shares" example:"view"`
 }
 
+// UpdateDocumentAccessSDI is PUT /api/v1/documents/{documentID}/access (SH-S2,
+// UNI-1781): batch grant/update/revoke/keep across users, workspaces and the
+// organization, with optional dry_run preview.
+type UpdateDocumentAccessSDI struct {
+	Items      []DocumentAccessItemSDI `json:"items" description:"1–100 mục phân quyền; trùng (principal_type, principal_id) -> 422 document_access_rejected"`
+	OnExisting string                  `json:"on_existing,omitempty" description:"update (mặc định) hoặc keep (giữ nguyên grant đang có)" example:"update"`
+	DryRun     bool                    `json:"dry_run,omitempty" description:"true = chỉ tính preview và kết quả dự kiến, không ghi DB" example:"false"`
+}
+
+// DocumentAccessItemSDI is one principal change in UpdateDocumentAccessSDI;
+// the element type is named on purpose so the isolation reference scanner sees
+// DocumentAccessItemSDI.principal_id.
+type DocumentAccessItemSDI struct {
+	PrincipalType string  `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
+	PrincipalID   string  `json:"principal_id" description:"ULID người dùng, workspace hoặc tổ chức" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Level         *string `json:"level" description:"view, comment, edit, manage hoặc null (thu hồi grant hiện tại)" example:"view"`
+}
+
 // CreateDocumentLinkSDI is POST /api/v1/documents/{documentID}/links:
 // an anonymous view link. Requires the documents.public_links entitlement and
 // the organization switch; at most five live links per document.

@@ -131,8 +131,12 @@ func validShareLevel(level DocumentLevel) error {
 // document.shared event. A share naming the document's own workspace is not a
 // grant of its own (BR-04, SH-S1 item 2): it merges into the home row.
 func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput) (db.DocumentShare, error) {
+	return applyDocumentShareWithBatch(ctx, q, actor, doc, access, in, "")
+}
+
+func applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput, batchID string) (db.DocumentShare, error) {
 	if in.PrincipalType == DocumentPrincipalWorkspace && in.PrincipalID == doc.WorkspaceID {
-		return mergeDocumentShareIntoHomeRow(ctx, q, actor, doc, access, in.Level)
+		return mergeDocumentShareIntoHomeRow(ctx, q, actor, doc, access, in.Level, batchID)
 	}
 	prev, err := q.GetDocumentShare(ctx, db.GetDocumentShareParams{
 		OrganizationID: doc.OrganizationID,
@@ -172,6 +176,14 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 	if err != nil {
 		return db.DocumentShare{}, err
 	}
+	meta := map[string]any{
+		"share_id":       sh.ID,
+		"principal_type": sh.PrincipalType,
+		"principal_id":   sh.PrincipalID,
+	}
+	if batchID != "" {
+		meta["batch_id"] = batchID
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
@@ -180,11 +192,7 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
 		Changes:        audit.Diff(before, map[string]any{"level": sh.Level}),
-		Metadata: map[string]any{
-			"share_id":       sh.ID,
-			"principal_type": sh.PrincipalType,
-			"principal_id":   sh.PrincipalID,
-		},
+		Metadata:       meta,
 	}, audit.Event{Topic: "document.shared", Payload: map[string]string{
 		"document_id":  doc.ID,
 		"workspace_id": doc.WorkspaceID,
@@ -201,7 +209,7 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 // 'workspace' at the requested level through the one home-row writer. Q-S1
 // refuses manage, and DOC-05 refuses an AdminScope-only caller the widening
 // of a restricted document, exactly as the PATCH and the self-share rule do.
-func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel) (db.DocumentShare, error) {
+func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel, batchID string) (db.DocumentShare, error) {
 	if level == DocumentLevelManage {
 		return db.DocumentShare{}, errHomeRowLevelNotAllowed()
 	}
@@ -209,7 +217,7 @@ func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Act
 		return db.DocumentShare{}, errBreakGlassRequired()
 	}
 	updated, err := writeDocumentHomeRow(ctx, q, actor, doc, documentHomeRowMove{
-		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(level),
+		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(level), BatchID: batchID,
 	})
 	if err != nil {
 		return db.DocumentShare{}, err
@@ -295,11 +303,28 @@ func (s *DocumentService) RevokeDocumentShare(ctx context.Context, actor Actor, 
 // home-row writer (document_home_row.go) both end shares through it, so a
 // merged legacy grant is retracted exactly like one revoked by hand.
 func revokeDocumentShareRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sh db.DocumentShare) error {
+	return revokeDocumentShareRowWithBatch(ctx, q, actor, doc, sh, "")
+}
+
+func revokeDocumentShareRowWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sh db.DocumentShare, batchID string) error {
 	if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 		ID: sh.ID, OrganizationID: sh.OrganizationID, WorkspaceID: sh.WorkspaceID,
 		DocumentID: sh.DocumentID, RevokedBy: nullText(actor.ID),
 	}); err != nil {
 		return err
+	}
+	meta := map[string]any{
+		"share_id":       sh.ID,
+		"principal_type": sh.PrincipalType,
+		"principal_id":   sh.PrincipalID,
+		// The prior level is replicated into the metadata the change
+		// feed reads (BE-G1-2): a removal is decided from the audit
+		// row alone, so the revoked principal and the level it held
+		// must sit together in one durable row.
+		"level": sh.Level,
+	}
+	if batchID != "" {
+		meta["batch_id"] = batchID
 	}
 	return auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
@@ -309,16 +334,7 @@ func revokeDocumentShareRow(ctx context.Context, q *db.Queries, actor Actor, doc
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
 		Changes:        audit.Diff(map[string]any{"level": sh.Level}, nil),
-		Metadata: map[string]any{
-			"share_id":       sh.ID,
-			"principal_type": sh.PrincipalType,
-			"principal_id":   sh.PrincipalID,
-			// The prior level is replicated into the metadata the change
-			// feed reads (BE-G1-2): a removal is decided from the audit
-			// row alone, so the revoked principal and the level it held
-			// must sit together in one durable row.
-			"level": sh.Level,
-		},
+		Metadata:       meta,
 	}, audit.Event{Topic: "document.share_revoked", Payload: map[string]string{
 		"document_id":  doc.ID,
 		"workspace_id": doc.WorkspaceID,
