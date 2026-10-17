@@ -209,24 +209,27 @@ func TestDocumentWorkersRunExpiresMultipartUpload(t *testing.T) {
 	}
 
 	// Push the session past expires_at, then run the real worker for one
-	// commit_intent pass on a fake clock.
+	// commit_intent pass on a fake clock. The observation hook and its
+	// channel exist before Run starts: an immediate sweep must never race
+	// the assignment, and its notification must never be lost.
 	env.clock.Advance(UploadSessionTTL + time.Hour)
 	w := env.svc.NewDocumentWorkers()
 	w.now = env.clock.Now
 	w.after = func(time.Duration) <-chan time.Time { return make(chan time.Time) }
-
-	runCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		w.Run(runCtx)
-	}()
 	swept := make(chan error, 8)
 	w.swept = func(kind string, err error) {
 		if kind == "commit_intent" {
 			swept <- err
 		}
 	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		w.Run(runCtx)
+	}()
 	select {
 	case serr := <-swept:
 		if serr != nil {

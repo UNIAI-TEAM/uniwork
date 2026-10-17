@@ -162,6 +162,7 @@ func (s *FileService) prepareMultipartUpload(
 	var owner string
 	err = s.inTx(ctx, func(q *db.Queries) error {
 		now := s.now()
+		leaseDeadline := now.Add(UploadSessionTTL + time.Hour)
 		var txErr error
 		file, txErr = s.insertIntentFile(ctx, q, spec, scope, filename, now)
 		if txErr != nil {
@@ -183,8 +184,16 @@ func (s *FileService) prepareMultipartUpload(
 		if txErr != nil {
 			return fmt.Errorf("files: record multipart session: %w", txErr)
 		}
-		owner, txErr = s.takeLease(ctx, q, sess.ID, "multipart:"+s.newID(), now.Add(UploadSessionTTL+time.Hour), now)
-		return txErr
+		owner, txErr = s.takeLease(ctx, q, sess.ID, "multipart:"+s.newID(), leaseDeadline, now)
+		if txErr != nil {
+			return txErr
+		}
+		// The intent's recovery job, written exactly like recordIntent's:
+		// due when the write lease ends. It is what finds a receiving
+		// session whose open died before the multipart row committed - the
+		// reservation has no other automatic release path - and every
+		// terminal path (staging, cancel, fail, expiry) cancels it.
+		return s.enqueueJob(ctx, q, file, fileJobReconcile, leaseDeadline)
 	})
 	if err != nil {
 		return preparedMultipartUpload{}, err
@@ -236,11 +245,6 @@ func (s *FileService) cancelMultipartFileSession(ctx context.Context, fileID, fi
 // (GC already removed it) still releases the reservation: the session cancel
 // and the pending-job void are what quota reads.
 func (s *FileService) cancelMultipartFileSessionInTx(ctx context.Context, q *db.Queries, fileID, fileSessionID string, enqueueCleanup bool) error {
-	if s.failNextMultipartCancel != nil {
-		err := s.failNextMultipartCancel
-		s.failNextMultipartCancel = nil
-		return err
-	}
 	now := s.now()
 	file, err := q.GetFileByID(ctx, fileID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -324,6 +328,16 @@ func (s *FileService) stageMultipartUploadInTx(
 		return files.Upload{}, err
 	}
 	if _, err := q.GetUploadSessionByIDForUpdate(ctx, fileSessionID); err != nil {
+		return files.Upload{}, err
+	}
+	// Staging is the reconcile job's terminal answer: void the intent-recovery
+	// job prepareMultipartUpload queued, or it would fail a file this very
+	// transaction is about to ready.
+	if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{
+		FileID:     fileID,
+		Operation:  fileJobReconcile,
+		FinishedAt: fileTime(now),
+	}); err != nil {
 		return files.Upload{}, err
 	}
 	if _, err := q.MarkUploadSessionStaged(ctx, db.MarkUploadSessionStagedParams{
@@ -1491,10 +1505,10 @@ func (s *DocumentService) failMultipartSession(
 		}
 		return errors.Join(failErr, err)
 	}
-	if err := fs.cancelMultipartFileSessionInTx(ctx, q, row.FileID, row.FileUploadSessionID, true); err != nil {
-		// Roll back first: the lock our transaction holds would otherwise
-		// block the release forever. Then release our own lease so a retry
-		// does not wait out the TTL.
+	// Roll back first: the lock our transaction holds would otherwise block
+	// the release forever. Then release our own lease so a retry does not
+	// wait out the TTL.
+	abortTx := func(cause error) error {
 		_ = tx.Rollback(context.Background())
 		relNow := s.now().UTC().Truncate(time.Microsecond)
 		_, _ = s.q.ReleaseFileMultipartUploadLease(context.Background(), db.ReleaseFileMultipartUploadLeaseParams{
@@ -1502,7 +1516,23 @@ func (s *DocumentService) failMultipartSession(
 			LeaseOwner: leaseOwner,
 			Now:        pgtype.Timestamptz{Time: relNow, Valid: true},
 		})
-		return errors.Join(failErr, fmt.Errorf("cancel upload session: %w", err))
+		return errors.Join(failErr, cause)
+	}
+
+	// Persist the assembled object's version before the cleanup job is
+	// queued: FileGC builds its locator from the file row and refuses an
+	// unversioned delete on a versioned bucket, so without this row a failed
+	// best-effort Delete would leave the object behind for good.
+	if strings.TrimSpace(objectVersion) != "" {
+		if _, err := q.SetFileObjectVersion(ctx, db.SetFileObjectVersionParams{
+			ObjectVersion: fileText(objectVersion),
+			ID:            row.FileID,
+		}); err != nil {
+			return abortTx(fmt.Errorf("record assembled version: %w", err))
+		}
+	}
+	if err := fs.cancelMultipartFileSessionInTx(ctx, q, row.FileID, row.FileUploadSessionID, true); err != nil {
+		return abortTx(fmt.Errorf("cancel upload session: %w", err))
 	}
 	if _, err := q.FailFileMultipartUpload(ctx, db.FailFileMultipartUploadParams{
 		ID:          row.ID,

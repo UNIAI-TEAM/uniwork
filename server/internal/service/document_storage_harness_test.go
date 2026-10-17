@@ -22,6 +22,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -43,6 +44,7 @@ type docStorageEnv struct {
 	fake  *filesfake.Fake // fake backend only
 	real  *FileService    // real backends only
 	store *switchStore    // real backends only
+	gcs   *gcStore        // set by newVersionedDocStorageEnv only
 	clock *fileTestClock  // real backends only
 }
 
@@ -96,10 +98,28 @@ func newFakeDocStorageEnv(t *testing.T) *docStorageEnv {
 func newRealDocStorageEnv(t *testing.T, backend fileBackend) *docStorageEnv {
 	t.Helper()
 	base := newFileHarness(t, backend, nil)
+	return newRealDocStorageEnvOn(t, backend, base, base.store)
+}
+
+// newVersionedDocStorageEnv is newRealDocStorageEnv behind the version-aware
+// gcStore: the local adapter can then stand in for a versioned bucket, which
+// is what the failed-upload cleanup cases need (env.gcs records the version
+// of every Delete and reports one from Stat).
+func newVersionedDocStorageEnv(t *testing.T, backend fileBackend) *docStorageEnv {
+	t.Helper()
+	base := newFileHarness(t, backend, nil)
+	gcs := &gcStore{switchStore: base.store}
+	env := newRealDocStorageEnvOn(t, backend, base, gcs)
+	env.gcs = gcs
+	return env
+}
+
+func newRealDocStorageEnvOn(t *testing.T, backend fileBackend, base *fileHarness, store storage.ObjectStore) *docStorageEnv {
+	t.Helper()
 	env := &docStorageEnv{name: backend.name, f: newDocPermFixtureOn(base.pool), store: base.store, clock: base.clock}
 	ent := NewEntitlementService(base.pool, db.New(base.pool))
 	svc, err := NewFileService(FileServiceOptions{
-		Pool: base.pool, Store: base.store, Bucket: backend.bucket, Registry: documentsOpenRegistry(t),
+		Pool: base.pool, Store: store, Bucket: backend.bucket, Registry: documentsOpenRegistry(t),
 		Signer: base.svc.signer, Quota: ent, Clock: base.clock.Now, SpoolDir: t.TempDir(),
 		ReferenceProviders: productionProviders(), GC: FileGCConfig{Mode: FileGCDestructive},
 	})

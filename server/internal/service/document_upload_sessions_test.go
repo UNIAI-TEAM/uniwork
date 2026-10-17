@@ -15,10 +15,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -1947,7 +1949,82 @@ func TestUploadSessionCompleteStaleLeaseOwnerCannotStage(t *testing.T) {
 	}
 }
 
-func TestUploadSessionFailCancelErrorLeavesRowRetryable(t *testing.T) {
+// failFileStatusUpdates makes the next UPDATE ... SET status = 'failed' on
+// files fail inside the database - the stand-in for a scoped write failure
+// after an earlier statement of the same transaction already ran. The
+// returned drop removes it early; it is dropped again at cleanup.
+func failFileStatusUpdates(t *testing.T, env *docStorageEnv) (drop func()) {
+	t.Helper()
+	ctx := context.Background()
+	exec := func(sql string) {
+		t.Helper()
+		if _, err := env.f.pool.Exec(ctx, sql); err != nil {
+			t.Fatalf("inject file-status failure: %v", err)
+		}
+	}
+	exec(`CREATE OR REPLACE FUNCTION uni_test_file_status_fail() RETURNS trigger AS $fn$
+BEGIN
+  RAISE EXCEPTION 'uni_test_file_status_fail: MarkFileFailed refused';
+END $fn$ LANGUAGE plpgsql;`)
+	exec(`CREATE TRIGGER uni_test_file_status_fail BEFORE UPDATE ON files
+  FOR EACH ROW WHEN (NEW.status = 'failed')
+  EXECUTE FUNCTION uni_test_file_status_fail();`)
+	dropped := false
+	drop = func() {
+		if dropped {
+			return
+		}
+		dropped = true
+		exec(`DROP TRIGGER IF EXISTS uni_test_file_status_fail ON files`)
+		exec(`DROP FUNCTION IF EXISTS uni_test_file_status_fail()`)
+	}
+	t.Cleanup(drop)
+	return drop
+}
+
+// listFileJobs is every job row queued for a file.
+func listFileJobs(t *testing.T, env *docStorageEnv, fileID string) []db.FileJob {
+	t.Helper()
+	jobs, err := env.f.q.ListFileJobsByFile(context.Background(), fileID)
+	if err != nil {
+		t.Fatalf("list jobs for %s: %v", fileID, err)
+	}
+	return jobs
+}
+
+func usedStorageBytes(t *testing.T, env *docStorageEnv) int64 {
+	t.Helper()
+	used, err := env.f.q.CountStorageBytesInOrganization(context.Background(), env.tn.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return used
+}
+
+func jobStatuses(jobs []db.FileJob, operation string) []string {
+	var out []string
+	for _, j := range jobs {
+		if j.Operation == operation {
+			out = append(out, j.Status)
+		}
+	}
+	return out
+}
+
+func countStatus(statuses []string, want string) int {
+	n := 0
+	for _, s := range statuses {
+		if s == want {
+			n++
+		}
+	}
+	return n
+}
+
+// A scoped SQL failure after the cancellation already changed the session
+// must reach the caller and roll the whole cancellation back; the retry then
+// releases the reservation exactly once (R2-4).
+func TestUploadSessionFailOnSQLFailureRollsBackAndRetries(t *testing.T) {
 	env := newMultipartDocEnv(t)
 	ctx := context.Background()
 	member := human(env.tn.member)
@@ -1955,40 +2032,69 @@ func TestUploadSessionFailCancelErrorLeavesRowRetryable(t *testing.T) {
 
 	seedStoragePlan(t, env, 100<<20)
 	const size = 25 << 20
-	body, probe := buildLargePDF(size, "cancel-fail")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "cancel-fail.pdf",
+	body, probe := buildLargePDF(size, "cancel-sql-fail")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "cancel-sql.pdf",
 		SizeBytes: size,
-		Probe:     probe, IdempotencyKey: "cf-1"})
+		Probe:     probe, IdempotencyKey: "csf-1"})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	parts := uploadAllParts(t, env, opened.SessionID, body[:len(body)-100]) // size mismatch at Stat
 
-	env.real.failNextMultipartCancel = errTestStorageDown
+	base, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drop := failFileStatusUpdates(t, env)
+
 	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
 	if err == nil {
-		t.Fatal("expected an error when the cleanup cancellation fails")
+		t.Fatal("expected an error when the cancellation SQL fails")
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Message != "uni_test_file_status_fail: MarkFileFailed refused" {
+		t.Fatalf("error = %v, want the injected SQL failure to reach the caller", err)
 	}
 
+	// CancelUploadSession already ran in that transaction: every row it
+	// touched must have rolled back with it.
 	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Status == "failed" || row.Status == "aborted" || row.Status == "expired" {
-		t.Fatalf("row status = %q, want non-terminal after a cleanup failure", row.Status)
+	if row.Status != "open" || row.ClosedAt.Valid {
+		t.Fatalf("multipart row = status %q closed_at %v, want open/unchanged", row.Status, row.ClosedAt)
+	}
+	if row.LeaseOwner.Valid || row.LeaseExpiresAt.Valid {
+		t.Fatalf("lease = (%v, %v), want released for the retry", row.LeaseOwner, row.LeaseExpiresAt)
+	}
+	var sessStatus, fileStatus string
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT (SELECT status FROM file_upload_sessions WHERE id = $1),
+		        (SELECT status FROM files WHERE id = $2)`,
+		base.FileUploadSessionID, base.FileID,
+	).Scan(&sessStatus, &fileStatus); err != nil {
+		t.Fatal(err)
+	}
+	if sessStatus != "receiving" || fileStatus != "pending" {
+		t.Fatalf("rolled-back rows = session %q file %q, want receiving/pending", sessStatus, fileStatus)
+	}
+	jobs := listFileJobs(t, env, base.FileID)
+	if got := jobStatuses(jobs, fileJobReconcile); len(got) != 1 || got[0] != "pending" {
+		t.Fatalf("reconcile jobs = %v, want one pending (the cancellation's void rolled back)", got)
+	}
+	if got := jobStatuses(jobs, fileJobCleanup); len(got) != 0 {
+		t.Fatalf("cleanup jobs = %v, want none while the cancellation is uncommitted", got)
+	}
+	if used := usedStorageBytes(t, env); used != size {
+		t.Fatalf("reserved bytes = %d, want %d held after the rollback", used, size)
 	}
 	if n := env.countAudit(t, audit.ActionDocumentUploadSessionAborted, opened.SessionID); n != 0 {
 		t.Fatalf("terminal audit rows = %d, want 0", n)
 	}
-	used, err := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if used != size {
-		t.Fatalf("reserved bytes = %d, want %d still held for the retry", used, size)
-	}
 
 	// Retry: the reservation releases exactly once and the row fails closed.
+	drop()
 	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
 	ce := wantCode(t, err, "upload_size_mismatch")
 	if ce.Status != http.StatusUnprocessableEntity {
@@ -2001,12 +2107,287 @@ func TestUploadSessionFailCancelErrorLeavesRowRetryable(t *testing.T) {
 	if row.Status != "failed" {
 		t.Fatalf("row status = %q, want failed after retry", row.Status)
 	}
-	used, err = env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID)
+	if used := usedStorageBytes(t, env); used != 0 {
+		t.Fatalf("reserved bytes = %d, want 0 after the retried release", used)
+	}
+	jobs = listFileJobs(t, env, base.FileID)
+	if got := jobStatuses(jobs, fileJobCleanup); len(got) != 1 || got[0] != "pending" {
+		t.Fatalf("cleanup jobs = %v, want exactly one pending", got)
+	}
+	if got := jobStatuses(jobs, fileJobReconcile); len(got) != 1 || got[0] != "canceled" {
+		t.Fatalf("reconcile jobs = %v, want the intent job canceled", got)
+	}
+
+	// A third Complete replays the stored failure and releases nothing again.
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	wantCode(t, err, "upload_size_mismatch")
+	if used := usedStorageBytes(t, env); used != 0 {
+		t.Fatalf("reserved bytes = %d after the replayed failure, want 0", used)
+	}
+	if got := jobStatuses(listFileJobs(t, env, base.FileID), fileJobCleanup); len(got) != 1 {
+		t.Fatalf("cleanup jobs = %v after the replay, want one release only", got)
+	}
+}
+
+// An open that already reserved quota and then died before its multipart row
+// committed has no discoverable session: the reconcile job written with the
+// intent is the only path that releases the reservation once the write lease
+// lapses (R2-2).
+func TestUploadSessionFailedOpenLeavesRecoverableReconcileJob(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+	realOnly(t, env)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	_, probe := buildLargePDF(size, "open-recover")
+
+	env.store.createMultipartErr = errors.New("s3 create multipart failed")
+	drop := failFileStatusUpdates(t, env)
+
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "lost-open.pdf",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "recover-1"})
+	ce := wantCode(t, err, "storage_unavailable")
+	if ce.Status != http.StatusServiceUnavailable {
+		t.Fatalf("open status = %d, want 503", ce.Status)
+	}
+	drop()
+
+	// The intent survived both failures: file, session and lease with no
+	// multipart row, and quota still reserved for it.
+	var fileID, sessStatus, leaseOwner string
+	var leaseExpires time.Time
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT f.id, s.status, COALESCE(s.lease_owner, ''), s.lease_expires_at
+		 FROM files f JOIN file_upload_sessions s ON s.file_id = f.id
+		 WHERE f.organization_id = $1`, env.tn.orgID,
+	).Scan(&fileID, &sessStatus, &leaseOwner, &leaseExpires); err != nil {
+		t.Fatalf("abandoned intent not found: %v", err)
+	}
+	if sessStatus != "receiving" || leaseOwner == "" {
+		t.Fatalf("session = %q lease %q, want a receiving session under a write lease", sessStatus, leaseOwner)
+	}
+	if !leaseExpires.After(env.clock.Now()) {
+		t.Fatalf("lease expires %s, want a live lease", leaseExpires)
+	}
+	jobs := listFileJobs(t, env, fileID)
+	if len(jobs) != 1 || jobs[0].Operation != fileJobReconcile || jobs[0].Status != "pending" {
+		t.Fatalf("jobs = %+v, want exactly one pending reconcile job", jobs)
+	}
+	if !jobs[0].NextAttemptAt.Time.Equal(leaseExpires.UTC()) {
+		t.Fatalf("reconcile due %s, want the lease deadline %s", jobs[0].NextAttemptAt.Time, leaseExpires.UTC())
+	}
+	if used := usedStorageBytes(t, env); used != size {
+		t.Fatalf("reserved bytes = %d, want %d", used, size)
+	}
+
+	// Nothing releases it while the lease runs: the collector waits.
+	if _, err := env.real.SweepFiles(ctx); err != nil {
+		t.Fatalf("sweep under a live lease: %v", err)
+	}
+	if used := usedStorageBytes(t, env); used != size {
+		t.Fatalf("reserved bytes = %d, want %d before the lease lapses", used, size)
+	}
+
+	// Past the lease deadline the reconcile job releases the reservation.
+	env.clock.Advance(UploadSessionTTL + 2*time.Hour)
+	rep, err := env.real.SweepFiles(ctx)
+	if err != nil {
+		t.Fatalf("sweep past the lease deadline: %v", err)
+	}
+	released := false
+	for _, e := range rep.Entries {
+		if e.FileID == files.FileID(fileID) && e.Operation == fileJobReconcile {
+			if e.Action != FileGCDone || e.Reason != "abandoned_intent" {
+				t.Fatalf("reconcile entry = %+v, want done/abandoned_intent", e)
+			}
+			released = true
+		}
+	}
+	if !released {
+		t.Fatalf("no reconcile entry for the abandoned intent in %+v", rep.Entries)
+	}
+	if used := usedStorageBytes(t, env); used != 0 {
+		t.Fatalf("reserved bytes = %d after the sweep, want the reservation released", used)
+	}
+	jobs = listFileJobs(t, env, fileID)
+	reconcile := jobStatuses(jobs, fileJobReconcile)
+	if countStatus(reconcile, "succeeded") != 1 {
+		t.Fatalf("reconcile jobs = %v, want the abandoned intent finished exactly once", reconcile)
+	}
+	finishCount := len(jobs)
+
+	// A second sweep releases nothing again.
+	if _, err := env.real.SweepFiles(ctx); err != nil {
+		t.Fatalf("second sweep: %v", err)
+	}
+	if used := usedStorageBytes(t, env); used != 0 {
+		t.Fatalf("reserved bytes = %d after the second sweep, want 0", used)
+	}
+	if got := len(listFileJobs(t, env, fileID)); got > finishCount {
+		t.Fatalf("job rows = %d after the second sweep, want no second release (was %d)", got, finishCount)
+	}
+}
+
+// A refusal after assembly on a versioned bucket must record the assembled
+// version on the file row before the cleanup job is queued: FileGC builds its
+// locator from that row and refuses an unversioned delete, so a failed
+// best-effort delete would otherwise keep the object forever (R2-1).
+func TestUploadSessionFailureRecordsAssembledVersionForCleanup(t *testing.T) {
+	env := newVersionedDocStorageEnv(t, localFileBackend())
+	env.store.enableMultipart(true)
+	env.svc.SetClock(env.clock.Now)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "version-cleanup")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "versioned.pdf",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "ver-1"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	parts := uploadAllParts(t, env, opened.SessionID, body[:len(body)-100]) // size mismatch at Stat
+	mpRow, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if used != 0 {
-		t.Fatalf("reserved bytes = %d, want 0 after the retried release", used)
+
+	// The bucket reports a version for the assembled object, and the direct
+	// delete after the refusal fails: only the queued cleanup job can remove it.
+	env.gcs.setVersioned(true, "ver-assembled-1")
+	env.gcs.setDelete(errTestStorageDown, false)
+
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	wantCode(t, err, "upload_size_mismatch")
+
+	file, err := env.f.q.GetFileByID(ctx, mpRow.FileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.ObjectVersion.String != "ver-assembled-1" {
+		t.Fatalf("files.object_version = %q, want the assembled version recorded before cleanup", file.ObjectVersion.String)
+	}
+	if got := env.gcs.deletedVersions(); len(got) != 0 {
+		t.Fatalf("deleted versions = %v, want none: the best-effort delete failed", got)
+	}
+
+	// The real cleanup job now deletes exactly that version and completes.
+	env.gcs.setDelete(nil, false)
+	rep, err := env.real.SweepFiles(ctx)
+	if err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if got := env.gcs.deletedVersions(); len(got) != 1 || got[0] != "ver-assembled-1" {
+		t.Fatalf("deleted versions = %v, want exactly [ver-assembled-1]", got)
+	}
+	file, err = env.f.q.GetFileByID(ctx, mpRow.FileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.Status != "deleted" {
+		t.Fatalf("file status = %q, want deleted after the cleanup", file.Status)
+	}
+	done := false
+	for _, e := range rep.Entries {
+		if e.FileID == files.FileID(mpRow.FileID) && e.Operation == fileJobCleanup {
+			if e.Action != FileGCDeleted {
+				t.Fatalf("cleanup entry = %+v, want deleted", e)
+			}
+			done = true
+		}
+	}
+	if !done {
+		t.Fatalf("no cleanup entry for the failed upload in %+v", rep.Entries)
+	}
+	if got := jobStatuses(listFileJobs(t, env, mpRow.FileID), fileJobCleanup); len(got) != 1 || got[0] != "succeeded" {
+		t.Fatalf("cleanup jobs = %v, want one succeeded", got)
+	}
+}
+
+// An abort that starts from a stale open snapshot - the row was authorized
+// before a concurrent Complete took the validating lease - must not destroy
+// that completion: the conditional claim, not the earlier read, decides
+// (R2-3).
+func TestUploadSessionAbortStaleOpenSnapshotCannotDestroyCompletion(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "stale-abort")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "stale-abort.pdf",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "stale-abort-1"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	parts := uploadAllParts(t, env, opened.SessionID, body)
+
+	// The snapshot a losing abort would carry: an authorized open row.
+	stale, err := env.svc.authorizeNonFrameUploadSession(ctx, member, opened.SessionID)
+	if err != nil {
+		t.Fatalf("authorize: %v", err)
+	}
+	if stale.Status != "open" {
+		t.Fatalf("snapshot status = %q, want open", stale.Status)
+	}
+
+	inComplete := make(chan struct{})
+	releaseComplete := make(chan struct{})
+	var once sync.Once
+	env.store.beforeComplete = func() {
+		once.Do(func() {
+			close(inComplete)
+			<-releaseComplete
+		})
+	}
+	defer func() { env.store.beforeComplete = nil }()
+
+	completeDone := make(chan error, 1)
+	go func() {
+		_, cerr := env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+		completeDone <- cerr
+	}()
+	<-inComplete
+
+	// Complete now holds the validating lease; the stale snapshot still says
+	// open, so only the conditional claim can refuse.
+	abortErr := env.svc.abortUploadSession(ctx, member, stale)
+	ce := wantCode(t, abortErr, "upload_session_busy")
+	if ce.Status != http.StatusConflict {
+		t.Fatalf("abort status = %d, want 409", ce.Status)
+	}
+	if env.store.multipartAborts != 0 {
+		t.Fatalf("multipartAborts = %d, want 0 while Complete holds the lease", env.store.multipartAborts)
+	}
+	var sessStatus string
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT status FROM file_upload_sessions WHERE id = (SELECT file_upload_session_id FROM file_multipart_uploads WHERE id = $1)`,
+		opened.SessionID,
+	).Scan(&sessStatus); err != nil {
+		t.Fatal(err)
+	}
+	if sessStatus != "receiving" {
+		t.Fatalf("file session status = %q, want receiving (cancellation untouched)", sessStatus)
+	}
+
+	// The winner finishes: the stale abort changed nothing.
+	close(releaseComplete)
+	if cerr := <-completeDone; cerr != nil {
+		t.Fatalf("complete: %v", cerr)
+	}
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "completed" {
+		t.Fatalf("row status = %q, want completed", row.Status)
 	}
 }
 
@@ -2148,6 +2529,38 @@ func TestOfficeFrameUploadSessionWrappers(t *testing.T) {
 	} {
 		if err := tc.call(); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("wrapper %s with mismatched document = %v, want ErrNotFound", tc.name, err)
+		}
+	}
+
+	// Wrong module: same user, document and tenant as the token, but the
+	// token was minted for another format. Only the wrapper's AuthorizeSave
+	// binds the module - the delegate rechecks user, document and tenant -
+	// so an old-format frame token kept driving a save (R2-6).
+	sessWrongModule := open()
+	wrongModule := claimsA
+	wrongModule.Module = OfficeFrameModuleSlides
+	for _, tc := range []struct {
+		name string
+		call func() error
+	}{
+		{"open", func() error {
+			_, err := frame.OpenUploadSession(ctx, wrongModule, docA.Document.ID, OpenUploadSessionInput{Filename: "z.pdf", SizeBytes: size, Probe: probe, IdempotencyKey: "wrap-z"})
+			return err
+		}},
+		{"get", func() error {
+			_, err := frame.GetUploadSession(ctx, wrongModule, docA.Document.ID, sessWrongModule.SessionID)
+			return err
+		}},
+		{"complete", func() error {
+			_, err := frame.CompleteUploadSession(ctx, wrongModule, docA.Document.ID, sessWrongModule.SessionID, CompleteUploadSessionInput{})
+			return err
+		}},
+		{"abort", func() error {
+			return frame.AbortUploadSession(ctx, wrongModule, docA.Document.ID, sessWrongModule.SessionID)
+		}},
+	} {
+		if err := tc.call(); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("wrapper %s with the wrong module = %v, want ErrNotFound", tc.name, err)
 		}
 	}
 
