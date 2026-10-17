@@ -74,6 +74,9 @@ describe("useDocumentLimits and document size formatting", () => {
     // 1 byte over 200 MiB must round up to 200,1 MB / 200.1 MB, never 200 MB.
     expect(formatDocumentSizeMB(200 * mib + 1, "vi", 200 * mib)).toBe("200,1 MB");
     expect(formatDocumentSizeMB(200 * mib + 1, "en", 200 * mib)).toBe("200.1 MB");
+    // 1 byte under 200 MiB in the warn band must stay below 200 MB (199,9 MB / 199.9 MB).
+    expect(formatDocumentSizeMB(200 * mib - 1, "vi", 200 * mib)).toBe("199,9 MB");
+    expect(formatDocumentSizeMB(200 * mib - 1, "en", 200 * mib)).toBe("199.9 MB");
   });
 
   it("validates file extension and size against upload_max_bytes before upload", () => {

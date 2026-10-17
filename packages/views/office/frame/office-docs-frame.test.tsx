@@ -785,4 +785,122 @@ describe("OfficeDocsFrame", () => {
     await waitFor(() => expect(chrome.hasAttribute("inert")).toBe(false));
     expect(chrome.style.filter).toBe("");
   });
+
+  describe("SIZE-W1b: size_warning chip and save_blocked dialog", () => {
+    const MIB = 1024 * 1024;
+
+    it("grants capabilities.sizeUi: true and passes limits in init and api.open", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      expect(frame.sent("request", "init")[0]?.payload).toMatchObject({
+        capabilities: { sizeUi: true },
+        limits: { max_bytes: 200 * MIB, warn_ratio: 0.9 },
+      });
+      const openId = frame.request("api.open", { fileId: "doc-1" });
+      await waitFor(() => expect(frame.answerTo(openId)?.payload).toBeDefined());
+      expect(frame.answerTo(openId)?.payload).toMatchObject({
+        file: FILE,
+        limits: { max_bytes: 200 * MIB, warn_ratio: 0.9 },
+      });
+    });
+
+    it("shows the size_warning status-bar chip once per document session with formatted {{max}} and {{size}}", async () => {
+      const { rerender } = mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      expect(screen.queryByTestId("office-size-warning-chip")).toBeNull();
+
+      await frame.event("size_warning", { bytes: Math.round(185.4 * MIB), max_bytes: 200 * MIB, warn_ratio: 0.9 });
+      const chip = await screen.findByTestId("office-size-warning-chip");
+      expect(chip).toHaveTextContent("Sắp chạm giới hạn 200 MB (đang 185,4 MB).");
+
+      // A second size_warning in the same document session stays latched to the first chip.
+      await frame.event("size_warning", { bytes: Math.round(195 * MIB), max_bytes: 200 * MIB, warn_ratio: 0.9 });
+      expect(screen.getByTestId("office-size-warning-chip")).toHaveTextContent("Sắp chạm giới hạn 200 MB (đang 185,4 MB).");
+
+      // Switching to another document resets the latch.
+      requestMock.mockImplementation((path: string) =>
+        path === "/api/v1/documents/doc-2/office/frame-token"
+          ? Promise.resolve({ ...minted("tok-doc-2"), document_id: "doc-2" })
+          : Promise.reject(new Error(`unexpected ${path}`)),
+      );
+      rerender({ documentId: "doc-2" });
+      await waitFor(() => expect(screen.queryByTestId("office-size-warning-chip")).toBeNull());
+    });
+
+    it("opens the save_blocked dialog without closing or reloading the frame or clearing the draft, and Tải bản của tôi triggers doc.download -> api.download", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      const iframeBefore = screen.getByTestId("office-docs-frame-iframe");
+
+      const clicks: string[] = [];
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+        clicks.push(this.download);
+      });
+      Object.assign(URL, { createObjectURL: vi.fn(() => "blob:my-copy"), revokeObjectURL: vi.fn() });
+
+      await frame.event("save_blocked", { bytes: 205 * MIB, max_bytes: 200 * MIB, reason: "over_max_bytes" });
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("Chưa lưu được lên UniWork");
+      expect(dialog).toHaveTextContent(
+        "Tài liệu đã vượt 200 MB. Thay đổi của bạn vẫn ở đây. Tải bản của bạn về máy rồi giảm dung lượng ảnh hoặc chia nhỏ tài liệu.",
+      );
+
+      // Frame stays ready, same iframe instance, draft stays dirty.
+      const container = document.querySelector("[data-office-docs-frame]")!;
+      expect(container).toHaveAttribute("data-state", "ready");
+      expect(container).toHaveAttribute("data-dirty", "true");
+      expect(screen.getByTestId("office-docs-frame-iframe")).toBe(iframeBefore);
+
+      // Clicking "Tải bản của tôi" sends doc.download to the frame; the frame then calls api.download.
+      fireEvent.click(screen.getByRole("button", { name: "Tải bản của tôi" }));
+      await waitFor(() => expect(frame.sent("request", "doc.download")).toHaveLength(1));
+      const dlReq = frame.sent("request", "doc.download")[0]!;
+      expect(dlReq.payload).toEqual({});
+
+      const apiDlId = frame.request("api.download", { data: new ArrayBuffer(16) });
+      await frame.respond(dlReq, { delivered: true });
+      await waitFor(() => expect(frame.answerTo(apiDlId)?.payload).toEqual({ delivered: true }));
+      expect(clicks).toEqual(["Plan (bản của tôi).docx"]);
+
+      // Closing the dialog leaves the frame open and dirty.
+      fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(container).toHaveAttribute("data-state", "ready");
+      expect(container).toHaveAttribute("data-dirty", "true");
+      expect(screen.getByTestId("office-docs-frame-iframe")).toBe(iframeBefore);
+    });
+
+    it("opens the same save_blocked dialog with {{max}} from fields.max_bytes when api.save or api.saveAs returns 413 file_too_large", async () => {
+      const save = vi.fn(async () => {
+        throw new ApiError("file exceeds limit", "file_too_large", 413, undefined, { max_bytes: 150 * MIB });
+      });
+      const saveAs = vi.fn(async () => {
+        throw new ApiError("copy exceeds limit", "file_too_large", 413, undefined, { max_bytes: 120 * MIB });
+      });
+      mount({}, fakeApi({ save, saveAs }));
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+
+      const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(8), etag: "e1" });
+      await waitFor(() => expect(frame.answerTo(saveId)?.error?.code).toBe("too_large"));
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("Chưa lưu được lên UniWork");
+      expect(dialog).toHaveTextContent("Tài liệu đã vượt 150 MB.");
+      expect(toastError).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+      const saveAsId = frame.request("api.saveAs", { name: "Copy.docx", data: new ArrayBuffer(8) });
+      await waitFor(() => expect(frame.answerTo(saveAsId)?.error?.code).toBe("too_large"));
+      const dialog2 = await screen.findByRole("dialog");
+      expect(dialog2).toHaveTextContent("Tài liệu đã vượt 120 MB.");
+      expect(toastError).not.toHaveBeenCalled();
+    });
+  });
 });

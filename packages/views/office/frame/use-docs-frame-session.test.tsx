@@ -17,10 +17,11 @@ const minted = (canEdit = true) => ({
 });
 
 /** A frame on the other side of the wire: records what the host posts, posts back as the iframe's window. */
-function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, uploadMaxBytes }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; uploadMaxBytes?: number } = {}) {
+function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, uploadMaxBytes, configPromise }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; uploadMaxBytes?: number; configPromise?: Promise<unknown> } = {}) {
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
     if (String(path).startsWith("/api/v1/config")) {
+      if (configPromise) return configPromise;
       return Promise.resolve(uploadMaxBytes !== undefined ? { flags: {}, documents: { limits: { upload_max_bytes: uploadMaxBytes } } } : { flags: {} });
     }
     return Promise.reject(new Error(`unexpected ${path}`));
@@ -501,5 +502,44 @@ describe("useDocsFrameSession: api.download", () => {
     const id = frame.request("api.download", { data: "not bytes" });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("malformed"));
     expect(clicks).toHaveLength(0);
+  });
+
+  it("enforces the exact downloadMaxBytes ceiling sent in init even if config resolves after init (N1)", async () => {
+    let resolveConfig!: (val: unknown) => void;
+    const configPromise = new Promise((r) => { resolveConfig = r; });
+    const frame = setup({ configPromise });
+    await frame.boot();
+    const initCeiling = frameDownloadMaxBytes(200 * 1024 * 1024);
+    expect((frame.sent("init")[0]?.payload as { downloadMaxBytes?: number }).downloadMaxBytes).toBe(initCeiling);
+
+    // Config arrives after init with a higher 300 MiB upload_max_bytes.
+    await act(async () => {
+      resolveConfig({ flags: {}, documents: { limits: { upload_max_bytes: 300 * 1024 * 1024, save_warn_ratio: 0.9 } } });
+    });
+    await waitFor(() => expect(frame.client.getQueryData(["public-config"])).toBeDefined());
+
+    // api.download must still enforce the ceiling sent in init (264 MiB), not 364 MiB.
+    const fakeOversize = { byteLength: initCeiling + 1 };
+    Object.setPrototypeOf(fakeOversize, ArrayBuffer.prototype);
+    const id = frame.request("api.download", { data: fakeOversize });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("too_large"));
+    expect(frame.answerTo(id)?.error?.details).toEqual({ maxBytes: initCeiling });
+  });
+
+  it("includes limits and capabilities.sizeUi: true on init and api.open across modules", async () => {
+    const open = vi.fn(async () => ({ file: FILE, source: { kind: "bytes" as const, data: new ArrayBuffer(4) } }));
+    const frame = setup({ module: "sheets", uploadMaxBytes: 100 * 1024 * 1024, api: { open } });
+    await waitFor(() => expect(frame.client.getQueryData(["public-config"])).toBeDefined());
+    await frame.boot();
+    expect(frame.sent("init")[0]?.payload).toMatchObject({
+      capabilities: { sizeUi: true },
+      limits: { max_bytes: 100 * 1024 * 1024, warn_ratio: 0.9 },
+    });
+    const openId = frame.request("api.open", { fileId: "doc-1" });
+    await waitFor(() => expect(frame.answerTo(openId)?.payload).toBeDefined());
+    expect(frame.answerTo(openId)?.payload).toMatchObject({
+      file: FILE,
+      limits: { max_bytes: 100 * 1024 * 1024, warn_ratio: 0.9 },
+    });
   });
 });

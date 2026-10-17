@@ -63,6 +63,9 @@ export function formatDocumentSizeMB(bytes: number, locale?: string, maxBytes?: 
   if (maxBytes !== undefined && safeBytes > maxBytes) {
     const maxTenths = Math.round((maxBytes / MIB) * 10);
     tenths = Math.max(Math.ceil((safeBytes / MIB) * 10), maxTenths + 1);
+  } else if (maxBytes !== undefined && safeBytes > 0 && safeBytes < maxBytes) {
+    const maxTenths = Math.round((maxBytes / MIB) * 10);
+    tenths = Math.min(Math.round((safeBytes / MIB) * 10), Math.max(0, maxTenths - 1));
   } else {
     tenths = Math.round((safeBytes / MIB) * 10);
   }
