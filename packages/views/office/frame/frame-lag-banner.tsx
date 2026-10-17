@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { FileExclamationPoint } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentLimits } from "@uniwork/core/documents/limits";
@@ -10,7 +10,6 @@ import {
   shouldShowSizeFallbackLagBanner,
   supportsLagPerformanceObserver,
 } from "@uniwork/core/office";
-import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import {
   parseEnvelope,
   type OfficeModule,
@@ -27,14 +26,12 @@ export interface UseFrameLagBannerOptions {
   frameOrigin: string;
   module: OfficeModule;
   documentId: string;
-  api: DocsFrameApi;
   fileSizeBytes?: number | null;
   hasLagObserver?: () => boolean;
   lagStorage?: Pick<StorageAdapter, "getItem" | "setItem">;
 }
 
 export interface FrameLagBannerController {
-  api: DocsFrameApi;
   openRefused: OpenRefusedPayload | null;
   shouldShow: (ready: boolean) => boolean;
   dismiss: () => void;
@@ -52,7 +49,6 @@ export function useFrameLagBanner({
   frameOrigin,
   module,
   documentId,
-  api,
   fileSizeBytes,
   hasLagObserver = supportsLagPerformanceObserver,
   lagStorage = defaultStorage,
@@ -62,7 +58,6 @@ export function useFrameLagBanner({
   const [activeDocId, setActiveDocId] = useState(documentId);
   const [lagTriggered, setLagTriggered] = useState(false);
   const [dismissedInMemory, setDismissedInMemory] = useState(() => isLagBannerDismissed(documentId, lagStorage));
-  const [openedSizeBytes, setOpenedSizeBytes] = useState<number | null>(null);
   const [openRefused, setOpenRefused] = useState<OpenRefusedPayload | null>(null);
 
   const latest = useRef({ activeDocId, lagStorage });
@@ -73,7 +68,6 @@ export function useFrameLagBanner({
     setActiveDocId(documentId);
     setLagTriggered(false);
     setDismissedInMemory(isLagBannerDismissed(documentId, latest.current.lagStorage));
-    setOpenedSizeBytes(null);
     setOpenRefused(null);
   }, [documentId]);
 
@@ -97,33 +91,14 @@ export function useFrameLagBanner({
     return () => window.removeEventListener("message", onMessage);
   }, [frameOrigin, iframeRef]);
 
-  // Wrap `api.open` so the stored file size is captured even when `fileSizeBytes` prop is omitted.
-  const wrappedApi = useMemo<DocsFrameApi>(() => {
-    const open: DocsFrameApi["open"] = async (payload, call) => {
-      const result = await api.open(payload, call);
-      if (typeof result?.file?.sizeBytes === "number") {
-        setOpenedSizeBytes(result.file.sizeBytes);
-      }
-      return result;
-    };
-    return new Proxy(api, {
-      get(target, prop, receiver) {
-        if (prop === "open") return open;
-        return Reflect.get(target, prop, receiver);
-      },
-    });
-  }, [api]);
-
-  const effectiveSizeBytes = fileSizeBytes ?? openedSizeBytes;
   const dismissed = dismissedInMemory || isLagBannerDismissed(activeDocId, lagStorage);
 
   const shouldShow = (ready: boolean): boolean => {
-    if (dismissed) return false;
+    if (!ready || dismissed) return false;
     if (lagTriggered) return true;
-    if (!ready) return false;
     return shouldShowSizeFallbackLagBanner({
       format,
-      sizeBytes: effectiveSizeBytes,
+      sizeBytes: fileSizeBytes,
       webOpen,
       hasObserver: hasLagObserver(),
     });
@@ -143,12 +118,10 @@ export function useFrameLagBanner({
 
   const resetAttempt = useCallback(() => {
     setLagTriggered(false);
-    setOpenedSizeBytes(null);
     setOpenRefused(null);
   }, []);
 
   return {
-    api: wrappedApi,
     openRefused,
     shouldShow,
     dismiss,
@@ -167,7 +140,7 @@ export function FrameLagBanner({
   onContinue: () => void;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.lag_banner" });
-  if (!open) return null;
+  if (!open || !onOpenApp) return null;
   return (
     <div data-testid="office-lag-banner">
       <Notice
@@ -176,11 +149,9 @@ export function FrameLagBanner({
         layout="strip"
         action={(
           <div className="flex flex-wrap items-center gap-2">
-            {onOpenApp ? (
-              <Button type="button" size="xs" variant="default" onClick={onOpenApp}>
-                {t("open_app")}
-              </Button>
-            ) : null}
+            <Button type="button" size="xs" variant="default" onClick={onOpenApp}>
+              {t("open_app")}
+            </Button>
             <Button type="button" size="xs" variant="ghost" onClick={onContinue}>
               {t("continue")}
             </Button>

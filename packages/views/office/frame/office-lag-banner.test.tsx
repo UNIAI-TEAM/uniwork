@@ -19,15 +19,8 @@ import { OfficeModuleFrame, type OfficeModuleFrameControls } from "./office-modu
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const minted = {
-  token: "tok-1",
-  token_type: "Bearer",
-  expires_at: new Date(Date.now() + 600_000).toISOString(),
-  expires_in: 600,
-  document_id: "doc-1",
-  workspace_id: "ws-1",
-  organization_id: "org-1",
-  can_edit: true,
-  module: "docs",
+  token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(),
+  expires_in: 600, document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: true, module: "docs",
 };
 
 function memoryStorage(): StorageAdapter {
@@ -48,33 +41,20 @@ interface MountOptions {
   fileSizeBytes?: number | null;
   hasLagObserver?: () => boolean;
   lagStorage?: Pick<StorageAdapter, "getItem" | "setItem">;
-  refuse?: () => void;
+  refuse?: (reason?: string) => void;
   controlsRef?: { current: OfficeModuleFrameControls | null };
   onDownload?: () => Promise<void>;
 }
 
 function mountLagFrame(module: OfficeModule = "docs", options: MountOptions = {}) {
   const {
-    documentId = "doc-1",
-    canEdit = true,
-    readonly = false,
-    desktopOpen,
-    fileActions = false,
-    fileSizeBytes,
-    hasLagObserver,
-    lagStorage,
-    refuse,
-    controlsRef,
-    onDownload = vi.fn(async () => undefined),
+    documentId = "doc-1", canEdit = true, readonly = false, desktopOpen, fileActions = false,
+    fileSizeBytes, hasLagObserver, lagStorage, refuse, controlsRef, onDownload = vi.fn(async () => undefined),
   } = options;
-  const mintPath = `/api/v1/documents/${documentId}/office/frame-token`;
   requestMock.mockImplementation((path: string) => {
-    if (path === mintPath) {
-      return Promise.resolve({ ...minted, document_id: documentId, can_edit: canEdit, module });
-    }
-    if (path.startsWith("/api/v1/config")) {
-      return Promise.resolve({ flags: { office_engine: true }, documents: { limits: DEFAULT_DOCUMENT_LIMITS } });
-    }
+    const m = /^\/api\/v1\/documents\/([^/]+)\/office\/frame-token$/.exec(path);
+    if (m) return Promise.resolve({ ...minted, document_id: m[1]!, can_edit: canEdit, module });
+    if (path.startsWith("/api/v1/config")) return Promise.resolve({ flags: { office_engine: true }, documents: { limits: DEFAULT_DOCUMENT_LIMITS } });
     return Promise.reject(new Error(`unexpected ${path}`));
   });
   const api: DocsFrameApi = {
@@ -87,64 +67,48 @@ function mountLagFrame(module: OfficeModule = "docs", options: MountOptions = {}
       file: { fileId: documentId, name: "Report.docx", mimeType: "application/octet-stream", sizeBytes: 1024, etag: "2", writable: true },
       versionId: "v-2",
     })),
-    recents: vi.fn(),
-    saveAs: vi.fn(),
-    export: vi.fn(),
-    addAttachments: vi.fn(),
-    uploadImage: vi.fn(),
+    recents: vi.fn(), saveAs: vi.fn(), export: vi.fn(), addAttachments: vi.fn(), uploadImage: vi.fn(),
   } as unknown as DocsFrameApi;
 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const bare = (
-    <OfficeModuleFrame
-      module={module}
-      wsId="ws-1"
-      documentId={documentId}
-      title="Report"
-      frameVersion="1.0.0"
-      api={api}
-      readonly={readonly}
-      desktopOpen={desktopOpen}
-      fileSizeBytes={fileSizeBytes}
-      hasLagObserver={hasLagObserver}
-      lagStorage={lagStorage}
-      controlsRef={controlsRef}
-    />
-  );
-  const framed = fileActions ? (
-    <OfficeTooLargeProvider
-      value={{
-        desktopAction: fileActions === "download_only" ? null : <button type="button">{viLocale.office.desktop.action}</button>,
-        onDownload,
-      }}
-    >
-      {bare}
-    </OfficeTooLargeProvider>
-  ) : bare;
+  const wrap = (docId: string) => {
+    const bare = (
+      <OfficeModuleFrame
+        module={module} wsId="ws-1" documentId={docId} title="Report" frameVersion="1.0.0" api={api}
+        readonly={readonly} desktopOpen={desktopOpen} fileSizeBytes={fileSizeBytes}
+        hasLagObserver={hasLagObserver} lagStorage={lagStorage} controlsRef={controlsRef}
+      />
+    );
+    const framed = fileActions ? (
+      <OfficeTooLargeProvider
+        value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">{viLocale.office.desktop.action}</button>, onDownload }}
+      >
+        {bare}
+      </OfficeTooLargeProvider>
+    ) : bare;
+    return (
+      <QueryClientProvider client={client}>
+        <ThemeProvider defaultTheme="light" enableSystem={false}>
+          <DocsFrameRefusalContext.Provider value={refuse ?? null}>
+            <HeaderActionsSlotProvider><HeaderActionsSlot />{framed}</HeaderActionsSlotProvider>
+          </DocsFrameRefusalContext.Provider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+  };
 
-  const view = render(
-    <QueryClientProvider client={client}>
-      <ThemeProvider defaultTheme="light" enableSystem={false}>
-        <DocsFrameRefusalContext.Provider value={refuse ?? null}>
-          <HeaderActionsSlotProvider>
-            <HeaderActionsSlot />
-            {framed}
-          </HeaderActionsSlotProvider>
-        </DocsFrameRefusalContext.Provider>
-      </ThemeProvider>
-    </QueryClientProvider>,
-  );
-
+  const view = render(wrap(documentId));
   const iframe = screen.getByTestId("office-docs-frame-iframe") as HTMLIFrameElement;
   const win = iframe.contentWindow!;
   const received: Envelope[] = [];
   let seq = 0;
-  const post = (data: unknown) => act(() => {
-    window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin, source: win }));
+  const post = (data: unknown, origin = window.location.origin, source: MessageEventSource | null = win) => act(() => {
+    window.dispatchEvent(new MessageEvent("message", { data, origin, source }));
   });
   const envelope = (kind: Envelope["kind"], type: string, payload: unknown, id = `f${(seq += 1)}`): Envelope =>
     ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, payload });
 
+  vi.spyOn(win, "focus").mockImplementation(() => undefined);
   vi.spyOn(win, "postMessage").mockImplementation((message: unknown) => {
     const m = message as Envelope;
     received.push(m);
@@ -163,12 +127,14 @@ function mountLagFrame(module: OfficeModule = "docs", options: MountOptions = {}
   });
 
   return {
-    api,
-    onDownload,
+    api, iframe, win, onDownload,
+    rerenderDoc: (nextDocId: string) => view.rerender(wrap(nextDocId)),
     unmount: () => view.unmount(),
     ready: () => post(envelope("event", "ready", { protocolVersion: 1, capabilities: { save: true }, ...(module === "docs" ? {} : { module }) })),
     inits: () => received.filter((m) => m.kind === "request" && m.type === "init"),
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
+    rawEvent: (type: string, payload: unknown, origin: string, source: MessageEventSource | null) =>
+      post(envelope("event", type, payload), origin, source),
     request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
     answerTo: (id: string) => received.find((m) => m.kind === "response" && m.id === id),
   };
@@ -177,11 +143,9 @@ function mountLagFrame(module: OfficeModule = "docs", options: MountOptions = {}
 function desktopWiring(launch: FrameDesktopOpenProps["launch"] = vi.fn(async () => "launched" as const)): FrameDesktopOpenProps {
   const ticket = `ticket_${"a".repeat(40)}`;
   return {
-    deploymentId: "dep-1",
-    savedVersion: 2,
+    deploymentId: "dep-1", savedVersion: 2,
     loadInstallers: vi.fn(async () => ({ installers: [] })),
-    launch,
-    createSession: vi.fn(async () => ({ launch_ticket: ticket }) as never),
+    launch, createSession: vi.fn(async () => ({ launch_ticket: ticket }) as never),
   };
 }
 
@@ -220,7 +184,6 @@ describe("OfficeModuleFrame lag banner & open_refused notice (LAG-W1)", () => {
     const storage = memoryStorage();
     const warnBytes = DEFAULT_DOCUMENT_LIMITS.web_open.xlsx.warn_bytes;
 
-    // Under or at warn_bytes without observer -> no banner.
     const under = mountLagFrame("sheets", {
       desktopOpen: desktopWiring(),
       fileSizeBytes: warnBytes,
@@ -233,7 +196,6 @@ describe("OfficeModuleFrame lag banner & open_refused notice (LAG-W1)", () => {
     under.unmount();
     cleanup();
 
-    // Over warn_bytes without observer -> shows banner at open.
     const over = mountLagFrame("sheets", {
       desktopOpen: desktopWiring(),
       fileSizeBytes: warnBytes + 1,
@@ -282,13 +244,11 @@ describe("OfficeModuleFrame lag banner & open_refused notice (LAG-W1)", () => {
     expect(screen.queryByTestId("office-lag-banner")).toBeNull();
     expect(storage.getItem("office.lagBanner.dismissed:doc-1")).toBe("1");
 
-    // Further lag_detected in the same session stays hidden.
     await first.event("lag_detected", { reason: "longtask", worst_ms: 500, count: 5, window_ms: 120_000 });
     expect(screen.queryByTestId("office-lag-banner")).toBeNull();
     first.unmount();
     cleanup();
 
-    // New session on the same document (doc-1), even with size fallback or lag_detected -> stays dismissed.
     const second = mountLagFrame("pdf", {
       documentId: "doc-1",
       desktopOpen: desktopWiring(),
@@ -304,7 +264,6 @@ describe("OfficeModuleFrame lag banner & open_refused notice (LAG-W1)", () => {
     second.unmount();
     cleanup();
 
-    // Another document (doc-2) is not dismissed.
     const other = mountLagFrame("pdf", {
       documentId: "doc-2",
       desktopOpen: desktopWiring(),
@@ -315,6 +274,47 @@ describe("OfficeModuleFrame lag banner & open_refused notice (LAG-W1)", () => {
     await other.ready();
     await waitFor(() => expect(other.inits()).toHaveLength(1));
     expect(await screen.findByTestId("office-lag-banner")).toBeInTheDocument();
+  });
+
+  it("returns focus to the frame after clicking 'Tiếp tục trên web'", async () => {
+    const frame = mountLagFrame("docs", {
+      desktopOpen: desktopWiring(),
+      hasLagObserver: () => true,
+      lagStorage: memoryStorage(),
+    });
+    await frame.ready();
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await frame.event("lag_detected", { reason: "longtask", worst_ms: 300, count: 3, window_ms: 0 });
+    const continueBtn = await screen.findByRole("button", { name: "Tiếp tục trên web" });
+    continueBtn.focus();
+    const iframeFocus = vi.spyOn(frame.iframe, "focus");
+    const winFocus = vi.spyOn(frame.win, "focus");
+
+    fireEvent.click(continueBtn);
+    expect(screen.queryByTestId("office-lag-banner")).toBeNull();
+    expect(iframeFocus).toHaveBeenCalledTimes(1);
+    expect(winFocus).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(frame.iframe);
+  });
+
+  it("shows the lag banner only once the frame is ready so 'Mở bằng app' is never a no-op", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    const frame = mountLagFrame("docs", {
+      desktopOpen: desktopWiring(launch),
+      hasLagObserver: () => true,
+      lagStorage: memoryStorage(),
+    });
+    // lag_detected arrives while the frame is still booting (before ready/init).
+    await frame.event("lag_detected", { reason: "longtask", worst_ms: 320, count: 3, window_ms: 0 });
+    expect(screen.queryByTestId("office-lag-banner")).toBeNull();
+
+    await frame.ready();
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const banner = await screen.findByTestId("office-lag-banner");
+    expect(banner).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mở bằng app" }));
+    await waitFor(() => expect(launch).toHaveBeenCalledWith(expect.stringContaining("://open?ticket="), expect.anything()));
   });
 
   it("never blocks editing or saving while the lag banner is shown", async () => {
@@ -330,48 +330,56 @@ describe("OfficeModuleFrame lag banner & open_refused notice (LAG-W1)", () => {
     await frame.event("lag_detected", { reason: "longtask", worst_ms: 300, count: 3, window_ms: 0 });
     expect(await screen.findByTestId("office-lag-banner")).toBeInTheDocument();
 
-    // Frame-initiated api.save goes through while the banner is visible.
     await frame.event("dirty", { dirty: true });
     const saveReqId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
     await waitFor(() => expect(frame.answerTo(saveReqId)?.payload).toMatchObject({ ok: true }));
     expect(frame.api.save).toHaveBeenCalledTimes(1);
 
-    // Host-initiated save via controlsRef also succeeds while the banner stays up.
     await expect(controlsRef.current!.save()).resolves.toBe(true);
     expect(screen.getByTestId("office-lag-banner")).toBeInTheDocument();
   });
 
-  it("hides 'Mở bằng app' when the app cannot be opened (no desktopOpen or view-only user)", async () => {
-    // 1. No desktopOpen wired
+  it("hides the whole lag banner when the app cannot be opened (no desktopOpen or view-only user)", async () => {
+    const warnBytes = DEFAULT_DOCUMENT_LIMITS.web_open.xlsx.warn_bytes;
     const noDesktop = mountLagFrame("docs", {
-      hasLagObserver: () => true,
+      fileSizeBytes: DEFAULT_DOCUMENT_LIMITS.web_open.docx.warn_bytes + 1,
+      hasLagObserver: () => false,
       lagStorage: memoryStorage(),
     });
     await noDesktop.ready();
     await waitFor(() => expect(noDesktop.inits()).toHaveLength(1));
     await noDesktop.event("lag_detected", { reason: "longtask", worst_ms: 250, count: 3, window_ms: 0 });
-    expect(await screen.findByTestId("office-lag-banner")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Mở bằng app" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Tiếp tục trên web" })).toBeInTheDocument();
+    expect(screen.queryByTestId("office-lag-banner")).toBeNull();
     noDesktop.unmount();
     cleanup();
 
-    // 2. View-only user (canEdit: false) even with desktopOpen wired
     const viewOnly = mountLagFrame("sheets", {
       canEdit: false,
       desktopOpen: desktopWiring(),
-      hasLagObserver: () => true,
+      fileSizeBytes: warnBytes + 1,
+      hasLagObserver: () => false,
       lagStorage: memoryStorage(),
     });
     await viewOnly.ready();
     await waitFor(() => expect(viewOnly.inits()).toHaveLength(1));
     await viewOnly.event("lag_detected", { reason: "longtask", worst_ms: 250, count: 3, window_ms: 0 });
-    expect(await screen.findByTestId("office-lag-banner")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Mở bằng app" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Tiếp tục trên web" })).toBeInTheDocument();
+    expect(screen.queryByTestId("office-lag-banner")).toBeNull();
   });
 
-  it("replaces the frame with the refusal notice offering open-in-app and 'Tải xuống' on open_refused", async () => {
+  it.each([
+    [
+      "too_large_to_open",
+      "Tệp XLSX này quá lớn để trình duyệt mở. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+    ],
+    [
+      "engine_out_of_memory",
+      "Trình duyệt không đủ bộ nhớ để mở tệp XLSX này. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+    ],
+    [
+      "too_complex",
+      "Tệp XLSX này có quá nhiều nội dung để trình duyệt xử lý. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+    ],
+  ] as const)("replaces the frame with reason-specific refusal copy on open_refused (%s) and offers app + download", async (reason, expectedBody) => {
     const refuse = vi.fn();
     const onDownload = vi.fn(async () => undefined);
     const frame = mountLagFrame("sheets", {
@@ -385,20 +393,79 @@ describe("OfficeModuleFrame lag banner & open_refused notice (LAG-W1)", () => {
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
 
     await frame.event("open_refused", {
-      reason: "too_complex",
+      reason,
       bytes: 600_000_000,
       measure: { kind: "worksheet_xml_bytes", value: 600_000_000, limit: 500_000_000 },
     });
 
     const notice = await screen.findByTestId("office-too-large");
-    expect(refuse).toHaveBeenCalledTimes(1);
+    expect(refuse).toHaveBeenCalledWith(reason);
     expect(screen.queryByTestId("office-docs-frame-iframe")).toBeNull();
-    expect(notice).toHaveTextContent(viLocale.office.too_large.title);
+    expect(notice).toHaveTextContent("Không mở được tệp này trên web");
+    expect(notice).toHaveTextContent(expectedBody);
     expect(screen.getByRole("button", { name: viLocale.office.desktop.action })).toBeInTheDocument();
     const downloadBtn = screen.getByRole("button", { name: "Tải xuống" });
-    expect(downloadBtn).toBeInTheDocument();
-
     fireEvent.click(downloadBtn);
     await waitFor(() => expect(onDownload).toHaveBeenCalledTimes(1));
+  });
+
+  it.each([
+    [
+      "too_large_to_open",
+      "Tệp XLSX này quá lớn để trình duyệt mở. Hãy tải tệp xuống để tiếp tục làm việc.",
+    ],
+    [
+      "engine_out_of_memory",
+      "Trình duyệt không đủ bộ nhớ để mở tệp XLSX này. Hãy tải tệp xuống để tiếp tục làm việc.",
+    ],
+    [
+      "too_complex",
+      "Tệp XLSX này có quá nhiều nội dung để trình duyệt xử lý. Hãy tải tệp xuống để tiếp tục làm việc.",
+    ],
+  ] as const)("renders the download-only refusal copy on open_refused (%s) when no app action is available", async (reason, expectedBody) => {
+    const frame = mountLagFrame("sheets", {
+      fileActions: "download_only",
+      hasLagObserver: () => true,
+      lagStorage: memoryStorage(),
+    });
+    await frame.ready();
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+
+    await frame.event("open_refused", { reason });
+
+    const notice = await screen.findByTestId("office-too-large");
+    expect(notice).toHaveTextContent("Không mở được tệp này trên web");
+    expect(notice).toHaveTextContent(expectedBody);
+    expect(screen.queryByRole("button", { name: viLocale.office.desktop.action })).toBeNull();
+    expect(screen.getByRole("button", { name: "Tải xuống" })).toBeInTheDocument();
+  });
+
+  it("ignores lag_detected and open_refused messages from a foreign origin or another source and resets refusal on document change", async () => {
+    const refuse = vi.fn();
+    const frame = mountLagFrame("docs", {
+      documentId: "doc-1",
+      desktopOpen: desktopWiring(),
+      fileActions: true,
+      refuse,
+      hasLagObserver: () => true,
+      lagStorage: memoryStorage(),
+    });
+    await frame.ready();
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+
+    await frame.rawEvent("lag_detected", { reason: "longtask", worst_ms: 400, count: 3, window_ms: 0 }, "https://evil.example", frame.win);
+    await frame.rawEvent("lag_detected", { reason: "longtask", worst_ms: 400, count: 3, window_ms: 0 }, window.location.origin, window);
+    await frame.rawEvent("open_refused", { reason: "too_complex" }, "https://evil.example", frame.win);
+    await frame.rawEvent("open_refused", { reason: "too_complex" }, window.location.origin, window);
+    expect(screen.queryByTestId("office-lag-banner")).toBeNull();
+    expect(screen.queryByTestId("office-too-large")).toBeNull();
+    expect(refuse).not.toHaveBeenCalled();
+
+    await frame.event("open_refused", { reason: "too_complex" });
+    expect(await screen.findByTestId("office-too-large")).toBeInTheDocument();
+
+    frame.rerenderDoc("doc-2");
+    await waitFor(() => expect(screen.queryByTestId("office-too-large")).toBeNull());
+    expect(screen.getByTestId("office-docs-frame-iframe")).toBeInTheDocument();
   });
 });

@@ -9894,9 +9894,13 @@
       }
     },
     "too_large": {
-      "title": "Tệp quá lớn để chỉnh sửa trên web",
-      "description": "Tệp {{format}} này vượt giới hạn dung lượng của trình duyệt. Mở tệp trong ứng dụng UniWork Office trên máy tính để tiếp tục làm việc — ứng dụng không giới hạn dung lượng tệp.",
-      "description_download_only": "Tệp {{format}} này vượt giới hạn dung lượng của trình duyệt. Hãy tải tệp xuống để tiếp tục làm việc.",
+      "title": "Không mở được tệp này trên web",
+      "description": "Tệp {{format}} này quá lớn để trình duyệt mở. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "description_download_only": "Tệp {{format}} này quá lớn để trình duyệt mở. Hãy tải tệp xuống để tiếp tục làm việc.",
+      "engine_out_of_memory": "Trình duyệt không đủ bộ nhớ để mở tệp {{format}} này. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "engine_out_of_memory_download_only": "Trình duyệt không đủ bộ nhớ để mở tệp {{format}} này. Hãy tải tệp xuống để tiếp tục làm việc.",
+      "too_complex": "Tệp {{format}} này có quá nhiều nội dung để trình duyệt xử lý. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "too_complex_download_only": "Tệp {{format}} này có quá nhiều nội dung để trình duyệt xử lý. Hãy tải tệp xuống để tiếp tục làm việc.",
       "download": "Tải xuống",
       "download_failed": "Không thể tải tệp xuống. Hãy thử lại."
     },

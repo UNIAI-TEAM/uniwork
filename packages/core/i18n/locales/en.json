@@ -9900,9 +9900,13 @@
       }
     },
     "too_large": {
-      "title": "File is too large to edit on the web",
-      "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",
-      "description_download_only": "This {{format}} file exceeds the browser size limit. Download it to keep working.",
+      "title": "Can’t open this file on the web",
+      "description": "This {{format}} file is too large for the browser to open. Open it in the UniWork Office desktop app to keep working.",
+      "description_download_only": "This {{format}} file is too large for the browser to open. Download it to keep working.",
+      "engine_out_of_memory": "The browser ran out of memory opening this {{format}} file. Open it in the UniWork Office desktop app to keep working.",
+      "engine_out_of_memory_download_only": "The browser ran out of memory opening this {{format}} file. Download it to keep working.",
+      "too_complex": "This {{format}} file has more content than the browser can handle. Open it in the UniWork Office desktop app to keep working.",
+      "too_complex_download_only": "This {{format}} file has more content than the browser can handle. Download it to keep working.",
       "download": "Download",
       "download_failed": "The file could not be downloaded. Try again."
     },

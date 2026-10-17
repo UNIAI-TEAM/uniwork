@@ -265,7 +265,7 @@ describe("OfficeModuleHost", () => {
     const expectNoEditor = () => {
       expect(frame()).toBeNull();
       expect(failed()).toBeNull();
-      expect(tooLargeNotice()?.textContent).toContain("File is too large to edit on the web");
+      expect(tooLargeNotice()?.textContent).toContain("Can’t open this file on the web");
     };
 
     it("opens a workbook over 10 MiB of stored xlsx in the frame (no stored-size pre-check block) and forwards fileSizeBytes", async () => {

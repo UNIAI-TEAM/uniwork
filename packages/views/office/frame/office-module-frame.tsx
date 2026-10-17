@@ -128,7 +128,7 @@ export function OfficeModuleFrame({
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
   const lag = useFrameLagBanner({
-    iframeRef, frameOrigin, module, documentId, api: frameApi,
+    iframeRef, frameOrigin, module, documentId,
     fileSizeBytes, hasLagObserver, lagStorage,
   });
   const frameComments = useFrameComments({ wsId, documentId, myLevel, revealCommentId });
@@ -136,7 +136,7 @@ export function OfficeModuleFrame({
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, frameSrc: src, api: lag.api, module, wsId, documentId, readonly,
+    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
     comments: frameComments.binding,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
@@ -297,14 +297,15 @@ export function OfficeModuleFrame({
   // The server refused the token mint because the module's flag is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
   // `open_refused` from the frame (or Sheets `too_large` error) replaces the frame with the refusal notice.
-  const tooLarge = lag.openRefused !== null || (module === "sheets" && session.failure?.code === "too_large");
+  const refusalReason = lag.openRefused?.reason
+    ?? (module === "sheets" && session.failure?.code === "too_large" ? "too_large_to_open" : null);
   const refuse = useDocsFrameRefusal();
   const resetLagAttempt = lag.resetAttempt;
   useEffect(() => { if (session.attempt > 0) resetLagAttempt(); }, [resetLagAttempt, session.attempt]);
-  useEffect(() => { if (tooLarge) refuse?.(); }, [tooLarge, refuse]);
+  useEffect(() => { if (refusalReason) refuse?.(refusalReason); }, [refusalReason, refuse]);
 
-  if (tooLarge) {
-    return <OfficeTooLargeNotice format={officeModuleSpec(module).format} />;
+  if (refusalReason) {
+    return <OfficeTooLargeNotice format={officeModuleSpec(module).format} reason={refusalReason} />;
   }
 
   if (session.status === "failed") {
@@ -340,7 +341,7 @@ export function OfficeModuleFrame({
       <FrameLagBanner
         open={lag.shouldShow(!booting)}
         onOpenApp={desktopOpen && !session.viewOnly ? () => { void appOpenRef.current?.(); } : undefined}
-        onContinue={lag.dismiss}
+        onContinue={() => { lag.dismiss(); focusFrame(); }}
       />
       {desktopOpen && !booting && !session.viewOnly ? (
         <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={save} requestRef={appOpenRef} />

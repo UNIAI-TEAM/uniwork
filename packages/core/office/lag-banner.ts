@@ -65,7 +65,7 @@ export function shouldShowSizeFallbackLagBanner(options: {
   const { format, sizeBytes, webOpen, hasObserver } = options;
   if (hasObserver) return false;
   if (typeof sizeBytes !== "number" || !Number.isFinite(sizeBytes) || sizeBytes <= 0) return false;
-  const entry = (webOpen as Record<string, { warn_bytes?: number } | undefined>)[format];
+  const entry = format in webOpen ? webOpen[format as keyof DocumentLimits["web_open"]] : undefined;
   const warnBytes = entry?.warn_bytes;
   return typeof warnBytes === "number" && Number.isFinite(warnBytes) && sizeBytes > warnBytes;
 }
