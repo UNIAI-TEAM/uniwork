@@ -98,6 +98,9 @@ export function DocumentUploadDialog({
             return;
           }
           if (pending || isVerifying) return;
+          if (isPaused && onCancelUpload) {
+            onCancelUpload(file);
+          }
         }
         onOpenChange(next);
       }}

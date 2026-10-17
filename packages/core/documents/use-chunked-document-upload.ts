@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { defaultStorage } from "../platform";
 import { DocumentNotVerifiableError } from "../types/document";
@@ -60,12 +60,21 @@ export function useChunkedDocumentUpload(
   const qc = useQueryClient();
   const storage = opts?.storage ?? defaultStorage;
   const activeRef = useRef<ChunkedUpload | null>(null);
+  const mountedRef = useRef(true);
   const targetRef = useRef(target);
   targetRef.current = target;
   const onProgressRef = useRef(opts?.onProgress);
   onProgressRef.current = opts?.onProgress;
 
   const [progress, setProgress] = useState<ChunkedUploadProgress | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      activeRef.current?.pause();
+    };
+  }, []);
 
   const findResumable = useCallback(
     (file: File | Blob, filename?: string): ResumableUpload | null => {
@@ -101,7 +110,9 @@ export function useChunkedDocumentUpload(
         retryDelaysMs: opts?.retryDelaysMs,
         fetch: opts?.fetch,
         onProgress: (p) => {
-          setProgress(p);
+          if (mountedRef.current) {
+            setProgress(p);
+          }
           onProgressRef.current?.(p);
         },
       });
@@ -125,7 +136,7 @@ export function useChunkedDocumentUpload(
         const verified = requireVerifiableUpload(res.upload);
         return { kind: "upload", upload: verified };
       } catch (err) {
-        if (activeRef.current === upload) {
+        if (activeRef.current === upload && mountedRef.current) {
           setProgress(null);
         }
         throw err;

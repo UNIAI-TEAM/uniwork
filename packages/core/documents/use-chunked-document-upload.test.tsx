@@ -281,4 +281,66 @@ describe("useChunkedDocumentUpload", () => {
     expect(result.current.hasResumable(file)).toBe(true);
     expect(result.current.findResumable(file)?.session_id).toBe("sess-saved");
   });
+
+  it("pauses the active upload engine on unmount while preserving the resume record", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    const file = makeFile(20);
+    let part2Aborted = false;
+    let resolvePart2Started!: () => void;
+    const part2Started = new Promise<void>((r) => {
+      resolvePart2Started = r;
+    });
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url === `${API}/api/v1/workspaces/ws-1/documents/upload-sessions`) {
+        return json(
+          {
+            session_id: "sess-unmount",
+            part_size: 10,
+            total_parts: 2,
+            completed_parts: [],
+            parts: makePartUrls([1, 2]),
+            expires_at: "2099-01-02T00:00:00Z",
+          },
+          201,
+        );
+      }
+      if (method === "PUT" && url.includes("part-1")) {
+        return new Response(null, { status: 200, headers: { ETag: '"etag-1"' } });
+      }
+      if (method === "PUT" && url.includes("part-2")) {
+        resolvePart2Started();
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            part2Aborted = true;
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { result, unmount } = renderHook(
+      () => useChunkedDocumentUpload(target, { storage, fetch: fakeFetch, concurrency: 1 }),
+      { wrapper: makeWrapper(qc) },
+    );
+
+    act(() => {
+      void result.current.start({ file }).catch(() => undefined);
+    });
+
+    await part2Started;
+    unmount();
+
+    expect(part2Aborted).toBe(true);
+    expect(findResumableUpload(storage, uploadFileKey(file), target)?.session_id).toBe(
+      "sess-unmount",
+    );
+  });
 });
+

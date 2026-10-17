@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Download, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -53,12 +53,20 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
   const threshold = chunkedUploadThreshold(limits);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const mountedRef = useRef(true);
   // One key per user intent: a retry of the same pick must replay the same
   // write, not mint a second version of one upload.
   const idempotencyKey = useRef<string | null>(null);
   // The commit body carries edit_lock_id, so a key is only valid for the lock id it was minted under.
   const keyLockId = useRef<string | undefined>(undefined);
   const pending = upload.isPending || commit.isPending;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const isChunkedFile = (file: { size: number }): boolean =>
     threshold !== null && file.size > threshold;
@@ -80,7 +88,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
     } catch {
       toast.error(t("documents.file.download_failed"));
     } finally {
-      setDownloading(null);
+      if (mountedRef.current) setDownloading(null);
     }
   };
 
@@ -116,6 +124,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
         });
         uploadId = upload0.upload_id;
       }
+      if (!mountedRef.current) return;
       staged = true;
       await commit.mutateAsync({
         upload_id: uploadId,
@@ -125,8 +134,9 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
         idempotencyKey: idempotencyKey.current,
       });
       idempotencyKey.current = null;
-      setDialogOpen(false);
+      if (mountedRef.current) setDialogOpen(false);
     } catch (err) {
+      if (!mountedRef.current) return;
       if (err instanceof ChunkedUploadError && err.code === "upload_canceled") {
         return;
       }

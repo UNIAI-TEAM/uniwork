@@ -544,4 +544,153 @@ describe("Chunked document upload in views", () => {
       expect(alert).toHaveTextContent(t(`documents.errors.${code}`));
     }
   });
+
+  it("cancels the paused upload when the dialog is closed while paused so reopening starts with clean state", async () => {
+    const calls: string[] = [];
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) {
+        return {
+          flags: { documents: true },
+          documents: {
+            limits: {
+              upload_max_bytes: 200 * 1024 * 1024,
+              chunked_upload_threshold_bytes: THRESHOLD,
+              docx_max_bytes: 200 * 1024 * 1024,
+              xlsx_max_bytes: 200 * 1024 * 1024,
+              pptx_max_bytes: 200 * 1024 * 1024,
+              pdf_max_bytes: 200 * 1024 * 1024,
+            },
+          },
+        };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-pause-close",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-pause-close" && method === "DELETE") {
+        return {};
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("part-1")) {
+          return new Response(null, { status: 200, headers: { ETag: '"etag-1"' } });
+        }
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      }),
+    );
+
+    renderPageView();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    const bigFile = makePdfFile(THRESHOLD * 2, "pause-close.pdf");
+    fireEvent.change(input, { target: { files: [bigFile] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    const pauseBtn = await screen.findByRole("button", { name: t("documents.upload.pause") });
+    fireEvent.click(pauseBtn);
+    await screen.findByRole("button", { name: t("documents.upload.resume") });
+
+    // Close the dialog via the dialog header X button while paused.
+    fireEvent.click(screen.getByRole("button", { name: t("common.close") }));
+
+    await waitFor(() => {
+      expect(calls).toContain("DELETE /api/v1/upload-sessions/sess-pause-close");
+    });
+
+    // Reopen the dialog: it must not show a stuck paused state with no file.
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
+    await screen.findByLabelText(t("documents.upload.pick"));
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("documents.upload.resume") })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.upload.submit") })).toBeDisabled();
+  });
+
+  it("does not call onOpen when the view unmounts while a chunked upload is completing", async () => {
+    let resolveComplete!: () => void;
+    const completeGate = new Promise<void>((r) => {
+      resolveComplete = r;
+    });
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      if (path.startsWith("/api/v1/config")) {
+        return {
+          flags: { documents: true },
+          documents: {
+            limits: {
+              upload_max_bytes: 200 * 1024 * 1024,
+              chunked_upload_threshold_bytes: THRESHOLD,
+              docx_max_bytes: 200 * 1024 * 1024,
+              xlsx_max_bytes: 200 * 1024 * 1024,
+              pptx_max_bytes: 200 * 1024 * 1024,
+              pdf_max_bytes: 200 * 1024 * 1024,
+            },
+          },
+        };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-unmount-view",
+          part_size: THRESHOLD,
+          total_parts: 1,
+          completed_parts: [],
+          parts: makePartUrls([1]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-unmount-view/complete" && method === "POST") {
+        await completeGate;
+        return { document: createdFileDoc("d-unmount") };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 200, headers: { ETag: '"etag-1"' } })),
+    );
+
+    const onOpen = vi.fn();
+    const { unmount } = renderPageView(onOpen);
+
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    const bigFile = makePdfFile(THRESHOLD + 1024, "unmount-view.pdf");
+    fireEvent.change(input, { target: { files: [bigFile] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    await screen.findByText(t("documents.upload.checking"));
+    unmount();
+
+    await act(async () => {
+      resolveComplete();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
 });
+

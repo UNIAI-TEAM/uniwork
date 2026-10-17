@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChunkedUploadError,
@@ -38,6 +38,14 @@ export function useDocumentFileUpload({
   const { t, i18n } = useTranslation();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const createFile = useCreateDocumentFile(wsId);
   const target = useMemo(
@@ -80,6 +88,7 @@ export function useDocumentFileUpload({
     try {
       if (isChunkedFile(file)) {
         const res = await chunked.start({ file, filename: file.name });
+        if (!mountedRef.current) return;
         if (res.kind === "document") {
           setUploadOpen(false);
           onOpen(res.document.id);
@@ -90,9 +99,11 @@ export function useDocumentFileUpload({
         file,
         meta: parentId ? { parent_id: parentId } : undefined,
       });
+      if (!mountedRef.current) return;
       setUploadOpen(false);
       onOpen(doc.id);
     } catch (error) {
+      if (!mountedRef.current) return;
       if (error instanceof ChunkedUploadError && error.code === "upload_canceled") {
         return;
       }
