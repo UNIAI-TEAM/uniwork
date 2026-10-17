@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+b583b5182360a5ff73e035b82514eb092d8c8c98
+b583b5182360a5ff73e035b82514eb092d8c8c98
+b583b518 fix(shell): order My Folder first in DocumentsHome folder card grid
+d87e315e test(shell): test My Folder rendered first in DocumentsHome folder grid
+4e46940a fix(shell): open uploaded document and guard cancelled upload in DocumentsHome
