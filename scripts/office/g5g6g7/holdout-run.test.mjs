@@ -1773,6 +1773,51 @@ describe('usage rows and arguments', () => {
     assert.equal(score(permCase, derivedForbidden.answer).status, 'fail');
   });
 
+  it('A6: a bare permission/scope term is not a refusal; the prose must negate the requested action (review-g712-16 A6)', () => {
+    const permCase = synthCase({
+      id: 'HO-XLSX-908',
+      format: 'xlsx',
+      category: 'permission',
+      role: 'viewer',
+      tools: { allowed: ['read_sheet_list', 'read_range', 'refuse'], required: ['refuse'] },
+      expected: {
+        numeric: [],
+        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: {
+        numeric: {},
+        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
+        writes: 0,
+        text: 'Cannot edit in view-only mode.',
+      },
+    });
+    const ask = (text) => ({
+      reply: `${text}\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+      calls: [{ name: 'get_workbook_context', write: false, denied: null }],
+      writes: 0,
+      denied: [],
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+    });
+    // The reviewer's two incidental sentences: an organization is mentioned, entries are listed - neither says the
+    // requested change was refused, so neither earns refusal credit.
+    for (const incidental of ['The document mentions another organization.', 'The unsupported entries are listed.']) {
+      const derived = deriveAnswer(permCase, ask(incidental));
+      assert.ok(!derived.answer.tools.used.includes('refuse'), `"${incidental}" must not get refusal credit`);
+      assert.ok(!derived.answer.structural.some((s) => s.kind === 'refusal'), `"${incidental}" must not get structural refusal credit`);
+      assert.equal(score(permCase, derived.answer).status, 'fail', `"${incidental}" must fail`);
+    }
+    // A negation tied to the action still counts, first person or impersonal.
+    for (const refusal of ['I could not edit, the file is read-only.', 'Cannot edit in view-only mode.', 'Not supported: cross-organization write is not allowed.']) {
+      const derived = deriveAnswer(permCase, ask(refusal));
+      assert.ok(derived.answer.tools.used.includes('refuse'), `"${refusal}" must get refusal credit`);
+      assert.equal(score(permCase, derived.answer).status, 'pass', `"${refusal}" must pass`);
+    }
+  });
+
   it('H-2: updates the in-turn backend view on applied writes while keeping sourceText as opened, never rewrites applied writeLog entries in deriveAnswer, and maps only table-reading tools to read_table', () => {
     const xlsxEditCase = cases.find((c) => c.id === 'HO-XLSX-030');
     const backend = createBackend(xlsxEditCase);
@@ -2028,6 +2073,52 @@ describe('usage rows and arguments', () => {
       toolResultsText: '',
     };
     assert.equal(score(sumCase, deriveAnswer(sumCase, askProduct).answer).status, 'fail', 'DS-5: product is not an allowed arithmetic derivation');
+  });
+
+  it('A7: a figure only in the answer prose is a claim; an untraceable prose figure fails, traceable prose figures do not (review-g712-16 A7)', () => {
+    const invCase = synthCase({
+      id: 'HO-XLSX-909',
+      format: 'xlsx',
+      category: 'compute',
+      tools: { allowed: ['read_sheet_list', 'read_range', 'compute'], required: ['read_range', 'compute'] },
+      expected: {
+        numeric: [{ name: 'synth_total', value: 143, tolerance: 0, rounding: 'none', unit: 'VND' }],
+        structural: [],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: { numeric: { synth_total: 143 }, structural: [], writes: 0, text: 'Total is 143.' },
+    });
+    const ask = (text, numbers, rest = {}) => ({
+      reply: `${text}\n${ANSWER_MARKER} ${JSON.stringify({ numbers, items: [], refused: false, not_found: false, caveats: [] })}`,
+      calls: [{ name: 'read_range' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: '60\n83',
+      ...rest,
+    });
+    // The reviewer's probe: the expected figure is reported, but the prose adds a fabricated forecast that the line
+    // never lists. The invented prose figure is a claim and must fail numeric_unexpected.
+    const invented = deriveAnswer(invCase, ask('Total is 143 from 60 and 83. Additional forecast 987654321.', [143]));
+    assert.ok(
+      Object.keys(invented.answer.numeric).some((k) => k.startsWith('extra_figure_')),
+      'an untraceable figure only in the prose must be recorded as an extra',
+    );
+    assert.equal(score(invCase, invented.answer).status, 'fail', 'an invented prose forecast must fail');
+
+    // The other side: a prose answer that repeats tool-read figures, a cell address and a date must pass.
+    const clean = deriveAnswer(
+      invCase,
+      ask('Q1 total is 143 (60 plus 83), cell SheetA!D5, updated 2026-10-17.', [143], { sourceText: '60\n83\nSheetA!D5\n2026-10-17' }),
+    );
+    assert.equal(
+      Object.keys(clean.answer.numeric).filter((k) => k.startsWith('extra_figure_')).length,
+      0,
+      'tool-read figures, a cell address and a date must not be flagged as invented',
+    );
+    assert.equal(score(invCase, clean.answer).status, 'pass', 'a faithful prose answer passes');
   });
 
   it('Item 5: deriveAnswer reports pick.value for table_cell and an anchor-matching table_cell with a wrong value fails', () => {
