@@ -30,6 +30,11 @@ export function useDropUpload({
   // dragenter/dragleave fire for every child; count them to know when the
   // pointer really left the zone.
   const depth = useRef(0);
+  // One drop at a time. The chunked hook keeps a single active upload, so a
+  // second drop mid-upload would overwrite it and the first toast's Cancel
+  // would cancel the second upload (R2-3). Each drop waits for the previous
+  // one to settle.
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
 
   const uploadAll = async (files: File[]) => {
     let done = 0;
@@ -59,6 +64,14 @@ export function useDropUpload({
     if (done > 0) toast.success(t("documents.home.drop_done", { count: done }));
   };
 
+  const enqueueUpload = (files: File[]): Promise<void> => {
+    const next = queueRef.current.then(() => uploadAll(files));
+    // Keep the chain alive after a failed drop: `uploadAll` swallows per-file
+    // errors, but a throw of its own must not strand every later drop.
+    queueRef.current = next.catch(() => undefined);
+    return next;
+  };
+
   const zoneProps = enabled
     ? {
         onDragEnter: (event: DragEvent) => {
@@ -83,7 +96,7 @@ export function useDropUpload({
           depth.current = 0;
           setActive(false);
           const files = Array.from(event.dataTransfer.files);
-          if (files.length > 0) void uploadAll(files);
+          if (files.length > 0) void enqueueUpload(files);
         },
       }
     : {};

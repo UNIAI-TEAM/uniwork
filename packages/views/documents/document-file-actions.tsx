@@ -124,6 +124,9 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
         });
         uploadId = upload0.upload_id;
       }
+      // The user left: the finished upload is deliberately NOT committed as a
+      // version (R2-5). Nothing tells them, and nothing should — they are gone,
+      // and the next attempt resumes or re-uploads.
       if (!mountedRef.current) return;
       staged = true;
       await commit.mutateAsync({
