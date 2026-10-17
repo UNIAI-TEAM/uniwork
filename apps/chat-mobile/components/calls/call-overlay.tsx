@@ -1,10 +1,13 @@
-// The call screen (spec M3 §2): one full-screen modal over the workspace,
-// drawn from the call engine's state, so a call outlives any screen under it.
+// The call screen (spec M3 §2): one full-screen layer over the app, drawn
+// from the call engine's state, so a call outlives any screen under it.
 // Incoming: answer or decline. Ringing and connecting: hang up. Active: the
 // LiveKit room (call-room.tsx). Ended: why, then close or call again, as the
-// web's voice-call-ended-panel.tsx. Mounted once in [org]/[ws]/_layout.tsx.
+// web's voice-call-ended-panel.tsx. Mounted once in (app)/_layout.tsx. A plain
+// view, not a Modal: iOS will not present a modal over one already open (an
+// action sheet, the picker), and a call must show whatever is open.
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, View } from "react-native";
+import { BackHandler, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { Text } from "@/components/ui/text";
@@ -85,19 +88,23 @@ function CallBody({ call }: { call: Exclude<VoiceCallState, { status: "idle" }> 
 
 export function CallOverlay() {
   const call = useVoiceCall();
+  const shown = call.status !== "idle";
   useCallRingtone(ringtoneFor(call.status));
+
+  // Android's back button closes a finished call's panel; a live call stays until hung up.
+  useEffect(() => {
+    if (!shown) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      callEngine.dismissEnded();
+      return true;
+    });
+    return () => sub.remove();
+  }, [shown]);
+
   if (call.status === "idle") return null;
   return (
-    <Modal
-      visible
-      animationType="slide"
-      presentationStyle="fullScreen"
-      // Android's back button closes a finished call's panel; a live call stays until hung up.
-      onRequestClose={() => callEngine.dismissEnded()}
-    >
-      <SafeAreaView className="flex-1 bg-black" accessibilityViewIsModal>
-        <CallBody call={call} />
-      </SafeAreaView>
-    </Modal>
+    <SafeAreaView style={StyleSheet.absoluteFill} className="bg-black" accessibilityViewIsModal>
+      <CallBody call={call} />
+    </SafeAreaView>
   );
 }

@@ -1,7 +1,7 @@
 // Query options for the chat tab, mirroring the web's hooks in
 // packages/core/chat/{chat-hooks-rooms,thread-hooks}.ts as plain option
 // factories (the screens call useQuery / useInfiniteQuery with them).
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { chatApi } from "../chat-api";
 import {
   CHAT_HISTORY_PAGE_SIZE,
@@ -81,6 +81,8 @@ export const roomLinksOptions = (wsId: string, roomId: string, messageIds: reado
     queryFn: () => chatApi.listRoomMessageLinks(wsId, roomId, [...messageIds]),
     enabled: messageIds.length > 0,
     staleTime: 30_000,
+    // A new message changes the key; the cards stay while the next answer comes.
+    placeholderData: keepPreviousData,
   });
 
 export const taskOptions = (wsId: string, taskId: string) =>

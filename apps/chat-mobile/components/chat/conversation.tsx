@@ -182,9 +182,14 @@ export function Conversation(props: Props) {
           void editMessage(qc, wsId, roomId, messageId, body).catch(() => Alert.alert(t("chat.message_list.edit_failed")));
         }}
         onTyping={() => void chatApi.signalTyping(wsId, roomId).catch(() => undefined)}
-        onSendVoice={(clip) =>
-          void sendVoiceMessage(qc, wsId, roomId, { ...clip, replyToMessageId: takeReply() }).catch(() => Alert.alert(t("chat.voice_record_failed")))
-        }
+        onSendVoice={(clip) => {
+          const quote = reply;
+          // A clip is not queued like text: a failed send says so and gives the quote back.
+          void sendVoiceMessage(qc, wsId, roomId, { ...clip, replyToMessageId: takeReply() }).catch(() => {
+            setReply((current) => current ?? quote);
+            Alert.alert(t("chat.voice_record_failed"));
+          });
+        }}
         onOpenExpressions={() => setSheet("expressions")}
         onOpenReminder={() => setSheet("reminder")}
       />

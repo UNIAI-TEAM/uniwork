@@ -4,7 +4,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo } from "react";
-import { CallOverlay } from "@/components/calls/call-overlay";
 import { session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
@@ -64,8 +63,6 @@ export default function WorkspaceLayout() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
-      {/* Above every screen of the workspace, so a call survives navigation. */}
-      <CallOverlay />
     </RealtimeProvider>
   );
 }

@@ -17,9 +17,9 @@ export function useCallRealtime(wsId: string) {
 
   useEffect(() => {
     if (!userId) return;
-    callEngine.configure({ wsId, userId, allowedRoomIds: () => new Set((roomsRef.current ?? []).map((room) => room.id)) });
+    const detach = callEngine.attach({ wsId, userId, allowedRoomIds: () => new Set((roomsRef.current ?? []).map((room) => room.id)) });
     void callEngine.syncPendingInvites();
-    return () => callEngine.configure(null);
+    return detach;
   }, [wsId, userId]);
 
   useWSSubscriptions(

@@ -13,30 +13,42 @@ export interface VoiceClip {
   durationMs: number;
 }
 
+// Back to playback routing: on iOS a recording session plays through the earpiece.
+const playbackMode = () => setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+
 export function useVoiceRecorder(onClip: (clip: VoiceClip) => void) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const state = useAudioRecorderState(recorder, 250);
   const [active, setActive] = useState(false);
+  // Set while a clip records; finish() takes it, so the cap and a tap on send cannot both send it.
+  const recording = useRef(false);
   const onClipRef = useRef(onClip);
   onClipRef.current = onClip;
 
-  /** Resolves false when the person refused the microphone. */
+  /** Resolves false when the person refused the microphone; rejects when the recorder would not start. */
   const start = useCallback(async () => {
     if (!(await requestRecordingPermissionsAsync()).granted) return false;
-    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-    await recorder.prepareToRecordAsync();
-    recorder.record();
+    try {
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch (error) {
+      await playbackMode();
+      throw error;
+    }
+    recording.current = true;
     setActive(true);
     return true;
   }, [recorder]);
 
   const finish = useCallback(
     async (send: boolean) => {
+      if (!recording.current) return;
+      recording.current = false;
       const durationMs = recorder.getStatus().durationMillis;
       setActive(false);
       await recorder.stop();
-      // Back to playback routing: on iOS a recording session plays through the earpiece.
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      await playbackMode();
       if (send && recorder.uri && durationMs > 0) onClipRef.current({ uri: recorder.uri, durationMs });
     },
     [recorder],
@@ -45,6 +57,17 @@ export function useVoiceRecorder(onClip: (clip: VoiceClip) => void) {
   useEffect(() => {
     if (active && state.durationMillis >= VOICE_MAX_MS) void finish(true);
   }, [active, state.durationMillis, finish]);
+
+  // Leaving the conversation mid-clip drops it (expo-audio releases the
+  // recorder as the screen goes) and gives the audio back to playback.
+  useEffect(
+    () => () => {
+      if (!recording.current) return;
+      recording.current = false;
+      void playbackMode().catch(() => undefined);
+    },
+    [],
+  );
 
   return { active, elapsedMs: state.durationMillis, start, send: () => finish(true), cancel: () => finish(false) };
 }

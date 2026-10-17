@@ -1,10 +1,13 @@
 // Ported from usf apps/mobile/app/(app)/_layout.tsx: the auth gate, plus push
 // registration once a user is signed in. Workspace membership is decided one
 // level deeper, in [org]/[ws]/_layout — select-workspace is workspace-less.
+// The call screen (M3) sits here, once, above every workspace screen: a push
+// can stack a second workspace over the first, and a call outlives both.
 import Constants from "expo-constants";
 import { Redirect, Stack } from "expo-router";
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
+import { CallOverlay } from "@/components/calls/call-overlay";
 import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
 import { registerPushToken } from "@/data/push";
@@ -25,5 +28,10 @@ export default function AppLayout() {
   // A cold-start deep route mounts here before the session is restored.
   if (isLoading) return null;
   if (!userId) return <Redirect href="/login" />;
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <View className="flex-1">
+      <Stack screenOptions={{ headerShown: false }} />
+      <CallOverlay />
+    </View>
+  );
 }

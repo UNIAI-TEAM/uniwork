@@ -274,9 +274,15 @@ describe("chat endpoints", () => {
     expect((request.mock.calls[1]?.[1]?.body as FormData).has("reply_to_message_id")).toBe(false);
   });
 
-  it("asks for no links when no message is on screen", async () => {
+  it("asks for no links when no message is on screen, and at most 200 ids a request", async () => {
     expect(await chat.listRoomMessageLinks("w1", "r1", [])).toEqual([]);
     expect(request).not.toHaveBeenCalled();
+    const link = (id: string) => ({ id: `l-${id}`, message_id: id, target_type: "task", target_id: "t1" });
+    request.mockResolvedValueOnce({ links: [link("m0")] }).mockResolvedValueOnce({ links: [link("m200")] });
+    const ids = Array.from({ length: 201 }, (_, i) => `m${i}`);
+    expect((await chat.listRoomMessageLinks("w1", "r1", ids)).map((l) => l.message_id)).toEqual(["m0", "m200"]);
+    const sentIds = request.mock.calls.map(([path]) => new URL(String(path), "http://x").searchParams.get("message_ids")?.split(",").length);
+    expect(sentIds).toEqual([200, 1]);
   });
 
   it("the shared instance goes through the app's API client", async () => {

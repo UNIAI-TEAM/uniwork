@@ -18,8 +18,8 @@ function setup(overrides: Partial<CallEngineDeps> = {}) {
     ...overrides,
   };
   const engine = createCallEngine(deps);
-  engine.configure({ wsId: "ws1", userId: "me", allowedRoomIds: () => new Set(["room-dm", "room-other"]) });
-  return { engine, deps, call: () => engine.store.getState().call };
+  const detach = engine.attach({ wsId: "ws1", userId: "me", allowedRoomIds: () => new Set(["room-dm", "room-other"]) });
+  return { engine, deps, detach, call: () => engine.store.getState().call };
 }
 
 const invite = (over: Record<string, string | undefined> = {}) => ({
@@ -253,10 +253,34 @@ describe("call engine on the phone", () => {
     expect(live.deps.pending).not.toHaveBeenCalled();
   });
 
-  it("signing out closes the call and ignores later frames", async () => {
+  it("a second workspace stacked over the first takes the calls, and hands them back when it closes", async () => {
     const { engine, deps, call } = setup();
+    const detachSecond = engine.attach({ wsId: "ws2", userId: "me", allowedRoomIds: () => new Set(["room-ws2"]) });
+    engine.onInvite(invite({ room_id: "room-ws2", call_kind: "group", target_user_id: undefined }));
+    expect(call().status).toBe("incoming");
+    await engine.hangUp();
+    detachSecond();
+    expect(call().status).toBe("idle");
+    engine.onInvite(invite({ call_id: "c2" }));
+    expect(call()).toMatchObject({ status: "incoming", callId: "c2" });
+    await engine.hangUp();
+    expect(deps.hangup).toHaveBeenCalledWith("ws1", "room-dm", "c2", undefined);
+  });
+
+  it("a start that fails while a call rings in leaves the incoming call alone", async () => {
+    let refuse: (err: Error) => void = () => undefined;
+    const { engine, call } = setup({ invite: vi.fn(() => new Promise<boolean>((_, reject) => (refuse = reject))) });
+    const start = engine.startCall("room-dm", "Long", "dm");
+    engine.onInvite(invite({ room_id: "room-other", call_id: "c9" }));
+    refuse(new Error("403"));
+    expect(await start).toBe(false);
+    expect(call()).toMatchObject({ status: "incoming", callId: "c9" });
+  });
+
+  it("signing out closes the call and ignores later frames", async () => {
+    const { engine, deps, detach, call } = setup();
     engine.onInvite(invite());
-    engine.configure(null);
+    detach();
     expect(call().status).toBe("idle");
     engine.onInvite(invite({ call_id: "c2" }));
     engine.onAccept(invite({ call_id: "c2" }));

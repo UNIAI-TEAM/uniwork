@@ -31,7 +31,7 @@ export interface CallEngineDeps {
   createCallId(): string;
 }
 
-/** Who is calling from where; the workspace layout sets it, sign-out clears it. */
+/** Who is calling from where; each open workspace layout attaches one, the top one is used. */
 export interface CallContext {
   wsId: string;
   userId: string;
@@ -68,7 +68,9 @@ function pendingToPayload({ room_id, call_id, caller_id, caller_name, call_kind,
 
 export function createCallEngine(deps: CallEngineDeps) {
   const store = createStore<{ call: VoiceCallState }>(() => ({ call: { status: "idle" } }));
-  // Set while a workspace is open; a live call implies it (configure(null) ends the call).
+  // The open workspaces, innermost last (a push can stack a second workspace
+  // screen over the first); a live call implies one (the last detach ends it).
+  const contexts: CallContext[] = [];
   let ctx: CallContext | null = null;
   let hangupSent: string | null = null;
   let connectedAt: number | null = null;
@@ -207,9 +209,15 @@ export function createCallEngine(deps: CallEngineDeps) {
 
   return {
     store,
-    configure(next: CallContext | null) {
+    /** A workspace opened; the function it returns closes it again. With none left (sign-out), the call ends here. */
+    attach(next: CallContext) {
+      contexts.push(next);
       ctx = next;
-      if (!next) setCall({ status: "idle" });
+      return () => {
+        contexts.splice(contexts.indexOf(next), 1);
+        ctx = contexts.at(-1) ?? null;
+        if (!ctx) setCall({ status: "idle" });
+      };
     },
     syncPendingInvites,
     onInvite(payload: unknown) {
@@ -240,8 +248,8 @@ export function createCallEngine(deps: CallEngineDeps) {
       try {
         await deps.invite(ctx.wsId, roomId, callId, withCamera);
       } catch (error) {
-        // The web host shows this on its panel (reportStartFailure); here the engine does.
-        setCall({ status: "ended", reason: "start_failed", error, roomId, peerName, callKind, outgoing: true, withCamera });
+        // The web host shows this on its panel (reportStartFailure, which leaves a call that rang in meanwhile alone).
+        if (!isLive(current())) setCall({ status: "ended", reason: "start_failed", error, roomId, peerName, callKind, outgoing: true, withCamera });
         return false;
       }
       if (isMultiPartyVoiceCall(callKind)) return connectCall(roomId, callId, peerName, true, callKind, undefined, withCamera);

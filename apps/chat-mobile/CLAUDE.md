@@ -80,8 +80,9 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   store vanilla, test node) → `data/calls/call-store.ts` (một engine, nối
   `chatApi`) ← `data/realtime/use-call-realtime.ts` (`chat.voice.*`, đồng bộ
   lời mời chờ khi mở workspace và mỗi lần reconnect). UI:
-  `components/calls/call-overlay.tsx` (Modal toàn màn hình gắn ở
-  `[org]/[ws]/_layout.tsx`, sống qua điều hướng) + `call-room.tsx` (LiveKit RN;
+  `components/calls/call-overlay.tsx` (lớp toàn màn hình, không phải Modal,
+  gắn một lần ở `(app)/_layout.tsx`, trên mọi màn workspace; mỗi layout
+  workspace `attach` ngữ cảnh vào engine, cái trên cùng được dùng) + `call-room.tsx` (LiveKit RN;
   `registerGlobals()` ở `app/_layout.tsx`). Nhạc chuông: `lib/call-ringtone.ts`
   render `assets/sounds/ring-*.wav` (test so byte; sinh lại bằng
   `UPDATE_RINGTONES=1`). Push "X đang gọi" mang `?call=`; tab Chat gọi

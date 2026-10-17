@@ -88,6 +88,8 @@ const TaskSchema = z.object({ id: z.string(), title: z.string().catch(""), ident
 export type ChatTask = z.infer<typeof TaskSchema>;
 const TaskEnvelopeSchema = z.object({ task: TaskSchema.optional() });
 
+const ROOM_MESSAGE_LINKS_BATCH = 200;
+
 /** The follow-up and link deletes answer `{ok}` or `{status}` (chat-follow-ups.ts › isOk). */
 const OkSchema = z.object({ ok: z.boolean().optional(), status: z.string().optional() });
 
@@ -336,11 +338,20 @@ export function createChatApi(request: Request) {
     createTaskFromMessage(wsId: string, messageId: string, input: { title?: string } = {}) {
       return task(request(`${ws(wsId)}/chat/messages/${enc(messageId)}/tasks`, json("POST", input)), "POST .../chat/messages/{id}/tasks");
     },
-    /** The links of the messages a timeline shows, in one request. */
+    /**
+     * The links of the messages a timeline shows: one request per 200 ids, the
+     * server's cap (chat_links.go › maxRoomMessageLinkIDs, the web's ROOM_MESSAGE_LINKS_BATCH).
+     */
     async listRoomMessageLinks(wsId: string, roomId: string, messageIds: string[]): Promise<ChatMessageLink[]> {
-      if (messageIds.length === 0) return [];
-      const raw = await request(`${room(wsId, roomId)}/message-links${query({ message_ids: messageIds.join(",") })}`);
-      return parseWithFallback(raw, LinkListSchema, { links: [] }, { endpoint: "GET .../chat/rooms/{roomID}/message-links" }).links;
+      const batches: string[][] = [];
+      for (let i = 0; i < messageIds.length; i += ROOM_MESSAGE_LINKS_BATCH) batches.push(messageIds.slice(i, i + ROOM_MESSAGE_LINKS_BATCH));
+      const pages = await Promise.all(
+        batches.map(async (ids) => {
+          const raw = await request(`${room(wsId, roomId)}/message-links${query({ message_ids: ids.join(",") })}`);
+          return parseWithFallback(raw, LinkListSchema, { links: [] }, { endpoint: "GET .../chat/rooms/{roomID}/message-links" }).links;
+        }),
+      );
+      return pages.flat();
     },
     getTask(taskId: string) {
       return task(request(`/api/v1/tasks/${enc(taskId)}`), "GET /api/v1/tasks/{id}");
