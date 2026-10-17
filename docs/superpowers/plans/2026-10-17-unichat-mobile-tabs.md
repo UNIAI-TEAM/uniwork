@@ -35,28 +35,29 @@
 
 **Files:** `server/migrations/9991792236980972_chat_messages_org_call_logs_idx.{up,down}.sql`, `server/pkg/db/queries/chat_call_logs.sql` (+ `make sqlc`), `server/internal/service/chat_voice_call_logs.go`, `server/internal/handler/chat_call_logs.go`, `server/internal/handler/dto/{sdi,sdo}/chat.go`, `server/internal/handler/router/{chat.go,routes.go}`, `server/internal/handler/router.go`, `docs/api-sdi-sdo.md`.
 
-- [ ] `TestChatCallLogsHTTP` (`internal/handler/chat_call_logs_test.go`) đỏ: ba cuộc gọi (nhóm, DM nhỡ, DM có nghe) qua invite/accept/hangup; A thấy 3 mới nhất trước, `limit=2` → `next_cursor` → trang 2 một hàng, cursor null; C chỉ thấy cuộc gọi nhóm; D (không trong phòng) rỗng; B chặn A → B không thấy DM; người ngoài 403/404; cursor rác 400.
-- [ ] Migration index, query, service, handler, route, SDI/SDO; xanh. `TestIsolationMatrix`, `TestEveryBodyIDFieldHasAReferenceCase`, `./internal/handler/router/...`, `TestEveryQueryNamesItsTenant`, migration lint.
+- [x] `TestChatCallLogsHTTP` (`internal/handler/chat_call_logs_test.go`) đỏ: ba cuộc gọi (nhóm, DM nhỡ, DM có nghe) qua invite/accept/hangup; A thấy 3 mới nhất trước, `limit=2` → `next_cursor` → trang 2 một hàng, cursor null; C chỉ thấy cuộc gọi nhóm; D (không trong phòng) rỗng; B chặn A → B không thấy DM; người ngoài 403/404; cursor rác 400.
+- [x] Migration index, query, service, handler, route, SDI/SDO; xanh. `TestIsolationMatrix`, `TestEveryBodyIDFieldHasAReferenceCase`, `./internal/handler/router/...`, `TestEveryQueryNamesItsTenant`, migration lint.
 
 ## Task 2 — Tab Cuộc gọi (mobile)
 
 **Files:** `apps/chat-mobile/data/queries/call-logs.ts` (+test: schema lỏng, malformed → rỗng, phân trang), `lib/call-log-display.ts` (+test parity với `voice-call-log-row.tsx`, `voice-call-duration.ts`), `app/(app)/[org]/[ws]/(tabs)/calls.tsx`, `components/people/person-avatar.tsx`.
 
-- [ ] Hàng: avatar/tên phòng hoặc người (biệt danh cho DM), nhãn web, giờ; chạm → `deepLinkHref({room, message})`; kéo để tải lại; cuộn tải trang sau; refetch khi tab focus.
+- [x] Hàng: avatar/tên phòng hoặc người (biệt danh cho DM), nhãn web, giờ; chạm → `deepLinkHref({room, message})`; kéo để tải lại; cuộn tải trang sau; refetch khi tab focus.
 
 ## Task 3 — Tab Danh bạ (mobile)
 
 **Files:** `data/queries/contacts.ts` (+test), `lib/contacts-display.ts` (+test parity `workspace-member-picker-utils.ts`, `chat-search-fold.ts`, `contacts-store.ts › displayLabelForChatContact`), `app/(app)/[org]/[ws]/(tabs)/contacts.tsx`.
 
-- [ ] Trừ chính mình và người bị vô hiệu hóa; nhãn = biệt danh → tên → email; nhóm theo chữ cái (bỏ dấu); tìm theo tên/email bỏ dấu; chấm hiện diện; chạm → `deepLinkHref({dm})`.
+- [x] Trừ chính mình và người bị vô hiệu hóa; nhãn = biệt danh → tên → email; nhóm theo chữ cái (bỏ dấu); tìm theo tên/email bỏ dấu; chấm hiện diện; chạm → `deepLinkHref({dm})`.
 
 ## Task 4 — Tab Cài đặt (mobile)
 
 **Files:** `data/queries/devices.ts` (+test), `data/push.ts` (+test), `app/_layout.tsx` (phiên kết thúc → đăng xuất), `app/(app)/[org]/[ws]/(tabs)/settings.tsx`, `components/settings/*.tsx`.
 
-- [ ] Hồ sơ (từ `/me` trong auth store), Thiết bị (liệt kê, "Thiết bị này", thu hồi có xác nhận), Thông báo (công tắc + giải thích rule không push khi đang hoạt động nơi khác), Giao diện, Ngôn ngữ (giữ của M1), Workspace, phiên bản, Đăng xuất.
+- [x] Hồ sơ (từ `/me` trong auth store), Thiết bị (liệt kê, "Thiết bị này", thu hồi có xác nhận), Thông báo (công tắc + giải thích rule không push khi đang hoạt động nơi khác), Giao diện, Ngôn ngữ (giữ của M1), Workspace, phiên bản, Đăng xuất.
 
 ## Task 5 — Kiểm và bàn giao
 
-- [ ] `pnpm --filter @uniwork/chat-mobile test|lint|typecheck`; `node apps/chat-mobile/scripts/sync-i18n.mjs --check`; Go mục tiêu ở Task 1; `gofmt`/`go vet` gói đã chạm.
-- [ ] Đánh dấu plan, `make issue-pr`, thân PR tiếng Việt, ghi chú `[agent]`. Không chạy simulator (orchestrator smoke sau).
+- [x] `pnpm --filter @uniwork/chat-mobile test|lint|typecheck`; `node apps/chat-mobile/scripts/sync-i18n.mjs --check`; Go mục tiêu ở Task 1; `gofmt`/`go vet` gói đã chạm.
+- [x] Đánh dấu plan, `make issue-pr`, thân PR tiếng Việt, ghi chú `[agent]`.
+- [ ] Smoke trên simulator/máy (sáng/tối, VoiceOver/TalkBack, thu hồi thiết bị thật, tắt push thật) — orchestrator làm sau; plan chuyển `shipped` khi xong.
