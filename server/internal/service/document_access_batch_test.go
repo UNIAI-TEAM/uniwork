@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -869,6 +870,56 @@ func TestDocumentAccessBatchPreviewCountsMatchTheResolver(t *testing.T) {
 		assertPreviewGroupCounts(t, f, doc, in, res)
 		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 8 {
 			t.Fatalf("R1-07 group = %+v, want member_count=8 losing_count=8 (ACL owner without home membership loses)", g)
+		}
+	})
+
+	t.Run("R2-01 explicit home member role beats the implicit organization admin", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c6")
+		// The organization admin holds an explicit home-workspace member row.
+		// GetWorkspaceAccess returns the explicit role FIRST, so the resolver
+		// gives them the home row's level, never role manage (R2-01).
+		f.wsMember(t, tn.wsA, tn.orgAdmin.ID, "member")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		doc = setWorkspaceLevel(t, f, doc, "view")
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelEdit, tn.aclOwner.ID)
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R2-01 batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		// The overridden role keeps the person at the home row's view
+		// (edit -> view), so they lose with the other home members.
+		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 5 {
+			t.Fatalf("R2-01 group = %+v, want member_count=8 losing_count=5", g)
+		}
+	})
+
+	t.Run("R2-01 break-glass needs real AdminScope, not the organization role", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c7")
+		f.wsMember(t, tn.wsA, tn.orgAdmin.ID, "member")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelView, tn.aclOwner.ID)
+		// An unexpired break-glass grant the person cannot use: the explicit
+		// member row means they hold no AdminScope on a restricted document
+		// (R2-01), so the grant is not a surviving level either.
+		f.breakGlass(t, tn, doc.ID, tn.orgAdmin.ID, time.Now().Add(time.Hour), false)
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R2-01 break-glass batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 7 {
+			t.Fatalf("R2-01 break-glass group = %+v, want member_count=8 losing_count=7", g)
 		}
 	})
 }
