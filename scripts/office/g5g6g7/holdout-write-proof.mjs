@@ -213,16 +213,9 @@ function contentLeaves(node, key = '', out = []) {
   return out;
 }
 
-/** Does the write put anything into the document that it did not already hold (a text that is no existing line, a number the document lacks, or a cell-addressed edit)? */
+/** Does the write put anything into the document that it did not already hold (a text that is no existing line, a number the document lacks)? */
 export function introducesNew(args, sourceText) {
   const units = sourceUnits(sourceText);
   const numbers = sourceNumbers(sourceText);
-  if (contentLeaves(args ?? {}).some((leaf) => ('text' in leaf ? !units.has(norm(leaf.text)) : !numbers.some((n) => Math.abs(n - leaf.number) < 1e-9)))) {
-    return true;
-  }
-  for (const { node } of operations(args ?? {})) {
-    const held = holdings(node);
-    if (held.ranges.length > 0 && (held.scalars.length > 0 || held.arrays.length > 0)) return true;
-  }
-  return false;
+  return contentLeaves(args ?? {}).some((leaf) => ('text' in leaf ? !units.has(norm(leaf.text)) : !numbers.some((n) => Math.abs(n - leaf.number) < 1e-9)));
 }
