@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+cf415d0d86a7541cacb38fb059804b7d67008829
+bf693b001da6512bbf33d867c35250179106a63b
+cf415d0d8 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
+bf693b001 chore: merge TRASH-01 documents layout (UNI-1841, c49fc5aad) into the G5-G7 root
+c49fc5aad fix(documents): name the chat source Trò chuyện like the rest of the app
+7398d969c test(i18n): pin the UniNote create chip key TRASH-01 still uses
+06e165a6e chore: merge root 157cfdfd7 into TRASH-01
+157cfdfd7 chore: merge root e2e fixes (fix/UNI-923-root-e2e-reds, eb95ff143) into the G5-G7 root
+e7a85f3e0 refactor(core): split the favorites types out of types/document.ts
+9911c292b chore: merge UN-01 web (UNI-1812, 2e91628cd) into the G5-G7 root
