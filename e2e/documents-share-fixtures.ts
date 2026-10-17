@@ -297,7 +297,7 @@ export function submitShare(dialog: Locator): Locator {
 
 /** The row of the library table for a title, once the list has it. */
 export function libraryBadge(row: Locator): Locator {
-  return row.getByTestId("document-share-scope-badge").filter({ visible: true }).first();
+  return row.getByTestId("document-share-scope-badge").first();
 }
 
 /**

@@ -155,11 +155,11 @@ test("AC13 a second grant to the same person: keep or update, duplicates refused
   await expect(option).toContainText("Đã có quyền: Chỉ xem");
   await option.click();
   await dialog.getByRole("combobox", { name: "Mức quyền", exact: true }).click();
-  await page.getByRole("option", { name: "Chỉnh sửa" }).click();
+  await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Chỉnh sửa" }).click();
   const choice = dialog.getByRole("combobox", { name: new RegExp(`^${escapeRegExp(s.member.name)} Đã có quyền`) });
   await expect(choice).toContainText("Giữ Chỉ xem");
   await choice.click();
-  await page.getByRole("option", { name: "Cập nhật thành Chỉnh sửa" }).click();
+  await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Cập nhật thành Chỉnh sửa" }).click();
   await submitShare(dialog).click();
   await toast(page, "Đã chia sẻ cho 1 đối tượng");
 
@@ -202,7 +202,10 @@ test("AC19 the library row shows the share scope as a type and a count, never na
 
   await grantAccess(request, s.owner.token, id, [{ principal_type: "workspace", principal_id: homeId, level: "view" }]);
   const multiple = await badge("multiple", /Nhiều phạm vi/);
-  await expect(multiple).toHaveAttribute("title", new RegExp(`Workspace ${escapeRegExp(homeName)} · 2 người`));
+  await expect(multiple).not.toHaveAttribute("title");
+  const descId = await multiple.getAttribute("aria-describedby");
+  expect(descId).toBeTruthy();
+  await expect(page.locator(`[id="${descId}"]`)).toHaveText(new RegExp(`Workspace ${escapeRegExp(homeName)} · 2 người`));
 
   // A reader of the row gets the counts and no names (U-SH4).
   const listed = await request.get(`${api}/api/v1/workspaces/${s.m.aOwner.wsId}/documents`, { headers: authHeaders(s.member.token) });
@@ -293,7 +296,7 @@ test("isolation another organization reaches neither the access nor the candidat
 
 test("FR-13 the recipient gets a document_shared inbox item with the level; groups and lowering stay silent", async ({ browser, request }) => {
   const { id, title } = await ownerDoc(request, s, "FR13");
-  const control = s.extras[2]!;
+  const control = s.outside;
   const sharedKind = async (token: string, docId: string) =>
     (await inboxOf(request, token)).filter((n) => n.kind === "document_shared" && n.resource_id === docId);
 
