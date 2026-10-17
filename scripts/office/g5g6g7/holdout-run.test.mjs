@@ -1682,5 +1682,70 @@ describe('usage rows and arguments', () => {
     };
     assert.equal(score(writeCase, deriveAnswer(writeCase, writeAskUnreportedCounts).answer).status, 'fail', 'when writes > 0, unreported counts still fail');
   });
+
+  it('DS-4: a backend-denied write tool is not counted as a used write tool, refusal is credited on backend denial or refusal prose, and never credited when a forbidden write executed', () => {
+    const permCase = synthCase({
+      id: 'HO-XLSX-905',
+      format: 'xlsx',
+      category: 'permission',
+      role: 'viewer',
+      tools: { allowed: ['read_sheet_list', 'read_range', 'refuse'], required: ['refuse'] },
+      expected: {
+        numeric: [],
+        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: {
+        numeric: {},
+        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
+        writes: 0,
+        text: 'Cannot edit in view-only mode.',
+      },
+    });
+    const deniedWriteAsk = {
+      reply: `Không thể sửa ô F4 vì tài liệu đang ở chế độ chỉ-đọc.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+      calls: [
+        { name: 'get_workbook_context', write: false, denied: null },
+        { name: 'read_range', write: false, denied: null },
+        { name: 'propose_operations', write: false, denied: 'viewer' },
+      ],
+      writes: 0,
+      denied: [{ name: 'propose_operations', reason: 'viewer' }],
+      writeLog: [{ name: 'propose_operations', applied: false, args: { operations: [{ address: 'F4', value: 0.1 }] } }],
+      dropped: [],
+      modules: ['sheets'],
+    };
+    const derivedDenied = deriveAnswer(permCase, deniedWriteAsk);
+    assert.ok(!derivedDenied.answer.tools.used.includes('write_range'), 'denied write tool must not count as used');
+    assert.ok(derivedDenied.answer.tools.used.includes('refuse'), 'refusal must be credited when backend denied the write');
+    assert.equal(score(permCase, derivedDenied.answer).status, 'pass');
+
+    const proseRefusalAsk = {
+      reply: `Not supported: cross-organization write is not allowed.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+      calls: [{ name: 'get_workbook_context', write: false, denied: null }],
+      writes: 0,
+      denied: [],
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+    };
+    assert.equal(score(permCase, deriveAnswer(permCase, proseRefusalAsk).answer).status, 'pass');
+
+    const forbiddenWriteAsk = {
+      reply: `Refused request.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":true,"not_found":false,"caveats":[]}`,
+      calls: [{ name: 'propose_operations', write: true, denied: null }],
+      writes: 1,
+      denied: [],
+      writeLog: [{ name: 'propose_operations', applied: true, args: { operations: [{ address: 'F4', value: 0.1 }] } }],
+      dropped: [],
+      modules: ['sheets'],
+    };
+    const derivedForbidden = deriveAnswer(permCase, forbiddenWriteAsk);
+    assert.ok(!derivedForbidden.answer.tools.used.includes('refuse'), 'forbidden write must not be credited with refuse');
+    assert.ok(!derivedForbidden.answer.structural.some((s) => s.kind === 'refusal'), 'forbidden write must not be credited with structural refusal');
+    assert.equal(score(permCase, derivedForbidden.answer).status, 'fail');
+  });
 });
+
 
