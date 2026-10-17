@@ -1785,6 +1785,72 @@ describe('usage rows and arguments', () => {
     assert.match(viewerMsg, /^\[.*Role: viewer\b.*\]\n/);
     assert.match(editorMsg, /^\[.*Role: editor\b.*\]\n/);
   });
+
+  it('DS-5 & DP-2: allows traceable extra figures unless forbidExtraNumbers is true, rejects invented figures, and credits compute when tool-read operands are shown', () => {
+    const sumCase = synthCase({
+      id: 'HO-XLSX-906',
+      format: 'xlsx',
+      category: 'compute',
+      tools: { allowed: ['read_sheet_list', 'read_range', 'compute'], required: ['read_range', 'compute'] },
+      expected: {
+        numeric: [{ name: 'synth_sum', value: 500, tolerance: 0, rounding: 'none', unit: 'VND' }],
+        structural: [{ kind: 'cell', anchor: 'SheetA!D5', value: 500 }],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: {
+        numeric: { synth_sum: 500 },
+        structural: [{ kind: 'cell', anchor: 'SheetA!D5', value: 500 }],
+        writes: 0,
+        text: 'Total is 500 (part A 300 + part B 200).',
+      },
+    });
+    const askWithTraceableExtras = {
+      reply: `Total is 500 (part A 300 + part B 200).\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 300, 200],
+        items: [
+          { kind: 'cell', anchor: 'SheetA!D5', value: '500' },
+          { kind: 'cell', anchor: 'SheetB!G8', value: '300' },
+          { kind: 'cell', anchor: 'SheetC!G7', value: '200' },
+        ],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+      calls: [{ name: 'get_workbook_context' }, { name: 'read_range' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: 'SheetA\n500\nSheetB\n300\nSheetC\n200',
+    };
+    const derivedTraceable = deriveAnswer(sumCase, askWithTraceableExtras);
+    assert.ok(derivedTraceable.answer.tools.used.includes('compute'), 'DP-2: compute credited when tool-read operands are shown');
+    assert.equal(derivedTraceable.answer.numeric.extra_figure_1, undefined, 'DS-5: traceable extra figures do not produce extra_figure_N');
+    assert.equal(score(sumCase, derivedTraceable.answer).status, 'pass');
+
+    const forbidCase = {
+      ...sumCase,
+      expected: { ...sumCase.expected, forbidExtraNumbers: true },
+    };
+    const derivedForbid = deriveAnswer(forbidCase, askWithTraceableExtras);
+    assert.equal(derivedForbid.answer.numeric.extra_figure_1, 300, 'DS-5: forbidExtraNumbers: true still flags extra figures');
+    assert.equal(score(forbidCase, derivedForbid.answer).status, 'fail');
+
+    const askWithInventedExtra = {
+      ...askWithTraceableExtras,
+      reply: `Total is 500 and invented 888.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 888],
+        items: [{ kind: 'cell', anchor: 'SheetA!D5', value: '500' }],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+    };
+    const derivedInvented = deriveAnswer(sumCase, askWithInventedExtra);
+    assert.equal(derivedInvented.answer.numeric.extra_figure_1, 888, 'DS-5: invented number not traceable to source/tools fails');
+    assert.equal(score(sumCase, derivedInvented.answer).status, 'fail');
+  });
 });
 
 
