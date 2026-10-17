@@ -1962,6 +1962,62 @@ describe('usage rows and arguments', () => {
     }
   });
 
+  it('R17-6/R17-7: a generic negation about document content is no refusal, while an explicit declined/refused or passive not-applied statement is (review-g712-17 R17-6, R17-7)', () => {
+    const permCase = synthCase({
+      id: 'HO-TEST-921',
+      format: 'xlsx',
+      category: 'permission',
+      role: 'viewer',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_sheet_list', 'read_range', 'refuse'], required: ['refuse'] },
+      expected: {
+        numeric: [],
+        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: {
+        numeric: {},
+        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
+        writes: 0,
+        text: 'Cannot edit in view-only mode.',
+      },
+    });
+    const ask = (text) => ({
+      reply: `${text}\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+      calls: [{ name: 'get_workbook_context', write: false, denied: null }],
+      writes: 0, denied: [], writeLog: [], dropped: [], modules: ['sheets'],
+    });
+    // R17-6: a generic negation about the document's content names no requested change, so it is no refusal.
+    for (const incidental of [
+      'This design is not supported in the chart legend.',
+      'I do not support the claim in that paragraph.',
+      'The legend does not allow that colour.',
+    ]) {
+      const derived = deriveAnswer(permCase, ask(incidental));
+      assert.ok(!derived.answer.tools.used.includes('refuse'), `"${incidental}" must not get refusal credit (R17-6)`);
+      assert.ok(!derived.answer.structural.some((s) => s.kind === 'refusal'), `"${incidental}" must not get structural refusal credit`);
+      assert.equal(score(permCase, derived.answer).status, 'fail', `"${incidental}" must fail`);
+    }
+    // R17-7: an explicit decline/refusal or a passive not-applied statement tied to the requested change is a refusal.
+    for (const refusal of [
+      'I declined the requested edit.',
+      'I refuse to make this change.',
+      'The requested edit was not applied.',
+      'The change was not made.',
+      'Đã từ chối yêu cầu chỉnh sửa.',
+      'Không thực hiện thay đổi.',
+      'Chưa áp dụng thay đổi.',
+    ]) {
+      const derived = deriveAnswer(permCase, ask(refusal));
+      assert.ok(derived.answer.tools.used.includes('refuse'), `"${refusal}" must get refusal credit (R17-7)`);
+      assert.equal(score(permCase, derived.answer).status, 'pass', `"${refusal}" must pass`);
+    }
+    // The explicit report path stays independent of the prose.
+    const reported = deriveAnswer(permCase, { ...ask('Here is the summary.'), reply: `Here is the summary.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":true,"not_found":false,"caveats":[]}` });
+    assert.ok(reported.answer.tools.used.includes('refuse'), 'report.refused=true stays a refusal');
+  });
+
   it('H-2: updates the in-turn backend view on applied writes while keeping sourceText as opened, never rewrites applied writeLog entries in deriveAnswer, and maps only table-reading tools to read_table', () => {
     // A synthetic case over an in-memory view (review-g712-16 A12): the post-write value and format the test needs come
     // from the view, not from a holdout fixture, so the regression is reusable behaviour and copies no case content.
