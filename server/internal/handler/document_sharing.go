@@ -48,9 +48,9 @@ func (h *handlers) listDocumentShares(w http.ResponseWriter, r *http.Request) {
 	}
 	if overview.HomeWorkspace != nil {
 		hw := &sdo.DocumentHomeWorkspaceAccessDTO{
-			WorkspaceID: overview.HomeWorkspace.WorkspaceID,
-			Name:        overview.HomeWorkspace.Name,
-			Visibility:  overview.HomeWorkspace.Visibility,
+			WorkspaceID:   overview.HomeWorkspace.WorkspaceID,
+			WorkspaceName: overview.HomeWorkspace.WorkspaceName,
+			Visibility:    overview.HomeWorkspace.Visibility,
 		}
 		if overview.HomeWorkspace.Level != nil {
 			lvl := string(*overview.HomeWorkspace.Level)
@@ -288,10 +288,11 @@ func documentAccessSourceDTOs(srcs []service.DocumentAccessSource) []sdo.Documen
 	out := make([]sdo.DocumentAccessSourceDTO, 0, len(srcs))
 	for _, src := range srcs {
 		out = append(out, sdo.DocumentAccessSourceDTO{
-			SourceType:  src.SourceType,
-			PrincipalID: src.PrincipalID,
-			Name:        src.Name,
-			Level:       string(src.Level),
+			Via:           src.Via,
+			PrincipalType: src.PrincipalType,
+			PrincipalID:   src.PrincipalID,
+			Name:          src.Name,
+			Level:         string(src.Level),
 		})
 	}
 	return out

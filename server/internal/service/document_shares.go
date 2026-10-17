@@ -356,29 +356,31 @@ func revokeDocumentShareRowWithBatch(ctx context.Context, q *db.Queries, actor A
 	}})
 }
 
-// DocumentAccessSource types on GET /api/v1/documents/{documentID}/shares (SH-S2, UNI-1781).
+// DocumentAccessSource via values on GET /api/v1/documents/{documentID}/shares (SH-S2, UNI-1781).
 const (
-	DocumentAccessSourceACLOwner      = "acl_owner"
-	DocumentAccessSourceHomeWorkspace = "home_workspace"
-	DocumentAccessSourceWorkspace     = "workspace"
-	DocumentAccessSourceOrganization  = "organization"
-	DocumentAccessSourceDirect        = "direct"
+	DocumentAccessSourceViaOwner       = "owner"
+	DocumentAccessSourceViaMember      = "member"
+	DocumentAccessSourceViaShare       = "share"
+	DocumentAccessSourceViaOrgAdmin    = "org_admin"
+	DocumentAccessSourceViaBreakGlass  = "break_glass"
+	DocumentAccessSourceViaWorkProduct = "work_product"
 )
 
 // DocumentAccessSource is one path through which a person receives access on a document.
 type DocumentAccessSource struct {
-	SourceType  string
-	PrincipalID string
-	Name        string
-	Level       DocumentLevel
+	Via           string
+	PrincipalType string
+	PrincipalID   string
+	Name          string
+	Level         DocumentLevel
 }
 
 // DocumentHomeWorkspaceAccess is the home_workspace block on GET /documents/{id}/shares.
 type DocumentHomeWorkspaceAccess struct {
-	WorkspaceID string
-	Name        string
-	Visibility  string
-	Level       *DocumentLevel
+	WorkspaceID   string
+	WorkspaceName string
+	Visibility    string
+	Level         *DocumentLevel
 }
 
 // DocumentShareAccess is one share row with what it grants right now.
@@ -457,10 +459,10 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 		homeLvlPtr = &l
 	}
 	out.HomeWorkspace = &DocumentHomeWorkspaceAccess{
-		WorkspaceID: doc.WorkspaceID,
-		Name:        homeWS.Name,
-		Visibility:  doc.Visibility,
-		Level:       homeLvlPtr,
+		WorkspaceID:   doc.WorkspaceID,
+		WorkspaceName: homeWS.Name,
+		Visibility:    doc.Visibility,
+		Level:         homeLvlPtr,
 	}
 
 	for _, sh := range shares {
@@ -513,7 +515,7 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 
 func (s *DocumentService) personAccessSources(ctx context.Context, doc db.Document, shares []db.DocumentShare, userID string) ([]DocumentAccessSource, error) {
 	sources := make([]DocumentAccessSource, 0)
-	if doc.OwnerKind.Valid || userID == "" {
+	if userID == "" {
 		return sources, nil
 	}
 	if _, err := s.orgs.RequireMemberQ(ctx, s.q, doc.OrganizationID, userID); err != nil {
@@ -521,6 +523,24 @@ func (s *DocumentService) personAccessSources(ctx context.Context, doc db.Docume
 			return sources, nil
 		}
 		return nil, err
+	}
+	if doc.OwnerKind.Valid {
+		lvl, err := s.ownerLevelResolve(ctx, Human(userID), doc.OwnerID.String)
+		if err != nil {
+			if isGateRefusal(err) {
+				return sources, nil
+			}
+			return nil, err
+		}
+		if lvl != DocumentLevelNone {
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaWorkProduct,
+				PrincipalType: doc.OwnerKind.String,
+				PrincipalID:   doc.OwnerID.String,
+				Level:         lvl,
+			})
+		}
+		return sources, nil
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
@@ -535,31 +555,36 @@ func (s *DocumentService) personAccessSources(ctx context.Context, doc db.Docume
 	}
 	homeLvl, hasHomeLvl := currentHomeWorkspaceLevel(doc, filterHomeWorkspaceShares(shares, doc.WorkspaceID))
 
+	var adminScope bool
 	m, err := s.ws.RequireMemberQ(ctx, s.q, doc.WorkspaceID, userID)
 	switch {
 	case err == nil:
 		isACLOwner := doc.AclOwnerID.Valid && doc.AclOwnerID.String == userID
+		adminScope = (m.Role == "owner" || m.Role == "admin") && doc.Visibility == documentVisibilityRestricted && !isACLOwner
 		if isACLOwner {
 			sources = append(sources, DocumentAccessSource{
-				SourceType:  DocumentAccessSourceACLOwner,
-				PrincipalID: userID,
-				Name:        u.DisplayName,
-				Level:       DocumentLevelManage,
+				Via:           DocumentAccessSourceViaOwner,
+				PrincipalType: DocumentPrincipalUser,
+				PrincipalID:   userID,
+				Name:          u.DisplayName,
+				Level:         DocumentLevelManage,
 			})
 		}
 		if (m.Role == "owner" || m.Role == "admin") && doc.Visibility != documentVisibilityRestricted && !isACLOwner {
 			sources = append(sources, DocumentAccessSource{
-				SourceType:  DocumentAccessSourceHomeWorkspace,
-				PrincipalID: doc.WorkspaceID,
-				Name:        homeWS.Name,
-				Level:       DocumentLevelManage,
+				Via:           DocumentAccessSourceViaOrgAdmin,
+				PrincipalType: DocumentPrincipalWorkspace,
+				PrincipalID:   doc.WorkspaceID,
+				Name:          homeWS.Name,
+				Level:         DocumentLevelManage,
 			})
 		} else if hasHomeLvl {
 			sources = append(sources, DocumentAccessSource{
-				SourceType:  DocumentAccessSourceHomeWorkspace,
-				PrincipalID: doc.WorkspaceID,
-				Name:        homeWS.Name,
-				Level:       homeLvl,
+				Via:           DocumentAccessSourceViaMember,
+				PrincipalType: DocumentPrincipalWorkspace,
+				PrincipalID:   doc.WorkspaceID,
+				Name:          homeWS.Name,
+				Level:         homeLvl,
 			})
 		}
 	case isGateRefusal(err):
@@ -585,10 +610,11 @@ func (s *DocumentService) personAccessSources(ctx context.Context, doc db.Docume
 				return nil, err
 			}
 			sources = append(sources, DocumentAccessSource{
-				SourceType:  DocumentAccessSourceWorkspace,
-				PrincipalID: sh.PrincipalID,
-				Name:        ws.Name,
-				Level:       DocumentLevel(sh.Level),
+				Via:           DocumentAccessSourceViaShare,
+				PrincipalType: DocumentPrincipalWorkspace,
+				PrincipalID:   sh.PrincipalID,
+				Name:          ws.Name,
+				Level:         DocumentLevel(sh.Level),
 			})
 		case DocumentPrincipalOrganization:
 			if sh.PrincipalID != doc.OrganizationID {
@@ -599,21 +625,43 @@ func (s *DocumentService) personAccessSources(ctx context.Context, doc db.Docume
 				return nil, err
 			}
 			sources = append(sources, DocumentAccessSource{
-				SourceType:  DocumentAccessSourceOrganization,
-				PrincipalID: sh.PrincipalID,
-				Name:        org.Name,
-				Level:       DocumentLevel(sh.Level),
+				Via:           DocumentAccessSourceViaShare,
+				PrincipalType: DocumentPrincipalOrganization,
+				PrincipalID:   sh.PrincipalID,
+				Name:          org.Name,
+				Level:         DocumentLevel(sh.Level),
 			})
 		case DocumentPrincipalUser:
 			if sh.PrincipalID != userID {
 				continue
 			}
 			sources = append(sources, DocumentAccessSource{
-				SourceType:  DocumentAccessSourceDirect,
-				PrincipalID: userID,
-				Name:        u.DisplayName,
-				Level:       DocumentLevel(sh.Level),
+				Via:           DocumentAccessSourceViaShare,
+				PrincipalType: DocumentPrincipalUser,
+				PrincipalID:   userID,
+				Name:          u.DisplayName,
+				Level:         DocumentLevel(sh.Level),
 			})
+		}
+	}
+
+	if adminScope {
+		g, err := s.q.GetLiveDocumentBreakGlassGrantForActor(ctx, db.GetLiveDocumentBreakGlassGrantForActorParams{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+			ActorID: userID, ActorKind: string(audit.KindHuman),
+		})
+		switch {
+		case err == nil:
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaBreakGlass,
+				PrincipalType: DocumentPrincipalUser,
+				PrincipalID:   userID,
+				Name:          u.DisplayName,
+				Level:         capDocumentLevel(DocumentLevel(g.Level), DocumentLevelView),
+			})
+		case errors.Is(err, pgx.ErrNoRows):
+		default:
+			return nil, err
 		}
 	}
 	return sources, nil

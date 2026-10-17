@@ -270,19 +270,20 @@ type DocumentArchiveImpactSDO struct {
 // DocumentAccessSourceDTO is one source entry on a user share row or in my_sources
 // on GET /api/v1/documents/{documentID}/shares (SH-S2, UNI-1781).
 type DocumentAccessSourceDTO struct {
-	SourceType  string `json:"source_type" enums:"acl_owner,home_workspace,workspace,organization,direct" example:"organization"`
-	PrincipalID string `json:"principal_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
-	Name        string `json:"name" example:"Acme Corp"`
-	Level       string `json:"level" enums:"view,comment,edit,manage" example:"edit"`
+	Via           string `json:"via" enums:"owner,member,share,org_admin,break_glass,work_product" example:"share"`
+	PrincipalType string `json:"principal_type,omitempty" enums:"user,workspace,organization,work_product" example:"organization"`
+	PrincipalID   string `json:"principal_id,omitempty" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	Name          string `json:"name,omitempty" example:"Acme Corp"`
+	Level         string `json:"level" enums:"view,comment,edit,manage" example:"edit"`
 }
 
 // DocumentHomeWorkspaceAccessDTO is the home_workspace block on GET /documents/{id}/shares
 // (SH-S2, UNI-1781).
 type DocumentHomeWorkspaceAccessDTO struct {
-	WorkspaceID string  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	Name        string  `json:"name" example:"Kỹ thuật"`
-	Visibility  string  `json:"visibility" enums:"workspace,restricted" example:"workspace"`
-	Level       *string `json:"level,omitempty" enums:"view,comment,edit" example:"view"`
+	WorkspaceID   string  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	WorkspaceName string  `json:"workspace_name" example:"Kỹ thuật"`
+	Visibility    string  `json:"visibility" enums:"workspace,restricted" example:"workspace"`
+	Level         *string `json:"level" enums:"view,comment,edit" example:"view"`
 }
 
 // DocumentShareDTO is one live grant row with what it grants right now.

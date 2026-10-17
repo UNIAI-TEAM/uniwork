@@ -396,16 +396,26 @@ func TestDocumentShare(t *testing.T) {
 	})
 }
 
-// TestDocumentAccessListSourcesAndHomeWorkspace covers SH-S2 (UNI-1781) Item 4:
-// my_sources, home_workspace, and user-row sources + warnings on
-// GET /api/v1/documents/{documentID}/shares (AC06, AC12, U-SH4).
+// TestDocumentAccessListSourcesAndHomeWorkspace covers SH-S2 (UNI-1781) Item 4 & fix1 #5/#6:
+// my_sources, home_workspace (workspace_name), and user-row sources (via: owner, member,
+// share/user, share/workspace, share/organization, org_admin, break_glass, work_product)
+// + warnings on GET /api/v1/documents/{documentID}/shares (AC06, AC12, U-SH4).
 func TestDocumentAccessListSourcesAndHomeWorkspace(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "shs2ov")
 	H := Human
 	mgr := H(tn.aclOwner.ID)
 
-	t.Run("AC06 org edit + user view produces 2 sources and direct_below_group warning", func(t *testing.T) {
+	hasSource := func(srcs []DocumentAccessSource, via, pt, pid string, lvl DocumentLevel) bool {
+		for _, s := range srcs {
+			if s.Via == via && s.PrincipalType == pt && s.PrincipalID == pid && s.Level == lvl {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("AC06 org edit + user view produces 2 sources (share/organization, share/user) and direct_below_group warning", func(t *testing.T) {
 		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelEdit, tn.aclOwner.ID)
 		f.share(t, doc, DocumentPrincipalUser, tn.outsider.ID, DocumentLevelView, tn.aclOwner.ID)
@@ -414,8 +424,13 @@ func TestDocumentAccessListSourcesAndHomeWorkspace(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DocumentAccessList: %v", err)
 		}
-		if ov.HomeWorkspace == nil || ov.HomeWorkspace.WorkspaceID != tn.wsA || ov.HomeWorkspace.Visibility != "restricted" || ov.HomeWorkspace.Level != nil {
-			t.Fatalf("restricted home_workspace = %+v, want visibility=restricted level=nil", ov.HomeWorkspace)
+		if ov.HomeWorkspace == nil || ov.HomeWorkspace.WorkspaceID != tn.wsA || ov.HomeWorkspace.WorkspaceName == "" ||
+			ov.HomeWorkspace.Visibility != "restricted" || ov.HomeWorkspace.Level != nil {
+			t.Fatalf("restricted home_workspace = %+v, want workspace_name set, visibility=restricted, level=nil", ov.HomeWorkspace)
+		}
+		// ACL owner's MySources includes via=owner (manage) and share/organization (edit).
+		if !hasSource(ov.MySources, DocumentAccessSourceViaOwner, DocumentPrincipalUser, tn.aclOwner.ID, DocumentLevelManage) {
+			t.Fatalf("owner MySources missing via=owner: %+v", ov.MySources)
 		}
 		var outEntry *DocumentShareAccess
 		for i := range ov.Shares {
@@ -430,30 +445,32 @@ func TestDocumentAccessListSourcesAndHomeWorkspace(t *testing.T) {
 		if outEntry.Effective.Level != DocumentLevelEdit {
 			t.Fatalf("AC06 effective level = %q, want edit", outEntry.Effective.Level)
 		}
-		if len(outEntry.Sources) != 2 {
-			t.Fatalf("AC06 sources = %+v, want 2 sources (organization edit + direct view)", outEntry.Sources)
+		if len(outEntry.Sources) != 2 ||
+			!hasSource(outEntry.Sources, DocumentAccessSourceViaShare, DocumentPrincipalOrganization, tn.orgID, DocumentLevelEdit) ||
+			!hasSource(outEntry.Sources, DocumentAccessSourceViaShare, DocumentPrincipalUser, tn.outsider.ID, DocumentLevelView) {
+			t.Fatalf("AC06 sources = %+v, want share/organization(edit) + share/user(view)", outEntry.Sources)
 		}
 		if len(outEntry.Warnings) != 1 || outEntry.Warnings[0] != DocumentAccessWarningDirectBelowGroup {
 			t.Fatalf("AC06 warnings = %v, want [direct_below_group]", outEntry.Warnings)
 		}
 	})
 
-	t.Run("AC12 multiple sources on user row and my_sources on non-manager caller (U-SH4)", func(t *testing.T) {
+	t.Run("AC12 multiple sources (member, share/workspace, share/user), org_admin, break_glass, work_product, and U-SH4", func(t *testing.T) {
 		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		doc = setWorkspaceLevel(t, f, doc, "view")
-		// Add tn.member to wsB as well so they receive home_workspace (view), workspace wsB (comment), and direct (edit).
+		// Add tn.member to wsB as well so they receive member (home row view), share/workspace wsB (comment), and share/user (edit).
 		f.wsMember(t, tn.wsB, tn.member.ID, "member")
 		f.share(t, doc, DocumentPrincipalWorkspace, tn.wsB, DocumentLevelComment, tn.aclOwner.ID)
 		f.share(t, doc, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
 
-		// Manager view: home_workspace has level=view, and tn.member row has 3 sources.
+		// Manager view: home_workspace has level=view and WorkspaceName populated, and tn.member row has 3 sources.
 		mgrOV, err := f.svc.DocumentAccessList(f.ctx, mgr, doc.ID)
 		if err != nil {
 			t.Fatalf("mgr DocumentAccessList: %v", err)
 		}
-		if mgrOV.HomeWorkspace == nil || mgrOV.HomeWorkspace.Visibility != "workspace" ||
+		if mgrOV.HomeWorkspace == nil || mgrOV.HomeWorkspace.WorkspaceName == "" || mgrOV.HomeWorkspace.Visibility != "workspace" ||
 			mgrOV.HomeWorkspace.Level == nil || *mgrOV.HomeWorkspace.Level != DocumentLevelView {
-			t.Fatalf("workspace home_workspace = %+v, want visibility=workspace level=view", mgrOV.HomeWorkspace)
+			t.Fatalf("workspace home_workspace = %+v, want workspace_name set, visibility=workspace, level=view", mgrOV.HomeWorkspace)
 		}
 		var memEntry *DocumentShareAccess
 		for i := range mgrOV.Shares {
@@ -462,11 +479,23 @@ func TestDocumentAccessListSourcesAndHomeWorkspace(t *testing.T) {
 				break
 			}
 		}
-		if memEntry == nil || len(memEntry.Sources) != 3 {
-			t.Fatalf("AC12 member sources = %+v, want 3 (home_workspace, workspace, direct)", memEntry)
+		if memEntry == nil || len(memEntry.Sources) != 3 ||
+			!hasSource(memEntry.Sources, DocumentAccessSourceViaMember, DocumentPrincipalWorkspace, tn.wsA, DocumentLevelView) ||
+			!hasSource(memEntry.Sources, DocumentAccessSourceViaShare, DocumentPrincipalWorkspace, tn.wsB, DocumentLevelComment) ||
+			!hasSource(memEntry.Sources, DocumentAccessSourceViaShare, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit) {
+			t.Fatalf("AC12 member sources = %+v, want member(wsA view) + share/workspace(wsB comment) + share/user(edit)", memEntry)
 		}
 		if len(memEntry.Warnings) != 0 {
 			t.Fatalf("AC12 member warnings = %v, want empty (direct edit >= group levels)", memEntry.Warnings)
+		}
+
+		// org_admin source: wsAdmin (not ACL owner) on workspace-visible document receives via=org_admin (manage).
+		adminOV, err := f.svc.DocumentAccessList(f.ctx, H(tn.wsAdmin.ID), doc.ID)
+		if err != nil {
+			t.Fatalf("wsAdmin DocumentAccessList: %v", err)
+		}
+		if !hasSource(adminOV.MySources, DocumentAccessSourceViaOrgAdmin, DocumentPrincipalWorkspace, tn.wsA, DocumentLevelManage) {
+			t.Fatalf("wsAdmin MySources = %+v, want via=org_admin (manage)", adminOV.MySources)
 		}
 
 		// U-SH4: non-manager (tn.member, holding edit) gets my_level, via, and my_sources (3 items),
@@ -480,6 +509,36 @@ func TestDocumentAccessListSourcesAndHomeWorkspace(t *testing.T) {
 		}
 		if memOV.ACLOwner != nil || memOV.HomeWorkspace != nil || memOV.Shares != nil || memOV.Links != nil || memOV.BreakGlass != nil {
 			t.Fatalf("U-SH4 non-manager received admin fields: %+v", memOV)
+		}
+
+		// break_glass source: wsAdmin on restricted document opens break-glass and receives via=break_glass (view).
+		rDoc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		if _, _, err := f.svc.GrantDocumentBreakGlass(f.ctx, H(tn.wsAdmin.ID), rDoc.ID, "Kiểm tra theo yêu cầu kiểm toán nội bộ"); err != nil {
+			t.Fatalf("GrantDocumentBreakGlass: %v", err)
+		}
+		bgOV, err := f.svc.DocumentAccessList(f.ctx, H(tn.wsAdmin.ID), rDoc.ID)
+		if err != nil {
+			t.Fatalf("break_glass DocumentAccessList: %v", err)
+		}
+		if !hasSource(bgOV.MySources, DocumentAccessSourceViaBreakGlass, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView) {
+			t.Fatalf("break_glass MySources = %+v, want via=break_glass (view)", bgOV.MySources)
+		}
+
+		// work_product source: owned document delegates to ownerLevelResolve -> via=work_product.
+		f.svc.SetOwnerLevelResolver(mapOwnerResolver{
+			tn.member.ID: DocumentLevelEdit,
+		})
+		t.Cleanup(func() { f.svc.SetOwnerLevelResolver(nil) })
+		wpDoc := f.doc(t, tn, docSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			ownerID: "01J8X4WP000000000000000001",
+		})
+		wpOV, err := f.svc.DocumentAccessList(f.ctx, H(tn.member.ID), wpDoc.ID)
+		if err != nil {
+			t.Fatalf("work_product DocumentAccessList: %v", err)
+		}
+		if !hasSource(wpOV.MySources, DocumentAccessSourceViaWorkProduct, "work_product", "01J8X4WP000000000000000001", DocumentLevelEdit) {
+			t.Fatalf("work_product MySources = %+v, want via=work_product (edit)", wpOV.MySources)
 		}
 	})
 
