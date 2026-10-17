@@ -1,0 +1,15 @@
+$ pnpm knip 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+Unused exports (3)
+createDoc    function  e2e/documents-share-fixtures.ts:153:23
+shareDialog  function  e2e/documents-share-fixtures.ts:266:17
+docTitle     function  e2e/documents-share-fixtures.ts:319:17
+Unused exported types (2)
+AccessSource  interface  e2e/documents-share-fixtures.ts:43:18
+ShareRow      interface  e2e/documents-share-fixtures.ts:50:18
+ ELIFECYCLE  Command failed with exit code 1.
+
+KNIP_EXIT=1

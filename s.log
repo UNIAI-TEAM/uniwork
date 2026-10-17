@@ -1,0 +1,242 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18530 FRONTEND_ORIGIN=http://localhost:13450 API_PUBLIC_URL=http://localhost:18530 PREVIEW_ORIGIN=http://localhost:13451 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18530 NEXT_PUBLIC_WS_URL=ws://localhost:18530 NEXT_PUBLIC_APP_URL=http://localhost:13450 E2E_BASE_URL=http://localhost:13450 E2E_API_URL=http://localhost:18530 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-share-rules.spec.ts --reporter=list > /tmp/sh3-SHARE_RULES.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/sh3-SHARE_RULES.log | tail -n 120; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 4000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/sh3-SHARE_RULES.log || { echo "no passing test in documents-share-rules.spec.ts"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_SHARE_RULES_EXIT=$rc"
+
+Running 10 tests using 1 worker
+
+(node:97058) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:97058) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 documents-share-rules.spec.ts:66:1 › AC09 without Manage there is no way to change access, list candidates or see others (46ms)
+  ✓   2 documents-share-rules.spec.ts:89:1 › U-SH4 a person without Manage opens Share and sees their own level and sources only (3.2s)
+  ✓   3 documents-share-rules.spec.ts:115:1 › AC11 sharing to another workspace does not move the document (53ms)
+  ✓   4 documents-share-rules.spec.ts:135:1 › AC13 a second grant to the same person: keep or update, duplicates refused, one row (5.7s)
+  ✓   5 documents-share-rules.spec.ts:171:1 › AC16 leaving the workspace ends the access that came through it (40ms)
+  ✘   6 documents-share-rules.spec.ts:186:1 › AC19 the library row shows the share scope as a type and a count, never names (9.9s)
+(node:97177) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:97177) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   7 documents-share-rules.spec.ts:216:1 › AC20 opening a document's URL grants nothing; Stored-in is separate from sharing (7.3s)
+  ✓   8 documents-share-rules.spec.ts:241:1 › U-SH3 one bad recipient rejects the whole batch; the popup marks that chip only (5.3s)
+  ✓   9 documents-share-rules.spec.ts:281:1 › isolation another organization reaches neither the access nor the candidates route (21ms)
+  ✘  10 documents-share-rules.spec.ts:294:1 › FR-13 the recipient gets a document_shared inbox item with the level; groups and lowering stay silent (32.3s)
+
+
+  1) documents-share-rules.spec.ts:186:1 › AC19 the library row shows the share scope as a type and a count, never names 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: getByRole('table', { name: 'Tài liệu' }).locator('tbody tr').filter({ has: getByText('SH-E2E AC19 1792265874324-6', { exact: true }) }).getByTestId('document-share-scope-badge').filter({ visible: true }).first()
+    Expected pattern: /Workspace o-a-owner-mvcstrjlfkvr · 2 người/
+    Received string:  ""
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for getByRole('table', { name: 'Tài liệu' }).locator('tbody tr').filter({ has: getByText('SH-E2E AC19 1792265874324-6', { exact: true }) }).getByTestId('document-share-scope-badge').filter({ visible: true }).first()
+        14 × locator resolved to <span id="base-ui-_r_3k_" aria-describedby="_r_3i_" data-scope-kind="multiple" data-slot="tooltip-trigger" data-base-ui-tooltip-trigger="" data-testid="document-share-scope-badge" class="inline-flex min-w-0 shrink-0 items-center gap-1 text-caption text-muted-foreground">…</span>
+           - unexpected value "null"
+
+
+      203 |   await grantAccess(request, s.owner.token, id, [{ principal_type: "workspace", principal_id: homeId, level: "view" }]);
+      204 |   const multiple = await badge("multiple", /Nhiều phạm vi/);
+    > 205 |   await expect(multiple).toHaveAttribute("title", new RegExp(`Workspace ${escapeRegExp(homeName)} · 2 người`));
+          |                          ^
+      206 |
+      207 |   // A reader of the row gets the counts and no names (U-SH4).
+      208 |   const listed = await request.get(`${api}/api/v1/workspaces/${s.m.aOwner.wsId}/documents`, { headers: authHeaders(s.member.token) });
+
+    Error Context: test-results/documents-share-rules-AC19-ef5f3-ype-and-a-count-never-names/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-share-rules-AC19-ef5f3-ype-and-a-count-never-names/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-share-rules-AC19-ef5f3-ype-and-a-count-never-names/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) documents-share-rules.spec.ts:294:1 › FR-13 the recipient gets a document_shared inbox item with the level; groups and lowering stay silent 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+    Call Log:
+    - Timeout 30000ms exceeded while waiting on the predicate
+
+      321 |   // The control person is notified last, so once it arrives the outbox has passed everything above.
+      322 |   await grantAccess(request, s.owner.token, id, [userItem(control, "view")]);
+    > 323 |   await expect.poll(async () => (await sharedKind(control.token, id)).length, { timeout: 30_000 }).toBe(1);
+          |                                                                                                    ^
+      324 |   expect(await sharedKind(s.member.token, id), "no second item for the member").toHaveLength(1);
+      325 |   expect(await sharedKind(s.other.token, id), "a workspace member is not told about a workspace share").toHaveLength(0);
+      326 | });
+
+    Error Context: test-results/documents-share-rules-FR-1-d48ac-ps-and-lowering-stay-silent/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-share-rules-FR-1-d48ac-ps-and-lowering-stay-silent/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-share-rules-FR-1-d48ac-ps-and-lowering-stay-silent/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    documents-share-rules.spec.ts:186:1 › AC19 the library row shows the share scope as a type and a count, never names 
+    documents-share-rules.spec.ts:294:1 › FR-13 the recipient gets a document_shared inbox item with the level; groups and lowering stay silent 
+  8 passed (1.2m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-share-rules.spec.ts --reporter=list
+===== e2e/test-results/documents-share-rules-AC19-ef5f3-ype-and-a-count-never-names/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-share-rules.spec.ts >> AC19 the library row shows the share scope as a type and a count, never names
+- Location: documents-share-rules.spec.ts:186:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator: getByRole('table', { name: 'Tài liệu' }).locator('tbody tr').filter({ has: getByText('SH-E2E AC19 1792265874324-6', { exact: true }) }).getByTestId('document-share-scope-badge').filter({ visible: true }).first()
+Expected pattern: /Workspace o-a-owner-mvcstrjlfkvr · 2 người/
+Received string:  ""
+Timeout: 5000ms
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 5000ms
+  - waiting for getByRole('table', { name: 'Tài liệu' }).locator('tbody tr').filter({ has: getByText('SH-E2E AC19 1792265874324-6', { exact: true }) }).getByTestId('document-share-scope-badge').filter({ visible: true }).first()
+    14 × locator resolved to <span id="base-ui-_r_3k_" aria-describedby="_r_3i_" data-scope-kind="multiple" data-slot="tooltip-trigger" data-base-ui-tooltip-trigger="" data-testid="document-share-scope-badge" class="inline-flex min-w-0 shrink-0 items-center gap-1 text-caption text-muted-foreground">…</span>
+       - unexpected value "null"
+
+```
+
+```yaml
+- text: Nhiều phạm vi
+```
+
+# Test source
+
+```ts
+  105 |     await expect(dialog.getByText(/Chỉnh sửa qua chia sẻ trực tiếp/)).toBeVisible();
+  106 |     await expect(dialog.getByRole("heading", { name: "Thêm quyền" })).toHaveCount(0);
+  107 |     await expect(dialog.getByRole("combobox", { name: "Chọn đối tượng" })).toHaveCount(0);
+  108 |     await expect(dialog.getByRole("button", { name: "Tạo liên kết mới" })).toHaveCount(0);
+  109 |     await expect(dialog.getByText(s.extras[0]!.name)).toHaveCount(0);
+  110 |   } finally {
+  111 |     await context.close();
+  112 |   }
+  113 | });
+  114 | 
+  115 | test("AC11 sharing to another workspace does not move the document", async ({ request }) => {
+  116 |   const { id } = await ownerDoc(request, s, "AC11");
+  117 |   expect(await levelOf(request, s.outside.token, id)).toBe("");
+  118 |   const dry = await putAccess(request, s.owner.token, id, [{ principal_type: "workspace", principal_id: s.m.aWS2Id, level: "edit" }], true);
+  119 |   const group = ((await dry.json()) as { preview: { groups: { member_count: number }[] } }).preview.groups[0];
+  120 |   expect(group?.member_count, "the group is counted, not named").toBeGreaterThanOrEqual(1);
+  121 |   await grantAccess(request, s.owner.token, id, [{ principal_type: "workspace", principal_id: s.m.aWS2Id, level: "edit" }]);
+  122 | 
+  123 |   const doc = (await (await readDoc(request, s.owner.token, id)).json()) as { document: { workspace_id: string } };
+  124 |   expect(doc.document.workspace_id, "the home workspace is unchanged").toBe(s.m.aOwner.wsId);
+  125 |   expect(await levelOf(request, s.outside.token, id)).toBe("edit");
+  126 | 
+  127 |   const inWs2 = await request.get(`${api}/api/v1/workspaces/${s.m.aWS2Id}/documents`, { headers: authHeaders(s.outside.token) });
+  128 |   expect(inWs2.status()).toBe(200);
+  129 |   expect(await inWs2.text(), "it does not become a document of the other workspace").not.toContain(id);
+  130 |   const shared = await request.get(`${api}/api/v1/workspaces/${s.m.aWS2Id}/documents/shared-with-me`, { headers: authHeaders(s.outside.token) });
+  131 |   expect(shared.status()).toBe(200);
+  132 |   expect(await shared.text()).toContain(id);
+  133 | });
+  134 | 
+  135 | test("AC13 a second grant to the same person: keep or update, duplicates refused, one row", async ({ page, request }) => {
+  136 |   const { id } = await ownerDoc(request, s, "AC13");
+  137 |   await grantAccess(request, s.owner.token, id, [userItem(s.member, "view")]);
+  138 | 
+  139 |   const kept = await grantAccess(request,===== e2e/test-results/documents-share-rules-FR-1-d48ac-ps-and-lowering-stay-silent/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-share-rules.spec.ts >> FR-13 the recipient gets a document_shared inbox item with the level; groups and lowering stay silent
+- Location: documents-share-rules.spec.ts:294:1
+
+# Error details
+
+```
+Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 1
+Received: 0
+
+Call Log:
+- Timeout 30000ms exceeded while waiting on the predicate
+```
+
+# Test source
+
+```ts
+  223 |     await expect(visitor.getByRole("heading", { name: "Bạn chưa mở được tài liệu này" })).toBeVisible({ timeout: 60_000 });
+  224 |     await expect(visitor.getByRole("textbox", { name: "Nội dung tài liệu" })).toHaveCount(0);
+  225 |   } finally {
+  226 |     await context.close();
+  227 |   }
+  228 |   const access = await sharesOf(request, s.owner.token, id);
+  229 |   expect(access.shares ?? [], "opening the URL created no share").toHaveLength(0);
+  230 |   expect(access.home_workspace?.level ?? null).toBeNull();
+  231 |   expect(await levelOf(request, s.other.token, id)).toBe("");
+  232 | 
+  233 |   // The dialog says where the document is stored without turning that into access.
+  234 |   await signInOwner(page, s);
+  235 |   const dialog = await openShareDialog(page, s.m.aOwner, id);
+  236 |   await expect(dialog.getByText(`Lưu tại: Workspace ${homeName}`)).toBeVisible();
+  237 |   await expect(dialog.getByText("Chủ sở hữu", { exact: true })).toBeVisible();
+  238 |   expect(await levelOf(request, s.other.token, id)).toBe("");
+  239 | });
+  240 | 
+  241 | test("U-SH3 one bad recipient rejects the whole batch; the popup marks that chip only", async ({ page, request }) => {
+  242 |   const { id } = await ownerDoc(request, s, "U-SH3");
+  243 | 
+  244 |   // API: another organization's user in the batch -> 422, nothing written, no name in the answer.
+  245 |   const refused = await putAccess(request, s.owner.token, id, [userItem(s.member, "view"), userItem(s.foreign, "view")]);
+  246 |   expect(refused.status()).toBe(422);
+  247 |   const body = await rejectedOf(refused);
+  248 |   expect(body.code).toBe("document_access_rejected");
+  249 |   expect(body.rejected).toHaveLength(1);
+  250 |   expect(body.rejected[0]).toMatchObject({ index: 1, principal_id: s.foreign.id, code: "principal_not_in_organization" });
+  251 |   expect(body.text).not.toContain(s.foreign.name);
+  252 |   expect(body.text).not.toContain(s.foreign.email);
+  253 |   expect((await sharesOf(request, s.owner.token, id)).shares ?? []).toHaveLength(0);
+  254 |   expect(await levelOf(request, s.member.token, id)).toBe("");
+  255 |   const probe = await candidatesOf(request, s.owner.token, id, s.foreign.name);
+  256 |   expect(probe.some((c) => c.principal_id === s.foreign.id), "another organization's person is never a candidate").toBe(false);
+  257 | 
+  258 |   // UI: the person is deactivated after being picked; the batch is refused as a whole.
+  259 |   const leaving = s.extras[DEACTIVATED]!;
+  260 |   await signInOwner(page, s);
+  261 |   const dialog = await openShareDialog(page, s.m.aOwner, id);
+  262 |   await pickCandidate(dialog, s.member.name, who(s.member.name));
+  263 |   await pickCandidate(dialog, leaving.name, who(leaving.name));
+  264 |   await expect(dialog.getByText("Đã chọn 2", { exact: true })).toBeVisible();
+  265 |   await deactivateOrgMember(leaving.email);
+  266 |   await submitShare(dialog).click();
+  267 | 
+  268 |   await expect(dialog.getByTestId(`rejected-reason-${leaving.id}`)).toHaveText("Không thuộc tổ chức này", { timeout: 30_000 });
+  269 |   await expect(dialog.getByTestId(`rejected-reason-${s.member.id}`)).toHaveCount(0);
+  270 |   await expect(dialog.getByRole("alert")).toContainText(`${leaving.name}: Không thuộc tổ chức này`);
+  271 |   await expect(page.getByText(/Đã chia sẻ cho/)).toHaveCount(0);
+  2
+E2E_SHARE_RULES_EXIT=1

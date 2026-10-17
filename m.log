@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18530 13450; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18530/tcp 13450/tcp 2>/dev/null; sleep 1; for p in 18530 13450; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+029b93fb5a14cfb7c0806e30d9d83681dc3ab990
+029b93fb5 chore: merge SH fixB preview counts, level presence, candidate order, atomicity (UNI-1781, 91d152779) into the sharing lane
+91d152779 test(documents): pin late-failure rollback of an access batch
+12e52dd53 fix(documents): drop the group name from the access preview
+92c2cfa46 fix(documents): order share candidates by principal type rank

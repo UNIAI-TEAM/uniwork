@@ -1,0 +1,54 @@
+$ pnpm --filter @uniwork/views exec vitest run > /tmp/sh3-views.log 2>&1; rc=$?; tail -40 /tmp/sh3-views.log; echo "== FAILED TESTS"; grep -E " FAIL |^\s+× " /tmp/sh3-views.log | head -60; echo; echo "VIEWS_TEST_EXIT=$rc"
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  documents/documents-library-ladder.test.tsx > column ladder > swaps the secondary line for the access column once it fits
+AssertionError: expected 'An·28/9/26·Quản lý' to contain 'Riêng tư'
+
+Expected: "Riêng tư"
+Received: "An·28/9/26·Quản lý"
+
+ ❯ documents/documents-library-ladder.test.tsx:200:36
+    198|     const accessLine = row.querySelector("[data-library-access-line]")…
+    199|     expect(accessLine).toBeTruthy();
+    200|     expect(accessLine.textContent).toContain("Riêng tư");
+       |                                    ^
+    201|     const hidesAt = rungOf(accessLine, /^hidden$/);
+    202|     // It hides at the very width the column appears, so the info is n…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  documents/documents-library-ladder.test.tsx > column ladder > keeps the Restricted mark inside the Name cell: the title truncates, the mark does not
+TypeError: Cannot read properties of undefined (reading 'closest')
+ ❯ documents/documents-library-ladder.test.tsx:220:26
+    218|     // The lock label never shrinks or wraps; whatever must give way (…
+    219|     const mark = Array.from(line.querySelectorAll("span")).find((el) =…
+    220|     const markBox = mark.closest("span.shrink-0") as HTMLElement;
+       |                          ^
+    221|     expect(markBox).toBeTruthy();
+    222|     expect(line.querySelector("span.truncate")).toBeTruthy();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  3 failed | 612 passed (615)
+      Tests  5 failed | 5452 passed (5457)
+   Start at  19:14:34
+   Duration  382.53s (transform 19.96s, setup 126.27s, import 274.91s, tests 499.06s, environment 177.55s)
+
+undefined
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run
+== FAILED TESTS
+     × only name colours that exist as tokens 82ms
+     × swaps the secondary line for the access column once it fits 20ms
+     × keeps the Restricted mark inside the Name cell: the title truncates, the mark does not 11ms
+     × shows the visibility and the viewer's level per row, with — where the row carries nothing 120ms
+     × carries the level and the restricted lock on the row's secondary line while the main area is narrow 19ms
+ FAIL  token-classes.test.ts > signal colour utilities > only name colours that exist as tokens
+ FAIL  documents/documents-library-access.test.tsx > library table access column > shows the visibility and the viewer's level per row, with — where the row carries nothing
+ FAIL  documents/documents-library-access.test.tsx > library table access column > carries the level and the restricted lock on the row's secondary line while the main area is narrow
+ FAIL  documents/documents-library-ladder.test.tsx > column ladder > swaps the secondary line for the access column once it fits
+ FAIL  documents/documents-library-ladder.test.tsx > column ladder > keeps the Restricted mark inside the Name cell: the title truncates, the mark does not
+
+VIEWS_TEST_EXIT=1

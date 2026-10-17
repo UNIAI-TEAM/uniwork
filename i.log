@@ -1,0 +1,19 @@
+$ pnpm --filter @uniwork/core exec vitest run > /tmp/sh3-core.log 2>&1; rc=$?; tail -40 /tmp/sh3-core.log; echo "== FAILED TESTS"; grep -E " FAIL |^\s+× " /tmp/sh3-core.log | head -60; echo; echo "CORE_TEST_EXIT=$rc"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+
+
+ Test Files  264 passed (264)
+      Tests  2769 passed (2769)
+   Start at  19:13:28
+   Duration  60.71s (transform 4.55s, setup 31.14s, import 24.32s, tests 22.12s, environment 75.71s)
+
+== FAILED TESTS
+
+CORE_TEST_EXIT=0

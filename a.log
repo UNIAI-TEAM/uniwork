@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+029b93fb5a14cfb7c0806e30d9d83681dc3ab990
+bf693b001da6512bbf33d867c35250179106a63b
+029b93fb5 chore: merge SH fixB preview counts, level presence, candidate order, atomicity (UNI-1781, 91d152779) into the sharing lane
+91d152779 test(documents): pin late-failure rollback of an access batch
+12e52dd53 fix(documents): drop the group name from the access preview
+92c2cfa46 fix(documents): order share candidates by principal type rank
+fcc7bfdee fix(documents): refuse an access item whose level key is absent
+65e981214 fix(documents): count effective membership in the access preview group counts
+fc2f35665 chore: merge SH-E2E documents-share specs (UNI-1788, 66ce78b56) into the sharing lane
+eb447e79a chore: merge SH fe-fix-1 review_fe r1 fixes for W1/W2/W3 (UNI-1784, f638725e1) into the sharing lane
