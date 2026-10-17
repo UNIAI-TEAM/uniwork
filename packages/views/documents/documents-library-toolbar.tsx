@@ -38,8 +38,10 @@ export interface ScopeTabsBarProps {
 export function ScopeTabsBar({ scope, count, onScope }: ScopeTabsBarProps) {
   const { t } = useTranslation();
   return (
-    <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
-      <TabsList className="no-scrollbar max-w-full overflow-x-auto overflow-y-hidden" aria-label={t("documents.home.scope_label")}>
+    // In the toolbar's wrapping row the root may shrink to the row (min-w-0) and the strip starts at its
+    // left edge, so on a phone it scrolls sideways to every tab instead of clipping or hiding the first (F8).
+    <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)} className="min-w-0 max-w-full">
+      <TabsList className="no-scrollbar max-w-full justify-start overflow-x-auto overflow-y-hidden" aria-label={t("documents.home.scope_label")}>
         {SCOPE_TABS.map((tab) => (
           <TabsTrigger key={tab} value={tab} className="pointer-coarse:min-h-11 pointer-coarse:min-w-11">
             {t(`documents.home.scope.${tab}`)}

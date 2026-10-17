@@ -104,8 +104,9 @@ export function DocumentWorkspace({
   const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeGate.editorOpen, Boolean(officeEditorHost));
   // ARCHIVE-01: a shelved document is read-only at every level, and so is one whose autosave was just
   // refused with document_shelved (someone shelved it while this page was open): the unsaved editor
-  // content stays, nothing more is sent, and the document is read again.
-  const writeRefusedShelved = useShelvedWriteGuard(wsId, doc.id, state.errorCode);
+  // content stays, nothing more is sent, and the document is read again. The save machine lives in the
+  // edit lock, which needs canEdit first, so the refusal reaches canEdit through this mirror.
+  const [writeRefusedShelved, setWriteRefusedShelved] = useState(false);
   const shelved = isShelved(doc) || writeRefusedShelved;
   const canEdit = !shelved && (doc.my_level === "edit" || doc.my_level === "manage");
   const shelvedRef = useRef(shelved);
@@ -122,6 +123,8 @@ export function DocumentWorkspace({
   const { save, editable } = editLock;
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
+  const refusedShelved = useShelvedWriteGuard(wsId, doc.id, state.errorCode);
+  if (refusedShelved !== writeRefusedShelved) setWriteRefusedShelved(refusedShelved);
   const metadataRef = useRef<DocumentPageMetadataHandle>(null);
   const [metadataStatus, setMetadataStatus] = useState<DocumentPageMetadataStatus>({ dirty: false, pending: false, failed: false });
   const metadataStatusRef = useRef(metadataStatus);
