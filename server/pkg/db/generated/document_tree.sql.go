@@ -427,6 +427,95 @@ func (q *Queries) ListDocumentArchiveBatch(ctx context.Context, arg ListDocument
 	return items, nil
 }
 
+const listDocumentChildrenOutsideSet = `-- name: ListDocumentChildrenOutsideSet :many
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+FROM documents
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND parent_id = $3
+  AND NOT (id = ANY($4::text[]))
+ORDER BY id
+`
+
+type ListDocumentChildrenOutsideSetParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ParentID       pgtype.Text `json:"parent_id"`
+	ExcludeIds     []string    `json:"exclude_ids"`
+}
+
+// A document being hard-deleted must not leave a dangling parent_id behind
+// (no foreign keys, RESTORE-01 §2 P-4): its surviving direct children re-root
+// to the workspace root first. This is the read half - children outside the
+// delete set, both trashed and live.
+func (q *Queries) ListDocumentChildrenOutsideSet(ctx context.Context, arg ListDocumentChildrenOutsideSetParams) ([]Document, error) {
+	rows, err := q.db.Query(ctx, listDocumentChildrenOutsideSet,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ParentID,
+		arg.ExcludeIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Document{}
+	for rows.Next() {
+		var i Document
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.ParentID,
+			&i.Kind,
+			&i.Title,
+			&i.Icon,
+			&i.Visibility,
+			&i.Content,
+			&i.ContentText,
+			&i.SearchText,
+			&i.ContentBytes,
+			&i.CurrentVersion,
+			&i.FileVersionID,
+			&i.Revision,
+			&i.Position,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.AclOwnerID,
+			&i.SourceDocumentID,
+			&i.SourceVersionID,
+			&i.SourceRevision,
+			&i.SourceFormat,
+			&i.SourceEngine,
+			&i.TargetFormat,
+			&i.SourceChecksumSha256,
+			&i.ConversionReason,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.UpdatedBy,
+			&i.UpdatedByKind,
+			&i.ContentSavedAt,
+			&i.LastVersionAt,
+			&i.ArchivedAt,
+			&i.ArchivedBy,
+			&i.PurgeAfter,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ArchiveBatchID,
+			&i.ContentRevision,
+			&i.WorkspaceLevel,
+			&i.SystemKind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentSubtree = `-- name: ListDocumentSubtree :many
 
 WITH RECURSIVE sub AS (
@@ -958,6 +1047,54 @@ func (q *Queries) RenameArchivedDocument(ctx context.Context, arg RenameArchived
 		&i.SystemKind,
 	)
 	return i, err
+}
+
+const rerootArchivedChildrenOutsideSet = `-- name: RerootArchivedChildrenOutsideSet :many
+UPDATE documents
+SET parent_id = NULL
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND parent_id = $3
+  AND archived_at IS NOT NULL
+  AND NOT (id = ANY($4::text[]))
+RETURNING id
+`
+
+type RerootArchivedChildrenOutsideSetParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ParentID       pgtype.Text `json:"parent_id"`
+	ExcludeIds     []string    `json:"exclude_ids"`
+}
+
+// The trashed half of the re-root: parent_id leaves the dying row while
+// archived_at, archive_batch_id, purge_after, title, position and revision
+// all stay untouched - the row is not being restored, it is staying in the
+// trash where a later restore re-reads it. An id inside the delete set is
+// skipped even if it still names the parent: it is deleted moments later.
+func (q *Queries) RerootArchivedChildrenOutsideSet(ctx context.Context, arg RerootArchivedChildrenOutsideSetParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, rerootArchivedChildrenOutsideSet,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ParentID,
+		arg.ExcludeIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const restoreDocumentsByOwner = `-- name: RestoreDocumentsByOwner :many

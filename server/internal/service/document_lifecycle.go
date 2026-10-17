@@ -1065,6 +1065,10 @@ func (s *DocumentService) PurgeDocument(ctx context.Context, actor Actor, docume
 		return nil, errPurgeFolderTooLarge()
 	}
 	purged := make([]string, 0, len(members))
+	deleting := make([]string, 0, len(members))
+	for _, m := range members {
+		deleting = append(deleting, m.ID)
+	}
 	for _, m := range members {
 		locked, err := q.LockDocumentByID(ctx, m.ID)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1076,7 +1080,7 @@ func (s *DocumentService) PurgeDocument(ctx context.Context, actor Actor, docume
 		if !locked.ArchivedAt.Valid {
 			continue
 		}
-		deleted, _, err := s.hardDeleteDocumentTx(ctx, q, locked, actor)
+		deleted, _, err := s.hardDeleteDocumentTx(ctx, q, locked, actor, deleting)
 		if err != nil {
 			return nil, err
 		}
@@ -1218,7 +1222,7 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 	if !doc.ArchivedAt.Valid || !doc.PurgeAfter.Valid || !doc.PurgeAfter.Time.Before(now) {
 		return false, 0, nil // restored or re-archived later while the scan was in flight
 	}
-	purged, released, err := s.hardDeleteDocumentTx(ctx, q, doc, audit.System("documents.purge"))
+	purged, released, err := s.hardDeleteDocumentTx(ctx, q, doc, audit.System("documents.purge"), []string{doc.ID})
 	if err != nil || !purged {
 		return false, 0, err
 	}
@@ -1228,17 +1232,62 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 	return true, released, nil
 }
 
-// hardDeleteDocumentTx deletes one locked archived document, every row of its
-// dependent orbit (versions, assets, shares, share links, access logs, comment
-// reactions/mentions/revisions/comments, favorites), releases its FileService
-// references, and records the document.deleted audit and outbox rows inside
-// the caller's transaction (RESTORE-01 §2 P-4/P-6).
-func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor) (bool, int, error) {
+// hardDeleteDocumentTx deletes one locked archived document, re-roots the
+// surviving direct children that are not in the delete set, removes every row
+// of its dependent orbit (versions, assets, shares, share links, access logs,
+// comment reactions/mentions/revisions/comments, favorites), releases its
+// FileService references, and records the document.deleted audit and outbox
+// rows inside the caller's transaction (RESTORE-01 §2 P-4/P-6).
+func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor, deleting []string) (bool, int, error) {
 	fileIDs, err := q.ListDocumentFileIDs(ctx, db.ListDocumentFileIDsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
 	if err != nil {
 		return false, 0, err
+	}
+	// No foreign keys: every surviving direct child must leave the dying row
+	// before it disappears, inside this transaction (RESTORE-01 §2 P-4). A
+	// trashed child keeps archived_at, its batch and purge_after untouched -
+	// only parent_id moves, and a later restore re-reads the row at the trash
+	// root. A live child lands at the workspace root like any re-rooted
+	// restore member: fresh position and a collision-free "(n)" title.
+	children, err := q.ListDocumentChildrenOutsideSet(ctx, db.ListDocumentChildrenOutsideSetParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		ParentID: pgtype.Text{String: doc.ID, Valid: true}, ExcludeIds: deleting,
+	})
+	if err != nil {
+		return false, 0, err
+	}
+	if _, err := q.RerootArchivedChildrenOutsideSet(ctx, db.RerootArchivedChildrenOutsideSetParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		ParentID: pgtype.Text{String: doc.ID, Valid: true}, ExcludeIds: deleting,
+	}); err != nil {
+		return false, 0, err
+	}
+	for _, child := range children {
+		if child.ArchivedAt.Valid {
+			continue
+		}
+		name, err := s.availableMoveTitle(ctx, q, documentNameScope{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: child.Kind, ExcludeID: child.ID,
+		}, child.Title)
+		if err != nil {
+			return false, 0, err
+		}
+		position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, ParentID: pgtype.Text{},
+		})
+		if err != nil {
+			return false, 0, err
+		}
+		if _, err := q.DetachDocumentToRoot(ctx, db.DetachDocumentToRootParams{
+			ID: child.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Position: position, Title: name.Title, SearchText: documentSearchText(name.Title, child.ContentText),
+			UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
+		}); err != nil {
+			return false, 0, err
+		}
 	}
 	// Everything the document gathered goes in the same transaction.
 	for _, del := range []func(context.Context) error{

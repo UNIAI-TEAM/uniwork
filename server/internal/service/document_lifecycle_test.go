@@ -878,6 +878,16 @@ func TestDocumentManualPurge(t *testing.T) {
 		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
 			t.Fatalf("admin archive F: %v", err)
 		}
+		beforeChild, err := f.q.GetDocumentByID(f.ctx, unmanagedChild.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A live child under a trashed parent: unreachable through the public
+		// commands, but the helper must re-root it too (name + root position).
+		liveChild := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindPage, title: "Con sống", parent: folderF.ID,
+		})
 
 		purged, err := f.svc.PurgeDocument(f.ctx, u, folderF.ID)
 		if err != nil {
@@ -891,9 +901,64 @@ func TestDocumentManualPurge(t *testing.T) {
 				t.Fatalf("expected %s to be hard-deleted", id)
 			}
 		}
-		f.liveArchived(t, unmanagedChild.ID)
 
-		// Now aclOwner restores unmanagedChild: since folderF was purged, unmanagedChild detaches to workspace root.
+		// BE-RS-1: the retained child must not keep a dangling parent_id.
+		// parent_id is NULL the moment the purge commits and every other
+		// field (archived_at, batch, purge_after, title, revision) is what it
+		// was before the purge.
+		retained, err := f.q.GetDocumentByID(f.ctx, unmanagedChild.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if retained.ParentID.Valid {
+			t.Fatalf("retained child parent_id = %v, want NULL immediately after purge", retained.ParentID)
+		}
+		if !retained.ArchivedAt.Valid || !retained.ArchivedAt.Time.Equal(beforeChild.ArchivedAt.Time) ||
+			!retained.ArchiveBatchID.Valid ||
+			retained.ArchiveBatchID.String != beforeChild.ArchiveBatchID.String ||
+			!retained.PurgeAfter.Time.Equal(beforeChild.PurgeAfter.Time) ||
+			retained.Title != beforeChild.Title || retained.Revision != beforeChild.Revision {
+			t.Fatalf("retained child changed beyond parent_id: %+v vs %+v", retained, beforeChild)
+		}
+		// The live child re-rooted to the workspace root, still live.
+		afterLive := f.live(t, liveChild.ID)
+		if afterLive.ParentID.Valid {
+			t.Fatalf("live child parent_id = %v, want NULL (workspace root)", afterLive.ParentID)
+		}
+
+		// BE-RS-7: exactly one human document.deleted audit row and one outbox
+		// row per deleted id - and none for either retained child.
+		for _, id := range []string{folderF.ID, managedChild.ID} {
+			var auditCount int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events
+				 WHERE action = 'document.deleted' AND resource_id = $1 AND actor_id = $2 AND actor_kind = 'human'`,
+				id, tn.member.ID).Scan(&auditCount); err != nil || auditCount != 1 {
+				t.Fatalf("audit document.deleted rows for %s = %d, err = %v, want 1 human row", id, auditCount, err)
+			}
+			var outboxCount int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM outbox_events WHERE topic = 'document.deleted' AND payload::jsonb->>'document_id' = $1`,
+				id).Scan(&outboxCount); err != nil || outboxCount != 1 {
+				t.Fatalf("outbox document.deleted rows for %s = %d, err = %v, want 1", id, outboxCount, err)
+			}
+		}
+		for _, id := range []string{unmanagedChild.ID, liveChild.ID} {
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = 'document.deleted' AND resource_id = $1`,
+				id).Scan(&n); err != nil || n != 0 {
+				t.Fatalf("audit document.deleted rows for retained %s = %d, err = %v, want 0", id, n, err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM outbox_events WHERE topic = 'document.deleted' AND payload::jsonb->>'document_id' = $1`,
+				id).Scan(&n); err != nil || n != 0 {
+				t.Fatalf("outbox document.deleted rows for retained %s = %d, err = %v, want 0", id, n, err)
+			}
+		}
+
+		// Now aclOwner restores unmanagedChild: it already sits at the trash
+		// root, so it comes back at the workspace root.
 		res, err := f.svc.RestoreDocument(f.ctx, Human(tn.aclOwner.ID), unmanagedChild.ID, ArchiveDocumentInput{})
 		if err != nil {
 			t.Fatalf("aclOwner restore unmanagedChild: %v", err)
@@ -909,7 +974,13 @@ func TestDocumentManualPurge(t *testing.T) {
 		past := time.Now().Add(-time.Hour)
 		expired := f.treeDoc(t, tn, treeDocSpec{
 			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
-			archived: true, purgeAfter: past,
+			kind: DocumentKindFolder, archived: true, purgeAfter: past,
+		})
+		// A child archived in a different batch with a future purge_after is
+		// retained by the sweep; its parent_id must be re-rooted to NULL.
+		retainedChild := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			parent: expired.ID, archived: true,
 		})
 		f.version(t, expired, 1, "auto", "f-pg4-exp")
 		rep, err := f.svc.PurgeExpired(f.ctx, time.Now())
@@ -921,6 +992,14 @@ func TestDocumentManualPurge(t *testing.T) {
 		}
 		if _, err := f.q.GetDocumentByID(f.ctx, expired.ID); err == nil {
 			t.Fatal("expired document still exists after PurgeExpired")
+		}
+		afterChild, err := f.q.GetDocumentByID(f.ctx, retainedChild.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if afterChild.ParentID.Valid || !afterChild.ArchivedAt.Valid {
+			t.Fatalf("retained child after sweep: parent=%v archived=%v, want NULL parent in trash",
+				afterChild.ParentID, afterChild.ArchivedAt.Valid)
 		}
 	})
 }
