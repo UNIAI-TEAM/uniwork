@@ -26,26 +26,27 @@ Chỉ `server/internal/files` và service FileService ghi bảng này. Mọi lu�
 | `organization_id` | TEXT NOT NULL | |
 | `workspace_id` | TEXT NOT NULL | |
 | `file_upload_session_id` | TEXT NOT NULL | phiên FileService 1:1 |
-| `file_id` | TEXT NOT NULL | dòng `files` (khoá object = đích multipart, D2) |
-| `purpose` | TEXT NOT NULL | `document_create` \| `document_version` |
+| `file_id` | TEXT NOT NULL | dòng `files` |
+| `object_key` | TEXT NOT NULL | khoá object của tệp = đích multipart (D2), lưu để GC/hủy không cần đọc lại `files` |
 | `document_id` | TEXT NULL | route tài liệu / route frame |
 | `parent_id`, `title`, `visibility` | TEXT NULL | chỉ route workspace (giữ để tạo tài liệu lúc hoàn tất) |
 | `filename` | TEXT NOT NULL | |
 | `size_bytes` | BIGINT NOT NULL | khai báo, so lúc hoàn tất |
-| `part_size` | INTEGER NOT NULL | 8 MiB (8388608) |
+| `part_size` | BIGINT NOT NULL | 8 MiB (8388608) |
 | `total_parts` | INTEGER NOT NULL | `ceil(size_bytes / part_size)`; ≤ 10000 (cap 2 GiB → tối đa 256) |
 | `storage_upload_id` | TEXT NOT NULL | UploadId của S3 |
 | `probe_head_sha256`, `probe_tail_sha256` | TEXT NOT NULL | sha256 của `head_b64` và `central_dir_b64` (chuỗi rỗng khi không phải zip) |
-| `cd_offset`, `cd_size` | BIGINT NULL | |
-| `opened_via` | TEXT NOT NULL | `session` \| `frame_token` (CHECK) |
-| `token_document_id` | TEXT NULL | NOT NULL khi `opened_via = 'frame_token'` (CHECK) |
+| `cd_offset`, `cd_size` | BIGINT NULL | cùng NULL hoặc cùng có giá trị (CHECK) |
+| `opened_via` | TEXT NOT NULL | `workspace` \| `version` \| `frame` (CHECK). Mã hoá cả mục đích lẫn đường vào: `workspace` = tạo tài liệu mới (`document_id` NULL), `version` = phiên bản mới qua phiên đăng nhập, `frame` = phiên bản mới qua token frame |
+| `token_document_id` | TEXT NULL | `frame` thì NOT NULL và bằng `document_id`; `version`/`workspace` thì NULL (CHECK) |
 | `status` | TEXT NOT NULL | `open` → `validating` → `completed` \| `failed`; `open`/`validating` → `aborted` \| `expired` (CHECK) |
 | `failure_code` | TEXT NULL | mã lỗi trả lại khi gọi lại `complete` sau khi hỏng |
 | `result_document_id`, `result_version_upload_id` | TEXT NULL | để `complete` lặp lại trả cùng kết quả |
 | `lease_owner`, `lease_expires_at` | TEXT / TIMESTAMPTZ NULL | khoá `validating` (chỉ một `complete` kiểm tra tại một thời điểm) |
-| `idempotency_key` | TEXT NOT NULL | |
 | `created_by`, `created_by_kind` | TEXT NOT NULL | luôn `human` hôm nay (CHECK `human`/`agent`/`system`) |
 | `created_at`, `updated_at`, `expires_at`, `closed_at` | TIMESTAMPTZ | `expires_at = created_at + 24h`; `closed_at` NOT NULL đúng khi trạng thái kết thúc (CHECK) |
+
+> **Sửa r5 (lead, theo review S1-b R1-3):** bảng theo đúng code. Không có cột `purpose` (gộp vào `opened_via`) và không có cột `idempotency_key`: khoá idempotency nằm trong bảng `idempotency_keys` qua `BeginIdempotent` (D7), bảng này không cần lưu lại. Thêm cột `object_key`.
 
 Index (mỗi cái một file): `(created_by) WHERE status IN ('open','validating')` cho D5; `(expires_at) WHERE status IN ('open','validating')` cho GC; UNIQUE `(file_upload_session_id)`.
 
