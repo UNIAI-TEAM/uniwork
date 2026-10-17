@@ -295,6 +295,15 @@ var catalogue = []EventDef{
 	// connections (payload.user_id resolves the user scope) and nobody else.
 	{Topic: "document.favorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "document.unfavorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Edit lock (UNI-1645, addendum §4): ids only, no lock_id or requester id
+	// (clients reread the lock state). lock_changed is every visible state
+	// change except a heartbeat and reaches the workspace; the other three are
+	// addressed to one person - user_id is the previous holder, the holder and
+	// the requester respectively - and resolve the user scope from it.
+	{Topic: "document.lock_changed", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.lock_taken_over", Version: 1, Payload: []string{"document_id", "workspace_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "document.edit_requested", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "document.edit_request_answered", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy

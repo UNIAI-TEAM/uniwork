@@ -154,6 +154,21 @@ var errorClassByCode = map[string]string{
 //     it must keep reconciling and never read this as not_committed.
 //     Registered with the dev retention (G5-07); G5-D2 fixes the number,
 //     not the code.
+//   document_locked        (423, fields: holder, since, expires_at,
+//     held_by_me, current_revision) another editor holds the document's
+//     edit lock (UNI-1645 §3.3). Not a content conflict: "conflict" would
+//     open the old client's conflict dialog with "Overwrite", which must
+//     never show while the document is locked; the client maps the code to
+//     its own "locked" class. Not a lost permission either.
+//   edit_lock_lost (409), edit_lock_changed (409), edit_lock_free (409),
+//   edit_lock_held_by_me (409), edit_hold_device_required (403),
+//   edit_hold_cap_reached (409), edit_request_to_self (409),
+//   edit_request_closed (409), edit_request_expired (410),
+//   edit_request_rate_limited (429, fields.retry_after_s) - the rest of the
+//     edit lock answers (UNI-1645 §3.3). Each has its own recovery (reread
+//     the lock state, use another route, wait); "conflict", "permission" or
+//     "gone" would send the client down the wrong path, so it branches on
+//     the code.
 
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.

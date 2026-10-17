@@ -449,6 +449,10 @@ type SharedDocument struct {
 	Document db.Document
 	Access   DocumentAccess
 	Facts    DocumentListFacts
+	// EditLock is who is editing this row's document right now, when a live
+	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
+	// carries the tenure id.
+	EditLock *DocumentEditLockSummary
 }
 
 // SharedWithMeQuery is one page request of the recipient's shared list.
@@ -509,7 +513,7 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	for i := range page.Items {
 		page.Items[i].Facts = facts[i]
 	}
-	return page, nil
+	return page, s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items)
 }
 
 func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, organizationID string, in SharedWithMeQuery) (SharedWithMePage, error) {

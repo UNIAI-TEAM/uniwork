@@ -24,6 +24,12 @@ type Documents struct {
 	WorkerSweeps              *prometheus.CounterVec
 	WorkerSweepDuration       *prometheus.HistogramVec
 	WorkerRowsFailed          *prometheus.CounterVec
+	// The edit lock (UNI-1645, addendum §7): lock operations, writes refused
+	// because another editor holds the lock, and edit-request outcomes. The
+	// label values are closed sets and never carry an id.
+	EditLockOps     *prometheus.CounterVec
+	EditLockRefused *prometheus.CounterVec
+	EditRequests    *prometheus.CounterVec
 }
 
 func NewDocuments() *Documents {
@@ -66,6 +72,18 @@ func NewDocuments() *Documents {
 			Name: "uniwork_document_worker_rows_failed_total",
 			Help: "Rows a document maintenance sweep failed on and skipped (auto-version, purge, compaction); the next tick retries them.",
 		}, []string{"worker"}),
+		EditLockOps: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_document_edit_lock_ops_total",
+			Help: "Document edit-lock operations by op (acquire, take_over, handover, move_here, release, expire, access_lost, session_revoked).",
+		}, []string{"op"}),
+		EditLockRefused: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_document_edit_lock_refused_total",
+			Help: "Content writes refused with 423 document_locked, by route (patch, commit, frame_commit, restore).",
+		}, []string{"route"}),
+		EditRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_document_edit_requests_total",
+			Help: "Document edit-request outcomes by op (create, accept, decline, cancel, expire, rate_limited).",
+		}, []string{"op"}),
 	}
 }
 
@@ -74,6 +92,7 @@ func (d *Documents) Collectors() []prometheus.Collector {
 		d.AccessLogFailed, d.VersionsProtectedOverflow,
 		d.Saves, d.SaveDuration, d.Conflicts, d.QuotaRejects,
 		d.WorkerSweeps, d.WorkerSweepDuration, d.WorkerRowsFailed,
+		d.EditLockOps, d.EditLockRefused, d.EditRequests,
 	}
 }
 
@@ -97,6 +116,23 @@ func (d *Documents) IncDocumentConflict(kind, code string) {
 // limit, before any row was written.
 func (d *Documents) IncDocumentQuotaRejected(kind string) {
 	d.QuotaRejects.WithLabelValues(kind).Inc()
+}
+
+// IncDocumentEditLockOp records one edit-lock state change (op is one of the
+// closed set in the counter's help).
+func (d *Documents) IncDocumentEditLockOp(op string) {
+	d.EditLockOps.WithLabelValues(op).Inc()
+}
+
+// IncDocumentEditLockRefused records one content write answered 423
+// document_locked; the save outcome label for it is "locked", not "conflict".
+func (d *Documents) IncDocumentEditLockRefused(route string) {
+	d.EditLockRefused.WithLabelValues(route).Inc()
+}
+
+// IncDocumentEditRequest records one edit-request outcome.
+func (d *Documents) IncDocumentEditRequest(op string) {
+	d.EditRequests.WithLabelValues(op).Inc()
 }
 
 // ObserveDocumentWorkerSweep records one finished maintenance sweep.
