@@ -565,7 +565,7 @@ describe("useDocsFrameSession: api.download", () => {
       frame.hook.result.current.downloadCopy();
     });
     expect(frame.sent("doc.download")).toHaveLength(1);
-    await advance(9_999);
+    await advance(29_999);
     expect(frame.onError).not.toHaveBeenCalled();
     await advance(1);
     expect(frame.onError).toHaveBeenCalledTimes(1);

@@ -11,7 +11,7 @@ import {
   type AppOpenResult,
   type Capabilities,
   type FrameEvents,
-  type InitLimits,
+  type DocumentSizeLimits,
   type OfficeModule,
   type ProtocolErrorShape,
   type SaveBlockedPayload,
@@ -239,7 +239,7 @@ export const readOnly = (type: string) => new DocsProtocolError({ code: "forbidd
 
 export const shapeOf = (error: unknown): ProtocolErrorShape => docsFrameError(error).toShape();
 
-export function toFrameLimits(limits: Pick<DocumentLimits, "upload_max_bytes" | "save_warn_ratio">): InitLimits {
+export function toFrameLimits(limits: Pick<DocumentLimits, "upload_max_bytes" | "save_warn_ratio">): DocumentSizeLimits {
   return { max_bytes: limits.upload_max_bytes, warn_ratio: limits.save_warn_ratio };
 }
 
@@ -263,7 +263,7 @@ export function onSizeEvents(
   subscribe("save_blocked", handlers.onSaveBlocked);
 }
 
-export const DOC_DOWNLOAD_TIMEOUT_MS = 10_000;
+export const DOC_DOWNLOAD_TIMEOUT_MS = 30_000;
 
 let downloadSeq = 0;
 export function postDocDownload(target: Window | null, origin: string, timeoutMs = DOC_DOWNLOAD_TIMEOUT_MS): Promise<void> {
