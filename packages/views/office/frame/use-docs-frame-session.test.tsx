@@ -556,6 +556,29 @@ describe("useDocsFrameSession: api.download", () => {
     });
   });
 
+  it("forwards chunked_upload_threshold_bytes from document limits on DocsFrameCall to api.save and api.saveAs (UNI-1863)", async () => {
+    const save = vi.fn(async (_payload: unknown, _call: unknown) => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const saveAs = vi.fn(async (_payload: unknown, _call: unknown) => ({
+      save: { ok: true as const, file: FILE, versionId: "v-c1" },
+      rebind: { documentId: "doc-2", token: minted(true) },
+    }));
+    const frame = setup({
+      configPromise: Promise.resolve({
+        flags: {},
+        documents: { limits: { upload_max_bytes: 200 * 1024 * 1024, save_warn_ratio: 0.9, chunked_upload_threshold_bytes: 20_971_520 } },
+      }),
+      api: { save, saveAs } as unknown as Partial<DocsFrameApi>,
+    });
+    await waitFor(() => expect(frame.client.getQueryData(["public-config"])).toBeDefined());
+    await frame.boot();
+    const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
+    expect(save.mock.calls[0]?.[1]).toMatchObject({ documentId: "doc-1", chunkedUploadThresholdBytes: 20_971_520 });
+    const saveAsId = frame.request("api.saveAs", { name: "Copy", data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.answerTo(saveAsId)?.payload).toMatchObject({ ok: true }));
+    expect(saveAs.mock.calls[0]?.[1]).toMatchObject({ workspaceId: "ws-1", chunkedUploadThresholdBytes: 20_971_520 });
+  });
+
   it("calls onError when the frame replies with an error to doc.download (R1-3)", async () => {
     const frame = setup();
     await frame.boot();
@@ -736,3 +759,62 @@ describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)"
     expect(frame.hook.result.current.viewOnly).toBe(false);
   });
 });
+
+describe("useDocsFrameSession: api.saveCopy (UNI-1872)", () => {
+  const lockOf = (held: boolean, onLocked = vi.fn()): FrameEditLock => ({ held, lockId: held ? "L1" : undefined, onLocked });
+
+  it("grants saveCopy in init.capabilities only for editable docs with api.saveCopy, and omits it when view-only or non-docs", async () => {
+    const saveCopy = vi.fn(async () => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const editableDocs = setup({ module: "docs", api: { saveCopy } });
+    await editableDocs.boot();
+    expect((editableDocs.sent("init")[0]?.payload as { capabilities: Record<string, unknown> }).capabilities.saveCopy).toBe(true);
+
+    const readonlyDocs = setup({ module: "docs", readonly: true, api: { saveCopy } });
+    await readonlyDocs.boot();
+    expect("saveCopy" in (readonlyDocs.sent("init")[0]?.payload as { capabilities: Record<string, unknown> }).capabilities).toBe(false);
+
+    const viewerDocs = setup({ module: "docs", canEdit: false, api: { saveCopy } });
+    await viewerDocs.boot();
+    expect("saveCopy" in (viewerDocs.sent("init")[0]?.payload as { capabilities: Record<string, unknown> }).capabilities).toBe(false);
+
+    const unlockedDocs = setup({ module: "docs", editLock: lockOf(false), api: { saveCopy } });
+    await unlockedDocs.boot();
+    expect("saveCopy" in (unlockedDocs.sent("init")[0]?.payload as { capabilities: Record<string, unknown> }).capabilities).toBe(false);
+
+    const editableMarkdown = setup({ module: "markdown", api: { saveCopy } });
+    await editableMarkdown.boot();
+    expect("saveCopy" in (editableMarkdown.sent("init")[0]?.payload as { capabilities: Record<string, unknown> }).capabilities).toBe(false);
+  });
+
+  it("proxies api.saveCopy to the host api, returns {documentId, title}, keeps the open document bound and dirty, and invalidates workspace document lists", async () => {
+    const saveCopy = vi.fn(async (_payload: unknown, _call: unknown) => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const frame = setup({ module: "docs", api: { saveCopy } });
+    const invalidateSpy = vi.spyOn(frame.client, "invalidateQueries");
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    const bytes = new Uint8Array([1, 2, 3, 4]).buffer;
+    const id = frame.request("api.saveCopy", { name: "Plan (copy)", data: bytes });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toEqual({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    expect(saveCopy).toHaveBeenCalledTimes(1);
+    expect(saveCopy.mock.calls[0]?.[0]).toEqual({ name: "Plan (copy)", data: bytes });
+    expect(saveCopy.mock.calls[0]?.[1]).toMatchObject({ workspaceId: "ws-1", documentId: "doc-1", token: "tok-1" });
+    expect(frame.hook.result.current.dirty).toBe(true);
+    expect(frame.hook.result.current.saveState).toBe("dirty");
+    expect(frame.received.some((m) => m.type === "token")).toBe(false);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["documents", "ws-1", "list"] });
+  });
+
+  it.each([
+    ["the page is readonly", { readonly: true }],
+    ["the current token cannot edit", { canEdit: false }],
+    ["the page does not hold the edit lock", { editLock: lockOf(false) }],
+  ])("refuses api.saveCopy when %s", async (_why, opts) => {
+    const saveCopy = vi.fn(async () => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const frame = setup({ module: "docs", api: { saveCopy }, ...opts });
+    await frame.boot();
+    const id = frame.request("api.saveCopy", { name: "Plan (copy)", data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(saveCopy).not.toHaveBeenCalled();
+  });
+});
+

@@ -60,4 +60,5 @@ type CopyDocumentSDI struct {
 	Title    *string `json:"title" description:"Tiêu đề bản sao; bỏ trống = \"<nguồn> (bản sao)\"" example:"Kế hoạch Q4 (bản sao)"`
 	ParentID *string `json:"parent_id" description:"ULID trang hoặc thư mục cha cho bản sao; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	JobID    *string `json:"job_id" description:"Chấp nhận job convert đã completed của tài liệu này: bản sao là output OOXML kèm provenance; bỏ trống = bản sao cùng định dạng" example:"01J8X4JOB0N1P2Q3R4S5T6U7V8"`
+	UploadID *string `json:"upload_id" description:"ULID bản tải lên đã stage của chính tài liệu này bởi cùng người gọi để tạo phiên bản đầu của bản sao thay vì bản đầu hiện tại; loại trừ lẫn nhau với job_id" example:"01J8X4FIL0N1P2Q3R4S5T6U7V8"`
 }

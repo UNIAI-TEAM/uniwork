@@ -6,10 +6,9 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore } from "@uniwork/core/auth";
-import { useCreateDocumentFile, useDocument, useDocumentLimits } from "@uniwork/core/documents/hooks";
+import { useDocument, useDocumentLimits } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
 import { useDownloadDocumentSource } from "@uniwork/core/documents/hooks-library";
-import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { paths } from "@uniwork/core/paths";
 import { canEditDocument } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -34,7 +33,7 @@ import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
-import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
+import { useDocumentFileUpload } from "./use-document-file-upload";
 import { useDropUpload } from "./use-drop-upload";
 import { useSourcePreview } from "./source-preview-dialog";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
@@ -55,6 +54,8 @@ function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
     case "shared":
     case "archived":
       return { kind: rawView };
+    case "shared-by-me":
+      return { kind: "sharedByMe" };
     case "shelved":
       return { kind: "shelved" };
     case "sources": {
@@ -84,7 +85,7 @@ function buildDocumentsViewUrl(
       ? `${base}?view=sources&source=${encodeURIComponent(next.source)}`
       : `${base}?view=sources`;
   }
-  return `${base}?view=${next.kind}`;
+  return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
 }
 
 export interface DocumentsPageViewProps {
@@ -125,8 +126,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const [chip, setChip] = useState<TypeChip>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("folder");
   const [navOpen, setNavOpen] = useState(false);
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
@@ -142,7 +141,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     enabled: enabled && !!folderId,
     retry: shouldRetryFolderDetail,
   });
-  const createFile = useCreateDocumentFile(wsId);
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
   const sourcePreview = useSourcePreview(downloadSource);
@@ -195,6 +193,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     (folderDoc !== null &&
       canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
+  const fileUpload = useDocumentFileUpload({ wsId, parentId: parentForCreate, limits, onOpen });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
@@ -202,16 +201,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
-  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred");
+  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "sharedByMe");
 
   const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
   const drop = useDropUpload({
     enabled: enabled && canCreate && !folderInvalid,
     maxBytes: limits.upload_max_bytes,
-    upload: async (file) => {
-      await createFile.mutateAsync({ file, meta: parentForCreate ? { parent_id: parentForCreate } : undefined });
-    },
+    upload: fileUpload.uploadDroppedFile,
   });
 
   const goHome = (next: LibraryView, nextFolder: string | null = null) => {
@@ -231,19 +228,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       (currentView.kind !== "sources" || next.kind !== "sources" || currentView.source === next.source);
     if (!sameDestination) {
       push(buildDocumentsViewUrl(wsPaths, next, targetFolder));
-    }
-  };
-
-  const uploadFile = async (file: File) => {
-    const invalid = documentUploadValidationMessage(file, limits.upload_max_bytes, t, i18n.language);
-    if (invalid) return setUploadError(invalid);
-    setUploadError(null);
-    try {
-      const doc = await createFile.mutateAsync({ file, meta: parentForCreate ? { parent_id: parentForCreate } : undefined });
-      setUploadOpen(false);
-      onOpen(doc.id);
-    } catch (error) {
-      setUploadError(documentErrorMessage(error, t, "documents.page.upload_failed", { locale: i18n.language, file, maxBytes: limits.upload_max_bytes }));
     }
   };
 
@@ -311,7 +295,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             </Button>
           ) : undefined,
       }
-    : { title: t(`documents.home.empty.${view.kind}_title`), description: t(`documents.home.empty.${view.kind}_description`) };
+    : { title: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_title`), description: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_description`) };
 
   const sidebar = {
     wsId,
@@ -329,7 +313,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     pending: creator.pending,
     unavailable: creator.unavailable,
     onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
-    onUpload: () => setUploadOpen(true),
+    onUpload: fileUpload.openUpload,
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };
 
@@ -514,7 +498,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
+                  <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind === "sharedByMe" ? "shared_by_me" : view.kind}`)}</h2>
                   {navButton}
                 </div>
                 <LibraryToolbar variant="list" {...toolbar} />
@@ -532,19 +516,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
       <DocumentsSidebarSheet open={navOpen} onOpenChange={setNavOpen} {...sidebar} />
 
-      <DocumentUploadDialog
-        open={uploadOpen}
-        onOpenChange={(next) => {
-          if (!next) setUploadError(null);
-          setUploadOpen(next);
-        }}
-        title={t("documents.upload.title")}
-        description={t("documents.upload.description")}
-        hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
-        pending={createFile.isPending}
-        error={uploadError}
-        onSubmit={(file) => void uploadFile(file)}
-      />
+      <DocumentUploadDialog {...fileUpload.dialogProps} />
 
       {sourcePreview.dialog}
       {officeViewer.dialog}

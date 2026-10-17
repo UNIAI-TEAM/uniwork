@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "version": "0.1.0-c9181fa",
-  "gitSha": "c9181fa",
+  "version": "0.1.0-5d5b089",
+  "gitSha": "5d5b089",
   "entry": "index.html",
-  "manifestSha256": "19713693d6b24c405a856fa4e56abc2e3a7613924b2a0fcbd1e2223fc80b6465",
+  "manifestSha256": "787ab4d4fa3838721021d0a11d43aee2fa6e1498000b1e81b16a30a501f80d3d",
   "headers": {
     "Content-Security-Policy": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
   },
   "protocolSha256": {
-    "protocol": "d071ab3e424c0ecbf75182424a0a3bde65aae72954d1d160ceaeefa2e4111136",
+    "protocol": "53e457da3ceb0831de06795a9a9095aa794f86d719bc4a6f48f09c663279809d",
     "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
     "host": "4a91898315ba18475d277f269303963d8e6b68585e25e5d73fb43e5905cc73c6"
   }

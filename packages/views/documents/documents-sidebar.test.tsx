@@ -45,6 +45,7 @@ describe("DocumentsSidebar sub-nav", () => {
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
+      t("documents.home.sidebar.shared_by_me"),
       t("documents.home.sidebar.shelved"),
       t("documents.home.sidebar.trash"),
     ];
@@ -53,6 +54,16 @@ describe("DocumentsSidebar sub-nav", () => {
     expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
     expect(screen.getByText(t("documents.home.sidebar.elsewhere"))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("documents.home.origin.chat") })).toBeInTheDocument();
+  });
+
+  it("opens the shared-by-me view from the Tôi đã chia sẻ entry and marks it as the current page", () => {
+    const { onView } = renderSidebar({ view: { kind: "sharedByMe" } });
+    const row = screen.getByRole("button", { name: t("documents.home.sidebar.shared_by_me") });
+    expect(row).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: t("documents.home.sidebar.home") })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("button", { name: t("documents.home.sidebar.shared") })).not.toHaveAttribute("aria-current");
+    fireEvent.click(row);
+    expect(onView).toHaveBeenCalledWith({ kind: "sharedByMe" });
   });
 
   it("opens the trash view from the Thùng rác entry", () => {
@@ -69,11 +80,12 @@ describe("DocumentsSidebar sub-nav", () => {
 
   it("keeps the same entries on the trash view", () => {
     renderSidebar({ view: { kind: "archived" } });
-    expect(navLabels().slice(0, 6)).toEqual([
+    expect(navLabels().slice(0, 7)).toEqual([
       t("documents.home.sidebar.home"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
+      t("documents.home.sidebar.shared_by_me"),
       t("documents.home.sidebar.shelved"),
       t("documents.home.sidebar.trash"),
     ]);
@@ -123,6 +135,7 @@ describe("DocumentsSidebar icons", () => {
       ["recent", "recent"],
       ["starred", "starred"],
       ["shared", "shared"],
+      ["shared_by_me", "sharedByMe"],
       ["shelved", "shelved"],
       ["trash", "trash"],
     ] as const;
@@ -137,8 +150,8 @@ describe("DocumentsSidebar icons", () => {
 });
 
 describe("DOCUMENTS_NAV_ICONS", () => {
-  // Rows the sidebar does not draw yet (myFolders, sharedByMe, archive,
-  // folder) are pinned here so a wrong glyph cannot pass unseen.
+  // Rows the sidebar does not draw yet (myFolders, archive, folder) are pinned
+  // here so a wrong glyph cannot pass unseen.
   it.each([
     ["home", House],
     ["myFolders", FolderLock],

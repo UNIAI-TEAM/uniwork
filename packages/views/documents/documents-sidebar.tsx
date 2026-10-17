@@ -26,6 +26,7 @@ export type LibraryView =
   | { kind: "recent" }
   | { kind: "starred" }
   | { kind: "shared" }
+  | { kind: "sharedByMe" }
   | { kind: "shelved" }
   | { kind: "archived" }
   | { kind: "sources"; source: DocumentSourceKind | null };
@@ -148,8 +149,9 @@ export function DocumentsSidebar({
       <NavItem icon={DOCUMENTS_NAV_ICONS.recent} label={t("documents.home.sidebar.recent")} current={isView("recent")} onClick={() => onView({ kind: "recent" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.starred} label={t("documents.home.sidebar.starred")} count={starredCount} current={isView("starred")} onClick={() => onView({ kind: "starred" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.shared} label={t("documents.home.sidebar.shared")} current={isView("shared")} onClick={() => onView({ kind: "shared" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.sharedByMe} label={t("documents.home.sidebar.shared_by_me")} current={isView("sharedByMe")} onClick={() => onView({ kind: "sharedByMe" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.shelved} label={t("documents.home.sidebar.shelved")} current={isView("shelved")} onClick={() => onView({ kind: "shelved" })} />
-      <NavItem icon={DOCUMENTS_NAV_ICONS.trash}label={t("documents.home.sidebar.trash")} current={isView("archived")} onClick={() => onView({ kind: "archived" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.trash} label={t("documents.home.sidebar.trash")} current={isView("archived")} onClick={() => onView({ kind: "archived" })} />
 
       <SectionLabel
         action={

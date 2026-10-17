@@ -10,6 +10,7 @@ import {
   useDocumentList,
   useDocumentTree,
   useRecentDocuments,
+  useSharedByMe,
   useSharedWithMe,
   useShelvedDocuments,
 } from "@uniwork/core/documents/hooks-collections";
@@ -232,6 +233,11 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     format: serverFormat,
     access: serverAccess,
   });
+  const sharedByMeQuery = useSharedByMe(wsId, {
+    enabled: enabled && view.kind === "sharedByMe",
+    format: serverFormat,
+    access: serverAccess,
+  });
   const sourceFilter = useMemo(
     () => ({
       ...(view.kind === "sources" && view.source ? { source: view.source } : {}),
@@ -266,7 +272,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
         ? knownDocuments([[null, rootQuery.data], ...queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) })])
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the cache entries are read through getQueriesData; these answers are what change them
-    [view.kind, queryClient, wsId, rootQuery.data, homeQuery.data, recentQuery.data, sharedQuery.data, archivedQuery.data, favorites.data],
+    [view.kind, queryClient, wsId, rootQuery.data, homeQuery.data, recentQuery.data, sharedQuery.data, sharedByMeQuery.data, archivedQuery.data, favorites.data],
   );
 
   const sourceRows = (sourcesQuery.data?.pages.flatMap((page) => page.items) ?? []).map(sourceRow);
@@ -277,6 +283,9 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
       break;
     case "shared":
       state = documentState(sharedQuery);
+      break;
+    case "sharedByMe":
+      state = documentState(sharedByMeQuery);
       break;
     case "archived":
       state = documentState(archivedQuery);
@@ -348,7 +357,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   // source rows actually merged — an empty sources answer leaves the doc list
   // fully server-filtered.
   const mergedHome = Boolean(home && !folderId && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
-  const pageChipOnListWithoutKind = chip === "page" && (view.kind === "recent" || view.kind === "shared" || shelvedView);
+  const pageChipOnListWithoutKind =
+    chip === "page" && (view.kind === "recent" || view.kind === "shared" || view.kind === "sharedByMe" || shelvedView);
   // The "Lưu trữ bởi" member filter is always client-side: the server has no
   // shelved_by parameter, so it narrows only the loaded pages (Q-UI2).
   const memberFiltered = shelvedView && shelvedBy !== null;

@@ -35,14 +35,20 @@ function verified(
   return res;
 }
 
-function useDecisionInvalidation(wsId: string, documentId: string) {
+function useDecisionInvalidation(wsId: string, documentId: string, grant: boolean) {
   const qc = useQueryClient();
   const requests = () => qc.invalidateQueries({ queryKey: documentKeys.accessRequests(wsId, documentId) });
   return {
     // Approve may have created a share; decline changes only the list, but the
-    // dialog's pending count rides on `shares`, so both refresh together.
+    // dialog's pending count rides on `shares`, so both refresh together. An
+    // approval also lands the document in the caller's Shared by me list, so
+    // its root refreshes without waiting for document.shared (UNI-1851 F2).
     onSuccess: () =>
-      Promise.all([requests(), qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) })]),
+      Promise.all([
+        requests(),
+        qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
+        ...(grant ? [qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) })] : []),
+      ]),
     // 409 access_request_closed: someone else handled it or it expired, so the
     // list the manager is looking at is stale.
     onError: (err: unknown) => (errorCode(err) === "access_request_closed" ? requests() : undefined),
@@ -54,7 +60,7 @@ function useDecisionInvalidation(wsId: string, documentId: string) {
  * awaits the server: no row leaves the list until the answer is verified.
  */
 export function useApproveDocumentAccessRequest(wsId: string, documentId: string) {
-  const invalidation = useDecisionInvalidation(wsId, documentId);
+  const invalidation = useDecisionInvalidation(wsId, documentId, true);
   return useMutation({
     mutationFn: async (vars: { requestId: string; level: DocumentAccessRequestLevel }) =>
       verified(
@@ -68,7 +74,7 @@ export function useApproveDocumentAccessRequest(wsId: string, documentId: string
 
 /** Decline a request (§3.1 "Từ chối"); the requester is told it was declined, never why. */
 export function useDeclineDocumentAccessRequest(wsId: string, documentId: string) {
-  const invalidation = useDecisionInvalidation(wsId, documentId);
+  const invalidation = useDecisionInvalidation(wsId, documentId, false);
   return useMutation({
     mutationFn: async (vars: { requestId: string }) =>
       verified(await declineDocumentAccessRequest(documentId, vars.requestId), vars.requestId, "declined"),

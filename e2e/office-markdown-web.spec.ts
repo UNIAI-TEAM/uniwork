@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eBaseUrl } from "./api-url";
-import { listVersions, seedDocument, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
+import { listVersions, openSeededDocument, releaseSeededEditLock, seedDocument, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
   evidencePath, expectDesktopOpenInstallerMenu, expectFrameNotice, moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes,
 } from "./office-module-web-fixtures";
@@ -53,6 +53,10 @@ test.describe("bundle installed", () => {
       await setFlag("office_markdown_web", seeded.organizationId, true);
     });
 
+    test.afterEach(async ({ request }) => {
+      await releaseSeededEditLock(request, seeded);
+    });
+
     test.afterAll(async () => {
       if (seeded) await setFlag("office_markdown_web", seeded.organizationId, false);
     });
@@ -61,7 +65,7 @@ test.describe("bundle installed", () => {
       const violations: string[] = [];
       page.on("console", (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) violations.push(m.text()); });
       await signInAs(page, seeded.account.email);
-      await page.goto(seeded.documentUrl);
+      await openSeededDocument(page, seeded);
       const frame = page.locator(FRAME_SELECTOR);
       await expect(frame).toBeVisible({ timeout: 60_000 });
       expect(await frame.getAttribute("src")).toContain(`${frameBase}/`);
@@ -78,7 +82,7 @@ test.describe("bundle installed", () => {
           // The app theme follows the system (next-themes), and the frame follows the app's resolved theme.
           await page.emulateMedia({ colorScheme: theme });
           await signInAs(page, seeded.account.email);
-          await page.goto(seeded.documentUrl);
+          await openSeededDocument(page, seeded);
           await expect(moduleFrameHost(page, "markdown")).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
           await expectDesktopOpenInstallerMenu(page, async (step) => {
             await page.screenshot({ path: evidencePath(`${step}-${locale}-${theme}`) });
@@ -91,7 +95,7 @@ test.describe("bundle installed", () => {
       const marker = `uw-md-web-${Date.now().toString(36)}`;
       const before = await listVersions(request, seeded.account.token, seeded.documentId);
       await signInAs(page, seeded.account.email);
-      await page.goto(seeded.documentUrl);
+      await openSeededDocument(page, seeded);
       await expect(moduleFrameHost(page, "markdown")).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
       const editor = page.frameLocator(FRAME_SELECTOR).locator(".doc-editor");
       await editor.locator("p", { hasText: "Đoạn đầu tiên." }).click();
@@ -103,7 +107,8 @@ test.describe("bundle installed", () => {
       const newest = (await listVersions(request, seeded.account.token, seeded.documentId)).reduce((a, b) => (b.version > a.version ? b : a));
       expect((await versionBytes(request, seeded.account.token, seeded.documentId, newest.version)).toString("utf8")).toContain(marker);
       await page.goto("about:blank");
-      await page.goto(seeded.documentUrl);
+      await releaseSeededEditLock(request, seeded);
+      await openSeededDocument(page, seeded);
       await expect(page.frameLocator(FRAME_SELECTOR).locator(".doc-editor")).toContainText(marker, { timeout: 60_000 });
     });
 
@@ -111,7 +116,7 @@ test.describe("bundle installed", () => {
       await setFlag("office_markdown_web", seeded.organizationId, false);
       try {
         await signInAs(page, seeded.account.email);
-        await page.goto(seeded.documentUrl);
+        await openSeededDocument(page, seeded);
         await expectFrameNotice(page, "unavailable", "chưa bật mở loại tệp này trên web");
         await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
       } finally {
