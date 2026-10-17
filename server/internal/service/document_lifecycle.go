@@ -698,16 +698,27 @@ func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root 
 }
 
 // decideArchiveRootAccess is the archive command's root decision, shared with
-// the archive-impact read so the two can never drift: a caller with nothing
-// readable is not found (never a confirmation of the id), an owned root is
-// refused with document_owned_by_work_product, and only then must manage be
-// held. The owned refusal sits between the two on purpose - an owned document
-// is not the public archive path's business whatever level the caller holds, so
-// the answer is 409 rather than the 403 a bare manage gate would give.
+// the archive-impact read and the restore/purge gates so the four can never
+// drift. A trashed row is visible only to manage and to edit holders
+// (RESTORE-01 Q-T1 c), so while the document sits in the trash the ladder is:
+// manage (or AdminScope) -> the command runs; effective edit -> forbidden;
+// anything below edit - view, comment, an agent's capped view, nothing -
+// answers not found and never confirms the id. On a live document the first
+// refusal is unchanged: a caller with nothing readable is not found, then an
+// owned root is refused with document_owned_by_work_product, and only then
+// must manage be held. The owned refusal sits between the two on purpose - an
+// owned document is not the public archive path's business whatever level the
+// caller holds, so the answer is 409 rather than the 403 a bare manage gate
+// would give.
 //
 // DOC-05: an AdminScope caller (no read level) administers the document, so
 // they pass the same way manage does (decideDocumentAdminister).
 func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
+	if doc.ArchivedAt.Valid && !access.Level.AtLeast(DocumentLevelEdit) && !access.AdminScope {
+		// Below edit a trashed item is hidden, restore/purge included: an
+		// agent or a view holder gets not found, never a confirmation.
+		return ErrNotFound
+	}
 	if access.Level == DocumentLevelNone && !access.AdminScope {
 		// Nothing readable at all is not found - the owned refusal below
 		// must never confirm an id to a caller who cannot see it.

@@ -52,6 +52,8 @@ func TestDocument05bAgentWritesRefused(t *testing.T) {
 	refused("archive", err)
 	_, err = f.svc.RestoreDocument(f.ctx, agent, d.ID, ArchiveDocumentInput{})
 	refused("restore", err)
+	_, err = f.svc.PurgeDocument(f.ctx, agent, d.ID)
+	refused("purge", err)
 	_, err = f.svc.ShareDocument(f.ctx, agent, d.ID, DocumentShareInput{
 		PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView,
 	})
@@ -101,13 +103,16 @@ func TestDocument05bAgentWritesRefused(t *testing.T) {
 		t.Fatalf("agent touched the settings row: before %+v after %+v", settingsBefore, settingsAfter)
 	}
 
-	// An archived document is hidden below manage, so the agent's restore is
-	// not found rather than forbidden - and the row stays archived.
+	// An archived document is hidden below edit, so the agent's restore and
+	// purge are not found rather than forbidden - and the row stays archived.
 	if _, err := f.svc.ArchiveDocument(f.ctx, mgr, d.ID, ArchiveDocumentInput{}); err != nil {
 		t.Fatalf("owner archive: %v", err)
 	}
 	if _, err := f.svc.RestoreDocument(f.ctx, agent, d.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("agent restore of an archived doc = %v, want ErrNotFound", err)
+	}
+	if _, err := f.svc.PurgeDocument(f.ctx, agent, d.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("agent purge of an archived doc = %v, want ErrNotFound", err)
 	}
 	after, err := f.q.GetDocumentByID(f.ctx, d.ID)
 	if err != nil {

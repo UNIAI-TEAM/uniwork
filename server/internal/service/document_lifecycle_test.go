@@ -350,6 +350,29 @@ func TestDocumentRestorePerItem(t *testing.T) {
 				afterB.ArchivedAt.Valid, afterB.ArchiveBatchID, arch.BatchID, afterB.PurgeAfter, beforeB.PurgeAfter)
 		}
 	})
+	t.Run("RS-5: a view holder gets 404 on restore of a trashed item, never a 403 that would confirm the id", func(t *testing.T) {
+		sharedView := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Chỉ đọc", archived: true,
+		})
+		f.share(t, sharedView, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+		if _, err := f.svc.RestoreDocument(f.ctx, u, sharedView.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("view holder restore = %v, want ErrNotFound", err)
+		}
+		f.liveArchived(t, sharedView.ID)
+
+		wsView := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Chỉ đọc workspace", archived: true,
+		})
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET workspace_level = 'view' WHERE id = $1`, wsView.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.svc.RestoreDocument(f.ctx, u, wsView.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("workspace view holder restore = %v, want ErrNotFound", err)
+		}
+		f.liveArchived(t, wsView.ID)
+	})
 
 	t.Run("RS-3: child restored after parent is already live returns under parent and renames on collision", func(t *testing.T) {
 		folderF := f.treeDoc(t, tn, treeDocSpec{
@@ -794,6 +817,25 @@ func TestDocumentManualPurge(t *testing.T) {
 		f.share(t, trashed, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
 		if _, err := f.svc.PurgeDocument(f.ctx, u, trashed.ID); !errors.Is(err, ErrForbidden) {
 			t.Fatalf("edit holder purge = %v, want ErrForbidden (403)", err)
+		}
+
+		// A view holder cannot act and must not learn the id exists: 404, not
+		// the 403 an edit holder gets.
+		viewShared := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, archived: true,
+		})
+		f.share(t, viewShared, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+		if _, err := f.svc.PurgeDocument(f.ctx, u, viewShared.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("view holder purge = %v, want ErrNotFound", err)
+		}
+		wsViewDoc := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, archived: true,
+		})
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET workspace_level = 'view' WHERE id = $1`, wsViewDoc.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.svc.PurgeDocument(f.ctx, u, wsViewDoc.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("workspace view holder purge = %v, want ErrNotFound", err)
 		}
 
 		// Bound check: > archiveBound returns 400 folder_too_large.
