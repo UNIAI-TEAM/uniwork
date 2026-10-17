@@ -112,8 +112,16 @@ export function docsFrameError(error: unknown): DocsProtocolError {
         : error.status === 423
           ? { code: "forbidden" as const, message: `${error.code || "document_locked"} (HTTP 423)`, status: 423 }
           : errorFromHttpStatus(error.status, message).toShape();
-    const maxBytes = typeof error.fields?.max_bytes === "number" ? { max_bytes: error.fields.max_bytes } : {};
-    return new DocsProtocolError({ ...shape, details: { apiCode: error.code, ...(error.fields ? { fields: error.fields } : {}), ...maxBytes } });
+    const rawMax = error.fields?.["max_bytes"];
+    const maxBytes = typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : undefined;
+    return new DocsProtocolError({
+      ...shape,
+      details: {
+        apiCode: error.code,
+        ...(error.fields ? { fields: error.fields } : {}),
+        ...(maxBytes !== undefined ? { max_bytes: maxBytes } : {}),
+      },
+    });
   }
   return toProtocolError(error);
 }

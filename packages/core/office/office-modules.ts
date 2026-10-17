@@ -47,12 +47,6 @@ export interface OfficeModuleSpec {
    * keeps encrypted copies of unsaved edits in IndexedDB. Off = no `recovery`.
    */
   recovery?: boolean;
-  /**
-   * Optional per-module stored-file cap (bytes). None of the web modules set
-   * a stored-file cap today (BENCH-01 #2 dropped the 10 MiB Sheets cap; the
-   * frame enforces its own 512 MiB worksheet XML gate).
-   */
-  maxBytes?: number;
 }
 
 const EDIT_PRINT: OfficeModuleGrant = { save: true, saveAs: true, print: true };
@@ -80,12 +74,6 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
 
 export function officeModuleSpec(module: OfficeModule): OfficeModuleSpec {
   return OFFICE_MODULE_SPECS[module];
-}
-
-/** Whether a stored file of sizeBytes is over the module's cap (then the too-large notice shows). */
-export function officeModuleTooLarge(module: OfficeModule, sizeBytes: number | null | undefined): boolean {
-  const max = OFFICE_MODULE_SPECS[module].maxBytes;
-  return max !== undefined && typeof sizeBytes === "number" && sizeBytes > max;
 }
 
 /** The module that opens a `detectDocumentFormat` id; null for a format with no web module (xls, odt, …). */

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createOfficeFrameApi, docsFrameSrc, type DocsFrameCall } from "./docs-frame-api";
 import { OFFICE_MODULES } from "./docs-frame-protocol";
-import { officeFrameSrc, officeModuleForFormat, officeModuleSpec, officeModuleTooLarge } from "./office-modules";
+import { officeFrameSrc, officeModuleForFormat, officeModuleSpec } from "./office-modules";
 
 const API = "http://api.test";
 const DOC = {
@@ -46,11 +46,7 @@ describe("office module table", () => {
   });
 
   it("places no stored-file size cap on any module, including Sheets (BENCH-01 #2)", () => {
-    expect(officeModuleTooLarge("sheets", 10 * 1024 * 1024)).toBe(false);
-    expect(officeModuleTooLarge("sheets", 10 * 1024 * 1024 + 1)).toBe(false);
-    expect(officeModuleTooLarge("sheets", undefined)).toBe(false);
-    expect(OFFICE_MODULES.filter((m) => officeModuleSpec(m).maxBytes !== undefined)).toEqual([]);
-    expect(officeModuleTooLarge("docs", 1e12)).toBe(false);
+    expect(OFFICE_MODULES.filter((m) => "maxBytes" in officeModuleSpec(m))).toEqual([]);
   });
 });
 
