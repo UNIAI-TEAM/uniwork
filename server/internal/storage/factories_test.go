@@ -32,6 +32,21 @@ func (s stubStore) SignRead(context.Context, ObjectLocator, SignOptions) (Signed
 func (s stubStore) SignWrite(context.Context, ObjectLocator, SignOptions) (SignedURL, error) {
 	return SignedURL{}, ErrCapabilityUnsupported
 }
+func (s stubStore) CreateMultipart(context.Context, ObjectLocator, WriteInfo) (string, error) {
+	return "", ErrCapabilityUnsupported
+}
+func (s stubStore) SignUploadPart(context.Context, ObjectLocator, string, int32, SignOptions) (SignedURL, error) {
+	return SignedURL{}, ErrCapabilityUnsupported
+}
+func (s stubStore) ListParts(context.Context, ObjectLocator, string) ([]MultipartPart, error) {
+	return nil, ErrCapabilityUnsupported
+}
+func (s stubStore) CompleteMultipart(context.Context, ObjectLocator, string, []MultipartPart) (PutResult, error) {
+	return PutResult{}, ErrCapabilityUnsupported
+}
+func (s stubStore) AbortMultipart(context.Context, ObjectLocator, string) error {
+	return ErrCapabilityUnsupported
+}
 func (s stubStore) Probe(context.Context) error { return nil }
 
 // codedFactory returns a factory for backend that builds the given store.

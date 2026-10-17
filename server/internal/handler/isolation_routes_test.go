@@ -457,6 +457,21 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/break-glass":     {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
 	"POST /api/v1/documents/{documentID}/uploads":         {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
 	"POST /api/v1/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	// Large upload sessions (BIGUP-S1, contract §5). The owner's seeded session
+	// is the control of each session route; the complete routes answer 422 on
+	// it because no part was ever PUT, which still proves the owner reached the
+	// part check. The workspace create route's write control is its
+	// isoReferences parent case: a third session would cross the
+	// 4-open-per-person limit that buildUploadSessions already spends two of.
+	"POST /api/v1/workspaces/{workspaceID}/documents/upload-sessions":                       {body: isoUploadSessionOpen("workspace"), skipControl: "seeding a third session would cross the 4-open-per-person limit; the isoReferences parent case is this route's owner control"},
+	"POST /api/v1/documents/{documentID}/upload-sessions":                                   {body: isoUploadSessionOpen("version")},
+	"POST /api/v1/office-frame/documents/{documentID}/upload-sessions":                      {body: isoUploadSessionOpen("frame")},
+	"GET /api/v1/upload-sessions/{sessionID}":                                               {},
+	"POST /api/v1/upload-sessions/{sessionID}/complete":                                     {body: isoUploadSessionComplete, control: []int{http.StatusUnprocessableEntity}},
+	"DELETE /api/v1/upload-sessions/{sessionID}":                                            {},
+	"GET /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}":           {},
+	"POST /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}/complete": {body: isoUploadSessionComplete, control: []int{http.StatusUnprocessableEntity}},
+	"DELETE /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}":        {},
 	// G5-07: the lookup sends the key isolation_world_test.go seeds and leaves not_committed, so the
 	// owner's control reads its own intent (200 not_committed) and the other tenant is refused on the
 	// document before any intent is read.

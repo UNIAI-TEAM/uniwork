@@ -22,7 +22,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
-	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
@@ -176,12 +175,14 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Tasks.Chat = d.Chat
 	d.Chat.SetAIGateway(d.Meetings.AI)
 
-	// Documents and Office run on the FileService fake: the Office engine
-	// reads through a presigned URL, which the local disk backend cannot mint.
-	docFiles := filesfake.New(filesfake.Options{})
+	// Documents and Office run on a real FileService over the multipart test
+	// store: the large-upload sessions (BIGUP-S1) cannot open on the fake, the
+	// local adapter has neither multipart parts nor presigned URLs, and the
+	// Office job service reads and stages the same rows, so it takes the same
+	// service. The stub engine never fetches the URLs it is handed.
 	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
-	docs.SetFiles(docFiles)
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
+	docFS, _ := newMultipartDocuments(t, pool, q, docs, d.Chat, d.Meetings, stores[storage.BackendLocal])
 	// The edit lock (UNI-1645 §6 step 1.4): a 1h TTL so a long run never lets
 	// the seeded tenures lapse and a write-control heartbeat never pulls one
 	// back to 2 minutes. No DocumentEditLockSweeper runs here, as no
@@ -206,7 +207,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.OfficeFrame = service.NewOfficeFrameService(docs, d.Cfg.JWTSecret)
 	d.OfficeFrame.SetTTL(time.Hour)
 	d.Office = service.NewDocumentOfficeService(service.DocumentOfficeOptions{
-		Pool: pool, Queries: q, Files: docFiles, Engine: newHandlerStubEngine(t), Documents: docs,
+		Pool: pool, Queries: q, Files: docFS, Engine: newHandlerStubEngine(t), Documents: docs,
 		// The stub engine never finishes a blank document; a short deadline
 		// keeps that refusal from costing the run a minute.
 		MaxDeadline: 3 * time.Second,
@@ -535,6 +536,9 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 		w.deviceTokens = map[string]string{}
 	}
 	w.deviceTokens[tn.token] = device
+	// The large-upload sessions come last: they need the frame token of the
+	// tenant's markdown document, registered just above (BIGUP-S1).
+	w.buildUploadSessions(t, tn)
 	return tn
 }
 

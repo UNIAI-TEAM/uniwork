@@ -10,6 +10,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/workcapability"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -61,9 +62,23 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 					PDF:  sdo.DocumentFormatOpenLimitSDO{WarnBytes: 50 << 20},
 					XLSX: sdo.DocumentFormatOpenLimitSDO{WarnBytes: 5 << 20},
 				},
+				ChunkedUploadThresholdBytes: h.chunkedUploadThresholdBytes(),
 			},
 		},
 	})
+}
+
+// chunkedUploadThresholdBytes is the size above which the web opens a
+// multipart upload session instead of one request (BIGUP-S1, addendum §6.2):
+// the server constant, present only when the wired store can actually run the
+// flow (multipart + presign, D3). The local backend cannot, so the field is
+// absent there and the client keeps the one-request path.
+func (h *handlers) chunkedUploadThresholdBytes() *int64 {
+	if h.Documents == nil || !h.Documents.SupportsChunkedUpload() {
+		return nil
+	}
+	threshold := service.UploadSessionThresholdBytes
+	return &threshold
 }
 
 // officeAPIOrigin is the public deployment origin the web hands to the

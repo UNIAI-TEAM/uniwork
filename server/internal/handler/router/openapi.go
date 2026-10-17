@@ -89,6 +89,8 @@ func (c *apiCatalog) marshalJSON() ([]byte, error) {
 				cu.HTTPStatus = status
 				cu.ContentType = op.produces
 			})
+		case op.status == http.StatusNoContent:
+			oc.AddRespStructure(nil, func(cu *openapi.ContentUnit) { cu.HTTPStatus = status })
 		}
 		oc.AddRespStructure(new(sdo.ErrorSDO), func(cu *openapi.ContentUnit) { cu.HTTPStatus = http.StatusBadRequest })
 		if op.auth {
@@ -438,6 +440,15 @@ func pathParamSDI(path string) any {
 	case "documentID":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+		}{}
+	case "sessionID":
+		return struct {
+			SessionID string `path:"sessionID" description:"ULID phiên tải lên nhiều phần" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "documentID,sessionID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu của token khung" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			SessionID  string `path:"sessionID" description:"ULID phiên tải lên nhiều phần mở bằng frame token của tài liệu này" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
 		}{}
 	case "documentID,aiProvider":
 		return struct {
