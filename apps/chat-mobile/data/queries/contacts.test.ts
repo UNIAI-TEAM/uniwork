@@ -4,10 +4,7 @@ const apiMock = vi.hoisted(() => ({ request: vi.fn<(path: string, init?: Request
 vi.mock("../api", () => ({ api: apiMock }));
 
 import {
-  PRESENCE_BEAT_MS,
-  beatChatPresence,
   chatNicknamesOptions,
-  chatPresenceOptions,
   deactivatedMembersOptions,
   fetchChatNicknames,
   fetchDeactivatedUserIds,
@@ -70,22 +67,6 @@ describe("fetchChatNicknames", () => {
   });
 });
 
-describe("beatChatPresence", () => {
-  it("posts a visible online beat and returns who is online", async () => {
-    apiMock.request.mockResolvedValueOnce({ status: "ok", online_user_ids: ["U1", "U2"] });
-    expect(await beatChatPresence("w1")).toEqual(["U1", "U2"]);
-    expect(apiMock.request).toHaveBeenCalledWith("/api/v1/workspaces/w1/chat/presence", {
-      method: "POST",
-      body: JSON.stringify({ state: "online", visible: true }),
-    });
-  });
-
-  it("an answer without the list is null, so the caller knows nothing", async () => {
-    apiMock.request.mockResolvedValueOnce({ status: "ok" });
-    expect(await beatChatPresence("w1")).toBeNull();
-  });
-});
-
 describe("query options", () => {
   it("key every source by its workspace or organization and hand the signal through", async () => {
     const signal = new AbortController().signal;
@@ -99,15 +80,10 @@ describe("query options", () => {
     await run(deactivatedMembersOptions("acme"));
     expect(chatNicknamesOptions("w1").queryKey).toEqual(["chat-nicknames", "w1"]);
     await run(chatNicknamesOptions("w1"));
-    const presence = chatPresenceOptions("w1");
-    expect(presence.queryKey).toEqual(["chat-presence", "w1"]);
-    expect(presence.refetchInterval).toBe(PRESENCE_BEAT_MS);
-    await run(presence);
     expect(paths()).toEqual([
       "/api/v1/workspaces/w1/members",
       "/api/v1/orgs/acme/members?status=deactivated&limit=100",
       "/api/v1/workspaces/w1/chat/nicknames",
-      "/api/v1/workspaces/w1/chat/presence",
     ]);
     expect(apiMock.request.mock.calls[0]?.[1]).toEqual({ signal });
   });
