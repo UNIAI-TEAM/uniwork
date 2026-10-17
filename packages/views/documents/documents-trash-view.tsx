@@ -144,7 +144,7 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
             <col className="hidden w-[200px] @min-[54rem]/trash:table-column" />
             <col className="hidden w-[120px] @min-[40rem]/trash:table-column" />
             <col className="hidden w-[150px] @min-[40rem]/trash:table-column" />
-            <col className="w-[160px]" />
+            <col className="w-[120px] @min-[40rem]/trash:w-[160px]" />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-caption text-muted-foreground">
@@ -235,13 +235,14 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="w-7 px-0 @min-[40rem]/trash:w-auto @min-[40rem]/trash:px-2.5"
                           aria-label={t("documents.trash.restore_item", { title })}
                           disabled={actions.isRestoring(doc.id)}
                           aria-busy={actions.isRestoring(doc.id) || undefined}
                           onClick={() => actions.onRestore(doc)}
                         >
                           <ArchiveRestore aria-hidden />
-                          {t("documents.trash.restore")}
+                          <span className="hidden @min-[40rem]/trash:inline">{t("documents.trash.restore")}</span>
                         </Button>
                         <Button
                           type="button"

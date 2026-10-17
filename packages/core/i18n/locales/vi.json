@@ -9289,7 +9289,6 @@
         "purge_in": "Xóa vĩnh viễn sau",
         "actions": "Thao tác"
       },
-      "in_trashed_folder": "Trong thư mục “{{folder}}”",
       "deleted_by_unknown": "Thành viên cũ",
       "read_only": "Chỉ xem · người quản lý khôi phục",
       "restore": "Khôi phục",

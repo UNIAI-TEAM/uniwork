@@ -9295,7 +9295,6 @@
         "purge_in": "Deleted forever in",
         "actions": "Actions"
       },
-      "in_trashed_folder": "In folder “{{folder}}”",
       "deleted_by_unknown": "Former member",
       "read_only": "View only · a manager restores",
       "restore": "Restore",

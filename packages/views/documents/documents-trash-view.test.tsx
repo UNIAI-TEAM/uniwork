@@ -157,6 +157,21 @@ describe("DocumentsTrashView", () => {
     expect(rung(cells[3]!).length).toBeGreaterThan(0);
   });
 
+  it("shrinks the actions column and turns Khôi phục icon-only below the 40rem rung so Name keeps its floor on phones (review F1)", () => {
+    renderView();
+    const cols = Array.from(screen.getByRole("table").querySelectorAll("colgroup col"));
+    const actionsCol = cols[4]!;
+    expect(actionsCol).toHaveClass("w-[120px]");
+    expect(actionsCol).toHaveClass("@min-[40rem]/trash:w-[160px]");
+    expect(actionsCol).not.toHaveClass("w-[160px]");
+    const restore = within(document.querySelector("[data-trash-row]") as HTMLElement).getByRole("button", { name: /Khôi phục/ });
+    const label = Array.from(restore.querySelectorAll("span")).find((el) => el.textContent === "Khôi phục")!;
+    expect(label).toHaveClass("hidden");
+    expect(label).toHaveClass("@min-[40rem]/trash:inline");
+    // The button is compact below the rung and returns to its padded width at it.
+    expect(restore).toHaveClass("w-7", "px-0", "@min-[40rem]/trash:w-auto");
+  });
+
   it("carries deleted-at, the countdown and the deleter in the name cell until their columns join (RESTORE-01 phones)", () => {
     renderView({ rows: [row("a", { purge_after: "2026-10-20T00:00:00Z" })] });
     const name = (document.querySelector("[data-trash-row]") as HTMLElement).querySelector("td")!;
