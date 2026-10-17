@@ -1,0 +1,9 @@
+$ node apps/web/scripts/office-frame-sync.mjs --all --check; rc=$?; echo; echo "FRAME_SYNC_CHECK_EXIT=$rc"
+office-frame: docs 0.1.0-5d5b089 installed and verified
+office-frame: pdf 0.1.0-5d5b089 installed and verified
+office-frame: markdown 0.1.0-5d5b089 installed and verified
+office-frame: html 0.1.0-5d5b089 installed and verified
+office-frame: slides 0.1.0-5d5b089 installed and verified
+office-frame: sheets 0.1.0-5d5b089 installed and verified
+
+FRAME_SYNC_CHECK_EXIT=0

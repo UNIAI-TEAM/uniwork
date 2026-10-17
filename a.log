@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+cbbcef1d692cf8350d9027bc6f4e513e56ec0e78
+844aab79fe141fd802094e457f206a793074dad2
+cbbcef1d6 test(office): re-bless the G7-06 goldens at frame pin 0.1.0-5d5b089 (REBLESS-01)
+46dae985b chore: merge G5-G7 root 844aab79f into SAVECOPY-HOST (UNI-1872)
+7a87faa60 test(e2e): adapt office web frame specs to document edit lock (UNI-1872)
+7fe992725 chore: merge G5-G7 root beff88384 into SAVECOPY-HOST (UNI-1872)
+844aab79f chore: merge SIZE-S2 spool validation (UNI-1870, e40c9c519) into the G5-G7 root
+95c03a58f chore: merge SRC-02b documents source office view (UNI-1869, 3ca55437d) into the G5-G7 root
+
+SYNCED_EXIT=0

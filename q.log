@@ -1,0 +1,12 @@
+$ pnpm --filter @uniwork/views typecheck; rc=$?; echo; echo "VIEWS_TC_EXIT=$rc"; pnpm --filter @uniwork/core typecheck; rc2=$?; echo "CORE_TC_EXIT=$rc2"
+
+> @uniwork/views@0.0.0 typecheck /workspace/packages/views
+> tsc --noEmit
+
+
+VIEWS_TC_EXIT=0
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+CORE_TC_EXIT=0
