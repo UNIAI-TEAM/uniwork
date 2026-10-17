@@ -1,0 +1,6 @@
+$ git worktree add -q /tmp/base 06f65e141 && cd /tmp/base && ln -s "$OLDPWD/node_modules" node_modules && unset OPENAI_API_KEY OPENAI_BASE_URL && node --test scripts/office/*.test.mjs scripts/office/g5g6g7/*.test.mjs > /tmp/base.tap 2>&1; rc=$?; grep -nE -A25 "^\s*not ok" /tmp/base.tap | head -120; grep -E "^# (tests|pass|fail)" /tmp/base.tap; echo; echo "BASE_OFFICE_EXIT=$rc"
+# tests 329
+# pass 329
+# fail 0
+
+BASE_OFFICE_EXIT=0

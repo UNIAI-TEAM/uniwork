@@ -1,0 +1,3 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; echo "HEAD_PROBE_DONE"
+c44a7205ebd258025f65bbabb4915d81e5371ef6
+HEAD_PROBE_DONE

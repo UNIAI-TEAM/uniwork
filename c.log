@@ -1,0 +1,32 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/*.test.mjs scripts/office/g5g6g7/*.test.mjs > /tmp/head.tap 2>&1; rc=$?; grep -nE -A25 "^\s*not ok" /tmp/head.tap | head -120; grep -E "^# (tests|pass|fail)" /tmp/head.tap; echo; echo "HEAD_OFFICE_EXIT=$rc"
+1701:not ok 112 - case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+1702-  ---
+1703-  duration_ms: 1037.953849
+1704-  location: '/workspace/scripts/office/g5g6g7/holdout.test.mjs:837:1'
+1705-  failureType: 'testCodeFailure'
+1706-  error: |-
+1707-    case text leaked outside docs/office/g5g6g7/holdout: scripts/office/g5g6g7/g7-08/oracles-formats.test.mjs
+1708-    + actual - expected
+1709-    
+1710-    + [
+1711-    +   'scripts/office/g5g6g7/g7-08/oracles-formats.test.mjs'
+1712-    + ]
+1713-    - []
+1714-    
+1715-  code: 'ERR_ASSERTION'
+1716-  name: 'AssertionError'
+1717-  expected:
+1718-  actual:
+1719-    0: 'scripts/office/g5g6g7/g7-08/oracles-formats.test.mjs'
+1720-  operator: 'deepStrictEqual'
+1721-  stack: |-
+1722-    TestContext.<anonymous> (file:///workspace/scripts/office/g5g6g7/holdout.test.mjs:839:10)
+1723-    Test.runInAsyncScope (node:async_hooks:211:14)
+1724-    Test.run (node:internal/test_runner/test:979:25)
+1725-    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+1726-    Test.postRun (node:internal/test_runner/test:1090:19)
+# tests 329
+# pass 328
+# fail 1
+
+HEAD_OFFICE_EXIT=1
