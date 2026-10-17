@@ -90,10 +90,10 @@ export const DOCUMENT_ERROR_CLASSES = [
   "missing",
   "incompatible",
   "session",
+  "locked",
   // ARCHIVE-01 (UNI-1845): every write on a shelved document refuses with 409
   // document_shelved, class read_only (addendum §0, §3).
   "read_only",
-  "locked",
 ] as const;
 export type DocumentErrorClass = (typeof DOCUMENT_ERROR_CLASSES)[number];
 

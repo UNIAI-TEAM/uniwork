@@ -30,6 +30,7 @@ func TestErrorClassTable(t *testing.T) {
 		"folder_name_taken":            "conflict",
 		"my_folder_locked":             "conflict",
 		"document_deleted":             "gone",
+		"document_shelved":             "read_only",
 		"quota_exceeded":               "quota",
 		"forbidden":                    "permission",
 		"member_deactivated":           "permission",

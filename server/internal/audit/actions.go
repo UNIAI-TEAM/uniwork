@@ -195,11 +195,6 @@ const (
 	ActionDocumentVersionsCompacted = "document.versions_compacted"
 	ActionDocumentAssetPurged       = "document.asset_purged"
 
-	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, kept forever
-	// and read-only - "archived" is the trash. One row per document of the
-	// batch, the batch id in metadata and in the event payload.
-	ActionDocumentShelved   = "document.shelved"
-	ActionDocumentUnshelved = "document.unshelved"
 	// Document edit lock (UNI-1645, addendum §5.1): the one editor of a
 	// document. Acquire covers a handover claim and "edit here"; release
 	// carries the end reason in metadata (the holder, the sweeper, the
@@ -214,6 +209,12 @@ const (
 	ActionDocumentEditRequestCreated  = "document.edit_request_created"
 	ActionDocumentEditRequestAnswered = "document.edit_request_answered"
 	ActionDocumentEditRequestCanceled = "document.edit_request_cancelled"
+
+	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, kept forever
+	// and read-only - "archived" is the trash. One row per document of the
+	// batch, the batch id in metadata and in the event payload.
+	ActionDocumentShelved   = "document.shelved"
+	ActionDocumentUnshelved = "document.unshelved"
 
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit
