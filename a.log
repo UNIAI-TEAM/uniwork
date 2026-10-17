@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+8e00b1a075faa2bcf6fa12567c0cf8c46cc1ccf1
+8e00b1a07 feat(office): toast export-specific message on view-only source export refusal (UNI-1869)
+0163db0d9 feat(documents): show persistent view-only unsaved notice in source viewer header (UNI-1869)
+0548e9e9b fix(office): scope office-frame content URLs to client subtree (UNI-1869)
+eadc58667 fix(documents): remove global toast.dismiss on source viewer failure (UNI-1869)
+ed8dd3b15 fix(office): suppress only fatal frame errors when onSessionFailure is set (UNI-1869)
+719a8c6ae fix(office): skip remote head on source sessions and cancelled open failure (UNI-1869)
+b1efe44f5 fix(chat): accept text/csv chat files on read and keep both allowlists equal (UNI-1869)
+06909f566 fix(documents): refuse save and export from a view-only source frame (UNI-1869)
