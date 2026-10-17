@@ -6,7 +6,7 @@ import { containsToken, toNumber } from '../holdout-score.mjs';
 import { normalizeFormula, parseRangeText } from '../holdout-write-proof.mjs';
 import { computeTruth, unzip } from '../holdout-xlsx-truth.mjs';
 import {
-  ALLOWED_CORE_PROPS_ELEMENTS, HARNESS_EXIT, ROW_EXIT, VERDICT, blockedVerdict, decodeXml,
+  ALLOWED_CORE_PROPS_ELEMENTS, ROW_EXIT, VERDICT, blockedVerdict, decodeXml,
   diffDocxNonDocumentParts, extractPdfTextFromBytes, failVerdict, findDisallowedDocxPartChange,
   oracleDocxEdit, oracleDocxRead, oraclePptxEdit, oraclePptxRead,
   parseDocxStructure, parsePptxStructure, passVerdict, validateOoxmlPackage,
@@ -14,7 +14,7 @@ import {
 import { BOUND_DOCUMENT_FORBIDDEN_TOOLS } from './tools.mjs';
 
 export {
-  ALLOWED_CORE_PROPS_ELEMENTS, HARNESS_EXIT, ROW_EXIT, VERDICT, blockedVerdict, decodeXml,
+  ALLOWED_CORE_PROPS_ELEMENTS, ROW_EXIT, VERDICT, blockedVerdict, decodeXml,
   diffDocxNonDocumentParts, extractPdfTextFromBytes, failVerdict, findDisallowedDocxPartChange,
   oracleDocxEdit, oracleDocxRead, oraclePptxEdit, oraclePptxRead,
   parseDocxStructure, parsePptxStructure, passVerdict, validateOoxmlPackage,

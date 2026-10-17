@@ -9,7 +9,7 @@ import { buildPptx } from '../fixtures-lib/pptx.mjs';
 import { ooxmlEntries, zipStore } from '../fixtures-lib/zip.mjs';
 import { readZipEntries, sha256Hex } from '../harness/fixture-files.mjs';
 import {
-  ALLOWED_CORE_PROPS_ELEMENTS, HARNESS_EXIT, VERDICT, blockedVerdict, decodeXml,
+  ALLOWED_CORE_PROPS_ELEMENTS, ROW_EXIT, VERDICT, blockedVerdict, decodeXml,
   diffDocxNonDocumentParts, extractPdfTextFromBytes, failVerdict, findDisallowedDocxPartChange,
   oracleDocxEdit, oracleDocxRead, oraclePptxEdit, oraclePptxRead,
   parseDocxStructure, parsePptxStructure, passVerdict, validateOoxmlPackage,
@@ -29,17 +29,17 @@ function mutateZipParts(zipBytes, mutator) {
 test('verdict helpers enforce exit codes 0 / 1 / 77 and reject unnamed BLOCKED', () => {
   const p = passVerdict('ok_case', { a: 1 });
   assert.equal(p.status, VERDICT.PASS);
-  assert.equal(p.exitCode, HARNESS_EXIT.PASS);
+  assert.equal(p.exitCode, ROW_EXIT.PASS);
   assert.equal(p.exitCode, 0);
 
   const f = failVerdict('bad_case', { b: 2 });
   assert.equal(f.status, VERDICT.FAIL);
-  assert.equal(f.exitCode, HARNESS_EXIT.FAIL);
+  assert.equal(f.exitCode, ROW_EXIT.FAIL);
   assert.equal(f.exitCode, 1);
 
   const b = blockedVerdict('missing: host capability X', { owner: 'G6' });
   assert.equal(b.status, VERDICT.BLOCKED);
-  assert.equal(b.exitCode, HARNESS_EXIT.BLOCKED);
+  assert.equal(b.exitCode, ROW_EXIT.BLOCKED);
   assert.equal(b.exitCode, 77);
 
   const unnamed = blockedVerdict('   ');

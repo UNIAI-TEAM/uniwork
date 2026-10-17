@@ -35,6 +35,54 @@ function mutateDocxParagraphText(bytes, fromText, toText, extraRunXml = '') {
   );
 }
 
+// The engine helpers live in TypeScript sources (or the built bundle), and the
+// repo pins only `22` in `.nvmrc`, so a Node 22 without type stripping cannot
+// load them. These tests therefore inject equivalents and never touch the `.ts`
+// file: the module under test is the round-trip orchestration, the engine
+// helpers are its inputs.
+const SCAN_TAG_RE = /<\/?(?:[^<>"']|"[^"]*"|'[^']*')*>/g;
+
+/** Minimal `scanBody` equivalent: top-level `<w:body>` children with their ranges. */
+function scanBodyStub(documentXml) {
+  const open = /<w:body(?:\s(?:[^<>"']|"[^"]*"|'[^']*')*)?>/.exec(documentXml);
+  if (!open) throw new Error('document.xml has no <w:body> element');
+  const scanFrom = open.index + open[0].length;
+  const elements = [];
+  let depth = 0;
+  let start = -1;
+  let name = '';
+  SCAN_TAG_RE.lastIndex = scanFrom;
+  let match;
+  while ((match = SCAN_TAG_RE.exec(documentXml)) !== null) {
+    const tag = match[0];
+    if (tag.startsWith('<!--') || tag.startsWith('<![') || tag.startsWith('<?')) continue;
+    const closing = tag.startsWith('</');
+    const selfClosing = !closing && tag.endsWith('/>');
+    const tagName = /^<\/?\s*([A-Za-z_][\w:.-]*)/.exec(tag)?.[1] ?? '';
+    if (closing) {
+      if (depth === 0) break;
+      depth -= 1;
+      if (depth === 0) elements.push({ name, start, end: match.index + tag.length });
+    } else if (selfClosing) {
+      if (depth === 0) elements.push({ name: tagName, start: match.index, end: match.index + tag.length });
+    } else {
+      if (depth === 0) {
+        start = match.index;
+        name = tagName;
+      }
+      depth += 1;
+    }
+  }
+  if (elements.length === 0) return { elements, innerStart: scanFrom, innerEnd: scanFrom };
+  return {
+    elements,
+    innerStart: elements[0].start,
+    innerEnd: elements[elements.length - 1].end,
+  };
+}
+
+const HELPER_OPTS = { scanBodyFn: scanBodyStub, normalizeFn: (xml) => xml, needsNormalizeFn: () => false };
+
 describe('G7-08 W2 docx-roundtrip validator', () => {
   it('passes synchronous docxRoundTripHook and async runDocxRoundTrip on edited fx-docx-report-vi and satisfies oracleDocxEdit', async () => {
     const editedBytes = mutateDocxParagraphText(
@@ -42,11 +90,11 @@ describe('G7-08 W2 docx-roundtrip validator', () => {
       ORIGINAL_PARA_2,
       'Báo cáo quý 1 ghi nhận tổng doanh thu 22.060.000 đồng, dẫn đầu là khu vực Bắc với 9.060.000 đồng.',
     );
-    const syncRes = docxRoundTripHook(editedBytes);
+    const syncRes = docxRoundTripHook(editedBytes, HELPER_OPTS);
     assert.equal(syncRes.normalizedOk, true);
     assert.equal(syncRes.roundTripOk, true);
 
-    const asyncRes = await runDocxRoundTrip(editedBytes);
+    const asyncRes = await runDocxRoundTrip(editedBytes, HELPER_OPTS);
     assert.equal(asyncRes.normalizedOk, true);
     assert.equal(asyncRes.roundTripOk, true);
 
@@ -55,7 +103,7 @@ describe('G7-08 W2 docx-roundtrip validator', () => {
       beforeBytes: DOCX_BYTES,
       afterBytes: editedBytes,
       oldVersionSha256: beforeHash,
-      roundTripHook: docxRoundTripHook,
+      roundTripHook: (bytes) => docxRoundTripHook(bytes, HELPER_OPTS),
       targetParagraphIndex: 2,
       requiredTokens: ['22.060.000', 'Bắc', '9.060.000'],
     });
@@ -63,29 +111,36 @@ describe('G7-08 W2 docx-roundtrip validator', () => {
     assert.equal(verdict.exitCode, ROW_EXIT.PASS);
   });
 
-  it('normalizes out-of-order w:rPr inside w:r during step (i) and round-trips cleanly', async () => {
-    // Inject an out-of-order `<w:r><w:t>Test</w:t><w:rPr><w:b/></w:rPr></w:r>` run
-    // that triggers `needsOoxmlNormalization` -> `normalizeOoxmlXml`.
-    const unnormalizedBytes = mutateDocxParagraphText(
-      DOCX_BYTES,
-      ORIGINAL_PARA_2,
-      'Báo cáo quý 1 ghi nhận 22.060.000 đồng</w:t><w:rPr><w:b/></w:rPr></w:r><w:r><w:t> (Bắc 9.060.000)',
-    );
-    const norm = normalizeDocxPackage(unnormalizedBytes);
+  it('runs the injected normalizer over every XML and rels entry during step (i)', async () => {
+    const marker = '<!--g708-normalize-marker-->';
+    const withMarker = mutateDocxParagraphText(DOCX_BYTES, ORIGINAL_PARA_2, `${marker}${ORIGINAL_PARA_2}`);
+    const seen = [];
+    const stripMarker = (xml) => {
+      seen.push(xml);
+      return xml.split(marker).join('');
+    };
+
+    const norm = normalizeDocxPackage(withMarker, {
+      ...HELPER_OPTS,
+      normalizeFn: stripMarker,
+    });
     assert.equal(norm.ok, true);
     assert.ok(norm.normalizedBytes instanceof Uint8Array);
+    assert.ok(seen.length > 1, 'expected the normalizer to run once per XML/rels entry');
+    assert.equal(norm.docXml.includes(marker), false);
 
-    const rt = await runDocxRoundTrip(unnormalizedBytes);
+    const rt = await runDocxRoundTrip(withMarker, { ...HELPER_OPTS, normalizeFn: stripMarker });
     assert.equal(rt.normalizedOk, true);
     assert.equal(rt.roundTripOk, true);
   });
 
   it('maps step (i) normalization failures to normalizedOk=false and FAIL docx_ooxml_normalize_or_round_trip_failed in oracleDocxEdit', async () => {
-    assert.equal(docxRoundTripHook(new Uint8Array(0)).normalizedOk, false);
-    assert.equal((await runDocxRoundTrip(new Uint8Array(0))).normalizedOk, false);
+    assert.equal(docxRoundTripHook(new Uint8Array(0), HELPER_OPTS).normalizedOk, false);
+    assert.equal((await runDocxRoundTrip(new Uint8Array(0), HELPER_OPTS)).normalizedOk, false);
 
     const emptyNormHook = (bytes) =>
       docxRoundTripHook(bytes, {
+        ...HELPER_OPTS,
         normalizeFn: () => '',
       });
     const editedBytes = mutateDocxParagraphText(
@@ -121,11 +176,13 @@ describe('G7-08 W2 docx-roundtrip validator', () => {
     const brokenSyncRt = roundTripDocxSync(
       new Map(),
       '<w:document><w:body></w:body></w:document>',
+      HELPER_OPTS,
     );
     assert.equal(brokenSyncRt.ok, false);
 
     let parseCalls = 0;
     const driftingEngineRes = await runDocxRoundTrip(editedBytes, {
+      ...HELPER_OPTS,
       docxEngine: {
         async parseDocx() {
           parseCalls += 1;
@@ -149,6 +206,7 @@ describe('G7-08 W2 docx-roundtrip validator', () => {
     assert.match(driftingEngineRes.detail, /docx_engine_block_count_drift/);
 
     const throwingEngineRes = await runDocxRoundTrip(editedBytes, {
+      ...HELPER_OPTS,
       docxEngine: {
         async parseDocx() {
           throw new Error('simulated parseDocx failure');
@@ -174,5 +232,40 @@ describe('G7-08 W2 docx-roundtrip validator', () => {
     assert.equal(verdict.status, 'FAIL');
     assert.equal(verdict.exitCode, ROW_EXIT.FAIL);
     assert.equal(verdict.reason, 'docx_ooxml_normalize_or_round_trip_failed');
+  });
+
+  it('BLOCKs with a named reason when no engine helper can be loaded (never PASS)', async () => {
+    const editedBytes = mutateDocxParagraphText(
+      DOCX_BYTES,
+      ORIGINAL_PARA_2,
+      'Báo cáo quý 1 ghi nhận 22.060.000 đồng (cập nhật)',
+    );
+    const noHelpers = { normalizeFn: null, needsNormalizeFn: null, scanBodyFn: null };
+
+    const noNormalizer = docxRoundTripHook(editedBytes, { ...noHelpers, scanBodyFn: scanBodyStub });
+    assert.equal(noNormalizer.status, 'BLOCKED');
+    assert.equal(noNormalizer.reason, 'docx_normalizer_unavailable');
+    assert.equal(noNormalizer.normalizedOk, false);
+
+    const noScanner = docxRoundTripHook(editedBytes, { ...noHelpers, normalizeFn: (xml) => xml });
+    assert.equal(noScanner.status, 'BLOCKED');
+    assert.equal(noScanner.reason, 'docx_scan_body_unavailable');
+
+    const asyncBlocked = await runDocxRoundTrip(editedBytes, { ...noHelpers, scanBodyFn: scanBodyStub });
+    assert.equal(asyncBlocked.status, 'BLOCKED');
+    assert.equal(asyncBlocked.reason, 'docx_normalizer_unavailable');
+
+    const beforeHash = sha256Hex(DOCX_BYTES);
+    const verdict = oracleDocxEdit({
+      beforeBytes: DOCX_BYTES,
+      afterBytes: editedBytes,
+      oldVersionSha256: beforeHash,
+      roundTripHook: (bytes) => docxRoundTripHook(bytes, noHelpers),
+      targetParagraphIndex: 2,
+      requiredTokens: ['22.060.000'],
+    });
+    assert.equal(verdict.status, 'BLOCKED');
+    assert.equal(verdict.exitCode, ROW_EXIT.BLOCKED);
+    assert.equal(verdict.reason, 'docx_normalizer_unavailable');
   });
 });

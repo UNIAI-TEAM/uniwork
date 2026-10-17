@@ -11,7 +11,7 @@ import { ooxmlEntries, zipStore } from '../fixtures-lib/zip.mjs';
 import { readZipEntries } from '../harness/fixture-files.mjs';
 import { computeTruth } from '../holdout-xlsx-truth.mjs';
 import {
-  HARNESS_EXIT,
+  ROW_EXIT,
   VERDICT,
   blockedVerdict,
   decodeXml,
@@ -77,7 +77,7 @@ test('re-exports from oracles.mjs expose all OOXML and verdict helpers', () => {
   assert.equal(typeof failVerdict, 'function');
   assert.equal(typeof blockedVerdict, 'function');
   assert.equal(typeof decodeXml, 'function');
-  assert.equal(HARNESS_EXIT.BLOCKED, 77);
+  assert.equal(ROW_EXIT.BLOCKED, 77);
 });
 
 test('oracleVersionAndSave (G6-A03 + G6-A04) PASSes faithful read/edit and FAILs/BLOCKs each violation', () => {

@@ -5,21 +5,20 @@ import { posix as pathPosix } from 'node:path';
 import { readZipEntries, sha256Hex } from '../harness/fixture-files.mjs';
 
 export const VERDICT = Object.freeze({ PASS: 'PASS', FAIL: 'FAIL', BLOCKED: 'BLOCKED' });
-export const HARNESS_EXIT = Object.freeze({ PASS: 0, FAIL: 1, BLOCKED: 77 });
-export const ROW_EXIT = HARNESS_EXIT;
+export const ROW_EXIT = Object.freeze({ PASS: 0, FAIL: 1, BLOCKED: 77 });
 
 export function passVerdict(reason, details = {}) {
-  return { status: VERDICT.PASS, exitCode: HARNESS_EXIT.PASS, reason, details };
+  return { status: VERDICT.PASS, exitCode: ROW_EXIT.PASS, reason, details };
 }
 
 export function failVerdict(reason, details = {}) {
-  return { status: VERDICT.FAIL, exitCode: HARNESS_EXIT.FAIL, reason, details };
+  return { status: VERDICT.FAIL, exitCode: ROW_EXIT.FAIL, reason, details };
 }
 
 export function blockedVerdict(reason, details = {}) {
   const cleanReason = typeof reason === 'string' && reason.trim() ? reason.trim() : null;
   if (!cleanReason) return failVerdict('blocked_without_named_reason', details);
-  return { status: VERDICT.BLOCKED, exitCode: HARNESS_EXIT.BLOCKED, reason: cleanReason, details };
+  return { status: VERDICT.BLOCKED, exitCode: ROW_EXIT.BLOCKED, reason: cleanReason, details };
 }
 
 const XML_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
@@ -291,6 +290,12 @@ export function oracleDocxEdit(observed) {
 
   const roundTripResult = typeof observed.roundTripHook === 'function' ? observed.roundTripHook(observed.afterBytes) : observed.roundTrip;
   if (!roundTripResult || typeof roundTripResult !== 'object') return blockedVerdict('missing_docx_round_trip_result');
+  // A round trip that could not load the engine helpers reports BLOCKED with a
+  // named reason (e.g. `docx_normalizer_unavailable`); it is never a FAIL and
+  // never a PASS.
+  if (roundTripResult.status === VERDICT.BLOCKED && roundTripResult.reason) {
+    return blockedVerdict(roundTripResult.reason, { roundTrip: roundTripResult });
+  }
   if (roundTripResult.normalizedOk !== true || roundTripResult.roundTripOk !== true) {
     return failVerdict('docx_ooxml_normalize_or_round_trip_failed', { roundTrip: roundTripResult });
   }
