@@ -1,6 +1,6 @@
 # Tài liệu — Giới hạn 200 MB, tải lên tệp lớn, gợi ý mở bằng app khi lag (addendum, phía D)
 
-> **Trạng thái:** in-progress — Contract r2 Advisor duyệt 2026-10-16 23:35 (UTC+7); r2 = route theo phiên riêng cho frame + chủ thể mở phiên. Lát SIZE-SPEC (UNI-1858) của lane size-cap (UNI-1857).
+> **Trạng thái:** in-progress — Contract r2 Advisor duyệt 2026-10-16 23:35 (UTC+7); r2 = route theo phiên riêng cho frame + chủ thể mở phiên; r4 (2026-10-17, size-cap:006) = chỉnh §6 theo contract BIGUP-S1 `2026-10-17-bigup-upload-sessions-contract.md`. Lát SIZE-SPEC (UNI-1858) của lane size-cap (UNI-1857).
 
 **Ngày:** 2026-10-16 · **Nguồn quyết định:** `briefs/size-thresholds-proposal-2026-10-16.md` §0 (D-S1, D-S2, D-S3 user ký 18:20), `briefs/plan-size-cap-2026-10-16.md`, quyết định Advisor `reports/g5-fork_main/advisor-size-decisions-2026-10-16.md` (OQ-SIZE-1..5, BENCH-01), contract fork `contract-size-frame-v0.1` r3 · **Vùng:** `server/internal/{config,handler,service,files,document,storage}`, `server/migrations`, `packages/core/{api,office}`, `packages/views/office`, `apps/web/platform/office-frame`
 
@@ -85,7 +85,7 @@ Mọi 413 `file_too_large` của tài liệu (handler cap, `service/document_fil
 
 - Frame gửi `lag_detected` (LAG-F1) → host hiện banner không chặn: "Tệp lớn nên có thể chạy chậm trên trình duyệt. Mở bằng app UniWork Office cho trải nghiệm tốt hơn." + **Mở bằng app** (luồng mở app hiện có) · **Tiếp tục trên web** (ẩn banner).
 - Fallback theo kích thước: khi môi trường không có `PerformanceObserver` hỗ trợ `longtask`/`event` (Safari), host hiện cùng banner lúc mở nếu `file.size_bytes > web_open[format].warn_bytes`. Trình duyệt có observer thì chỉ dựa vào `lag_detected` (không hiện theo kích thước) để tránh báo hai lần.
-- Bỏ qua (dismiss) nhớ theo tài liệu: `StorageAdapter` key `office.lagBanner.dismissed:<documentId>`; nhớ qua phiên. Không bao giờ chặn sửa hay lưu; "Mở bằng app" không có khi máy không mở app được (giống nút mở app hiện có).
+- Bỏ qua (dismiss) nhớ theo tài liệu: `StorageAdapter` key `office.lagBanner.dismissed:<documentId>`; nhớ qua phiên. Không bao giờ chặn sửa hay lưu; Khi máy không mở app được (không có nút mở app hiện có, hoặc chỉ xem), **ẩn cả banner**: banner chỉ để gợi ý app, không có app thì câu gợi ý sai (sửa r5, lead, theo review LAG-W1 R1-3).
 - `open_refused` (contract fork §3.1a): host hiện thông báo từ chối với "Mở bằng app" · "Tải xuống" (thay notice "Tệp quá lớn để chỉnh sửa trên web" đang dựa vào 10 MiB). Thuộc LAG-W1 (cùng vendor giao thức với W1b).
 
 ## 6. Phiên tải lên tệp lớn — API (BIGUP-S1 / BIGUP-W1) — OQ-SIZE-2
@@ -130,7 +130,7 @@ Request (cả ba route; `parent_id`, `title`, `visibility` chỉ ở route works
 }
 ```
 
-Header `Idempotency-Key` bắt buộc (cùng key + cùng lệnh → cùng phiên, `200`; cùng key + lệnh khác → `409 idempotency_conflict`).
+Header `Idempotency-Key` bắt buộc (cùng key + cùng lệnh → cùng phiên, `200`; cùng key + lệnh khác → `409 idempotency_payload_mismatch`, mã hiện có của `BeginIdempotent`; r4 bỏ mã mới `idempotency_conflict`).
 
 Server, trước khi nhận phần nào: `size_bytes` trong `(20 MiB, DOCUMENT_MAX_BYTES]` (≤ 20 MiB → `422 upload_session_too_small`: dùng luồng thường; > cap → `413 file_too_large` + `fields.max_bytes`); đuôi tệp được nhận; quyền (tạo trong workspace / sửa tài liệu, cùng thứ tự từ chối như route upload hiện có); quota `storage.bytes` **giữ chỗ** `size_bytes`; probe chạy detector + luật zip (OOXML/ODF: `[Content_Types].xml`, thư mục chính khớp đuôi, không macro, số mục và kích thước giải nén khai báo trong giới hạn; `cd_size ≤ 1 MiB`; `head_b64 ≤ 64 KiB`) → sai thì `415 unsupported_media_type` + `fields.reason`; giới hạn phiên đang mở mỗi người → `429 upload_sessions_exhausted` + `Retry-After`.
 
@@ -147,11 +147,11 @@ Response `201`:
 }
 ```
 
-URL phần là presigned PUT S3 multipart tới khoá staging của phiên (không phải khoá tài liệu), TTL 1 giờ; client gửi `PUT` thẳng, `credentials: 'omit'`, ghi lại `ETag`.
+URL phần là presigned PUT S3 multipart tới khoá object của chính dòng `files` của phiên (r4: tệp chưa được claim nên chưa tài liệu nào đọc được, tức là đã đóng vai staging; không phải copy lúc hoàn tất), TTL 1 giờ; client gửi `PUT` thẳng, `credentials: 'omit'`, ghi lại `ETag`.
 
 ### 6.3 Trạng thái / làm mới URL
 
-`GET .../upload-sessions/{sessionID}` → cùng shape response tạo, `completed_parts` lấy từ S3 ListParts (`[{part_number, etag, size}]`), `parts` = URL mới cho các phần còn thiếu. Phiên hết hạn / đã huỷ / đã GC → `410 upload_session_expired`; không thấy → `404 not_found`.
+`GET .../upload-sessions/{sessionID}` → cùng shape response tạo, cộng trường `status` (`open` | `validating` | `completed`; r4; `parts` chỉ có khi `open`), `completed_parts` lấy từ S3 ListParts (`[{part_number, etag, size}]`), `parts` = URL mới cho các phần còn thiếu. Phiên hết hạn / đã huỷ / đã GC → `410 upload_session_expired`; không thấy → `404 not_found`.
 
 ### 6.4 Hoàn tất
 
@@ -168,10 +168,10 @@ Kiểm tra có thể kéo dài với tệp 200 MB: request `complete` giữ kế
 - `DELETE` → abort multipart, xoá staging, trả quota giữ chỗ, `204`. Huỷ phiên đã hoàn tất → `409 upload_session_completed`.
 - Phiên sống 24 giờ từ lúc tạo (`expires_at`); quá hạn → worker GC (cùng chuỗi tắt máy trong `cmd/server/main.go`) abort multipart, xoá staging, trả quota, đánh dấu `expired`. Backstop: luật lifecycle bucket "abort incomplete multipart uploads sau 2 ngày" trên tiền tố staging — ghi trong `docs/ops/` (không tự cấu hình bucket).
 - Mỗi người tối đa **4** phiên đang mở (chưa hoàn tất/huỷ/hết hạn), trên mọi tổ chức.
-- Bộ nhớ dữ liệu: bảng mới trong FileService (chỉ `server/internal/files` + service FileService ghi), có `organization_id NOT NULL`, cặp `created_by`/`created_by_kind`, id ULID, không FK, index `CONCURRENTLY` một-lệnh-một-file; câu sqlc có `organization_id = $n` hoặc dòng `-- tenant:` (`by-id` cho thao tác theo id phiên, kiểm tra người tạo trong service). Chi tiết bảng do contract BIGUP-S1 chốt.
+- Bộ nhớ dữ liệu: bảng mới trong FileService (chỉ `server/internal/files` + service FileService ghi), có `organization_id NOT NULL`, cặp `created_by`/`created_by_kind`, id ULID, không FK, index `CONCURRENTLY` một-lệnh-một-file; câu sqlc có `organization_id = $n` hoặc dòng `-- tenant:` (`by-id` cho thao tác theo id phiên, kiểm tra người tạo trong service). Bảng `file_multipart_uploads` (1:1 với phiên FileService), giữ chỗ quota, GC và giới hạn: contract BIGUP-S1 `2026-10-17-bigup-upload-sessions-contract.md` (Advisor duyệt size-cap:006).
 - Audit (cùng transaction): `document.upload_session_opened`, `document.upload_session_completed`, `document.upload_session_aborted`, `document.upload_session_expired` (actor `system`); thêm vào `audit_coverage_test.go`. Không có topic outbox mới: tài liệu tạo lúc `complete` phát `document.created` như luồng hiện có; phiên bản mới phát qua commit hiện có.
 - Ma trận cô lập: mọi route ở §6.1 tự được phủ (id trên path); `parent_id` trong body route workspace cần ca `isoReferences`.
-- Luồng một request (≤ 20 MiB) đổi thứ tự: kiểm tra đầy đủ trên tệp spool cục bộ **trước** `Put` (proposal §9), không đọc lại đối tượng sau khi lưu.
+- Luồng một request (≤ 20 MiB) đổi thứ tự: kiểm tra đầy đủ trên tệp spool cục bộ **trước** `Put` (proposal §9), không đọc lại đối tượng sau khi lưu. r4: tách thành thẻ SIZE-S2 (size-cap:006), không thuộc BIGUP-S1.
 
 ### 6.6 Web (BIGUP-W1)
 

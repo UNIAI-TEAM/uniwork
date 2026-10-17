@@ -108,7 +108,12 @@ export function docsFrameError(error: unknown): DocsProtocolError {
       : error.status === 504
         ? { code: "timeout" as const, message, status: 504, retryable: true }
         : errorFromHttpStatus(error.status, message).toShape();
-    return new DocsProtocolError({ ...shape, details: { apiCode: error.code } });
+    const rawMax = error.fields?.["max_bytes"];
+    const maxBytes = typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : undefined;
+    return new DocsProtocolError({
+      ...shape,
+      details: { apiCode: error.code, ...(maxBytes !== undefined ? { max_bytes: maxBytes } : {}) },
+    });
   }
   return toProtocolError(error);
 }

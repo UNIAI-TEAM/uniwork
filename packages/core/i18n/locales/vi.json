@@ -322,7 +322,7 @@
       "shareTasks": "Công việc của bạn và công việc trong các workspace bạn tham gia, kèm bình luận",
       "shareProjects": "Dự án và công việc trong dự án",
       "shareMeetings": "Cuộc họp và bản tóm tắt AI, không có bản ghi lời thoại",
-      "shareDocuments": "Tài liệu bạn được xem: trang và tệp văn bản đầy đủ, tệp khác chỉ có tên",
+      "shareDocuments": "Tài liệu bạn được xem: UniNote và tệp văn bản đầy đủ, tệp khác chỉ có tên",
       "shareNot": "Không gồm tin nhắn chat và email",
       "allowWrite": "Cho phép tạo và sửa",
       "allowWriteHint": "Nhiều ứng dụng AI hỏi trước mỗi thay đổi, nhưng UniWork không kiểm được điều đó. Mỗi thay đổi ghi tên bạn kèm tên ứng dụng và hoàn tác được.",
@@ -8671,12 +8671,12 @@
       "md": "Tài liệu Markdown",
       "html": "Tài liệu HTML",
       "file": "File",
-      "page": "Trang UniWork",
+      "page": "UniNote",
       "folder": "Thư mục"
     },
     "page": {
       "title": "Tài liệu",
-      "new_page": "Trang mới",
+      "new_page": "UniNote mới",
       "off_title": "Tài liệu chưa bật",
       "off_description": "Tính năng tài liệu chưa được bật cho workspace này.",
       "checking_title": "Đang kiểm tra tính năng tài liệu…",
@@ -8976,7 +8976,7 @@
       "done": "Đã tạo bản sao \"{{title}}\"",
       "consent_required": "Cần xác nhận rõ trước khi tạo bản sao.",
       "owner_requires_copy": "Tài liệu thuộc Kết quả công việc: bản sao đi qua màn hình sở hữu.",
-      "page_not_supported": "Chỉ tài liệu tệp có bản sao ở bước này. Trang sao chép ở giai đoạn sau.",
+      "page_not_supported": "Chỉ tài liệu tệp có bản sao ở bước này. UniNote sao chép ở giai đoạn sau.",
       "unavailable": "Bản triển khai này chưa có chức năng tạo bản sao."
     },
     "actions": {
@@ -9262,7 +9262,7 @@
       "restore_failed": "Không khôi phục được. Chưa có gì thay đổi.",
       "restore_not_archived": "Tài liệu này không nằm trong thùng rác.",
       "archive_folder_title": "Lưu trữ thư mục",
-      "archive_folder_description": "Thư mục và mọi thứ bên trong (thư mục con, trang, file) cùng vào thùng rác. Có thể khôi phục lại sau.",
+      "archive_folder_description": "Thư mục và mọi thứ bên trong (thư mục con, UniNote, file) cùng vào thùng rác. Có thể khôi phục lại sau.",
       "delete_title": "Xóa thư mục",
       "delete_subfolders_one": "{{count}} thư mục con",
       "delete_subfolders_other": "{{count}} thư mục con",
@@ -9527,9 +9527,9 @@
         "ai_badge": "AI",
         "unavailable_hint": "Chưa dùng được trên máy chủ này",
         "page": {
-          "card": "Trang",
-          "hint": "Trang UniWork, gắn được công việc và nhắc tên",
-          "menu": "Trang",
+          "card": "UniNote",
+          "hint": "UniNote riêng tư hoặc chia sẻ, gắn được công việc và nhắc tên",
+          "menu": "UniNote",
           "ext": "UniWork"
         },
         "docx": {
@@ -9617,7 +9617,7 @@
       "chips_label": "Lọc theo loại",
       "chips": {
         "all": "Tất cả",
-        "page": "Trang",
+        "page": "UniNote",
         "docx": "Docs",
         "xlsx": "Sheets",
         "pptx": "Slides",
@@ -9653,7 +9653,7 @@
       "groups": {
         "unfiled": "Chưa xếp thư mục",
         "type": {
-          "page": "Trang",
+          "page": "UniNote",
           "folder": "Thư mục",
           "docx": "Docs",
           "xlsx": "Sheets",
@@ -9783,7 +9783,7 @@
       }
     },
     "errors": {
-      "document_parent_kind": "Không đặt được ở đây: thư mục chỉ nằm ở gốc hoặc trong thư mục khác; trang và file nằm trong trang hoặc thư mục.",
+      "document_parent_kind": "Không đặt được ở đây: thư mục chỉ nằm ở gốc hoặc trong thư mục khác; UniNote và file nằm trong UniNote hoặc thư mục.",
       "document_cycle": "Không thể chuyển một mục vào chính nó hoặc vào mục con của nó.",
       "document_too_deep": "Cây tài liệu tối đa {{max}} cấp.",
       "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
@@ -9993,11 +9993,20 @@
       }
     },
     "too_large": {
-      "title": "Tệp quá lớn để chỉnh sửa trên web",
-      "description": "Tệp {{format}} này vượt giới hạn dung lượng của trình duyệt. Mở tệp trong ứng dụng UniWork Office trên máy tính để tiếp tục làm việc — ứng dụng không giới hạn dung lượng tệp.",
-      "description_download_only": "Tệp {{format}} này vượt giới hạn dung lượng của trình duyệt. Hãy tải tệp xuống để tiếp tục làm việc.",
+      "title": "Không mở được tệp này trên web",
+      "description": "Tệp {{format}} này quá lớn để trình duyệt mở. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "description_download_only": "Tệp {{format}} này quá lớn để trình duyệt mở. Hãy tải tệp xuống để tiếp tục làm việc.",
+      "engine_out_of_memory": "Trình duyệt không đủ bộ nhớ để mở tệp {{format}} này. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "engine_out_of_memory_download_only": "Trình duyệt không đủ bộ nhớ để mở tệp {{format}} này. Hãy tải tệp xuống để tiếp tục làm việc.",
+      "too_complex": "Tệp {{format}} này có quá nhiều nội dung để trình duyệt xử lý. Mở tệp bằng app UniWork Office trên máy tính để tiếp tục làm việc.",
+      "too_complex_download_only": "Tệp {{format}} này có quá nhiều nội dung để trình duyệt xử lý. Hãy tải tệp xuống để tiếp tục làm việc.",
       "download": "Tải xuống",
       "download_failed": "Không thể tải tệp xuống. Hãy thử lại."
+    },
+    "lag_banner": {
+      "body": "Tệp lớn nên có thể chạy chậm trên trình duyệt. Mở bằng app UniWork Office cho trải nghiệm tốt hơn.",
+      "open_app": "Mở bằng app",
+      "continue": "Tiếp tục trên web"
     },
     "shell": {
       "save": "Lưu",
@@ -10200,6 +10209,15 @@
       "loading": "Đang tải trình soạn thảo…",
       "capability_unavailable": "Trình soạn thảo không khả dụng",
       "editor_pending": "Chỉnh sửa {{format}} chưa khả dụng."
+    },
+    "size": {
+      "warn_chip": "Sắp chạm giới hạn {{max}} (đang {{size}}).",
+      "save_blocked": {
+        "title": "Chưa lưu được lên UniWork",
+        "body": "Tài liệu đã vượt {{max}}. Thay đổi của bạn vẫn ở đây. Tải bản của bạn về máy rồi giảm dung lượng ảnh hoặc chia nhỏ tài liệu.",
+        "download": "Tải bản của tôi",
+        "close": "Đóng"
+      }
     }
   },
   "officeDesktop": {

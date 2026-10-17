@@ -377,7 +377,41 @@ export async function apiCreateDocument(
       data: input,
     }),
   );
-  return parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
+  const parsed = await parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
+  if (parsed.ok && parsed.data && !input.parent_id && input.visibility !== "restricted") {
+    return { ...parsed, data: await openRootDocumentToWorkspace(page, token, wsId, parsed.data.id) };
+  }
+  return parsed;
+}
+
+/**
+ * A root document is private at create since U-SH2 (SH-S1, 1cd4497d9) and a
+ * named "workspace" opens it at view only. These specs seed what they mean
+ * by a plain create: a document every workspace member may edit, the
+ * pre-SH-S1 default. The workspace share writes the home row at edit; a
+ * child created under it inherits both, so only roots need the call. The
+ * share bumps the revision, so the returned document is read again: the
+ * callers pass its revision to move and rename.
+ */
+async function openRootDocumentToWorkspace(
+  page: Page,
+  token: string,
+  wsId: string,
+  docId: string,
+): Promise<DocumentDTO> {
+  const res = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/shares`, {
+      headers: { ...authHeaders(token), "content-type": "application/json" },
+      data: { principal_type: "workspace", principal_id: wsId, level: "edit" },
+    }),
+  );
+  expect(
+    res.ok(),
+    `open ${docId} to the workspace failed: ${res.status()} ${await res.text()}`,
+  ).toBeTruthy();
+  const fresh = await getDocument(page, token, docId);
+  expect(fresh.ok && fresh.data, `getDocument(${docId}): ${fresh.status}`).toBeTruthy();
+  return fresh.data!;
 }
 
 export async function createFolder(
@@ -472,6 +506,9 @@ export async function uploadFixtureFile(
     `uploadFixtureFile(${fixtureId}) failed: ${res.status()} ${rawText}`,
   ).toBeTruthy();
   const body = JSON.parse(rawText) as { document: DocumentDTO };
+  if (!options?.parentId) {
+    return openRootDocumentToWorkspace(page, token, wsId, body.document.id);
+  }
   return body.document;
 }
 

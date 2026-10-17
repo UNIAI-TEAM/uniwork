@@ -207,6 +207,7 @@ fails on drift. One flat namespace, keys nested by section:
 | graph timeline | **dòng thời gian** | Timeline | khác "Hoạt động" (audit + bình luận) của trang việc |
 | Work Graph | **Work Graph** | Work Graph | tên hệ thống, không dịch |
 | folder (Documents) | **thư mục** | Folder | dùng lại khóa `"folder": "Thư mục"` có sẵn; UNI-1425 (phụ lục thư mục §3.6) |
+| Page (the rich-text document kind, `kind=page`) | **UniNote** | UniNote | tên sản phẩm, không dịch ở mọi ngôn ngữ (U-UN1, UNI-1812); `documents.file_types.page`, `documents.page.new_page` = "UniNote mới" / "New UniNote"; chỉ chữ trên UI — `kind=page`, route, `documentKeys` giữ nguyên. "Trang" vẫn là phân trang ("Trang sau"), trang chủ ("Trang chủ") và trang in ("Trang in"). `packages/core/i18n/uninote-copy.test.ts` giữ danh sách khóa |
 | subfolder | **thư mục con** | Subfolder | luôn đủ cụm, không "mục con" |
 | new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Tài liệu (gốc)" (tiêu đề hộp thoại từ (+) sidebar) |
 | rename | **đổi tên** | Rename | |
