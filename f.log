@@ -1,0 +1,19 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root web/docs/bridge --environment jsdom; rc=$?; echo; echo "DOCS_BRIDGE_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+
+ Test Files  15 passed (15)
+      Tests  269 passed (269)
+   Start at  00:01:39
+   Duration  5.14s (transform 3.27s, setup 0ms, import 4.06s, tests 3.75s, environment 5.55s)
+
+
+DOCS_BRIDGE_EXIT=0

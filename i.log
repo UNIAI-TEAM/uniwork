@@ -1,0 +1,12 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root web/modules/pdf; rc=$?; echo; echo "WEB_PDF_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules/pdf
+
+
+ Test Files  5 passed (5)
+      Tests  60 passed (60)
+   Start at  00:02:04
+   Duration  2.58s (transform 1.38s, setup 0ms, import 1.56s, tests 1.57s, environment 1.46s)
+
+
+WEB_PDF_EXIT=0
