@@ -113,6 +113,24 @@ function renderPageView(onOpen = vi.fn()) {
   );
 }
 
+/**
+ * Resolves once the `/api/v1/config` limits request has been made, its result has
+ * settled, and TanStack Query has delivered it to the mounted view. Dropping before
+ * that leaves `chunked_upload_threshold_bytes` unknown, so a large file takes the
+ * single-request path and never shows the chunked drop toast.
+ */
+async function waitForUploadLimits(): Promise<void> {
+  const configIndex = () =>
+    requestMock.mock.calls.findIndex((c) => String(c[0]).startsWith("/api/v1/config"));
+  await waitFor(() => expect(configIndex()).toBeGreaterThanOrEqual(0));
+  const settled = requestMock.mock.results[configIndex()]?.value as Promise<unknown>;
+  await act(async () => {
+    await settled;
+    // TanStack Query notifies observers from a zero-delay timer after the fetch settles.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+}
+
 beforeEach(() => {
   requestMock.mockReset();
   vi.stubGlobal("XMLHttpRequest", undefined);
@@ -764,9 +782,7 @@ describe("Chunked document upload in views", () => {
 
     const { unmount } = renderPageView();
     await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await waitForUploadLimits();
     const dropRegion = screen.getByRole("region", { name: t("documents.page.title") });
     const bigFile = makePdfFile(THRESHOLD * 2, "dropped-unmount.pdf");
 
@@ -838,12 +854,7 @@ describe("Chunked document upload in views", () => {
 
     renderPageView();
     await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
-    await waitFor(() => {
-      expect(calls.some((c) => c.startsWith("GET /api/v1/config"))).toBe(true);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await waitForUploadLimits();
     const dropRegion = screen.getByRole("region", { name: t("documents.page.title") });
     const bigFile = makePdfFile(THRESHOLD * 2, "dropped-large.pdf");
 
@@ -1353,12 +1364,7 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
       calls.length = 0;
       renderPageView();
       await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
-      await waitFor(() => {
-        expect(calls.some((c) => c.startsWith("GET /api/v1/config"))).toBe(true);
-      });
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await waitForUploadLimits();
       const dropRegion = screen.getByRole("region", { name: t("documents.page.title") });
       const droppedFile = makePdfFile(THRESHOLD + 1024, "dropped-423.pdf");
       fireEvent.drop(dropRegion, {
