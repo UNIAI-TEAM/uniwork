@@ -4,10 +4,11 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
 import { frameDownloadMaxBytes } from "./frame-download";
 import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
+import type { FrameEditLock } from "./frame-edit-lock";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
@@ -25,9 +26,9 @@ const mintedSource = () => ({
 });
 
 /** A frame on the other side of the wire: records what the host posts, posts back as the iframe's window. */
-function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, uploadMaxBytes, fileRef }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; uploadMaxBytes?: number; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
+function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes, fileRef }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
   const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
-  requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+  requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
     if (path === SOURCE_MINT_PATH) return Promise.resolve({ ...mintedSource(), module });
     if (String(path).startsWith("/api/v1/config")) {
@@ -57,13 +58,13 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const options: DocsFrameSessionOptions = {
     iframeRef: { current: iframe }, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: ref,
-    readonly, locale: "vi", theme: "light", onError, downloadName: () => "Kế hoạch: Q4 (bản của tôi)",
+    readonly, editLock, locale: "vi", theme: "light", onError, downloadName: () => "Kế hoạch: Q4 (bản của tôi)",
     api: { open: vi.fn(), save: vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" })), recents: vi.fn(), ...api } as unknown as DocsFrameApi,
   };
   const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   return {
-    iframe, hook, onError, received, sent, client,
+    iframe, hook, onError, received, sent, options, client,
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     respond: (to: Envelope, payload: unknown) => post(envelope("response", to.type, payload, to.id)),
     request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
@@ -571,5 +572,59 @@ describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
     const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
     await waitFor(() => expect(hook.result.current.status).toBe("failed"));
     expect(hook.result.current.failure?.code).toBe("not_found");
+  });
+
+});
+
+describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)", () => {
+  const lockOf = (held: boolean, onLocked = vi.fn()): FrameEditLock => ({ held, lockId: held ? "L1" : undefined, onLocked });
+
+  it("is view-only while the page does not hold the lock: no save capability, a write is refused", async () => {
+    const save = vi.fn();
+    const frame = setup({ editLock: lockOf(false), api: { save } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    expect(frame.hook.result.current.viewOnly).toBe(true);
+    expect(frame.sent("init")[0]?.payload).toMatchObject({ capabilities: { save: false } });
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("commits with the held lock id", async () => {
+    const save = vi.fn(async (_payload: unknown, _call: unknown) => ({ ok: true, file: FILE, versionId: "v2" }));
+    const frame = setup({ editLock: lockOf(true), api: { save } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    expect(frame.hook.result.current.viewOnly).toBe(false);
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true }));
+    expect(save.mock.calls[0]?.[1]).toMatchObject({ documentId: "doc-1", editLockId: "L1" });
+  });
+
+  it("423 on save flips the host lock state to lost: onLocked gets the holder, the frame a read-only refusal, never {ok:false}", async () => {
+    const fields = { holder_id: "u2", holder_name: "An", held_by_me: false };
+    const locked = new DocsProtocolError({ code: "forbidden", message: "document_locked (HTTP 423)", status: 423, details: { apiCode: "document_locked", fields } });
+    const save = vi.fn(async () => { throw locked; });
+    const onLocked = vi.fn();
+    const frame = setup({ editLock: lockOf(true, onLocked), api: { save } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(id)?.error).toMatchObject({ code: "forbidden", status: 403 }));
+    expect(frame.answerTo(id)?.payload).toBeUndefined();
+    expect(onLocked).toHaveBeenCalledWith(fields);
+    // The current pin advertises no editLock capability: no doc.editLock is sent (Q4).
+    expect(frame.received.some((m) => m.type === "doc.editLock")).toBe(false);
+  });
+
+  it("re-attaches a frame that opened read-only once the lock is held, and only then", async () => {
+    const frame = setup({ editLock: lockOf(false) });
+    await frame.boot();
+    expect(frame.hook.result.current.attempt).toBe(0);
+    frame.options.editLock = lockOf(false);
+    frame.hook.rerender();
+    expect(frame.hook.result.current.attempt).toBe(0);
+    frame.options.editLock = lockOf(true);
+    frame.hook.rerender();
+    await waitFor(() => expect(frame.hook.result.current.attempt).toBe(1));
+    expect(frame.hook.result.current.viewOnly).toBe(false);
   });
 });

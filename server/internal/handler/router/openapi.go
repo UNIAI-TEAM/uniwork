@@ -473,6 +473,16 @@ func pathParamSDI(path string) any {
 			DocumentID       string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			LinkedDocumentID string `path:"linkedDocumentID" description:"ULID tài liệu file cùng thư mục (ảnh, CSS, JS) mà tài liệu Markdown/HTML tham chiếu bằng đường dẫn tương đối" example:"01J8X4DOC1N1P2Q3R4S5T6U7"`
 		}{}
+	case "documentID,lockID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			LockID     string `path:"lockID" description:"ULID nhiệm kỳ khóa sửa (lock_id) của chính người gọi" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
+		}{}
+	case "documentID,requestID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			RequestID  string `path:"requestID" description:"ULID yêu cầu quyền sửa" example:"01J8X4REQ0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "documentID,shareID":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`

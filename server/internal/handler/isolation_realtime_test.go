@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/url"
 	"strings"
@@ -8,6 +9,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/realtime"
+	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // TestIsolationRealtime is the WebSocket half of the isolation matrix: the two
@@ -96,6 +103,70 @@ func TestIsolationRealtime(t *testing.T) {
 			}
 			if wsSees(conn, tag, 300*time.Millisecond) {
 				t.Errorf("B's socket got a frame sent on A's %s scope", s.name)
+			}
+		}
+	})
+
+	// The edit lock topics (UNI-1645 §6), delivered the way the dispatcher
+	// does - outbox row -> realtime consumer -> hub: document.lock_changed
+	// reaches A's workspace and never B's socket; each user-scope topic
+	// reaches only the user its payload names.
+	t.Run("edit lock topics", func(t *testing.T) {
+		dial := func(wsID, token string) *websocket.Conn {
+			conn := w.dialWS(t, "/api/v1/ws?workspace_id="+wsID)
+			if reply := wsAuth(t, conn, token); reply["type"] != "auth_ack" {
+				t.Fatalf("auth on %s = %v", wsID, reply)
+			}
+			return conn
+		}
+		consumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: realtime.NewPublisher(w.deps.Hub, nil)})
+		doc := a.get(t, "lockDocument")
+		cases := []struct {
+			topic, userID string
+			reach, miss   []string
+		}{
+			{"document.lock_changed", "", []string{"owner", "peer"}, []string{"other"}},
+			{"document.lock_taken_over", a.userID, []string{"owner"}, []string{"peer", "other"}},
+			{"document.edit_requested", a.userID, []string{"owner"}, []string{"peer", "other"}},
+			{"document.edit_request_answered", a.peerID, []string{"peer"}, []string{"owner", "other"}},
+		}
+		for _, c := range cases {
+			// Fresh sockets per topic: a read that hits its deadline leaves a
+			// gorilla connection unusable, so a "miss" check ends that socket.
+			conns := map[string]*websocket.Conn{
+				"owner": dial(a.wsID, a.token), "peer": dial(a.wsID, a.peerToken), "other": dial(b.wsID, b.token),
+			}
+			tag := "iso-lock-" + strings.ReplaceAll(c.topic, ".", "-")
+			// The tag rides in a catalogue key: request_id on the request
+			// topics, document_id on the two that carry no request.
+			payload := map[string]string{"document_id": doc, "workspace_id": a.wsID}
+			if strings.Contains(c.topic, "edit_request") {
+				payload["request_id"] = tag
+			} else {
+				payload["document_id"] = tag
+			}
+			if c.userID != "" {
+				payload["user_id"] = c.userID
+			}
+			raw, _ := json.Marshal(payload)
+			if err := consumer.Handle(context.Background(), db.OutboxEvent{
+				ID: "iso-" + tag, Topic: c.topic, Payload: string(raw),
+				WorkspaceID: pgtype.Text{String: a.wsID, Valid: true},
+			}); err != nil {
+				t.Fatalf("%s: %v", c.topic, err)
+			}
+			for _, who := range c.reach {
+				if !wsSees(conns[who], tag, 3*time.Second) {
+					t.Errorf("%s did not reach %s", c.topic, who)
+				}
+			}
+			for _, who := range c.miss {
+				if wsSees(conns[who], tag, 300*time.Millisecond) {
+					t.Errorf("%s reached %s, outside its scope", c.topic, who)
+				}
+			}
+			for _, conn := range conns {
+				conn.Close()
 			}
 		}
 	})

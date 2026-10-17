@@ -2,9 +2,11 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
+import { forgetHeldEditLock, registerHeldEditLock } from "@uniwork/core/documents/edit-lock-registry";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { requestMock, wrap } from "../test/api-mock";
+import { onWriteRefused } from "./edit-lock-refusal";
 import { VersionHistorySheet } from "./version-history-sheet";
 
 const { t } = initI18n();
@@ -235,6 +237,80 @@ describe("VersionHistorySheet", () => {
 
     await waitFor(() => expect(posts.length).toBe(1));
     expect(posts[0]?.body).toEqual({ base_revision: "3" });
+  });
+
+  it("the holder's restore names the edit lock this tab holds (UNI-1645)", async () => {
+    const posts: { path: string; body?: unknown }[] = [];
+    mockApi({
+      onPost: (path, opts) => {
+        posts.push({ path, body: opts.body });
+        return Promise.resolve({
+          document: pageDocument({ revision: "8" }),
+          version: { ...versionRows[0], id: "v3", version: 3, reason: "restore", restored_from: 1 },
+        });
+      },
+    });
+    registerHeldEditLock("d1", "L1");
+    try {
+      renderSheet();
+      fireEvent.click(await screen.findByRole("button", { name: t("documents.versions.restore", { no: 1 }) }));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") }));
+      await waitFor(() => expect(posts.length).toBe(1));
+      expect(posts[0]?.body).toEqual({ edit_lock_id: "L1" });
+      await waitFor(() =>
+        expect(screen.queryByText(t("documents.versions.restore_confirm_title", { no: 1 }))).toBeNull(),
+      );
+    } finally {
+      forgetHeldEditLock("L1");
+    }
+  });
+
+  it("a restore refused with 423 while someone else holds the lock keeps the holder message", async () => {
+    const posts: { path: string; body?: unknown }[] = [];
+    mockApi({
+      onPost: (path, opts) => {
+        posts.push({ path, body: opts.body });
+        return Promise.reject(new ApiError("tài liệu đang được người khác sửa", "document_locked", 423));
+      },
+    });
+    renderSheet();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.versions.restore", { no: 1 }) }));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("tài liệu đang được người khác sửa");
+    expect(posts[0]?.body).toBeUndefined();
+    expect(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") })).toBeInTheDocument();
+  });
+
+  it("a restore refused with 423 is reported to the page, and a retry under another lock id mints a new key (CFE-1-12)", async () => {
+    const posts: { path: string; body?: unknown; key?: string }[] = [];
+    mockApi({
+      onPost: (path, opts) => {
+        posts.push({ path, body: opts.body, key: opts.headers?.["Idempotency-Key"] });
+        return posts.length === 1
+          ? Promise.reject(new ApiError("tài liệu đang được người khác sửa", "document_locked", 423, undefined, { holder_name: "An" }))
+          : Promise.resolve({ document: pageDocument({ revision: "8" }), version: { ...versionRows[0], id: "v3", version: 3, reason: "restore", restored_from: 1 } });
+      },
+    });
+    const refused = vi.fn();
+    const off = onWriteRefused("d1", refused);
+    registerHeldEditLock("d1", "L1");
+    try {
+      renderSheet();
+      fireEvent.click(await screen.findByRole("button", { name: t("documents.versions.restore", { no: 1 }) }));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("tài liệu đang được người khác sửa");
+      expect(refused).toHaveBeenCalledWith({ holder_name: "An" }, "L1");
+      forgetHeldEditLock("L1");
+      registerHeldEditLock("d1", "L2");
+      fireEvent.click(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") }));
+      await waitFor(() => expect(posts.length).toBe(2));
+      expect(posts[1]?.body).toEqual({ edit_lock_id: "L2" });
+      expect(posts[1]?.key).not.toBe(posts[0]?.key);
+    } finally {
+      off();
+      forgetHeldEditLock("L1");
+      forgetHeldEditLock("L2");
+    }
   });
 
   it("tells the user to reopen the history when the restore conflicts", async () => {

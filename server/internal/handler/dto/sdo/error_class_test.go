@@ -104,6 +104,13 @@ func TestErrorClassTable(t *testing.T) {
 		// Count limits with no class on purpose: neither a usage meter nor a
 		// conflict to reload (UNI-1641 batch share cap, document link cap).
 		"share_batch_too_large", "document_link_limit",
+		// The document edit lock codes (UNI-1645 §3.3): document_locked must
+		// never read as a conflict (no "Overwrite" while locked), and the
+		// lock/request answers each have their own recovery.
+		"document_locked", "edit_lock_lost", "edit_lock_changed",
+		"edit_lock_free", "edit_lock_held_by_me", "edit_hold_device_required",
+		"edit_hold_cap_reached", "edit_request_to_self", "edit_request_closed",
+		"edit_request_expired", "edit_request_rate_limited",
 		// A share for the document's own workspace at manage (Q-S1, SH-S1):
 		// the home row tops out at edit, so the dialog lowers the level to
 		// fields.max instead of running lost-access or reload recovery.

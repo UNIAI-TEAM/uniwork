@@ -24,6 +24,7 @@ import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 import type { OfficeFrameFileRef } from "./docs-frame-session-model";
+import { useFrameEditLock } from "./frame-edit-lock";
 import { useFrameComments } from "./use-frame-comments";
 
 export interface OfficeModuleFrameControls {
@@ -129,8 +130,12 @@ export function OfficeModuleFrame({
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
+  // The document page's edit lock, when this frame is its editor (UNI-1645). A source has no
+  // lock: it never reads the page's, whatever provider it sits under.
+  const pageEditLock = useFrameEditLock();
+  const editLock = isSource ? null : pageEditLock;
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, fileRef,
+    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, fileRef, editLock,
     // A source is read-only by construction; its `ofs1.` token writes nowhere.
     readonly: readonly || isSource,
     // Only a stored document has the comments the binding serves.

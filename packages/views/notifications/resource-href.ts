@@ -38,6 +38,10 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       // active emergency access section.
       const target = documentWorkspace(n, workspace, workspaces);
       const href = paths.workspace(target.organization_slug, target.slug).document(n.resource_id);
+      // The holder's edit request opens the editor with the answer prompt (UNI-1645).
+      if (n.kind === "document_edit_requested" && n.params.request_id) {
+        return `${href}?${new URLSearchParams({ edit_request: n.params.request_id }).toString()}`;
+      }
       // A manager's request row lands on the share dialog's requests section (DOC-07).
       if (n.kind === "document_access_requested") return `${href}?access=requests`;
       if (n.kind === "document_break_glass") return `${href}?access=break_glass`;

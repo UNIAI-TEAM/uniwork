@@ -101,6 +101,8 @@ export interface CommitDocumentVersionBody {
   /** Revision the edit started from, as a decimal string; a stale base
    *  answers 409 document_version_conflict. */
   base_revision: string;
+  /** The writer's live edit lock (UNI-1645); absent = not holding one. */
+  edit_lock_id?: string;
 }
 
 /**
@@ -133,19 +135,24 @@ export async function commitDocumentVersion(
  *
  * The body is optional: a file restore must name the base the writer saw
  * (the service checks base_revision unconditionally on files) — pass it via
- * opts.baseRevision; page restores send none.
+ * opts.baseRevision; page restores send none. A restore replaces content, so
+ * it carries the writer's edit lock (opts.editLockId, UNI-1645).
  */
 export async function restoreDocumentVersion(
   documentId: string,
   versionNo: number,
-  opts?: DocumentRequestOpts & { baseRevision?: string },
+  opts?: DocumentRequestOpts & { baseRevision?: string; editLockId?: string },
 ): Promise<DocumentVersionResult | null> {
+  const body = {
+    ...(opts?.baseRevision ? { base_revision: opts.baseRevision } : {}),
+    ...(opts?.editLockId ? { edit_lock_id: opts.editLockId } : {}),
+  };
   const raw = await request(
     `/api/v1/documents/${enc(documentId)}/versions/${enc(String(versionNo))}/restore`,
     {
       method: "POST",
       headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
-      body: opts?.baseRevision ? { base_revision: opts.baseRevision } : undefined,
+      body: Object.keys(body).length > 0 ? body : undefined,
       signal: opts?.signal,
     },
   );

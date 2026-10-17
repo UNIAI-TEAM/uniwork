@@ -418,6 +418,17 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/comments/{commentID}/reactions":                                   {body: isoJSON(map[string]any{"emoji": "👍"})},
 	"PATCH /api/v1/documents/{documentID}/comments/{commentID}":                                            {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/documents/{documentID}/comments":                                                         {body: isoJSON(map[string]any{"body": "hello", "type": "comment"})},
+
+	// The document edit lock (UNI-1645 §6 step 4). R1, R3, R4 and R7 carry no
+	// body and the owner holds docEditLock, so they stay plain isoScoped. No
+	// skipControl: every row's control is a 2xx for its own member.
+	"POST /api/v1/documents/{documentID}/edit-lock":                        {body: isoWith(map[string]string{"editor_id": "docEditor"}, map[string]any{"client": "desktop"})},
+	"POST /api/v1/documents/{documentID}/edit-lock/take-over":              {body: isoWith(map[string]string{"expected_lock_id": "peerEditLock"}, map[string]any{"editor_id": "01J8X4ED1T0R0000000000000A", "client": "desktop"})},
+	"PUT /api/v1/documents/{documentID}/edit-lock/{lockID}/offline-hold":   {body: isoJSON(map[string]any{})},
+	"POST /api/v1/documents/{documentID}/edit-requests":                    {body: isoJSON(map[string]any{}), controlAs: "third"},
+	"POST /api/v1/documents/{documentID}/edit-requests/{requestID}/answer": {body: isoWith(map[string]string{"lock_id": "docEditLock"}, map[string]any{"decision": "decline"})},
+	"DELETE /api/v1/documents/{documentID}/edit-requests/{requestID}":      {controlAs: "peer"},
+
 	// R1-8: the anchors key is required, so the body must carry it or the
 	// route answers 400 before it reads the document - an empty [] is the
 	// valid no-op update the tenancy gate then judges.

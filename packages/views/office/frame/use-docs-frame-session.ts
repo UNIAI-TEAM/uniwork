@@ -62,7 +62,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
   // A module other than Docs also honours the minted token's can_edit, so a view-only user is
   // treated as readonly even when the page did not say so (Docs keeps the page's readonly).
-  const viewOnly = isSource || options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false);
+  // Not holding the page's edit lock (acquiring, someone else, lost) is view-only too (UNI-1645).
+  // A source has no lock to hold: it is view-only already and never reads one.
+  const editLock = isSource ? null : options.editLock;
+  const lockedOut = editLock != null && !editLock.held;
+  const viewOnly = isSource || options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false) || lockedOut;
+  const editLockId = editLock?.held ? editLock.lockId : undefined;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [slow, setSlow] = useState(false);
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
@@ -76,8 +81,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const uploadMaxBytes = useDocumentLimits().upload_max_bytes;
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, uploadMaxBytes, isSource });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, uploadMaxBytes, isSource };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, uploadMaxBytes, isSource });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, uploadMaxBytes, isSource };
+  // The current frame was initialised read-only because the lock was not held: holding it later
+  // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
+  const initLockedOut = useRef(false);
   // New-version bookkeeping of the current endpoint (frame-remote-version.ts); a block outlives a retry.
   const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, scopeId, syncFeed);
   const sentToken = useRef<string | null>(null);
@@ -152,17 +160,32 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
       async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current, scopeId: doc, viewOnly: refused } = latest.current;
+        const { options: current, scopeId: doc, viewOnly: refused, editLockId: lockId } = latest.current;
         if (write && refused) throw readOnly(type);
         const run = pick(current.api);
         if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
         const { token: frameToken } = await currentToken();
-        return run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal } as never) as Promise<FrameRequests[K]["result"]>;
+        return run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal, ...(lockId ? { editLockId: lockId } : {}) } as never) as Promise<FrameRequests[K]["result"]>;
       };
 
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
     const open = proxy("api.open", false, (api) => api.open);
-    const save = remoteAwareSave(proxy("api.save", true, (api) => api.save), remote, applyBlock);
+    const upload = proxy("api.save", true, (api) => api.save);
+    // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
+    // read-only) and the frame hears the same refusal the host gives a viewer, so it opens no
+    // conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
+    const lockAware: typeof upload = async (payload, context) => {
+      try {
+        return await upload(payload, context);
+      } catch (error) {
+        const shape = shapeOf(error);
+        if (shape.status !== 423) throw error;
+        const fields = shape.details?.fields;
+        latest.current.editLock?.onLocked(fields && typeof fields === "object" ? fields as Record<string, unknown> : undefined);
+        throw readOnly("api.save");
+      }
+    };
+    const save = remoteAwareSave(lockAware, remote, applyBlock);
     // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
     // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session
     // that replaced it keeps its own state.
@@ -231,7 +254,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
-        const { options: current, scopeId: doc, displayName: name, userId: uid, isSource: source } = latest.current;
+        const { options: current, scopeId: doc, displayName: name, userId: uid, isSource: source, editLock: lock } = latest.current;
         const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
           source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
         );
@@ -244,7 +267,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           });
         }
         // Same rule as the hook's viewOnly, read from the token this init carries.
-        const viewOnly = source || current.readonly || (module !== "docs" && minted?.can_edit === false);
+        const lockedOutNow = lock != null && !lock.held;
+        initLockedOut.current = lockedOutNow;
+        const viewOnly = source || current.readonly || (module !== "docs" && minted?.can_edit === false) || lockedOutNow;
         // Draft recovery (CONTRACT C18): the session's key, again on every init so a reloaded
         // frame reads the drafts it wrote. A viewer has nothing unsaved to recover.
         const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
@@ -453,6 +478,15 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       setHost(null);
     };
   }, [applyBlock, attempt, fileId, isSource, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, wsId]);
+
+  // The lock arrived after the frame opened read-only ("Edit now", a handover, the first R2):
+  // re-attach it in edit mode.
+  const lockHeld = editLock?.held === true;
+  useEffect(() => {
+    if (!lockHeld || !initLockedOut.current) return;
+    initLockedOut.current = false;
+    setAttempt((n) => n + 1);
+  }, [lockHeld]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.
   const tokenValue = token?.token;

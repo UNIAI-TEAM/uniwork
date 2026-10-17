@@ -422,6 +422,8 @@ func (h *handlers) commitOfficeFrameVersion(w http.ResponseWriter, r *http.Reque
 		UploadID:       strings.TrimSpace(in.UploadID),
 		BaseRevision:   base,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		EditLockID:     strings.TrimSpace(in.EditLockID),
+		Frame:          true,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
