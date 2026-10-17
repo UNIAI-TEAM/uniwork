@@ -25,7 +25,8 @@ const cardOf = (id) => (id.startsWith('FQ-') ? 'G7-03a' : id.startsWith('FL-') ?
 test('case ids are unique and carry the card prefix', () => {
   const ids = cases.map((c) => c.id);
   assert.equal(new Set(ids).size, ids.length, 'duplicate case id');
-  for (const id of ids) assert.match(id, /^(FQ|FL)-\d{2}$/, `bad id ${id}`);
+  // a card may split a row into letters (G7-03b: FL-04 -> FL-04a/04b/04c, contract v0.2)
+  for (const id of ids) assert.match(id, /^(FQ|FL)-\d{2}[a-z]?$/, `bad id ${id}`);
 });
 
 test('the card AC lists in the file match the plan cards', () => {
@@ -77,13 +78,17 @@ test('every row has a layer, an expectation, artifacts and a status', () => {
     }
     // an app row keeps the fork's trace beside its mapped intent log (matrix §4); a server row has no trace
     assert.equal(c.artifacts.includes('app-trace.jsonl'), c.layer === 'app', `${c.id}: app-trace.jsonl belongs to app rows only`);
-    assert.match(c.status, /^(ready|pending \S.*)$/, `${c.id}: status ${c.status}`);
+    // `ready` | `pending <dep>` | `SUPERSEDED` (with its reason) | `BLOCKED(<owner>)` (with its reason), G7-03b v0.2
+    assert.match(c.status, /^(ready|pending \S.*|SUPERSEDED|BLOCKED\([^)]+\))$/, `${c.id}: status ${c.status}`);
+    if (c.status === 'SUPERSEDED') assert.ok(c.supersededReason, `${c.id}: a SUPERSEDED row carries no supersededReason`);
+    if (/^BLOCKED\(/.test(c.status)) assert.ok(c.blockedReason, `${c.id}: a BLOCKED row carries no blockedReason`);
   }
 });
 
 test('pending rows name a dependency and ready rows have none', () => {
   for (const c of cases) {
     if (c.status === 'ready') assert.equal(c.dependency, 'none', `${c.id}: ready with dependency ${c.dependency}`);
+    else if (c.status === 'SUPERSEDED' || /^BLOCKED\(/.test(c.status)) assert.equal(c.dependency, 'none', `${c.id}: ${c.status} with dependency ${c.dependency}`);
     else {
       assert.ok(c.dependency && c.dependency !== 'none', `${c.id}: pending without a dependency`);
       assert.equal(c.status, `pending ${c.dependency}`, `${c.id}: status does not name its dependency`);
@@ -91,11 +96,14 @@ test('pending rows name a dependency and ready rows have none', () => {
   }
 });
 
-test('every G7-03b row is pending and notes the G5-D1 gate', () => {
+test('the G7-03b rows carry no G5-D1 gate: ready, W2-pending, SUPERSEDED or BLOCKED(owner)', () => {
   for (const c of cases.filter((x) => cardOf(x.id) === 'G7-03b')) {
-    assert.notEqual(c.status, 'ready', `${c.id}: G7-03b rows wait on G5-05/G5-08c/G5-11`);
-    assert.ok(['G5-05', 'G5-08c', 'G5-11'].includes(c.dependency), `${c.id}: dependency ${c.dependency}`);
-    assert.equal(c.blockedGate, 'G5-D1', `${c.id}: BLOCKED(G5-D1) note missing`);
+    assert.equal(c.blockedGate, undefined, `${c.id}: the G5-D1 gate was dropped (Advisor offline-ui_local:39)`);
+    assert.ok(['ready', 'pending W2', 'SUPERSEDED', 'BLOCKED(G5-08d)'].includes(c.status), `${c.id}: status ${c.status}`);
+    // a runnable FL row depends on nothing; the W2 ones name W2; the retired ones depend on nothing
+    assert.equal(c.dependency, c.status === 'pending W2' ? 'W2' : 'none', `${c.id}: dependency ${c.dependency} vs status ${c.status}`);
+    // a row that never runs is never counted as a PASS: the runner reports it BLOCKED (app-cases-lib.mjs selectAppCases)
+    if (c.status !== 'ready') assert.ok(!c.driver, `${c.id}: a non-ready row names a driver`);
   }
 });
 

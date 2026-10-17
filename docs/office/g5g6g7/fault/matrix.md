@@ -27,7 +27,11 @@ quyền, lưu trữ, xóa) và của admin (đình chỉ tổ chức) đi **th�
 **Trạng thái.** `ready` = mọi task sản phẩm mà hàng cần đã `accepted` trong `progress-ledger.json` ngày 2026-10-15
 (G5-06, G5-07, G5-01b, G5-03w, G5-03a, G5-04, G6-03a, G6-05, G7-01); cột phụ thuộc khi đó là `none`. `pending <dep>` =
 hàng chờ task đó: `G5-09` (S5 desktop, đang làm), `G5-10` (trung tâm đồng bộ S2, đang làm), `G6-05u` (giao diện UniWork
-AI S7–S10 để lái một lượt AI trên app, đang làm), `G7-05` (cài N′ ↔ N+1), và cho G7-03b `G5-05` / `G5-08c` / `G5-11`. Mọi hàng G7-03b còn ghi chú BLOCKED(G5-D1) theo thẻ (xem OQ-F8).
+AI S7–S10 để lái một lượt AI trên app, đang làm), `G7-05` (cài N′ ↔ N+1), và cho G7-03b `W2` (FL-02 disk full, FL-04a
+lease expiry, FL-05 faketime, FL-06 revoke, FL-09 keyring — hàng W2 của contract G7-03b). Ghi chú BLOCKED(G5-D1) đã bỏ
+khỏi mọi hàng FL: contract G7-03b v0.2 (Advisor `offline-ui_local:39`, Q1) xác nhận hold G5-D1 đã được gỡ (UNI-1645
+phase 2 accepted 2026-10-17, root 06f65e141). FL-04b là `SUPERSEDED` (lý do D1) và FL-04c `BLOCKED(G5-08d)`: cả hai
+không bao giờ tính là PASS.
 
 **Quan sát trạng thái client.** Cột "chuyển trạng thái client" của hàng `app` đọc từ trace intent của app (OQ-F2,
 F-trace): biến môi trường `UNIWORK_SYNC_TRACE_FILE` của bản fork chưa đóng gói (`13642a5e`, WI-6) ghi mỗi chuyển
@@ -37,16 +41,31 @@ Trường `clientAssertions` trong `cases.json` ghi nguồn đó. Núm thời gi
 chưa có nguồn đọc vẫn ghi **BLOCKED**, không bao giờ PASS.
 Hàng (S) không phụ thuộc điều này: "client" của chúng là chính driver.
 
+**Quan sát trạng thái thư viện offline (hàng FL).** Hàng FL không đi qua trace intent: nguồn đọc của chúng là
+snapshot trung tâm đồng bộ, `window.uniworkSyncCenter.getSnapshot().offline.rows[].state` (S3 tab "Dùng khi không có
+mạng"; fork `shared/offline-library.ts` `OfflineRowView.state`), lấy trong renderer của app đang chạy. Lệnh ghim đi
+qua ý định thật `window.uniworkSyncCenter.offlinePin({documentId, workspaceId})` — cùng IPC mà UI dùng — chứ không
+sửa file store. Trạng thái hợp lệ để chờ là 17 giá trị `OFFLINE_ROW_STATES` của fork (ví dụ `downloading`,
+`interrupted`, `ready`, `corrupt`, `disk-full`, `lease-expired`, `locked`, `revoked`). Bằng chứng store là
+**trước/sau**: liệt kê tên + kích thước + sha256 của ciphertext trong store thư viện
+(`userData/uniwork-sync/library/store/<deploymentId>/<accountId>/offline-library/`) và trong store lease
+(`userData/uniwork-sync/store/<deploymentId>/<accountId>/offline-leases/`), cộng danh sách thư mục bản sao
+(`userData/uniwork-documents/<deploymentId>/<accountId>/<sha256(id)>@offline/`) — **không plaintext, không khóa**.
+Ảnh S3/S11 dùng lại bộ chụp Playwright của g7-06. `expect.offline` trong `cases.json` là dữ liệu máy đọc của các
+khẳng định này (state đã chờ, số bản sao, `plaintextCopies`), giống `expect` của hàng FQ.
+
 **Một ca, nhiều lối ra.** Hàng nhóm nhiều lối ra (FQ-40…FQ-55) liệt kê từng lối ra với đúng một khẳng định; runner
 chạy mỗi lối ra một lần trên state sạch và ghi kết quả từng lối ra trong `case-result.json`. Lối ra của `blocked` vì
-`lease_expired`, `keystore_locked`, `clock_rollback` nằm ở FL-04, FL-09, FL-05.
+`lease_expired`, `keystore_locked`, `clock_rollback` nằm ở FL-04a, FL-09, FL-05 (FL-04 tách theo contract G7-03b v0.2:
+FL-04a chạy được ở W2, FL-04b `SUPERSEDED` theo D1, FL-04c `BLOCKED(G5-08d)`).
 
 **Phủ thẻ.** G7-03a: crash (FQ-20), mất mạng (FQ-02, FQ-21), timeout-after-commit (FQ-01, FQ-22), cancel race (FQ-06,
 FQ-23), claim hết hạn (FQ-09, FQ-24), conflict hai thiết bị (FQ-07, FQ-08, FQ-25, FQ-26), Lưu sau AI đúng
 `base_revision` (FQ-11, FQ-27), 409 giữ bản cục bộ (FQ-08, FQ-25, FQ-27), double click / retry (FQ-03, FQ-04, FQ-05),
 AI sửa rồi Lưu khi đang có intent G5 (FQ-30, FQ-31), bản mới khi editor sạch nhưng AI đang chạy (FQ-29), remote update
 giữa lượt AI (FQ-28, FQ-32, FQ-12), lối ra của `reconciling` (FQ-40…FQ-43), `reconciling-stuck` (FQ-44…FQ-46),
-`blocked` (FQ-50…FQ-54, FQ-13 phần server của `document_archived`). G7-03b: FL-01…FL-09.
+`blocked` (FQ-50…FQ-54, FQ-13 phần server của `document_archived`). G7-03b: FL-01, FL-02, FL-03, FL-04a/04b/04c,
+FL-05…FL-09.
 
 ## 2. Ma trận
 
@@ -94,17 +113,20 @@ bước. Artifact của mỗi ca nằm ở `<HARNESS_RUN_DIR>/fault/<id>/` (mụ
 | FQ-53 | blocked store_full: Lưu không tạo intent; còn chỗ → người dùng Lưu lại<br>• store_full → (giải phóng) Lưu lại → queued: Ctrl+S khi đầy: 0 request; sau khi giải phóng: một intent, versionDelta 1 | EXPERIENCE Lý do bị chặn › store_full; Ctrl/⌘+S › keystore_locked/store_full | G5-A05 | app | store: đầy ngân sách store (1 GiB/tài khoản) bằng nháp tổng hợp trong userData của run — cần cách nạp nhanh (OQ-F5) | versionDelta: 1 | dirty → (blocked store_full, không intent) → queued → committed<br>proxy: 0 POST khi đầy | `fault/FQ-53/` fx-docx-report-vi | none | ready (client: trace) |
 | FQ-54 | blocked store_newer: store cần bản app mới hơn → không tạo intent; cập nhật app mở lại<br>• store_newer → (cập nhật app) mở khóa: bản cũ: S11 uwLockNewerStore, 0 request ghi; bản mới: intent cũ còn và gửi được | EXPERIENCE Lý do bị chặn › store_newer (G5-04g) | G5-A05 | app | install: hạ bản cài N′ ↔ N+1 (máy và kênh theo G7-05) | versionDelta: 1 | blocked store_newer → (bản mới) queued → committed<br>proxy: 0 POST từ bản cũ | `fault/FQ-54/` fx-docx-report-vi | G7-05 | pending G7-05 (client: trace) |
 | FQ-55 | hủy intent đang queued không mất nháp | AC G5-A08 "cancelling a queued intent loses no draft"; spec §5.2 bảng › cancelled | G5-A08 | app | `unreachable`: * mọi /api/v1/ → reset<br>ui: S2 "Hủy lần lưu…" khi paused_offline | versionDelta: 0 | paused_offline → cancelled; nháp/checkpoint còn, editor vẫn dirty<br>proxy: 0 POST commit | `fault/FQ-55/` fx-xlsx-revenue-xyz | G5-10 | pending G5-10 (client: trace) |
-| FL-01 | tải thư viện offline bị gián đoạn: không báo "sẵn sàng" | spec §5.1; EXPERIENCE Offline library rows › interrupted | G5-A04 | app | `cut-download`: GET …/download #1 → reset<br>g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | downloading → interrupted; Thử lại → ready chỉ khi đủ file/asset/checksum<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-01/` fx-pdf-invoice-vi | G5-05 | pending G5-05 (client: trace) · BLOCKED(G5-D1) theo thẻ |
-| FL-02 | disk full khi tải lần đầu: giữ bản cũ, hiện lỗi | spec §5.1 ("Disk full giữ bản cũ"); S3 › disk-full | G5-A04 | app | g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | downloading → disk-full; không ready<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-02/` fx-html-page-vi | G5-05 | pending G5-05 (client: trace) · BLOCKED(G5-D1) theo thẻ |
-| FL-03 | cache hỏng / checksum lệch: pin thất bại, không phục vụ từ cache dở | AC G5-A04; S3 › corrupt | G5-A04 | app | g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | verifying → corrupt; không ready<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-03/` fx-pdf-invoice-vi | G5-05 | pending G5-05 (client: trace) · BLOCKED(G5-D1) theo thẻ |
-| FL-04 | lease hết hạn (kể cả khi đang mở dirty): khóa cloud payload, giữ ciphertext + checkpoint; gia hạn khi online | spec §5.1 Gate G5-D1; EXPERIENCE Lý do bị chặn › lease_expired (+ khi offline_library tắt) | G5-A07 | app | g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | ready → blocked lease_expired → (online, ACL còn) gia hạn → mở; offline_library tắt → S11 uwLockLibraryOff<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-04/` fx-docx-report-vi | G5-08c | pending G5-08c (client: trace) · BLOCKED(G5-D1) theo thẻ |
-| FL-05 | lùi đồng hồ: không kéo dài quyền offline | spec §5.1; EXPERIENCE › clock_rollback | G5-A07 | app | g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | blocked clock_rollback → (online, kiểm giờ server) mở<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-05/` fx-docx-report-vi | G5-08c | pending G5-08c (client: trace) · BLOCKED(G5-D1) theo thẻ |
-| FL-06 | revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa | spec §5.1; S3 › revoked | G5-A07 | app | g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | ready → revoked; 0 plaintext<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-06/` fx-docx-report-vi | G5-08c | pending G5-08c (client: trace) · BLOCKED(G5-D1) theo thẻ |
-| FL-07 | logout A → B: không còn khóa/plaintext/ciphertext đọc được của A | spec §5.3; AC G5-A07 | G5-A07 | app | g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | queue A khóa (signed_out), B không thấy tên tài liệu<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-07/` fx-docx-report-vi | G5-11 | pending G5-11 (client: trace) · BLOCKED(G5-D1) theo thẻ |
-| FL-08 | deployment switch: phạm vi A không cập nhật cursor/cache B | spec §4.1 dòng cuối; AC G5-A07 | G5-A07 | app | g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | store theo deployment tách biệt<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-08/` fx-docx-report-vi | G5-11 | pending G5-11 (client: trace) · BLOCKED(G5-D1) theo thẻ |
-| FL-09 | keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling) | EXPERIENCE Lý do bị chặn › keystore_locked; spec §5.1 | G5-A07 | app | g7-03b: theo spec fault G7-03b khi task phụ thuộc merge | versionDelta: 0 | overlay keystore_locked → trạng thái trước đó; không bao giờ queued chỉ vì mở khóa<br>trạng thái store trước/sau + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-09/` fx-docx-report-vi | G5-08c | pending G5-08c (client: trace) · BLOCKED(G5-D1) theo thẻ |
+| FL-01 | tải thư viện offline bị gián đoạn: không báo "sẵn sàng" | spec §5.1; EXPERIENCE Offline library rows › interrupted | G5-A04 | app | `cut-download`: GET …/download #1 → reset (nội dung) | versionDelta: 0 | downloading → interrupted; Thử lại → ready chỉ khi đủ file/asset/checksum (không bao giờ ready trước khi tải xong + xác minh)<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-01/` fx-pdf-invoice-vi | none | ready |
+| FL-02 | disk full khi tải lần đầu: giữ bản cũ, hiện lỗi | spec §5.1 ("Disk full giữ bản cũ"); S3 › disk-full | G5-A04 | app | W2: tmpfs/loop mount làm userData; không mount được thì fill 1 GiB sparse = `store_full` (báo cái nào đã chạy) | versionDelta: 0 | downloading → disk-full; không ready; giải phóng chỗ → Thử lại → ready<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-02/` fx-html-page-vi | W2 | pending W2 |
+| FL-03 | cache hỏng / checksum lệch: pin thất bại, không phục vụ từ cache dở | AC G5-A04; S3 › corrupt | G5-A04 | app | lật byte ciphertext của store thư viện giữa hai lần khởi động (không hook fork) | versionDelta: 0 | verifying → corrupt; không ready; mở lại sau khi lật byte không bao giờ phục vụ byte hỏng<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-03/` fx-pdf-invoice-vi | none | ready |
+| FL-04a | lease hết hạn khi bản đọc offline đang mở: khóa cloud payload, giữ ciphertext, mở lại khi gia hạn | spec §5.1; EXPERIENCE Lý do bị chặn › lease_expired | G5-A07 | app | W2: proxy ghi lại JSON trả lời PUT …/office/offline-lease với `expires_at` = now + N phút (action additive), hoặc DB-seed `expires_at` + gia hạn | versionDelta: 0 | ready → lease-expired (S11 `lease_expired`); nội dung không được phục vụ; nháp giữ; (online, ACL còn) gia hạn → mở<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-04a/` fx-docx-report-vi | W2 | pending W2 |
+| FL-04b | lease hết hạn khi đang mở tài liệu dirty (offline) | contract G7-03b v0.2, hàng FL-04b | G5-A07 | app | không áp dụng (D1) | versionDelta: 0 | SUPERSEDED: bản offline read-only khi không có hold nên tài liệu offline dirty không tồn tại; chữ gõ trước khi rớt mạng là checkpoint, không phải intent (G5-06 / G7-03a) | `fault/FL-04b/` fx-docx-report-vi | none | SUPERSEDED(D1) |
+| FL-04c | hold hết hạn (TTL hiện tại, ≤ 8 h) | contract G7-03b v0.2, hàng FL-04c; edit-lock addendum §10.1 | G5-A07 | app | không chạy được: fork chưa có client hold | versionDelta: 0 | BLOCKED: chưa có `offline-hold` / `offline_hold_until` trong apps/shell/src; owner G5-08d / EL-DESKTOP | `fault/FL-04c/` fx-docx-report-vi | none | BLOCKED(G5-08d) |
+| FL-05 | lùi đồng hồ: không kéo dài quyền offline | spec §5.1; EXPERIENCE › clock_rollback | G5-A07 | app | W2: libfaketime (`FAKETIME`) quanh Electron trên VM, rồi khởi động lại | versionDelta: 0 | lease-expired `clock_rollback` → (online, kiểm giờ server) mở; không kéo dài quyền offline<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-05/` fx-docx-report-vi | W2 | pending W2 |
+| FL-06 | revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa | spec §5.1; S3 › revoked | G5-A07 | app | W2: revoke per-lease qua admin CLI hoặc outbox event + cắt/khôi phục proxy | versionDelta: 0 | ready → revoked; 0 plaintext; nháp giữ khóa<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-06/` fx-docx-report-vi | W2 | pending W2 |
+| FL-07 | logout A → B: không còn khóa/plaintext/ciphertext đọc được của A | spec §5.3; AC G5-A07 | G5-A07 | app | hai tài khoản đã seed: A ghim → đăng xuất → B (org khác) đăng nhập; quét store/copies | versionDelta: 0 | A khóa (signed_out), B không thấy tên tài liệu của A; store A xóa ở ranh giới phiên; 0 plaintext của A<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-07/` fx-docx-report-vi | none | ready |
+| FL-08 | deployment switch: phạm vi A không cập nhật cursor/cache B | spec §4.1 dòng cuối; AC G5-A07 | G5-A07 | app | `UNIWORK_DEPLOYMENT_ID` A (`default`) ghim → khởi động lại cùng userData với deployment B, không đăng nhập trên B | versionDelta: 0 | store theo deployment tách biệt: B rỗng, phạm vi A (cursor/cache/ghim) không đổi<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-08/` fx-docx-report-vi | none | ready |
+| FL-09 | keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling) | EXPERIENCE Lý do bị chặn › keystore_locked; spec §5.1 | G5-A07 | app | W2: mode additive trong `fault/app-keyring.sh` — khóa/giết gnome-keyring trước khi khởi động app, rồi mở khóa | versionDelta: 0 | locked `keystore_locked` → trạng thái trước đó; không bao giờ queued chỉ vì mở khóa; không hạ xuống store không bảo vệ<br>trạng thái store trước/sau (tên, kích thước, sha256 ciphertext; không plaintext/khóa) + ảnh S3/S11<br>proxy: không request ghi ngoài chính sách | `fault/FL-09/` fx-docx-report-vi | W2 | pending W2 |
 
-Đếm: FQ `ready` 26, FQ `pending` 13, FL 9 (đều pending); 13 hàng (S) chứng minh được chỉ bằng lớp server.
+Đếm: FQ `ready` 26, FQ `pending` 13, FL 11 (4 `ready`: FL-01/03/07/08; 5 `pending W2`: FL-02/04a/05/06/09; FL-04b
+`SUPERSEDED`; FL-04c `BLOCKED(G5-08d)`); 13 hàng (S) chứng minh được chỉ bằng lớp server.
 
 ## 3. Proxy contract
 
@@ -229,9 +251,12 @@ ghi kỳ vọng theo spec/EXPERIENCE, không theo hành vi hiện tại. OQ-F4, 
 - **OQ-F7 — mô tả route lệch code.** Mô tả `POST /documents/{id}/versions/commit`
   (`server/internal/handler/router/documents.go:141`) nói base cũ → 422 `revision_conflict`; code trả 409
   `document_version_conflict` kèm `fields.current_revision` (`document_commit.go:83`). Ma trận theo code (409).
-- **OQ-F8 — G5-D1.** Plan §3 ghi G5-D1 đã ký 2026-10-13, nhưng `acceptance.md` và `acceptance-rows.json` vẫn ghi
-  G5-A04/G5-A07 BLOCKED(G5-D1). FL giữ ghi chú BLOCKED(G5-D1) theo thẻ; cần xác nhận chặn hiện tại là gate hay là
-  G5-05/G5-08c/G5-11.
+- **OQ-F8 — G5-D1 (đã trả lời, G7-03b).** Plan §3 ghi G5-D1 đã ký 2026-10-13, nhưng `acceptance.md` và
+  `acceptance-rows.json` vẫn ghi G5-A04/G5-A07 BLOCKED(G5-D1). Contract G7-03b v0.2 (Advisor `offline-ui_local:39`, Q1)
+  chốt: hold đã gỡ (UNI-1645 phase 2 accepted 2026-10-17), các hàng FL bỏ ghi chú BLOCKED(G5-D1); cột phụ thuộc nói cái
+  chặn thật (`W2` cho phần W2, `none` cho FL-01/03/07/08), và hai hàng không chạy được nữa ghi thẳng `SUPERSEDED` (FL-04b,
+  lý do D1) / `BLOCKED(G5-08d)` (FL-04c). `acceptance.md` / `acceptance-rows.json` G5-A04/G5-A07 đổi BLOCKED(G5-D1)
+  thành trạng thái đo được + owner + bằng chứng: việc của lead sau khi cloud chạy (contract › Acceptance).
 - **OQ-F9 — `in_flight` thật.** Proxy không giữ được một transaction commit đang chạy trong server, nên `in_flight`
   thật không dựng được ở lớp tích hợp; FQ-40/FQ-42/FQ-46 dùng phản hồi tổng hợp `200 {outcome:"in_flight"}` cho
   phía client, phía server ở lại unit test G5-07. Lead: chấp nhận cho phía client, ghi nhãn synthetic.
