@@ -1,0 +1,43 @@
+$ node --test scripts/*.test.mjs scripts/office/*.test.mjs 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "SCRIPTS_EXIT=$rc"
+  ...
+# Subtest: slice-3 verification overlay marks only owned UI entries
+ok 166 - slice-3 verification overlay marks only owned UI entries
+  ---
+  duration_ms: 1.26488
+  ...
+# Subtest: slice-4 verification overlay marks only owned projects entries
+ok 167 - slice-4 verification overlay marks only owned projects entries
+  ---
+  duration_ms: 0.742234
+  ...
+# Subtest: slice-5 verification overlay marks only owned detail entries
+ok 168 - slice-5 verification overlay marks only owned detail entries
+  ---
+  duration_ms: 0.877373
+  ...
+# Subtest: slice-6 verification overlay marks only owned agent-integration entries
+ok 169 - slice-6 verification overlay marks only owned agent-integration entries
+  ---
+  duration_ms: 0.935139
+  ...
+# Subtest: collection UI has no source brand or Issue domain
+ok 170 - collection UI has no source brand or Issue domain
+  ---
+  duration_ms: 67.012854
+  ...
+# Subtest: parity flag identifier is gone from apps, packages, and server
+ok 171 - parity flag identifier is gone from apps, packages, and server
+  ---
+  duration_ms: 64.952102
+  ...
+1..171
+# tests 178
+# suites 2
+# pass 178
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 120674.012307
+
+SCRIPTS_EXIT=0

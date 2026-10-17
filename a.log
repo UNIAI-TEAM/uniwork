@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+e7a85f3e0d54972b8508f24b306b5e8efdc5378b
+06f65e141cf57af6d6d47de56ac60e8cd68e06e6
+e7a85f3e0 refactor(core): split the favorites types out of types/document.ts
+9aa3ec445 fix(office): keep the vendored frame protocol identical to the fork
+061109824 test(documents): search a page by its own body phrase, not the tenant marker
+452b611ab fix(documents): refuse edit-lock writes on a shelved document (ARCHIVE-01, UNI-1845)
+a14f082ec Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
+06f65e141 chore: merge UNI-1645 phase 2 edit lock (cards a+b, edb3c7ec6) into the G5-G7 root
+faa239205 test(documents): list document_shelved in the error class table
+edb3c7ec6 test(documents): drop the archived prop RESTORE-01 removed from LibraryRowView

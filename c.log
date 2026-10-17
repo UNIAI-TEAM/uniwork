@@ -1,0 +1,3 @@
+$ pnpm --filter @uniwork/core exec eslint . --max-warnings 0 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "CORE_LINT_EXIT=$rc"
+
+CORE_LINT_EXIT=0
