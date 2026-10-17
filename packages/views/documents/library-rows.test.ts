@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
-import { greetingPart } from "./documents-home-create";
 import {
   byUpdatedDesc,
   DEFAULT_FOLDER_SORT,
@@ -165,13 +164,6 @@ describe("library rows", () => {
     expect(formatBytes(318 * 1024, "en")).toBe("318 KB");
     expect(formatBytes(1.2 * 1024 * 1024, "en")).toBe("1.2 MB");
     expect(formatBytes(-1, "en")).toBe("");
-  });
-
-  it("greets by the time of day", () => {
-    expect(greetingPart(8)).toBe("morning");
-    expect(greetingPart(14)).toBe("afternoon");
-    expect(greetingPart(21)).toBe("evening");
-    expect(greetingPart(2)).toBe("evening");
   });
 
   it("places folders before documents in both sorts", () => {

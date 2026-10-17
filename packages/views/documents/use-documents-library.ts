@@ -82,6 +82,25 @@ function documentState(q: InfiniteLike<DocumentList>): LibraryState {
 
 const SOURCE_TYPES = new Set<string>(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
 
+/** The home filter bar's "Người sửa" value: everyone, the viewer, or one member id. */
+export type EditorFilter = "any" | "me" | string;
+
+/** The home filter bar's "Cập nhật" buckets; "any" sends no lower bound. */
+export const UPDATED_FILTERS = ["any", "today", "7d", "30d"] as const;
+export type UpdatedFilter = (typeof UPDATED_FILTERS)[number];
+
+/** The RFC3339 lower bound a Cập nhật bucket stands for; null for "any". */
+function updatedFilterSince(filter: UpdatedFilter, now: number = Date.now()): string | null {
+  if (filter === "today") {
+    const day = new Date(now);
+    day.setHours(0, 0, 0, 0);
+    return day.toISOString();
+  }
+  if (filter === "7d") return new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  if (filter === "30d") return new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+  return null;
+}
+
 export interface UseDocumentsLibraryInput {
   wsId: string;
   orgId: string;
@@ -108,6 +127,11 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const [lastUserId, setLastUserId] = useState<string | null>(userId);
   const [access, setAccess] = useState<AccessFilter>("all");
+  const [editor, setEditor] = useState<EditorFilter>("any");
+  // The bound is fixed when the bucket is picked: recomputing it per render
+  // would change the list query key on every render.
+  const [updated, setUpdatedState] = useState<{ filter: UpdatedFilter; since: string | null }>({ filter: "any", since: null });
+  const setUpdated = useCallback((filter: UpdatedFilter) => setUpdatedState({ filter, since: updatedFilterSince(filter) }), []);
   const [sort, setSortState] = useState<FolderSort>(() => readFolderSort(userId));
   if (userId !== lastUserId) {
     setLastUserId(userId);
@@ -134,14 +158,26 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const queryClient = useQueryClient();
   const tree = useDocumentTree(wsId, undefined, { enabled });
   const favorites = useDocumentFavorites(orgId, { enabled: enabled && !!orgId });
+  // The home filter bar's editor/recency filters are server parameters of
+  // GET /documents so they hold under paging (lead decision, TRASH-A3); they
+  // apply to the home root only — a folder list and the other views keep their
+  // own filters.
+  const homeRoot = home && !folderId;
+  const editorParam = homeRoot ? (editor === "any" ? undefined : editor === "me" ? (userId ?? undefined) : editor) : undefined;
+  const updatedParam = homeRoot ? (updated.since ?? undefined) : undefined;
   const listFilter = useMemo(
     () => ({
-      ...(folderId ? { parentId: folderId } : {}),
+      // The board's home list is ROOT documents only: parent_id="" (empty
+      // string) is the server's "roots" marker; a folder's own id scopes the
+      // list to that level (Main.dc, TV-3 option A).
+      ...(home ? { parentId: folderId ?? "" } : {}),
       ...(chip === "page" ? { kind: "page" as const } : {}),
       ...(serverFormat ? { format: serverFormat } : {}),
       ...(serverAccess ? { access: serverAccess } : {}),
+      ...(editorParam ? { updatedBy: editorParam } : {}),
+      ...(updatedParam ? { updatedFrom: updatedParam } : {}),
     }),
-    [folderId, chip, serverFormat, serverAccess],
+    [home, folderId, chip, editorParam, updatedParam, serverFormat, serverAccess],
   );
   // The starred view reads the workspace root list too (the home root's own
   // cache entry when it was open), so starred rows get dates and editors.
@@ -299,11 +335,18 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const mergedHome = Boolean(home && !folderId && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
   const pageChipOnListWithoutKind = chip === "page" && (view.kind === "recent" || view.kind === "shared");
   const clientFiltered = view.kind === "starred" || view.kind === "sources" || mergedHome || pageChipOnListWithoutKind;
+  // The server filters the document rows by editorParam/updatedParam too; the
+  // merged source rows come from another list, so the same predicates run on
+  // them here (TRASH-A3).
+  const updatedAfter = updatedParam ? Date.parse(updatedParam) : null;
+  const sourceMetaMatches = (row: LibraryRow) =>
+    row.type !== "source" ||
+    ((!editorParam || row.source.owner?.id === editorParam) && (!updatedAfter || Date.parse(row.source.updated_at ?? "") >= updatedAfter));
   const rows = state.rows.filter((row) => {
     // Only the type predicate runs on recent/shared: the server already applied `access` there.
     if (pageChipOnListWithoutKind) return matchesChip(row, chip);
     const clientSide = view.kind === "starred" || view.kind === "sources" || (mergedHome && row.type === "source");
-    return !clientSide || (matchesChip(row, chip) && matchesAccess(row, access));
+    return (!clientSide || (matchesChip(row, chip) && matchesAccess(row, access))) && sourceMetaMatches(row);
   });
   return {
     state: { ...state, rows },
@@ -313,6 +356,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     clientFiltered,
     tree: nodes,
     folderIndex,
+    /** The loaded document rows by id: a folder card takes its editor, date and level from its own row. */
+    docById: new Map(state.rows.flatMap((row) => (row.type === "document" ? [[row.doc.id, row.doc]] : []))),
     starredIds: new Set(starred.map((fav) => fav.document_id)),
     starredCount: favorites.data ? starred.length : null,
     sourcesAvailable,
@@ -320,6 +365,10 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     // clamped value, not the raw state.
     access: (serverAccess ?? "all") as AccessFilter,
     setAccess,
+    editor,
+    setEditor,
+    updated: updated.filter,
+    setUpdated,
     sort,
     setSort,
   };

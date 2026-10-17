@@ -8693,12 +8693,12 @@
       "error_title": "Không tải được danh sách tài liệu",
       "error_description": "Kiểm tra kết nối rồi thử lại.",
       "retry": "Thử lại",
-      "permission_title": "Cần quyền quản lý để xem lưu trữ",
-      "permission_description": "Lưu trữ chỉ mở cho người có quyền quản lý tài liệu.",
+      "permission_title": "Cần quyền quản lý để xem thùng rác",
+      "permission_description": "Thùng rác chỉ mở cho người có quyền quản lý tài liệu.",
       "load_more": "Tải thêm",
       "loading_more": "Đang tải thêm…",
       "clear_filters": "Bỏ bộ lọc",
-      "archived_badge": "Đã lưu trữ"
+      "archived_badge": "Trong thùng rác"
     },
     "tree": {
       "aria_label": "Cây tài liệu",
@@ -8811,7 +8811,8 @@
       "readonly_title": "Bạn chỉ có quyền xem",
       "readonly_description": "Bạn xem được bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.",
       "revoked_title": "Bạn không còn quyền xem tài liệu này",
-      "revoked_description": "Nội dung đã bị ẩn theo quyền hiện tại. Xin lại quyền truy cập nếu bạn cần xem tiếp."
+      "revoked_description": "Nội dung đã bị ẩn theo quyền hiện tại. Xin lại quyền truy cập nếu bạn cần xem tiếp.",
+      "archived_banner": "Tài liệu này đang ở trong thùng rác — chỉ xem."
     },
     "save": {
       "status_label": "Trạng thái lưu",
@@ -8987,7 +8988,7 @@
       "share": "Chia sẻ",
       "access_log": "Nhật ký truy cập",
       "copy": "Tạo bản sao",
-      "archive": "Lưu trữ",
+      "archive": "Chuyển vào thùng rác",
       "restore": "Khôi phục"
     },
     "versions": {
@@ -9241,19 +9242,20 @@
       "menu_workspace": "Báo cáo quyền truy cập workspace"
     },
     "archive": {
-      "archive_title": "Lưu trữ tài liệu",
-      "archive_description": "Tài liệu và toàn bộ cây con vào thùng rác. Có thể khôi phục lại sau.",
+      "archive_title": "Chuyển tài liệu vào thùng rác?",
+      "archive_description": "Tài liệu và toàn bộ cây con sẽ được chuyển vào thùng rác trong 30 ngày trước khi bị xóa vĩnh viễn. Người quản lý có thể khôi phục trong thời gian này.",
       "impact_title": "Tác động",
       "impact_loading": "Đang đọc cây con…",
-      "impact_error": "Không đọc được cây con. Thử lại trước khi lưu trữ.",
-      "impact_count_one": "Sẽ lưu trữ 1 tài liệu.",
-      "impact_count_other": "Sẽ lưu trữ {{count}} tài liệu.",
+      "impact_error": "Không đọc được cây con. Thử lại trước khi chuyển vào thùng rác.",
+      "impact_count_one": "Sẽ chuyển 1 tài liệu vào thùng rác.",
+      "impact_count_other": "Sẽ chuyển {{count}} tài liệu vào thùng rác.",
       "impact_more": "…và {{count}} tài liệu khác.",
       "impact_empty": "Tài liệu này không có cây con.",
       "retry": "Thử lại",
-      "archive_confirm": "Lưu trữ",
-      "archive_submitting": "Đang lưu trữ…",
-      "archive_failed": "Không lưu trữ được. Chưa có gì thay đổi.",
+      "archive_confirm": "Chuyển vào thùng rác",
+      "archive_submitting": "Đang chuyển vào thùng rác…",
+      "archive_failed": "Không chuyển vào thùng rác được. Chưa có gì thay đổi.",
+      "archive_toast": "Đã chuyển vào thùng rác",
       "archive_forbidden": "Có tài liệu con bạn không quản lý được, nên cả nhóm không vào thùng rác.",
       "restore_title": "Khôi phục tài liệu",
       "restore_description": "Khôi phục mục này cùng những mục con bạn quản lý. Mục về lại thư mục cũ nếu thư mục còn, nếu không thì về gốc workspace.",
@@ -9261,7 +9263,7 @@
       "restore_submitting": "Đang khôi phục…",
       "restore_failed": "Không khôi phục được. Chưa có gì thay đổi.",
       "restore_not_archived": "Tài liệu này không nằm trong thùng rác.",
-      "archive_folder_title": "Lưu trữ thư mục",
+      "archive_folder_title": "Chuyển thư mục vào thùng rác",
       "archive_folder_description": "Thư mục và mọi thứ bên trong (thư mục con, UniNote, file) cùng vào thùng rác. Có thể khôi phục lại sau.",
       "delete_title": "Xóa thư mục",
       "delete_subfolders_one": "{{count}} thư mục con",
@@ -9277,8 +9279,9 @@
       "delete_failed": "Không xóa được. Chưa có gì thay đổi."
     },
     "trash": {
-      "intro": "Mục đã xóa được giữ 30 ngày rồi bị xóa vĩnh viễn. Bạn khôi phục được mục mình quản lý; mục bạn chỉ có quyền chỉnh sửa hiện ở chế độ chỉ xem.",
-      "note": "Khôi phục từng mục: tài liệu về lại thư mục cũ nếu thư mục còn, nếu không thì về gốc workspace. Khôi phục một thư mục chỉ mang theo những mục con bạn quản lý.",
+      "title": "Thùng rác",
+      "subtitle": "Mục đã xóa được giữ 30 ngày rồi bị xóa vĩnh viễn. Bạn khôi phục được mục mình quản lý; mục bạn chỉ có quyền chỉnh sửa hiện ở chế độ chỉ xem.",
+      "note": "Khôi phục từng mục: tài liệu về lại thư mục cũ nếu thư mục còn, nếu không thì về gốc workspace. Khôi phục một thư mục chỉ mang theo những mục con bạn quản lý. Chủ tài liệu nhận thông báo khi người khác chuyển tài liệu của họ vào thùng rác.",
       "columns": {
         "name": "Tên",
         "deleted_by": "Xóa bởi",
@@ -9286,7 +9289,6 @@
         "purge_in": "Xóa vĩnh viễn sau",
         "actions": "Thao tác"
       },
-      "in_trashed_folder": "Trong thư mục “{{folder}}”",
       "deleted_by_unknown": "Thành viên cũ",
       "read_only": "Chỉ xem · người quản lý khôi phục",
       "restore": "Khôi phục",
@@ -9307,6 +9309,8 @@
       "not_in_trash": "Mục này không còn trong thùng rác.",
       "too_large": "Thư mục có quá nhiều mục nên chưa xóa hết được một lần. Hãy xóa từng phần bên trong trước.",
       "no_permission": "Bạn không quản lý mục này.",
+      "row_in_folder": "Trong thư mục “{{folder}}”",
+      "row_from_root": "Từ Tài liệu của workspace",
       "toast": {
         "restored": "Đã khôi phục {{title}}",
         "restored_root": "Đã khôi phục {{title}} về gốc workspace",
@@ -9503,85 +9507,92 @@
         "name_too_long": "Tên tài liệu tối đa {{max}} ký tự.",
         "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
-      "greeting": {
-        "morning": "Chào buổi sáng. Hôm nay bạn muốn tạo gì?",
-        "morning_named": "Chào buổi sáng, {{name}}. Hôm nay bạn muốn tạo gì?",
-        "afternoon": "Chào buổi chiều. Hôm nay bạn muốn tạo gì?",
-        "afternoon_named": "Chào buổi chiều, {{name}}. Hôm nay bạn muốn tạo gì?",
-        "evening": "Chào buổi tối. Hôm nay bạn muốn tạo gì?",
-        "evening_named": "Chào buổi tối, {{name}}. Hôm nay bạn muốn tạo gì?",
+      "quick_create": {
         "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
-        "hint_folder": "File mới nằm trong thư mục {{folder}} và mở ngay trong trình soạn thảo.",
-        "morning_read_only": "Chào buổi sáng.",
-        "morning_read_only_named": "Chào buổi sáng, {{name}}.",
-        "afternoon_read_only": "Chào buổi chiều.",
-        "afternoon_read_only_named": "Chào buổi chiều, {{name}}.",
-        "evening_read_only": "Chào buổi tối.",
-        "evening_read_only_named": "Chào buổi tối, {{name}}.",
-        "hint_read_only": "Bạn chỉ có quyền xem thư mục {{folder}}: mở file để đọc, không tạo hay sửa được.",
-        "hint_read_only_plain": "Bạn chỉ có quyền xem ở đây: mở file để đọc, không tạo hay sửa được."
+        "label": "Tạo nhanh"
       },
       "create": {
-        "label": "Tạo mới",
         "menu": "Tạo mới",
-        "ai_badge": "AI",
         "unavailable_hint": "Chưa dùng được trên máy chủ này",
         "page": {
-          "card": "UniNote",
+          "chip": "UniNote",
           "hint": "UniNote riêng tư hoặc chia sẻ, gắn được công việc và nhắc tên",
           "menu": "UniNote",
           "ext": "UniWork"
         },
         "docx": {
-          "card": "AI Docs",
+          "chip": "Văn bản",
           "hint": ".docx",
           "menu": "Tài liệu Docs",
           "ext": ".docx"
         },
         "xlsx": {
-          "card": "AI Sheets",
+          "chip": "Bảng tính",
           "hint": ".xlsx",
           "menu": "Bảng tính Sheets",
           "ext": ".xlsx"
         },
         "pptx": {
-          "card": "AI Slides",
+          "chip": "Trình chiếu",
           "hint": ".pptx",
           "menu": "Trình chiếu Slides",
           "ext": ".pptx"
         },
         "md": {
-          "card": "AI Markdown",
+          "chip": "Tệp Markdown",
           "hint": ".md",
           "menu": "Markdown",
           "ext": ".md"
         },
         "html": {
-          "card": "AI HTML",
+          "chip": "HTML",
           "hint": ".html",
           "menu": "HTML",
           "ext": ".html"
         },
         "pdf": {
-          "card": "AI PDF",
+          "chip": "PDF",
           "hint": ".pdf",
           "menu": "PDF",
           "ext": ".pdf"
         },
         "upload": {
-          "card": "Tải file lên",
-          "hint": "docx, xlsx, pptx, pdf, md, html, ảnh"
+          "button": "Tải lên"
         },
         "folder": {
           "menu": "Thư mục"
         }
       },
+      "sections": {
+        "folders": "Thư mục",
+        "subfolders": "Thư mục con",
+        "documents": "Tài liệu"
+      },
+      "folder": {
+        "info_banner": "Tạo mới và tải lên ở đây sẽ vào thư mục “{{folder}}”. Kéo thả tệp vào danh sách để tải lên.",
+        "menu": "Thao tác với thư mục"
+      },
+      "folder_card": {
+        "folders": "{{count}} thư mục"
+      },
+      "filters": {
+        "type": "Loại",
+        "editor": "Người sửa",
+        "updated": "Cập nhật",
+        "editor_any": "Bất kỳ",
+        "editor_me": "Tôi",
+        "updated_any": "Bất kỳ lúc nào",
+        "updated_today": "Hôm nay",
+        "updated_7d": "7 ngày qua",
+        "updated_30d": "30 ngày qua"
+      },
       "sidebar": {
         "label": "Điều hướng tài liệu",
-        "home": "Trang chủ Tài liệu",
+        "home": "Tài liệu của workspace",
         "recent": "Gần đây",
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
+        "trash": "Thùng rác",
         "folders": "Thư mục",
         "elsewhere": "Từ nơi khác",
         "open": "Điều hướng"
@@ -9607,13 +9618,7 @@
         "meeting": "Cuộc họp",
         "email": "Email"
       },
-      "scope_label": "Phạm vi",
-      "scope": {
-        "home": "Tất cả",
-        "recent": "Gần đây",
-        "shared": "Được chia sẻ",
-        "archived": "Thùng rác"
-      },
+
       "chips_label": "Lọc theo loại",
       "chips": {
         "all": "Tất cả",
@@ -9637,10 +9642,12 @@
         "view": "Chỉ xem",
         "comment": "Bình luận",
         "edit": "Chỉnh sửa",
-        "manage": "Quản lý"
+        "manage": "Quản lý",
+        "owner": "Chủ sở hữu",
+        "you_prefix": "Bạn: {{level}}"
       },
       "visibility": {
-        "workspace": "Cả workspace",
+        "workspace": "Workspace",
         "restricted": "Hạn chế"
       },
       "group_by": {
@@ -9666,8 +9673,9 @@
       },
       "columns": {
         "name": "Tên",
+        "access": "Truy cập",
         "source": "Nguồn",
-        "editor": "Người sửa",
+        "editor": "Người sửa gần nhất",
         "updated": "Cập nhật",
         "size": "Dung lượng",
         "actions": "Thao tác",
@@ -9693,7 +9701,7 @@
         "download_failed": "Không thể tải file xuống. Thử lại.",
         "star_failed": "Không thể cập nhật gắn sao. Thử lại.",
         "move": "Di chuyển",
-        "archive": "Lưu trữ",
+        "archive": "Chuyển vào thùng rác",
         "open_email": "Mở Email",
         "open_email_named": "Mở Email: {{title}}",
         "new_subfolder": "Thư mục con mới",
@@ -9766,6 +9774,7 @@
       "breadcrumb_more": "Các cấp ẩn",
       "search": {
         "placeholder": "Tìm thư mục và tài liệu",
+        "placeholder_folder": "Tìm trong thư mục này",
         "label": "Tìm trong Tài liệu",
         "clear": "Xóa ô tìm",
         "filter_label": "Lọc kết quả",
@@ -9786,7 +9795,7 @@
       "document_cycle": "Không thể chuyển một mục vào chính nó hoặc vào mục con của nó.",
       "document_too_deep": "Cây tài liệu tối đa {{max}} cấp.",
       "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
-      "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa lưu trữ được một lần. Hãy lưu trữ từng phần bên trong trước.",
+      "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa chuyển vào thùng rác được một lần. Hãy chuyển từng phần bên trong trước.",
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
       "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
