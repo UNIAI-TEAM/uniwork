@@ -143,12 +143,11 @@ export function FrameLagBanner({
   if (!open || !onOpenApp) return null;
   return (
     <div data-testid="office-lag-banner">
-      <Notice
-        tone="warning"
-        icon={FileExclamationPoint}
-        layout="strip"
-        action={(
-          <div className="flex flex-wrap items-center gap-2">
+      <Notice tone="warning" icon={FileExclamationPoint} layout="strip">
+        {/* Below `sm` the actions sit under the text instead of squeezing it into a narrow column. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <span className="min-w-0">{t("body")}</span>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Button type="button" size="xs" variant="default" onClick={onOpenApp}>
               {t("open_app")}
             </Button>
@@ -156,9 +155,7 @@ export function FrameLagBanner({
               {t("continue")}
             </Button>
           </div>
-        )}
-      >
-        {t("body")}
+        </div>
       </Notice>
     </div>
   );

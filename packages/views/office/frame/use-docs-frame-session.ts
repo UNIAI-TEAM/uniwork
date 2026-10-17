@@ -193,8 +193,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           // While the page's own Save is open its answer decides the header: a 409 here is the
           // frame's conflict dialog opening, not the end of that Save.
           if (hostSave.current) setSaveState("saving");
-          // A save the user cancelled leaves the edits unsaved, not failed.
-          else setSaveState(shapeOf(error).code === "cancelled" ? "dirty" : "error");
+          // A save the user cancelled, or one the size dialog already explains, leaves the edits unsaved, not failed.
+          else setSaveState(shapeOf(error).code === "cancelled" || blockedMax !== null ? "dirty" : "error");
           throw error;
         },
       );
@@ -493,8 +493,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     armWatchdog(watch);
     setSaveState("saving");
     const fail = (error: ProtocolErrorShape): DocsFrameSaveOutcome => {
-      setSaveState("error");
       const blockedMax = saveBlockedMaxBytes(error, latest.current.documentLimits.upload_max_bytes);
+      // The size dialog already explains a blocked save: the header says unsaved, not "could not be confirmed".
+      setSaveState(blockedMax !== null ? "dirty" : "error");
       if (blockedMax !== null) {
         saveBlockedOpen.current = true;
         setSaveBlocked({ maxBytes: blockedMax });

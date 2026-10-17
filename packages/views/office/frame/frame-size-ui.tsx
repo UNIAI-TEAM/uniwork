@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ComponentProps } from "react";
+import { TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -12,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
+import { Notice } from "../../common/notice";
 import type { DocsFrameSaveBlocked, DocsFrameSizeWarning } from "./docs-frame-session-model";
 
 export function FrameSizeWarningChip({ warning }: { warning: DocsFrameSizeWarning | null }) {
@@ -20,13 +22,11 @@ export function FrameSizeWarningChip({ warning }: { warning: DocsFrameSizeWarnin
   const max = formatDocumentSizeMB(warning.maxBytes, i18n.language);
   const size = formatDocumentSizeMB(warning.bytes, i18n.language, warning.maxBytes);
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      data-testid="office-size-warning-chip"
-      className="flex shrink-0 items-center justify-end border-b bg-muted/40 px-3 py-1 text-caption text-muted-foreground"
-    >
-      {t("office.size.warn_chip", { max, size })}
+    // The same amber strip as the lag banner: the live region is Notice's own (role=status, polite).
+    <div data-testid="office-size-warning-chip" className="shrink-0">
+      <Notice tone="warning" icon={TriangleAlert}>
+        {t("office.size.warn_chip", { max, size })}
+      </Notice>
     </div>
   );
 }

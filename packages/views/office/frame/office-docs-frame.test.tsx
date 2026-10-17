@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
@@ -814,6 +814,11 @@ describe("OfficeDocsFrame", () => {
       await frame.event("size_warning", { bytes: Math.round(185.46 * MIB), max_bytes: 200 * MIB, warn_ratio: 0.9 });
       const chip = await screen.findByTestId("office-size-warning-chip");
       expect(chip).toHaveTextContent("Sắp chạm giới hạn 200 MB (đang 185,4 MB).");
+      // F4: a warning strip (warning tokens + icon) that is still one polite live region.
+      const status = within(chip).getByRole("status");
+      expect(status).toHaveAttribute("aria-live", "polite");
+      expect(status.className).toContain("bg-warning-soft");
+      expect(status.querySelector("svg")).not.toBeNull();
 
       // A second size_warning in the same document session stays latched to the first chip.
       await frame.event("size_warning", { bytes: Math.round(195 * MIB), max_bytes: 200 * MIB, warn_ratio: 0.9 });
@@ -930,6 +935,39 @@ describe("OfficeDocsFrame", () => {
       const dialog2 = await screen.findByRole("dialog");
       expect(dialog2).toHaveTextContent("Tài liệu đã vượt 120 MB.");
       expect(toastError).not.toHaveBeenCalled();
+    });
+
+    it("F6: a size-blocked save does not also flag the header with the generic failure state", async () => {
+      const save = vi.fn(async () => {
+        throw new ApiError("file exceeds limit", "file_too_large", 413, undefined, { max_bytes: 150 * MIB });
+      });
+      mount({}, fakeApi({ save }));
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+
+      const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(8), etag: "e1" });
+      await waitFor(() => expect(frame.answerTo(saveId)?.error?.code).toBe("too_large"));
+      await screen.findByRole("dialog");
+      // The dialog explains the refusal; the edits are simply still unsaved.
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-save-state", "dirty");
+    });
+
+    it("F1: closing the save_blocked dialog leaves focus in the frame, not on the page control that had it", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      spyFrameFocus();
+      const pageButton = screen.getByRole("button", { name: "flip" });
+      pageButton.focus();
+
+      await frame.event("save_blocked", { bytes: 205 * MIB, max_bytes: 200 * MIB, reason: "over_max_bytes" });
+      await screen.findByRole("dialog");
+      fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("office-docs-frame-iframe")));
+      expect(document.activeElement).not.toBe(pageButton);
     });
 
     it("opens the save_blocked dialog with {{max}} when leave -> Save fails with 413, and Close returns focus sensibly (R1-7)", async () => {
