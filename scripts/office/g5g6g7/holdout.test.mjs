@@ -1098,4 +1098,26 @@ test('A8: a table_cell topic keeps the row AND the column, dropping only private
   assert.equal(anchorMatches('table_cell', 'table:1/Alpha/Revenue', 'Revenue', '42', 42), false, 'column-only anchor must not match (R17-8)');
 });
 
+test('R18-5: heading values and topic segments share one NFC + case-fold + diacritic normaliser while cell and formula addresses keep exact identity (review-g712-18 R18-5)', () => {
+  assert.equal(valuesEqual('Approved', 'APPROVED', 'heading'), true, 'heading value comparison is case-insensitive');
+  assert.equal(valuesEqual('Approved', 'approved', 'heading'), true, 'heading value comparison accepts lowercased text');
+  assert.equal(valuesEqual('Tiêu đề', 'Tiêu đề'.normalize('NFD'), 'heading'), true, 'heading value normalises NFD to NFC');
+  assert.equal(valuesEqual('Tiêu đề', 'Tieu de', 'heading'), true, 'heading value folds diacritics');
+  assert.equal(
+    anchorMatches('table_cell', 'table:1/Doanh thu/Lợi nhuận', 'Doanh thu/Lợi nhuận'.normalize('NFD'), '42', 42),
+    true,
+    'table_cell topic segments normalise NFD diacritics',
+  );
+  assert.equal(
+    anchorMatches('table_cell', 'table:1/Doanh thu/Lợi nhuận', 'Doanh thu / Loi nhuan', '42', 42),
+    true,
+    'table_cell topic segments fold diacritics across row and column',
+  );
+  assert.equal(
+    anchorMatches('cell', 'Doanh thu!A1', 'Doanh thu!A1:A1', '42', 42),
+    false,
+    'cell addresses keep exact identity',
+  );
+});
+
 
