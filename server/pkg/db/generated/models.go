@@ -1116,6 +1116,42 @@ type FileJob struct {
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
 
+type FileMultipartUpload struct {
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	WorkspaceID           string             `json:"workspace_id"`
+	DocumentID            pgtype.Text        `json:"document_id"`
+	FileID                string             `json:"file_id"`
+	FileUploadSessionID   string             `json:"file_upload_session_id"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedByKind         string             `json:"created_by_kind"`
+	OpenedVia             string             `json:"opened_via"`
+	TokenDocumentID       pgtype.Text        `json:"token_document_id"`
+	StorageUploadID       string             `json:"storage_upload_id"`
+	ObjectKey             string             `json:"object_key"`
+	Filename              string             `json:"filename"`
+	SizeBytes             int64              `json:"size_bytes"`
+	PartSize              int64              `json:"part_size"`
+	TotalParts            int32              `json:"total_parts"`
+	Title                 pgtype.Text        `json:"title"`
+	ParentID              pgtype.Text        `json:"parent_id"`
+	Visibility            pgtype.Text        `json:"visibility"`
+	ProbeHeadSha256       string             `json:"probe_head_sha256"`
+	ProbeTailSha256       string             `json:"probe_tail_sha256"`
+	CdOffset              pgtype.Int8        `json:"cd_offset"`
+	CdSize                pgtype.Int8        `json:"cd_size"`
+	Status                string             `json:"status"`
+	FailureCode           pgtype.Text        `json:"failure_code"`
+	ResultDocumentID      pgtype.Text        `json:"result_document_id"`
+	ResultVersionUploadID pgtype.Text        `json:"result_version_upload_id"`
+	LeaseOwner            pgtype.Text        `json:"lease_owner"`
+	LeaseExpiresAt        pgtype.Timestamptz `json:"lease_expires_at"`
+	ExpiresAt             pgtype.Timestamptz `json:"expires_at"`
+	ClosedAt              pgtype.Timestamptz `json:"closed_at"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
 // FileService upload coordination: one row per logical upload (one idempotency key). Carries the actor pair, the backend-verified scope, the purpose, the claim deadline and the write lease. Temporary grant before a business object claims the file; after claim it is retention/audit data, not an ACL.
 type FileUploadSession struct {
 	// Opaque ULID of the upload session; returned to the uploader as upload_session_id.

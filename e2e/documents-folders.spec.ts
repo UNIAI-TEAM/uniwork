@@ -9,8 +9,10 @@ import {
   createFolderChain,
   createPage,
   documentIdsLinkedIn,
+  expectCardOrder,
   expectLaterUpdatedAt,
   expectRowOrder,
+  folderCard,
   getArchiveImpact,
   getDocument,
   getDocumentTree,
@@ -141,10 +143,10 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to
   await subDialog.getByLabel("Tên thư mục").fill("Phụ lục Q1");
   await subDialog.getByRole("button", { name: "Tạo" }).click();
   await expect(subDialog).toBeHidden();
-  await expect(contentRow(page, "Phụ lục Q1")).toBeVisible();
-  await expect(
-    contentRow(page, "Phụ lục Q1").getByRole("img", { name: "Thư mục" }),
-  ).toBeVisible();
+  // The new folder is a card in the "Thư mục con" section, not a table row
+  // (documents-folders-grid.tsx:63-122); its icon is aria-hidden, so the card's
+  // section membership is the folderhood proof.
+  await expect(folderCard(page, "Phụ lục Q1")).toBeVisible();
 
   await tree
     .getByRole("button", { name: "Thao tác cho Hợp đồng 2026", exact: true })
@@ -409,15 +411,14 @@ test("FD-A03 open folder content view lists only direct children, folders first,
 
   const table = page.getByRole("table", { name: "Tài liệu" });
   await expect(table).toBeVisible();
-  await expect(contentRow(page, "Báo cáo")).toBeVisible();
-  await expect(
-    contentRow(page, "Báo cáo").getByRole("img", { name: "Thư mục" }),
-  ).toBeVisible();
-  await expect(contentRow(page, "Chứng từ")).toBeVisible();
+  // Folders are cards in the "Thư mục con" section (documents-folders-grid.tsx
+  // :63-122); the card icon is aria-hidden, so section membership proves folderhood.
+  await expect(folderCard(page, "Báo cáo")).toBeVisible();
+  await expect(folderCard(page, "Chứng từ")).toBeVisible();
   await expect(contentRow(page, "An toàn kho")).toBeVisible();
   await expect(
     contentRow(page, "An toàn kho").getByRole("img", {
-      name: "Trang UniWork",
+      name: "UniNote",
     }),
   ).toBeVisible();
   await expect(contentRow(page, "Biên bản kiểm kê.docx")).toBeVisible();
@@ -427,15 +428,16 @@ test("FD-A03 open folder content view lists only direct children, folders first,
     }),
   ).toBeVisible();
   await expect(contentRow(page, "Trang ngoài gốc")).toHaveCount(0);
-  await expect(contentRow(page, "Thư mục Cháu")).toHaveCount(0);
+  await expect(folderCard(page, "Thư mục Cháu")).toHaveCount(0);
   await expect(contentRow(page, "Tài liệu Cháu")).toHaveCount(0);
   await expect(contentRow(page, "Trang Con Của Trang")).toHaveCount(0);
 
-  // 4 direct children under rootFolder (2 folders: Báo cáo, Chứng từ; 2 documents: An toàn kho,
-  // Biên bản kiểm kê.docx): folders come first whatever the sort (library-rows.ts sortFolderRows).
+  // 4 direct children under rootFolder (2 folder cards: Báo cáo, Chứng từ; 2 table
+  // rows: An toàn kho, Biên bản kiểm kê.docx): the cards' section renders above the
+  // table whatever the sort (DocumentsSections, documents-folders-grid.tsx:181-194).
   const folderTops: number[] = [];
   for (const name of ["Báo cáo", "Chứng từ"]) {
-    folderTops.push((await contentRow(page, name).boundingBox())!.y);
+    folderTops.push((await folderCard(page, name).boundingBox())!.y);
   }
   const documentTops: number[] = [];
   for (const name of ["An toàn kho", "Biên bản kiểm kê.docx"]) {
@@ -504,25 +506,19 @@ test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă aft
     expect(renamed.title).toBe(to);
   }
 
+  // The sort picker orders the "Tài liệu" table's document rows only; folder
+  // cards render in tree order (subfoldersOf, documents-folders-grid.tsx:205-208)
+  // — the creation order below, since a rename does not change tree position.
+  const cardOrder = ["Eo 2", "Ba", "Ăn", "Đông", "An"];
   const byName = [
-    "An",
-    "Ăn",
-    "Ba",
-    "Đông",
-    "Eo 2",
     "An ninh",
     "Ăn vặt",
     "Bản vẽ v2",
     "Đề án",
     "Em bé",
   ];
-  // Newest first within each kind: the touched item, then creation order reversed.
+  // Newest first: the touched item, then creation order reversed.
   const byUpdated = [
-    "Eo 2",
-    "An",
-    "Đông",
-    "Ăn",
-    "Ba",
     "Bản vẽ v2",
     "An ninh",
     "Đề án",
@@ -533,14 +529,23 @@ test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă aft
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${parent.id}`);
 
-  // The viewer's default is the last update.
+  // The viewer's default is the last update. "Folders first" is now the cards'
+  // section rendering above the table; each card's top sits above every row's.
   const sortTrigger = page.getByRole("combobox", { name: "Sắp xếp", exact: true });
   await expect(sortTrigger).toContainText("Cập nhật (mới nhất)");
+  await expectCardOrder(page, cardOrder);
   await expectRowOrder(page, byUpdated);
+  const cardTops: number[] = [];
+  for (const name of cardOrder) {
+    cardTops.push((await folderCard(page, name).boundingBox())!.y);
+  }
+  const rowTop = (await contentRow(page, byUpdated[0]!).boundingBox())!.y;
+  expect(Math.max(...cardTops)).toBeLessThan(rowTop);
 
   await sortTrigger.click();
   await page.getByRole("option", { name: "Tên (A→Z)" }).click();
   await expect(sortTrigger).toContainText("Tên (A→Z)");
+  await expectCardOrder(page, cardOrder);
   await expectRowOrder(page, byName);
 
   // Remembered per viewer across a reload.
@@ -576,14 +581,14 @@ test("FD-A03 upload into the open folder places the uploaded file under the open
       .getByText("Thư mục Nhận Tải Lên"),
   ).toBeVisible();
 
-  // Open the real Upload file dialog from the header/cards (packages/views/documents/documents-home-create.tsx:117,135).
-  await page.getByRole("button", { name: /^Tải file lên/ }).first().click();
+  // Open the real Upload file dialog from the header "Tải lên" (documents-home-create.tsx CreateMenu).
+  await page.getByRole("button", { name: "Tải lên", exact: true }).click();
   const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
   await expect(uploadDialog).toBeVisible();
   await uploadDialog
     .getByLabel("Chọn tệp")
     .setInputFiles(getFixtureFilePath("fx-docx-report-vi"));
-  await uploadDialog.getByRole("button", { name: "Tải lên" }).click();
+  await uploadDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
   await expect(uploadDialog).toBeHidden();
   await expect(page).toHaveURL(/\/documents\/[0-9A-Za-z]+$/);
 
@@ -657,8 +662,11 @@ test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps 
     tree.getByRole("treeitem", { name: "Thư mục A1" }),
   ).toBeVisible();
 
-  const table = page.getByRole("table", { name: "Tài liệu" });
-  await table.getByRole("button", { name: "Thao tác cho Thư mục B", exact: true }).click();
+  // The folder's ⋯ menu moved from the table row to the folder card
+  // (documents-folders-grid.tsx:82-97, same "Thao tác cho <title>" label).
+  await folderCard(page, "Thư mục B")
+    .getByRole("button", { name: "Thao tác cho Thư mục B", exact: true })
+    .click();
   await page.getByRole("menuitem", { name: "Đổi tên" }).click();
   await input.fill("  thư mục a1 ");
   await renameDialog.getByRole("button", { name: "Lưu" }).click();
@@ -793,8 +801,8 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
   await expect(
     tree.getByRole("treeitem", { name: "Thư mục Kéo Thả" }),
   ).toHaveAttribute("aria-level", "2", { timeout: 15_000 });
-  const table = page.getByRole("table", { name: "Tài liệu" });
-  await expect(contentRow(page, "Thư mục Kéo Thả")).toBeVisible({
+  // The moved folder lands as a card in the open folder's "Thư mục con" section.
+  await expect(folderCard(page, "Thư mục Kéo Thả")).toBeVisible({
     timeout: 15_000,
   });
   const dragAfter = await getDocument(page, ws.owner.token, dragFolder.id);
@@ -814,7 +822,9 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
   // 2. Move via the Move dialog and collision auto-rename on folder move.
   await createFolder(page, ws.owner.token, ws.wsId, "Con Nguồn", dstFolder.id);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${srcFolder.id}`);
-  await table.getByRole("button", { name: "Thao tác cho Con Nguồn", exact: true }).click();
+  await folderCard(page, "Con Nguồn")
+    .getByRole("button", { name: "Thao tác cho Con Nguồn", exact: true })
+    .click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
   const moveDialog = page.getByRole("dialog", { name: "Di chuyển tới" });
   await expect(moveDialog).toBeVisible();
@@ -856,7 +866,7 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     srcFolder.id,
   );
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${srcFolder.id}`);
-  await expect(contentRow(page, "Hồ sơ Realtime Move")).toBeVisible();
+  await expect(folderCard(page, "Hồ sơ Realtime Move")).toBeVisible();
 
   const searchPageA = await page.context().newPage();
   await searchPageA.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
@@ -892,8 +902,8 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
       `move: ${moveResB.status} ${JSON.stringify(moveResB.error)}`,
     ).toBe(true);
 
-    // User A's open folder content and search result path update via WebSocket invalidation without reload.
-    await expect(contentRow(page, "Hồ sơ Realtime Move")).toHaveCount(0, {
+    // User A's open folder loses the moved card and the search path updates live.
+    await expect(folderCard(page, "Hồ sơ Realtime Move")).toHaveCount(0, {
       timeout: 15_000,
     });
     await expect(
@@ -986,8 +996,7 @@ test("FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disable
 
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
-  await page
-    .getByRole("table", { name: "Tài liệu" })
+  await folderCard(page, "Nhánh Hai Cấp")
     .getByRole("button", { name: "Thao tác cho Nhánh Hai Cấp", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
@@ -1084,7 +1093,7 @@ test("FD-A06 moving folder into itself or a descendant is rejected with 422 docu
   // Dragging Cấp A onto its descendant Cấp B in the tree is refused with toast and no move request.
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderB.id}`);
-  await expect(contentRow(page, "Cấp C")).toBeVisible();
+  await expect(folderCard(page, "Cấp C")).toBeVisible();
   const tree = page.getByRole("tree", { name: "Cây tài liệu" });
   const itemA = tree.getByRole("treeitem", { name: "Cấp A" });
   const itemB = tree.getByRole("treeitem", { name: "Cấp B" });
@@ -1406,7 +1415,7 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
   });
   await expect(breadcrumb).toBeVisible();
   await expect(
-    breadcrumb.getByRole("button", { name: "Tài liệu", exact: true }),
+    breadcrumb.getByRole("button", { name: "Tài liệu của workspace", exact: true }),
   ).toBeVisible();
   await expect(
     breadcrumb.getByRole("button", { name: "Khối Kỹ thuật" }),
@@ -1426,9 +1435,9 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
     "aria-current",
     "page",
   );
-  await expect(contentRow(page, "Nền tảng")).toBeVisible();
+  await expect(folderCard(page, "Nền tảng")).toBeVisible();
 
-  await breadcrumb.getByRole("button", { name: "Tài liệu", exact: true }).click();
+  await breadcrumb.getByRole("button", { name: "Tài liệu của workspace", exact: true }).click();
   await expect(page).toHaveURL(
     new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
   );
@@ -1535,7 +1544,7 @@ test("FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and th
     name: "Đường dẫn thư mục",
   });
   // Visible segments: root, the "…" menu, the parent folder and the open folder (leaf).
-  await expect(breadcrumb.getByRole("button", { name: "Tài liệu", exact: true })).toBeVisible();
+  await expect(breadcrumb.getByRole("button", { name: "Tài liệu của workspace", exact: true })).toBeVisible();
   const more = breadcrumb.getByRole("button", { name: "Các cấp ẩn" });
   await expect(more).toBeVisible();
   await expect(
@@ -2158,8 +2167,10 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   await createDlg.getByLabel("Tên thư mục").press("Escape");
   await expect(createDlg).toBeHidden();
 
-  const table = page.getByRole("table", { name: "Tài liệu" });
-  await table.getByRole("button", { name: "Thao tác cho Ma", exact: true }).click();
+  // "Ma" is a sibling folder card; its ⋯ menu carries the same row labels.
+  await folderCard(page, "Ma")
+    .getByRole("button", { name: "Thao tác cho Ma", exact: true })
+    .click();
   await page.getByRole("menuitem", { name: "Đổi tên" }).click();
   const renameDlg = page.getByRole("dialog", { name: "Đổi tên thư mục" });
   await renameDlg.getByLabel("Tên thư mục").fill("Hợp đồng");
@@ -2235,11 +2246,11 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
       sub2.id,
     );
 
-    // B's create reaches A's tree and content without a reload.
+    // B's create reaches A's tree and home folder cards without a reload.
     await expect(
       tree.getByRole("treeitem", { name: "Dự án Đóng" }),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(contentRow(page, "Dự án Đóng")).toBeVisible({
+    await expect(folderCard(page, "Dự án Đóng")).toBeVisible({
       timeout: 15_000,
     });
 
@@ -2268,7 +2279,7 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
     });
     await expect(resultsListA.getByText("Dự án Đóng")).toBeVisible();
 
-    // B archives with B's own token (manage on its own tree); A's tree, content and search lose it live.
+    // B archives with B's own token (manage on its own tree); A's tree, card grid and search lose it live.
     const archived = await archiveDocument(pageB, memberB.token, rootFolder.id);
     expect(
       archived.ok,
@@ -2280,7 +2291,7 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
     await expect(
       tree.getByRole("treeitem", { name: "Dự án Đóng" }),
     ).toHaveCount(0, { timeout: 15_000 });
-    await expect(contentRow(page, "Dự án Đóng")).toHaveCount(0, {
+    await expect(folderCard(page, "Dự án Đóng")).toHaveCount(0, {
       timeout: 15_000,
     });
     await expect(searchPageA.getByText("Không tìm thấy kết quả")).toBeVisible({
@@ -2307,7 +2318,7 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
     await expect(
       tree.getByRole("treeitem", { name: "Dự án Đóng (2)" }),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(contentRow(page, "Dự án Đóng (2)")).toBeVisible({
+    await expect(folderCard(page, "Dự án Đóng (2)")).toBeVisible({
       timeout: 15_000,
     });
     await expect(resultsListA.getByText("Dự án Đóng (2)")).toBeVisible({
@@ -2487,13 +2498,14 @@ test("FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and docu
   const trashed = await getDocument(page, ws.owner.token, root.id);
   expect(trashed.data?.archived_at).toBeTruthy();
 
-  // Restore from the Thùng rác scope: the trashed folder's row has its own
-  // Khôi phục button (named after the item) and restores at once, no dialog.
-  await page.getByRole("tab", { name: /^Thùng rác/ }).click();
-  await expect(contentRow(page, "Xóa Thử")).toBeVisible();
-  await page
-    .getByRole("table", { name: "Tài liệu" })
-    .getByRole("button", { name: "Khôi phục Xóa Thử", exact: true })
+  // Restore from the Trash view: the trashed folder's row carries its own
+  // Khôi phục button (named after the item) and restores at once — no dialog
+  // (RESTORE-01), and the dedicated table has no row menu (TRASH-A3).
+  await page.getByRole("button", { name: "Thùng rác", exact: true }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: "Thùng rác" })).toBeVisible();
+  const trashRow = page.locator("tr[data-trash-row]").filter({ has: page.getByText("Xóa Thử", { exact: true }) });
+  await expect(trashRow).toBeVisible();
+  await trashRow.getByRole("button", { name: "Khôi phục Xóa Thử", exact: true })
     .click();
   await expect(page.getByText("Đã khôi phục Xóa Thử")).toBeVisible();
   const restored = await getDocument(page, ws.owner.token, root.id);

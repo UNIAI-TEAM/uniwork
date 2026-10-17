@@ -28,8 +28,9 @@ const SOURCE_FILE = `ghi-chu-e2e-${stamp}.txt`;
 
 const owner = workspaceSeed("dochome", "owner", stamp);
 
-function createCard(page: Page, label: RegExp) {
-  return page.getByRole("list", { name: "Tạo mới" }).getByRole("button", { name: label });
+/** One pill of the Tạo nhanh strip at the home root (the create cards are gone; it keeps the same create flow). */
+function quickCreate(page: Page, label: RegExp) {
+  return page.getByRole("region", { name: "Tạo nhanh" }).getByRole("button", { name: label });
 }
 
 function sidebar(page: Page) {
@@ -42,10 +43,10 @@ function library(page: Page) {
 
 async function openLibrary(page: Page, orgSlug: string, wsSlug: string) {
   await page.goto(`/${orgSlug}/${wsSlug}/documents`);
-  await expect(page.getByRole("tab", { name: /Tất cả/ })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("heading", { level: 1, name: "Tài liệu của workspace" })).toBeVisible({ timeout: 60_000 });
 }
 
-test("create card, folder, move and the other-modules section on the owner's home", async ({ page }) => {
+test("quick create, folder, move and the other-modules section on the owner's home", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await onboardDocumentsUser(page, owner);
 
@@ -63,9 +64,9 @@ test("create card, folder, move and the other-modules section on the owner's hom
   });
   expect(attached.status(), await attached.text()).toBe(200);
 
-  // 1. A blank docx from its card: created in the open folder (the root) and opened at once.
+  // 1. A blank docx from its quick-create pill: created in the open folder (the root) and opened at once.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
-  await createCard(page, /^AI Docs/).click();
+  await quickCreate(page, /^Văn bản/).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 90_000 });
   // The Office module frame mounts on the document page; its inner title is the
   // module's own text, so the check is the frame element, not what it renders.
@@ -84,7 +85,7 @@ test("create card, folder, move and the other-modules section on the owner's hom
   const crumbs = page.getByRole("navigation", { name: "Đường dẫn thư mục" });
   await expect(crumbs).toBeVisible({ timeout: 30_000 });
   await expect(crumbs.getByText(FOLDER_TITLE, { exact: true })).toHaveAttribute("aria-current", "page");
-  await crumbs.getByRole("button", { name: "Tài liệu" }).click();
+  await crumbs.getByRole("button", { name: "Tài liệu của workspace" }).click();
 
   // 3. Move the docx into the folder from its row menu, then find it inside.
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
@@ -222,22 +223,22 @@ test.describe("a view-only member", () => {
     }
   });
 
-  test("sees create cards at the root, none inside a folder shared at view level", async ({ page }) => {
+  test("sees create controls at the root, none inside a folder shared at view level", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginViaUi(page, m.aOther.email);
     await openLibrary(page, m.aOwner.orgSlug, m.aOwner.wsSlug);
 
     // The root is open to every member of the workspace.
-    await expect(page.getByRole("list", { name: "Tạo mới" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("region", { name: "Tạo nhanh" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toBeVisible();
 
-    // The shared folder opens from the shared tab; inside it the viewer creates nothing.
-    await page.getByRole("tab", { name: /Được chia sẻ/ }).click();
+    // The shared folder opens from the shared sidebar view; inside it the viewer creates nothing.
+    await sidebar(page).getByRole("button", { name: "Được chia sẻ với tôi" }).click();
     await libraryRowButton(library(page), sharedFolderTitle).click();
     await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(sharedFolderTitle)).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByRole("list", { name: "Tạo mới" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Tạo nhanh" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toHaveCount(0);
     await expect(sidebar(page).getByRole("button", { name: "Tạo thư mục" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Đổi tên thư mục" })).toHaveCount(0);
@@ -253,6 +254,6 @@ test.describe("a view-only member", () => {
     await page.getByRole("button", { name: `Thao tác cho ${sharedPageTitle}` }).click();
     await expect(page.getByRole("menuitem", { name: "Mở trên web" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Di chuyển" })).toHaveCount(0);
-    await expect(page.getByRole("menuitem", { name: "Lưu trữ" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Chuyển vào thùng rác" })).toHaveCount(0);
   });
 });

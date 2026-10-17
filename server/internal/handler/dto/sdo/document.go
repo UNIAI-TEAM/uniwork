@@ -603,3 +603,50 @@ type MentionCandidateDTO struct {
 type MentionCandidateListSDO struct {
 	Candidates []MentionCandidateDTO `json:"candidates"`
 }
+
+// UploadSessionSDO answers the create and GET routes of the large upload flow
+// (addendum §6.2/§6.3): the session id, the part geometry, the parts the
+// storage already holds, a fresh presigned URL for every part still missing,
+// and the session deadline. `status` rides only on GET (open | validating |
+// completed) and `parts` is present only while the session is open: once the
+// server is validating the assembled object there is nothing left to PUT.
+type UploadSessionSDO struct {
+	SessionID      string                          `json:"session_id" description:"ULID phiên tải lên, dùng cho GET/complete/DELETE" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+	Status         string                          `json:"status,omitempty" description:"open, validating hoặc completed; chỉ có trên GET" example:"open"`
+	PartSize       int64                           `json:"part_size" description:"Kích thước mỗi phần trừ phần cuối (byte)" example:"8388608"`
+	TotalParts     int                             `json:"total_parts" description:"Số phần phải PUT, ceil(size_bytes / part_size)" example:"10"`
+	CompletedParts []UploadSessionCompletedPartSDO `json:"completed_parts" description:"Các phần storage đã nhận (từ ListParts); rỗng ngay sau khi tạo"`
+	Parts          []UploadSessionPartURLSDO       `json:"parts,omitempty" description:"URL PUT đã ký cho từng phần còn thiếu, mỗi URL sống 1 giờ; chỉ có khi phiên đang open"`
+	ExpiresAt      string                          `json:"expires_at" description:"Hạn của phiên (24 giờ kể từ lúc tạo)" example:"2026-10-18T15:00:00Z"`
+}
+
+// UploadSessionCompletedPartSDO is one part the storage holds.
+type UploadSessionCompletedPartSDO struct {
+	PartNumber int    `json:"part_number" description:"Số thứ tự phần" example:"1"`
+	ETag       string `json:"etag" description:"ETag storage trả về, kể cả dấu ngoặc kép" example:"\"3858f62230ac3c915f300c664312c63f\""`
+	Size       int64  `json:"size" description:"Số byte storage đã nhận cho phần này" example:"8388608"`
+}
+
+// UploadSessionPartURLSDO is one presigned part URL the client PUTs directly
+// (credentials omitted; the ETag response header is what complete needs).
+type UploadSessionPartURLSDO struct {
+	PartNumber int               `json:"part_number" description:"Số thứ tự phần URL này ký" example:"2"`
+	Method     string            `json:"method" description:"HTTP method của URL; luôn là PUT" example:"PUT"`
+	URL        string            `json:"url" description:"URL đã ký tới khoá object của phiên; không log, không chia sẻ" example:"https://storage.example.test/documents/files/01J8X4FILEN1P2Q3R4S5T6U7V8?partNumber=2&uploadId=..."`
+	Headers    map[string]string `json:"headers" description:"Header phải gửi kèm request PUT (rỗng với S3 mặc định)" example:"{}"`
+	ExpiresAt  string            `json:"expires_at" description:"Hạn của URL (1 giờ)" example:"2026-10-17T16:00:00Z"`
+}
+
+// UploadSessionCompleteSDO is the OpenAPI union for
+// POST /api/v1/upload-sessions/{sessionID}/complete: a session opened on the
+// workspace route (/workspaces/{workspaceID}/documents/upload-sessions) creates
+// the file document and answers DocumentSDO, while a session opened on the
+// document route (/documents/{documentID}/upload-sessions) stages the candidate
+// version bytes and answers DocumentUploadSDO.
+type UploadSessionCompleteSDO struct{}
+
+// JSONSchemaOneOf implements jsonschema.OneOfExposer so OpenAPI documents both
+// route-family success envelopes on the shared completion endpoint.
+func (UploadSessionCompleteSDO) JSONSchemaOneOf() []interface{} {
+	return []interface{}{DocumentSDO{}, DocumentUploadSDO{}}
+}

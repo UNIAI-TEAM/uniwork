@@ -27,7 +27,7 @@ for (const width of [1440, 390]) {
     await openMenu();
     await stage.locator('[data-feature="chat"]').click();
     await openManualPreview(page);
-    if (width < 768) await panel.locator('.product-chat-sidebar').getByRole('button', { name: /UNICOM/ }).click();
+    if (width < 768) await panel.locator('.product-chat-sidebar').getByRole('button', { name: /Demo Studio/ }).click();
     await stage.getByRole("textbox", { name: vi.landing.demo.messagePlaceholder }).fill("Kiểm tra bản demo");
     await stage.getByRole("button", { name: "Gửi tin nhắn" }).click();
     await expect(stage.getByRole("log")).toContainText("Kiểm tra bản demo");
@@ -51,7 +51,10 @@ test("the marketing product menu opens a demo directly", async ({ page }) => {
   await gotoLanding(page, "/");
   await landingReady(page);
   await page.locator(".header-directory-toggle").first().click();
-  await page.locator('#header-directory-products a[href$="#tai-lieu"]').click();
+  // A product menu entry opens that product's feature page, whose own embedded demo starts on it.
+  await page.locator('#header-directory-products a[href$="/features/documents"]').click();
+  await expect(page).toHaveURL(/\/features\/documents$/);
+  await landingReady(page);
   await expect(page.locator('#product-preview [data-feature="documents"]')).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".product-documents-library")).toBeVisible();
 });
@@ -66,7 +69,8 @@ test("create, search and save stay inside the demo across view switches", async 
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox", { name: "Tiêu đề" }).fill("Chuẩn bị bản demo");
   await dialog.getByRole("button", { name: "Tạo", exact: true }).click();
-  await expect(panel.locator(".product-task-open")).toHaveCount(9);
+  // The ten demo tasks (product-task-data.ts) plus the one created above.
+  await expect(panel.locator(".product-task-open")).toHaveCount(11);
   await expect(panel).toContainText("Chuẩn bị bản demo");
   await stage.locator('[data-feature="dashboard"]').click();
   await panel.getByRole("button", { name: /^Lên lịch họp/ }).click();
@@ -78,13 +82,14 @@ test("create, search and save stay inside the demo across view switches", async 
   await search.fill("tài liệu");
   await search.press("Enter");
   await expect(stage.locator('[data-feature="documents"]')).toHaveAttribute("aria-selected", "true");
-  await panel.getByRole('list', { name: vi.documents.home.create.label }).getByRole('button').first().click();
+  await panel.getByRole('region', { name: vi.documents.home.quick_create.label }).getByRole('button').first().click();
   await panel.locator('[contenteditable=true]').fill("Nội dung đã chỉnh trong demo");
   await panel.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(panel).toContainText("Nội dung đã chỉnh trong demo");
   await stage.locator('[data-feature="tasks"]').click();
   await openManualPreview(page);
-  await expect(panel.locator(".product-task-open")).toHaveCount(9);
+  // The ten demo tasks (product-task-data.ts) plus the one created above.
+  await expect(panel.locator(".product-task-open")).toHaveCount(11);
   await expect(panel).toContainText("Chuẩn bị bản demo");
   await stage.locator('[data-feature="documents"]').click();
   await expect(panel).toContainText("Nội dung đã chỉnh trong demo");
@@ -100,7 +105,7 @@ for (const sample of [{ width: 1440, locale: "en" }, { width: 390, locale: "vi" 
     await landingReady(page);
     await page.evaluate(() => document.documentElement.classList.add("dark"));
     const stage = page.locator("#product-preview");
-    await expect(stage.getByRole("heading", { level: 2 })).toHaveText(sample.locale === "en" ? "Good morning, Đạt" : "Chào buổi sáng, Đạt");
+    await expect(stage.getByRole("heading", { level: 2 })).toHaveText(sample.locale === "en" ? "Good morning, An" : "Chào buổi sáng, An");
     await expect(stage).not.toContainText(/(?:home|landing|ai)\.[a-z][\w.]+/);
     const contrast = await stage.evaluate(node => {
       const values = (color: string) => color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map(value => { const c = value / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; });

@@ -22,7 +22,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
-	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
@@ -90,6 +89,11 @@ type isoWorld struct {
 	// token -> {document id, its frame token}. do() prefers it on that
 	// document's own routes (resolve, linked), which a DOCX token cannot open.
 	frameMarkdown map[string][2]string
+	// frameSources maps a tenant owner's session token to the source frame
+	// token (ofs1.) minted for their DOCX task attachment (buildOfficeFrame).
+	// do() sends it on /api/v1/office-frame/sources/*, the only credential
+	// those routes take, so every pass attacks them as the same caller.
+	frameSources map[string]string
 	// uniworkProvider is the fake provider behind the UniWork AI gateway, kept
 	// so a test can read the messages the model was sent (the transcript rule:
 	// what reaches the vendor is what the server stored) and decide the
@@ -176,12 +180,14 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Tasks.Chat = d.Chat
 	d.Chat.SetAIGateway(d.Meetings.AI)
 
-	// Documents and Office run on the FileService fake: the Office engine
-	// reads through a presigned URL, which the local disk backend cannot mint.
-	docFiles := filesfake.New(filesfake.Options{})
+	// Documents and Office run on a real FileService over the multipart test
+	// store: the large-upload sessions (BIGUP-S1) cannot open on the fake, the
+	// local adapter has neither multipart parts nor presigned URLs, and the
+	// Office job service reads and stages the same rows, so it takes the same
+	// service. The stub engine never fetches the URLs it is handed.
 	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
-	docs.SetFiles(docFiles)
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
+	docFS, _ := newMultipartDocuments(t, pool, q, docs, d.Chat, d.Meetings, stores[storage.BackendLocal])
 	// The edit lock (UNI-1645 §6 step 1.4): a 1h TTL so a long run never lets
 	// the seeded tenures lapse and a write-control heartbeat never pulls one
 	// back to 2 minutes. No DocumentEditLockSweeper runs here, as no
@@ -206,7 +212,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.OfficeFrame = service.NewOfficeFrameService(docs, d.Cfg.JWTSecret)
 	d.OfficeFrame.SetTTL(time.Hour)
 	d.Office = service.NewDocumentOfficeService(service.DocumentOfficeOptions{
-		Pool: pool, Queries: q, Files: docFiles, Engine: newHandlerStubEngine(t), Documents: docs,
+		Pool: pool, Queries: q, Files: docFS, Engine: newHandlerStubEngine(t), Documents: docs,
 		// The stub engine never finishes a blank document; a short deadline
 		// keeps that refusal from costing the run a minute.
 		MaxDeadline: 3 * time.Second,
@@ -341,6 +347,11 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 	// (UNI-1645 §6 step 2); the edit requests keep the web token.
 	if device, ok := w.deviceTokens[token]; ok && (strings.Contains(path, "/office/offline-lease") || strings.Contains(path, "/edit-lock")) {
 		token = device
+	}
+	if src, ok := w.frameSources[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/sources/") {
+		// The source routes take the source token and nothing else: a
+		// document token, and the session, are refused there.
+		token = src
 	}
 	if frame, ok := w.frameTokens[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/") {
 		if md, ok := w.frameMarkdown[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/documents/"+md[0]) {
@@ -527,6 +538,12 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	// The frame token stays; it is now sent in place of the new session.
 	w.frameTokens[tn.token] = tn.ids["frameToken"]
 	w.frameMarkdown[tn.token] = [2]string{tn.ids["frameMarkdown"], tn.ids["frameMarkdownToken"]}
+	if tn.ids["sourceFrameToken"] != "" {
+		if w.frameSources == nil {
+			w.frameSources = map[string]string{}
+		}
+		w.frameSources[tn.token] = tn.ids["sourceFrameToken"]
+	}
 	device, err := long.MintSession(tn.userID, tn.ids["deviceSession"])
 	if err != nil {
 		t.Fatal(err)
@@ -535,6 +552,9 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 		w.deviceTokens = map[string]string{}
 	}
 	w.deviceTokens[tn.token] = device
+	// The large-upload sessions come last: they need the frame token of the
+	// tenant's markdown document, registered just above (BIGUP-S1).
+	w.buildUploadSessions(t, tn)
 	return tn
 }
 

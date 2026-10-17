@@ -83,6 +83,18 @@ UPDATE files SET
   updated_at = now()
 WHERE id = sqlc.arg('id') AND status IN ('pending', 'processing');
 
+-- name: SetFileObjectVersion :execrows
+-- tenant: by-id
+-- Records the assembled object's version on a file that never staged, before
+-- the durable cleanup job is queued: FileGC builds its locator from this row
+-- and refuses an unversioned delete on a versioned bucket, so a failure
+-- without this version would keep the object forever. Write-once: a version
+-- a completed stage already verified is never overwritten.
+UPDATE files SET
+  object_version = sqlc.arg('object_version'),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND object_version IS NULL;
+
 -- name: MarkFileDeleting :execrows
 -- tenant: by-id
 -- GC barrier: only a finished file can enter deleting. Zero rows means the

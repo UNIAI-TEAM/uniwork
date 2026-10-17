@@ -497,7 +497,7 @@ trang; chỉ frame `document.updated` mới hẹp ở title/icon/visibility/move
 | `packages/core/permissions/rules.ts` | `canViewDocument`, `canEditDocument`, `canManageDocument` mirror §4 |
 | `packages/core/paths/paths.ts` | `workspace(org, ws).documents()`, `.document(id)`; `share.document(token)` → `/share/{token}`; reserved slug `share`, `documents` |
 | `packages/core/feature-flags` | `useFlag("documents", false)` gate nav + route |
-| `packages/views/documents/documents-page-view.tsx` | `/documents`: `CollectionPageHeader` (icon, "Tài liệu", đếm, nút "Trang mới" + "Tải tệp"), tab Tất cả / Gần đây / Được chia sẻ với tôi / Lưu trữ (manage); danh sách + cây bên trái |
+| `packages/views/documents/documents-page-view.tsx` | `/documents`: `CollectionPageHeader` (icon, "Tài liệu", đếm, nút "UniNote mới" + "Tải tệp"), tab Tất cả / Gần đây / Được chia sẻ với tôi / Lưu trữ (manage); danh sách + cây bên trái |
 | `packages/views/documents/document-tree.tsx` | Cây 5 cấp, mở/đóng, kéo thả đổi cha (cùng `position.ts`), bàn phím ←→↑↓ |
 | `packages/views/documents/document-detail-view.tsx` | `/documents/{id}`: `BreadcrumbHeader` (cây › tiêu đề), trạng thái lưu ("Đã lưu 10:32" / "Đang lưu…" / "Xung đột"), nút Chia sẻ, Phiên bản, menu ⋯ (xuất, nhật ký, lưu trữ) |
 | `packages/views/documents/document-editor.tsx` | **`next/dynamic`-free**: lazy qua `React.lazy` trong views (không `next/*`), chunk riêng; TipTap + extensions của schema; toolbar nổi; dán ảnh → upload asset → chèn `asset://` |
