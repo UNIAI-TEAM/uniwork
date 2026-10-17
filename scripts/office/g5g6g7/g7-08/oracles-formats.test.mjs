@@ -200,6 +200,7 @@ test('oracleXlsxRead (X-R1, X-R2) and oracleXlsxEdit (X-E1) PASS faithful cases 
   };
   assert.equal(oracleXlsxRead(validXr1).status, VERDICT.PASS);
   assert.equal(oracleXlsxRead({ fixtureBytes: xlsxFixture.bytes, replyText: '' }).reason, 'missing_xlsx_read_artifact');
+  assert.equal(oracleXlsxRead({ ...validXr1, rowId: undefined }).reason, 'missing_xlsx_read_row_id');
   assert.equal(oracleXlsxRead({ ...validXr1, fixtureBytes: Buffer.from('not-xlsx') }).reason, 'xlsx_read_invalid_fixture_bytes');
   assert.equal(oracleXlsxRead({ ...validXr1, replyText: 'Tổng doanh thu Q1 là 99.999.999 đồng.' }).reason, 'xlsx_read_numeric_mismatch');
   assert.equal(oracleXlsxRead({ ...validXr1, replyText: `Tổng ${q1AllVi}, Bắc 1.000.000, Nam ${namVi}.` }).reason, 'xlsx_read_region_group_mismatch');
@@ -226,10 +227,14 @@ test('oracleXlsxRead (X-R1, X-R2) and oracleXlsxEdit (X-E1) PASS faithful cases 
   const validXe1 = {
     beforeBytes: xlsxFixture.bytes,
     afterBytes: afterGood,
+    targetSheet: 'Doanh thu Q1',
+    targetRange: 'AA2:AA7',
     panelFootprintText: 'Doanh thu Q1!AA2:AA7 (6 cells overwritten)',
   };
   assert.equal(oracleXlsxEdit(validXe1).status, VERDICT.PASS);
   assert.equal(oracleXlsxEdit({ beforeBytes: xlsxFixture.bytes }).reason, 'missing_xlsx_edit_bytes');
+  assert.equal(oracleXlsxEdit({ ...validXe1, targetSheet: undefined }).reason, 'missing_xlsx_edit_target');
+  assert.equal(oracleXlsxEdit({ ...validXe1, targetRange: undefined }).reason, 'missing_xlsx_edit_target');
   assert.equal(oracleXlsxEdit({ ...validXe1, afterBytes: Buffer.from('not-xlsx') }).reason, 'xlsx_edit_invalid_workbook_bytes');
   assert.equal(oracleXlsxEdit({ ...validXe1, targetRange: 'BAD_RANGE' }).reason, 'xlsx_edit_invalid_target_range');
   assert.equal(oracleXlsxEdit({ ...validXe1, targetSheet: 'Không tồn tại' }).reason, 'xlsx_edit_missing_target_sheet');

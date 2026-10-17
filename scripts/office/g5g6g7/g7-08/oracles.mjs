@@ -160,12 +160,15 @@ export function oracleXlsxRead(observed) {
   if (!observed || !observed.fixtureBytes || typeof observed.replyText !== 'string' || !observed.replyText.trim()) {
     return blockedVerdict('missing_xlsx_read_artifact');
   }
+  const rowId = observed.rowId;
+  if (rowId !== 'X-R1' && rowId !== 'X-R2') {
+    return blockedVerdict('missing_xlsx_read_row_id');
+  }
   const sheets = parseXlsxWorkbookBytes(observed.fixtureBytes);
   if (!sheets) return failVerdict('xlsx_read_invalid_fixture_bytes');
   const truth = computeTruth(sheets);
   const q1AllVi = fmtVi(truth.q1_revenue_all);
   const q1VisVi = fmtVi(truth.q1_revenue_visible);
-  const rowId = observed.rowId ?? 'X-R1';
   const reply = observed.replyText;
 
   const expectNumeric = (key, actualRaw) => {
@@ -208,13 +211,19 @@ export function oracleXlsxRead(observed) {
 /** XLSX edit oracle (X-E1) reusing holdout-xlsx-truth.mjs and holdout-write-proof.mjs. */
 export function oracleXlsxEdit(observed) {
   if (!observed || !observed.beforeBytes || !observed.afterBytes) return blockedVerdict('missing_xlsx_edit_bytes');
+  if (
+    typeof observed.targetSheet !== 'string' || !observed.targetSheet.trim() ||
+    typeof observed.targetRange !== 'string' || !observed.targetRange.trim()
+  ) {
+    return blockedVerdict('missing_xlsx_edit_target');
+  }
   const beforeSheets = parseXlsxWorkbookBytes(observed.beforeBytes);
   const afterSheets = parseXlsxWorkbookBytes(observed.afterBytes);
   if (!beforeSheets || !afterSheets) return failVerdict('xlsx_edit_invalid_workbook_bytes');
 
   const truth = computeTruth(beforeSheets);
-  const targetSheet = observed.targetSheet ?? 'Doanh thu Q1';
-  const targetRangeStr = observed.targetRange ?? 'AA2:AA7';
+  const targetSheet = observed.targetSheet;
+  const targetRangeStr = observed.targetRange;
   const parsedRange = parseRangeText(`${targetSheet}!${targetRangeStr}`);
   if (!parsedRange) return failVerdict('xlsx_edit_invalid_target_range', { targetRange: targetRangeStr });
 
