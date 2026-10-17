@@ -183,4 +183,79 @@ func TestListDocumentShareCandidates(t *testing.T) {
 	})
 }
 
+// TestListDocumentShareCandidatesTypeRankOrder is the R1-11 regression: the
+// candidate page is ordered users (rank 0), then workspaces (rank 1), then the
+// organization (rank 2), and by name then id inside a rank, so a page never
+// presents a group before a user or resumes users after the organization. The
+// keyset cursor carries the same three keys, so paging at limit 1 visits every
+// candidate exactly once in nondecreasing rank order.
+func TestListDocumentShareCandidatesTypeRankOrder(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "shs2corder")
+	H := Human
+	mgr := H(tn.aclOwner.ID)
+
+	// Names chosen so the plain name order would interleave the types: a
+	// workspace sorts before the owner, and a user sorts after the
+	// organization, which is exactly the interleaving the review observed.
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET display_name = 'zzz late user' WHERE id = $1`, tn.outsider.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `UPDATE workspaces SET name = 'aaa early workspace' WHERE id = $1`, tn.wsB); err != nil {
+		t.Fatal(err)
+	}
+
+	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+	doc = setWorkspaceLevel(t, f, doc, "view")
+
+	rankOf := func(pt string) int {
+		switch pt {
+		case DocumentPrincipalUser:
+			return 0
+		case DocumentPrincipalWorkspace:
+			return 1
+		case DocumentPrincipalOrganization:
+			return 2
+		}
+		t.Fatalf("unexpected principal type %q", pt)
+		return -1
+	}
+
+	seen := map[string]bool{}
+	lastRank := -1
+	cursor := ""
+	pages := 0
+	for {
+		page, err := f.svc.ListShareCandidates(f.ctx, mgr, doc.ID, DocumentShareCandidateFilter{Cursor: cursor, Limit: 1})
+		if err != nil {
+			t.Fatalf("page %d: %v", pages, err)
+		}
+		if len(page.Items) != 1 {
+			t.Fatalf("page %d returned %d items, want 1", pages, len(page.Items))
+		}
+		c := page.Items[0]
+		rank := rankOf(c.PrincipalType)
+		if rank < lastRank {
+			t.Fatalf("rank went backwards: %s/%s rank %d after rank %d", c.PrincipalType, c.PrincipalID, rank, lastRank)
+		}
+		lastRank = rank
+		key := c.PrincipalType + ":" + c.PrincipalID
+		if seen[key] {
+			t.Fatalf("candidate %s returned twice", key)
+		}
+		seen[key] = true
+		pages++
+		if page.NextCursor == "" {
+			break
+		}
+		cursor = page.NextCursor
+		if pages > 60 {
+			t.Fatal("pagination did not terminate")
+		}
+	}
+	if pages < 9 {
+		t.Fatalf("walked %d pages, want every candidate (>=9)", pages)
+	}
+}
+
 var _ = db.Document{}

@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -71,14 +73,15 @@ func (s *DocumentService) ListShareCandidates(
 		}
 	}
 
-	var cursorName, cursorType, cursorID pgtype.Text
+	var cursorRank pgtype.Int4
+	var cursorName, cursorID pgtype.Text
 	if c := strings.TrimSpace(f.Cursor); c != "" {
-		sn, pt, pid, ok := decodeShareCandidateCursor(c)
+		rank, sn, pid, ok := decodeShareCandidateCursor(c)
 		if !ok {
 			return DocumentShareCandidatePage{}, Invalid("cursor không hợp lệ")
 		}
+		cursorRank = pgtype.Int4{Int32: int32(rank), Valid: true}
 		cursorName = pgtype.Text{String: sn, Valid: true}
-		cursorType = pgtype.Text{String: pt, Valid: true}
 		cursorID = pgtype.Text{String: pid, Valid: true}
 	}
 
@@ -87,8 +90,8 @@ func (s *DocumentService) ListShareCandidates(
 		DocumentID:     doc.ID,
 		OrganizationID: doc.OrganizationID,
 		Q:              qParam,
+		CursorRank:     cursorRank,
 		CursorName:     cursorName,
-		CursorType:     cursorType,
 		CursorID:       cursorID,
 		RowLimit:       int32(limit + 1),
 	})
@@ -100,7 +103,7 @@ func (s *DocumentService) ListShareCandidates(
 	if len(rows) > limit {
 		rows = rows[:limit]
 		last := rows[limit-1]
-		nextCursor = encodeShareCandidateCursor(last.SortName, last.PrincipalType, last.PrincipalID)
+		nextCursor = encodeShareCandidateCursor(int(last.TypeRank), last.SortName, last.PrincipalID)
 	}
 
 	legacyHome, err := homeWorkspaceShares(ctx, s.q, doc)
@@ -145,27 +148,29 @@ func (s *DocumentService) ListShareCandidates(
 	}, nil
 }
 
-func encodeShareCandidateCursor(sortName, principalType, principalID string) string {
-	raw := sortName + "\x00" + principalType + "\x00" + principalID
+// encodeShareCandidateCursor carries the keyset of the last row read: the type
+// rank, the folded name and the id, the same three keys the page orders by
+// (contract §1.2, R1-11).
+func encodeShareCandidateCursor(typeRank int, sortName, principalID string) string {
+	raw := fmt.Sprintf("%d\x00%s\x00%s", typeRank, sortName, principalID)
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
-func decodeShareCandidateCursor(cursor string) (sortName, principalType, principalID string, ok bool) {
+func decodeShareCandidateCursor(cursor string) (typeRank int, sortName, principalID string, ok bool) {
 	b, err := base64.RawURLEncoding.DecodeString(cursor)
 	if err != nil {
 		b, err = base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
-			return "", "", "", false
+			return 0, "", "", false
 		}
 	}
 	parts := strings.Split(string(b), "\x00")
-	if len(parts) != 3 || parts[1] == "" || parts[2] == "" {
-		return "", "", "", false
+	if len(parts) != 3 || parts[2] == "" {
+		return 0, "", "", false
 	}
-	switch parts[1] {
-	case DocumentPrincipalUser, DocumentPrincipalWorkspace, DocumentPrincipalOrganization:
-	default:
-		return "", "", "", false
+	rank, err := strconv.Atoi(parts[0])
+	if err != nil || rank < 0 || rank > 2 {
+		return 0, "", "", false
 	}
-	return parts[0], parts[1], parts[2], true
+	return rank, parts[1], parts[2], true
 }

@@ -17,75 +17,83 @@ SELECT
   count(*) FILTER (
     WHERE $1::int > 0
       AND $2::int < $1::int
-      AND NOT $3::boolean
-      AND ($4::text IS NULL OR om.user_id <> $4::text)
-      AND NOT (
-        $5::int > 0
-        AND (om.role IN ('owner', 'admin')
-          OR EXISTS (
-            SELECT 1 FROM workspace_members hwm
-            WHERE hwm.organization_id = om.organization_id
-              AND hwm.workspace_id = $6::text
-              AND hwm.user_id = om.user_id
-              AND hwm.role IN ('owner', 'admin')))
-      )
-      AND NOT (
-        $5::int >= $1::int
-        AND (om.role IN ('owner', 'admin')
-          OR EXISTS (
-            SELECT 1 FROM workspace_members hwm
-            WHERE hwm.organization_id = om.organization_id
-              AND hwm.workspace_id = $6::text
-              AND hwm.user_id = om.user_id))
-      )
-      AND NOT (om.user_id = ANY($7::text[]))
-      AND NOT EXISTS (
-        SELECT 1 FROM workspace_members swm
-        WHERE swm.organization_id = om.organization_id
-          AND swm.user_id = om.user_id
-          AND swm.workspace_id = ANY($8::text[])
-      )
-      AND NOT (
-        $1::int <= 1
-        AND EXISTS (
-          SELECT 1 FROM document_break_glass_grants bg
-          WHERE bg.organization_id = om.organization_id
-            AND bg.workspace_id = $6::text
-            AND bg.document_id = $9::text
-            AND bg.actor_id = om.user_id
-            AND bg.actor_kind = 'human'
-            AND bg.revoked_at IS NULL
-            AND bg.expires_at > now()
-        )
-      )
+      AND GREATEST(
+        CASE
+          WHEN (om.role IN ('owner', 'admin') OR hwm.user_id IS NOT NULL)
+            AND $3::boolean
+            AND (om.role IN ('owner', 'admin') OR hwm.role IN ('owner', 'admin'))
+          THEN 4 ELSE 0
+        END,
+        CASE
+          WHEN (om.role IN ('owner', 'admin') OR hwm.user_id IS NOT NULL)
+            AND om.user_id = $4::text
+          THEN 4 ELSE 0
+        END,
+        CASE
+          WHEN om.role IN ('owner', 'admin') OR hwm.user_id IS NOT NULL
+          THEN $5::int ELSE 0
+        END,
+        CASE WHEN $6::boolean THEN $1::int ELSE 0 END,
+        CASE WHEN om.user_id = ANY($7::text[]) THEN $1::int ELSE 0 END,
+        CASE
+          WHEN EXISTS (
+            SELECT 1 FROM workspace_members swm
+            WHERE swm.organization_id = om.organization_id
+              AND swm.user_id = om.user_id
+              AND swm.workspace_id = ANY($8::text[])
+          ) OR (om.role IN ('owner', 'admin') AND cardinality($8::text[]) > 0)
+          THEN $1::int ELSE 0
+        END,
+        CASE
+          WHEN (om.role IN ('owner', 'admin') OR hwm.role IN ('owner', 'admin'))
+            AND NOT $3::boolean
+            AND $4::text IS DISTINCT FROM om.user_id
+            AND EXISTS (
+              SELECT 1 FROM document_break_glass_grants bg
+              WHERE bg.organization_id = om.organization_id
+                AND bg.workspace_id = $9::text
+                AND bg.document_id = $10::text
+                AND bg.actor_id = om.user_id
+                AND bg.actor_kind = 'human'
+                AND bg.revoked_at IS NULL
+                AND bg.expires_at > now()
+            )
+          THEN 1 ELSE 0
+        END
+      ) < $1::int
   )::bigint AS losing_count
 FROM organization_members om
-WHERE om.organization_id = $10::text
+LEFT JOIN workspace_members hwm
+  ON hwm.organization_id = om.organization_id
+ AND hwm.workspace_id = $9::text
+ AND hwm.user_id = om.user_id
+LEFT JOIN workspace_members wm
+  ON wm.organization_id = om.organization_id
+ AND wm.workspace_id = $11::text
+ AND wm.user_id = om.user_id
+WHERE om.organization_id = $12::text
   AND om.deactivated_at IS NULL
   AND (
-    $11::text = 'organization'
-    OR EXISTS (
-      SELECT 1 FROM workspace_members wm
-      WHERE wm.organization_id = om.organization_id
-        AND wm.workspace_id = $12::text
-        AND wm.user_id = om.user_id
-    )
+    $13::text = 'organization'
+    OR wm.user_id IS NOT NULL
+    OR om.role IN ('owner', 'admin')
   )
 `
 
 type CountDocumentAccessPreviewGroupParams struct {
 	PrevGroupRank    int32       `json:"prev_group_rank"`
 	AfterGroupRank   int32       `json:"after_group_rank"`
-	OrgPreserves     bool        `json:"org_preserves"`
+	HomeVisible      bool        `json:"home_visible"`
 	AclOwnerID       pgtype.Text `json:"acl_owner_id"`
 	HomeAfterRank    int32       `json:"home_after_rank"`
-	HomeWorkspaceID  string      `json:"home_workspace_id"`
+	OrgPreserves     bool        `json:"org_preserves"`
 	PreservedUserIds []string    `json:"preserved_user_ids"`
 	PreservedWsIds   []string    `json:"preserved_ws_ids"`
+	HomeWorkspaceID  string      `json:"home_workspace_id"`
 	DocumentID       string      `json:"document_id"`
+	PrincipalID      string      `json:"principal_id"`
 	OrganizationID   string      `json:"organization_id"`
 	PrincipalType    string      `json:"principal_type"`
-	PrincipalID      string      `json:"principal_id"`
 }
 
 type CountDocumentAccessPreviewGroupRow struct {
@@ -96,20 +104,48 @@ type CountDocumentAccessPreviewGroupRow struct {
 // Group preview counts for PUT /documents/{documentID}/access (SH-S2, UNI-1781,
 // D5): member_count and losing_count of one workspace or organization group
 // item in one SQL query without loading member names.
+//
+// The group's membership is the EFFECTIVE membership the resolver decides
+// (WorkspaceService.RequireMember -> GetWorkspaceAccess): a workspace_members
+// row, or an organization owner/admin, who is an implicit admin of every
+// workspace of the organization (R1-03, R1-04). A person who is not an
+// effective member of the document's own workspace holds no role-based level
+// (R1-07): the ACL-owner path is evaluated only inside that membership.
+//
+// losing_count counts the effective members whose post-batch level falls below
+// the rank the group grants today. The post-batch level is the greatest of the
+// paths the resolver walks (document_permissions.go), each expressed here:
+//   - role manage - an effective admin of the document's workspace, only while
+//     the document stays workspace-visible: a restricted document hands admins
+//     AdminScope, never a level, so their level comes from the shares and the
+//     break-glass grant below (R1-05).
+//   - ACL owner manage - only while the home-membership prerequisite holds.
+//   - the home row's level merged with a legacy home-workspace share
+//     (home_after_rank): the member level while workspace-visible, and on a
+//     restricted document exactly the legacy share's level, which is what a
+//     member keeps.
+//   - a surviving organization grant (org_preserves).
+//   - a surviving direct user grant (preserved_user_ids).
+//   - a surviving workspace grant whose workspace the person effectively
+//     belongs to - a workspace_members row, or an implicit organization
+//     owner/admin (R1-04).
+//   - a live break-glass grant, view only, and only while the holder still
+//     holds AdminScope (R1-06).
 func (q *Queries) CountDocumentAccessPreviewGroup(ctx context.Context, arg CountDocumentAccessPreviewGroupParams) (CountDocumentAccessPreviewGroupRow, error) {
 	row := q.db.QueryRow(ctx, countDocumentAccessPreviewGroup,
 		arg.PrevGroupRank,
 		arg.AfterGroupRank,
-		arg.OrgPreserves,
+		arg.HomeVisible,
 		arg.AclOwnerID,
 		arg.HomeAfterRank,
-		arg.HomeWorkspaceID,
+		arg.OrgPreserves,
 		arg.PreservedUserIds,
 		arg.PreservedWsIds,
+		arg.HomeWorkspaceID,
 		arg.DocumentID,
+		arg.PrincipalID,
 		arg.OrganizationID,
 		arg.PrincipalType,
-		arg.PrincipalID,
 	)
 	var i CountDocumentAccessPreviewGroupRow
 	err := row.Scan(&i.MemberCount, &i.LosingCount)

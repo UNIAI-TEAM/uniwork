@@ -23,7 +23,8 @@ SELECT
   c.icon_emoji,
   c.direct_level,
   c.is_home_workspace,
-  c.sort_name
+  c.sort_name,
+  c.type_rank
 FROM (
   SELECT
     'user'::text AS principal_type,
@@ -43,7 +44,8 @@ FROM (
         AND ds.revoked_at IS NULL
     ), '')::text AS direct_level,
     false AS is_home_workspace,
-    lower(u.display_name) AS sort_name
+    lower(u.display_name) AS sort_name,
+    0 AS type_rank
   FROM organization_members om
   JOIN users u ON u.id = om.user_id
   WHERE om.organization_id = $3::text
@@ -69,7 +71,8 @@ FROM (
         AND ds.revoked_at IS NULL
     ), '')::text AS direct_level,
     (w.id = $1::text) AS is_home_workspace,
-    lower(w.name) AS sort_name
+    lower(w.name) AS sort_name,
+    1 AS type_rank
   FROM workspaces w
   WHERE w.organization_id = $3::text
 
@@ -93,7 +96,8 @@ FROM (
         AND ds.revoked_at IS NULL
     ), '')::text AS direct_level,
     false AS is_home_workspace,
-    lower(o.name) AS sort_name
+    lower(o.name) AS sort_name,
+    2 AS type_rank
   FROM organizations o
   WHERE o.id = $3::text
 ) c
@@ -103,14 +107,14 @@ WHERE (
     OR uw_fold_search(c.subtitle) LIKE '%' || $4::text || '%' ESCAPE '\'
   )
   AND (
-    $5::text IS NULL
-    OR (c.sort_name, c.principal_type, c.principal_id) > (
-      $5::text,
+    $5::int IS NULL
+    OR (c.type_rank, c.sort_name, c.principal_id) > (
+      $5::int,
       $6::text,
       $7::text
     )
   )
-ORDER BY c.sort_name ASC, c.principal_type ASC, c.principal_id ASC
+ORDER BY c.type_rank ASC, c.sort_name ASC, c.principal_id ASC
 LIMIT $8::int
 `
 
@@ -119,8 +123,8 @@ type ListDocumentSharePrincipalCandidatesParams struct {
 	DocumentID     string      `json:"document_id"`
 	OrganizationID string      `json:"organization_id"`
 	Q              pgtype.Text `json:"q"`
+	CursorRank     pgtype.Int4 `json:"cursor_rank"`
 	CursorName     pgtype.Text `json:"cursor_name"`
-	CursorType     pgtype.Text `json:"cursor_type"`
 	CursorID       pgtype.Text `json:"cursor_id"`
 	RowLimit       int32       `json:"row_limit"`
 }
@@ -136,12 +140,17 @@ type ListDocumentSharePrincipalCandidatesRow struct {
 	DirectLevel     string      `json:"direct_level"`
 	IsHomeWorkspace bool        `json:"is_home_workspace"`
 	SortName        string      `json:"sort_name"`
+	TypeRank        int32       `json:"type_rank"`
 }
 
 // Share candidates for one document (SH-S2, UNI-1781): active organization
 // members, workspaces of the document's organization, and the organization
-// row itself, scoped to organization_id. The caller is authorized with
-// authorizeDocumentAdminister before this query runs.
+// row itself, scoped to organization_id.
+// The caller is authorized with authorizeDocumentAdminister before this query
+// runs. The page is ordered users (rank 0), then workspaces (rank 1), then the
+// organization (rank 2), and by name then id inside a rank; the keyset cursor
+// compares the same keys, so a page never repeats or skips a candidate
+// (contract §1.2, R1-11).
 //
 // The search term arrives already folded (foldForSearch) and LIKE-escaped, and
 // is matched against uw_fold_search(name) and uw_fold_search(subtitle) (email
@@ -152,8 +161,8 @@ func (q *Queries) ListDocumentSharePrincipalCandidates(ctx context.Context, arg 
 		arg.DocumentID,
 		arg.OrganizationID,
 		arg.Q,
+		arg.CursorRank,
 		arg.CursorName,
-		arg.CursorType,
 		arg.CursorID,
 		arg.RowLimit,
 	)
@@ -175,6 +184,7 @@ func (q *Queries) ListDocumentSharePrincipalCandidates(ctx context.Context, arg 
 			&i.DirectLevel,
 			&i.IsHomeWorkspace,
 			&i.SortName,
+			&i.TypeRank,
 		); err != nil {
 			return nil, err
 		}

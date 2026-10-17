@@ -691,7 +691,6 @@ type DocumentAccessPreviewUserSDO struct {
 type DocumentAccessPreviewGroupSDO struct {
 	PrincipalType string  `json:"principal_type" description:"workspace hoặc organization" enums:"workspace,organization" example:"workspace"`
 	PrincipalID   string  `json:"principal_id" description:"ULID workspace hoặc tổ chức" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	Name          string  `json:"name" description:"Tên workspace hoặc tổ chức" example:"Kỹ thuật"`
 	Level         *string `json:"level" description:"Mức quyền nhóm sau thao tác; null khi thu hồi" example:"edit"`
 	MemberCount   int     `json:"member_count" description:"Tổng số thành viên đang hoạt động trong nhóm" example:"12"`
 	LosingCount   int     `json:"losing_count" description:"Số thành viên bị giảm mức quyền hiệu lực khi hạ/thu hồi grant nhóm" example:"0"`
