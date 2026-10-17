@@ -964,11 +964,9 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
     editLockRoute.mockImplementation(async (path: string, opts?: { method?: string }) => {
       const method = opts?.method ?? "GET";
       calls.push(`${method} ${path}`);
-      return lockStateResponse({
-        holder_id: "u2",
-        holder_name: "Bình",
-        held_by_me: false,
-      });
+      // A manage-level reader's summary carries lock_id; a server 423 never does.
+      const state = lockStateResponse({ holder_id: "u2", holder_name: "Bình", held_by_me: false });
+      return { ...state, lock: { ...state.lock, lock_id: "lock-secret-1" } };
     });
 
     requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
@@ -999,6 +997,7 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
         expect.objectContaining({ holder_id: "u2", holder_name: "Bình", held_by_me: false }),
         undefined,
       );
+      expect(refused.mock.calls[0]?.[0]).not.toHaveProperty("lock_id");
       expect(findResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET)).toEqual({
         session_id: "sess-prior-1",
         expires_at: "2099-01-01T00:00:00Z",

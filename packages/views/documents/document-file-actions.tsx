@@ -121,7 +121,13 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
           .catch(() => null);
         const lock = lockState?.lock;
         if (lock && (!lock.held_by_me || !heldEditLockId(doc.id))) {
-          throw new ApiError("", "document_locked", 423, undefined, { ...lock });
+          // Same shape as a server 423 body: never the lock id, which a
+          // manage-level reader of the summary may see.
+          const fields: Record<string, unknown> = {};
+          for (const key of ["holder_id", "holder_name", "since", "expires_at", "held_by_me", "offline_hold_until"] as const) {
+            if (lock[key] != null) fields[key] = lock[key];
+          }
+          throw new ApiError("", "document_locked", 423, undefined, fields);
         }
         const res = await chunked.start({
           file: picked,
