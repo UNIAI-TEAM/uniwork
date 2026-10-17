@@ -19,6 +19,7 @@ import {
   postDocDownload,
   readOnly,
   saveBlockedMaxBytes,
+  saveCopyHandler,
   shapeOf,
   toFrameLimits,
   unauthorized,
@@ -190,6 +191,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       };
 
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
+    const saveCopy = proxy("api.saveCopy", true, (api) => api.saveCopy);
     const open = proxy("api.open", false, (api) => api.open);
     const upload = proxy("api.save", true, (api) => api.save);
     // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
@@ -344,6 +346,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           current.onSavedAs?.(rebind.documentId, name);
           return saved;
         },
+        "api.saveCopy": saveCopyHandler({ remote, latest, queryClient, run: saveCopy }),
         "api.recents": proxy("api.recents", false, (api) => api.recents),
         "api.export": proxy("api.export", false, (api) => api.export),
         "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),

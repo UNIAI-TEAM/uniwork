@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at c9181fac792272870264bbc75010c85f730e8927
-// (fork main at c9181fac7: SIZE-F1 + LAG-F1 merged - document size limits, size_warning, save_blocked, doc.download, lag_detected, open_refused.)
+// web/docs/protocol/types.ts at 5d5b0896e737c512acba43ca6d7f8babfa4717a5
+// (fork release web-0.1.0-5d5b089 at 5d5b0896e: G8-08 comments, DOC-05, G5-04 open_refused, and UNI-1872 api.saveCopy + saveCopy capability).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
@@ -248,6 +248,12 @@ export function checkFrameModule(
 export type Capability =
   | 'save'
   | 'saveAs'
+  /**
+   * additive (UNI-1872): the host installed `api.saveCopy` (conflict-dialog "Save as a copy").
+   * Advertise it in `init` only then; the frame offers "Save as a copy…" only when the effective
+   * capabilities have it and the document is editable.
+   */
+  | 'saveCopy'
   | 'recents'
   /** `file.pick` (File > Open / Ctrl+O): the host has a document picker */
   | 'filePick'
@@ -310,6 +316,7 @@ export type Capabilities = Partial<Record<Capability, boolean>>
 export const CAPABILITY_KEYS: readonly Capability[] = [
   'save',
   'saveAs',
+  'saveCopy',
   'recents',
   'filePick',
   'print',
@@ -631,6 +638,29 @@ export interface ApiSaveAsPayload {
   folderId?: string
   /** true = first save of a new doc, server picks folder + unique name, no dialog */
   silent?: boolean
+}
+
+/**
+ * additive (UNI-1872): conflict-dialog "Save as a copy" (`api.saveCopy`). `data` carries the open
+ * document bytes from the 409'd save; `name` is the localized copy title formatted by the frame
+ * (e.g. `"<name> (copy)"` / `"<tên> (bản sao)"`), which the host forwards to the server as the new
+ * document's title without re-pointing the open document.
+ */
+export interface ApiSaveCopyPayload {
+  data: ArrayBuffer
+  name: string
+}
+
+/**
+ * additive (UNI-1872): `api.saveCopy` response. `documentId` is the newly created document's ID;
+ * `title` is its server title (quoted by the conflict dialog's Done alert). Host refusals reject
+ * with an existing `ProtocolErrorCode` (`conflict`, `forbidden`, `too_large` with `details.max_bytes`,
+ * `network`, `internal`, `unsupported`) and keep any server code in `details.apiCode` (e.g.
+ * `owner_requires_copy`, `copy_consent_required`, `document_locked`).
+ */
+export interface SaveCopyResult {
+  documentId: string
+  title: string
 }
 
 export interface ApiRecentsPayload {
@@ -1348,6 +1378,8 @@ export interface FrameRequests {
   'api.open': Rpc<ApiOpenPayload, ApiOpenResult>
   'api.save': Rpc<ApiSavePayload, SaveResult>
   'api.saveAs': Rpc<ApiSaveAsPayload, SaveResult>
+  /** additive (UNI-1872): conflict-dialog "Save as a copy" (creates a new document without re-pointing the open one) */
+  'api.saveCopy': Rpc<ApiSaveCopyPayload, SaveCopyResult>
   'api.recents': Rpc<ApiRecentsPayload, ApiRecentsResult>
   'api.export': Rpc<ApiExportPayload, ApiExportResult>
   'api.attachments.add': Rpc<ApiAttachmentsAddPayload, ApiAttachmentsAddResult>
@@ -1460,6 +1492,7 @@ const FRAME_REQUESTS: Record<FrameRequestType, true> = {
   'api.open': true,
   'api.save': true,
   'api.saveAs': true,
+  'api.saveCopy': true,
   'api.recents': true,
   'api.export': true,
   'api.attachments.add': true,
@@ -1763,6 +1796,10 @@ export function isSaveResult(x: unknown): x is SaveResult {
   return x.ok === false && isProtocolErrorShape(x.error)
 }
 
+export function isSaveCopyResult(x: unknown): x is SaveCopyResult {
+  return isObj(x) && isNonEmptyStr(x.documentId) && isNonEmptyStr(x.title)
+}
+
 function isUploadItem(x: unknown): x is UploadItem {
   return isObj(x) && isStr(x.name) && isStr(x.mimeType) && isBuffer(x.data)
 }
@@ -1819,6 +1856,7 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     isOpt(x.sourceFileId, isStr) &&
     isOpt(x.folderId, isStr) &&
     isOpt(x.silent, isBool),
+  'request:api.saveCopy': (x) => isObj(x) && isBuffer(x.data) && isNonEmptyStr(x.name),
   'request:api.recents': (x) => isObj(x) && isOpt(x.limit, isFiniteNum),
   'request:api.export': (x) =>
     isObj(x) &&
@@ -1914,6 +1952,7 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     (x.versionChanged !== true || x.file.revision !== undefined),
   'response:api.save': isSaveResult,
   'response:api.saveAs': isSaveResult,
+  'response:api.saveCopy': isSaveCopyResult,
   'response:api.recents': (x) => isObj(x) && Array.isArray(x.files) && x.files.every(isFileMeta),
   'response:api.export': (x) =>
     isObj(x) && isBuffer(x.data) && isStr(x.mimeType) && isOpt(x.name, isStr),

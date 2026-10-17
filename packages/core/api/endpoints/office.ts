@@ -17,6 +17,7 @@ interface OfficeRequestOpts {
 export interface CopyDocumentBody {
   /** Must be "copy": the server answers copy_consent_required otherwise. */
   consent: "copy";
+  upload_id?: string;
   title?: string;
   parent_id?: string;
 }

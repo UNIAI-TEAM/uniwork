@@ -123,6 +123,7 @@ func (f *Fake) Upload(ctx context.Context, in files.UploadInput) (files.Upload, 
 		bytes:          body,
 		written:        true,
 		writtenType:    contentType,
+		idempotencyKey: in.IdempotencyKey,
 	}
 	f.entries[file.ID] = e
 

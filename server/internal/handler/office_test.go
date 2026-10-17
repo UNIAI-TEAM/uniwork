@@ -439,6 +439,140 @@ func TestOfficeBlankAndCopyRoutes(t *testing.T) {
 	}
 }
 
+// UNI-1872: POST /api/v1/documents/{id}/copies accepts an upload_id staged by
+// the same caller on the same document (for example through the office-frame
+// upload route when a save conflicts or is locked) and writes that upload as
+// the copy's first version while leaving the source document untouched.
+func TestOfficeCopyFromUpload(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	enableOfficeDocsWeb(t, w.q)
+	headBytes := frameDocx(t, "head")
+	editedBytes := frameDocx(t, "edited")
+	docID := w.createDocx(t, "plan.docx", headBytes)
+	otherID := w.createDocx(t, "other.docx", headBytes)
+
+	frameTok := w.mintFrameToken(t, docID)["token"].(string)
+	frameBase := "/api/v1/office-frame/documents/" + docID
+	res, raw := doMultipart(t, w.srv, "POST", frameBase+"/uploads", frameTok, nil, "plan.docx", editedBytes, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("frame upload = %d %s", res.StatusCode, raw)
+	}
+	var staged struct {
+		UploadID string `json:"upload_id"`
+	}
+	_ = json.Unmarshal(raw, &staged)
+
+	// upload_id together with job_id is 400 invalid_request.
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.token,
+		map[string]string{"consent": "copy", "upload_id": staged.UploadID, "job_id": util.NewID()})
+	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+		t.Fatalf("copy with upload_id and job_id = %d %v", res.StatusCode, out)
+	}
+
+	// Another document's upload_id fails closed as 404 not_found.
+	otherTok := w.mintFrameToken(t, otherID)["token"].(string)
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/office-frame/documents/"+otherID+"/uploads", otherTok, nil, "other.docx", editedBytes, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("other frame upload = %d %s", res.StatusCode, raw)
+	}
+	var otherStaged struct {
+		UploadID string `json:"upload_id"`
+	}
+	_ = json.Unmarshal(raw, &otherStaged)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.token,
+		map[string]string{"consent": "copy", "upload_id": otherStaged.UploadID})
+	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
+		t.Fatalf("copy with another document's upload_id = %d %v", res.StatusCode, out)
+	}
+
+	// Copy from the staged upload creates the new document with the staged bytes.
+	idemKey := "copy-upload-key-1"
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.token,
+		map[string]string{"Idempotency-Key": idemKey},
+		map[string]string{"consent": "copy", "upload_id": staged.UploadID})
+	if res.StatusCode != 201 {
+		t.Fatalf("copy with upload_id = %d %v", res.StatusCode, out)
+	}
+	copied, _ := out["document"].(map[string]any)
+	copyID, _ := copied["id"].(string)
+	if copyID == "" || copyID == docID || copied["title"] != "plan.docx (bản sao)" {
+		t.Fatalf("copied document = %v", out)
+	}
+	if res, got := doBytes(t, w.srv, "GET", "/api/v1/documents/"+copyID+"/download", w.token); res.StatusCode != 200 || !bytes.Equal(got, editedBytes) {
+		t.Fatalf("copied download = %d (%d bytes), want edited (%d bytes)", res.StatusCode, len(got), len(editedBytes))
+	}
+	if res, got := doBytes(t, w.srv, "GET", "/api/v1/documents/"+docID+"/download", w.token); res.StatusCode != 200 || !bytes.Equal(got, headBytes) {
+		t.Fatalf("source download = %d (%d bytes), want head (%d bytes)", res.StatusCode, len(got), len(headBytes))
+	}
+
+	// Idempotent replay with the same key and same upload_id returns the first result;
+	// replay with another upload_id is 409 idempotency_payload_mismatch; a fresh key
+	// naming the already-claimed upload is 409 upload_already_committed.
+	res, replay := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.token,
+		map[string]string{"Idempotency-Key": idemKey},
+		map[string]string{"consent": "copy", "upload_id": staged.UploadID})
+	if replayDoc, _ := replay["document"].(map[string]any); res.StatusCode != 201 || replayDoc["id"] != copyID {
+		t.Fatalf("idempotent replay = %d %v", res.StatusCode, replay)
+	}
+	res, mismatch := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.token,
+		map[string]string{"Idempotency-Key": idemKey},
+		map[string]string{"consent": "copy", "upload_id": util.NewID()})
+	if code, _ := errCodeClass(mismatch); res.StatusCode != 409 || code != "idempotency_payload_mismatch" {
+		t.Fatalf("idempotent mismatch = %d %v", res.StatusCode, mismatch)
+	}
+	res, reused := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.token,
+		map[string]string{"Idempotency-Key": "copy-upload-key-2"},
+		map[string]string{"consent": "copy", "upload_id": staged.UploadID})
+	if code, _ := errCodeClass(reused); res.StatusCode != 409 || code != "upload_already_committed" {
+		t.Fatalf("reuse claimed upload = %d %v", res.StatusCode, reused)
+	}
+
+	// D4 edit-lock check: when another editor holds the edit lock on the source
+	// document, the frame upload route still stages bytes (201), versions/commit
+	// is refused 423 document_locked, and POST /copies with that upload_id
+	// succeeds (201) without touching the locked source document.
+	peerTok, peerID := filesRegister(t, w.srv, "office-peer-lock@example.com")
+	if err := w.q.AddOrganizationMember(context.Background(), db.AddOrganizationMemberParams{
+		OrganizationID: w.orgID, UserID: peerID, Role: "member",
+	}); err != nil {
+		t.Fatalf("add org member: %v", err)
+	}
+	if err := w.q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
+		WorkspaceID: w.wsID, OrganizationID: w.orgID, UserID: peerID, Role: "member",
+	}); err != nil {
+		t.Fatalf("add workspace member: %v", err)
+	}
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/shares", w.token,
+		map[string]string{"principal_type": "user", "principal_id": peerID, "level": "edit"}); res.StatusCode != 201 {
+		t.Fatalf("share edit to peer = %d %v", res.StatusCode, out)
+	}
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/edit-lock", peerTok,
+		map[string]string{"editor_id": "01J8X4ED1T0R00000000000001", "client": "web_page"}); res.StatusCode != 201 {
+		t.Fatalf("peer acquire edit lock = %d %v", res.StatusCode, out)
+	}
+	lockedBytes := frameDocx(t, "while-locked")
+	res, raw = doMultipart(t, w.srv, "POST", frameBase+"/uploads", frameTok, nil, "plan.docx", lockedBytes, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("frame upload while peer holds edit lock = %d %s", res.StatusCode, raw)
+	}
+	var lockedStaged struct {
+		UploadID string `json:"upload_id"`
+	}
+	_ = json.Unmarshal(raw, &lockedStaged)
+	res, lockedCommit := doJSONHeaders(t, w.srv, "POST", frameBase+"/versions/commit", frameTok,
+		map[string]string{"Idempotency-Key": "frame-locked-commit"},
+		map[string]string{"upload_id": lockedStaged.UploadID, "base_revision": "2"})
+	if code, _ := errCodeClass(lockedCommit); res.StatusCode != 423 || code != "document_locked" {
+		t.Fatalf("commit while peer holds lock = %d %v", res.StatusCode, lockedCommit)
+	}
+	res, lockedCopy := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.token,
+		map[string]string{"Idempotency-Key": "copy-while-locked"},
+		map[string]string{"consent": "copy", "upload_id": lockedStaged.UploadID})
+	if res.StatusCode != 201 {
+		t.Fatalf("copy with upload_id while peer holds lock = %d %v", res.StatusCode, lockedCopy)
+	}
+}
+
 // BE-12-201: a share editor with no seat in the source's workspace is told
 // so by code on the wire, in the permission class, not by the plain forbidden.
 func TestOfficeCopyWithoutWorkspaceSeatAnswersItsOwnCode(t *testing.T) {

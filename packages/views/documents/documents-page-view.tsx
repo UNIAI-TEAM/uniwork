@@ -53,6 +53,8 @@ function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
     case "shared":
     case "archived":
       return { kind: rawView };
+    case "shared-by-me":
+      return { kind: "sharedByMe" };
     case "sources": {
       const rawSource = searchParams.get("source");
       const source =
@@ -80,7 +82,7 @@ function buildDocumentsViewUrl(
       ? `${base}?view=sources&source=${encodeURIComponent(next.source)}`
       : `${base}?view=sources`;
   }
-  return `${base}?view=${next.kind}`;
+  return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
 }
 
 export interface DocumentsPageViewProps {
@@ -196,7 +198,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
-  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred");
+  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "sharedByMe");
 
   const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
@@ -303,7 +305,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             </Button>
           ) : undefined,
       }
-    : { title: t(`documents.home.empty.${view.kind}_title`), description: t(`documents.home.empty.${view.kind}_description`) };
+    : { title: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_title`), description: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_description`) };
 
   const sidebar = {
     wsId,
@@ -489,7 +491,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
+                  <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind === "sharedByMe" ? "shared_by_me" : view.kind}`)}</h2>
                   {navButton}
                 </div>
                 <LibraryToolbar variant="list" {...toolbar} />
