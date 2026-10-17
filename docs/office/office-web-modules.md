@@ -483,13 +483,15 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, fork main `cc35602c8` (`0.1.0-cc35602`, UNI-1860,
-replacing `0.1.0-5a72c13` and the earlier `0.1.0-fa22cd9` and `0.1.0-0d77962` REPIN-1 / UNI-1825 candidates: fork main after
-merging SIZE-F1 and LAG-F1 at `cc35602c8` — document size limits, `size_warning`, `save_blocked`, `doc.download`,
+All six modules are pinned to one fork commit, fork main `c9181fac7` (`0.1.0-c9181fa`, UNI-1860,
+replacing `0.1.0-cc35602`, `0.1.0-5a72c13` and the earlier `0.1.0-fa22cd9` and `0.1.0-0d77962` REPIN-1 / UNI-1825 candidates: fork main after
+merging SIZE-F1 and LAG-F1 at `cc35602c8` and the SHEETS-BUFFER-01 fix at `c9181fac7` (Sheets no longer reaches for the Node
+`Buffer` in the browser, so Save after Insert > Pictures works) — document size limits, `size_warning`, `save_blocked`, `doc.download`,
 `lag_detected`, `open_refused` — on top of UXF-FIX `005e54632`, the d3-1 `settleRecord` guard `69e49ad0a`, FD-14 `7299f9619`,
 the G6-09d extractor `5a72c1313`, the DOC-05 lockstep `fa22cd9d9`/`bf4ff7b07`, G6-09 and the OQ-F12 lows). It carries, beyond
 the history below, the SIZE-F1 + LAG-F1 frame protocol and UI events (with `protocolSha256` matching the vendored
-`packages/core/office/docs-frame-{protocol,endpoint,host}.ts` at `cc35602c8`), the AI model picker that keeps a
+`packages/core/office/docs-frame-{protocol,endpoint,host}.ts`; the protocol is unchanged since `cc35602c8`, the vendored headers
+name `c9181fac7`), the AI model picker that keeps a
 provider with an empty model list (`7888df06c`, the UniWork AI row; the S7-S9 UX floor checks no longer skip), the UXF-01/08/09
 fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-1824) web-frame UX floor fixes (UXF-03 Docs S5
 "Xem khác biệt" in-dialog comparison, UXF-04 `.uw-live` nodes outside `inertSiblings`, UXF-05 `GrayText` text and border on
@@ -497,8 +499,8 @@ fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-18
 UXF-07 full-width S5 below 768 px, UXF-10 fixed window live nodes created at frame init, and the `ConflictIo.saveCopy` contract
 for UXF-02), the G8-11 Discussion panel web side, the G6-09 AI edit-undo tables, and the DOC-05 comment level,
 `comments.shareView` and `canActOnComment` root author. Built clean (no `-dirty` suffix) with `npm run build:web -- --all` in a
-detached worktree of `cc35602c8` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
-checksum file), published at `web-0.1.0-cc35602` (`dist-web-0.1.0-cc35602.tar.gz`, sha256 `d056e05e...bebf`), and
+detached worktree of `c9181fac7` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
+checksum file), published at `web-0.1.0-c9181fa` (`dist-web-0.1.0-c9181fa.tar.gz`, sha256 `b9d81281...42f0`), and
 written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` alongside `source.json`.
 UXF-03/04/05/06/07/10 have their expected-fail markers removed in `e2e/office-ux-floor.spec.ts` (since `0.1.0-5a72c13`, waiting
 for the cloud e2e run to confirm); UXF-02 stays expected-fail until the D web host supplies `ConflictIo.saveCopy`.
@@ -517,7 +519,7 @@ headers did not change from `36e9e23`, only version, SHA and manifest digest. Wr
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
-Sizes of the `0.1.0-cc35602` bundles:
+Sizes of the bundles, measured at `0.1.0-cc35602` and not re-measured at `0.1.0-c9181fa` (the file counts are unchanged):
 
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -585,7 +587,7 @@ is byte-different on linux-arm64 and linux-x64 from the same inputs, so the fork
 keeps one checksum line per platform
 (`apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256`) and
 `manifestSha256` in `sheets.pin.json` covers the wasm bytes. The pin is therefore
-the **linux-arm64 build made on bro** (wasm sha256 `bd3873bc...7445` at `cc35602` and `5a72c13`, `e56985bc...27cd` up to `0d03b18`; the arm64
+the **linux-arm64 build made on bro** (wasm sha256 `bd3873bc...7445` at `c9181fa`, `cc35602` and `5a72c13`, `e56985bc...27cd` up to `0d03b18`; the arm64
 line of the fork file). A tarball built on an x64 machine holds a different Sheets
 wasm, so `office-frame-sync` refuses it against this pin: publish the release
 asset from the bro tarball

@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at cc35602c8ccb65f4f7834dfd5bad01c6e94051f0
-// (fork main at cc35602c8: SIZE-F1 + LAG-F1 merged - document size limits, size_warning, save_blocked, doc.download, lag_detected, open_refused.)
+// web/docs/protocol/endpoint.ts at c9181fac792272870264bbc75010c85f730e8927
+// (fork main at c9181fac7: SIZE-F1 + LAG-F1 merged - document size limits, size_warning, save_blocked, doc.download, lag_detected, open_refused.)
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /**
