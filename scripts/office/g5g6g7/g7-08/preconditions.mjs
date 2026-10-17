@@ -318,14 +318,11 @@ export async function installProtocolSniffer(page) {
     window.addEventListener(
       'message',
       (event) => {
-        const data = event?.data;
-        if (data && typeof data === 'object' && data.ns === 'uniwork.office' && typeof data.type === 'string') {
+        const d = event?.data;
+        if (d && typeof d === 'object' && String(d.ns || '').startsWith('uniwork.office') && typeof d.type === 'string') {
           window.__g708ProtocolMessages.push({
-            type: data.type,
-            direction: data.direction ?? null,
-            capabilities: data.payload?.capabilities ?? null,
-            module: data.payload?.module ?? null,
-            ts: Date.now(),
+            ns: d.ns, kind: d.kind ?? null, type: d.type,
+            capabilities: d.payload?.capabilities ?? null, module: d.payload?.module ?? null, ts: Date.now(),
           });
         }
       },
@@ -436,8 +433,8 @@ export async function verifyHostAndFramePreconditions({
 
   const frameMessages = await frame.evaluate(() => window.__g708ProtocolMessages ?? []).catch(() => []);
   const hostMessages = await page.evaluate(() => window.__g708ProtocolMessages ?? []).catch(() => []);
-  const initMsg = frameMessages.find((m) => m.type === 'init') ?? null;
-  const initAckMsg = hostMessages.find((m) => m.type === 'init.ack') ?? null;
+  const initMsg = frameMessages.find((m) => m.type === 'init' && (m.kind === 'request' || !m.kind)) ?? null;
+  const initAckMsg = hostMessages.find((m) => (m.type === 'init' && m.kind === 'response') || m.type === 'init.ack') ?? null;
 
   const needUniwork = provider === 'uniwork';
   const hostCapValue = needUniwork ? initMsg?.capabilities?.uniworkAi : initMsg?.capabilities?.byok;
