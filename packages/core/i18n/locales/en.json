@@ -589,6 +589,7 @@
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
+      "email_all": "Email for every eligible kind",
       "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
       "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
       "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden"
@@ -9304,7 +9305,6 @@
         "actions": "Actions"
       },
       "focus_further": "The item you opened may be further down. Select Load more to see it.",
-      "in_trashed_folder": "In folder “{{folder}}”",
       "deleted_by_unknown": "Former member",
       "read_only": "View only · a manager restores",
       "restore": "Restore",
