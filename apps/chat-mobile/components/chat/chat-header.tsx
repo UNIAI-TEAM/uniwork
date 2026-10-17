@@ -10,10 +10,10 @@ import { Header } from "@/components/ui/header";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-export function HeaderIconButton({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+export function HeaderIconButton({ icon, label, onPress, testID }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; testID?: string }) {
   const { colorScheme } = useColorScheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary">
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} testID={testID} className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary">
       <Ionicons name={icon} size={24} color={THEME[colorScheme].primary} />
     </Pressable>
   );

@@ -100,6 +100,30 @@ const cases: Case[] = [
   { name: "beatPresence", call: (c) => c.beatPresence("w1", true), path: `${W}/chat/presence`, method: "POST", body: { state: "online", visible: true }, good: { online_user_ids: ["u2"] }, read: ["u2"], fallback: null },
   { name: "leavePresence", call: (c) => c.leavePresence("w1"), path: `${W}/chat/presence`, method: "POST", body: { state: "offline" }, good: { status: "ok" }, read: true, fallback: false },
   { name: "signalTyping", call: (c) => c.signalTyping("w1", "r1"), path: `${R}/typing`, method: "POST", body: {}, good: { status: "ok" }, read: true, fallback: false },
+  {
+    name: "listPendingVoiceInvites",
+    call: (c) => c.listPendingVoiceInvites("w1"),
+    path: `${W}/chat/voice/pending`,
+    method: "GET",
+    good: { invites: [{ room_id: "r1", call_id: "c1", caller_id: "u2" }] },
+    read: [{ room_id: "r1", call_id: "c1", caller_id: "u2", caller_name: "", call_kind: "dm", invited_at: "" }],
+    fallback: [],
+  },
+  {
+    name: "mintVoiceToken",
+    call: (c) => c.mintVoiceToken(" r1 ", "c1"),
+    path: "/api/v1/chat/voice/token",
+    method: "POST",
+    body: { room_id: "r1", call_id: "c1" },
+    good: { token: "jwt", url: "wss://lk" },
+    read: { token: "jwt", url: "wss://lk" },
+    fallback: null,
+  },
+  { name: "signalVoiceInvite", call: (c) => c.signalVoiceInvite("w1", "r1", "c1", false), path: `${R}/voice/invite`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalVoiceInvite video", call: (c) => c.signalVoiceInvite("w1", "r1", "c1", true), path: `${R}/voice/invite`, method: "POST", body: { call_id: "c1", video: true }, good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalVoiceAccept", call: (c) => c.signalVoiceAccept("w1", "r1", "c1"), path: `${R}/voice/accept`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalVoiceHangup", call: (c) => c.signalVoiceHangup("w1", "r1", "c1"), path: `${R}/voice/hangup`, method: "POST", body: { call_id: "c1" }, good: { status: "ok" }, read: true, fallback: false },
+  { name: "signalVoiceHangup timed", call: (c) => c.signalVoiceHangup("w1", "r1", "c1", 42), path: `${R}/voice/hangup`, method: "POST", body: { call_id: "c1", duration_seconds: 42 }, good: { status: "ok" }, read: true, fallback: false },
 ];
 
 describe("chat endpoints", () => {

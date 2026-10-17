@@ -1,5 +1,6 @@
 // The two shapes a link into the app takes: the web's chat URL
-// (`https://<appUrl>/{org}/{ws}/chat?room=&message=&dm=`, the same params
+// (`https://<appUrl>/{org}/{ws}/chat?room=&message=&dm=`, plus `call=` on a
+// ringing call's push (server notification.ResourceURL), the same params
 // packages/views/chat/use-chat-room-url.ts, use-chat-message-deep-link.ts and
 // use-chat-dm-deep-link.ts read) and the custom scheme wrapper
 // `<scheme>://open?url=<percent-encoded path>` for builds without verified
@@ -13,6 +14,7 @@ export interface DeepLink {
   roomId?: string;
   messageId?: string;
   dmUserId?: string;
+  callId?: string;
 }
 
 const CHAT_PATH = /^\/([^/]+)\/([^/]+)\/chat\/?$/;
@@ -41,9 +43,11 @@ export function parseDeepLink(url: string, appUrl: string, scheme: string): Deep
   const roomId = target.searchParams.get("room");
   const messageId = target.searchParams.get("message");
   const dmUserId = target.searchParams.get("dm");
+  const callId = target.searchParams.get("call");
   if (roomId) link.roomId = roomId;
   if (messageId) link.messageId = messageId;
   if (dmUserId) link.dmUserId = dmUserId;
+  if (callId) link.callId = callId;
   return link;
 }
 
@@ -53,6 +57,7 @@ export function deepLinkHref(link: DeepLink): string {
   if (link.roomId) query.set("room", link.roomId);
   if (link.messageId) query.set("message", link.messageId);
   if (link.dmUserId) query.set("dm", link.dmUserId);
+  if (link.callId) query.set("call", link.callId);
   const search = query.toString();
   return `/${link.orgSlug}/${link.wsSlug}/chat${search ? `?${search}` : ""}`;
 }

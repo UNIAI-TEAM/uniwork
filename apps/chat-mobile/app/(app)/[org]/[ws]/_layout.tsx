@@ -4,10 +4,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo } from "react";
+import { CallOverlay } from "@/components/calls/call-overlay";
 import { session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { RealtimeProvider } from "@/data/realtime/realtime-provider";
+import { useCallRealtime } from "@/data/realtime/use-call-realtime";
 import { useChatRealtime } from "@/data/realtime/use-chat-realtime";
 import { socketTokenReaders } from "@/data/realtime/refresh-for-socket";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
@@ -20,6 +22,7 @@ export const unstable_settings = { anchor: "(tabs)" } as const;
 function RealtimeSubscriptions({ wsId }: { wsId: string }) {
   const queryClient = useQueryClient();
   useChatRealtime(wsId);
+  useCallRealtime(wsId);
   useWSSubscriptions(
     (ws) => [
       ws.onAny((message) => {
@@ -61,6 +64,8 @@ export default function WorkspaceLayout() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
+      {/* Above every screen of the workspace, so a call survives navigation. */}
+      <CallOverlay />
     </RealtimeProvider>
   );
 }

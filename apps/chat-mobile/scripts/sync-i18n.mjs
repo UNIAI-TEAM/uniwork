@@ -50,6 +50,7 @@ const CHAT_MOBILE_ONLY = {
     unmute_notifications: "Bật thông báo",
     unpin_conversation: "Bỏ ghim hội thoại",
     room_info: "Thông tin cuộc trò chuyện",
+    call_speaker: "Loa ngoài",
   },
   en: {
     open_on_web: "Open on the web",
@@ -59,6 +60,7 @@ const CHAT_MOBILE_ONLY = {
     unmute_notifications: "Turn notifications on",
     unpin_conversation: "Unpin conversation",
     room_info: "Conversation details",
+    call_speaker: "Speaker",
   },
 };
 

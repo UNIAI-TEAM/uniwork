@@ -73,6 +73,19 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
   `scripts/sync-i18n.mjs`. Kind lạ → `messageView` = `unsupported` → hàng
   "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).
+- Gọi (M3, UNI-1834; spec `2026-10-16-unichat-mobile-calls-design.md`, plan
+  `2026-10-17-unichat-mobile-calls.md`). `lib/voice-call.ts` (thuần, copy
+  `voice-call-{overlay-types,kind-utils,invites,copy}` web) →
+  `data/calls/call-engine.ts` (máy trạng thái của `use-native-voice-call.ts`,
+  store vanilla, test node) → `data/calls/call-store.ts` (một engine, nối
+  `chatApi`) ← `data/realtime/use-call-realtime.ts` (`chat.voice.*`, đồng bộ
+  lời mời chờ khi mở workspace và mỗi lần reconnect). UI:
+  `components/calls/call-overlay.tsx` (Modal toàn màn hình gắn ở
+  `[org]/[ws]/_layout.tsx`, sống qua điều hướng) + `call-room.tsx` (LiveKit RN;
+  `registerGlobals()` ở `app/_layout.tsx`). Nhạc chuông: `lib/call-ringtone.ts`
+  render `assets/sounds/ring-*.wav` (test so byte; sinh lại bằng
+  `UPDATE_RINGTONES=1`). Push "X đang gọi" mang `?call=`; tab Chat gọi
+  `callEngine.joinFromPush`. Cần dev client (EAS), không chạy Expo Go.
 - `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
   bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
   sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.

@@ -1056,7 +1056,8 @@
       "send_sending": "Sending…",
       "unmute_notifications": "Turn notifications on",
       "unpin_conversation": "Unpin conversation",
-      "room_info": "Conversation details"
+      "room_info": "Conversation details",
+      "call_speaker": "Speaker"
     }
   },
   "mobile": {

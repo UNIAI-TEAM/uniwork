@@ -13,8 +13,12 @@ import {
   ChatRoomEnvelopeSchema,
   ChatRoomMemberSchema,
   ChatRoomsListSchema,
+  ChatVoiceTokenSchema,
+  PendingChatVoiceInvitesSchema,
   enc,
   type ChatMessageRecord,
+  type ChatVoiceToken,
+  type PendingChatVoiceInvite,
   type ChatNicknameMap,
   type ChatRoomMemberRecord,
   type ChatRoomRecord,
@@ -221,6 +225,29 @@ export function createChatApi(request: Request) {
     },
     signalTyping(wsId: string, roomId: string) {
       return ok(request(`${room(wsId, roomId)}/typing`, json("POST")), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/typing");
+    },
+    // Calls (M3) ← packages/core/api/endpoints/chat-voice.ts.
+    async listPendingVoiceInvites(wsId: string): Promise<PendingChatVoiceInvite[]> {
+      const raw = await request(`${ws(wsId)}/chat/voice/pending`);
+      return parseWithFallback(raw, PendingChatVoiceInvitesSchema, { invites: [] }, { endpoint: "GET /api/v1/workspaces/{ws}/chat/voice/pending" }).invites;
+    },
+    /** The LiveKit url and token of a call; null when the answer carries none. */
+    async mintVoiceToken(roomId: string, callId: string): Promise<ChatVoiceToken | null> {
+      const raw = await request("/api/v1/chat/voice/token", json("POST", { room_id: roomId.trim(), call_id: callId.trim() }));
+      return parseWithFallback<ChatVoiceToken | null>(raw, ChatVoiceTokenSchema, null, { endpoint: "POST /api/v1/chat/voice/token" });
+    },
+    signalVoiceInvite(wsId: string, roomId: string, callId: string, video: boolean) {
+      return ok(
+        request(`${room(wsId, roomId)}/voice/invite`, json("POST", video ? { call_id: callId, video: true } : { call_id: callId })),
+        "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/voice/invite",
+      );
+    },
+    signalVoiceAccept(wsId: string, roomId: string, callId: string) {
+      return ok(request(`${room(wsId, roomId)}/voice/accept`, json("POST", { call_id: callId })), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/voice/accept");
+    },
+    signalVoiceHangup(wsId: string, roomId: string, callId: string, durationSeconds?: number) {
+      const body = durationSeconds != null && durationSeconds > 0 ? { call_id: callId, duration_seconds: durationSeconds } : { call_id: callId };
+      return ok(request(`${room(wsId, roomId)}/voice/hangup`, json("POST", body)), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/voice/hangup");
     },
   };
 }

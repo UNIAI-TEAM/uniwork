@@ -1,7 +1,8 @@
 // The calls tab: the call logs of the rooms the person sees in this workspace's
 // chat (GET …/chat/call-logs), newest first, each row the web's call-log label.
 // A tap opens the room at that log through the deep-link contract the chat tab
-// (M2a) honours; calling back arrives with M3.
+// (M2a) honours; the phone button on the row calls back (M3), voice or video
+// as the logged call was.
 import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -16,12 +17,14 @@ import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
 import { callLogsOptions, type CallLog } from "@/data/queries/call-logs";
 import { chatNicknamesOptions } from "@/data/queries/contacts";
+import { callEngine } from "@/data/calls/call-store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { callLogTitle, callLogView, formatCallTime } from "@/lib/call-log-display";
 import { deepLinkHref } from "@/lib/deep-link";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
+import { voiceCallKindFromServer } from "@/lib/voice-call";
 
 /** Inset past the avatar, as a phone's call list draws it. */
 function RowSeparator() {
@@ -64,6 +67,16 @@ function CallRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: st
         </View>
       </View>
       <Text className="text-xs text-muted-foreground">{time}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t("chat.voice_call_call_back")} ${title}`}
+        testID="calls-row-callback"
+        hitSlop={4}
+        onPress={() => void callEngine.startCall(log.room_id, title, voiceCallKindFromServer(log.room_kind), { withCamera: log.video })}
+        className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary"
+      >
+        <Ionicons name={log.video ? "videocam-outline" : "call-outline"} size={22} color={theme.primary} />
+      </Pressable>
     </Pressable>
   );
 }
