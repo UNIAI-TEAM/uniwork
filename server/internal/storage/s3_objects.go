@@ -274,6 +274,26 @@ func (s *s3ObjectStore) SignWrite(ctx context.Context, loc ObjectLocator, opts S
 	}, nil
 }
 
+func (s *s3ObjectStore) CreateMultipart(context.Context, ObjectLocator, WriteInfo) (string, error) {
+	return "", ErrCapabilityUnsupported
+}
+
+func (s *s3ObjectStore) SignUploadPart(context.Context, ObjectLocator, string, int32, SignOptions) (SignedURL, error) {
+	return SignedURL{}, ErrCapabilityUnsupported
+}
+
+func (s *s3ObjectStore) ListParts(context.Context, ObjectLocator, string) ([]MultipartPart, error) {
+	return nil, ErrCapabilityUnsupported
+}
+
+func (s *s3ObjectStore) CompleteMultipart(context.Context, ObjectLocator, string, []MultipartPart) (PutResult, error) {
+	return PutResult{}, ErrCapabilityUnsupported
+}
+
+func (s *s3ObjectStore) AbortMultipart(context.Context, ObjectLocator, string) error {
+	return ErrCapabilityUnsupported
+}
+
 // maxPresignTTL is the longest lifetime a presigned URL is signed for. AWS
 // SigV4 caps X-Amz-Expires at 604800s (7 days) and current S3 and MinIO reject
 // anything above it, so stay one minute below the limit.
