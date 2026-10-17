@@ -21,6 +21,7 @@ import {
 } from './holdout-run.mjs';
 import { OPERATIONS, loadCases, score } from './holdout-score.mjs';
 import { readWorkbook } from './holdout-xlsx-truth.mjs';
+import { introducesNew } from './holdout-write-proof.mjs';
 import { argumentsFor, referenceLine, scriptedModel, startStubFacade, toolsToCall } from './holdout-stub-facade.helper.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -2080,6 +2081,25 @@ describe('usage rows and arguments', () => {
     const derivedWrong = deriveAnswer(tblCase, wrongValueAsk);
     assert.equal(derivedWrong.answer.structural[0].value, 'Pending');
     assert.equal(score(tblCase, derivedWrong.answer).status, 'fail', 'anchor-matching table_cell with wrong value must fail');
+  });
+
+  it('Item 6: introducesNew rejects a cell-addressed write whose value is already in sourceText', () => {
+    const sourceText = 'Sheet1\nExisting Label\n100';
+    assert.equal(
+      introducesNew({ operations: [{ address: 'B2', value: 100 }] }, sourceText),
+      false,
+      'cell-addressed write of a number already in sourceText must not count as introducing new content',
+    );
+    assert.equal(
+      introducesNew({ operations: [{ address: 'B2', value: 'Existing Label' }] }, sourceText),
+      false,
+      'cell-addressed write of text already in sourceText must not count as introducing new content',
+    );
+    assert.equal(
+      introducesNew({ operations: [{ address: 'B2', value: 250 }] }, sourceText),
+      true,
+      'cell-addressed write of a new number counts as introducing new content',
+    );
   });
 });
 
