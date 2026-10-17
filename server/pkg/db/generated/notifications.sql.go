@@ -50,6 +50,23 @@ func (q *Queries) ClaimMeetingReminder(ctx context.Context, id string) (int64, e
 	return result.RowsAffected(), nil
 }
 
+const claimNotificationGroup = `-- name: ClaimNotificationGroup :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+// The exclusive half of that claim (BE-TN-9): HasNotificationGroupRow alone
+// is an unlocked existence read, so two dispatcher nodes carrying different
+// events of one (user, kind, group_key) can both miss it and merge through
+// UpsertNotification's count + 1. The claim is taken here as a
+// transaction-scoped advisory lock on the group, held until the write
+// commits, so the loser's existence read runs after the winner's row is
+// visible and skips. The key is hashed because advisory locks take bigint
+// keys; a collision only serializes two unrelated groups for one write.
+func (q *Queries) ClaimNotificationGroup(ctx context.Context, claimKey string) error {
+	_, err := q.db.Exec(ctx, claimNotificationGroup, claimKey)
+	return err
+}
+
 const countOwnedNotifications = `-- name: CountOwnedNotifications :one
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY($2::text[])
 `

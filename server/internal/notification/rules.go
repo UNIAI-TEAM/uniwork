@@ -84,8 +84,10 @@ type Draft struct {
 	// OncePerGroup is set on drafts that may never write a second row for
 	// the same (user, kind, group_key) - the open-row merge upsert alone
 	// does not cover a first row already read or archived (BE-TN-3). The
-	// consumer checks for an existing group row inside the notification's
-	// own transaction and treats it as already delivered.
+	// consumer takes a transaction-scoped advisory lock on the group and then
+	// checks for an existing row inside the notification's own transaction,
+	// so a concurrent event of the same group waits and treats the committed
+	// row as already delivered (BE-TN-9).
 	OncePerGroup bool
 }
 

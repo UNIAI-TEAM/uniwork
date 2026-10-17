@@ -170,12 +170,20 @@ func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d D
 	// dedupes a notification nobody has touched yet. A kind that is one
 	// notice per recipient and batch forever - the trash notice, whose
 	// elected top node can change under a pending event - must not write a
-	// second row when the first was already read or archived. The existence
-	// check runs here, inside the same transaction as the delivery claim,
-	// so a concurrent sibling event either waits on the row lock and then
-	// sees the committed row, or merges into the still-open one through the
-	// upsert.
+	// second row when the first was already read or archived.
+	//
+	// The claim is taken, not merely checked (BE-TN-9): an existence read on
+	// its own is unlocked, so two nodes carrying two different events of one
+	// group - the sibling elected after a restore or purge while the original
+	// top's own write is still in flight - would both miss the row and merge
+	// through the upsert's count + 1. The transaction-scoped advisory lock
+	// below makes the loser's read run after the winner committed, so it sees
+	// the row and skips. The delivery claim above stays first: a redelivery
+	// of an event already delivered never takes the lock.
 	if d.OncePerGroup {
+		if err := q.ClaimNotificationGroup(ctx, d.UserID+":"+d.Kind+":"+d.GroupKey); err != nil {
+			return err
+		}
 		exists, err := q.HasNotificationGroupRow(ctx, db.HasNotificationGroupRowParams{
 			UserID: d.UserID, Kind: d.Kind, GroupKey: d.GroupKey,
 		})

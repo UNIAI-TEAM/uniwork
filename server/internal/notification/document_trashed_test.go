@@ -9,6 +9,7 @@ package notification
 import (
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -566,6 +567,128 @@ func TestDocumentTrashedBatchClaimSurvivesTopChange(t *testing.T) {
 	if p := trashedParams(t, f.trashedItem(t, svc, b).Notification); p["document"] != "Kế hoạch B1" && p["document"] != "Kế hoạch B2" {
 		t.Fatalf("B params = %v, want its own top title", p)
 	}
+}
+
+// BE-TN-9 (review r2): the (batch, recipient) claim must be exclusive, not
+// merely checked. HasNotificationGroupRow is an unlocked existence read, so two
+// dispatcher nodes carrying two different events of one group can both miss it
+// and merge through the upsert's count + 1. The two drafts here are the ones
+// the rule itself elects on either side of the restore that re-elects the
+// batch's top - the interleaving the review names - and both writes are
+// released from one point, so the existence reads race the way two nodes'
+// would. Exactly one row, count 1.
+func TestDocumentTrashedGroupClaimIsExclusive(t *testing.T) {
+	f := newDocumentFixture(t)
+	f.makeAdmin(t, f.member.ID)
+	// The folder belongs to the fixture owner and the two pages to another
+	// member, so the pages - not the folder - are that member's only batch
+	// nodes and the election below is about them alone.
+	owner := f.addMember(t, "tn9-a@example.com", "Chủ A").ID
+	folder := f.node(t, "folder", "Hồ sơ", f.owner.ID, nil)
+	first := f.page(t, "Kế hoạch A", owner, &folder)
+	second := f.page(t, "Kế hoạch B", owner, &folder)
+	top, other := first, second
+	if second < first {
+		top, other = second, first
+	}
+	f.archive(t, f.member.ID, folder)
+	evFor := func(docID string) outbox.Row {
+		t.Helper()
+		for _, ev := range f.events(t, "document.archived") {
+			if strings.Contains(ev.Payload, docID) {
+				return ev
+			}
+		}
+		t.Fatalf("no document.archived event for %s", docID)
+		return outbox.Row{}
+	}
+	topEv, otherEv := evFor(top), evFor(other)
+	topDraft := f.trashDraft(t, topEv)
+
+	// The elected top leaves the batch, so the sibling's pending event now
+	// carries that owner's draft under the same (batch, recipient) group.
+	if _, err := f.docs.RestoreDocument(f.ctx, f.memberActor(), top, service.ArchiveDocumentInput{IdempotencyKey: util.NewID()}); err != nil {
+		t.Fatal(err)
+	}
+	otherDraft := f.trashDraft(t, otherEv)
+	if topDraft.GroupKey != otherDraft.GroupKey || topDraft.UserID != otherDraft.UserID {
+		t.Fatalf("drafts of one group differ: %+v / %+v", topDraft, otherDraft)
+	}
+
+	// Holding the notifications table keeps both writes between their
+	// delivery claim and their upsert: the existence reads then run before
+	// either row is committed, which is the race the claim must survive.
+	holder, err := f.pool.Acquire(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer holder.Release()
+	hold, err := holder.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := hold.Exec(f.ctx, `LOCK TABLE notifications IN ACCESS EXCLUSIVE MODE`); err != nil {
+		t.Fatal(err)
+	}
+
+	prefs := DefaultPrefs(KindDocumentTrashedByOther)
+	jobs := []struct {
+		eventID string
+		draft   Draft
+	}{{topEv.ID, topDraft}, {otherEv.ID, otherDraft}}
+	var wg sync.WaitGroup
+	errs := make(chan error, len(jobs))
+	ready := make(chan struct{}, len(jobs))
+	for _, j := range jobs {
+		wg.Add(1)
+		go func(eventID string, d Draft) {
+			defer wg.Done()
+			ready <- struct{}{}
+			if err := f.consumer.write(f.ctx, eventID, "", d, prefs); err != nil {
+				errs <- err
+			}
+		}(j.eventID, j.draft)
+	}
+	<-ready
+	<-ready
+	// Both writers are inside write() now; the pause lets them reach the held
+	// table so the release below frees them together.
+	time.Sleep(250 * time.Millisecond)
+	if err := hold.Rollback(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+
+	if n := f.trashedCount(t, owner); n != 1 {
+		t.Fatalf("trash notices after two concurrent events of one batch = %d, want one", n)
+	}
+	if got := f.trashedNotifications(t, owner); len(got) != 1 || got[0].Count != 1 {
+		t.Fatalf("notification rows = %+v, want one row with count 1", got)
+	}
+}
+
+// trashDraft runs the archived rule for one event and returns the single
+// once-per-group draft it elects, as Handle hands it to the write path.
+func (f *documentFixture) trashDraft(t *testing.T, ev outbox.Row) Draft {
+	t.Helper()
+	payload := map[string]string{}
+	if ev.Payload != "" {
+		if err := json.Unmarshal([]byte(ev.Payload), &payload); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ds, err := rules[ev.Topic](f.ctx, f.consumer.env, ev, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds) != 1 || !ds[0].OncePerGroup {
+		t.Fatalf("%s drafts = %+v, want the one once-per-group trash draft", ev.Topic, ds)
+	}
+	return ds[0]
 }
 
 // BE-TN-4/BE-TN-6 (review r1): this kind never emails and never pushes by
