@@ -1,0 +1,8 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler/... -count=1 > /tmp/handler.log 2>&1); rc=$?; grep -E "^(ok|FAIL|---)" /tmp/handler.log | tail -40; grep -E "^\s*--- FAIL" /tmp/handler.log | head -20; echo; echo "TEST_HANDLER_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	579.830s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.020s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	5.310s
+
+TEST_HANDLER_EXIT=0
