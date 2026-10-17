@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+17206431b9441806d1850ec36fc00ff11d2d4594
+06f65e141cf57af6d6d47de56ac60e8cd68e06e6
+17206431b Merge origin/feature/UNI-923-office-g5-g6-g7 (06f65e141) into feature/UNI-1844-trash-notify
+3d3481945 test(notifications): cover the TRASH-NOTIFY-01 r1 findings
+d87592e8f fix(settings): mirror the trash kind's email-off default
+3b9a4f3f7 feat(i18n): add the document_trashed_by_other settings label
+2595c6106 fix(notifications): never email a trash notice
+c70dcb06a fix(notifications): claim the trash notice once per batch and recipient
+401733335 fix(documents): keep a trash notice live while its document is restorable
+06f65e141 chore: merge UNI-1645 phase 2 edit lock (cards a+b, edb3c7ec6) into the G5-G7 root
