@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"testing"
@@ -21,7 +22,7 @@ func TestChatPresenceBeatAnswersWithTheOnlineMembers(t *testing.T) {
 		return ids
 	}
 
-	res, out := doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]string{"state": "online"})
+	res, out := doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]any{"state": "online", "visible": true})
 	if res.StatusCode != http.StatusOK || out["status"] != "ok" {
 		t.Fatalf("beat a: %d %v", res.StatusCode, out)
 	}
@@ -34,6 +35,13 @@ func TestChatPresenceBeatAnswersWithTheOnlineMembers(t *testing.T) {
 	slices.Sort(want)
 	if res.StatusCode != http.StatusOK || !slices.Equal(onlineIDs(out), want) {
 		t.Fatalf("beat b: %d %v, want %v", res.StatusCode, out, want)
+	}
+	// Only a visible beat leaves the last-beat mark the push consumer reads.
+	if _, ok, err := f.chat.LastPresenceBeat(context.Background(), f.ids["a"]); err != nil || !ok {
+		t.Fatalf("last beat of a (visible) = ok %v err %v, want recorded", ok, err)
+	}
+	if _, ok, err := f.chat.LastPresenceBeat(context.Background(), f.ids["b"]); err != nil || ok {
+		t.Fatalf("last beat of b (not visible) = ok %v err %v, want none", ok, err)
 	}
 
 	res, out = doJSON(t, f.srv, "POST", path, f.tokens["b"], map[string]string{"state": "offline"})
