@@ -151,7 +151,7 @@ export interface DocsFrameSessionOptions {
   /** Frame or proxy errors the user should hear about (`fatal` when the frame's error event ended the session). */
   onError: (error: ProtocolErrorShape, options: { fatal: boolean }) => void;
   /** Called when a view-only source frame asks to save, export, upload, or download. */
-  onSourceWriteRefused?: () => void;
+  onSourceWriteRefused?: (kind: "write" | "export") => void;
   /**
    * The page's "Open in desktop app" flow, answering the frame's `app.open`. Present = the host grants
    * `desktopOpen` (to a user who may edit); absent = the frame shows its "use the app" message alone.

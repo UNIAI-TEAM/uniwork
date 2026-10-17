@@ -174,8 +174,8 @@ export function OfficeModuleFrame({
     },
     // "Download my version" in the frame's conflict dialog: "<title> (my version)", the host adds the extension.
     downloadName: () => tRootRef.current("office.docsFrame.mine_file_name", { title: stripExtension(frameTitleRef.current ?? title) }),
-    onSourceWriteRefused: () => {
-      toast.error(tRef.current("errors.read_only_source"));
+    onSourceWriteRefused: (kind) => {
+      toast.error(tRef.current(kind === "export" ? "errors.read_only_source_export" : "errors.read_only_source"));
     },
     onError: (error: ProtocolErrorShape, { fatal }) => {
       if (error.code === "cancelled" || (fatal && onSessionFailureRef.current)) return;

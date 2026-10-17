@@ -141,7 +141,9 @@ describe("OfficeModuleFrame", () => {
       const id = frame.request(type, payload);
       await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
       expect(toast.error).toHaveBeenCalledTimes(1);
-      expect(toast.error).toHaveBeenCalledWith("Tệp này chỉ xem, không lưu được.");
+      expect(toast.error).toHaveBeenCalledWith(
+        type === "api.export" ? "Tệp này chỉ xem, không xuất được." : "Tệp này chỉ xem, không lưu được.",
+      );
     }
     expect(requestMock).not.toHaveBeenCalled();
     expect(lastApi?.save).not.toHaveBeenCalled();
