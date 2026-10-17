@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+844aab79fe141fd802094e457f206a793074dad2
+844aab79f chore: merge SIZE-S2 spool validation (UNI-1870, e40c9c519) into the G5-G7 root
+95c03a58f chore: merge SRC-02b documents source office view (UNI-1869, 3ca55437d) into the G5-G7 root
+3ca55437d fix(documents): show the whole view-only notice on narrow screens (UNI-1869)
+beff88384 chore: merge BIGUP-S1 server upload sessions (UNI-1862, 98f36067a) into the G5-G7 root
