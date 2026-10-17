@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+eac3d6b82259740a09c5a892dcc4bc24fc457b71
+907fef4933177418ef994355c7f83e865fc4e898
+eac3d6b82 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1844-trash-notify
+23869a1c1 feat(notifications): register document_trashed_by_other in the client (UNI-1844)
+dbdab9114 feat(notifications): notify the ACL owner when someone else trashes their document (UNI-1844)
+907fef493 chore: merge RESTORE-01 web (UNI-1843, 1dafe7b8f) into the G5-G7 root
+313ffbb40 chore: merge RESTORE-01 server + core (UNI-1843, dd780a249) into the G5-G7 root
+dd780a249 fix(documents): flag the trash-search ACL-owner leg and drop break-glass (UNI-1843)
+1dafe7b8f test(e2e): FD-A12 restore follows the Thùng rác row button
+8bebfac4b fix(web): move the landing preview trash demo onto the trash row actions
