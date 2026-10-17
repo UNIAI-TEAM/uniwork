@@ -71,8 +71,12 @@ Chấm theo **ràng buộc, kết quả và side effect**, không theo một chu
   theo số chữ số thập phân hiển thị, hoặc tổng/hiệu/tỷ lệ/phần trăm của hai toán hạng đều có mặt trong câu trả lời)
   được phép đi kèm trong `UNIWORK_ANSWER.numbers` trừ khi ca đặt `expected.forbidExtraNumbers: true` (mọi số bịa
   không truy nguyên được vẫn bị đánh trượt `numeric_unexpected`).
-- Cấu trúc: `cell`, `formula`, `heading`, `table_cell`, `count` so bằng giá trị; `clarification`, `refusal`,
-  `not_found` chấm theo sự hiện diện của mục và anchor (câu chữ không so).
+- Cấu trúc: `cell`, `formula`, `heading`, `table_cell`, `count` so bằng giá trị; `config_op` (thao tác cấu hình,
+  review-g712-16 A2) chấm bằng giá trị đã chuẩn hoá `"<sheet>|<khoá>=<giá trị>,…"` của **đối số lần ghi đã áp**
+  (`propose_operations`), không phải số đếm tự báo cáo — `anchor` là tên thao tác của sản phẩm (`set_page_setup`,
+  `set_freeze`, …), `value` là tên sheet và các thiết lập mà ca yêu cầu, và mục chỉ đạt khi một thao tác đã áp khớp
+  tên thao tác, đúng sheet và mang đủ các thiết lập đó; `clarification`, `refusal`, `not_found` chấm theo sự hiện diện
+  của mục và anchor (câu chữ không so).
 - Anchor là **danh tính** với `cell`/`formula`/`table_cell`: phải khớp chính xác, không khớp kiểu chứa-chuỗi (`Doanh thu
   Q1!G8` không khớp `Doanh thu Q1!G8:G8` hay `Doanh thu Q1!G8 extra`). Các kind còn lại (`heading`, `count`, …) chấm
   theo chủ đề nên anchor chứa nhau vẫn khớp.
