@@ -9234,6 +9234,7 @@
       },
       "in_trashed_folder": "Trong thư mục “{{folder}}”",
       "deleted_by_unknown": "Thành viên cũ",
+      "focus_further": "Mục bạn mở có thể nằm ở phần chưa tải. Bấm Tải thêm để xem.",
       "read_only": "Chỉ xem · người quản lý khôi phục",
       "restore": "Khôi phục",
       "purge": "Xóa vĩnh viễn",

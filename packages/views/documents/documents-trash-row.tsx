@@ -48,6 +48,7 @@ export function TrashRowView({
   ladder,
   trash,
   focused = false,
+  claimFocus,
   onOpen,
 }: {
   row: LibraryRow;
@@ -61,15 +62,18 @@ export function TrashRowView({
   trash: TrashRowActions;
   /** The row a notification pointed at: highlighted, scrolled into view, its Khôi phục focused. */
   focused?: boolean;
+  /** True the first time a focus id is claimed; later mounts of the row (scope switch, refetch) only keep the highlight. */
+  claimFocus?: (documentId: string) => boolean;
   onOpen: (documentId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const rowRef = useRef<HTMLTableRowElement>(null);
   useEffect(() => {
-    if (!focused) return;
+    if (!focused || !claimFocus?.(row.id)) return;
     rowRef.current?.scrollIntoView?.({ block: "center" });
-    rowRef.current?.querySelector<HTMLElement>("[data-trash-restore]")?.focus();
-  }, [focused]);
+    // focusVisible: the move comes from a pointer click on a notification, which alone would hide the ring.
+    rowRef.current?.querySelector<HTMLElement>("[data-trash-restore]")?.focus({ focusVisible: true } as FocusOptions);
+  }, [focused, claimFocus, row.id]);
   if (row.type !== "document") return null;
   const doc = row.doc;
   const manage = canManageTrashed(doc);
@@ -131,7 +135,7 @@ export function TrashRowView({
       ref={rowRef}
       data-library-row={row.id}
       data-focused={focused || undefined}
-      className={cn("border-b border-border transition-colors last:border-b-0 hover:bg-accent/40", focused && "bg-accent/60")}
+      className={cn("border-b border-border transition-colors last:border-b-0 hover:bg-accent/40", focused && "bg-accent/60 ring-2 ring-inset ring-ring")}
     >
       <td className="px-3 py-2">
         {manage && !folder ? (

@@ -78,6 +78,8 @@ function purgeInDays(days: number): string {
 
 interface Routes {
   list?: (path: string) => unknown[];
+  /** next_cursor of a list page; null (the default) is the last page. */
+  cursor?: (path: string) => string | null;
   members?: () => unknown[];
   post?: (path: string) => unknown;
 }
@@ -99,7 +101,7 @@ function route(routes: Routes) {
     if (path.startsWith(`${LIST_BASE}/recent`)) return run(() => ({ documents: [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return run(() => ({ documents: [], next_cursor: null }));
     if (method === "POST") return run(() => routes.post?.(path) ?? {});
-    if (path.startsWith(LIST_BASE)) return run(() => ({ documents: routes.list?.(path) ?? [], next_cursor: null }));
+    if (path.startsWith(LIST_BASE)) return run(() => ({ documents: routes.list?.(path) ?? [], next_cursor: routes.cursor?.(path) ?? null }));
     return Promise.resolve({});
   });
 }
@@ -645,5 +647,70 @@ describe("focused trash row", () => {
     await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) });
     expect(scrollIntoView).not.toHaveBeenCalled();
     expect(document.querySelector("[data-focused]")).toBeNull();
+  });
+
+  it("moves focus with a visible ring (focusVisible) so Khôi phục shows it", async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    route({ list: () => [trashed({ id: "d1" })] });
+    renderView(nav("view=archived&focus=d1"));
+    await rowOf("Kế hoạch Q4");
+    await waitFor(() => expect(focus).toHaveBeenCalledWith({ focusVisible: true }));
+    focus.mockRestore();
+  });
+
+  it("marks the focused row apart from hover with a ring token", async () => {
+    route({ list: () => [trashed({ id: "d1" })] });
+    renderView(nav("view=archived&focus=d1"));
+    const row = await rowOf("Kế hoạch Q4");
+    await waitFor(() => expect(row).toHaveAttribute("data-focused", "true"));
+    expect(row.className).toContain("ring-ring");
+  });
+
+  it("says the item may be further down while the list has more pages, and drops the line once the row loads", async () => {
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1", title: "Biên bản" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    expect(await screen.findByText(t("documents.trash.focus_further"))).toBeInTheDocument();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.load_more") }));
+    const row = await rowOf("Hợp đồng");
+    expect(row).toHaveAttribute("data-focused", "true");
+    expect(screen.queryByText(t("documents.trash.focus_further"))).toBeNull();
+  });
+
+  it("shows no further-down line once the list is exhausted without the row", async () => {
+    route({ list: () => [trashed({ id: "d2", title: "Hợp đồng" })] });
+    renderView(nav("view=archived&focus=gone"));
+    await rowOf("Hợp đồng");
+    expect(screen.queryByText(t("documents.trash.focus_further"))).toBeNull();
+  });
+
+  it("applies the scroll and focus once per focus id: not again after a scope switch back or a manual Load more", async () => {
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived&focus=d1"));
+    const row = await rowOf("Kế hoạch Q4");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    const restore = within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    // A manual Load more must not pull focus back to the focused row.
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    await rowOf("Hợp đồng");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(restore).not.toHaveFocus();
+    // Leaving the trash and coming back remounts the rows: still no second jump.
+    fireEvent.click(screen.getByRole("tab", { name: new RegExp(t("documents.home.scope.recent")) }));
+    fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+    const again = await rowOf("Kế hoạch Q4");
+    expect(again).toHaveAttribute("data-focused", "true");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(within(again).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).not.toHaveFocus();
   });
 });

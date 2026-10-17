@@ -9240,6 +9240,7 @@
       },
       "in_trashed_folder": "In folder “{{folder}}”",
       "deleted_by_unknown": "Former member",
+      "focus_further": "The item you opened may be further down. Select Load more to see it.",
       "read_only": "View only · a manager restores",
       "restore": "Restore",
       "purge": "Delete forever",

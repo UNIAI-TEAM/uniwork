@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { CircleAlert, FolderPlus, FolderTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -120,6 +120,15 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const [navOpen, setNavOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
+  const focusId = searchParams.get("focus");
+  const appliedFocus = useRef<string | null>(null);
+  const claimFocus = useCallback((documentId: string) => {
+    if (appliedFocus.current === documentId) return false;
+    appliedFocus.current = documentId;
+    return true;
+  }, []);
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
@@ -427,7 +436,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   cardsShown={canCreate && view.kind === "home"}
                   trash={
                     view.kind === "archived"
-                      ? { actions: trashActions, members: memberIndex, membersReady: Boolean(members.data), focusId: searchParams.get("focus") }
+                      ? { actions: trashActions, members: memberIndex, membersReady: Boolean(members.data), focusId, claimFocus }
                       : undefined
                   }
                   showType={view.kind === "home" && Boolean(folderId)}
@@ -442,6 +451,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   handlers={handlers}
                   empty={emptyCopy}
                 />
+                {focusId && view.kind === "archived" && !listLoading && state.hasMore && !state.rows.some((row) => row.id === focusId) ? (
+                  <p role="status" className="text-caption text-muted-foreground">{t("documents.trash.focus_further")}</p>
+                ) : null}
                 {view.kind === "archived" && !listLoading && state.rows.length > 0 ? (
                   <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-caption text-muted-foreground">{t("documents.trash.note")}</p>
                 ) : null}
