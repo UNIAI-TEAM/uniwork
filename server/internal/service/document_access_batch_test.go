@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -870,4 +871,140 @@ func TestDocumentAccessBatchPreviewCountsMatchTheResolver(t *testing.T) {
 			t.Fatalf("R1-07 group = %+v, want member_count=8 losing_count=8 (ACL owner without home membership loses)", g)
 		}
 	})
+}
+
+// installShareInsertFailFor makes every document_shares insert for one
+// (document, principal) pair raise, so a test can fail a batch after an
+// earlier item has already written. The trigger is dropped with the test.
+func installShareInsertFailFor(t *testing.T, f *docPermFixture, documentID, principalID string) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx, `
+		CREATE OR REPLACE FUNCTION test_fail_share_insert() RETURNS trigger
+		LANGUAGE plpgsql AS $fn$
+		BEGIN
+		  IF NEW.document_id = '`+documentID+`' AND NEW.principal_id = '`+principalID+`' THEN
+		    RAISE EXCEPTION 'injected late share failure';
+		  END IF;
+		  RETURN NEW;
+		END;
+		$fn$`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `DROP TRIGGER IF EXISTS test_fail_share_insert ON document_shares`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `CREATE TRIGGER test_fail_share_insert BEFORE INSERT ON document_shares
+		FOR EACH ROW EXECUTE FUNCTION test_fail_share_insert()`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = f.pool.Exec(f.ctx, `DROP TRIGGER IF EXISTS test_fail_share_insert ON document_shares`)
+		_, _ = f.pool.Exec(f.ctx, `DROP FUNCTION IF EXISTS test_fail_share_insert()`)
+	})
+}
+
+// accessStateSnapshot renders everything a batch touches on one document: its
+// share rows (live and revoked), home visibility/level/revision and the audit
+// and outbox rows. A rolled-back batch must leave all of it byte-equal.
+func accessStateSnapshot(t *testing.T, f *docPermFixture, documentID string) string {
+	t.Helper()
+	var visibility, workspaceLevel string
+	var revision int64
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT visibility, workspace_level, revision FROM documents WHERE id = $1`, documentID).
+		Scan(&visibility, &workspaceLevel, &revision); err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "doc=%s/%s/%d", visibility, workspaceLevel, revision)
+
+	shares, err := f.pool.Query(f.ctx,
+		`SELECT principal_type, principal_id, level, (revoked_at IS NULL)::text
+		   FROM document_shares WHERE document_id = $1 ORDER BY principal_type, principal_id, id`, documentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.WriteString(" shares=")
+	for shares.Next() {
+		var pt, pid, lvl, live string
+		if err := shares.Scan(&pt, &pid, &lvl, &live); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintf(&b, "[%s/%s=%s/%s]", pt, pid, lvl, live)
+	}
+	if err := shares.Err(); err != nil {
+		t.Fatal(err)
+	}
+	shares.Close()
+
+	audit, err := f.pool.Query(f.ctx,
+		`SELECT action, metadata FROM audit_events WHERE resource_id = $1 ORDER BY occurred_at, id`, documentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.WriteString(" audit=")
+	for audit.Next() {
+		var action, meta string
+		if err := audit.Scan(&action, &meta); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintf(&b, "[%s|%s]", action, meta)
+	}
+	if err := audit.Err(); err != nil {
+		t.Fatal(err)
+	}
+	audit.Close()
+
+	outbox, err := f.pool.Query(f.ctx,
+		`SELECT topic, payload FROM outbox_events WHERE payload LIKE '%' || $1 || '%' ORDER BY id`, documentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.WriteString(" outbox=")
+	for outbox.Next() {
+		var topic, payload string
+		if err := outbox.Scan(&topic, &payload); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintf(&b, "[%s|%s]", topic, payload)
+	}
+	if err := outbox.Err(); err != nil {
+		t.Fatal(err)
+	}
+	outbox.Close()
+	return b.String()
+}
+
+// TestDocumentAccessBatchLateFailureRollsBack is the R1-14 regression: a write
+// that fails after an earlier item of the same batch already succeeded must
+// leave the document exactly as it was - shares, home visibility/level/
+// revision, audit and outbox. The rejection test refuses input before the loop;
+// this one fails inside the loop, so a future pool-bound write or per-item
+// commit would slip past the other test but not this one.
+func TestDocumentAccessBatchLateFailureRollsBack(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "shs2late")
+	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+	doc = setWorkspaceLevel(t, f, doc, "view")
+	f.share(t, doc, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
+
+	before := accessStateSnapshot(t, f, doc.ID)
+
+	// items[0] writes a new user share; items[1]'s insert for the creator
+	// raises, so the failure lands after items[0] succeeded.
+	installShareInsertFailFor(t, f, doc.ID, tn.creator.ID)
+
+	_, err := f.svc.UpdateDocumentAccess(f.ctx, Human(tn.aclOwner.ID), doc.ID, UpdateDocumentAccessInput{
+		Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: docLevelPtr(DocumentLevelView)},
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.creator.ID, Level: docLevelPtr(DocumentLevelEdit)},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "injected late share failure") {
+		t.Fatalf("late failure err = %v, want the injected failure", err)
+	}
+
+	if after := accessStateSnapshot(t, f, doc.ID); after != before {
+		t.Fatalf("rolled-back batch changed state:\n before=%s\n after =%s", before, after)
+	}
 }
