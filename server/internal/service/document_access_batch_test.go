@@ -453,15 +453,20 @@ func TestDocumentAccessBatch(t *testing.T) {
 // direct_below_group warning; and preview.groups member_count + losing_count (D5, AC08).
 //
 // D5 losing_count method: computed by one SQL count per group item
-// (CountDocumentAccessPreviewGroup) over active organization_members belonging
-// to the group (all active org members for organization, or active org members
-// with a workspace_members row in the target workspace). When the group's grant
-// is lowered or revoked (prev_group_rank > after_group_rank), a group member is
-// counted in losing_count iff their highest post-batch rank across all sources
-// (ACL owner, home-workspace admin/member when workspace-visible, post-batch
-// org share, post-batch workspace shares, post-batch direct user share, live
-// break-glass grant) is strictly below prev_group_rank. Group members are never
-// enumerated in preview.users.
+// (CountDocumentAccessPreviewGroup) over the EFFECTIVE members of the group -
+// the membership the resolver decides (WorkspaceService.RequireMember: a
+// workspace_members row, or an implicit organization owner/admin), the same for
+// every workspace of the organization, or every active org member for the
+// organization group. When the group's grant is lowered or revoked
+// (prev_group_rank > after_group_rank), a group member is counted in
+// losing_count iff their highest post-batch rank across all sources (role
+// manage while workspace-visible, ACL owner while home membership holds, home
+// row plus a legacy home share, post-batch org/user/workspace shares whose
+// workspace the person effectively belongs to, and a live break-glass grant
+// while the holder still has AdminScope) is strictly below prev_group_rank.
+// Group members are never enumerated in preview.users.
+// TestDocumentAccessBatchPreviewCountsMatchTheResolver pins this against the
+// resolver for each rule (R1-03..R1-08).
 func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "shs2p")
@@ -509,7 +514,7 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 		}
 		if len(dry.Preview.Groups) != 1 || dry.Preview.Groups[0].PrincipalType != DocumentPrincipalWorkspace ||
 			dry.Preview.Groups[0].PrincipalID != tn.wsB || dry.Preview.Groups[0].Name != "B shs2p" ||
-			dry.Preview.Groups[0].MemberCount != 2 || dry.Preview.Groups[0].LosingCount != 0 {
+			dry.Preview.Groups[0].MemberCount != 3 || dry.Preview.Groups[0].LosingCount != 0 {
 			t.Fatalf("dry_run preview.groups = %+v", dry.Preview.Groups)
 		}
 		if len(dry.Preview.Warnings) != 1 || dry.Preview.Warnings[0] != (DocumentAccessWarning{Code: DocumentAccessWarningWideScope, Index: 1}) {
@@ -525,7 +530,7 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 		if len(live.Preview.Users) != 1 || live.Preview.Users[0].After.Level != DocumentLevelView {
 			t.Fatalf("D2 live preview.users = %+v", live.Preview.Users)
 		}
-		if len(live.Preview.Groups) != 1 || live.Preview.Groups[0].MemberCount != 2 || live.Preview.Groups[0].LosingCount != 0 {
+		if len(live.Preview.Groups) != 1 || live.Preview.Groups[0].MemberCount != 3 || live.Preview.Groups[0].LosingCount != 0 {
 			t.Fatalf("D2 live preview.groups = %+v", live.Preview.Groups)
 		}
 	})
@@ -582,12 +587,14 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 
 	t.Run("AC08 and D5 preview.groups losing_count excludes members with equal or higher remaining access", func(t *testing.T) {
 		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
-		// wsB has 2 active members in workspace_members: tn.owner and tn.bMember.
+		// wsB's effective members: the 2 workspace_members rows (tn.owner and
+		// tn.bMember) plus tn.orgAdmin, an implicit organization admin.
 		// Share doc with wsB at edit, and also give tn.bMember a direct edit share.
 		f.share(t, doc, DocumentPrincipalWorkspace, tn.wsB, DocumentLevelEdit, tn.aclOwner.ID)
 		f.share(t, doc, DocumentPrincipalUser, tn.bMember.ID, DocumentLevelEdit, tn.aclOwner.ID)
 
-		// Revoking wsB: tn.owner loses edit (drops to none), while tn.bMember keeps edit via direct share -> losing_count = 1.
+		// Revoking wsB: tn.owner and tn.orgAdmin lose edit (drop to none), while
+		// tn.bMember keeps edit via direct share -> losing_count = 2.
 		rev, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
 			DryRun: true,
 			Items: []DocumentAccessBatchItem{
@@ -604,11 +611,11 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 			t.Fatalf("AC08 preview.groups = %+v", rev.Preview.Groups)
 		}
 		g := rev.Preview.Groups[0]
-		if g.PrincipalType != DocumentPrincipalWorkspace || g.PrincipalID != tn.wsB || g.Level != nil || g.MemberCount != 2 || g.LosingCount != 1 {
-			t.Fatalf("AC08 group preview = %+v, want member_count=2 losing_count=1", g)
+		if g.PrincipalType != DocumentPrincipalWorkspace || g.PrincipalID != tn.wsB || g.Level != nil || g.MemberCount != 3 || g.LosingCount != 2 {
+			t.Fatalf("AC08 group preview = %+v, want member_count=3 losing_count=2", g)
 		}
 
-		// Lowering bMember's direct share to view AND revoking wsB in the same batch: both tn.owner and tn.bMember drop below edit -> losing_count = 2.
+		// Lowering bMember's direct share to view AND revoking wsB in the same batch: tn.owner, tn.orgAdmin and tn.bMember all drop below edit -> losing_count = 3.
 		revBoth, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
 			DryRun: true,
 			Items: []DocumentAccessBatchItem{
@@ -619,8 +626,248 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AC08 lower + revoke preview: %v", err)
 		}
-		if len(revBoth.Preview.Groups) != 1 || revBoth.Preview.Groups[0].LosingCount != 2 {
-			t.Fatalf("AC08 lower + revoke group preview = %+v, want losing_count=2", revBoth.Preview.Groups)
+		if len(revBoth.Preview.Groups) != 1 || revBoth.Preview.Groups[0].LosingCount != 3 {
+			t.Fatalf("AC08 lower + revoke group preview = %+v, want losing_count=3", revBoth.Preview.Groups)
+		}
+	})
+}
+
+// previewGroupOracle is the ground truth one group item's counts must match:
+// the EFFECTIVE members of the group, decided by the same gate every workspace
+// request passes through (WorkspaceService.RequireMember: a workspace_members
+// row, or an implicit organization owner/admin), and how many of them the batch
+// drops below the rank the group grants today. The post-batch level comes from
+// the access resolver, not a re-derivation, so the count query can only pass by
+// agreeing with the access decision (R1-03..R1-08).
+func previewGroupOracle(
+	t *testing.T,
+	f *docPermFixture,
+	docBefore, docAfter db.Document,
+	sharesBefore, sharesAfter []db.DocumentShare,
+	it DocumentAccessBatchItem,
+) (members, losing int) {
+	t.Helper()
+	isHome := it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == docBefore.WorkspaceID
+
+	groupRank := func(doc db.Document, shares []db.DocumentShare) int {
+		if isHome {
+			lvl, _ := currentHomeWorkspaceLevel(doc, filterHomeWorkspaceShares(shares, doc.WorkspaceID))
+			return lvl.rank()
+		}
+		lvl, _ := shareLevelInSlice(shares, it.PrincipalType, it.PrincipalID)
+		return lvl.rank()
+	}
+	prevRank := groupRank(docBefore, sharesBefore)
+	afterRank := groupRank(docAfter, sharesAfter)
+
+	rows, err := f.pool.Query(f.ctx,
+		`SELECT user_id FROM organization_members WHERE organization_id = $1 AND deactivated_at IS NULL`,
+		docAfter.OrganizationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, id := range ids {
+		if it.PrincipalType == DocumentPrincipalWorkspace {
+			// The one membership gate; an implicit organization admin passes
+			// it for every workspace of the organization.
+			if _, err := f.svc.ws.RequireMemberQ(f.ctx, f.q, it.PrincipalID, id); err != nil {
+				if isGateRefusal(err) {
+					continue
+				}
+				t.Fatalf("membership gate for %s in %s: %v", id, it.PrincipalID, err)
+			}
+		}
+		members++
+		if prevRank == 0 || afterRank >= prevRank {
+			continue
+		}
+		acc, err := f.svc.resolveLevelInTenantWithShares(f.ctx, f.q, Human(id), docAfter, sharesAfter)
+		if err != nil && !isGateRefusal(err) {
+			t.Fatalf("resolve level for %s: %v", id, err)
+		}
+		if acc.Level.rank() < prevRank {
+			losing++
+		}
+	}
+	return members, losing
+}
+
+// assertPreviewGroupCounts checks every group item of one batch response against
+// the oracle over the same simulated post-batch state.
+func assertPreviewGroupCounts(t *testing.T, f *docPermFixture, doc db.Document, in UpdateDocumentAccessInput, res DocumentAccessBatchResult) {
+	t.Helper()
+	sharesBefore, err := f.q.ListDocumentShares(f.ctx, db.ListDocumentSharesParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := validateAccessBatchInput(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	docAfter, sharesAfter := simulateAccessBatchState(doc, sharesBefore, items)
+
+	gi := 0
+	for _, it := range items {
+		if it.PrincipalType == DocumentPrincipalUser {
+			continue
+		}
+		if gi >= len(res.Preview.Groups) {
+			t.Fatalf("preview.groups has %d entries, want one per group item (index %d missing)", len(res.Preview.Groups), gi)
+		}
+		wantMembers, wantLosing := previewGroupOracle(t, f, doc, docAfter, sharesBefore, sharesAfter, it)
+		g := res.Preview.Groups[gi]
+		if g.MemberCount != wantMembers || g.LosingCount != wantLosing {
+			t.Fatalf("preview.groups[%d] %s/%s = member_count=%d losing_count=%d, resolver says %d/%d",
+				gi, it.PrincipalType, it.PrincipalID, g.MemberCount, g.LosingCount, wantMembers, wantLosing)
+		}
+		gi++
+	}
+}
+
+// TestDocumentAccessBatchPreviewCountsMatchTheResolver is the R1-03..R1-08
+// regression: preview.groups[].member_count and losing_count must equal the
+// effective membership and the effective loss the resolver decides for each
+// rule the first review found - implicit organization admins in the target and
+// in a remaining workspace (R1-03, R1-04, R1-08), a legacy home share on a
+// restricted document (R1-05), break-glass only under live AdminScope (R1-06),
+// and the ACL owner only while its home membership holds (R1-07).
+func TestDocumentAccessBatchPreviewCountsMatchTheResolver(t *testing.T) {
+	H := Human
+
+	t.Run("R1-03 implicit organization admin counts in the target workspace", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c1")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, doc, DocumentPrincipalWorkspace, tn.wsB, DocumentLevelEdit, tn.aclOwner.ID)
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsB, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R1-03 batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		// The tenant's organization admin holds no workspace_members row: the
+		// resolver still gives them the workspace's edit through the
+		// organization role, so they are a member and lose it here.
+		if g := res.Preview.Groups[0]; g.MemberCount != 3 || g.LosingCount != 3 {
+			t.Fatalf("R1-03 group = %+v, want member_count=3 losing_count=3 (owner, bMember, implicit org admin)", g)
+		}
+	})
+
+	t.Run("R1-04 remaining workspace share preserves the implicit organization admin", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c2")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelEdit, tn.aclOwner.ID)
+		f.share(t, doc, DocumentPrincipalWorkspace, tn.wsB, DocumentLevelEdit, tn.aclOwner.ID)
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R1-04 batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		// The implicit admin keeps edit through the surviving wsB share, so
+		// they are a member but not a loss.
+		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 4 {
+			t.Fatalf("R1-04 group = %+v, want member_count=8 losing_count=4", g)
+		}
+	})
+
+	t.Run("R1-05 legacy home share does not preserve role manage on a restricted document", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c3")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, doc, DocumentPrincipalWorkspace, tn.wsA, DocumentLevelView, tn.aclOwner.ID)
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelEdit, tn.aclOwner.ID)
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R1-05 batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		// Every home admin drops to the legacy share's view (rank 1 < edit 3)
+		// and is a loss; the ACL owner keeps manage and is not.
+		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 7 {
+			t.Fatalf("R1-05 group = %+v, want member_count=8 losing_count=7", g)
+		}
+	})
+
+	t.Run("R1-06 break-glass preserves only while the holder still has AdminScope", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c4")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelView, tn.aclOwner.ID)
+		if _, _, err := f.svc.GrantDocumentBreakGlass(f.ctx, H(tn.wsAdmin.ID), doc.ID, "truy cap khan cap cho kiem tra"); err != nil {
+			t.Fatalf("R1-06 break-glass: %v", err)
+		}
+		// The holder loses the admin authority the emergency grant rode on.
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE workspace_members SET role = 'member' WHERE workspace_id = $1 AND user_id = $2`,
+			tn.wsA, tn.wsAdmin.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R1-06 batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		// The demoted holder reads nothing through the live grant, so they are
+		// a loss with everyone but the ACL owner.
+		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 7 {
+			t.Fatalf("R1-06 group = %+v, want member_count=8 losing_count=7", g)
+		}
+	})
+
+	t.Run("R1-07 ACL owner exemption needs the home-membership prerequisite", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c5")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelView, tn.aclOwner.ID)
+		// The recorded ACL owner leaves the document's workspace: the
+		// owner-manage path is evaluated only inside that membership.
+		if _, err := f.pool.Exec(f.ctx,
+			`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`,
+			tn.wsA, tn.aclOwner.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.owner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R1-07 batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 8 {
+			t.Fatalf("R1-07 group = %+v, want member_count=8 losing_count=8 (ACL owner without home membership loses)", g)
 		}
 	})
 }

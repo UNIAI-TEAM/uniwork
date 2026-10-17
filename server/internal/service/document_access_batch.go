@@ -449,6 +449,7 @@ func (s *DocumentService) buildAccessBatchPreview(
 			OrgPreserves:     prevRank > 0 && orgAfterLvl.rank() >= prevRank,
 			AclOwnerID:       docAfter.AclOwnerID,
 			HomeAfterRank:    int32(homeAfterLvl.rank()),
+			HomeVisible:      docAfter.Visibility == documentVisibilityWorkspace,
 			HomeWorkspaceID:  docAfter.WorkspaceID,
 			PreservedUserIds: preservedUsers,
 			PreservedWsIds:   preservedWS,
