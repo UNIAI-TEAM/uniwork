@@ -16,7 +16,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { canAdministerDocument } from "@uniwork/core/permissions";
-import { isMyFolder, isShelved, type Document } from "@uniwork/core/types/document";
+import { canManageTrashed, isMyFolder, isShelved, type Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -83,6 +83,8 @@ export function DocumentActionsMenu({
   const owned = !!doc.owner_kind;
   const archived = !!doc.archived_at;
   const shelved = isShelved(doc);
+  // Lưu trữ / Bỏ lưu trữ follow the shelf's own rule (manage or admin_scope), like the banner and the shelf row.
+  const canShelve = canManageTrashed(doc);
   const shelvedActions = useShelvedActions({ wsId, rows: [] });
   const [panel, setPanel] = useState<PanelId>(null);
   const [copyUnavailable, setCopyUnavailable] = useState(false);
@@ -112,10 +114,10 @@ export function DocumentActionsMenu({
   if (canEdit && !owned && !archived && doc.kind === "file" && !copyUnavailable) {
     items.push({ id: "copy", label: t("documents.actions.copy"), icon: Copy });
   }
-  if (canManage && !owned && !archived && !shelved && !isMyFolder(doc)) {
+  if (canShelve && !owned && !archived && !shelved && !isMyFolder(doc)) {
     items.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive });
   }
-  if (canManage && !owned && !archived && shelved) {
+  if (canShelve && !owned && !archived && shelved) {
     items.push({ id: "unshelve", label: t("documents.shelved_list.unshelve"), icon: ArchiveRestore });
   }
   if (canManage && !owned && !archived) {

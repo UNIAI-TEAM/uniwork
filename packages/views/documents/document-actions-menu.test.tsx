@@ -10,6 +10,7 @@ import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwo
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsFill, HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DocumentActionsMenu } from "./document-actions-menu";
+import { DocumentFileMenuItems, type DocumentFileActions } from "./document-file-actions";
 import { DocumentCommentsHeaderActions, DocumentCommentsProvider, documentCommentsTitleKey } from "./document-comments-context";
 
 const { t } = initI18n();
@@ -235,7 +236,8 @@ describe("DocumentActionsMenu", () => {
     await openMenu();
 
     fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.archive") }));
-    expect(await screen.findByText(t("documents.archive.archive_title"))).toBeInTheDocument();
+    // The title and the confirm button share the trash wording since the rename, so ask for the heading.
+    expect(await screen.findByRole("heading", { name: t("documents.archive.archive_title") })).toBeInTheDocument();
   });
 
   it("drops the copy entry once the deployment answers 404", async () => {
@@ -327,6 +329,39 @@ describe("DocumentActionsMenu", () => {
     // and "Lưu trữ" no longer applies.
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.access_log") })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
+  });
+  // RAR-04: the header's Lưu trữ / Bỏ lưu trữ follow canManageTrashed (manage or admin_scope), like the banner and the shelf row.
+  it("offers Lưu trữ and Bỏ lưu trữ to a break-glass admin (view + admin_scope)", async () => {
+    const live = renderMenu(documentFixture({ my_level: "view", admin_scope: true }));
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    live.unmount();
+
+    renderMenu(documentFixture({ my_level: "view", admin_scope: true, shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u2" }));
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.shelved_list.unshelve") })).toBeInTheDocument();
+  });
+
+  // F6: a shelved file keeps the editor slot's Tải xuống bản gốc and Sao chép (same gates as live); only the upload goes.
+  it("keeps download and copy on a shelved file whose editor fills the menu read-only", async () => {
+    const doc = documentFixture({ my_level: "edit", shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u2" });
+    const actions: DocumentFileActions = { download: vi.fn(() => Promise.resolve()), downloading: null, openUpload: vi.fn(), uploadDialog: null };
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <HeaderActionsSlotProvider>
+            <HeaderActionsFill menuItems={<DocumentFileMenuItems actions={actions} readonly />} />
+            <DocumentActionsMenu wsId={WS} doc={doc} />
+          </HeaderActionsSlotProvider>
+        </WorkspaceProvider>,
+      ),
+    );
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.copy") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.upload_version") })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.download_original") }));
+    expect(actions.download).toHaveBeenCalled();
   });
 });
 
