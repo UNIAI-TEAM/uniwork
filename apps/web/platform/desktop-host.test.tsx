@@ -98,6 +98,22 @@ describe("DesktopHost deep links", () => {
     expect(router.push).toHaveBeenCalledWith("/acme/team/chat?room=r1");
   });
 
+  it("hands a non-chat path to the browser and rewrites the landing page to chat", async () => {
+    await act(async () => root.render(<WebNavigationProvider><DesktopHost /></WebNavigationProvider>));
+
+    // The chat-only policy is wired by WebNavigationProvider, not by DesktopHost.
+    bridge.deepLink?.("uniworkchat://open?url=/acme/team/documents/x");
+    await flushed();
+    expect(bridge.openExternal).toHaveBeenCalledWith(runtimeConfig().appUrl + "/acme/team/documents/x");
+    expect(bridge.openExternal).toHaveBeenCalledWith("http://localhost:3000/acme/team/documents/x");
+    expect(router.push).not.toHaveBeenCalled();
+
+    bridge.deepLink?.("uniworkchat://open?url=/acme/team/tasks");
+    await flushed();
+    expect(router.push).toHaveBeenCalledWith("/acme/team/chat");
+    expect(bridge.openExternal).toHaveBeenCalledTimes(1);
+  });
+
   it("drops a link of another origin and unsubscribes on unmount", async () => {
     await act(async () => root.render(<WebNavigationProvider><DesktopHost /></WebNavigationProvider>));
 
