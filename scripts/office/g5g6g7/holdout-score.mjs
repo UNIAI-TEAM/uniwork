@@ -135,7 +135,7 @@ export function splitAnchor(anchor) {
 
 // Unit words/symbols a Vietnamese reply may put beside the number (R1-4): "22.060.000 đồng", "22.060.000 đ",
 // "22.060.000 VNĐ", "₫22.060.000", "22.060.000 VND". The unit is presentation, not part of the value.
-const UNIT_TOKENS = [
+export const UNIT_TOKENS = [
   'đồng', 'vnđ', 'vnd', 'đ', '₫', 'usd', '$', 'eur', '€', 'yên', 'jpy', 'cny', 'nhân dân tệ',
 ];
 const UNIT_STRIP_PATTERN = new RegExp(

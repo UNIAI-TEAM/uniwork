@@ -26,7 +26,7 @@
 // A reply without the line (or with an invalid one) reports nothing, so the scorer fails it closed; `reportStatus`
 // keeps that protocol failure apart from a wrong answer.
 
-import { anchorMatches, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
+import { UNIT_TOKENS, anchorMatches, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
@@ -101,9 +101,30 @@ function tokenToNumber(tok) {
 // A cell or range address inside one word of the reply ("Sheet!A1", "A1:G7", "$B$2", and a label like "Q1"), a date
 // ("2026-10-17", "17/10/2026") and a section/list locator word ("slide 3", "dòng 7", "mục 2"). Digits that belong to
 // one of these are not quantity claims (review-g712-16 A7).
-const ADDRESS_WORD_RE = /[A-Za-z]{1,3}\$?\d+/;
+//
+// R17-4 (review-g712-17): the address exemption needs real address or range tokens with boundaries — a sheet name may
+// be quoted and hold spaces, the column letters and row digits must be whole, and the cell may be `$`-absolute. A
+// currency- or unit-prefixed amount ("VND987654321", "$987654321", "987654321VND") is a QUANTITY, never an address,
+// even though the letters of the unit look like column letters; so is any other letter-led run.
+const CELL_RE = String.raw`\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?`;
+// A real address or range: a sheet-qualified cell ("Sheet!A1", "Doanh thu Q1!G8:G8", "'Q1 2026'!A1") or a bare one
+// ("A1", "A1:B2"). The sheet name may be quoted and hold spaces, or be an unquoted run without spaces.
+const ADDRESS_RUN_RE = new RegExp(`(?:'(?:[^']|'')+'|[A-Za-z_][\\w.]*)!${CELL_RE}|\\b${CELL_RE}\\b`, 'g');
+const PERIOD_LABEL_RE = /^(?:q[1-4]|[qk]uý\s*[1-4]|quý\s+[ivx]+|kỳ\s*\d+|tháng\s*\d{1,2}|năm\s*\d{4}|h[1-4]|sheet\s*\d+)$/i;
+// An identifier word: a URL ("http://host:8443/v1"), an email or handle ("ops@example.com"), a key-shaped token
+// ("sk-abcdefgh12345678"), or an opaque alphanumeric token ("abcdefghijklmnop1234"). Its digits are a host, a port or
+// a secret, never an amount the reply states. A unit-suffixed amount is NOT an identifier (R17-4), so it is tested first.
+const UNIT_SUFFIX_RE = new RegExp(`^[0-9.,]+\\s*(?:${UNIT_TOKENS.map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`, 'iu');
+const IDENTIFIER_WORD_RE = /:\/\/|@|^[A-Za-z]{2,}[-_][A-Za-z0-9_-]{6,}$|^[A-Za-z0-9]{8,}$/;
+const NUMBER_PREFIXED_UNIT_RE = new RegExp(`^(?:${UNIT_TOKENS.map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'iu');
 const DATE_WORD_RE = /\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}/;
-const LOCATOR_WORD_RE = /(?:slide|page|trang|row|line|hàng|dòng|ô|cell|section|mục|chương|quý|quarter|step|bước|khu vực|table|bảng|biểu đồ|chart|phần|item)\s*$/i;
+// Written-month dates, English and Vietnamese (R17-5): "October 17, 2026", "17 October 2026",
+// "17 tháng 10 năm 2026", "ngày 17 tháng 10, 2026". The month word is what makes it a date; a bare "17" stays a claim.
+const MONTH_WORDS = 'january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|tháng';
+const WRITTEN_MONTH_BEFORE_RE = new RegExp(`(?:^|[^\\p{L}])(?:ngày\\s+)?(?:${MONTH_WORDS})\\s*$`, 'iu');
+const WRITTEN_MONTH_AFTER_RE = new RegExp(`^\\s*(?:${MONTH_WORDS})\\b`, 'iu');
+const YEAR_AFTER_MONTH_RE = new RegExp(`(?:${MONTH_WORDS})\\s*(?:\\d{1,2}\\s*[,.]?\\s*)?$`, 'iu');
+const LOCATOR_WORD_RE = /(?:slide|page|trang|row|line|hàng|dòng|ô|cell|section|mục|chương|quý|quarter|step|bước|khu vực|table|bảng|biểu đồ|chart|phần|item|tháng|năm|ngày)\s*$/i;
 const QUOTE_CHARS = /["“”„«»]/g;
 
 /** The word (whitespace-delimited run) that holds the token at [start, end). */
@@ -116,23 +137,64 @@ function wordAround(text, start, end) {
 }
 
 /**
+ * Is the token at [start, end) of `text` an address, a range or a period label rather than a quantity (R17-4)? The
+ * whole line is scanned for real address runs, so a number inside one ("Sheet!A1", "A1:B2", "Doanh thu Q1!G8:G8",
+ * "'Q1 2026'!A1") is exempt with its boundaries, and a "Q1"/"quý 1" period label is exempt on its own.
+ */
+function isAddressToken(text, start, end) {
+  const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = text.indexOf('\n', end);
+  const line = text.slice(lineStart, lineEnd < 0 ? text.length : lineEnd);
+  const offset = start - lineStart;
+  ADDRESS_RUN_RE.lastIndex = 0;
+  for (const match of line.matchAll(ADDRESS_RUN_RE)) {
+    if (offset >= match.index && end - lineStart <= match.index + match[0].length) return true;
+  }
+  const { word } = wordAround(text, start, end);
+  const bare = word.replace(/[^0-9A-Za-zÀ-ỹ\s]/g, '').trim();
+  return PERIOD_LABEL_RE.test(bare);
+}
+
+/**
+ * Is the token at [start, end) part of a written-month date (R17-5)? The month word is what makes it a date: the token
+ * directly follows a written month ("October 17", "tháng 10"), directly precedes one ("17 October"), or is the year
+ * that closes a written date ("October 17, 2026", "17 October 2026"). A bare number next to no month word stays a claim.
+ */
+function isWrittenDateToken(text, start, end) {
+  const token = text.slice(start, end);
+  const { before, after } = wordAround(text, start, end);
+  if (WRITTEN_MONTH_BEFORE_RE.test(before) || WRITTEN_MONTH_AFTER_RE.test(after)) return true;
+  return /^\d{4}$/.test(token) && YEAR_AFTER_MONTH_RE.test(before);
+}
+
+/**
  * The numbers the reply states in prose that are quantity claims (review-g712-16 A7). A prose figure is a claim like a
  * reported number, so it must be reported or traceable; only tokens that are clearly not quantities are exempt: a
- * cell/range address or a label like "Q1", a date (and a year inside one), a locator/ordinal of a list or section
- * marker, and digits that belong to quoted document text.
+ * cell/range address with real boundaries or a period label like "Q1" (R17-4), a numeric or written-month date
+ * (R17-5), a locator word before it, a list marker that starts a line ("1. ", "3) "), and digits inside quoted
+ * document text. A currency- or unit-prefixed amount is a quantity, not an address.
  */
 export function proseQuantityTokens(text) {
   const out = [];
-  for (const match of String(text).matchAll(NUMBER_TOKEN_RE)) {
-    const tok = match[0];
-    const { word, before, after } = wordAround(String(text), match.index, match.index + tok.length);
-    if (ADDRESS_WORD_RE.test(word) || DATE_WORD_RE.test(word)) continue;
+  const source = String(text);
+  for (const match of source.matchAll(NUMBER_TOKEN_RE)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const { word, before, after } = wordAround(source, start, end);
+    // R17-4: a unit- or currency-prefixed run ("VND987654321", "$987654321", "987654321VND") is a QUANTITY. It is
+    // never an address, even though the unit's letters would read as column letters to the address pattern.
+    if (NUMBER_PREFIXED_UNIT_RE.test(word)) { out.push(match[0]); continue; }
+    // An identifier's digits (a URL host or port, an email, a key) are not an amount the reply states.
+    const bareWord = word.replace(/[),.;:"'“”]+$/, '');
+    if (!UNIT_SUFFIX_RE.test(bareWord) && IDENTIFIER_WORD_RE.test(bareWord) && /[A-Za-z]/.test(bareWord)) continue;
+    if (isAddressToken(source, start, end) || DATE_WORD_RE.test(word) || isWrittenDateToken(source, start, end)) continue;
     if (LOCATOR_WORD_RE.test(before.trimEnd())) continue;
-    // A list marker: the token starts a line and is followed by "." or ")" ("1. Bắc", "2) Nam").
-    if (/^[.)]/.test(after) && /\n\s*$/.test(before)) continue;
+    // A list marker (R17-5): the token starts a line (the first line counts too) and the rest of its word is only the
+    // marker punctuation ("1. Bắc", "3) Nam", "2. "). The digits of such an ordinal are not a quantity.
+    if (/(?:^|\n)[ \t]*$/.test(before) && /^[.)]+$/.test(word.slice(match[0].length))) continue;
     // Inside quoted document text: an odd number of quote characters before it opens a quotation that this digit sits in.
     if (((before.match(QUOTE_CHARS) ?? []).length % 2) === 1) continue;
-    out.push(tok);
+    out.push(match[0]);
   }
   return out;
 }
@@ -408,11 +470,14 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const proseExtras = proseQuantityTokens(parsed.text)
     .map(tokenToNumber)
     .filter((n) => n !== null && !inList(n, reportedNumbers) && !inList(n, extraNumbers));
+  // `forbidExtraNumbers` bars intermediate figures from the REPORTED numbers; a figure the prose states is a claim
+  // only when it is untraceable (README: "mọi số bịa không truy nguyên được vẫn bị đánh trượt"), so repeating a
+  // tool-read operand in prose is never an invented figure (R17-5 boundary: a list marker's digits, a date, an address).
   const strictExtras =
     numbers === 'strict'
       ? [
           ...extras.filter((value) => caseDoc.expected.forbidExtraNumbers === true || !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, shownNumbers)),
-          ...proseExtras.filter((value) => caseDoc.expected.forbidExtraNumbers === true || !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, shownNumbers)),
+          ...proseExtras.filter((value) => !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, shownNumbers)),
         ]
       : [];
   strictExtras.forEach((value, i) => { numeric[`extra_figure_${i + 1}`] = value; });
