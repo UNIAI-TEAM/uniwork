@@ -318,6 +318,44 @@ describe("documents upload sessions endpoints", () => {
     expect(xhr.setHeaders).toEqual({ "x-amz-checksum-sha256": "abc" });
   });
 
+  it("XHR part PUT maps a 503 with Retry-After to ApiError", async () => {
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+    const p = putUploadSessionPart("https://s3.example.test/part", new Blob(["x"]), {
+      onProgress: () => {},
+    }).catch((e: unknown) => e);
+    const xhr = FakeXhr.last!;
+    xhr.status = 503;
+    xhr.responseText = JSON.stringify({ error: { code: "slow_down", message: "slow down" } });
+    xhr.rawHeaders = "Retry-After: 7\r\nContent-Type: application/json";
+    xhr.fire("load");
+    const err = await p;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 503, retryAfterSeconds: 7 });
+  });
+
+  it("XHR part PUT rejects with AbortError when the signal aborts mid-request", async () => {
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+    const ctl = new AbortController();
+    const p = putUploadSessionPart("https://s3.example.test/part", new Blob(["x"]), {
+      onProgress: () => {},
+      signal: ctl.signal,
+    }).catch((e: unknown) => e);
+    ctl.abort();
+    const err = await p;
+    expect(FakeXhr.last!.aborted).toBe(true);
+    expect(err).toBeInstanceOf(DOMException);
+    expect((err as DOMException).name).toBe("AbortError");
+  });
+
+  it("XHR part PUT rejects with TypeError on a network error event", async () => {
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+    const p = putUploadSessionPart("https://s3.example.test/part", new Blob(["x"]), {
+      onProgress: () => {},
+    }).catch((e: unknown) => e);
+    FakeXhr.last!.fire("error");
+    expect(await p).toBeInstanceOf(TypeError);
+  });
+
   it("surfaces Retry-After and fields on failed responses as ApiError", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json(
