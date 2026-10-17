@@ -15,6 +15,12 @@ type AppEnv = "dev" | "staging" | "production";
 // assetlinks web serves name it); dev and staging rely on the custom scheme.
 const APP_LINK_HOST = "app.uniworkos.com";
 
+// The EAS project (not a secret), written here by the first-time setup in
+// docs/runbooks/unichat-mobile-release.md once the account exists (UNI-1838).
+// Empty means no EAS: no update server, no push token, the embedded bundle is
+// the app. UNICHAT_EAS_PROJECT_ID overrides it; "" turns EAS off for a build.
+const EAS_PROJECT_ID = "";
+
 function appEnv(): AppEnv {
   const value = process.env.UNICHAT_ENV;
   return value === "staging" || value === "production" ? value : "dev";
@@ -40,9 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     : isStaging
       ? (process.env.EXPO_BUNDLE_IDENTIFIER_STAGING ?? "com.uniworkos.chat.staging")
       : (process.env.EXPO_BUNDLE_IDENTIFIER_DEV ?? "com.uniworkos.chat.dev");
-  // Not a secret; empty until the EAS project exists (UNI-1838). Without it there
-  // is no update server and no push token, and the app runs on its embedded bundle.
-  const easProjectId = process.env.UNICHAT_EAS_PROJECT_ID || undefined;
+  const easProjectId = (process.env.UNICHAT_EAS_PROJECT_ID ?? EAS_PROJECT_ID) || undefined;
 
   return {
     ...config,

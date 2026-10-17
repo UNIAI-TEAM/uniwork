@@ -27,7 +27,7 @@ describe("app.config per UNICHAT_ENV", () => {
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_DEV", undefined);
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_STAGING", undefined);
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_PROD", undefined);
-    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", undefined);
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "");
     stubServers();
 
     const config = build();
@@ -120,7 +120,7 @@ describe("EAS project and release servers", () => {
     expect(config.extra?.eas).toEqual({ projectId: "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
   });
 
-  it("an empty project id counts as none", () => {
+  it("an empty override turns EAS off", () => {
     vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "");
     const config = build();
     expect(config.updates).toEqual({ enabled: false });
