@@ -1,0 +1,43 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/g7-08/*.test.mjs 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "G708_EXIT=$rc"
+  ...
+# Subtest: oraclePptxRead (P-R1) and oraclePptxEdit (P-E1) PASS faithful cases and FAIL/BLOCK every guard
+ok 11 - oraclePptxRead (P-R1) and oraclePptxEdit (P-E1) PASS faithful cases and FAIL/BLOCK every guard
+  ---
+  duration_ms: 6.7606
+  ...
+# Subtest: row table defines all 13 capability rows and 1 hitl row from proposal §2
+ok 12 - row table defines all 13 capability rows and 1 hitl row from proposal §2
+  ---
+  duration_ms: 1.197724
+  ...
+# Subtest: every row carries format, operation, verified fixture sha256, Vietnamese prompt, tools, missingByHost and ACs
+ok 13 - every row carries format, operation, verified fixture sha256, Vietnamese prompt, tools, missingByHost and ACs
+  ---
+  duration_ms: 21.374218
+  ...
+# Subtest: verifyRowFixtures passes on the canonical table and rejects unknown fixtures or wrong sha256
+ok 14 - verifyRowFixtures passes on the canonical table and rejects unknown fixtures or wrong sha256
+  ---
+  duration_ms: 3.731543
+  ...
+# Subtest: expandMatrixRuns produces 52 automated row-runs + 2 hitl Word runs with web runs ordered first
+ok 15 - expandMatrixRuns produces 52 automated row-runs + 2 hitl Word runs with web runs ordered first
+  ---
+  duration_ms: 2.782739
+  ...
+# Subtest: importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10)
+ok 16 - importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10)
+  ---
+  duration_ms: 10.500645
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 106.680568
+
+G708_EXIT=0
