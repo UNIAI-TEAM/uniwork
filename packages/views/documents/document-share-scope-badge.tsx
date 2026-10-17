@@ -2,7 +2,6 @@
 
 import { Building2, House, Link2, Lock, Share2, Users, type LucideIcon } from "lucide-react";
 import { useId, useState } from "react";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { DocumentShareScope } from "@uniwork/core/types/document";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
@@ -176,18 +175,15 @@ export function DocumentShareScopeBadge({
             />
           ) : null}
         </TooltipTrigger>
-        <TooltipContent id={open && tooltipText !== label ? descriptionId : undefined} role="tooltip">
+        <TooltipContent role="tooltip">
           {tooltipText}
         </TooltipContent>
       </Tooltip>
-      {!open && tooltipText !== label && typeof document !== "undefined"
-        ? createPortal(
-            <span id={descriptionId} className="sr-only">
-              {tooltipText}
-            </span>,
-            document.body,
-          )
-        : null}
+      {tooltipText !== label ? (
+        <span id={descriptionId} className="sr-only">
+          {tooltipText}
+        </span>
+      ) : null}
     </>
   );
 }

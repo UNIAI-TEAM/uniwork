@@ -236,10 +236,20 @@ export type DocumentAccessSource = {
 
 export type DocumentShareWarningCode = "direct_below_group";
 
+const KNOWN_DOCUMENT_ACCESS_LEVELS: readonly string[] = ["view", "comment", "edit", "manage"];
+
+const narrowDocumentAccessLevel = (v: string | null | undefined): DocumentAccessLevel | null =>
+  typeof v === "string" && KNOWN_DOCUMENT_ACCESS_LEVELS.includes(v) ? (v as DocumentAccessLevel) : null;
+
 export const DocumentHomeWorkspaceAccessSchema = z.object({
   workspace_id: z.string().min(1),
   workspace_name: z.string().optional().default(""),
-  level: z.string().nullable().optional().default(null),
+  level: z
+    .string()
+    .nullable()
+    .optional()
+    .default(null)
+    .transform(narrowDocumentAccessLevel),
 });
 export type DocumentHomeWorkspaceAccess = {
   workspace_id: string;
@@ -262,7 +272,7 @@ export const DocumentShareSchema = z.object({
   id: z.string(),
   principal_type: z.string(),
   principal_id: z.string(),
-  level: z.string(),
+  level: z.string().transform((v) => narrowDocumentAccessLevel(v) ?? ("view" as DocumentAccessLevel)),
   active: z.boolean().optional().default(true),
   effective_level: z.string().nullable().optional(),
   effective_via: z.string().nullable().optional(),

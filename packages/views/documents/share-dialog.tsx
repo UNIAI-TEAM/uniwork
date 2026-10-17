@@ -148,24 +148,7 @@ export function ShareDialog({
           ) : null}
         </DialogHeader>
 
-        {!canAdminister && access.isLoading ? (
-          <div className="flex items-center gap-2 py-4 text-body text-muted-foreground">
-            <Spinner />
-            {t("documents.share.loading")}
-          </div>
-        ) : !canAdminister ? (
-          <ShareAccessList
-            wsId={wsId}
-            docId={doc.id}
-            docWorkspaceId={doc.workspace_id}
-            doc={doc}
-            access={access.data}
-            canManage={false}
-            adminScope={false}
-            memberName={memberName}
-            workspaceName={workspaceName}
-          />
-        ) : access.isLoading ? (
+        {access.isLoading ? (
           <div className="flex items-center gap-2 py-4 text-body text-muted-foreground">
             <Spinner />
             {t("documents.share.loading")}
@@ -182,6 +165,18 @@ export function ShareDialog({
               {t("documents.share.retry")}
             </Button>
           </div>
+        ) : !canAdminister ? (
+          <ShareAccessList
+            wsId={wsId}
+            docId={doc.id}
+            docWorkspaceId={doc.workspace_id}
+            doc={doc}
+            access={access.data}
+            canManage={false}
+            adminScope={false}
+            memberName={memberName}
+            workspaceName={workspaceName}
+          />
         ) : (
           <div className="flex flex-col gap-5">
             {members.error ? (

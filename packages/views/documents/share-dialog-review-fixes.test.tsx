@@ -165,6 +165,27 @@ describe("non-manager through ShareDialog (F-W1-01, E2E-1)", () => {
     expect(screen.queryByRole("region", { name: t("documents.share.links_title") })).toBeNull();
     expect(screen.queryByRole("button", { name: t("documents.share.submit") })).toBeNull();
   });
+
+  it("shows the error and retry block when GET /shares fails for a non-manager (N-02)", async () => {
+    let failed = true;
+    serve((path) => {
+      if (path === SHARES) {
+        if (failed) return Promise.reject(new ApiError("boom", "internal_error", 500));
+        return Promise.resolve({
+          my_level: "view",
+          via: "share",
+          my_sources: [{ via: "share", principal_type: "user", principal_id: "u1", level: "view" }],
+        });
+      }
+      return undefined;
+    });
+    renderDialog(documentFixture({ my_level: "view" }));
+
+    expect(await screen.findByText(t("documents.share.error"))).toBeInTheDocument();
+    failed = false;
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.retry") }));
+    expect(await screen.findByText(t("documents.share.my_level", { level: t("documents.share.level_view") }))).toBeInTheDocument();
+  });
 });
 
 describe("candidate list (F-W1-03, F-W1-04, F-W1-13)", () => {
@@ -228,6 +249,40 @@ describe("candidate list (F-W1-03, F-W1-04, F-W1-13)", () => {
 
     openList();
     expect(await screen.findByRole("option", { name: /Bình/ })).toBeInTheDocument();
+  });
+
+  it("keeps the loaded first page and offers retry when the second page fails, without swapping to the local list (N-01)", async () => {
+    let failNext = true;
+    serve((path) => {
+      if (path.startsWith("/api/v1/orgs/acme/members")) {
+        return Promise.resolve({
+          members: [{ user_id: "u9", email: "local@acme.vn", display_name: "Người Cục Bộ", role: "member", created_at: "" }],
+          next_cursor: "",
+        });
+      }
+      if (!path.startsWith(CANDIDATES)) return undefined;
+      if (path.includes("cursor=c2")) {
+        if (failNext) return Promise.reject(new ApiError("server error", "internal_error", 500));
+        return Promise.resolve({ items: [design, acme], next_cursor: null });
+      }
+      return Promise.resolve({ items: [person("u2", "Bình")], next_cursor: "c2" });
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    openList();
+    await screen.findByRole("option", { name: /Bình/ });
+    expect(screen.queryByRole("option", { name: /Người Cục Bộ/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.candidates_more") }));
+    const retryBtn = await screen.findByRole("button", { name: t("documents.share.retry") });
+    expect(screen.getByRole("option", { name: /Bình/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Người Cục Bộ/ })).toBeNull();
+
+    failNext = false;
+    fireEvent.click(retryBtn);
+    expect(await screen.findByRole("option", { name: /Design/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Bình/ })).toBeInTheDocument();
   });
 
   it("does not re-filter the server's hits by the live query (a hit on another field stays)", async () => {

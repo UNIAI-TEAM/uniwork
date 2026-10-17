@@ -181,12 +181,21 @@ export function parseDocumentAccessRejected(err: unknown): DocumentAccessRejecte
   };
 }
 
+const KNOWN_SHARE_LEVELS: readonly string[] = ["view", "comment", "edit", "manage"];
+
 export const DocumentShareCandidateSchema = z.object({
   principal_type: z.string(),
   principal_id: z.string().min(1),
   name: z.string(),
   secondary: z.string().optional().default(""),
-  direct_level: z.string().nullable().optional().default(null),
+  direct_level: z
+    .string()
+    .nullable()
+    .optional()
+    .default(null)
+    .transform((v): DocumentAccessLevel | null =>
+      typeof v === "string" && KNOWN_SHARE_LEVELS.includes(v) ? (v as DocumentAccessLevel) : null,
+    ),
   is_home_workspace: z.boolean().optional().default(false),
 });
 export type DocumentShareCandidate = {

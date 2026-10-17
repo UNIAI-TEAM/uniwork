@@ -185,6 +185,11 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
 
     rerender(<DocumentShareScopeBadge shareScope={scope({ users: 2, home_workspace: true })} focusable={false} />);
     expect(screen.getByTestId("document-share-scope-badge")).not.toHaveAttribute("tabindex");
+    // N-05: aria-describedby always resolves in the DOM whether the tooltip is closed or open.
+    const closedBadge = screen.getByTestId("document-share-scope-badge");
+    const closedDescId = closedBadge.getAttribute("aria-describedby")!;
+    expect(closedDescId).toBeTruthy();
+    expect(document.getElementById(closedDescId)?.textContent).toBe("Workspace · 2 người");
   });
 
   it("names the document's own workspace in the tooltip, never the viewer's current one (F-W2-07)", () => {
