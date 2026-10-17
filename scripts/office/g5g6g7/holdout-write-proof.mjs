@@ -235,12 +235,15 @@ const ADDRESS_KEYS = ['address', 'range', 'cell', 'anchor', 'target', 'values'];
 
 const opTypeOf = (node) => OP_TYPE_KEYS.map((k) => node[k]).find((v) => typeof v === 'string' && v.trim() !== '') ?? null;
 
-/** The scalar settings of one operation object: its own entries besides the control, sheet and type keys. */
+const isClearedSetting = (v) =>
+  v === null || (typeof v === 'string' && (v.trim() === '' || /^(?:clear|none|reset|unset)$/i.test(v.trim())));
+
+/** The settings of one operation object: scalar values and explicit nulls (which clear a key in final state, R18-7). */
 function opSettings(node) {
   const out = [];
   for (const [key, value] of Object.entries(node)) {
     if (CONTROL_KEYS.has(key) || SHEET_KEYS.includes(key) || OP_TYPE_KEYS.includes(key)) continue;
-    if (isScalar(value)) out.push({ key, value });
+    if (isScalar(value) || value === null) out.push({ key, value });
   }
   return out;
 }
@@ -253,7 +256,12 @@ function resolveSheetName(have, sheetNames) {
   return String(have).trim();
 }
 
-/** Every configuration operation of one write's arguments: a typed operation object carrying at least one setting. */
+const isClearOpType = (opType, expectedType) => {
+  const base = norm(expectedType).replace(/^set_/, '');
+  return base !== '' && new RegExp(`^(?:clear|reset|unset)_?${base}$`, 'i').test(norm(opType));
+};
+
+/** Every configuration operation of one write's arguments: a typed operation object carrying settings or a clear op. */
 export function configOps(args) {
   const out = [];
   for (const { node } of operations(args ?? {})) {
@@ -261,7 +269,7 @@ export function configOps(args) {
     if (!type) continue;
     if (ADDRESS_KEYS.some((k) => node[k] !== undefined)) continue;
     const settings = opSettings(node);
-    if (settings.length === 0) continue;
+    if (settings.length === 0 && !/^(?:clear|reset|unset)_/i.test(norm(type))) continue;
     const sheet = SHEET_KEYS.map((k) => node[k]).find((v) => typeof v === 'string' && v.trim() !== '') ?? null;
     out.push({ type, sheet, settings });
   }
@@ -278,38 +286,41 @@ function parseConfigSpec(text) {
   return sheet && keys.length > 0 ? { sheet, keys } : null;
 }
 
-/** `<sheet>|<key>=<observed>,…` for the keys the expectation names, or null when the operation carries no such setting. */
-function canonicalConfig(sheet, keys, op) {
-  const parts = [];
-  for (const key of keys) {
-    const hit = op.settings.find((s) => norm(s.key) === norm(key));
-    if (!hit) return null;
-    parts.push(`${key}=${hit.value}`);
-  }
-  return `${sheet}|${parts.join(',')}`;
-}
-
 /**
- * Proves a configuration edit (review-g712-16 A2) from the APPLIED propose_operations arguments: an operation of the
- * expected type on the expected sheet, carrying every setting the expectation names. Returns the observed canonical
- * `sheet|key=value,…` — the observed values, never the expected ones, so the scorer's own value comparison still
- * decides whether they are the expected settings — or null when no applied operation is this configuration.
- *
- * The proof must be unambiguous (review-g712-17 R17-1): when applied operations of the expected type on the expected
- * sheet carry DIFFERENT settings for the named keys, the arguments do not say what the configuration ended as, so the
- * edit is not proven. The same settings applied twice are one configuration.
+ * Proves a configuration edit (review-g712-16 A2, review-g712-17 R17-1, review-g712-18 R18-7) from the APPLIED
+ * propose_operations arguments. Canonical config state is the FINAL state on the target sheet after every applied
+ * operation in order: setting a key updates it, and an explicit null or clear removes it. Returns the final canonical
+ * `sheet|key=value,…` when every expected key is present in the final state, or null when any key is missing/cleared.
  */
 export function configOpProof(writes, type, expectedSpec, sheetNames = []) {
   const spec = parseConfigSpec(expectedSpec);
   if (!spec) return null;
-  const observed = new Set();
+  const state = new Map();
+  let resolvedSheet = null;
   for (const write of writes) {
+    if (write.name && write.name !== 'propose_operations') continue;
     for (const op of configOps(write.args ?? {})) {
-      if (norm(op.type) !== norm(type)) continue;
+      const sameType = norm(op.type) === norm(type);
+      const clearType = isClearOpType(op.type, type);
+      if (!sameType && !clearType) continue;
       if (!op.sheet || !sameSheet(spec.sheet, op.sheet, sheetNames)) continue;
-      const canonical = canonicalConfig(resolveSheetName(op.sheet, sheetNames), spec.keys, op);
-      if (canonical !== null) observed.add(canonical);
+      resolvedSheet = resolveSheetName(op.sheet, sheetNames);
+      if (clearType && op.settings.length === 0) {
+        state.clear();
+        continue;
+      }
+      for (const s of op.settings) {
+        const k = norm(s.key);
+        if (clearType || isClearedSetting(s.value)) state.delete(k);
+        else state.set(k, s.value);
+      }
     }
   }
-  return observed.size === 1 ? [...observed][0] : null;
+  if (resolvedSheet === null) return null;
+  const parts = [];
+  for (const key of spec.keys) {
+    if (!state.has(norm(key))) return null;
+    parts.push(`${key}=${state.get(norm(key))}`);
+  }
+  return `${resolvedSheet}|${parts.join(',')}`;
 }
