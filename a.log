@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1360-g5-05u-offline-library-ui; git log --oneline -3
+eab49e2aca5e6fbc4424446869940b82d7631655
+eab49e2aca5e6fbc4424446869940b82d7631655
+eab49e2a chore: merge fork main 5227809c0 (SAVE-01) into the G5-05u lane branch
+d97612a6 fix(shell): omit 0 B / 0 B byte sub-line on indeterminate download rows (VG5-4)
+be3c0acd fix(shell): wire offline pin/unpin item into UniworkBrowser row menu in Open dialog (VG5-2)
