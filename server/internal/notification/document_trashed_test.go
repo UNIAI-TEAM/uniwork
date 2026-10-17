@@ -721,6 +721,15 @@ func TestDocumentTrashedStaysInAppOnly(t *testing.T) {
 	f.archive(t, f.member.ID, docID)
 	f.handleTopic(t, "document.archived")
 
+	// The digest's document gate drops a row whose document is not readable,
+	// and a trashed document the owner administers is trashable, not readable
+	// (digest.build). The notice must therefore be back on a live document
+	// when the digest runs, or the negative assertion below holds whether or
+	// not the email ceiling exists (BE-TN-10).
+	if _, err := f.docs.RestoreDocument(f.ctx, service.Human(f.owner.ID), docID, service.ArchiveDocumentInput{IdempotencyKey: util.NewID()}); err != nil {
+		t.Fatal(err)
+	}
+
 	// Default push is off, so the write emits no notification.push row even
 	// before any push worker runs (PushedAt alone could not prove it).
 	for _, ev := range f.events(t, "notification.push") {
