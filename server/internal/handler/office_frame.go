@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -127,16 +126,6 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	t, err := h.OfficeFrame.Mint(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
-	if errors.Is(err, service.ErrOfficeFrameTooLarge) && !officeFrameModuleEnabled(r.Context(), h.FeatureFlags, t.Claims) {
-		// The flag answers first: off is 403 whatever the size.
-		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
-		return
-	}
-	if errors.Is(err, service.ErrOfficeFrameTooLarge) {
-		// Over the module's size cap (Sheets, GO-D3): the host shows the too-large notice instead.
-		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "document is too large for the web frame")
-		return
-	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -276,12 +265,12 @@ func (h *handlers) listOfficeFrameRecents(w http.ResponseWriter, r *http.Request
 // uploadOfficeFrameAsset is POST /office-frame/documents/{documentID}/assets.
 func (h *handlers) uploadOfficeFrameAsset(w http.ResponseWriter, r *http.Request) {
 	claims := officeFrameClaims(r)
-	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap)
+	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap, documentAssetMaxBytes)
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 10 << 20}
+	part := &cappedDocumentPart{r: file, max: documentAssetMaxBytes}
 	asset, err := h.OfficeFrame.UploadAsset(r.Context(), claims, service.DocumentUploadInput{
 		Filename:       file.FileName(),
 		Body:           part,

@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   ENGINE_CONTRACT_VERSION,
+  ENGINE_LIMITS,
   ENGINE_PROTOCOL_VERSION,
   ENGINE_ERROR_CODES,
   EngineBoundaryError,
@@ -38,6 +39,15 @@ describe("contract constants", () => {
       expect(spec.kind.length, code).toBeGreaterThan(0);
       expect(typeof spec.retryable, code).toBe("boolean");
     }
+  });
+
+  it("caps input at the 383 MiB JSON transport ceiling and output at the 2 GiB document cap", () => {
+    // SIZE-S1 (UNI-1859) + size-cap:005: output keeps the top of the
+    // DOCUMENT_MAX_BYTES range (2 GiB); input is bounded lower because a
+    // base64-in-JSON body can never exceed V8's string limit.
+    const TWO_GIB = 2 * 1024 * 1024 * 1024;
+    expect(ENGINE_LIMITS.max_input_bytes).toBe(401604608);
+    expect(ENGINE_LIMITS.max_output_bytes).toBe(TWO_GIB);
   });
 });
 
@@ -149,6 +159,102 @@ describe("validateEnvelope", () => {
     expect(out.operation).toBe("cancel");
     expect(out.deadlineMs).toBeNull();
   });
+
+  it("refuses a declared input_length over the transport ceiling as upload_bounds, without reading the bytes", async () => {
+    // size-cap:005: an input above the engine ceiling is a typed 413, not a
+    // schema slip - the bytes never even reach decode.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = ENGINE_LIMITS.max_input_bytes + 1;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "upload_bounds",
+      fields: { max_input_bytes: ENGINE_LIMITS.max_input_bytes },
+    });
+  });
+
+  it("refuses a declared input_length over a host inputByteBound before the bytes are read", async () => {
+    // fix8 (SIZE-S1): the engine hands its configured cap to the validator,
+    // so a declared length over it is the typed 413 before the checksum, the
+    // string check or the decode touch input_bytes — proven by an alphabet-
+    // invalid body that must never reach the base64 checks.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_bytes = "%%%not-base64%%%";
+    envelope.payload.input_length = 128;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync, inputByteBound: 64 })).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "upload_bounds",
+      fields: { max_input_bytes: 64 },
+    });
+  });
+
+  it("refuses decoded bytes over a host inputByteBound with the measured length", async () => {
+    // fix8 (SIZE-S1): the same host bound applies after decode. A declared
+    // length inside the cap whose actual bytes cross it reaches the
+    // post-decode bound check (before the declared-vs-measured comparison):
+    // the fixture's real tuple is 5 bytes, declared as 4 against a 4-byte cap.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = 4;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync, inputByteBound: 4 })).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "upload_bounds",
+      fields: { measured_length: 5, max_input_bytes: 4 },
+    });
+  });
+
+  it("lets a declared input_length at exactly the ceiling reach the checksum/length check, never upload_bounds", async () => {
+    // R4-1 pin (size-cap:005): the boundary is strict - declared == ceiling
+    // is NOT over, so a short real payload fails as upload_checksum_mismatch
+    // instead of the typed 413.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = ENGINE_LIMITS.max_input_bytes;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "upload_checksum_mismatch",
+    });
+  });
+
+  it("rejects a negative declared input_length as a contract violation, not a boundary error", async () => {
+    // R4-1 pin: min:0 stayed on requireSafeInt after the ceiling moved out of
+    // the schema, so -1 is a wire violation, never an upload_bounds.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = -1;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.payload.input_length",
+      rule: "below_min",
+    });
+  });
+
+  it("rejects an unsafe declared input_length as a contract violation, not a boundary error", async () => {
+    // R4-1 pin: Number.MAX_SAFE_INTEGER + 1 would otherwise read as an
+    // over-ceiling declared length; the safe-integer check answers first.
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = Number.MAX_SAFE_INTEGER + 1;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.payload.input_length",
+      rule: "safe_integer_required",
+    });
+  });
+
 });
 
 describe("canonicalJson + base64", () => {

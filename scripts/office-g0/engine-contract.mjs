@@ -70,8 +70,14 @@ export const OPERATIONS = ["capability", "open", "edit", "serialize", "convert",
  * validateEnvelope rejects any request outside them.
  */
 export const LIMITS = Object.freeze({
-  max_input_bytes: 64 * 1024 * 1024,
-  max_output_bytes: 128 * 1024 * 1024,
+  // The output ceiling mirrors the document cap's configured maximum (SIZE-S1,
+  // UNI-1859): DOCUMENT_MAX_BYTES may reach 2 GiB, so a job this size is
+  // contract-legal and the deployed service's own limit does the gating.
+  // The input ceiling is lower (size-cap:005): a base64-in-JSON submit body
+  // can never exceed V8's max string length, so 383 MiB = 401604608 is the
+  // contract's transport bound.
+  max_input_bytes: 401604608,
+  max_output_bytes: 2 * 1024 * 1024 * 1024,
   max_edit_ops: 20000,
   max_deadline_ms: 600000,
   min_deadline_ms: 1,
@@ -409,7 +415,13 @@ function validateInputBytes(payload, fieldPath, { required = false, byteBound } 
   if (!(hasBytes && hasChecksum && hasLength)) {
     throw new ContractViolation(fieldPath, "checksum_tuple_incomplete", "input_bytes, input_checksum and input_length are validated together");
   }
-  const declaredLength = requireSafeInt(payload.input_length, fieldPath + ".input_length", { min: 0, max: LIMITS.max_input_bytes });
+  // A DECLARED length past the transport ceiling is the byte bound itself,
+  // not a schema slip (size-cap:005): typed 413 before decode, same as
+  // envelope.ts. Non-integer, negative or unsafe lengths stay violations.
+  const declaredLength = requireSafeInt(payload.input_length, fieldPath + ".input_length", { min: 0 });
+  if (declaredLength > bound) {
+    throw new BoundaryError("upload_bounds", { declared_length: declaredLength, max_input_bytes: bound });
+  }
   const declaredChecksum = requireHex64(payload.input_checksum, fieldPath + ".input_checksum");
   const text = requireString(payload.input_bytes, fieldPath + ".input_bytes", { minLength: 0, maxLength: LIMITS.max_output_bytes * 2 });
   const bytes = decodeStrictBase64(text, fieldPath + ".input_bytes");
@@ -1558,9 +1570,31 @@ export const FAULT_CASES = [
   },
   {
     id: "malformed-oversize-input",
-    requirement: "a DECLARED input_length above the byte bound is a schema violation before a job exists (actual bytes over the bound are upload_bounds)",
-    expect: { kind: "contract_violation", field_path: "envelope.payload.input_length", revision_delta: 0, jobs: 0 },
+    requirement:
+      "a DECLARED input_length above the engine byte ceiling is refused with the typed upload_bounds before a job exists (size-cap:005: it is a byte bound failure, not a schema violation)",
+    expect: { code: "upload_bounds", status: 413, error_class: "quota", retryable: false, jobs: 0, revision_delta: 0 },
     run: (b) => { const env = baseEnvelope(); env.payload.input_length = LIMITS.max_input_bytes + 1; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
+  },
+  {
+    id: "malformed-exact-ceiling-input",
+    requirement:
+      "a DECLARED input_length at exactly the engine byte ceiling is NOT upload_bounds: the boundary is strict, so a short real payload fails as upload_checksum_mismatch before a job exists",
+    expect: { code: "upload_checksum_mismatch", status: 409, error_class: "conflict", retryable: false, jobs: 0, revision_delta: 0 },
+    run: (b) => { const env = baseEnvelope(); env.payload.input_length = LIMITS.max_input_bytes; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
+  },
+  {
+    id: "malformed-negative-input",
+    requirement:
+      "a negative DECLARED input_length is a ContractViolation, never a boundary error: the non-negative check survives the ceiling leaving the schema",
+    expect: { kind: "contract_violation", field_path: "envelope.payload.input_length", revision_delta: 0, jobs: 0 },
+    run: (b) => { const env = baseEnvelope(); env.payload.input_length = -1; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
+  },
+  {
+    id: "malformed-unsafe-input",
+    requirement:
+      "an unsafe DECLARED input_length (Number.MAX_SAFE_INTEGER + 1) is a ContractViolation, never upload_bounds: safe-integer validation answers first",
+    expect: { kind: "contract_violation", field_path: "envelope.payload.input_length", revision_delta: 0, jobs: 0 },
+    run: (b) => { const env = baseEnvelope(); env.payload.input_length = Number.MAX_SAFE_INTEGER + 1; let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
   },
   {
     id: "malformed-bad-checksum-hex",
@@ -2111,6 +2145,9 @@ export const REQUIRED_CASE_IDS = [
   "malformed-float-length",
   "malformed-negative-deadline",
   "malformed-oversize-input",
+  "malformed-exact-ceiling-input",
+  "malformed-negative-input",
+  "malformed-unsafe-input",
   "malformed-bad-checksum-hex",
   "contract-version-mismatch",
   "protocol-version-mismatch",

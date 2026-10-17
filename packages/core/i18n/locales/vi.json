@@ -8861,7 +8861,9 @@
       "version_description": "Tệp mới trở thành bản làm việc; phiên bản đang mở vẫn nằm trong lịch sử.",
       "pick": "Chọn tệp",
       "selected": "Đã chọn {{name}}",
-      "size_hint": "Tối đa 50 MiB mỗi tệp.",
+      "size_hint": "Tối đa {{max}} mỗi tệp.",
+      "too_large_named": "{{name}} nặng {{size}}, vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
+      "unsupported_format": "Định dạng của {{name}} chưa được hỗ trợ.",
       "submit": "Tải lên",
       "submitting": "Đang tải lên…",
       "cancel": "Hủy"
@@ -8944,6 +8946,7 @@
       "empty": "Chưa có phiên bản nào. Tạo mốc đầu tiên từ bản đang làm việc.",
       "load_more": "Tải thêm",
       "row_version": "Phiên bản {{no}}",
+      "author_system": "Hệ thống",
       "current_badge": "Bản hiện tại",
       "view": "Xem nội dung",
       "preview_title": "Nội dung phiên bản {{no}}",
@@ -9200,7 +9203,7 @@
       "archive_failed": "Không lưu trữ được. Chưa có gì thay đổi.",
       "archive_forbidden": "Có tài liệu con bạn không quản lý được, nên cả nhóm không vào thùng rác.",
       "restore_title": "Khôi phục tài liệu",
-      "restore_description": "Chỉ nhóm tài liệu thuộc cùng một đợt lưu trữ được khôi phục cùng nhau. Tài liệu con có cha vẫn bị lưu trữ sẽ trở về gốc.",
+      "restore_description": "Khôi phục mục này cùng những mục con bạn quản lý. Mục về lại thư mục cũ nếu thư mục còn, nếu không thì về gốc workspace.",
       "restore_confirm": "Khôi phục",
       "restore_submitting": "Đang khôi phục…",
       "restore_failed": "Không khôi phục được. Chưa có gì thay đổi.",
@@ -9219,6 +9222,44 @@
       "delete_confirm": "Xóa",
       "delete_submitting": "Đang xóa…",
       "delete_failed": "Không xóa được. Chưa có gì thay đổi."
+    },
+    "trash": {
+      "intro": "Mục đã xóa được giữ 30 ngày rồi bị xóa vĩnh viễn. Bạn khôi phục được mục mình quản lý; mục bạn chỉ có quyền chỉnh sửa hiện ở chế độ chỉ xem.",
+      "note": "Khôi phục từng mục: tài liệu về lại thư mục cũ nếu thư mục còn, nếu không thì về gốc workspace. Khôi phục một thư mục chỉ mang theo những mục con bạn quản lý.",
+      "columns": {
+        "name": "Tên",
+        "deleted_by": "Xóa bởi",
+        "deleted_at": "Xóa lúc",
+        "purge_in": "Xóa vĩnh viễn sau",
+        "actions": "Thao tác"
+      },
+      "in_trashed_folder": "Trong thư mục “{{folder}}”",
+      "deleted_by_unknown": "Thành viên cũ",
+      "read_only": "Chỉ xem · người quản lý khôi phục",
+      "restore": "Khôi phục",
+      "purge": "Xóa vĩnh viễn",
+      "restore_item": "Khôi phục {{title}}",
+      "purge_item": "Xóa vĩnh viễn {{title}}",
+      "purge_title": "Xóa vĩnh viễn {{title}}?",
+      "purge_description": "Mục này sẽ bị xóa vĩnh viễn và không thể hoàn tác.",
+      "purge_folder_description": "Thư mục này sẽ bị xóa vĩnh viễn và không thể hoàn tác. Mục con bạn không quản lý vẫn ở lại thùng rác.",
+      "purging": "Đang xóa vĩnh viễn…",
+      "purged": "Đã xóa vĩnh viễn {{title}}",
+      "purge_failed": "Không xóa được. Chưa có gì thay đổi.",
+      "purge_days_one": "Còn {{count}} ngày",
+      "purge_days_other": "Còn {{count}} ngày",
+      "purge_today": "Xóa hôm nay",
+      "purge_expired": "Đã quá hạn",
+      "restore_failed": "Không khôi phục được. Chưa có gì thay đổi.",
+      "not_in_trash": "Mục này không còn trong thùng rác.",
+      "too_large": "Thư mục có quá nhiều mục nên chưa xóa hết được một lần. Hãy xóa từng phần bên trong trước.",
+      "no_permission": "Bạn không quản lý mục này.",
+      "toast": {
+        "restored": "Đã khôi phục {{title}}",
+        "restored_root": "Đã khôi phục {{title}} về gốc workspace",
+        "restored_folder": "Đã khôi phục {{title}} về {{folder}}",
+        "left_in_trash": "Một số mục con vẫn ở lại thùng rác."
+      }
     },
     "public": {
       "loading": "Đang tải tài liệu…",
@@ -9506,7 +9547,7 @@
         "recent": "Gần đây",
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
-        "archived": "Lưu trữ",
+        "archived": "Thùng rác",
         "sources": "Từ nơi khác",
         "chat": "Trò chuyện",
         "task": "Công việc",
@@ -9518,7 +9559,7 @@
         "home": "Tất cả",
         "recent": "Gần đây",
         "shared": "Được chia sẻ",
-        "archived": "Lưu trữ"
+        "archived": "Thùng rác"
       },
       "chips_label": "Lọc theo loại",
       "chips": {
@@ -9616,8 +9657,8 @@
         "starred_description": "Gắn sao từ menu ⋯ của một dòng để tìm lại nhanh.",
         "shared_title": "Chưa có tài liệu nào được chia sẻ với bạn",
         "shared_description": "Tài liệu người khác chia sẻ với bạn sẽ hiện ở đây.",
-        "archived_title": "Lưu trữ đang trống",
-        "archived_description": "Tài liệu đã lưu trữ hiện ở đây và khôi phục được.",
+        "archived_title": "Thùng rác đang trống",
+        "archived_description": "Tài liệu đã xóa nằm ở đây trong 30 ngày.",
         "sources_title": "Chưa có file nào",
         "sources_description": "File trong trò chuyện, công việc, cuộc họp và email mà bạn xem được sẽ hiện ở đây."
       },
@@ -9695,7 +9736,8 @@
       "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa lưu trữ được một lần. Hãy lưu trữ từng phần bên trong trước.",
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
-      "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn."
+      "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
+      "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại."
     }
   },
   "squads": {

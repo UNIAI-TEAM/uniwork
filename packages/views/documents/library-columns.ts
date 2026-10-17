@@ -31,7 +31,20 @@
  * | 68rem     | + My access, Visibility    | (never: 1130px needed)    |
  */
 
-export type LibraryColumnId = "name" | "type" | "source" | "editor" | "updated" | "size" | "access" | "visibility" | "actions";
+export type LibraryColumnId =
+  | "name"
+  | "type"
+  | "source"
+  | "editor"
+  | "updated"
+  | "size"
+  | "access"
+  | "visibility"
+  | "actions"
+  // Trash-only columns (RESTORE-01): who deleted, when, and the purge countdown.
+  | "deleted_by"
+  | "deleted_at"
+  | "purge_in";
 
 interface LibraryColumn {
   id: LibraryColumnId;
@@ -102,6 +115,40 @@ const WITH_TYPE: LibraryLadder = {
 
 export function libraryLadder(showType: boolean): LibraryLadder {
   return showType ? WITH_TYPE : PLAIN;
+}
+/** The actions column of the trash table: two icon buttons below the first
+ *  rung (the countdown keeps Name's room), the outlined Khôi phục button beside
+ *  the destructive icon button from there on. */
+const TRASH_ACTIONS: LibraryColumn = { id: "actions", col: "w-24 pointer-coarse:w-28 @min-[46rem]/library:w-48", cell: "" };
+
+// Trash ladder (Trash.dc, RESTORE-01): Name / Deleted by / Deleted at /
+// Deleted forever in / Actions. Below 46rem only Name and actions exist and
+// the secondary line carries the deleted-by/at/countdown meta; Deleted by
+// lands last because its 160px are the widest single addition.
+//
+// | container | trash                       |
+// | --------- | --------------------------- |
+// | < 46rem   | Name, actions               |
+// | 46rem     | + Deleted at, Purge in      |
+// | 56rem     | + Deleted by                |
+const TRASH: LibraryLadder = {
+  columns: [
+    NAME,
+    { id: "deleted_by", col: "hidden w-40 @min-[56rem]/library:table-column", cell: "hidden @min-[56rem]/library:table-cell" },
+    { id: "deleted_at", col: "hidden w-28 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
+    { id: "purge_in", col: "hidden w-36 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
+    TRASH_ACTIONS,
+  ],
+  head: "hidden bg-muted/50 @min-[46rem]/library:table-header-group",
+  quick: "",
+  metaHides: "@min-[46rem]/library:hidden",
+  accessLineHides: "@min-[56rem]/library:hidden",
+};
+
+/** The trash table's ladder: a narrower Name than the library's, plus the
+ *  three meta columns the deleted rows carry. */
+export function trashLadder(): LibraryLadder {
+  return TRASH;
 }
 
 /** The visibility class of one column's cells, or null when this ladder has no such column. */

@@ -87,7 +87,7 @@ func TestDocumentSourceSaveableAgreesWithTheUpload(t *testing.T) {
 		{"mp4 recording", "a.mp4", mp4},
 		{"webm recording", "a.webm", cat([]byte{0x1a, 0x45, 0xdf, 0xa3}, pad)},
 	}
-	docPolicy := documentFilePolicy()
+	docPolicy := documentFilePolicyFor(nil)
 	sources := map[string]files.Policy{}
 	for _, spec := range files.DefaultSpecs() {
 		switch spec.Purpose {
@@ -126,22 +126,22 @@ func TestDocumentSourceSaveableAgreesWithTheUpload(t *testing.T) {
 			if !policy.Allows(stored) {
 				continue // the source module would have refused this upload: no row to list
 			}
-			if got := documentSourceSaveable(ext(s.file), stored, size); got != want {
+			if got := documentSourceSaveable(docPolicy, ext(s.file), stored, size); got != want {
 				t.Errorf("%s stored by %s as %q: can_save = %v, the document upload says %v", s.name, purpose, stored, got, want)
 			}
 		}
 		// A mail part with a generic declared type: never more than the upload.
-		if got := documentSourceSaveable(ext(s.file), "application/octet-stream", size); got && !want {
+		if got := documentSourceSaveable(docPolicy, ext(s.file), "application/octet-stream", size); got && !want {
 			t.Errorf("%s as a mail part: can_save = true, the document upload refuses it", s.name)
 		}
 	}
 
 	// The cap is the upload's own: one byte over refuses on both sides.
 	pdf := samples[0]
-	if over := docPolicy.MaxBytes + 1; documentSourceSaveable("pdf", "application/pdf", over) || uploadAccepts(pdf, over) {
+	if over := docPolicy.MaxBytes + 1; documentSourceSaveable(docPolicy, "pdf", "application/pdf", over) || uploadAccepts(pdf, over) {
 		t.Errorf("a file over the %d byte cap must be refused by both", docPolicy.MaxBytes)
 	}
-	if documentSourceSaveable("pdf", "application/pdf", 0) || uploadAccepts(pdf, 0) {
+	if documentSourceSaveable(docPolicy, "pdf", "application/pdf", 0) || uploadAccepts(pdf, 0) {
 		t.Error("an empty file must be refused by both")
 	}
 }

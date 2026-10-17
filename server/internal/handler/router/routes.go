@@ -611,6 +611,7 @@ type Routes struct {
 	ArchiveDocument            http.HandlerFunc
 	ArchiveImpact              http.HandlerFunc
 	RestoreDocument            http.HandlerFunc
+	PurgeDocument              http.HandlerFunc
 	ListDocumentShares         http.HandlerFunc
 	CreateDocumentShare        http.HandlerFunc
 	CreateDocumentShareBatch   http.HandlerFunc
