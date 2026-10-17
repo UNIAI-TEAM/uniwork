@@ -1,0 +1,43 @@
+$ pnpm --filter @uniwork/views exec vitest run notifications office/frame documents 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "VIEWS_TEST_EXIT=$rc"
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+
+ Test Files  98 passed (98)
+      Tests  1487 passed (1487)
+   Start at  15:52:09
+   Duration  96.38s (transform 8.18s, setup 19.58s, import 52.18s, tests 178.77s, environment 27.24s)
+
+
+VIEWS_TEST_EXIT=0
