@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1360-g5-05u-offline-library-ui; git log --oneline -3
+faeb9650c6b3394fd2fad8801b5d2de63aaeb0a5
+faeb9650c6b3394fd2fad8801b5d2de63aaeb0a5
+faeb9650 test(shell): verify rejected copy operation never wedges the offline copies queue (G5-05u BE-R3-2)
+cf07d5af fix(shell): re-check active boundary after awaiting hasLocalWork in unpin (G5-05u BE-R3-1)
+6224f6ca fix(shell): omit aria-valuetext on indeterminate offline progressbar (FE-R2-1)
