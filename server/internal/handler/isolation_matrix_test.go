@@ -610,6 +610,13 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "message")
 	case "{followUpID}":
 		return tn.get(t, "followUp")
+	case "{sessionID}":
+		// The large-upload session routes (BIGUP-S1): the frame family acts on
+		// the session the frame opened, the session routes on the workspace one.
+		if under("/office-frame/") {
+			return tn.get(t, "frameUploadSession")
+		}
+		return tn.get(t, "uploadSession")
 	case "{documentID}":
 		// The restore route acts on a folder in the trash (E6 FD-02): the
 		// folder kind is what the matrix varies on it, so the name it has to
@@ -617,6 +624,15 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		// is held by the repo's own lifecycle tests.
 		if pattern == "/api/v1/documents/{documentID}/restore" {
 			return tn.get(t, "archivedFolder")
+		}
+		// The large-upload session routes (BIGUP-S1): a markdown document on
+		// the frame family (the module its token opens) and the file document
+		// whose new version the session route stages.
+		if under("/upload-sessions") {
+			if under("/office-frame/") {
+				return tn.get(t, "frameMarkdown")
+			}
+			return tn.get(t, "fileDocument")
 		}
 		if under("/office-frame/") && (under("/linked/") || under("/assets/resolve")) {
 			return tn.get(t, "frameMarkdown")
