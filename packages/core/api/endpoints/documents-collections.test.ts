@@ -1,14 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { canManageTrashed, isMyFolder, type DocumentSystemKind } from "../../types/document";
 import { setAccessToken } from "../session";
 import {
   archiveDocument,
+  ensureMyFolder,
   getDocumentArchiveImpact,
   getDocumentTree,
   listDocuments,
   listRecentDocuments,
+  listSharedByMe,
   listSharedWithMe,
   moveDocument,
+  purgeDocument,
   restoreDocument,
 } from "./documents-collections";
 
@@ -72,6 +76,8 @@ describe("documents-collections endpoints", () => {
       parentId: "",
       q: "kế hoạch",
       kind: "page",
+      format: "docx",
+      access: "manage",
       archived: false,
       updatedBy: "u2",
       updatedFrom: "2026-09-01T00:00:00Z",
@@ -84,6 +90,8 @@ describe("documents-collections endpoints", () => {
     expect(parsed.searchParams.get("parent_id")).toBe("");
     expect(parsed.searchParams.get("q")).toBe("kế hoạch");
     expect(parsed.searchParams.get("kind")).toBe("page");
+    expect(parsed.searchParams.get("format")).toBe("docx");
+    expect(parsed.searchParams.get("access")).toBe("manage");
     expect(parsed.searchParams.get("archived")).toBe("0");
     expect(parsed.searchParams.get("updated_by")).toBe("u2");
     expect(parsed.searchParams.get("updated_from")).toBe("2026-09-01T00:00:00Z");
@@ -91,6 +99,57 @@ describe("documents-collections endpoints", () => {
     expect(parsed.searchParams.get("limit")).toBe("10");
     expect(init?.method ?? "GET").toBe("GET");
     expect(out.documents[0]?.title).toBe("Kế hoạch Q4");
+  });
+
+  it("listDocuments omits both chip filters when neither is asked for", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listDocuments("w1", { access: undefined, format: undefined });
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/w1/documents");
+  });
+
+  // ---- UNI-1868 (LISTFILTER-01): the type/access chips ----------------------
+
+  it("the three sibling lists carry the same chip filters", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { format: "pdf", access: "edit", cursor: "c9", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?format=pdf&access=edit&cursor=c9&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedWithMe("w1", { format: "md", access: "restricted", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?format=md&access=restricted&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedByMe("w1", { format: "html", access: "manage", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&format=html&access=manage&limit=5",
+    );
+  });
+
+  it("keeps a row's format and degrades a malformed one to absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "d1", kind: "file", format: "docx" }),
+            summary({ id: "d2", kind: "file", format: 7 }),
+            summary({ id: "d3", kind: "folder", format: null }),
+            // A format this client does not know stays a string on the wire;
+            // the view renders it as a generic file.
+            summary({ id: "d4", kind: "file", format: "exe" }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1");
+    expect(out.documents[0]?.format).toBe("docx");
+    expect(out.documents[1]?.format).toBeUndefined();
+    expect(out.documents[2]?.format).toBeNull();
+    expect(out.documents[3]?.format).toBe("exe");
   });
 
   it("list rows keep admin_scope: true and degrade a non-boolean admin_scope to undefined", async () => {
@@ -184,6 +243,15 @@ describe("documents-collections endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/restore");
   });
 
+  it("purgeDocument posts to /purge and sends no Idempotency-Key", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(purgeDocument("d/1", { signal: undefined })).resolves.toBeUndefined();
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/purge");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBeNull();
+  });
+
   // ---- malformed responses: one per endpoint -----------------------------
   // A list that cannot degrade safely throws so its query lands in the error
   // state; a mutation that cannot prove the write resolves null.
@@ -263,6 +331,11 @@ describe("documents-collections endpoints", () => {
   it.each(malformedBodies)("restoreDocument degrades %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(restoreDocument("d1")).resolves.toBeNull();
+  });
+
+  it.each(malformedBodies)("purgeDocument degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(purgeDocument("d1")).resolves.toBeUndefined();
   });
 
   it("a document without revision is not a verifiable move", async () => {
@@ -412,4 +485,175 @@ describe("documents-collections endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(getDocumentArchiveImpact("d1")).resolves.toBeNull();
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): system_kind on list + tree -----------------
+
+  it("listDocuments and getDocumentTree parse system_kind, narrow to my_folder, and degrade unknown or malformed values", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "mf1", kind: "folder", system_kind: "my_folder" }),
+            summary({ id: "mf2", kind: "folder", system_kind: "future_system_folder" }),
+            summary({ id: "mf3", kind: "folder", system_kind: 99 }),
+            summary({ id: "d1", kind: "page" }),
+          ],
+        }),
+      ),
+    );
+    const list = await listDocuments("w1");
+    const firstKind: DocumentSystemKind | null | undefined = list.documents[0]?.system_kind;
+    expect(firstKind).toBe("my_folder");
+    expect(list.documents[2]?.system_kind).toBeUndefined();
+    expect(list.documents.map((d) => [d.id, isMyFolder(d)])).toEqual([
+      ["mf1", true],
+      ["mf2", false],
+      ["mf3", false],
+      ["d1", false],
+    ]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          treeNode({
+            id: "mf1",
+            kind: "folder",
+            system_kind: "my_folder",
+            children: [
+              treeNode({ id: "c1", parent_id: "mf1", system_kind: "future_system_folder" }),
+              treeNode({ id: "c2", parent_id: "mf1", system_kind: 12 }),
+            ],
+          }),
+        ],
+      }),
+    );
+    const tree = await getDocumentTree("w1");
+    const rootNode = tree.documents[0]!;
+    const rootKind: DocumentSystemKind | null | undefined = rootNode.system_kind;
+    expect(rootKind).toBe("my_folder");
+    expect(isMyFolder(rootNode)).toBe(true);
+    expect(isMyFolder(rootNode.children[0])).toBe(false);
+    expect(rootNode.children[1]?.system_kind).toBeUndefined();
+    expect(isMyFolder(rootNode.children[1])).toBe(false);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: summary({ id: "mf1", kind: "folder", system_kind: "my_folder" }) }),
+    );
+    expect(isMyFolder(await ensureMyFolder("w1"))).toBe(true);
+  });
+
+  // ---- SHAREDBYME-01 (UNI-1851): listSharedByMe ---------------------------
+
+  it("listSharedByMe sends shared_by_me=true without parent_id and supports cursor string or opts", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody({ documents: [summary({ id: "d1", visibility: "workspace" })], next_cursor: "c2" })),
+    );
+    const first = await listSharedByMe("w 1");
+    const [firstUrl, firstInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(firstUrl)).toBe(
+      "http://api.test/api/v1/workspaces/w%201/documents?shared_by_me=true",
+    );
+    expect(firstInit?.method ?? "GET").toBe("GET");
+    expect(first.documents[0]?.id).toBe("d1");
+    expect(first.next_cursor).toBe("c2");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [], next_cursor: null })));
+    await listSharedByMe("w1", "c2");
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=c2",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [], next_cursor: null })));
+    await listSharedByMe("w1", { cursor: "c3", limit: 25 });
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=c3&limit=25",
+    );
+  });
+
+  it.each(malformedBodies)("listSharedByMe throws rather than fake-empty %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(listSharedByMe("w1")).rejects.toThrow("document_list_invalid");
+  });
+
+  // ---- RESTORE-01 (UNI-1843): trash list item schema + canManageTrashed ----
+
+  it("parses trash list rows with lenient archived_by, purge_after, and my_level and computes canManageTrashed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({
+              id: "t-manage",
+              archived_at: "2026-10-16T00:00:00Z",
+              archived_by: "u1",
+              purge_after: "2026-11-15T00:00:00Z",
+              my_level: "manage",
+            }),
+            summary({
+              id: "t-edit",
+              archived_at: "2026-10-16T00:00:00Z",
+              archived_by: null,
+              purge_after: null,
+              my_level: "edit",
+            }),
+            summary({
+              id: "t-view",
+              archived_at: "2026-10-16T00:00:00Z",
+              my_level: "view",
+            }),
+            summary({
+              id: "t-malformed",
+              archived_at: "2026-10-16T00:00:00Z",
+              archived_by: 42,
+              purge_after: { invalid: true },
+              my_level: ["not-a-string"],
+            }),
+            summary({
+              id: "t-unknown-level",
+              archived_at: "2026-10-16T00:00:00Z",
+              my_level: "super_admin",
+            }),
+          ],
+        }),
+      ),
+    );
+
+    const out = await listDocuments("w1", { archived: true });
+    expect(out.documents).toHaveLength(5);
+
+    const [manageRow, editRow, viewRow, malformedRow, unknownLevelRow] = out.documents;
+    expect(manageRow?.archived_by).toBe("u1");
+    expect(manageRow?.purge_after).toBe("2026-11-15T00:00:00Z");
+    expect(manageRow?.my_level).toBe("manage");
+
+    expect(editRow?.archived_by).toBeNull();
+    expect(editRow?.purge_after).toBeNull();
+    expect(editRow?.my_level).toBe("edit");
+
+    expect(viewRow?.archived_by).toBeUndefined();
+    expect(viewRow?.purge_after).toBeUndefined();
+    expect(viewRow?.my_level).toBe("view");
+
+    // Malformed values degrade to undefined rather than failing the trash list.
+    expect(malformedRow?.archived_by).toBeUndefined();
+    expect(malformedRow?.purge_after).toBeUndefined();
+    expect(malformedRow?.my_level).toBeUndefined();
+
+    expect(canManageTrashed(manageRow)).toBe(true);
+    expect(canManageTrashed(editRow)).toBe(false);
+    expect(canManageTrashed(viewRow)).toBe(false);
+    expect(canManageTrashed(malformedRow)).toBe(false);
+    expect(canManageTrashed(unknownLevelRow)).toBe(false);
+    expect(canManageTrashed(null)).toBe(false);
+    expect(canManageTrashed(undefined)).toBe(false);
+    expect(canManageTrashed({ my_level: null })).toBe(false);
+    expect(canManageTrashed({ my_level: 123 as unknown as string })).toBe(false);
+    // DOC-05: a workspace admin on a restricted trashed row arrives with no
+    // my_level and admin_scope instead - the controls stay enabled (BE-RS-6).
+    expect(canManageTrashed({ admin_scope: true })).toBe(true);
+    expect(canManageTrashed({ my_level: "edit", admin_scope: true })).toBe(true);
+    expect(canManageTrashed({ my_level: "edit", admin_scope: false })).toBe(false);
+  });
 });
+
+

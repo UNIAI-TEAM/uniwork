@@ -43,6 +43,9 @@ type documentHomeRowMove struct {
 // A move that changes neither field and leaves no legacy share writes
 // nothing at all (the same level again is a no-op, as it is for a share row).
 func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, move documentHomeRowMove) (db.Document, error) {
+	if isMyFolder(doc) {
+		return db.Document{}, errMyFolderLocked()
+	}
 	legacy, err := homeWorkspaceShares(ctx, q, doc)
 	if err != nil {
 		return db.Document{}, err

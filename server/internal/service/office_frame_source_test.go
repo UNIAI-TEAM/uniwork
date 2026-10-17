@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -183,10 +182,10 @@ func TestOfficeFrameSourceMint(t *testing.T) {
 	}
 }
 
-// TestOfficeFrameSourceMintTooLarge: a stored size over the module's cap
-// (sheets, 10 MiB) is refused before a token is signed, and the refused claims
-// still name the module so the flag check can answer first.
-func TestOfficeFrameSourceMintTooLarge(t *testing.T) {
+// TestOfficeFrameSourceMintNoModuleCap: SIZE-S1 (UNI-1859) retired the
+// per-module web-frame cap (sheets, 10 MiB); a source over it still mints a
+// token under the single DOCUMENT_MAX_BYTES ceiling, like the document mint.
+func TestOfficeFrameSourceMintNoModuleCap(t *testing.T) {
 	now := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
 	env := newFakeDocStorageEnv(t)
 	s := newSourceSceneOn(t, env)
@@ -194,13 +193,16 @@ func TestOfficeFrameSourceMintTooLarge(t *testing.T) {
 	tn := env.tn
 	taskA := s.task(tn, tn.wsA)
 	big := s.attachmentWith(tn, tn.wsA, taskA, "huge.xlsx",
-		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", OfficeFrameSheetsMaxBytes+1, "")
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 11*1024*1024, "")
 	minted, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, "task:"+big)
-	if !errors.Is(err, ErrOfficeFrameTooLarge) || minted.Token != "" {
-		t.Fatalf("over-cap mint = %v token %q, want ErrOfficeFrameTooLarge and no token", err, minted.Token)
+	if err != nil || minted.Token == "" {
+		t.Fatalf("over-10MiB source mint = %v token %q, want a signed token", err, minted.Token)
 	}
 	if minted.Claims.ModuleName() != OfficeFrameModuleSheets {
-		t.Fatalf("refused claims module = %q, want sheets", minted.Claims.Module)
+		t.Fatalf("minted claims module = %q, want sheets", minted.Claims.Module)
+	}
+	if _, err := frame.VerifySource(minted.Token); err != nil {
+		t.Fatalf("minted token does not verify: %v", err)
 	}
 }
 

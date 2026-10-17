@@ -13,27 +13,30 @@ import "encoding/json"
 // (+ Idempotency-Key header). It creates a page or a folder; a file document
 // is created by CreateDocumentFileSDI on the multipart route.
 type CreateDocumentSDI struct {
-	Title      string           `json:"title" minLength:"1" description:"Tiêu đề trang (1–500 ký tự) hoặc tên thư mục (1–255 ký tự, không trùng thư mục còn sống cùng cha)" example:"Kế hoạch Q4"`
-	Kind       string           `json:"kind" description:"page (mặc định) hoặc folder; file dùng route multipart /documents/files. Thư mục không nhận content" example:"page"`
-	ParentID   *string          `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; thư mục chỉ nằm trong thư mục; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Icon       *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
-	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
-	Visibility string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
+	Title       string           `json:"title" minLength:"1" description:"Tiêu đề trang (1–500 ký tự) hoặc tên thư mục (1–255 ký tự, không trùng thư mục còn sống cùng cha)" example:"Kế hoạch Q4"`
+	Kind        string           `json:"kind" description:"page (mặc định) hoặc folder; file dùng route multipart /documents/files. Thư mục không nhận content" example:"page"`
+	ParentID    *string          `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; thư mục chỉ nằm trong thư mục; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Destination *string          `json:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
+	Icon        *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
+	Content     *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
+	Visibility  string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
 }
 
 // CreateDocumentFileSDI documents POST
 // /api/v1/workspaces/{workspaceID}/documents/files (multipart +
 // Idempotency-Key header, C-01 §14.2): one file document whose bytes stream
-// into FileService (purpose document_file, ≤ 50 MiB, MIME allowlist).
+// into FileService (purpose document_file, ≤ DOCUMENT_MAX_BYTES (default
+// 200 MiB), MIME allowlist).
 // The handler reads the file part directly; the type describes the form for
 // OpenAPI. Text fields must precede the file part in the multipart body (the
 // stream is consumed part-by-part); a title that trails the file falls back
 // to the sanitized filename.
 type CreateDocumentFileSDI struct {
-	Visibility *string `formData:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
-	File       []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
-	ParentID   *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Title      *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
+	Visibility  *string `formData:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
+	File        []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
+	ParentID    *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Destination *string `formData:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
+	Title       *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
 }
 
 // PatchDocumentSDI is PATCH /api/v1/documents/{documentID}: autosave and
@@ -52,7 +55,7 @@ type PatchDocumentSDI struct {
 // (multipart, C-01 §14.4): stages the bytes of a candidate file version into
 // FileService without creating a version. Committing is a separate call.
 type UploadDocumentFileSDI struct {
-	File []byte `formData:"file" description:"Byte phiên bản mới; purpose document_file, ≤ 50 MiB, checksum bắt buộc"`
+	File []byte `formData:"file" description:"Byte phiên bản mới; purpose document_file, ≤ DOCUMENT_MAX_BYTES (mặc định 200 MiB), checksum bắt buộc"`
 }
 
 // CommitDocumentVersionSDI is POST
@@ -186,10 +189,13 @@ type ListDocumentsSDI struct {
 	Query       *string `query:"q" description:"Tìm văn bản đã fold; kết quả kèm snippet ≤ 160 ký tự" example:"kế hoạch quý 4"`
 	Match       *string `query:"match" description:"title = chỉ khớp tiêu đề đã fold; bỏ trống = tìm cả nội dung" example:"title"`
 	Kind        *string `query:"kind" description:"Lọc page, file, folder hoặc document (mọi loại trừ folder)" example:"page"`
-	Archived    *bool   `query:"archived" description:"1 = thùng rác (chỉ manage); bỏ trống = tài liệu sống" example:"false"`
+	Format      *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề). Thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter; dùng cùng kind=page -> 400 invalid_filter" example:"pdf"`
+	Access      *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted). Áp cho cả thư mục theo cấp của chính nó; giá trị khác -> 400 invalid_filter" example:"edit"`
+	Archived    *bool   `query:"archived" description:"1 = thùng rác (chỉ manage); bỏ trống = tài liệu sống. Trên thùng rác chỉ nhận access=restricted: access=manage/edit -> 400 invalid_filter" example:"false"`
 	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
 	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
+	SharedByMe  *bool   `query:"shared_by_me" description:"true = chỉ tài liệu sống do người gọi làm ACL owner và đang chia sẻ (share người dùng/nhóm còn hiệu lực hoặc visibility=workspace); dùng cùng parent_id -> 400 invalid_filter" example:"true"`
 	Cursor      *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit       *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"50"`
 }
@@ -204,6 +210,8 @@ type ListRecentDocumentsSDI struct {
 	Cursor *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
 	Match  *string `query:"match" description:"Chỉ nhận title (hoặc bỏ trống); recent không lọc theo q nên giá trị hợp lệ được chấp nhận và bỏ qua, giá trị khác -> 400" example:"title"`
+	Format *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html; thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter" example:"pdf"`
+	Access *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"manage"`
 }
 
 // ListSharedWithMeSDI documents GET
@@ -214,6 +222,8 @@ type ListRecentDocumentsSDI struct {
 type ListSharedWithMeSDI struct {
 	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yOFQxMDowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+	Format *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html; giá trị khác -> 400 invalid_filter" example:"pdf"`
+	Access *string `query:"access" description:"Lọc theo quyền người gọi nhận được qua chia sẻ: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"edit"`
 }
 
 // DocumentTreeSDI documents GET /api/v1/workspaces/{workspaceID}/documents/tree:

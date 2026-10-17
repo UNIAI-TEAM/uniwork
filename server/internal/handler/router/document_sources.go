@@ -61,7 +61,7 @@ func registerDocumentSources(r api, h Routes, flags *featureflag.Service) {
 		description: "Host page only: kiểm quyền như đường tải tệp nguồn (thành viên workspace, rồi dòng qua cổng đọc của chính nơi chứa) và trả token máy chủ ký (10 phút) chỉ-xem, " +
 			"ràng buộc tệp nguồn, nơi chứa, workspace, tổ chức, người gọi và module suy từ định dạng đã lưu (ofs1.). Không đọc byte nào (email không tốn IMAP lúc cấp token). " +
 			"Token chỉ mở được /api/v1/office-frame/sources/* của chính tệp đó; mọi route /api/v1/office-frame/documents/* (kể cả uploads/versions/commit) từ chối nó với 401. " +
-			"403 feature_disabled khi cờ module của tổ chức tắt; 413 too_large khi tệp vượt hạn mức module (sheets: 10 MiB); " +
+			"403 feature_disabled khi cờ module của tổ chức tắt; " +
 			"404 not_found khi tệp không đọc được, không tồn tại hoặc định dạng không module nào mở (không lộ tệp có thật hay không).",
 		tags:   []string{"documents"},
 		sdo:    sdo.OfficeFrameSourceTokenSDO{},

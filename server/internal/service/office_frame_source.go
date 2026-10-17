@@ -86,19 +86,6 @@ func (s *OfficeFrameService) MintSource(ctx context.Context, actor Actor, worksp
 	if !ok {
 		return OfficeFrameSourceToken{}, ErrNotFound
 	}
-	// After the gate, so a non-member still learns nothing about the file. The
-	// refusal still names the module (no token is signed), so the handler can
-	// answer the module's flag before the size.
-	if limit := officeFrameModuleMaxBytes(module); limit > 0 && item.SizeBytes > limit {
-		refused := OfficeFrameSourceClaims{
-			Version: 1, SourceID: item.ID, ParentKind: item.Parent.Kind, ParentID: item.Parent.ID,
-			WorkspaceID: ws.ID, OrganizationID: ws.OrganizationID, UserID: actor.ID, ReadOnly: true,
-		}
-		if module != OfficeFrameModuleDocs {
-			refused.Module = module
-		}
-		return OfficeFrameSourceToken{Claims: refused}, ErrOfficeFrameTooLarge
-	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
 		return OfficeFrameSourceToken{}, err

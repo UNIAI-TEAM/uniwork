@@ -4,7 +4,7 @@
 
 -- name: InsertDocument :one
 INSERT INTO documents (
-  id, organization_id, workspace_id, parent_id, kind, title, icon, visibility,
+  id, organization_id, workspace_id, parent_id, kind, system_kind, title, icon, visibility,
   workspace_level,
   content, content_text, search_text, content_bytes,
   current_version, file_version_id, revision, content_revision, position,
@@ -16,7 +16,7 @@ INSERT INTO documents (
   content_saved_at, last_version_at, archived_at, archived_by, purge_after
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
-  sqlc.arg(parent_id), sqlc.arg(kind), sqlc.arg(title), sqlc.arg(icon),
+  sqlc.arg(parent_id), sqlc.arg(kind), sqlc.narg(system_kind), sqlc.arg(title), sqlc.arg(icon),
   sqlc.arg(visibility),
   sqlc.arg(workspace_level),
   sqlc.arg(content), sqlc.arg(content_text), sqlc.arg(search_text),
@@ -35,6 +35,14 @@ INSERT INTO documents (
   sqlc.arg(archived_at), sqlc.arg(archived_by), sqlc.arg(purge_after)
 )
 RETURNING *;
+
+-- name: GetMyFolder :one
+SELECT *
+FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND acl_owner_id = sqlc.arg(acl_owner_id)
+  AND system_kind = 'my_folder';
 
 -- name: GetDocument :one
 SELECT *

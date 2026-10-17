@@ -115,6 +115,12 @@ func TestValidateFileAcceptsEditableFormats(t *testing.T) {
 	}
 }
 
+func TestDefaultFileLimitsTextScanBytes(t *testing.T) {
+	if DefaultFileLimits.TextScanBytes != 200<<20 {
+		t.Fatalf("DefaultFileLimits.TextScanBytes = %d, want %d (200 MiB)", DefaultFileLimits.TextScanBytes, int64(200<<20))
+	}
+}
+
 func TestValidateFileRefusesHostilePackages(t *testing.T) {
 	bomb := buildZip(t,
 		zipEntry{name: "[Content_Types].xml", body: []byte("<Types/>")},

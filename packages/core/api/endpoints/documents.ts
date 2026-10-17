@@ -42,16 +42,22 @@ export interface DocumentRequestOpts {
   filename?: string;
 }
 
-export interface CreateDocumentBody {
+export const DOCUMENT_DESTINATIONS = ["my_folder"] as const;
+export type DocumentCreateDestination = (typeof DOCUMENT_DESTINATIONS)[number];
+
+type CreateDocumentPlacementWire =
+  | { parent_id?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never };
+
+export type CreateDocumentBody = {
   title: string;
   /** "page" (default) or "folder" (a container with no content). A file
    *  document is created through createDocumentFile on the multipart route. */
   kind?: "page" | "folder";
-  parent_id?: string;
   icon?: string;
   content?: unknown;
   visibility?: DocumentVisibility;
-}
+} & CreateDocumentPlacementWire;
 
 export interface PatchDocumentBody {
   /** Required base revision as a decimal string; a stale base answers 422
@@ -64,11 +70,13 @@ export interface PatchDocumentBody {
   visibility?: DocumentVisibility;
 }
 
-export interface CreateDocumentFileMeta {
-  parent_id?: string;
+export type CreateDocumentFileMeta = {
   /** Display title; defaults to the file name server-side. */
   title?: string;
-}
+} & (
+  | { parent_id?: string; parentId?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never }
+);
 
 function idempotencyHeaders(opts?: DocumentRequestOpts): Record<string, string> | undefined {
   return opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined;
@@ -110,6 +118,27 @@ export async function createDocument(
   })?.document ?? null;
 }
 
+/**
+ * POST /api/v1/workspaces/{workspaceID}/documents/my-folder — lazily ensure
+ * the caller's personal root folder ("My Folder") and return its DocumentSDO.
+ * Naturally idempotent per (workspace, caller) on the server.
+ */
+export async function ensureMyFolder(
+  wsId: string,
+  opts?: DocumentRequestOpts | AbortSignal,
+): Promise<Document | null> {
+  const signal = opts instanceof AbortSignal ? opts : opts?.signal;
+  const headers = opts && !(opts instanceof AbortSignal) ? idempotencyHeaders(opts) : undefined;
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/my-folder`, {
+    method: "POST",
+    headers,
+    signal,
+  });
+  return parseWithFallback<{ document: Document } | null>(raw, DocumentEnvelopeSchema, null, {
+    endpoint: "POST /api/v1/workspaces/{ws}/documents/my-folder",
+  })?.document ?? null;
+}
+
 /** GET /api/v1/documents/{documentID} — the working copy. */
 export async function getDocument(documentId: string, signal?: AbortSignal): Promise<Document | null> {
   const raw = await request(`/api/v1/documents/${enc(documentId)}`, { signal });
@@ -142,7 +171,8 @@ export async function patchDocument(
 /**
  * POST /api/v1/workspaces/{workspaceID}/documents/files — one multipart call
  * that creates a file document whose bytes stream into FileService
- * (purpose document_file, ≤ 50 MiB, MIME allowlist, magic-byte check).
+ * (purpose document_file, ≤ the configured DOCUMENT_MAX_BYTES cap — see
+ * documents.limits in GET /api/v1/config — MIME allowlist, magic-byte check).
  */
 export async function createDocumentFile(
   wsId: string,
@@ -152,7 +182,11 @@ export async function createDocumentFile(
 ): Promise<Document | null> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/files`, {
     method: "POST",
-    body: fileForm(file, { parent_id: meta?.parent_id, title: meta?.title }),
+    body: fileForm(file, {
+      parent_id: meta?.parent_id ?? meta?.parentId,
+      destination: meta?.destination,
+      title: meta?.title,
+    }),
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,
   });

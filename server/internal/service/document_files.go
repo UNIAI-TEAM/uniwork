@@ -55,7 +55,11 @@ func (s *DocumentService) fileService() (files.Service, error) {
 
 func (s *DocumentService) fileLimits() document.FileLimits {
 	if s.store.limits.MaxEntries == 0 {
-		return document.DefaultFileLimits
+		limits := document.DefaultFileLimits
+		if maxBytes := s.documentFileMaxBytes(); maxBytes > 0 {
+			limits.TextScanBytes = maxBytes
+		}
+		return limits
 	}
 	return s.store.limits
 }
@@ -247,8 +251,12 @@ func documentFileError(err error) error {
 		return CodedError{Code: document.ErrCodeUnsupportedMedia, Status: http.StatusUnsupportedMediaType,
 			Msg: "định dạng tệp không được hỗ trợ", Fields: map[string]any{"reason": fe.Code}}
 	case files.CodeTooLarge:
+		maxBytes := fe.MaxBytes
+		if maxBytes <= 0 {
+			maxBytes = files.DefaultDocumentMaxBytes
+		}
 		return CodedError{Code: "file_too_large", Status: http.StatusRequestEntityTooLarge,
-			Msg: "tệp vượt quá dung lượng cho phép"}
+			Msg: "tệp vượt quá dung lượng cho phép", Fields: map[string]any{"max_bytes": maxBytes}}
 	case files.CodeNotFound:
 		return ErrNotFound
 	case files.CodeNotReady, files.CodeClaimExpired, files.CodeUploadCanceled, files.CodeDeleting:
@@ -287,6 +295,7 @@ type DocumentFileResult struct {
 // child inherits it at create time, C-01 §4), or private at the root (U-SH2).
 type CreateFileDocumentInput struct {
 	ParentID       string
+	Destination    string
 	Title          string
 	Filename       string
 	Body           io.Reader
@@ -303,6 +312,20 @@ type CreateFileDocumentInput struct {
 
 const idempotencyScopeDocumentFileCreate = "documents.files.create"
 
+func fileCreateFingerprint(workspaceID, parentID, title, checksum, visibility, destination string) string {
+	parts := []string{idempotencyScopeDocumentFileCreate, workspaceID, parentID, title, checksum}
+	if visibility != "" {
+		// Only a named visibility joins the fingerprint: a retry in flight
+		// across the deploy that never sent the field keeps its key (the page
+		// route's rule).
+		parts = append(parts, visibility)
+	}
+	if destination != "" {
+		parts = append(parts, "destination:"+destination)
+	}
+	return IdempotencyFingerprint(parts...)
+}
+
 // CreateFileDocument uploads the bytes (outside any transaction), checks
 // them, then in one transaction: membership again, the files claim, the
 // tree and parent locks with the parent check, quota, the document and its
@@ -317,6 +340,9 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if actor.Kind != audit.KindHuman || !validActor(actor) {
 		// Agents never write documents directly (ADR 0010).
 		return DocumentFileResult{}, ErrForbidden
+	}
+	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
+		return DocumentFileResult{}, err
 	}
 	// The request is checked before its bytes are staged, like the page route:
 	// a bad visibility must not leave a claimed upload behind.
@@ -347,14 +373,10 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	fingerprintParts := []string{"documents.files.create", workspaceID, in.ParentID, title, up.File.ChecksumSHA256}
-	if in.Visibility != "" {
-		// Only a named visibility joins the fingerprint: a retry in flight
-		// across the deploy that never sent the field keeps its key (the page
-		// route's rule).
-		fingerprintParts = append(fingerprintParts, in.Visibility)
+	opts := IdempotencyOptions{
+		Fingerprint:        fileCreateFingerprint(workspaceID, in.ParentID, title, up.File.ChecksumSHA256, in.Visibility, in.Destination),
+		RequireFingerprint: true,
 	}
-	opts := IdempotencyOptions{Fingerprint: IdempotencyFingerprint(fingerprintParts...), RequireFingerprint: true}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -394,9 +416,17 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentFileResult{}, err
 	}
+	parentID := in.ParentID
+	if in.Destination == DocumentSystemKindMyFolder {
+		mf, _, err := s.ensureMyFolderInTx(ctx, tx, q, actor, orgID, workspaceID)
+		if err != nil {
+			return DocumentFileResult{}, err
+		}
+		parentID = mf.ID
+	}
 	var parent *db.Document
-	if in.ParentID != "" {
-		p, err := s.lockPageParent(ctx, q, actor, in.ParentID, orgID, workspaceID, DocumentKindFile)
+	if parentID != "" {
+		p, err := s.lockPageParent(ctx, q, actor, parentID, orgID, workspaceID, DocumentKindFile)
 		if err != nil {
 			return DocumentFileResult{}, err
 		}
@@ -413,7 +443,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		ID:             docID,
 		OrganizationID: orgID,
 		WorkspaceID:    workspaceID,
-		ParentID:       nullText(in.ParentID),
+		ParentID:       nullText(parentID),
 		Kind:           DocumentKindFile,
 		Title:          title,
 		Visibility:     visibility,

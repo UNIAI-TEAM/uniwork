@@ -493,6 +493,7 @@ type Routes struct {
 	// Documents (C-01 §5 + §14; UNI-679, G1-05a): page CRUD-lite, file
 	// upload/commit/download, versions and embedded assets.
 	CreateDocument          http.HandlerFunc
+	EnsureMyFolder          http.HandlerFunc
 	CreateDocumentFile      http.HandlerFunc
 	CreateBlankDocumentFile http.HandlerFunc
 	StartOfficeJob          http.HandlerFunc
@@ -602,6 +603,7 @@ type Routes struct {
 	ArchiveDocument            http.HandlerFunc
 	ArchiveImpact              http.HandlerFunc
 	RestoreDocument            http.HandlerFunc
+	PurgeDocument              http.HandlerFunc
 	ListDocumentShares         http.HandlerFunc
 	CreateDocumentShare        http.HandlerFunc
 	CreateDocumentShareBatch   http.HandlerFunc

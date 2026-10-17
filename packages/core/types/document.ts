@@ -46,6 +46,26 @@ export type DocumentVersionReason = (typeof DOCUMENT_VERSION_REASONS)[number];
 export const DOCUMENT_OWNER_KINDS = ["work_product"] as const;
 export type DocumentOwnerKind = (typeof DOCUMENT_OWNER_KINDS)[number];
 
+export const DOCUMENT_SYSTEM_KINDS = ["my_folder"] as const;
+export type DocumentSystemKind = (typeof DOCUMENT_SYSTEM_KINDS)[number];
+
+/**
+ * The file formats the library filters by (UNI-1868): the server's
+ * `?format=` list, which is also the value it reports per file row. The
+ * server answers with the MIME the current version was verified as, else the
+ * title's extension, so a row's `format` here is the server's own reading.
+ */
+export const DOCUMENT_FILE_FORMATS = ["docx", "xlsx", "pptx", "pdf", "md", "html"] as const;
+export type DocumentFileFormat = (typeof DOCUMENT_FILE_FORMATS)[number];
+
+/**
+ * The access filter beside the type chips (UNI-1868): `manage` exactly the
+ * rows the caller manages, `edit` the rows they manage or edit, and
+ * `restricted` the rows whose visibility is restricted.
+ */
+export const DOCUMENT_ACCESS_FILTERS = ["manage", "edit", "restricted"] as const;
+export type DocumentAccessFilter = (typeof DOCUMENT_ACCESS_FILTERS)[number];
+
 export const DOCUMENT_DISPOSITIONS = ["attachment", "inline"] as const;
 export type DocumentDisposition = (typeof DOCUMENT_DISPOSITIONS)[number];
 
@@ -98,6 +118,7 @@ export const DocumentSchema = z.object({
   workspace_id: z.string(),
   parent_id: z.string().nullable().optional(),
   kind: z.string(),
+  system_kind: z.string().nullable().optional().catch(undefined),
   title: z.string(),
   icon: z.string().nullable().optional(),
   visibility: z.string().optional().default("workspace"),
@@ -116,7 +137,9 @@ export const DocumentSchema = z.object({
   breadcrumbs: z.array(DocumentBreadcrumbSchema).optional().default([]),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
-  archived_at: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional().catch(undefined),
+  archived_by: z.string().nullable().optional().catch(undefined),
+  purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
   updated_by: z.string().optional().default(""),
@@ -126,14 +149,45 @@ export const DocumentSchema = z.object({
 });
 export type Document = Omit<
   z.infer<typeof DocumentSchema>,
-  "kind" | "visibility" | "my_level" | "via" | "owner_kind"
+  "kind" | "system_kind" | "visibility" | "my_level" | "via" | "owner_kind"
 > & {
   kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel;
   via?: DocumentAccessVia;
   owner_kind?: DocumentOwnerKind | null;
 };
+
+/** True when a document, list item or tree node is the caller's system My Folder. */
+export function isMyFolder(
+  doc: { system_kind?: string | null } | null | undefined,
+): boolean {
+  switch (doc?.system_kind) {
+    case "my_folder":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** True when the caller manages a trashed row (RESTORE-01): views use this to
+ *  enable Restore / Delete forever and disable them for view/edit/unknown.
+ *  A workspace admin on a restricted row arrives with no my_level and
+ *  admin_scope: true instead - they administer it, so the controls stay on. */
+export function canManageTrashed(
+  item: { my_level?: string | null; admin_scope?: boolean | null } | null | undefined,
+): boolean {
+  if (item?.admin_scope === true) {
+    return true;
+  }
+  switch (item?.my_level) {
+    case "manage":
+      return true;
+    default:
+      return false;
+  }
+}
 
 export const DocumentVersionSchema = z.object({
   id: z.string(),
@@ -254,6 +308,7 @@ export const DocumentSummarySchema = z.object({
   workspace_id: z.string(),
   parent_id: z.string().nullable().optional(),
   kind: z.string(),
+  system_kind: z.string().nullable().optional().catch(undefined),
   title: z.string(),
   icon: z.string().nullable().optional(),
   visibility: z.string().optional().default("workspace"),
@@ -264,6 +319,11 @@ export const DocumentSummarySchema = z.object({
   // document came from. Newer fields: a drifted value reads as absent rather
   // than failing the whole page.
   size_bytes: z.number().nullable().optional().catch(undefined),
+  // The library format of a file row (UNI-1868): the format the server
+  // derived from the current version's MIME, else the title's extension.
+  // Absent for a page, a folder and a file neither names; a drifted value
+  // reads as absent, and the view then reads the title's extension itself.
+  format: z.string().nullable().optional().catch(undefined),
   origin: z.string().nullable().optional().catch(undefined),
   snippet: z.string().nullable().optional(),
   // The viewer's level on this row (every list route carries it); a drifted
@@ -273,7 +333,9 @@ export const DocumentSummarySchema = z.object({
   admin_scope: z.boolean().optional().catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
-  archived_at: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional().catch(undefined),
+  archived_by: z.string().nullable().optional().catch(undefined),
+  purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
   updated_by: z.string().optional().default(""),
@@ -303,20 +365,23 @@ export type DocumentOrigin = "upload" | "created";
 
 // The parser always fills `path` ([] when absent); the type keeps it optional
 // so a row a view builds by hand (a favorite, a fixture) need not carry one.
-type DocumentSummaryWire = Omit<z.infer<typeof DocumentSummarySchema>, "path"> & {
+type DocumentSummaryWire = Omit<z.infer<typeof DocumentSummarySchema>, "path" | "system_kind"> & {
   path?: z.infer<typeof DocumentPathItemSchema>[];
+  system_kind?: DocumentSystemKind | null;
 };
 
 export type DocumentSummary = Omit<
   DocumentSummaryWire,
-  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin"
+  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin" | "system_kind" | "format"
 > & {
   kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
   origin?: DocumentOrigin | null;
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel | null;
   via?: DocumentAccessVia | null;
   owner_kind?: DocumentOwnerKind | null;
+  format?: DocumentFileFormat | null;
 };
 
 export const DocumentListSchema = z.object({
@@ -382,6 +447,7 @@ export interface DocumentTreeNode {
   title: string;
   icon?: string | null;
   kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
   position: number;
   children: DocumentTreeNode[];
 }
@@ -393,6 +459,7 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
     title: z.string(),
     icon: z.string().nullable().optional(),
     kind: z.string(),
+    system_kind: z.string().nullable().optional().catch(undefined),
     position: z.number().optional().default(0),
     children: z.array(DocumentTreeNodeSchema).optional().default([]),
   }),

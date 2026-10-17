@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -421,19 +422,20 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 	default:
 		return nil, nil
 	}
+	policy := s.docs.documentFilePolicy()
 	out := make([]DocumentSourceItem, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, documentSourceItem(src, r))
+		out = append(out, documentSourceItem(src, r, policy))
 	}
 	return out, nil
 }
 
-func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow) DocumentSourceItem {
+func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow, docPolicy files.Policy) DocumentSourceItem {
 	ext := documentSourceExtension(r.Name)
 	item := DocumentSourceItem{
 		ID: r.SourceID, Source: src, Name: r.Name, MimeType: r.MimeType, Extension: ext,
 		SizeBytes: r.SizeBytes, UpdatedAt: r.SortAt.Time.UTC(), CanOpenInApp: documentSourceAppExts[ext],
-		CanSave: documentSourceSaveable(ext, r.MimeType, r.SizeBytes),
+		CanSave: documentSourceSaveable(docPolicy, ext, r.MimeType, r.SizeBytes),
 		Parent:  DocumentSourceParent{Kind: documentSourceParentKind(r.ParentKind), ID: r.ParentID, Title: r.ParentTitle, Ref: r.ParentRef},
 		rowID:   r.RowID,
 	}

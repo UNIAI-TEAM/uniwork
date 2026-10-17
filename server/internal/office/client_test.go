@@ -101,6 +101,16 @@ func TestClientMapsEngineAnswersToTypedErrors(t *testing.T) {
 		t.Fatalf("contract violation: %v", err)
 	}
 
+	c = fakeEngine(t, 413, `{"error":{"code":"upload_bounds","status":413,"error_class":"quota","kind":"byte_bound","retryable":false,"max_input_bytes":401604608,"reason":"declared_length"}}`)
+	_, err = c.Submit(ctx, "grant", Envelope{RequestID: "r"})
+	var ee *EngineError
+	if !errors.As(err, &ee) {
+		t.Fatalf("upload_bounds did not decode as EngineError: %v", err)
+	}
+	if ee.Code != "upload_bounds" || ee.Status != 413 || ee.ErrorClass != "quota" || ee.Kind != "byte_bound" || ee.Retryable {
+		t.Fatalf("upload_bounds spec: %+v", ee)
+	}
+
 	c = fakeEngine(t, 200, `{"job_id":"job1","state":"running"}`)
 	c.token = "wrong-token-000000000000000000000000000"
 	if _, err := c.Status(ctx, "job1", "g"); !errors.Is(err, ErrServiceAuth) {

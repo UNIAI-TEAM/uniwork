@@ -18,7 +18,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-const folderNameUniqueIndex = "idx_documents_folder_name_uidx"
+const (
+	folderNameUniqueIndex = "idx_documents_folder_name_user_uidx"
+	legacyFolderNameIndex = "idx_documents_folder_name_uidx"
+	myFolderUniqueIndex   = "idx_documents_my_folder_uidx"
+)
 
 func TestDocumentsFolderNameIndexIsValid(t *testing.T) {
 	pool := testPool(t)
@@ -47,9 +51,132 @@ func TestDocumentsFolderNameIndexIsValid(t *testing.T) {
 		"kind = 'folder'",
 		"archived_at IS NULL",
 		"owner_id IS NULL",
+		"system_kind IS NULL",
 	} {
 		if !strings.Contains(definition, fragment) {
 			t.Errorf("%s misses %q in its definition:\n%s", folderNameUniqueIndex, fragment, definition)
+		}
+	}
+	var legacyExists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = $1)`, legacyFolderNameIndex).Scan(&legacyExists); err != nil {
+		t.Fatal(err)
+	}
+	if legacyExists {
+		t.Fatalf("%s should have been dropped after %s was built", legacyFolderNameIndex, folderNameUniqueIndex)
+	}
+}
+
+func TestDocumentsMyFolderSchemaAndIndexes(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lockTestDB(t, pool)
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	var valid, ready bool
+	var definition string
+	if err := pool.QueryRow(ctx, `
+		SELECT i.indisvalid, i.indisready, pg_get_indexdef(i.indexrelid)
+		FROM pg_index i
+		JOIN pg_class c ON c.oid = i.indexrelid
+		WHERE c.relname = $1`, myFolderUniqueIndex).Scan(&valid, &ready, &definition); err != nil {
+		t.Fatalf("%s is not in pg_index: %v", myFolderUniqueIndex, err)
+	}
+	if !valid || !ready {
+		t.Fatalf("%s: indisvalid=%v indisready=%v, want both true", myFolderUniqueIndex, valid, ready)
+	}
+	for _, fragment := range []string{"workspace_id", "acl_owner_id", "system_kind = 'my_folder'"} {
+		if !strings.Contains(definition, fragment) {
+			t.Errorf("%s misses %q in its definition:\n%s", myFolderUniqueIndex, fragment, definition)
+		}
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	const (
+		org   = "01ORGMYFOLDERIDX0000000001"
+		ws    = "01WSPMYFOLDERIDX0000000001"
+		userA = "01USRMYFOLDERIDX0000000001"
+		userB = "01USRMYFOLDERIDX0000000002"
+	)
+	insertMyFolder := func(id, owner string) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO documents (id, organization_id, workspace_id, kind, system_kind, title, visibility,
+			  workspace_level, acl_owner_id, created_by, created_by_kind, updated_by, updated_by_kind)
+			VALUES ($1, $2, $3, 'folder', 'my_folder', 'My Folder', 'restricted', 'view', $4, $4, 'human', $4, 'human')`,
+			id, org, ws, owner)
+		return err
+	}
+	// Two members each get their own My Folder at root, and a user-created root folder named "My Folder" coexists.
+	if err := insertMyFolder("01DOCMYFOLDERIDXA000000001", userA); err != nil {
+		t.Fatalf("insert userA My Folder: %v", err)
+	}
+	if err := insertMyFolder("01DOCMYFOLDERIDXB000000001", userB); err != nil {
+		t.Fatalf("insert userB My Folder: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO documents (id, organization_id, workspace_id, kind, title, visibility,
+		  acl_owner_id, created_by, created_by_kind, updated_by, updated_by_kind)
+		VALUES ('01DOCMYFOLDERIDXUSER000001', $1, $2, 'folder', 'My Folder', 'restricted', $3, $3, 'human', $3, 'human')`,
+		org, ws, userA); err != nil {
+		t.Fatalf("insert user-owned root folder named 'My Folder': %v", err)
+	}
+
+	// Duplicate My Folder for the same (workspace, acl_owner_id) is refused by idx_documents_my_folder_uidx.
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = insertMyFolder("01DOCMYFOLDERIDXDUP0000001", userA)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" || pgErr.ConstraintName != myFolderUniqueIndex {
+		t.Fatalf("second My Folder for userA: err = %v, want 23505 on %s", err, myFolderUniqueIndex)
+	}
+	if err := sp.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	// CHECK constraints refuse invalid system_kind values or non-root/non-folder/owned rows.
+	for _, tc := range []struct {
+		name string
+		sql  string
+	}{
+		{
+			name: "unknown system_kind",
+			sql: `INSERT INTO documents (id, organization_id, workspace_id, kind, system_kind, title, visibility, created_by, created_by_kind, updated_by, updated_by_kind)
+				VALUES ('01DOCMYFOLDERCHK0000000001', '01ORG', '01WS', 'folder', 'other', 'My Folder', 'restricted', '01U', 'human', '01U', 'human')`,
+		},
+		{
+			name: "system_kind on page",
+			sql: `INSERT INTO documents (id, organization_id, workspace_id, kind, system_kind, title, visibility, created_by, created_by_kind, updated_by, updated_by_kind)
+				VALUES ('01DOCMYFOLDERCHK0000000002', '01ORG', '01WS', 'page', 'my_folder', 'My Folder', 'restricted', '01U', 'human', '01U', 'human')`,
+		},
+		{
+			name: "system_kind with parent_id",
+			sql: `INSERT INTO documents (id, organization_id, workspace_id, kind, system_kind, parent_id, title, visibility, created_by, created_by_kind, updated_by, updated_by_kind)
+				VALUES ('01DOCMYFOLDERCHK0000000003', '01ORG', '01WS', 'folder', 'my_folder', '01PARENT', 'My Folder', 'restricted', '01U', 'human', '01U', 'human')`,
+		},
+		{
+			name: "system_kind with owner_kind",
+			sql: `INSERT INTO documents (id, organization_id, workspace_id, kind, system_kind, owner_kind, owner_id, title, visibility, created_by, created_by_kind, updated_by, updated_by_kind)
+				VALUES ('01DOCMYFOLDERCHK0000000004', '01ORG', '01WS', 'folder', 'my_folder', 'work_product', '01WP', 'My Folder', 'restricted', '01U', 'human', '01U', 'human')`,
+		},
+	} {
+		sp, err := tx.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = sp.Exec(ctx, tc.sql)
+		if !errors.As(err, &pgErr) || pgErr.Code != "23514" {
+			t.Fatalf("%s: err = %v, want 23514 check_violation", tc.name, err)
+		}
+		if err := sp.Rollback(ctx); err != nil {
+			t.Fatal(err)
 		}
 	}
 }

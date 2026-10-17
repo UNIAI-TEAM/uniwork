@@ -184,6 +184,11 @@ func TestIsolationMatrix(t *testing.T) {
 	// names nothing of A's (G5-01a).
 	t.Run("change-cursor", w.changeCursorChecks)
 
+	// The ?shared_by_me=true query variant of the workspace documents list
+	// route (SHAREDBYME-01, UNI-1851): each tenant's owner sees their shared
+	// row in the control pass, and B's owner with A's workspace is refused.
+	t.Run("shared-by-me", w.sharedByMeChecks)
+
 	// B's own routes with A's rows named in the body: an assignee, a parent,
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
@@ -433,6 +438,8 @@ func isoWritePhase(r isoRoute) int {
 		return 2
 	}
 	switch r.pattern[strings.LastIndex(r.pattern, "/")+1:] {
+	case "purge":
+		return 2
 	case "leave", "archive", "cancel", "end", "reject", "approve", "deactivate", "finalize", "close", "stop", "hangup", "host-transfer":
 		return 1
 	}
@@ -606,11 +613,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{followUpID}":
 		return tn.get(t, "followUp")
 	case "{documentID}":
-		// The restore route acts on a folder in the trash (E6 FD-02): the
-		// folder kind is what the matrix varies on it, so the name it has to
-		// place back among live siblings is part of every pass. The page kind
-		// is held by the repo's own lifecycle tests.
-		if pattern == "/api/v1/documents/{documentID}/restore" {
+		// The restore and purge routes act on a folder in the trash (E6 FD-02,
+		// RESTORE-01 §2): the folder kind is what the matrix varies on it, so
+		// the name it has to place back among live siblings is part of every
+		// pass. The page kind is held by the repo's own lifecycle tests.
+		if pattern == "/api/v1/documents/{documentID}/restore" || pattern == "/api/v1/documents/{documentID}/purge" {
 			return tn.get(t, "archivedFolder")
 		}
 		if under("/office-frame/") && (under("/linked/") || under("/assets/resolve")) {
@@ -1161,4 +1168,26 @@ func isoClip(raw []byte) string {
 		s = s[:300] + "…"
 	}
 	return s
+}
+
+func (w *isoWorld) sharedByMeChecks(t *testing.T) {
+	t.Helper()
+	pathFor := func(tn *isoTenant) string {
+		return "/api/v1/workspaces/" + tn.wsID + "/documents?shared_by_me=true"
+	}
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		status, raw := w.do(t, http.MethodGet, pathFor(tn), tn.token, isoBody{})
+		if status != http.StatusOK || !bytes.Contains(raw, []byte(tn.ids["document"])) {
+			t.Errorf("GET %s as %s owner = %d, want 200 carrying %s: %s", pathFor(tn), tn.tag, status, tn.ids["document"], isoClip(raw))
+		}
+		if bytes.Contains(raw, []byte(tn.ids["restrictedDocument"])) {
+			t.Errorf("GET %s as %s owner carried peer's restricted document %s: %s", pathFor(tn), tn.tag, tn.ids["restrictedDocument"], isoClip(raw))
+		}
+	}
+	w.attack(t, "GET /api/v1/workspaces/{workspaceID}/documents?shared_by_me=true",
+		http.MethodGet, pathFor(w.alpha), isoBody{}, isoSpec{class: isoScoped}.refused)
+	_, raw := w.do(t, http.MethodGet, pathFor(w.bravo), w.bravo.token, isoBody{})
+	if leak := w.alpha.leakIn(raw, ""); leak != "" {
+		t.Errorf("GET %s: B's own view carries A's %s: %s", pathFor(w.bravo), leak, isoClip(raw))
+	}
 }

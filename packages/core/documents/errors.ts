@@ -22,6 +22,7 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   // FD-02). The server stamps the class, so this entry only fires when the
   // stamp is missing; it keeps the mirror true to errorClassByCode.
   folder_name_taken: "conflict",
+  my_folder_locked: "conflict",
   document_deleted: "gone",
   quota_exceeded: "quota",
   forbidden: "permission",
@@ -131,4 +132,22 @@ export function shareLevelNotAllowedMax(err: unknown): DocumentAccessLevel | nul
   const max = errorFields(err)?.max;
   if (typeof max !== "string") return null;
   return DOCUMENT_ACCESS_LEVELS.find((level) => level === max) ?? null;
+}
+
+/**
+ * True when a purge or restore request targeted a document that is not in the
+ * trash (`400 document_not_in_trash`, RESTORE-01 §2 P-1). Deliberately
+ * unclassified so it does not trigger save-conflict, quota or gone recovery.
+ */
+export function isDocumentNotInTrashError(err: unknown): boolean {
+  return errorCode(err) === "document_not_in_trash";
+}
+
+/**
+ * True when an archive or purge subtree exceeded the per-command node bound
+ * (`400`/`422 folder_too_large`, FD-06 / RESTORE-01 §2 P-7). Deliberately
+ * unclassified so it does not trigger billing quota or save-conflict recovery.
+ */
+export function isFolderTooLargeError(err: unknown): boolean {
+  return errorCode(err) === "folder_too_large";
 }

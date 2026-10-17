@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -216,17 +215,7 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	t, err := h.OfficeFrame.Mint(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
-	if errors.Is(err, service.ErrOfficeFrameTooLarge) && !officeFrameModuleEnabled(r.Context(), h.FeatureFlags,
-		t.Claims.ModuleName(), t.Claims.UserID, t.Claims.WorkspaceID, t.Claims.OrganizationID) {
-		// The flag answers first: off is 403 whatever the size.
-		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
-		return
-	}
-	if errors.Is(err, service.ErrOfficeFrameTooLarge) {
-		// Over the module's size cap (Sheets, GO-D3): the host shows the too-large notice instead.
-		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "document is too large for the web frame")
-		return
-	}
+
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -296,7 +285,7 @@ func (h *handlers) getOfficeFrameContent(w http.ResponseWriter, r *http.Request)
 // the host page, with its session, asks for a view-only source frame token.
 // The module flag is organization-scoped and only the source names its
 // organization and format, so it is evaluated here once the mint found them
-// (as the document mint does), answering 403 feature_disabled before the size.
+// (as the document mint does).
 func (h *handlers) mintSourceOfficeFrameToken(w http.ResponseWriter, r *http.Request) {
 	if h.OfficeFrame == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "office frame is not configured")
@@ -311,16 +300,6 @@ func (h *handlers) mintSourceOfficeFrameToken(w http.ResponseWriter, r *http.Req
 		chi.URLParam(r, "workspaceID"), sourceFileID)
 	flagOn := func(c service.OfficeFrameSourceClaims) bool {
 		return officeFrameModuleEnabled(r.Context(), h.FeatureFlags, c.ModuleName(), c.UserID, c.WorkspaceID, c.OrganizationID)
-	}
-	if errors.Is(err, service.ErrOfficeFrameTooLarge) && !flagOn(t.Claims) {
-		// The flag answers first: off is 403 whatever the size.
-		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
-		return
-	}
-	if errors.Is(err, service.ErrOfficeFrameTooLarge) {
-		// Over the module's size cap (Sheets): the host shows the too-large notice.
-		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "file is too large for the web frame")
-		return
 	}
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -486,12 +465,12 @@ func (h *handlers) listOfficeFrameRecents(w http.ResponseWriter, r *http.Request
 // uploadOfficeFrameAsset is POST /office-frame/documents/{documentID}/assets.
 func (h *handlers) uploadOfficeFrameAsset(w http.ResponseWriter, r *http.Request) {
 	claims := officeFrameClaims(r)
-	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap)
+	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap, documentAssetMaxBytes)
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 10 << 20}
+	part := &cappedDocumentPart{r: file, max: documentAssetMaxBytes}
 	asset, err := h.OfficeFrame.UploadAsset(r.Context(), claims, service.DocumentUploadInput{
 		Filename:       file.FileName(),
 		Body:           part,

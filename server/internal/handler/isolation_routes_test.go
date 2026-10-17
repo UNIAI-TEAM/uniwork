@@ -531,6 +531,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/documents":                                         {body: isoJSON(map[string]any{"title": "new", "kind": "folder"})},
 	"POST /api/v1/workspaces/{workspaceID}/documents/files":                                   {body: isoFile("note.md", "text/markdown", []byte("# new\n"), map[string]string{"title": "new"})},
 	"POST /api/v1/workspaces/{workspaceID}/documents/files/blank":                             {body: isoIdem(nil, map[string]any{"format": "md", "title": "new"})},
+	"POST /api/v1/workspaces/{workspaceID}/documents/my-folder":                               {class: isoScoped, reason: "EnsureMyFolder (UNI-1850): workspace-scoped with no body; outsider refused, owner write-control 200"},
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch":                           {query: "?account_id={emailAccount}"},
 	"POST /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch":                             {query: "?account_id={emailAccount}"},
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}":     {query: "?account_id={emailAccount}"},

@@ -41,7 +41,7 @@ func (q *Queries) ClearDocumentAssetsOrphaned(ctx context.Context, arg ClearDocu
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 FROM documents
 WHERE id = $1
   AND organization_id = $2
@@ -99,6 +99,72 @@ func (q *Queries) GetDocument(ctx context.Context, arg GetDocumentParams) (Docum
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
+	)
+	return i, err
+}
+
+const getMyFolder = `-- name: GetMyFolder :one
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+FROM documents
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND acl_owner_id = $3
+  AND system_kind = 'my_folder'
+`
+
+type GetMyFolderParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	AclOwnerID     pgtype.Text `json:"acl_owner_id"`
+}
+
+func (q *Queries) GetMyFolder(ctx context.Context, arg GetMyFolderParams) (Document, error) {
+	row := q.db.QueryRow(ctx, getMyFolder, arg.OrganizationID, arg.WorkspaceID, arg.AclOwnerID)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchiveBatchID,
+		&i.ContentRevision,
+		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }
@@ -106,7 +172,7 @@ func (q *Queries) GetDocument(ctx context.Context, arg GetDocumentParams) (Docum
 const insertDocument = `-- name: InsertDocument :one
 
 INSERT INTO documents (
-  id, organization_id, workspace_id, parent_id, kind, title, icon, visibility,
+  id, organization_id, workspace_id, parent_id, kind, system_kind, title, icon, visibility,
   workspace_level,
   content, content_text, search_text, content_bytes,
   current_version, file_version_id, revision, content_revision, position,
@@ -118,25 +184,25 @@ INSERT INTO documents (
   content_saved_at, last_version_at, archived_at, archived_by, purge_after
 ) VALUES (
   $1, $2, $3,
-  $4, $5, $6, $7,
-  $8,
+  $4, $5, $6, $7, $8,
   $9,
-  $10, $11, $12,
-  $13,
-  $14, $15, $16,
-  $16,
+  $10,
+  $11, $12, $13,
+  $14,
+  $15, $16, $17,
   $17,
-  $18, $19, $20,
-  $21, $22,
-  $23,
-  $24, $25, $26,
-  $27, $28,
-  $29, $30, $31,
-  $32,
-  $33, $34,
-  $35, $36, $37
+  $18,
+  $19, $20, $21,
+  $22, $23,
+  $24,
+  $25, $26, $27,
+  $28, $29,
+  $30, $31, $32,
+  $33,
+  $34, $35,
+  $36, $37, $38
 )
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 `
 
 type InsertDocumentParams struct {
@@ -145,6 +211,7 @@ type InsertDocumentParams struct {
 	WorkspaceID          string             `json:"workspace_id"`
 	ParentID             pgtype.Text        `json:"parent_id"`
 	Kind                 string             `json:"kind"`
+	SystemKind           pgtype.Text        `json:"system_kind"`
 	Title                string             `json:"title"`
 	Icon                 pgtype.Text        `json:"icon"`
 	Visibility           string             `json:"visibility"`
@@ -189,6 +256,7 @@ func (q *Queries) InsertDocument(ctx context.Context, arg InsertDocumentParams) 
 		arg.WorkspaceID,
 		arg.ParentID,
 		arg.Kind,
+		arg.SystemKind,
 		arg.Title,
 		arg.Icon,
 		arg.Visibility,
@@ -265,12 +333,13 @@ func (q *Queries) InsertDocument(ctx context.Context, arg InsertDocumentParams) 
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }
 
 const listDocumentsByOwner = `-- name: ListDocumentsByOwner :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -344,6 +413,7 @@ func (q *Queries) ListDocumentsByOwner(ctx context.Context, arg ListDocumentsByO
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 		); err != nil {
 			return nil, err
 		}
@@ -356,7 +426,7 @@ func (q *Queries) ListDocumentsByOwner(ctx context.Context, arg ListDocumentsByO
 }
 
 const listDocumentsByParent = `-- name: ListDocumentsByParent :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -425,6 +495,7 @@ func (q *Queries) ListDocumentsByParent(ctx context.Context, arg ListDocumentsBy
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 		); err != nil {
 			return nil, err
 		}
@@ -491,7 +562,7 @@ WHERE id = $7
   AND organization_id = $8
   AND workspace_id = $9
   AND revision = $10
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 `
 
 type UpdateDocumentContentParams struct {
@@ -566,6 +637,7 @@ func (q *Queries) UpdateDocumentContent(ctx context.Context, arg UpdateDocumentC
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }
@@ -591,7 +663,7 @@ WHERE id = $12
   AND organization_id = $13
   AND workspace_id = $14
   AND revision = $15
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 `
 
 type UpdateDocumentFieldsParams struct {
@@ -682,6 +754,7 @@ func (q *Queries) UpdateDocumentFields(ctx context.Context, arg UpdateDocumentFi
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }
@@ -697,7 +770,7 @@ SET visibility = $1,
 WHERE id = $6
   AND organization_id = $7
   AND workspace_id = $8
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 `
 
 type UpdateDocumentHomeRowParams struct {
@@ -773,6 +846,7 @@ func (q *Queries) UpdateDocumentHomeRow(ctx context.Context, arg UpdateDocumentH
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
+		&i.SystemKind,
 	)
 	return i, err
 }

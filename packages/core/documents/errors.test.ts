@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api/http";
-import { classifyDocumentError, shareLevelNotAllowedMax } from "./errors";
+import {
+  classifyDocumentError,
+  isDocumentNotInTrashError,
+  isFolderTooLargeError,
+  shareLevelNotAllowedMax,
+} from "./errors";
 
 // classifyDocumentError reads the server's error_class stamp first, then the
 // stable code, then the status. CODE_TO_CLASS mirrors errorClassByCode in
@@ -57,4 +62,48 @@ describe("classifyDocumentError", () => {
     expect(shareLevelNotAllowedMax(new ApiError("x", "level_not_allowed", 422, undefined, { max: "owner" }))).toBeNull();
     expect(shareLevelNotAllowedMax(new ApiError("x", "break_glass_required", 403))).toBeNull();
   });
+
+  it("classifies my_folder_locked as a conflict from the code alone", () => {
+    const err = new ApiError("không thể thay đổi Thư mục của tôi", "my_folder_locked", 422);
+    expect(classifyDocumentError(err)).toEqual({
+      cls: "conflict",
+      code: "my_folder_locked",
+      fields: undefined,
+    });
+  });
+
+  it("keeps document_not_in_trash and folder_too_large unclassified while matching their helpers", () => {
+    // RESTORE-01 (UNI-1843): neither a live-document purge refusal (400
+    // document_not_in_trash) nor a subtree node-cap refusal (400/422
+    // folder_too_large) is a save conflict, usage quota or lost permission.
+    const notInTrash = new ApiError("tài liệu không nằm trong thùng rác", "document_not_in_trash", 400);
+    const tooLarge400 = new ApiError("thư mục quá lớn", "folder_too_large", 400);
+    const tooLarge422 = new ApiError("thư mục quá lớn", "folder_too_large", 422);
+
+    expect(classifyDocumentError(notInTrash)).toEqual({
+      cls: "unknown",
+      code: "document_not_in_trash",
+      fields: undefined,
+    });
+    expect(classifyDocumentError(tooLarge400)).toEqual({
+      cls: "unknown",
+      code: "folder_too_large",
+      fields: undefined,
+    });
+    expect(classifyDocumentError(tooLarge422)).toEqual({
+      cls: "unknown",
+      code: "folder_too_large",
+      fields: undefined,
+    });
+
+    expect(isDocumentNotInTrashError(notInTrash)).toBe(true);
+    expect(isDocumentNotInTrashError(tooLarge400)).toBe(false);
+    expect(isDocumentNotInTrashError(new Error("document_not_in_trash"))).toBe(false);
+
+    expect(isFolderTooLargeError(tooLarge400)).toBe(true);
+    expect(isFolderTooLargeError(tooLarge422)).toBe(true);
+    expect(isFolderTooLargeError(notInTrash)).toBe(false);
+    expect(isFolderTooLargeError(null)).toBe(false);
+  });
 });
+

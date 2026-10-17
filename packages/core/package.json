@@ -70,6 +70,7 @@
     "./documents/hooks-public": "./documents/hooks-public.ts",
     "./documents/keys": "./documents/keys.ts",
     "./documents/folder-limits": "./documents/folder-limits.ts",
+    "./documents/limits": "./documents/limits.ts",
     "./documents/save-state": "./documents/save-state.ts",
     "./office": "./office/index.ts",
     "./office/docs-frame-protocol": "./office/docs-frame-protocol.ts",

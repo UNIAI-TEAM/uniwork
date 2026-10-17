@@ -33,7 +33,7 @@ const docx: Document = (() => {
   return {
     ...parsed,
     kind: parsed.kind as Document["kind"], visibility: parsed.visibility as Document["visibility"], my_level: parsed.my_level as Document["my_level"],
-    via: parsed.via as Document["via"], owner_kind: parsed.owner_kind as Document["owner_kind"],
+    via: parsed.via as Document["via"], owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"],
   };
 })();
 

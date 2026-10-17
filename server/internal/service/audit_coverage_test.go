@@ -2024,15 +2024,52 @@ func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
 			}
 			return env, res.Document.ID
 		},
+		"EnsureMyFolder": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			v, created, err := env.svc.EnsureMyFolder(context.Background(), human(env.tn.member), env.tn.wsA)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !created {
+				t.Fatal("expected first EnsureMyFolder to create the row")
+			}
+			return env, v.Document.ID
+		},
+		"PurgeDocument": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			member := human(env.tn.member)
+			v, err := env.svc.CreatePage(context.Background(), member, env.tn.wsA,
+				CreatePageInput{Kind: DocumentKindPage, Title: "Audit purge"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.svc.ArchiveDocument(context.Background(), member, v.Document.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			purged, err := env.svc.PurgeDocument(context.Background(), member, v.Document.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(purged) != 1 || purged[0] != v.Document.ID {
+				t.Fatalf("PurgeDocument = %v, want [%s]", purged, v.Document.ID)
+			}
+			return env, v.Document.ID
+		},
 	}
 	for command, run := range cases {
 		t.Run(command, func(t *testing.T) {
 			env, id := run(t)
-			if n := env.countAudit(t, audit.ActionDocumentCreated, id); n != 1 {
-				t.Fatalf("%s wrote %d document.created audit rows for %s, want 1", command, n, id)
+			action := audit.ActionDocumentCreated
+			topic := "document.created"
+			if command == "PurgeDocument" {
+				action = audit.ActionDocumentDeleted
+				topic = "document.deleted"
 			}
-			if n := env.countOutbox(t, "document.created", id); n != 1 {
-				t.Fatalf("%s wrote %d document.created outbox rows for %s, want 1", command, n, id)
+			if n := env.countAudit(t, action, id); n != 1 {
+				t.Fatalf("%s wrote %d %s audit rows for %s, want 1", command, n, action, id)
+			}
+			if n := env.countOutbox(t, topic, id); n != 1 {
+				t.Fatalf("%s wrote %d %s outbox rows for %s, want 1", command, n, topic, id)
 			}
 		})
 	}

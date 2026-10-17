@@ -155,17 +155,6 @@ func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID s
 	if err != nil {
 		return OfficeFrameToken{}, err
 	}
-	// After the ACL check, so a non-member still learns nothing about the file.
-	// The refusal still names the module (no token is signed), so the handler
-	// can answer the module's flag before the size.
-	if limit := officeFrameModuleMaxBytes(d.Module); limit > 0 && d.File.SizeBytes > limit {
-		refused := OfficeFrameClaims{Version: 1, DocumentID: d.Document.ID, WorkspaceID: d.Document.WorkspaceID,
-			OrganizationID: d.Document.OrganizationID, UserID: actor.ID}
-		if d.Module != OfficeFrameModuleDocs {
-			refused.Module = d.Module
-		}
-		return OfficeFrameToken{Claims: refused}, ErrOfficeFrameTooLarge
-	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
 		return OfficeFrameToken{}, err

@@ -711,6 +711,7 @@ func New(d Deps) http.Handler {
 		GetFileContent:        h.getFileContent,
 
 		CreateDocument:          h.createDocument,
+		EnsureMyFolder:          h.ensureMyFolder,
 		CreateDocumentFile:      h.createDocumentFile,
 		CreateBlankDocumentFile: h.createBlankDocumentFile,
 		StartOfficeJob:          h.startOfficeJob,
@@ -806,6 +807,7 @@ func New(d Deps) http.Handler {
 		ArchiveDocument:            h.archiveDocument,
 		ArchiveImpact:              h.archiveImpact,
 		RestoreDocument:            h.restoreDocument,
+		PurgeDocument:              h.purgeDocument,
 		ListDocumentShares:         h.listDocumentShares,
 		CreateDocumentShare:        h.createDocumentShare,
 		CreateDocumentShareBatch:   h.createDocumentShareBatch,

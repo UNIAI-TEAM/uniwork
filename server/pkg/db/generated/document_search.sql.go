@@ -12,90 +12,108 @@ import (
 )
 
 const listArchivedDocumentsPage = `-- name: ListArchivedDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind
 FROM documents d
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
+ AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NOT NULL
-  AND ($3
-       OR ($4 AND d.acl_owner_id = $5)
-       OR ($6 AND EXISTS (
+  AND (($3
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4))
+       OR ($5 AND d.acl_owner_id = $4)
+       OR ($6 AND NOT $7::boolean
+           AND d.visibility = 'workspace'
+           AND d.workspace_level = 'edit')
+       OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = 'manage'
-              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+              AND s.level IN ('manage', 'edit')
+              AND ((s.principal_type = 'user' AND s.principal_id = $4)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($7::text[]))))))
-  AND ($8::text IS NULL OR d.kind = $8)
-  AND ($9::text IS NULL OR d.kind <> $9)
-  AND ($10::text IS NULL OR d.updated_by = $10)
-  AND ($11::timestamptz IS NULL OR d.archived_at >= $11)
-  AND ($12::timestamptz IS NULL OR d.archived_at < $12)
-  AND ($13::text IS NULL
-       OR (NOT $14::boolean
-           AND (NOT $3::boolean
-                 OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
-                 OR EXISTS (
-                      SELECT 1 FROM document_shares rs
-                      WHERE rs.organization_id = d.organization_id
-                        AND rs.workspace_id = d.workspace_id
-                        AND rs.document_id = d.id
-                        AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
-                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
-                             OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY($7::text[]))))
-                 OR EXISTS (
-                      SELECT 1 FROM document_break_glass_grants g
-                      WHERE g.organization_id = d.organization_id
-                        AND g.workspace_id = d.workspace_id
-                        AND g.document_id = d.id
-                        AND g.actor_id = $5
-                        AND g.actor_kind = 'human'
-                        AND g.revoked_at IS NULL
-                        AND g.expires_at > now()))
-           AND d.search_text ILIKE '%' || $13::text || '%' ESCAPE '\')
-       OR (($14::boolean OR NOT (NOT $3::boolean
-                 OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
-                 OR EXISTS (
-                      SELECT 1 FROM document_shares rs
-                      WHERE rs.organization_id = d.organization_id
-                        AND rs.workspace_id = d.workspace_id
-                        AND rs.document_id = d.id
-                        AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
-                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
-                             OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY($7::text[]))))
-                 OR EXISTS (
-                      SELECT 1 FROM document_break_glass_grants g
-                      WHERE g.organization_id = d.organization_id
-                        AND g.workspace_id = d.workspace_id
-                        AND g.document_id = d.id
-                        AND g.actor_id = $5
-                        AND g.actor_kind = 'human'
-                        AND g.revoked_at IS NULL
-                        AND g.expires_at > now())))
-           AND uw_fold_search(d.title) ILIKE '%' || $13::text || '%' ESCAPE '\'))
-  AND ($15::timestamptz IS NULL
-       OR (d.archived_at, d.id) < ($15, $16::text))
+                       AND s.principal_id = ANY($9::text[]))))))
+  AND ($10::text IS NULL OR d.kind = $10)
+  AND ($11::text IS NULL OR d.kind <> $11)
+  AND ($12::text IS NULL OR d.updated_by = $12)
+  AND ($13::timestamptz IS NULL OR d.archived_at >= $13)
+  AND ($14::timestamptz IS NULL OR d.archived_at < $14)
+  AND ($15::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $16::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($17::text[])))
+                    AND length(d.title) > length($15::text) + 1
+                    AND right(lower(d.title), length($15::text) + 1) = '.' || $15::text))))
+  -- UNI-1868: every row this view can return is already manage (the ladder
+  -- above is manage-only), so the service refuses access=manage/edit here and
+  -- 'restricted' - the row's visibility - is the one access filter it takes.
+  AND ($18::text IS NULL OR d.visibility = 'restricted')
+  -- A term can match on title for every row this view returns; it may match
+  -- on content (search_text) only for a row the caller can act on AND read:
+  -- managed by the caller's own access (flagged ACL owner - an effective
+  -- member the resolver grants manage to - or a live manage share), or admin
+  -- scope (see_all) on a non-restricted row. A break-glass grant is capped at
+  -- view, so it never qualifies here and its holder falls to the title
+  -- branch. A restricted trashed row reached only through AdminScope matches
+  -- on title alone - admins administer it but never read its content, and an
+  -- edit holder's trash is read-only metadata either way (RESTORE-01 §3).
+  AND ($19::text IS NULL
+       OR (NOT $20::boolean
+           AND (($3
+                 AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
+                 AND d.visibility <> 'restricted')
+                OR ($5::boolean AND d.acl_owner_id = $4)
+                OR ($8 AND EXISTS (
+                     SELECT 1 FROM document_shares rs
+                     WHERE rs.organization_id = d.organization_id
+                       AND rs.workspace_id = d.workspace_id
+                       AND rs.document_id = d.id
+                       AND rs.revoked_at IS NULL
+                       AND rs.level = 'manage'
+                       AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
+                            OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                            OR (rs.principal_type = 'workspace'
+                                AND rs.principal_id = ANY($9::text[]))))))
+           AND d.search_text ILIKE '%' || $19::text || '%' ESCAPE '\')
+       OR (($20::boolean
+            OR NOT (($3
+                     AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
+                     AND d.visibility <> 'restricted')
+                    OR ($5::boolean AND d.acl_owner_id = $4)
+                    OR ($8 AND EXISTS (
+                         SELECT 1 FROM document_shares rs
+                         WHERE rs.organization_id = d.organization_id
+                           AND rs.workspace_id = d.workspace_id
+                           AND rs.document_id = d.id
+                           AND rs.revoked_at IS NULL
+                           AND rs.level = 'manage'
+                           AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
+                                OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                                OR (rs.principal_type = 'workspace'
+                                    AND rs.principal_id = ANY($9::text[])))))))
+           AND uw_fold_search(d.title) ILIKE '%' || $19::text || '%' ESCAPE '\'))
+  AND ($21::timestamptz IS NULL
+       OR (d.archived_at, d.id) < ($21, $22::text))
 ORDER BY d.archived_at DESC, d.id DESC
-LIMIT $17
+LIMIT $23
 `
 
 type ListArchivedDocumentsPageParams struct {
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	SeeAll          interface{}        `json:"see_all"`
-	AclOwner        interface{}        `json:"acl_owner"`
 	ActorID         pgtype.Text        `json:"actor_id"`
+	AclOwner        interface{}        `json:"acl_owner"`
+	MemberVisible   interface{}        `json:"member_visible"`
+	Agent           bool               `json:"agent"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
@@ -103,6 +121,10 @@ type ListArchivedDocumentsPageParams struct {
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
+	Format          pgtype.Text        `json:"format"`
+	FormatMime      pgtype.Text        `json:"format_mime"`
+	FormatMimes     []string           `json:"format_mimes"`
+	Access          pgtype.Text        `json:"access"`
 	Query           pgtype.Text        `json:"query"`
 	MatchTitle      bool               `json:"match_title"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
@@ -110,15 +132,19 @@ type ListArchivedDocumentsPageParams struct {
 	PageLimit       int32              `json:"page_limit"`
 }
 
-// The trash view: manage-only (workspace admin, the ACL owner, or a manage
-// share), ordered by archive time descending.
+// The trash view: manage or edit (workspace admin, the ACL owner, a
+// workspace-visible document with workspace_level = 'edit' for a human
+// workspace member, or a manage/edit share), ordered by archive time
+// descending.
 func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchivedDocumentsPageParams) ([]Document, error) {
 	rows, err := q.db.Query(ctx, listArchivedDocumentsPage,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.SeeAll,
-		arg.AclOwner,
 		arg.ActorID,
+		arg.AclOwner,
+		arg.MemberVisible,
+		arg.Agent,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 		arg.Kind,
@@ -126,6 +152,10 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
 		arg.Query,
 		arg.MatchTitle,
 		arg.CursorAt,
@@ -181,6 +211,7 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 		); err != nil {
 			return nil, err
 		}
@@ -273,25 +304,31 @@ func (q *Queries) ListDocumentAncestors(ctx context.Context, arg ListDocumentAnc
 }
 
 const listDocumentsByParentPage = `-- name: ListDocumentsByParentPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind
 FROM documents d
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
+ AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND d.parent_id IS NOT DISTINCT FROM $3
-  AND ($4
-       OR ($5 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($6::text[]))
-       OR ($7 AND d.acl_owner_id = $8)
+  AND (($4
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $5))
+       OR ($6 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($7::text[]))
+       OR ($8 AND d.acl_owner_id = $5)
        OR ($9 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($6::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $8)
+              AND s.level = ANY($7::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $5)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($10::text[]))))))
@@ -301,17 +338,43 @@ WHERE d.organization_id = $1
   AND ($14::timestamptz IS NULL OR d.updated_at >= $14)
   AND ($15::timestamptz IS NULL OR d.updated_at < $15)
   AND ($16::text IS NULL
-       OR (NOT $17::boolean
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $17::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($18::text[])))
+                    AND length(d.title) > length($16::text) + 1
+                    AND right(lower(d.title), length($16::text) + 1) = '.' || $16::text))))
+  AND ($19::text IS NULL
+       OR ($19::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($19::text <> 'restricted'
+           AND (($4 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)))
+                OR ($8 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
+                OR ($6 AND NOT $20::boolean
+                    AND d.visibility = 'workspace'
+                    AND d.workspace_level = ANY($21::text[]))
+                OR ($9 AND EXISTS (
+                     SELECT 1 FROM document_shares a
+                     WHERE a.organization_id = d.organization_id
+                       AND a.workspace_id = d.workspace_id
+                       AND a.document_id = d.id
+                       AND a.revoked_at IS NULL
+                       AND a.level = ANY($21::text[])
+                       AND ((a.principal_type = 'user' AND a.principal_id = $5)
+                            OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($10::text[]))))))))
+  AND ($22::text IS NULL
+       OR (NOT $23::boolean
            AND (NOT $4::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
                                  AND rs.principal_id = ANY($10::text[]))))
@@ -320,21 +383,21 @@ WHERE d.organization_id = $1
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $8
+                        AND g.actor_id = $5
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
-           AND d.search_text ILIKE '%' || $16::text || '%' ESCAPE '\')
-       OR (($17::boolean OR NOT (NOT $4::boolean
+           AND d.search_text ILIKE '%' || $22::text || '%' ESCAPE '\')
+       OR (($23::boolean OR NOT (NOT $4::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
                                  AND rs.principal_id = ANY($10::text[]))))
@@ -343,15 +406,15 @@ WHERE d.organization_id = $1
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $8
+                        AND g.actor_id = $5
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
-           AND uw_fold_search(d.title) ILIKE '%' || $16::text || '%' ESCAPE '\'))
-  AND ($18::float8 IS NULL
-       OR (d.position, d.id) > ($18, $19::text))
+           AND uw_fold_search(d.title) ILIKE '%' || $22::text || '%' ESCAPE '\'))
+  AND ($24::float8 IS NULL
+       OR (d.position, d.id) > ($24, $25::text))
 ORDER BY d.position, d.id
-LIMIT $20
+LIMIT $26
 `
 
 type ListDocumentsByParentPageParams struct {
@@ -359,10 +422,10 @@ type ListDocumentsByParentPageParams struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	ParentID        pgtype.Text        `json:"parent_id"`
 	SeeAll          interface{}        `json:"see_all"`
+	ActorID         pgtype.Text        `json:"actor_id"`
 	MemberVisible   interface{}        `json:"member_visible"`
 	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
-	ActorID         pgtype.Text        `json:"actor_id"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
@@ -370,6 +433,12 @@ type ListDocumentsByParentPageParams struct {
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
+	Format          pgtype.Text        `json:"format"`
+	FormatMime      pgtype.Text        `json:"format_mime"`
+	FormatMimes     []string           `json:"format_mimes"`
+	Access          pgtype.Text        `json:"access"`
+	Agent           bool               `json:"agent"`
+	AccessLevels    []string           `json:"access_levels"`
 	Query           pgtype.Text        `json:"query"`
 	MatchTitle      bool               `json:"match_title"`
 	CursorPosition  pgtype.Float8      `json:"cursor_position"`
@@ -385,10 +454,10 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.WorkspaceID,
 		arg.ParentID,
 		arg.SeeAll,
+		arg.ActorID,
 		arg.MemberVisible,
 		arg.ShareLevels,
 		arg.AclOwner,
-		arg.ActorID,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 		arg.Kind,
@@ -396,6 +465,12 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
+		arg.Agent,
+		arg.AccessLevels,
 		arg.Query,
 		arg.MatchTitle,
 		arg.CursorPosition,
@@ -451,6 +526,7 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 		); err != nil {
 			return nil, err
 		}
@@ -464,7 +540,7 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 
 const listDocumentsPage = `-- name: ListDocumentsPage :many
 
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind,
        COALESCE(CASE WHEN $1::text IS NULL THEN NULL::text
                      WHEN NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
@@ -490,11 +566,17 @@ SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.
                         AND g.expires_at > now())) THEN NULL::text
                      ELSE left(d.content_text, 160)::text END, '')::text AS snippet
 FROM documents d
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
+ AND cv.id = d.file_version_id
 WHERE d.organization_id = $5
   AND d.workspace_id = $6
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND ($2
+  AND (($2
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3))
        OR ($7 AND d.visibility = 'workspace'
            AND d.workspace_level = ANY($8::text[]))
        OR ($9 AND d.acl_owner_id = $3)
@@ -514,8 +596,60 @@ WHERE d.organization_id = $5
   AND ($13::text IS NULL OR d.updated_by = $13)
   AND ($14::timestamptz IS NULL OR d.updated_at >= $14)
   AND ($15::timestamptz IS NULL OR d.updated_at < $15)
+  -- UNI-1868 format filter: the file format of the row's current version. The
+  -- MIME an upload verified wins; the title's extension answers only while the
+  -- MIME names none of the six formats the library lists. Folders always stay
+  -- (they are how one reaches files) and a page never matches.
+  AND ($16::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $17::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($18::text[])))
+                    AND length(d.title) > length($16::text) + 1
+                    AND right(lower(d.title), length($16::text) + 1) = '.' || $16::text))))
+  -- UNI-1868 access filter: the same ladder the permission block above
+  -- resolves, so it agrees with the my_level the row reports - role or ACL
+  -- owner manage, the home row's workspace_level, a live share at a level in
+  -- access_levels (manage; edit and manage). agent caps the home-row leg: an
+  -- agent reads view whatever the row carries. 'restricted' is the row's
+  -- visibility, the way the library's access filter has it.
+  AND ($19::text IS NULL
+       OR ($19::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($19::text <> 'restricted'
+           AND (($2 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)))
+                OR ($9 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
+                OR ($7 AND NOT $20::boolean
+                    AND d.visibility = 'workspace'
+                    AND d.workspace_level = ANY($21::text[]))
+                OR ($10 AND EXISTS (
+                     SELECT 1 FROM document_shares a
+                     WHERE a.organization_id = d.organization_id
+                       AND a.workspace_id = d.workspace_id
+                       AND a.document_id = d.id
+                       AND a.revoked_at IS NULL
+                       AND a.level = ANY($21::text[])
+                       AND ((a.principal_type = 'user' AND a.principal_id = $3)
+                            OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($4::text[]))))))))
+  -- System rows (My Folder) are never "shared by me": they refuse shares and visibility changes.
+  AND (NOT $22::boolean OR d.system_kind IS NULL)
+  AND (NOT $22::boolean
+       OR (($2::boolean OR $9::boolean)
+           AND d.acl_owner_id IS NOT NULL
+           AND d.acl_owner_id = $3
+           AND (d.visibility = 'workspace'
+                OR EXISTS (
+                     SELECT 1 FROM document_shares sbm
+                     WHERE sbm.organization_id = d.organization_id
+                       AND sbm.workspace_id = d.workspace_id
+                       AND sbm.document_id = d.id
+                       AND sbm.revoked_at IS NULL
+                       AND ((sbm.principal_type = 'user')
+                            OR (sbm.principal_type = 'workspace')
+                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))))
   AND ($1::text IS NULL
-       OR (NOT $16::boolean
+       OR (NOT $23::boolean
            AND (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
@@ -539,7 +673,7 @@ WHERE d.organization_id = $5
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
-       OR (($16::boolean OR NOT (NOT $2::boolean
+       OR (($23::boolean OR NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
                  OR EXISTS (
@@ -562,10 +696,10 @@ WHERE d.organization_id = $5
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $1::text || '%' ESCAPE '\'))
-  AND ($17::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($17, $18::text))
+  AND ($24::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($24, $25::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $19
+LIMIT $26
 `
 
 type ListDocumentsPageParams struct {
@@ -584,6 +718,13 @@ type ListDocumentsPageParams struct {
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
+	Format          pgtype.Text        `json:"format"`
+	FormatMime      pgtype.Text        `json:"format_mime"`
+	FormatMimes     []string           `json:"format_mimes"`
+	Access          pgtype.Text        `json:"access"`
+	Agent           bool               `json:"agent"`
+	AccessLevels    []string           `json:"access_levels"`
+	SharedByMe      bool               `json:"shared_by_me"`
 	MatchTitle      bool               `json:"match_title"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
@@ -632,6 +773,7 @@ type ListDocumentsPageRow struct {
 	ArchiveBatchID       pgtype.Text        `json:"archive_batch_id"`
 	ContentRevision      int64              `json:"content_revision"`
 	WorkspaceLevel       string             `json:"workspace_level"`
+	SystemKind           pgtype.Text        `json:"system_kind"`
 	Snippet              string             `json:"snippet"`
 }
 
@@ -672,6 +814,10 @@ type ListDocumentsPageRow struct {
 // false for an agent and every share or ACL-owner leg folds shut.
 // Flat "all" page and folded-text search share one cursor: (updated_at, id)
 // descending. q is already folded by the caller and escaped for LIKE.
+// UNI-1868: the current version of a file document, for the format filter and
+// the format each row reports. Joined on the document's own tenant pair and
+// the document itself, so a version of another tenant or document can never
+// answer for the row.
 func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPageParams) ([]ListDocumentsPageRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsPage,
 		arg.Query,
@@ -689,6 +835,13 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
+		arg.Agent,
+		arg.AccessLevels,
+		arg.SharedByMe,
 		arg.MatchTitle,
 		arg.CursorAt,
 		arg.CursorID,
@@ -743,6 +896,7 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 			&i.Snippet,
 		); err != nil {
 			return nil, err
@@ -756,8 +910,13 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 }
 
 const listRecentDocumentsPage = `-- name: ListRecentDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind
 FROM documents d
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
+ AND cv.id = d.file_version_id
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
@@ -769,11 +928,38 @@ WHERE d.organization_id = $1
               AND a.workspace_id = d.workspace_id
               AND a.document_id = d.id
               AND a.actor_id = $3))
-  AND ($4
-       OR ($5 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($6::text[]))
-       OR ($7 AND d.acl_owner_id = $3)
-       OR ($8 AND EXISTS (
+  AND ($4::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $5::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($6::text[])))
+                    AND length(d.title) > length($4::text) + 1
+                    AND right(lower(d.title), length($4::text) + 1) = '.' || $4::text))))
+  AND ($7::text IS NULL
+       OR ($7::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($7::text <> 'restricted'
+           AND (($8 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)))
+                OR ($9 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
+                OR ($10 AND NOT $11::boolean
+                    AND d.visibility = 'workspace'
+                    AND d.workspace_level = ANY($12::text[]))
+                OR ($13 AND EXISTS (
+                     SELECT 1 FROM document_shares a
+                     WHERE a.organization_id = d.organization_id
+                       AND a.workspace_id = d.workspace_id
+                       AND a.document_id = d.id
+                       AND a.revoked_at IS NULL
+                       AND a.level = ANY($12::text[])
+                       AND ((a.principal_type = 'user' AND a.principal_id = $3)
+                            OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($14::text[]))))))))
+  AND (($8
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3))
+       OR ($10 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($15::text[]))
+       OR ($9 AND d.acl_owner_id = $3)
+       OR ($13 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -782,23 +968,29 @@ WHERE d.organization_id = $1
               AND ((s.principal_type = 'user' AND s.principal_id = $3)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($9::text[]))))))
-  AND ($10::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($10, $11::text))
+                       AND s.principal_id = ANY($14::text[]))))))
+  AND ($16::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($16, $17::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $12
+LIMIT $18
 `
 
 type ListRecentDocumentsPageParams struct {
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	ActorID         string             `json:"actor_id"`
+	Format          pgtype.Text        `json:"format"`
+	FormatMime      pgtype.Text        `json:"format_mime"`
+	FormatMimes     []string           `json:"format_mimes"`
+	Access          pgtype.Text        `json:"access"`
 	SeeAll          interface{}        `json:"see_all"`
-	MemberVisible   interface{}        `json:"member_visible"`
-	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
+	MemberVisible   interface{}        `json:"member_visible"`
+	Agent           bool               `json:"agent"`
+	AccessLevels    []string           `json:"access_levels"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
+	ShareLevels     []string           `json:"share_levels"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
 	PageLimit       int32              `json:"page_limit"`
@@ -811,12 +1003,18 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.ActorID,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
 		arg.SeeAll,
-		arg.MemberVisible,
-		arg.ShareLevels,
 		arg.AclOwner,
+		arg.MemberVisible,
+		arg.Agent,
+		arg.AccessLevels,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
+		arg.ShareLevels,
 		arg.CursorAt,
 		arg.CursorID,
 		arg.PageLimit,
@@ -870,6 +1068,7 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 		); err != nil {
 			return nil, err
 		}
@@ -882,23 +1081,24 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 }
 
 const listTreeDocuments = `-- name: ListTreeDocuments :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind
 FROM documents d
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND ($3
-       OR ($4 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($5::text[]))
-       OR ($6 AND d.acl_owner_id = $7)
+  AND (($3
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4))
+       OR ($5 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($6::text[]))
+       OR ($7 AND d.acl_owner_id = $4)
        OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND ((s.principal_type = 'user' AND s.principal_id = $7)
+              AND ((s.principal_type = 'user' AND s.principal_id = $4)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($9::text[]))))))
@@ -909,10 +1109,10 @@ type ListTreeDocumentsParams struct {
 	OrganizationID  string      `json:"organization_id"`
 	WorkspaceID     string      `json:"workspace_id"`
 	SeeAll          interface{} `json:"see_all"`
+	ActorID         pgtype.Text `json:"actor_id"`
 	MemberVisible   interface{} `json:"member_visible"`
 	ShareLevels     []string    `json:"share_levels"`
 	AclOwner        interface{} `json:"acl_owner"`
-	ActorID         pgtype.Text `json:"actor_id"`
 	AllowShares     interface{} `json:"allow_shares"`
 	ShareWorkspaces []string    `json:"share_workspaces"`
 }
@@ -924,10 +1124,10 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.SeeAll,
+		arg.ActorID,
 		arg.MemberVisible,
 		arg.ShareLevels,
 		arg.AclOwner,
-		arg.ActorID,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 	)
@@ -980,6 +1180,7 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 			&i.ArchiveBatchID,
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
+			&i.SystemKind,
 		); err != nil {
 			return nil, err
 		}
