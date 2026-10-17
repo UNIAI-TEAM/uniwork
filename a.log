@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1360-g5-05u-offline-ui-fe; git log --oneline -3
+7128d855de1a804c4ecdb1d0e2f07195dc6437ce
+7128d855de1a804c4ecdb1d0e2f07195dc6437ce
+7128d855 test(shell): cover reviewer_fe r1 findings on S3 tab, entry points and pin dialog (FE-R1-1..10)
+54af025e fix(shell): offline toggle error mapping, in-flight guard and missing workspace toast (FE-R1-3, FE-R1-6)
+321ce99c fix(shell): S3 capability-off unpin, ready transitions, indeterminate progressbar and tab request (FE-R1-1, FE-R1-2, FE-R1-5, FE-R1-7, FE-R1-8)
