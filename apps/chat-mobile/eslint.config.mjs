@@ -6,6 +6,7 @@ import { lucideAliasPaths } from "@uniwork/eslint-config/base";
 // Change the two lists together; the test checks what each entry pulls in.
 const CORE_ALLOWLIST = [
   "api/schema",
+  "runtime-config",
   "api/endpoints/chat-schemas",
   "permissions/rules",
   "paths/paths",

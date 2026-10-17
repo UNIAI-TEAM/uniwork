@@ -18,6 +18,7 @@ const CORE = "packages/core";
 // Keep in step with the M1 spec §3.1 and the app's no-restricted-imports.
 const ALLOWLIST = [
   "api/schema",
+  "runtime-config",
   "api/endpoints/chat-schemas",
   "permissions/rules",
   "paths/paths",
