@@ -339,7 +339,8 @@ export async function bindDryRunStubRoutes({
     );
     const sseText = await upstreamRes.text();
     const toolCallNames = [];
-    let usage = { prompt_tokens: 0, completion_tokens: 0 };
+    // G708-R2-7: a stream with no usage chunk is an unknown count (null), never a recorded 0.
+    let usage = null;
     for (const line of sseText.split('\n')) {
       if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
       try {

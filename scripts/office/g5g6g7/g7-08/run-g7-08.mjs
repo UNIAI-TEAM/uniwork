@@ -131,10 +131,18 @@ export function createBudgetTracker({
   let totalModelCalls = 0;
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let missingUsageCalls = 0;
   const perRun = [];
 
   return {
     canStartNextRun() {
+      // G708-R2-7: a model call that reported no usage left the running total unknown - fail closed.
+      if (missingUsageCalls > 0) {
+        return {
+          allowed: false,
+          verdict: blockedVerdict('missing_usage_on_model_call', { missingUsageCalls, outputTokens: totalOutputTokens }),
+        };
+      }
       if (totalOutputTokens >= guardOutputTokens || totalOutputTokens >= maxOutputTokens) {
         return {
           allowed: false,
@@ -153,7 +161,9 @@ export function createBudgetTracker({
         modelCalls: Number(usage?.modelCalls ?? 0) || 0,
         inputTokens: Number(usage?.inputTokens ?? 0) || 0,
         outputTokens: Number(usage?.outputTokens ?? 0) || 0,
+        missingUsageCalls: Number(usage?.missingUsageCalls ?? 0) || 0,
       };
+      missingUsageCalls += entry.missingUsageCalls;
       totalModelCalls += entry.modelCalls;
       totalInputTokens += entry.inputTokens;
       totalOutputTokens += entry.outputTokens;

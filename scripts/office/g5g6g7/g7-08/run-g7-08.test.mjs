@@ -14,7 +14,7 @@ import { buildPptx } from '../fixtures-lib/pptx.mjs';
 import { buildHtml, buildMarkdown } from '../fixtures-lib/text.mjs';
 import { buildXlsx } from '../fixtures-lib/xlsx.mjs';
 import { sha256Hex } from '../harness/fixture-files.mjs';
-import { VERDICT, failVerdict, passVerdict } from './oracles.mjs';
+import { VERDICT, blockedVerdict, failVerdict, passVerdict } from './oracles.mjs';
 import { MATRIX_ROWS, ROW_EXIT, getRowById } from './rows.mjs';
 import {
   DEFAULT_OUTPUT_TOKEN_BUDGET,
@@ -38,7 +38,6 @@ import {
   evaluatePreconditions,
   evaluateRowObserved,
   extractWireToolCalls,
-  extractWireUsage,
   missingSelectorVerdict,
   moduleAiSelectors,
   moduleFrameSelectors,
@@ -87,12 +86,7 @@ describe('G7-08 W2 web-driver pure observation builders and preflight guards', (
     );
     assert.deepEqual(wire.offeredTools, ['read_range', 'aggregate_range']);
     assert.deepEqual(wire.executedTools, ['aggregate_range', 'read_range']);
-
-    const usage = extractWireUsage([
-      { usage: { prompt_tokens: 120, completion_tokens: 30 } },
-      { usage: { input_tokens: 80, output_tokens: 20 } },
-    ]);
-    assert.deepEqual(usage, { modelCalls: 2, inputTokens: 200, outputTokens: 50 });
+    // Usage extraction (and its fail-closed unknown) is covered by save-observe.test.mjs.
   });
 
   it('evaluates read/edit observations and enforces BLOCKED on missing fields or unknown rows', async () => {
@@ -322,6 +316,48 @@ describe('G7-08 W2 run-g7-08 CLI argument parsing, budget stop, and evidence wri
       assert.equal(res.status, VERDICT.BLOCKED);
       assert.equal(res.exitCode, ROW_EXIT.BLOCKED);
       assert.equal(res.usage.outputTokens, 92_000);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('G708-R2-7: a row whose model call reported no usage stops the run before the next row (never counted as 0)', async () => {
+    const tracker = createBudgetTracker({ maxOutputTokens: 100_000, guardOutputTokens: 90_000 });
+    tracker.recordRun('X-R1:uniwork:web', { modelCalls: 1, inputTokens: 10, outputTokens: 0, missingUsageCalls: 1 });
+    const stop = tracker.canStartNextRun();
+    assert.equal(stop.allowed, false);
+    assert.equal(stop.verdict.reason, 'missing_usage_on_model_call');
+    assert.equal(stop.verdict.exitCode, ROW_EXIT.BLOCKED);
+
+    const tmp = makeTempRunDir();
+    try {
+      let calls = 0;
+      const res = await runG708Matrix(
+        {
+          rows: [getRowById('X-R1'), getRowById('D-E1')],
+          providers: ['uniwork'],
+          host: 'web',
+          runDir: tmp,
+          dryRun: true,
+          maxOutputTokens: 100_000,
+          guardOutputTokens: 90_000,
+        },
+        {
+          evidenceFn: () => null,
+          log: () => {},
+          rowRunner: async () => {
+            calls += 1;
+            return {
+              ...blockedVerdict('missing_usage_on_model_call'),
+              usage: { modelCalls: 1, inputTokens: 10, outputTokens: 0, missingUsageCalls: 1 },
+            };
+          },
+        },
+      );
+      assert.equal(calls, 1, 'the next row is not started');
+      assert.equal(res.runs[0].reason, 'missing_usage_on_model_call');
+      assert.equal(res.runs[1].reason, 'missing_usage_on_model_call');
+      assert.equal(res.exitCode, ROW_EXIT.BLOCKED);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
