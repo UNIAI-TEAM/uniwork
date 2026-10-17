@@ -2644,6 +2644,30 @@ type lockSideEffectCounts struct {
 	rows, files, sessions, multipart int
 }
 
+// lockState is what a read-only create check must leave untouched on a
+// tenure: its heartbeat, expiry and ending, and the document's lock audit and
+// outbox rows. The successful creates write their own upload-session audit
+// row, a different action, so it does not enter these counts.
+type lockState struct {
+	heartbeat, expires, ended         pgtype.Timestamptz
+	auditAcquired, auditReleased      int
+	auditTakenOver, outboxLockChanged int
+}
+
+func (v *versionLockEnv) lockState(t *testing.T, lockID string) lockState {
+	t.Helper()
+	row := v.lockRow(t, lockID)
+	return lockState{
+		heartbeat:         row.HeartbeatAt,
+		expires:           row.ExpiresAt,
+		ended:             row.EndedAt,
+		auditAcquired:     v.countAudit(t, audit.ActionDocumentEditLockAcquired, v.doc.ID),
+		auditReleased:     v.countAudit(t, audit.ActionDocumentEditLockReleased, v.doc.ID),
+		auditTakenOver:    v.countAudit(t, audit.ActionDocumentEditLockTakenOver, v.doc.ID),
+		outboxLockChanged: v.countOutbox(t, topicDocumentLockChanged, v.doc.ID),
+	}
+}
+
 func (v *versionLockEnv) versionInput(t *testing.T) OpenUploadSessionInput {
 	t.Helper()
 	_, probe := buildLargePDF(25<<20, "lock-version")
@@ -2693,20 +2717,37 @@ func (v *versionLockEnv) wantVersionLockedBy(t *testing.T, what string, err erro
 // TestVersionUploadSessionOpenRefusedWhileLocked is BIGUP-LOCKCHECK S-1/S-2 at
 // the service layer: a version create is refused 423 document_locked while
 // another holder (another person, or an agent) holds the live lock, the
-// caller's own lock and a dead or absent lock pass, and an idempotent replay
-// is refused too.
+// caller's own lock and a dead or absent lock pass, and a same-actor idempotent
+// replay of a create made before the lock was taken is refused too. The refused
+// calls, the holder's own create and the expired-tenure create leave the tenure
+// and the document's lock audit/outbox rows untouched.
 func TestVersionUploadSessionOpenRefusedWhileLocked(t *testing.T) {
 	v := newVersionLockEnv(t)
 	ctx := v.ctx
 	member, holder := human(v.tn.member), human(v.tn.aclOwner)
 
-	// No lock: the version create passes.
-	if _, err := v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, v.versionInput(t)); err != nil {
+	// No lock: the version create passes. (The holder opens it, keeping the
+	// member's open-session count clear for the replay seeds below: a create
+	// is refused once an actor holds UploadSessionMaxOpenPerActor sessions.)
+	if _, err := v.svc.OpenVersionUploadSession(ctx, holder, v.doc.ID, v.versionInput(t)); err != nil {
 		t.Fatalf("open with no lock: %v", err)
+	}
+
+	// R1-1: the replays below must repeat the SAME actor's input and key, so
+	// the two creates that seed them happen now, with no lock held, and are
+	// repeated later by the same actor under another's lock.
+	replayV := v.versionInput(t)
+	if _, err := v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, replayV); err != nil {
+		t.Fatalf("pre-lock version create for the replay case: %v", err)
+	}
+	replayF := v.versionInput(t)
+	if _, err := v.svc.OpenFrameUploadSession(ctx, v.frameClaims(), v.doc.ID, replayF); err != nil {
+		t.Fatalf("pre-lock frame create for the replay case: %v", err)
 	}
 
 	// Another person holds: 423, and nothing was created for this call.
 	held := v.acquire(t, v.tn.aclOwner, v.doc.ID, "editor-holder")
+	heldState := v.lockState(t, held.Lock.ID)
 	before := v.lockSideEffects(t)
 	_, err := v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, v.versionInput(t))
 	v.wantVersionLocked(t, "another person holds", err, false)
@@ -2717,32 +2758,50 @@ func TestVersionUploadSessionOpenRefusedWhileLocked(t *testing.T) {
 	if before != after {
 		t.Fatalf("a refused create left side effects: %v -> %v", before, after)
 	}
+	if got := v.lockState(t, held.Lock.ID); got != heldState {
+		t.Fatalf("a refused create touched the lock: %+v -> %+v", heldState, got)
+	}
 
-	// The holder itself passes (the create carries no lock id).
+	// The holder itself passes (the create carries no lock id) and leaves the
+	// tenure untouched: no heartbeat renewal, no expiry move, no lock row.
 	if _, err := v.svc.OpenVersionUploadSession(ctx, holder, v.doc.ID, v.versionInput(t)); err != nil {
 		t.Fatalf("holder open: %v", err)
 	}
-
-	// A replay of a create made before the lock was taken is refused too: the
-	// idempotency pre-check runs after the lock check.
-	replay := v.versionInput(t)
-	if _, err := v.svc.OpenVersionUploadSession(ctx, holder, v.doc.ID, replay); err != nil {
-		t.Fatalf("pre-lock create: %v", err)
+	if got := v.lockState(t, held.Lock.ID); got != heldState {
+		t.Fatalf("the holder's own create touched the lock: %+v -> %+v", heldState, got)
 	}
-	if _, err := v.svc.OpenVersionUploadSession(ctx, holder, v.doc.ID, replay); err != nil {
-		t.Fatalf("pre-lock replay: %v", err)
-	}
-	_, err = v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, replay)
-	v.wantVersionLocked(t, "replay under a lock", err, false)
 
-	// An expired tenure (past TTL, not swept) passes.
+	// R1-1: the same actor repeats the exact pre-lock input and key while
+	// another person holds the lock: the lock check runs before the
+	// idempotency replay, so the repeat is refused and creates nothing.
+	replayBefore := v.lockSideEffects(t)
+	_, err = v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, replayV)
+	v.wantVersionLocked(t, "same-actor replay under a lock", err, false)
+	if got := v.lockSideEffects(t); got != replayBefore {
+		t.Fatalf("a refused same-actor replay left side effects: %v -> %v", replayBefore, got)
+	}
+	_, err = v.svc.OpenFrameUploadSession(ctx, v.frameClaims(), v.doc.ID, replayF)
+	v.wantVersionLocked(t, "same-actor frame replay under a lock", err, false)
+	if got := v.lockSideEffects(t); got != replayBefore {
+		t.Fatalf("a refused same-actor frame replay left side effects: %v -> %v", replayBefore, got)
+	}
+	if got := v.lockState(t, held.Lock.ID); got != heldState {
+		t.Fatalf("a refused replay touched the lock: %+v -> %+v", heldState, got)
+	}
+
+	// An expired tenure (past TTL, not swept) passes and is left ended-never:
+	// the check renews no heartbeat and ends no stale row.
 	if err := v.svc.ReleaseDocumentEditLock(ctx, holder, v.doc.ID, held.Lock.ID); err != nil {
 		t.Fatal(err)
 	}
 	dead := v.acquire(t, v.tn.aclOwner, v.doc.ID, "editor-dead")
 	v.expire(t, dead.Lock.ID)
+	deadState := v.lockState(t, dead.Lock.ID)
 	if _, err := v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, v.versionInput(t)); err != nil {
 		t.Fatalf("open under an expired lock: %v", err)
+	}
+	if got := v.lockState(t, dead.Lock.ID); got != deadState {
+		t.Fatalf("an expired-tenure create touched the lock: %+v -> %+v", deadState, got)
 	}
 
 	// An agent tenure refuses a human caller.

@@ -668,8 +668,9 @@ func (w *uploadSessionWorld) countMultipartSessions(t *testing.T) int {
 // S-1/S-2 at the HTTP layer: a version session create answers 423
 // document_locked with the gate's body while another person holds the lock,
 // and no session row or multipart upload is created; the caller's own lock and
-// no lock pass; a replay made before the lock was taken is refused; the frame
-// create route behaves the same.
+// no lock pass; a same-actor replay of a create made before the lock was taken
+// is refused with no new session or upload; the frame create route behaves the
+// same.
 func TestVersionUploadSessionCreateRefusedWhileLockedHandler(t *testing.T) {
 	w := newUploadSessionWorld(t)
 	shareEditToWorkspace(t, w.srv, w.token, w.docID, w.wsID)
@@ -680,6 +681,16 @@ func TestVersionUploadSessionCreateRefusedWhileLockedHandler(t *testing.T) {
 		map[string]string{"Idempotency-Key": util.NewID()}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
 	if res.StatusCode != 201 {
 		t.Fatalf("create with no lock = %d %v", res.StatusCode, out)
+	}
+
+	// R1-1: the replay case below repeats the SAME actor's input and key, so
+	// the create that seeds it happens now, with no lock held.
+	replayKey := util.NewID()
+	replayBody := sessionOpenBody("big.md", uploadSessionTestSize, nil)
+	res, out = doJSONHeaders(t, w.srv, "POST", path, w.token,
+		map[string]string{"Idempotency-Key": replayKey}, replayBody)
+	if res.StatusCode != 201 {
+		t.Fatalf("pre-lock create for the replay case = %d %v", res.StatusCode, out)
 	}
 
 	// Another member holds the lock: the owner's create is 423 with the
@@ -718,17 +729,21 @@ func TestVersionUploadSessionCreateRefusedWhileLockedHandler(t *testing.T) {
 		t.Fatalf("frame create while another holds = %d %v", res.StatusCode, out)
 	}
 
-	// A replay of a create made before the lock was taken is refused too.
-	key := util.NewID()
-	res, out = doJSONHeaders(t, w.srv, "POST", path, w.outsiderToken,
-		map[string]string{"Idempotency-Key": key}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
-	if res.StatusCode != 201 {
-		t.Fatalf("holder create for the replay case = %d %v", res.StatusCode, out)
-	}
+	// R1-1: the same actor repeats the exact pre-lock input and key while
+	// another person holds the lock: the lock check runs before the
+	// idempotency replay, so the repeat is refused and creates no session.
+	sessBefore := w.countMultipartSessions(t)
+	uploadsBefore := w.store.openUploadCount()
 	res, out = doJSONHeaders(t, w.srv, "POST", path, w.token,
-		map[string]string{"Idempotency-Key": key}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
+		map[string]string{"Idempotency-Key": replayKey}, replayBody)
 	if code, _ := errCodeClass(out); res.StatusCode != http.StatusLocked || code != "document_locked" {
-		t.Fatalf("replay under another's lock = %d %v", res.StatusCode, out)
+		t.Fatalf("same-actor replay under another's lock = %d %v", res.StatusCode, out)
+	}
+	if after := w.countMultipartSessions(t); after != sessBefore {
+		t.Fatalf("refused same-actor replay left session rows: %d -> %d", sessBefore, after)
+	}
+	if got := w.store.openUploadCount(); got != uploadsBefore {
+		t.Fatalf("refused same-actor replay left a multipart upload: %d -> %d", uploadsBefore, got)
 	}
 
 	// The holder's own create passes (held_by_me).
