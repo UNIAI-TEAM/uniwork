@@ -35,6 +35,7 @@ import {
   type HostSaveWatch,
 } from "./docs-frame-session-model";
 import { composeFrameInit } from "./docs-frame-init";
+import { useShelvedFlag } from "./use-shelved-flag";
 import { deliverFrameDownload, frameDownloadMaxBytes } from "./frame-download";
 import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave } from "./frame-remote-version";
 import { useFrameRemote } from "./use-frame-remote-source";
@@ -62,15 +63,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   // when the page did not say so; a shelved document's token says it (ARCHIVE-01 §3). A save the
   // server refused with document_shelved makes the live session read-only too, without a reload.
   // Not holding the page's edit lock (acquiring, someone else, lost) is view-only too (UNI-1645).
-  const [shelved, setShelved] = useState(false);
-  const shelvedRef = useRef(false);
+  const { shelved, shelvedRef, setShelved } = useShelvedFlag(scopeId);
   const lockedOut = options.editLock != null && !options.editLock.held;
   const viewOnly = options.readonly || tokenQuery.data?.can_edit === false || shelved || lockedOut;
   const editLockId = options.editLock?.held ? options.editLock.lockId : undefined;
-  useEffect(() => {
-    shelvedRef.current = false;
-    setShelved(false);
-  }, [scopeId]);
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [slow, setSlow] = useState(false);
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
@@ -92,7 +88,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const reportError = useCallback((error: ProtocolErrorShape) => {
     if (shelvedRef.current && (error.code === "forbidden" || error.code === "conflict")) return;
     latest.current.options.onError(error);
-  }, []);
+  }, [shelvedRef]);
   // The current frame was initialised read-only because the lock was not held: holding it later
   // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
   const initLockedOut = useRef(false);
@@ -475,7 +471,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (remoteRef.current === remote) remoteRef.current = null;
       setHost(null);
     };
-  }, [applyBlock, attempt, documentId, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, reportError, wsId]);
+  }, [applyBlock, attempt, documentId, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, reportError, setShelved, shelvedRef, wsId]);
 
   // The lock arrived after the frame opened read-only ("Edit now", a handover, the first R2):
   // re-attach it in edit mode.

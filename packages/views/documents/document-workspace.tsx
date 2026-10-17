@@ -193,12 +193,9 @@ export function DocumentWorkspace({
   // Unarchived while this page still holds a draft the server refused: the same live-again gate as above
   // (a send before the edit lock is held again would go without edit_lock_id), then the same key.
   useEffect(() => {
-    if (isShelved(doc)) {
-      wasShelvedRef.current = true;
-    } else if (wasShelvedRef.current) {
-      wasShelvedRef.current = false;
-      goLiveAgain();
-    }
+    const was = wasShelvedRef.current;
+    wasShelvedRef.current = isShelved(doc);
+    if (was && !wasShelvedRef.current) goLiveAgain();
     // Only the shelved marker matters; `save` is rebuilt on every state change and is read fresh here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.shelved_at]);
