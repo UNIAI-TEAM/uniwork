@@ -215,7 +215,96 @@ function contentLeaves(node, key = '', out = []) {
 
 /** Does the write put anything into the document that it did not already hold (a text that is no existing line, a number the document lacks)? */
 export function introducesNew(args, sourceText) {
+  // A configuration operation (review-g712-16 A2) changes the document without introducing any text: a page setup or a
+  // freeze is a real edit even though every leaf it carries is a locator or a setting, so it is never "what the
+  // document already held". The structural proof of the case decides whether the operation is the expected one.
+  if (configOps(args ?? {}).length > 0) return true;
   const units = sourceUnits(sourceText);
   const numbers = sourceNumbers(sourceText);
   return contentLeaves(args ?? {}).some((leaf) => ('text' in leaf ? !units.has(norm(leaf.text)) : !numbers.some((n) => Math.abs(n - leaf.number) < 1e-9)));
+}
+
+// ---- configuration operations (review-g712-16 A2) ----
+
+// The product's discriminator keys of a propose_operations operation (workbook-dsl.ts: `op`); the harness and the
+// frame also accept `type`, so both are read.
+const OP_TYPE_KEYS = ['op', 'type', 'operation', 'kind', 'action'];
+// A cell write names an address; a configuration operation never does. An operation with one of these is a cell write,
+// so it is proven by cellProof (its address and value), not as a configuration.
+const ADDRESS_KEYS = ['address', 'range', 'cell', 'anchor', 'target', 'values'];
+
+const opTypeOf = (node) => OP_TYPE_KEYS.map((k) => node[k]).find((v) => typeof v === 'string' && v.trim() !== '') ?? null;
+
+/** The scalar settings of one operation object: its own entries besides the control, sheet and type keys. */
+function opSettings(node) {
+  const out = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (CONTROL_KEYS.has(key) || SHEET_KEYS.includes(key) || OP_TYPE_KEYS.includes(key)) continue;
+    if (isScalar(value)) out.push({ key, value });
+  }
+  return out;
+}
+
+/** The sheet an operation names, resolved to the workbook's own name when it names a `sheet-N` index. */
+function resolveSheetName(have, sheetNames) {
+  if (!have) return null;
+  const byIndex = /^sheet-(\d+)$/i.exec(String(have).trim());
+  if (byIndex && sheetNames[Number(byIndex[1]) - 1]) return sheetNames[Number(byIndex[1]) - 1];
+  return String(have).trim();
+}
+
+/** Every configuration operation of one write's arguments: a typed operation object carrying at least one setting. */
+export function configOps(args) {
+  const out = [];
+  for (const { node } of operations(args ?? {})) {
+    const type = opTypeOf(node);
+    if (!type) continue;
+    if (ADDRESS_KEYS.some((k) => node[k] !== undefined)) continue;
+    const settings = opSettings(node);
+    if (settings.length === 0) continue;
+    const sheet = SHEET_KEYS.map((k) => node[k]).find((v) => typeof v === 'string' && v.trim() !== '') ?? null;
+    out.push({ type, sheet, settings });
+  }
+  return out;
+}
+
+/** Parses a `config_op` expectation `sheet|key=value,key=value` into { sheet, keys } (the keys in their written order). */
+function parseConfigSpec(text) {
+  const s = String(text ?? '');
+  const bar = s.indexOf('|');
+  if (bar <= 0) return null;
+  const sheet = s.slice(0, bar).trim();
+  const keys = s.slice(bar + 1).split(',').map((part) => part.split('=')[0].trim()).filter(Boolean);
+  return sheet && keys.length > 0 ? { sheet, keys } : null;
+}
+
+/** `<sheet>|<key>=<observed>,…` for the keys the expectation names, or null when the operation carries no such setting. */
+function canonicalConfig(sheet, keys, op) {
+  const parts = [];
+  for (const key of keys) {
+    const hit = op.settings.find((s) => norm(s.key) === norm(key));
+    if (!hit) return null;
+    parts.push(`${key}=${hit.value}`);
+  }
+  return `${sheet}|${parts.join(',')}`;
+}
+
+/**
+ * Proves a configuration edit (review-g712-16 A2) from the APPLIED propose_operations arguments: an operation of the
+ * expected type on the expected sheet, carrying every setting the expectation names. Returns the observed canonical
+ * `sheet|key=value,…` — the observed values, never the expected ones, so the scorer's own value comparison still
+ * decides whether they are the expected settings — or null when no applied operation is this configuration.
+ */
+export function configOpProof(writes, type, expectedSpec, sheetNames = []) {
+  const spec = parseConfigSpec(expectedSpec);
+  if (!spec) return null;
+  for (const write of writes) {
+    for (const op of configOps(write.args ?? {})) {
+      if (norm(op.type) !== norm(type)) continue;
+      if (!op.sheet || !sameSheet(spec.sheet, op.sheet, sheetNames)) continue;
+      const canonical = canonicalConfig(resolveSheetName(op.sheet, sheetNames), spec.keys, op);
+      if (canonical !== null) return canonical;
+    }
+  }
+  return null;
 }

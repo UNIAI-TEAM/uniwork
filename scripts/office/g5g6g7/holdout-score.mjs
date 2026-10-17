@@ -57,11 +57,13 @@ export const OPERATIONS = [
   'read_slide', 'read_page', 'ask_clarification', 'refuse',
 ];
 export const STRUCTURAL_KINDS = [
-  'cell', 'formula', 'heading', 'table_cell', 'count', 'clarification', 'refusal', 'not_found', 'caveat',
+  'cell', 'formula', 'heading', 'table_cell', 'count', 'config_op', 'clarification', 'refusal', 'not_found', 'caveat',
 ];
 const WRITE_OPERATIONS = new Set(['write_range', 'edit_paragraph']);
 // Kinds whose value is compared as data; the others carry a free-text explanation and are graded on presence.
-const VALUE_KINDS = new Set(['cell', 'formula', 'heading', 'table_cell', 'count']);
+// `config_op` (review-g712-16 A2) is a value kind: its value is the canonical `sheet|key=value,…` of the requested
+// configuration, so the settings the applied operation carried are compared, not a self-reported count.
+const VALUE_KINDS = new Set(['cell', 'formula', 'heading', 'table_cell', 'count', 'config_op']);
 const PROSE_KINDS = new Set(['clarification', 'refusal', 'not_found']);
 const REVIEW_KINDS = new Set(['caveat']);
 const ROUNDINGS = new Set(['none', '0dp', '2dp']);

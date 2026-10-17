@@ -28,7 +28,7 @@
 
 import { anchorMatches, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
-import { cellProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
+import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
 const VALUE_KINDS = new Set(['cell', 'formula', 'heading', 'table_cell', 'count']);
@@ -365,7 +365,20 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const asked = ask.calls.some((c) => c.name === 'ask_clarification');
   const caveats = Array.isArray(report.caveats) && report.caveats.some((c) => typeof c === 'string' && c.trim());
   for (const expected of caseDoc.expected.structural) {
-    if (VALUE_KINDS.has(expected.kind)) {
+    if (expected.kind === 'config_op') {
+      // A2: a configuration edit is proven from the APPLIED propose_operations arguments — the operation type, the
+      // target sheet and the requested settings — never from newly introduced text or a self-reported count. The reply
+      // need not name it (there is no value a reply could carry that the arguments do not already say), so the adapter
+      // synthesises the item from the arguments, as it does for a preserved count. The value is the OBSERVED canonical
+      // `sheet|key=value,…`, so the scorer's own value comparison decides whether the settings are the expected ones.
+      const observed = editCase ? configOpProof(applied, expected.anchor, String(expected.value), ask.sheetNames ?? []) : null;
+      if (observed !== null) {
+        writeBacked += 1;
+        structural.push({ kind: 'config_op', anchor: expected.anchor, value: observed });
+      } else {
+        writeUnbacked += 1;
+      }
+    } else if (VALUE_KINDS.has(expected.kind)) {
       const same = items.filter((it) => it.kind === expected.kind && !taken.has(it));
       const proof = editCase ? editProof(expected, applied, ask.sheetNames ?? [], sourceText) : null;
       const atAnchor = (it) => anchorMatches(expected.kind, expected.anchor, String(it.anchor ?? ''), String(it.value ?? ''), expected.value);
