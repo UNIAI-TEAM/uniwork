@@ -16,8 +16,15 @@ export default defineConfig({
       provider: "v8",
       include: ["lib/**/*.ts", "data/**/*.ts"],
       // theme.ts and use-color-scheme.ts import expo-router / nativewind, which
-      // need the native runtime; realtime-provider is React wiring (Task 2).
-      exclude: ["**/*.test.ts", "lib/theme.ts", "lib/use-color-scheme.ts", "data/realtime/realtime-provider.*"],
+      // need the native runtime; realtime-provider imports react-native
+      // (AppState/NetInfo/Platform) and use-ws-subscriptions imports it.
+      exclude: [
+        "**/*.test.ts",
+        "lib/theme.ts",
+        "lib/use-color-scheme.ts",
+        "data/realtime/realtime-provider.*",
+        "lib/use-ws-subscriptions.ts",
+      ],
       reporter: ["text-summary"],
       thresholds: coverageThresholds({ statements: 100, branches: 100, functions: 100, lines: 100 }),
     },
