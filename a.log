@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+72b3c2b78e59c06c07560aa71b1e93a413b0b40e
+72b3c2b78e59c06c07560aa71b1e93a413b0b40e
+72b3c2b7 fix(shell): restore vanished open folder fallback and search row sr-only path
+98db4b53 test(e2e): restore folder gone fallback, search sr-only path, and Open dialog cases
+f3246184 test(shell): add unit tests for vanished open folder fallback and search path sr-only
