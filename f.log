@@ -1,0 +1,12 @@
+$ pnpm --filter @uniwork/views typecheck; rc=$?; echo; echo "VIEWS_TC_EXIT=$rc"
+
+> @uniwork/views@0.0.0 typecheck /workspace/packages/views
+> tsc --noEmit
+
+documents/documents-library-row.test.tsx(54,68): error TS2322: Type '{ row: LibraryRow; handlers: LibraryRowHandlers; archived: boolean; ladder: LibraryLadder; }' is not assignable to type 'IntrinsicAttributes & { row: LibraryRow; handlers: LibraryRowHandlers; ladder: LibraryLadder; typeCell?: ReactNode; }'.
+  Property 'archived' does not exist on type 'IntrinsicAttributes & { row: LibraryRow; handlers: LibraryRowHandlers; ladder: LibraryLadder; typeCell?: ReactNode; }'.
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 typecheck: `tsc --noEmit`
+Exit status 2
+
+VIEWS_TC_EXIT=2
