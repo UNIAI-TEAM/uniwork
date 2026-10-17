@@ -1843,6 +1843,16 @@ describe('usage rows and arguments', () => {
       'pass',
       'a natural-anchored count that states the invariant still passes (R17-9)',
     );
+    // R17-9: the right value beside a conflicting value for the SAME count is still contradictory output, so the item
+    // fails; a matching report does not launder the conflict, and no oracle count is synthesized over it.
+    for (const anchors of [['changed_paragraphs', 'changed_paragraphs'], ['changed paragraphs', 'changed paragraphs']]) {
+      const both = deriveAnswer(injCase, ask([count(anchors[0], '0'), count(anchors[1], '5')], 'get_document_context', ['docs']));
+      assert.equal(
+        score(injCase, both.answer).status,
+        'fail',
+        `the invariant beside a conflicting value under "${anchors[1]}" must fail (R17-9)`,
+      );
+    }
     // The unchanged path still passes: a non-edit zero-write case with no conflicting count gets the fact credit.
     assert.equal(score(injCase, deriveAnswer(injCase, ask([], 'get_document_context', ['docs'])).answer).status, 'pass');
   });

@@ -617,7 +617,15 @@ export function score(caseDoc, answer) {
     consumed.add(match);
     if (VALUE_KINDS.has(expected.kind)) {
       const ok = valuesEqual(expected.value, match.value, expected.kind);
-      add(label, ok ? 'pass' : 'fail', ok ? `value ${JSON.stringify(match.value)}` : `${JSON.stringify(match.value)} != ${JSON.stringify(expected.value)}`);
+      // R17-9 (review-g712-17): a count is never laundered. When the answer also states a DIFFERENT value for the same
+      // count topic ("changed_paragraphs" / "changed paragraphs"), the right value beside it does not earn the item.
+      const conflicting =
+        expected.kind === 'count' &&
+        structuralAnswer.some(
+          (it) => it !== match && it.kind === 'count' && countTopicKey(it.anchor) === countTopicKey(expected.anchor) && !valuesEqual(expected.value, it.value, 'count'),
+        );
+      if (conflicting) add(label, 'fail', 'the answer also reports a conflicting value for this count');
+      else add(label, ok ? 'pass' : 'fail', ok ? `value ${JSON.stringify(match.value)}` : `${JSON.stringify(match.value)} != ${JSON.stringify(expected.value)}`);
     } else if (PROSE_KINDS.has(expected.kind)) {
       // The value is a free-text explanation: presence plus the anchor topic is what can be graded.
       add(label, 'pass', `reported as ${expected.kind} (wording is not compared)`);
