@@ -191,7 +191,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 			"Thiếu phần / số phần sai / ETag khác ListParts -> 422 upload_parts_invalid (phiên vẫn open); kích thước sai -> 422 upload_size_mismatch; probe khác -> 422 upload_probe_mismatch; nội dung hỏng -> 415, object bị xoá và quota được nhả; một complete khác đang giữ lease -> 409 upload_session_busy + Retry-After: 5. Gọi lại khi đã xong trả cùng kết quả.",
 		tags: []string{"documents"},
 		sdi:  sdi.CompleteUploadSessionSDI{},
-		sdo:  sdo.DocumentSDO{},
+		sdo:  sdo.UploadSessionCompleteSDO{},
 		auth: true,
 	})
 	d.Delete("/upload-sessions/{sessionID}", h.AbortUploadSession, apiOp{

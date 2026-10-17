@@ -89,6 +89,8 @@ func (c *apiCatalog) marshalJSON() ([]byte, error) {
 				cu.HTTPStatus = status
 				cu.ContentType = op.produces
 			})
+		case op.status == http.StatusNoContent:
+			oc.AddRespStructure(nil, func(cu *openapi.ContentUnit) { cu.HTTPStatus = status })
 		}
 		oc.AddRespStructure(new(sdo.ErrorSDO), func(cu *openapi.ContentUnit) { cu.HTTPStatus = http.StatusBadRequest })
 		if op.auth {

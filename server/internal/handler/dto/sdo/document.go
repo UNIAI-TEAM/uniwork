@@ -625,3 +625,17 @@ type UploadSessionPartURLSDO struct {
 	Headers    map[string]string `json:"headers" description:"Header phải gửi kèm request PUT (rỗng với S3 mặc định)" example:"{}"`
 	ExpiresAt  string            `json:"expires_at" description:"Hạn của URL (1 giờ)" example:"2026-10-17T16:00:00Z"`
 }
+
+// UploadSessionCompleteSDO is the OpenAPI union for
+// POST /api/v1/upload-sessions/{sessionID}/complete: a session opened on the
+// workspace route (/workspaces/{workspaceID}/documents/upload-sessions) creates
+// the file document and answers DocumentSDO, while a session opened on the
+// document route (/documents/{documentID}/upload-sessions) stages the candidate
+// version bytes and answers DocumentUploadSDO.
+type UploadSessionCompleteSDO struct{}
+
+// JSONSchemaOneOf implements jsonschema.OneOfExposer so OpenAPI documents both
+// route-family success envelopes on the shared completion endpoint.
+func (UploadSessionCompleteSDO) JSONSchemaOneOf() []interface{} {
+	return []interface{}{DocumentSDO{}, DocumentUploadSDO{}}
+}
