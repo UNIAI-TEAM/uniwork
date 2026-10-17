@@ -1,0 +1,99 @@
+$ pnpm exec turbo build typecheck --filter=!@uniwork/chat-mobile; echo "BUILD_TYPECHECK_EXIT=$?"
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/chat-desktop, @uniwork/core, @uniwork/e2e, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running build, typecheck in 12 packages
+   • Remote caching disabled
+
+@uniwork/office-upstream:build: cache miss, executing 1f2ea6954b4ea5b8
+@uniwork/chat-desktop:build: cache miss, executing 054e2b21b9ae954e
+@uniwork/office-engine-app:build: cache miss, executing 8b226ad4cd46fc07
+@uniwork/ui:typecheck: cache miss, executing bef31c553cf9a8c3
+@uniwork/web:build: cache miss, executing aa12558b74b8a1f1
+@uniwork/office-contracts:typecheck: cache miss, executing f232ddbf12a32e7b
+@uniwork/core:typecheck: cache miss, executing ec64895d45e593e3
+@uniwork/office-upstream:build: 
+@uniwork/office-upstream:build: > @uniwork/office-upstream@0.0.0 build /workspace/packages/office-upstream
+@uniwork/office-upstream:build: > node ../../scripts/office/build-upstream.mjs
+@uniwork/office-upstream:build: 
+@uniwork/chat-desktop:build: 
+@uniwork/chat-desktop:build: > @uniwork/chat-desktop@0.0.0 build /workspace/apps/chat-desktop
+@uniwork/chat-desktop:build: > electron-vite build
+@uniwork/chat-desktop:build: 
+@uniwork/web:build: 
+@uniwork/web:build: > @uniwork/web@0.0.0 build /workspace/apps/web
+@uniwork/web:build: > node scripts/office-frame-sync.mjs --ensure && next build
+@uniwork/web:build: 
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-contracts:typecheck: > @uniwork/office-contracts@0.0.0 typecheck /workspace/packages/office-contracts
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-engine-app:build: 
+@uniwork/office-engine-app:build: > @uniwork/office-engine-app@0.0.0 build /workspace/apps/office-engine
+@uniwork/office-engine-app:build: > node scripts/build.mjs
+@uniwork/office-engine-app:build: 
+@uniwork/core:typecheck: 
+@uniwork/core:typecheck: > @uniwork/core@0.0.0 typecheck /workspace/packages/core
+@uniwork/core:typecheck: > tsc --noEmit
+@uniwork/core:typecheck: 
+@uniwork/ui:typecheck: 
+@uniwork/ui:typecheck: > @uniwork/ui@0.0.0 typecheck /workspace/packages/ui
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/office-engine-app:build: office-engine bundle written to dist/
+@uniwork/chat-desktop:build: (!) renderer config is missing
+@uniwork/chat-desktop:build: 
+@uniwork/chat-desktop:build: vite v8.2.2 building ssr environment for production...
+@uniwork/chat-desktop:build: transforming...
+@uniwork/chat-desktop:build: ✓ 20 modules transformed.
+@uniwork/chat-desktop:build: rendering chunks...
+@uniwork/chat-desktop:build: dist/main/index.js  52.96 kB
+@uniwork/chat-desktop:build: 
+@uniwork/chat-desktop:build: ✓ built in 165ms
+@uniwork/chat-desktop:build: vite v8.2.2 building ssr environment for production...
+@uniwork/chat-desktop:build: transforming...
+@uniwork/chat-desktop:build: ✓ 2 modules transformed.
+@uniwork/chat-desktop:build: rendering chunks...
+@uniwork/chat-desktop:build: dist/preload/index.js  1.60 kB
+@uniwork/chat-desktop:build: 
+@uniwork/chat-desktop:build: ✓ built in 37ms
+@uniwork/web:build: office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-5d5b089
+@uniwork/web:build: office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-5d5b089
+@uniwork/web:build: office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-5d5b089
+@uniwork/web:build: office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-5d5b089
+@uniwork/web:build: office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-5d5b089
+@uniwork/office-engine:typecheck: cache miss, executing 9ebeae12c2399f4a
+@uniwork/web:build: office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-5d5b089
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/web:build: ▲ Next.js 16.3.8 (Turbopack)
+@uniwork/web:build: ✓ Running next.config.mjs took 278ms
+@uniwork/web:build: Attention: Next.js now collects completely anonymous telemetry regarding usage.
+@uniwork/web:build: This information is used to shape Next.js' roadmap and prioritize features.
+@uniwork/web:build: You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+@uniwork/web:build: https://nextjs.org/telemetry
+@uniwork/web:build: 
+@uniwork/web:build: 
+@uniwork/web:build:   Creating an optimized production build ...
+@uniwork/office-upstream:build: {"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+@uniwork/office-engine-app:typecheck: cache miss, executing 7097d5f0ed808e2c
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-engine-app:typecheck: > @uniwork/office-engine-app@0.0.0 typecheck /workspace/apps/office-engine
+@uniwork/office-engine-app:typecheck: > tsc --noEmit
+@uniwork/office-engine-app:typecheck: 
+@uniwork/core:typecheck: email-hub/hooks.ts(202,20): error TS2451: Cannot redeclare block-scoped variable 'refetchDetail'.
+@uniwork/core:typecheck: email-hub/hooks.ts(206,9): error TS2451: Cannot redeclare block-scoped variable 'refetchDetail'.
+@uniwork/core:typecheck:  ELIFECYCLE  Command failed with exit code 2.
+@uniwork/web:build:  ELIFECYCLE  Command failed.
+@uniwork/core#typecheck:  ERROR  command (/workspace/packages/core) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run typecheck exited (2)
+
+ Tasks:    6 successful, 9 total
+Cached:    0 cached, 9 total
+  Time:    15.853s 
+Failed:    @uniwork/core#typecheck
+
+ WARNING  no output files found for task @uniwork/office-upstream#build. Please check your `outputs` key in `turbo.json`
+ ERROR  run failed: command  exited (2)
+BUILD_TYPECHECK_EXIT=2

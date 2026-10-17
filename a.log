@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+204aec871da4187d7910f1d1f3c254f1aae2e784
+204aec871 chore(merge): develop 3d225a5c0 into the G5-G7 part 3 PR branch (UNI-923)
+3d225a5c0 UNI-1838: UniChat Q1 — Nghiệm thu trưởng thành và pilot nội bộ: checklist, dogfood 2 tuần, giám sát, tài khoản phát hành (#344)
+14703462c chore: merge SAVECOPY-HOST save a copy host + REBLESS-01 (UNI-1872, 754121138) into the G5-G7 root

@@ -1,0 +1,3 @@
+$ node scripts/bundle-budget.mjs --print --warn-only; echo "BUNDLE_EXIT=$?"
+bundle-budget: /workspace/apps/web/.next/build-manifest.json missing — run `pnpm --filter @uniwork/web build` first
+BUNDLE_EXIT=2

@@ -1,0 +1,4 @@
+$ pnpm audit --audit-level high; echo "AUDIT_EXIT=$?"
+10 vulnerabilities found
+Severity: 3 low | 5 moderate | 2 high (2 ignored)
+AUDIT_EXIT=0
