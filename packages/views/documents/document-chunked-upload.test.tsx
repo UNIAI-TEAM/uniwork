@@ -106,6 +106,7 @@ function renderPageView(onOpen = vi.fn()) {
 
 beforeEach(() => {
   requestMock.mockReset();
+  vi.stubGlobal("XMLHttpRequest", undefined);
   resetAuthStoreForTests();
   setSessionUser({
     id: "u1",
@@ -315,6 +316,7 @@ describe("Chunked document upload in views", () => {
     fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
 
     const pauseBtn = await screen.findByRole("button", { name: t("documents.upload.pause") });
+    expect(pauseBtn).toHaveClass("border-input");
     fireEvent.click(pauseBtn);
 
     const resumeBtn = await screen.findByRole("button", { name: t("documents.upload.resume") });

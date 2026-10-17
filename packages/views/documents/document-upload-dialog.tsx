@@ -186,7 +186,7 @@ export function DocumentUploadDialog({
               {t("documents.upload.cancel")}
             </Button>
             {isUploading ? (
-              <Button type="button" variant="secondary" onClick={onPause}>
+              <Button type="button" variant="outline" onClick={onPause}>
                 {t("documents.upload.pause")}
               </Button>
             ) : isPaused ? (
