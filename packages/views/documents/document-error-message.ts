@@ -1,5 +1,6 @@
 import type { useTranslation } from "react-i18next";
 import { apiErrorMessage, errorCode, errorFields } from "@uniwork/core/api";
+import { classifyDocumentError, isDocumentNotInTrashError, isFolderTooLargeError } from "@uniwork/core/documents/errors";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import {
   DEFAULT_DOCUMENT_MAX_BYTES,
@@ -79,5 +80,19 @@ export function documentErrorMessage(
   }
   if (code && CODED.has(code)) return t(`documents.errors.${code}`, { max: TREE_MAX_LEVEL });
   return apiErrorMessage(error) ?? t(fallbackKey, opts?.fallbackOpts);
+}
+
+/**
+ * A user-facing sentence for a failed trash command (RESTORE-01): restore and
+ * purge share the three named refusals — the item is no longer in the trash,
+ * the folder's subtree is too large to purge in one call, and the caller does
+ * not manage it (403). Anything else keeps the server's message, then the
+ * caller's fallback, exactly like documentErrorMessage.
+ */
+export function trashErrorMessage(error: unknown, t: TFunction, fallbackKey: string): string {
+  if (isDocumentNotInTrashError(error)) return t("documents.trash.not_in_trash");
+  if (isFolderTooLargeError(error)) return t("documents.trash.too_large");
+  if (classifyDocumentError(error).cls === "permission") return t("documents.trash.no_permission");
+  return apiErrorMessage(error) ?? t(fallbackKey);
 }
 

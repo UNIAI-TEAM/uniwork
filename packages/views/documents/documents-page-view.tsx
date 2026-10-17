@@ -40,7 +40,7 @@ import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchBox } from "./documents-search-box";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
-
+import { useTrashActions } from "./use-trash-actions";
 /** The access options the trash's server filter accepts (UNI-1868): manage/edit are refused there. */
 const ARCHIVED_ACCESS_OPTIONS: readonly AccessFilter[] = ["all", "restricted"];
 
@@ -164,10 +164,12 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const parentForCreate = view.kind === "home" ? folderId : null;
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title });
+  const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred");
 
+  const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
   const drop = useDropUpload({
     enabled: enabled && canCreate && !folderInvalid,
@@ -242,7 +244,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
-    onRestore: view.kind === "archived" ? rowDialogs.onRestore : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {
           const op = starred ? unfavorite : favorite;
@@ -377,7 +378,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   {view.kind === "home" ? (
                     <DocumentsGreeting name={context?.user.display_name ?? null} folderTitle={folderDoc?.title ?? null} readOnly={!canCreate} />
                   ) : (
-                    <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
+                      {view.kind === "archived" ? <p className="text-caption text-muted-foreground">{t("documents.trash.intro")}</p> : null}
+                    </div>
                   )}
                   <Button type="button" variant="outline" size="sm" className="shrink-0 xl:hidden" onClick={() => setNavOpen(true)}>
                     <FolderTree aria-hidden className="size-3.5" />
@@ -421,7 +425,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   accessFiltered={accessFiltered}
                   typeFiltered={chip !== "all"}
                   cardsShown={canCreate && view.kind === "home"}
-                  archived={view.kind === "archived"}
+                  trash={view.kind === "archived" ? { actions: trashActions, members: memberIndex, membersReady: Boolean(members.data) } : undefined}
                   showType={view.kind === "home" && Boolean(folderId)}
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}
@@ -434,6 +438,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   handlers={handlers}
                   empty={emptyCopy}
                 />
+                {view.kind === "archived" && !listLoading && state.rows.length > 0 ? (
+                  <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-caption text-muted-foreground">{t("documents.trash.note")}</p>
+                ) : null}
                 {canCreate && view.kind === "home" && !listLoading && state.rows.length > 0 ? (
                   <p className="text-caption text-muted-foreground">{t("documents.home.drop_hint")}</p>
                 ) : null}
@@ -465,6 +472,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       />
 
       {sourcePreview.dialog}
+
+      {trashActions.dialog}
 
       {rowDialogs.dialogs}
     </div>

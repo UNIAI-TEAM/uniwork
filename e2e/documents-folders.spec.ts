@@ -2487,19 +2487,13 @@ test("FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and docu
   const trashed = await getDocument(page, ws.owner.token, root.id);
   expect(trashed.data?.archived_at).toBeTruthy();
 
-  // Restore from the Archive scope: the trashed folder's row menu offers Khôi phục.
-  await page.getByRole("tab", { name: /^Lưu trữ/ }).click();
+  // Restore from the Thùng rác scope: the trashed folder's row has its own
+  // Khôi phục button (named after the item) and restores at once, no dialog.
+  await page.getByRole("tab", { name: /^Thùng rác/ }).click();
   await expect(contentRow(page, "Xóa Thử")).toBeVisible();
   await page
     .getByRole("table", { name: "Tài liệu" })
-    .getByRole("button", { name: "Thao tác cho Xóa Thử", exact: true })
-    .click();
-  await page.getByRole("menuitem", { name: "Khôi phục", exact: true }).click();
-  const restoreDialog = page.getByRole("alertdialog", {
-    name: "Khôi phục tài liệu",
-  });
-  await restoreDialog
-    .getByRole("button", { name: "Khôi phục", exact: true })
+    .getByRole("button", { name: "Khôi phục Xóa Thử", exact: true })
     .click();
   await expect(page.getByText("Đã khôi phục Xóa Thử")).toBeVisible();
   const restored = await getDocument(page, ws.owner.token, root.id);
