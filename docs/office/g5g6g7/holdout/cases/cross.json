@@ -527,6 +527,7 @@
       "tools": {
         "allowed": [
           "read_document",
+          "read_sheet_list",
           "read_range",
           "ask_clarification"
         ],
@@ -1308,6 +1309,7 @@
       ],
       "tools": {
         "allowed": [
+          "read_sheet_list",
           "read_range",
           "refuse"
         ],
