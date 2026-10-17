@@ -1,0 +1,12 @@
+$ tail -n 100 /tmp/pr3r1-server.log /tmp/pr3r1-web.log; for p in 18080 13000; do pid=$(lsof -ti tcp:$p 2>/dev/null); [ -n "$pid" ] && kill $pid; done; true
+==> /tmp/pr3r1-server.log <==
+18:52:21.475 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+18:52:21.475 INF local storage adapter ready dir=/tmp/uniwork-uploads
+18:52:21.478 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/17 18:52:21 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+18:52:21.479 INF mail: log mode, messages are printed component=server
+18:52:21.479 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+18:52:21.479 INF uniwork ai transcript store not configured component=server
+18:52:22.048 INF mail: outbox worker started component=server tick=5s
+18:52:22.048 INF listening component=server port=18080 swagger=http://localhost:18080/swagger/index.html
+tail: cannot open '/tmp/pr3r1-web.log' for reading: No such file or directory
