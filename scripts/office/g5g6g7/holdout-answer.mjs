@@ -98,6 +98,45 @@ function tokenToNumber(tok) {
   return toNumber(tok);
 }
 
+// A cell or range address inside one word of the reply ("Sheet!A1", "A1:G7", "$B$2", and a label like "Q1"), a date
+// ("2026-10-17", "17/10/2026") and a section/list locator word ("slide 3", "dòng 7", "mục 2"). Digits that belong to
+// one of these are not quantity claims (review-g712-16 A7).
+const ADDRESS_WORD_RE = /[A-Za-z]{1,3}\$?\d+/;
+const DATE_WORD_RE = /\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}/;
+const LOCATOR_WORD_RE = /(?:slide|page|trang|row|line|hàng|dòng|ô|cell|section|mục|chương|quý|quarter|step|bước|khu vực|table|bảng|biểu đồ|chart|phần|item)\s*$/i;
+const QUOTE_CHARS = /["“”„«»]/g;
+
+/** The word (whitespace-delimited run) that holds the token at [start, end). */
+function wordAround(text, start, end) {
+  let i = start;
+  while (i > 0 && !/\s/.test(text[i - 1])) i -= 1;
+  let j = end;
+  while (j < text.length && !/\s/.test(text[j])) j += 1;
+  return { word: text.slice(i, j), before: text.slice(0, i), after: text.slice(j) };
+}
+
+/**
+ * The numbers the reply states in prose that are quantity claims (review-g712-16 A7). A prose figure is a claim like a
+ * reported number, so it must be reported or traceable; only tokens that are clearly not quantities are exempt: a
+ * cell/range address or a label like "Q1", a date (and a year inside one), a locator/ordinal of a list or section
+ * marker, and digits that belong to quoted document text.
+ */
+export function proseQuantityTokens(text) {
+  const out = [];
+  for (const match of String(text).matchAll(NUMBER_TOKEN_RE)) {
+    const tok = match[0];
+    const { word, before, after } = wordAround(String(text), match.index, match.index + tok.length);
+    if (ADDRESS_WORD_RE.test(word) || DATE_WORD_RE.test(word)) continue;
+    if (LOCATOR_WORD_RE.test(before.trimEnd())) continue;
+    // A list marker: the token starts a line and is followed by "." or ")" ("1. Bắc", "2) Nam").
+    if (/^[.)]/.test(after) && /\n\s*$/.test(before)) continue;
+    // Inside quoted document text: an odd number of quote characters before it opens a quotation that this digit sits in.
+    if (((before.match(QUOTE_CHARS) ?? []).length % 2) === 1) continue;
+    out.push(tok);
+  }
+  return out;
+}
+
 function shownDecimalPlaces(value, n) {
   const raw = typeof value === 'string' ? value.trim().replace(/%$/, '') : String(n);
   const dot = raw.indexOf('.');
@@ -265,20 +304,35 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     const actual = toNumber(numeric[item.name]);
     return actual !== null && Math.abs(roundTo(actual, item.rounding) - item.value) <= item.tolerance + 1e-9;
   });
-  const hasTurnContext = Boolean(sourceText.trim() || String(ask.toolResultsText ?? '').trim());
+  // The turn's data: the document as opened, the tool results, and the user's own question. A figure the user supplied
+  // ("set D5 to 45.000.000", "does it exceed 18.000.000?") is not invented when the reply repeats it, so the question
+  // is part of the pool; a forecast the reply makes up is in none of the three.
+  const queryText = [caseDoc.query?.vi, caseDoc.query?.en].filter((s) => typeof s === 'string').join('\n');
+  const turnText = `${sourceText}\n${String(ask.toolResultsText ?? '')}\n${queryText}`;
+  const hasTurnContext = turnText.trim() !== '';
   const pool = hasTurnContext
-    ? [
-        ...(sourceText.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
-        ...(String(ask.toolResultsText ?? '').match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
-      ].filter((x) => x !== null)
+    ? (turnText.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber).filter((x) => x !== null)
     : [];
   const shownNumbers = [
     ...(parsed.text.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
     ...items.flatMap((it) => (String(it.value ?? '').match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber)),
   ].filter((x) => x !== null);
+  // A7: a figure the reply states in prose is a claim too. One that is neither a reported number nor traceable (the
+  // same isTraceableFigure rules) joins the extras, so it fails numeric_unexpected. Locators, dates and quoted digits
+  // are not quantities and are skipped by proseQuantityTokens; a reported figure and one already in `extras` are not
+  // added twice.
+  const reportedNumbers = figures.map(toNumber).filter((n) => n !== null);
+  const extraNumbers = extras.map(toNumber).filter((n) => n !== null);
+  const inList = (n, list) => list.some((m) => Math.abs(n - m) <= 1e-9 * Math.max(1, Math.abs(n), Math.abs(m)));
+  const proseExtras = proseQuantityTokens(parsed.text)
+    .map(tokenToNumber)
+    .filter((n) => n !== null && !inList(n, reportedNumbers) && !inList(n, extraNumbers));
   const strictExtras =
     numbers === 'strict'
-      ? extras.filter((value) => caseDoc.expected.forbidExtraNumbers === true || !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, shownNumbers))
+      ? [
+          ...extras.filter((value) => caseDoc.expected.forbidExtraNumbers === true || !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, shownNumbers)),
+          ...proseExtras.filter((value) => caseDoc.expected.forbidExtraNumbers === true || !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, shownNumbers)),
+        ]
       : [];
   strictExtras.forEach((value, i) => { numeric[`extra_figure_${i + 1}`] = value; });
   const applied = writeLog.filter((w) => w.applied);
