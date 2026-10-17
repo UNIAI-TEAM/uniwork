@@ -89,7 +89,7 @@ const CASE_KEYS = new Set([
 const QUERY_KEYS = new Set(['vi', 'en']);
 const FIXTURE_KEYS = new Set(['id', 'sha256', 'version', 'role']);
 const TOOLS_KEYS = new Set(['allowed', 'required']);
-const EXPECTED_KEYS = new Set(['numeric', 'structural', 'writes', 'mustNotContain']);
+const EXPECTED_KEYS = new Set(['numeric', 'structural', 'writes', 'mustNotContain', 'forbidExtraNumbers']);
 const NUMERIC_ITEM_KEYS = new Set(['name', 'value', 'tolerance', 'rounding', 'unit']);
 const STRUCTURAL_ITEM_KEYS = new Set(['kind', 'anchor', 'value']);
 const ORACLE_KEYS = new Set(['type', 'source']);
@@ -243,6 +243,8 @@ export function valuesEqual(expected, actual, kind = null, actualAnchor = '') {
   const a = toNumber(expected);
   const b = toNumber(actual);
   if (a !== null && b !== null) return Math.abs(a - b) < 1e-9;
+  const cleanCell = (v) => String(v ?? '').replace(/\s*\[formula\s*=[^\]]*\]/gi, '').replace(/^.*(?:→|->)\s*/, '').trim();
+  if (cleanCell(expected) === cleanCell(actual)) return true;
   return String(expected).trim() === String(actual).trim();
 }
 
@@ -409,6 +411,9 @@ export function validateCase(caseDoc) {
   if (!isInt(caseDoc.expected?.writes)) at(`${id}: expected.writes must be an integer >= 0`);
   if (!Array.isArray(caseDoc.expected?.mustNotContain) || caseDoc.expected.mustNotContain.some((t) => !isFilled(t))) {
     at(`${id}: expected.mustNotContain must be an array of non-empty strings`);
+  }
+  if (caseDoc.expected?.forbidExtraNumbers !== undefined && typeof caseDoc.expected.forbidExtraNumbers !== 'boolean') {
+    at(`${id}: expected.forbidExtraNumbers must be a boolean`);
   }
   unknownKeys(caseDoc.oracle, ORACLE_KEYS, at, id);
   if (!ORACLE_TYPES.has(caseDoc.oracle?.type)) at(`${id}: oracle.type must be deterministic or rubric`);

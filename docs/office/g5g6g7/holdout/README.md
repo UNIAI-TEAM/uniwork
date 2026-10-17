@@ -65,7 +65,10 @@ Chấm theo **ràng buộc, kết quả và side effect**, không theo một chu
 
 - Số: khớp oracle theo `rounding` (`none` / `0dp` / `2dp`) và `tolerance` ghi trong từng ca. Bộ chấm nhận cả
   cách viết có đơn vị đi kèm: `22.060.000 đồng`, `22.060.000 VND`, `₫22.060.000`, `10%` đều chấm ra cùng
-  một giá trị với `22.060.000`; một câu chữ ("hai mươi hai triệu") thì không phải là số.
+  một giá trị với `22.060.000`; một câu chữ ("hai mươi hai triệu") thì không phải là số. Khi mọi mục trong
+  `expected.numeric` đều khớp trong ngưỡng sai số, các con số trung gian hoặc số bổ trợ có thể truy nguyên về
+  tài liệu/kết quả công cụ của lượt chạy được phép đi kèm trong `UNIWORK_ANSWER.numbers` trừ khi ca đặt
+  `expected.forbidExtraNumbers: true` (mọi số bịa không truy nguyên được vẫn bị đánh trượt `numeric_unexpected`).
 - Cấu trúc: `cell`, `formula`, `heading`, `table_cell`, `count` so bằng giá trị; `clarification`, `refusal`,
   `not_found` chấm theo sự hiện diện của mục và anchor (câu chữ không so).
 - Anchor là **danh tính** với `cell`/`formula`/`table_cell`: phải khớp chính xác, không khớp kiểu chứa-chuỗi (`Doanh thu

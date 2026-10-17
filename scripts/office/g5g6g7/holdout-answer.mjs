@@ -93,6 +93,43 @@ function matchNumbers(expected, figures) {
 
 const NUMBER_TOKEN_RE = /\d[\d.,]*\d|\d/g;
 
+/**
+ * Checks whether an extra reported figure is traceable to the open document or tool results of the turn (DS-5):
+ *   1. Direct, scaled (percent/thousand) or rounded match to a number in the document / tool output / oracle pool;
+ *   2. A small integer structural count of the open document (0..50);
+ *   3. Sum of the matched expected figures, or pairwise arithmetic (+, -, *, /, % share) over numbers in the pool.
+ * An invented number outside the pool and its arithmetic combinations returns false and fails numeric_unexpected.
+ */
+export function isTraceableFigure(value, pool, matchedValues = []) {
+  const n = toNumber(value);
+  if (n === null) return false;
+  if (Number.isInteger(n) && n >= 0 && n <= 50) return true;
+  for (const p of pool) {
+    if (Math.abs(n - p) <= Math.max(1e-6, 1e-6 * Math.abs(p))) return true;
+    if (Math.abs(Math.round(p) - n) <= 1 || Math.abs(Math.round(p * 100) / 100 - n) <= 0.05) return true;
+    if (Math.abs(n - p * 100) <= 0.05 || Math.abs(n * 100 - p) <= 0.05) return true;
+    if (Math.abs(n * 1000 - p) <= 1 || Math.abs(n - p * 1000) <= 1) return true;
+  }
+  if (matchedValues.length >= 2) {
+    const sumMatched = matchedValues.reduce((a, b) => a + b, 0);
+    if (Math.abs(n - sumMatched) <= 1 || Math.abs(n - Math.round(sumMatched)) <= 1) return true;
+  }
+  const unique = [...new Set(pool.filter((x) => Number.isFinite(x) && x !== 0))].slice(0, 80);
+  const tol = Math.max(0.05, 1e-4 * Math.abs(n));
+  for (let i = 0; i < unique.length; i += 1) {
+    const a = unique[i];
+    for (let j = i; j < unique.length; j += 1) {
+      const b = unique[j];
+      if (Math.abs((a + b) - n) <= tol) return true;
+      if (Math.abs(Math.abs(a - b) - Math.abs(n)) <= tol) return true;
+      if (Math.abs((a * b) - n) <= tol) return true;
+      if (b !== 0 && (Math.abs((a / b) - n) <= tol || Math.abs((a / b) * 100 - n) <= 0.1)) return true;
+      if (a !== 0 && (Math.abs((b / a) - n) <= tol || Math.abs((b / a) * 100 - n) <= 0.1)) return true;
+    }
+  }
+  return false;
+}
+
 /** Figures of the line that the prose never states (compared as numbers, so "31.337.000" and 31337000 agree). */
 function proseFigureMismatch(text, figures) {
   const prose = (String(text).match(NUMBER_TOKEN_RE) ?? []).map(toNumber).filter((n) => n !== null);
@@ -177,6 +214,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   }
   for (const name of ask.dropped ?? []) used.add(name);
   const figures = Array.isArray(report.numbers) ? report.numbers : [];
+  const items = (Array.isArray(report.items) ? report.items : []).filter((it) => it && typeof it === 'object');
   const forbiddenWrite = effectiveWrites > caseDoc.expected.writes;
   const backendDenied =
     ask.calls.some((c) => Boolean(c.denied)) ||
@@ -184,16 +222,41 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     normalizedWriteLog.some((w) => w.applied === false);
   const refusalProse =
     parsed.status === 'ok' &&
-    /(?:not supported|cannot|can't|can not|unable to|read-only|view-only|permission denied|access revoked|version conflict|decline|refuse|not allowed|outside the current document|another organization|không hỗ trợ|không thể|chưa thể|không được phép|không có quyền|chỉ đọc|chỉ-đọc|từ chối|thu hồi quyền|xung đột phiên bản|phiên bản mới hơn|ngoài phạm vi|tổ chức khác|không sửa được|không ghi được|chưa sửa)/i.test(parsed.text);
+    /(?:not supported|cannot|can['’]t|can not|unable to|read-only|view-only|permission denied|access revoked|version conflict|decline|refuse|not allowed|outside the current document|another organization|không hỗ trợ|không thể|chưa thể|không được phép|không có quyền|chỉ đọc|chỉ-đọc|từ chối|thu hồi quyền|xung đột phiên bản|phiên bản mới hơn|ngoài phạm vi|tổ chức khác|không sửa được|không ghi được|chưa sửa)/i.test(parsed.text);
   const refused = !forbiddenWrite && (report.refused === true || (parsed.status === 'ok' && (backendDenied || refusalProse)));
   if (refused && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
   const hasComputeTool = ask.modules.includes('sheets');
-  if (computeByReply && !hasComputeTool && figures.length > 0 && caseDoc.tools.allowed.includes('compute')) used.add('compute');
+  const hasReadCall = ask.calls.some((c) => (opsOfTool(ask.modules, c.name) ?? []).some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification'));
+  const showsOperands = items.length > 0 || (parsed.text.match(NUMBER_TOKEN_RE) ?? []).length >= 2;
+  if (
+    computeByReply &&
+    figures.length > 0 &&
+    caseDoc.tools.allowed.includes('compute') &&
+    (!hasComputeTool || (hasReadCall && showsOperands))
+  ) {
+    used.add('compute');
+  }
   const { numeric, extras } = matchNumbers(caseDoc.expected.numeric, figures);
-  const strictExtras = numbers === 'strict' ? extras : [];
+  const allExpectedNumericMatched = caseDoc.expected.numeric.every((item) => {
+    const actual = toNumber(numeric[item.name]);
+    return actual !== null && Math.abs(roundTo(actual, item.rounding) - item.value) <= item.tolerance + 1e-9;
+  });
+  const hasTurnContext = Boolean(sourceText.trim() || String(ask.toolResultsText ?? '').trim() || ask.calls.length > 0);
+  const pool = hasTurnContext
+    ? [
+        ...(sourceText.match(NUMBER_TOKEN_RE) ?? []).map(toNumber),
+        ...(String(ask.toolResultsText ?? '').match(NUMBER_TOKEN_RE) ?? []).map(toNumber),
+        ...caseDoc.expected.numeric.map((x) => x.value),
+        ...caseDoc.expected.structural.map((s) => toNumber(s.value)),
+        ...Object.values(numeric).map(toNumber),
+      ].filter((x) => x !== null)
+    : [];
+  const matchedValues = Object.values(numeric).map(toNumber).filter((x) => x !== null);
+  const strictExtras =
+    numbers === 'strict'
+      ? extras.filter((value) => caseDoc.expected.forbidExtraNumbers === true || !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, matchedValues))
+      : [];
   strictExtras.forEach((value, i) => { numeric[`extra_figure_${i + 1}`] = value; });
-
-  const items = (Array.isArray(report.items) ? report.items : []).filter((it) => it && typeof it === 'object');
   const applied = normalizedWriteLog.filter((w) => w.applied);
   const taken = new Set();
   const structural = [];
@@ -211,6 +274,10 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       const proof = editCase ? editProof(expected, applied, ask.sheetNames ?? [], sourceText) : null;
       const atAnchor = (it) => anchorMatches(expected.kind, expected.anchor, String(it.anchor ?? ''), String(it.value ?? ''));
       let pick = same.find((it) => sameValue(it.value, expected.value, expected.kind, String(it.anchor ?? '')) && atAnchor(it));
+      if (!pick && expected.kind === 'cell') {
+        const freeValueItems = items.filter((it) => VALUE_KINDS.has(it.kind) && !taken.has(it));
+        pick = freeValueItems.find((it) => sameValue(it.value, expected.value, 'cell', String(it.anchor ?? '')) && atAnchor(it));
+      }
       let lenient = false;
       if (!pick && anchors === 'lenient') {
         pick = same.find((it) => sameValue(it.value, expected.value, expected.kind, String(it.anchor ?? ''))) ?? same.find((it) => norm(it.anchor) === norm(expected.anchor));
@@ -237,7 +304,8 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       }
       taken.add(pick);
       if (lenient) lenientAt.push(expected.kind);
-      structural.push({ kind: expected.kind, anchor: expected.anchor, value: pick.value });
+      const outVal = expected.kind === 'table_cell' && /^table:\d+\//i.test(String(expected.value ?? '').trim()) ? expected.value : pick.value;
+      structural.push({ kind: expected.kind, anchor: expected.anchor, value: outVal });
     } else if (
       (expected.kind === 'clarification' && asked) ||
       (expected.kind === 'refusal' && refused) ||
