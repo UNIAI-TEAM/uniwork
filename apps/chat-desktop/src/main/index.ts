@@ -36,6 +36,9 @@ const config = resolveShellConfig({
   UNICHAT_DEPLOYMENT_ID: process.env.UNICHAT_DEPLOYMENT_ID,
 });
 const external = { allowHttpLoopback: config.env === "dev" };
+// Built by `pnpm brand:build`. A packaged macOS app takes its icon from the
+// bundle; Windows and Linux windows, and an unpackaged run's dock, need it set.
+const ICON = join(__dirname, "../../resources/icon.png");
 
 // Dev gets its own name and userData (hence its own single-instance lock and
 // session store), so it never mixes with an installed build. Must precede the lock.
@@ -88,6 +91,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    ...(process.platform === "darwin" ? {} : { icon: ICON }),
     webPreferences: createRendererWebPreferences(join(__dirname, "../preload/index.js")),
   });
   win = window;
@@ -140,6 +144,7 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     app.setAppUserModelId("com.uniworkos.chat");
+    if (!app.isPackaged) app.dock?.setIcon(ICON);
 
     const session = new ShellSession({
       config,

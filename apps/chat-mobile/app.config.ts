@@ -42,7 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // (.env.example › DESKTOP_AUTH_CLIENTS); dev gets its own so a dev build
     // and a store build can live on one phone.
     scheme: env === "dev" ? "uniworkchat-dev" : "uniworkchat",
-    // shortcut: icon placeholder 180px, replace with the 1024² UniChat icon in M4
+    // Built by `pnpm brand:build` from packages/ui/brand/svg/unichat-icon*.svg.
     icon: "./assets/icon.png",
     // No expo-updates until EAS/OTA lands in M4 (ADR 0011 §6).
     updates: { enabled: false },
@@ -56,6 +56,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: appId,
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundImage: "./assets/adaptive-icon-background.png",
+      },
       intentFilters: [
         {
           action: "VIEW",

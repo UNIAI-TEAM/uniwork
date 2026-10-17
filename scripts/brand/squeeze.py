@@ -22,6 +22,8 @@ from PIL import Image
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 APP = os.path.join(ROOT, "apps", "web", "app")
 PUBLIC = os.path.join(ROOT, "apps", "web", "public")
+MOBILE = os.path.join(ROOT, "apps", "chat-mobile", "assets")
+DESKTOP = os.path.join(ROOT, "apps", "chat-desktop", "resources")
 
 PNGS = [
     os.path.join(PUBLIC, "brand", "email-lockup.png"),
@@ -29,6 +31,13 @@ PNGS = [
     os.path.join(PUBLIC, "icon-192.png"),
     os.path.join(PUBLIC, "icon-512.png"),
     os.path.join(PUBLIC, "icon-maskable-512.png"),
+    os.path.join(MOBILE, "adaptive-icon.png"),
+    os.path.join(DESKTOP, "icon.png"),
+]
+# Store icons that must carry no alpha channel at all (App Store, Play).
+OPAQUE = [
+    os.path.join(MOBILE, "icon.png"),
+    os.path.join(MOBILE, "adaptive-icon-background.png"),
 ]
 ICO = os.path.join(APP, "favicon.ico")
 
@@ -38,6 +47,13 @@ def squeeze_png(path):
     im = Image.open(path)
     im.load()
     im.save(path, "PNG", optimize=True, compress_level=9)
+    return before, os.path.getsize(path)
+
+
+def squeeze_opaque(path):
+    """Like squeeze_png, but the alpha channel goes even if the file grows."""
+    before = os.path.getsize(path)
+    Image.open(path).convert("RGB").save(path, "PNG", optimize=True, compress_level=9)
     return before, os.path.getsize(path)
 
 
@@ -87,6 +103,8 @@ def main():
     rows = []
     for p in PNGS:
         rows.append((os.path.relpath(p, ROOT),) + squeeze_png(p))
+    for p in OPAQUE:
+        rows.append((os.path.relpath(p, ROOT),) + squeeze_opaque(p))
     rows.append((os.path.relpath(ICO, ROOT),) + squeeze_ico(ICO))
 
     # Every card build-assets.mjs just wrote: the root one Next serves by file

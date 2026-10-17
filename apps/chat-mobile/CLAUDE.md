@@ -51,8 +51,9 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
   systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ
   `router.push` cho chạm thông báo; URL Linking không push lần hai.
-- `assets/icon.png` — `shortcut:` placeholder 180px copy từ
-  `apps/web/app/apple-icon.png`, thay bằng icon 1024² UniChat ở M4.
+- `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
+  bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
+  sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.
 
 ## Chạy
 
