@@ -546,6 +546,29 @@ describe("useDocsFrameSession: api.download", () => {
     });
   });
 
+  it("forwards chunked_upload_threshold_bytes from document limits on DocsFrameCall to api.save and api.saveAs (UNI-1863)", async () => {
+    const save = vi.fn(async (_payload: unknown, _call: unknown) => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const saveAs = vi.fn(async (_payload: unknown, _call: unknown) => ({
+      save: { ok: true as const, file: FILE, versionId: "v-c1" },
+      rebind: { documentId: "doc-2", token: minted(true) },
+    }));
+    const frame = setup({
+      configPromise: Promise.resolve({
+        flags: {},
+        documents: { limits: { upload_max_bytes: 200 * 1024 * 1024, save_warn_ratio: 0.9, chunked_upload_threshold_bytes: 20_971_520 } },
+      }),
+      api: { save, saveAs } as unknown as Partial<DocsFrameApi>,
+    });
+    await waitFor(() => expect(frame.client.getQueryData(["public-config"])).toBeDefined());
+    await frame.boot();
+    const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
+    expect(save.mock.calls[0]?.[1]).toMatchObject({ documentId: "doc-1", chunkedUploadThresholdBytes: 20_971_520 });
+    const saveAsId = frame.request("api.saveAs", { name: "Copy", data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.answerTo(saveAsId)?.payload).toMatchObject({ ok: true }));
+    expect(saveAs.mock.calls[0]?.[1]).toMatchObject({ workspaceId: "ws-1", chunkedUploadThresholdBytes: 20_971_520 });
+  });
+
   it("calls onError when the frame replies with an error to doc.download (R1-3)", async () => {
     const frame = setup();
     await frame.boot();
