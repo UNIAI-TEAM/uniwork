@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
+import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { initI18n } from "@uniwork/core/i18n";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
@@ -119,5 +120,45 @@ describe("documentErrorMessage", () => {
     documentErrorMessage(new Error("network timeout"), t, "fallback", { resumable: true });
     expect(t).toHaveBeenCalledWith("documents.upload.failed_resumable");
   });
+
+  it("maps ChunkedUploadError(central_directory_too_large) with and without file context, and maps missing_etag / malformed_response through resumable or fallback", () => {
+    const errCd = new ChunkedUploadError(
+      "central_directory_too_large",
+      "ZIP central directory exceeds 1 MiB",
+    );
+    const tWithFile = fakeT();
+    documentErrorMessage(errCd, tWithFile, "fallback", {
+      file: { name: "huge.docx", size: 30 * 1024 * 1024 },
+      resumable: true,
+    });
+    expect(tWithFile).toHaveBeenCalledWith("documents.upload.unsupported_format", {
+      name: "huge.docx",
+    });
+
+    const tNoFile = fakeT();
+    documentErrorMessage(errCd, tNoFile, "fallback");
+    expect(tNoFile.mock.calls[0]?.[0]).toBe("documents.errors.unsupported_media_type");
+
+    const tResumable = fakeT();
+    documentErrorMessage(
+      new ChunkedUploadError("missing_etag", "Missing ETag on part 1"),
+      tResumable,
+      "fallback",
+      { resumable: true },
+    );
+    expect(tResumable).toHaveBeenCalledWith("documents.upload.failed_resumable");
+
+    const tFallback = fakeT();
+    documentErrorMessage(
+      new ChunkedUploadError("malformed_response", "Malformed response"),
+      tFallback,
+      "documents.home.drop_failed",
+      { fallbackOpts: { name: "huge.docx" } },
+    );
+    expect(tFallback).toHaveBeenCalledWith("documents.home.drop_failed", {
+      name: "huge.docx",
+    });
+  });
 });
+
 

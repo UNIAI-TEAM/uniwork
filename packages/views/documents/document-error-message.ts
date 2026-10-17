@@ -1,5 +1,6 @@
 import type { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage, errorCode, errorFields } from "@uniwork/core/api";
+import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
 import { classifyDocumentError, isDocumentNotInTrashError, isFolderTooLargeError } from "@uniwork/core/documents/errors";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import {
@@ -38,7 +39,6 @@ const CODED = new Set([
   "upload_size_mismatch",
   "upload_probe_mismatch",
   "quota_exceeded",
-  "unsupported_media_type",
 ]);
 
 /**
@@ -70,6 +70,16 @@ export function documentErrorMessage(
   fallbackKey: string,
   opts?: DocumentErrorMessageOptions,
 ): string {
+  if (error instanceof ChunkedUploadError) {
+    if (error.code === "central_directory_too_large") {
+      if (opts?.file) {
+        return t("documents.upload.unsupported_format", { name: opts.file.name });
+      }
+      return t("documents.errors.unsupported_media_type");
+    }
+    if (opts?.resumable) return t("documents.upload.failed_resumable");
+    return t(fallbackKey, opts?.fallbackOpts);
+  }
   const code = errorCode(error);
   if (code === "file_too_large" || (error instanceof ApiError && error.status === 413)) {
     const rawMax = errorFields(error)?.max_bytes;
