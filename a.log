@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1847-save-01-desktop; git log --oneline -3
+31866b43100d339a4d2b0715d6161428204324f2
+31866b43100d339a4d2b0715d6161428204324f2
+31866b43 merge: fork main d5fdf60e5 (spellcheck/secure-DNS fixes) into SAVE-01
+a1dd067e fix(shell): avoid exponential union explosion when merging i18n shards
+41b74b5b test(e2e): fix uniworkDocStatus preload call in uniwork-folders spec
