@@ -71,6 +71,7 @@ function builderTemplates(): string[] {
     paths.enterprise(),
     paths.requestDemo(),
     paths.office(),
+    paths.unichat(),
     paths.about(),
     paths.security(),
     paths.guide(ID),

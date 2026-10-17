@@ -139,6 +139,15 @@ type Config struct {
 	OfficeInstallerDevURLs    string
 	OfficeInstallerBetaURLs   string
 	OfficeInstallerStableURLs string
+	// UniChat downloads on the public /unichat page (UNI-1837): desktop
+	// installer maps in the Office format, and the mobile store links.
+	UniChatInstallerDevURLs    string
+	UniChatInstallerBetaURLs   string
+	UniChatInstallerStableURLs string
+	UniChatStoreIOSURL         string
+	UniChatStoreAndroidURL     string
+	UniChatTestFlightURL       string
+	UniChatPlayInternalURL     string
 	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
 	AdminRateLimitPerMin int
 	// HTTPMaxInFlight bounds the HTTP requests served at once; past it the
@@ -324,6 +333,13 @@ func Load() (Config, error) {
 		OfficeInstallerDevURLs:        os.Getenv("OFFICE_INSTALLER_DEV_URLS"),
 		OfficeInstallerBetaURLs:       os.Getenv("OFFICE_INSTALLER_BETA_URLS"),
 		OfficeInstallerStableURLs:     os.Getenv("OFFICE_INSTALLER_STABLE_URLS"),
+		UniChatInstallerDevURLs:       os.Getenv("UNICHAT_INSTALLER_DEV_URLS"),
+		UniChatInstallerBetaURLs:      os.Getenv("UNICHAT_INSTALLER_BETA_URLS"),
+		UniChatInstallerStableURLs:    os.Getenv("UNICHAT_INSTALLER_STABLE_URLS"),
+		UniChatStoreIOSURL:            os.Getenv("UNICHAT_STORE_IOS_URL"),
+		UniChatStoreAndroidURL:        os.Getenv("UNICHAT_STORE_ANDROID_URL"),
+		UniChatTestFlightURL:          os.Getenv("UNICHAT_TESTFLIGHT_URL"),
+		UniChatPlayInternalURL:        os.Getenv("UNICHAT_PLAY_INTERNAL_URL"),
 		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 		HTTPMaxInFlight:               int(parseInt32(os.Getenv("HTTP_MAX_IN_FLIGHT"), 128)),
 		RealtimeRelay:                 !strings.EqualFold(strings.TrimSpace(os.Getenv("REALTIME_RELAY")), "false"),

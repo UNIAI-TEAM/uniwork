@@ -7651,7 +7651,9 @@
       "closeMenu": "Close menu",
       "solutions": "Solutions",
       "why": "Why UniWork",
-      "office": "Office"
+      "office": "Office",
+      "unichat": "UniChat",
+      "unichatDescription": "Chat for work, on desktop and mobile."
     },
     "cta": {
       "start": "Get started",
@@ -8722,6 +8724,66 @@
       "installersError": "We couldn't load the list of installers. Check your connection and try again.",
       "retry": "Try again",
       "closing": "Bring the office apps home to your team's workspace."
+    },
+    "unichat": {
+      "hero": {
+        "title": "UniChat",
+        "sub": "Chat for work. Your team's messages, channels and calls sit next to the work in UniWork, on desktop and mobile.",
+        "download": "Download UniChat"
+      },
+      "points": {
+        "title": "When the conversation ends, the work has a place",
+        "sub": "UniChat is your UniWork workspace chat in its own app: the same account, the same messages, the same tasks.",
+        "task": {
+          "title": "Messages become tasks",
+          "description": "Create a task from a message or link an existing one. The task card shows under the message and leads back to the conversation."
+        },
+        "project": {
+          "title": "Channels linked to projects",
+          "description": "Link a channel to a project so the conversation and the project's work sit side by side."
+        },
+        "followUp": {
+          "title": "Follow-ups and reminders",
+          "description": "Mark a message to follow up later, or set a reminder that posts in the channel at the time you pick."
+        },
+        "call": {
+          "title": "Calls with recording and summary",
+          "description": "Start a voice or video call from the conversation. A recorded call can be summarized by AI for the team to read later."
+        },
+        "preview": "See the chat interface in UniWork"
+      },
+      "download": {
+        "title": "Download UniChat",
+        "version": "Desktop version {{version}}",
+        "requirements": "Requires: {{value}}",
+        "unsigned": "This build is not code-signed, so your operating system may warn you the first time you open it.",
+        "unavailable": "UniChat for desktop is not released yet. Meanwhile, you can chat with your team on the web in UniWork."
+      },
+      "installersError": "Couldn't load the installer list. Check your connection and try again.",
+      "retry": "Try again",
+      "mobile": {
+        "ios": "iPhone",
+        "android": "Android",
+        "appStore": "App Store",
+        "googlePlay": "Google Play",
+        "testflight": "TestFlight",
+        "playInternal": "Google Play (testing)",
+        "pilot": "Test build: only people invited to the test group can install it.",
+        "unavailable": "UniChat for mobile is not released yet."
+      },
+      "faq": {
+        "title": "Frequently asked questions",
+        "q1": "Do I need a separate account for UniChat?",
+        "a1": "No. You sign in with your UniWork account in the browser and see the workspaces you are a member of.",
+        "q2": "How is UniChat different from chat in UniWork on the web?",
+        "a2": "It is the same chat: messages, channels, tasks linked to messages and calls are one, whether you open them on the web or in UniChat. UniChat focuses on chat; tasks, meetings and documents still open in full on the web.",
+        "q3": "Where are my team's messages stored?",
+        "a3": "In your team's UniWork workspace, under your organization's permissions, just as when you chat on the web.",
+        "q4": "How do I install UniChat on my phone?",
+        "a4": "When the mobile app is released, App Store and Google Play buttons appear under Download UniChat. During testing, only invited people can install it through TestFlight or Google Play."
+      },
+      "security": "See how UniWork handles data and access",
+      "closing": "Bring your team's conversations next to the work."
     }
   },
   "documents": {

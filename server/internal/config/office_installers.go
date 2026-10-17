@@ -39,6 +39,12 @@ func (c Config) OfficeInstallers(channel string) ([]OfficeInstaller, error) {
 	default:
 		return nil, fmt.Errorf("invalid installer channel")
 	}
+	return parseInstallers(channel, raw, legacy)
+}
+
+// parseInstallers reads one channel's {"<platform>":"<url>"} map: the value
+// every desktop release workflow emits, Office's and UniChat's alike.
+func parseInstallers(channel, raw, legacy string) ([]OfficeInstaller, error) {
 	urls := map[string]string{}
 	if strings.TrimSpace(raw) != "" {
 		if err := json.Unmarshal([]byte(raw), &urls); err != nil || urls == nil {

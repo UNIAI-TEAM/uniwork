@@ -40,10 +40,11 @@ export const loadMarketingDictionary = cache(async (locale: SupportedLocale, pat
   const ai = dictionary.ai as Record<string, string>;
   const email = dictionary.email_hub as Record<string, unknown>;
   const preview = path === "/" || path.startsWith("/features/");
-  const lean = ["/office", "/request-demo", "/about", "/security", "/changelog"].includes(path) || path.startsWith("/learn/");
+  const lean = ["/office", "/unichat", "/request-demo", "/about", "/security", "/changelog"].includes(path) || path.startsWith("/learn/");
   const publicLanding = lean ? {
     ...Object.fromEntries(["nav", "cta", "footer", "final", "productPages", "catalog", "solutions", "studio", "workforce", "businessOs", "meetings", "demo"].map(key => [key, landing[key]])),
     office: path === "/office" ? landing.office : { editions: (landing.office as Record<string, unknown>).editions },
+    ...(path === "/unichat" ? { unichat: landing.unichat } : {}),
   } : landing;
   return {
     landing: publicLanding, changelog: path === "/" || path === "/changelog" ? dictionary.changelog : { title: (dictionary.changelog as Record<string, unknown>).title }, marketingSeo: dictionary.marketingSeo,

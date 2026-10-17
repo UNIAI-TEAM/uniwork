@@ -1,6 +1,9 @@
 package sdo
 
-import "github.com/unicomhub/uniwork/server/internal/workcapability"
+import (
+	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/workcapability"
+)
 
 // ErrorSDO is the envelope for every 4xx/5xx JSON body.
 type ErrorSDO struct {
@@ -49,6 +52,8 @@ type ConfigSDO struct {
 	OfficeInstallers           OfficeInstallerChannelsSDO      `json:"office_installers" description:"Platform installer catalogue per deployment channel"`
 	OfficeDeploymentID         string                          `json:"office_deployment_id" description:"Configured deployment binding for Office launch sessions" example:"default"`
 	OfficeAPIOrigin            string                          `json:"office_api_origin" description:"Public API origin the desktop app signs in to; empty when not a bare http(s) origin" example:"https://uniworkos.com"`
+	UniChatInstallers          OfficeInstallerChannelsSDO      `json:"unichat_installers" description:"Bản cài UniChat desktop theo kênh, cùng hợp đồng nền tảng với Office; mảng rỗng là chưa phát hành"`
+	UniChatStores              config.UniChatStoreLinks        `json:"unichat_stores" description:"Link store điện thoại của UniChat; chuỗi rỗng là chưa phát hành"`
 }
 
 type OfficeInstallerURLsSDO struct {

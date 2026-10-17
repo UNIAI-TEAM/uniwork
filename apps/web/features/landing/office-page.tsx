@@ -9,7 +9,7 @@ import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Faq } from "./faq";
 import { MarketingShell } from "./marketing-shell";
 import { OFFICE_BUSINESS_ANCHOR, OFFICE_EDITOR_ANCHOR, type OfficeEditorKey } from "./office-data";
-import { OfficeDownloadColumns, useOfficeInstallers } from "./office-downloads";
+import { AppDownloadColumns, useAppInstallers } from "./app-downloads";
 import { OfficeEditorTabs } from "./office-editors";
 import { OfficeConnection } from "./office-connection";
 import "./marketing-chapters.css";
@@ -27,7 +27,7 @@ const WORKS = [{ key: "open", icon: FolderOpen }, { key: "version", icon: Rotate
 export function OfficePage() {
   const { t } = useTranslation();
   const [active, setActive] = useState<OfficeEditorKey>("docs");
-  const { status, version } = useOfficeInstallers();
+  const { status, version } = useAppInstallers("office_installers");
   return <MarketingShell className="office-site" closingTitle="landing.office.closing" closingAction={{ href: `${paths.office()}#${OFFICE_EDITOR_ANCHOR}`, labelKey: "landing.office.hero.explore", icon: "arrow" }}><div className="chapter-world office-world">
     <section id={OFFICE_BUSINESS_ANCHOR} className="office-hero chapter-width" aria-labelledby="office-title">
       <div className="office-hero-copy">
@@ -47,7 +47,7 @@ export function OfficePage() {
 
     <section id="office-download" className="office-section chapter-soft" aria-labelledby="office-download-title"><div className="chapter-width">
       <div className="office-heading"><h2 id="office-download-title">{t("landing.office.download.title")}</h2>{status === "ready" && version && <p>{t("landing.office.download.version", { version })}</p>}</div>
-      <OfficeDownloadColumns />
+      <AppDownloadColumns catalogue="office_installers" copy="landing.office" />
     </div></section>
 
     <section className="office-section chapter-width" aria-labelledby="office-works-title">
