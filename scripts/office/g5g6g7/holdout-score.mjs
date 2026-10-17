@@ -233,9 +233,13 @@ export function valuesEqual(expected, actual, kind = null) {
     if (a && a === b) return true;
   }
   if (kind === 'heading') {
+    // A heading value compares as normalised equality (review-g712-16 A5): "Approved" must not equal "Not Approved".
+    // cleanHeadingText strips only presentation (markdown hashes, surrounding quotes, whitespace); anything else that
+    // differs is a different heading. The generic comparisons below still run, so a plain-text heading without any
+    // marker compares too.
     const a = cleanHeadingText(expected);
     const b = cleanHeadingText(actual);
-    if (a && (a === b || (a.length > 3 && b.includes(a)))) return true;
+    if (a && a === b) return true;
   }
   if (kind === 'table_cell' && /^table:\d+\//i.test(String(expected ?? '').trim())) {
     const segs = topicSegments(String(expected));
