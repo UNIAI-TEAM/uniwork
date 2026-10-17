@@ -126,6 +126,41 @@ describe("api client", () => {
     expect(sessionMock.refresh).not.toHaveBeenCalled();
   });
 
+  it("sends a FormData body as multipart: no JSON content type, so fetch writes the boundary", async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { message: { id: "m1" } }));
+    const form = new FormData();
+    form.set("client_msg_id", "c1");
+    await api.request("/api/v1/workspaces/w1/chat/rooms/r1/messages/file", { method: "POST", body: form });
+    const { init } = calls()[0] as Call;
+    expect(init.body).toBe(form);
+    expect(header(init, "Content-Type")).toBeNull();
+    expect(header(init, "Accept")).toBe("application/json");
+  });
+
+  it("gives an upload five minutes instead of 30 s: a few MB on a slow mobile link take longer", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) =>
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))),
+        ),
+    );
+    const settled = api.request("/api/v1/workspaces/w1/chat/rooms/r1/messages/file", { method: "POST", body: new FormData() }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(299_999);
+    expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await settled).toMatchObject({ name: "ApiError", status: 0, message: "Request timed out after 300000ms" });
+  });
+
+  it("carries a numeric Retry-After on the ApiError, so a send retry can wait it out", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: "slow down" } }), { status: 429, headers: { "Retry-After": "3" } }),
+    );
+    await expect(api.listWorkspaces()).rejects.toMatchObject({ status: 429, retryAfterSeconds: 3 });
+    fetchMock.mockResolvedValueOnce(new Response("{}", { status: 429, headers: { "Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT" } }));
+    await expect(api.listWorkspaces()).rejects.toMatchObject({ status: 429, retryAfterSeconds: undefined });
+  });
+
   describe("401", () => {
     it("refreshes once and retries with the new token", async () => {
       fetchMock.mockResolvedValueOnce(json(401, { error: { code: "unauthorized" } }));

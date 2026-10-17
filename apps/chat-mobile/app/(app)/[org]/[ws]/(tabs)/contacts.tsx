@@ -3,7 +3,7 @@
 // and who is online, A–Z. A tap opens the DM through the deep-link contract the
 // chat tab (M2a) honours; block banners live on that DM, as on the web.
 import { useQuery } from "@tanstack/react-query";
-import { router, useIsFocused, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, SectionList, TextInput, View } from "react-native";
@@ -12,12 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
-import {
-  chatNicknamesOptions,
-  chatPresenceOptions,
-  deactivatedMembersOptions,
-  workspaceMembersOptions,
-} from "@/data/queries/contacts";
+import { chatNicknamesOptions, deactivatedMembersOptions, workspaceMembersOptions } from "@/data/queries/contacts";
+import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { contactSections, type ContactRow } from "@/lib/contacts-display";
 import { deepLinkHref } from "@/lib/deep-link";
@@ -59,18 +55,16 @@ export default function ContactsTab() {
   // The layout syncs the store after it validated the URL pair; until then there is no workspace to ask about.
   const wsId = current?.orgSlug === org && current.wsSlug === ws ? current.wsId : "";
   const userId = useAuthStore((s) => s.user?.id ?? "");
-  const focused = useIsFocused();
   const [query, setQuery] = useState("");
 
   const members = useQuery({ ...workspaceMembersOptions(wsId), enabled: !!wsId });
   // Unreadable, it hides no one (the web's list), so it never blocks the tab.
   const deactivated = useQuery({ ...deactivatedMembersOptions(org), enabled: !!wsId });
   const nicknames = useQuery({ ...chatNicknamesOptions(wsId), enabled: !!wsId });
-  // The heartbeat beats only while the tab is in front; its answer is the web's online set.
-  const presence = useQuery({ ...chatPresenceOptions(wsId), enabled: !!wsId && focused });
+  // The workspace's one heartbeat (use-chat-realtime.ts) and user.presence frames keep this set.
+  const online = usePresenceStore((s) => s.onlineUserIds);
 
   const hidden = useMemo(() => new Set(deactivated.data ?? NO_ONE), [deactivated.data]);
-  const online = useMemo(() => new Set((presence.data ?? NO_ONE).map((id) => id.toUpperCase())), [presence.data]);
   const sections = useMemo(
     () => contactSections(members.data ?? [], { currentUserId: userId, hiddenUserIds: hidden, nicknames: nicknames.data, query }),
     [members.data, userId, hidden, nicknames.data, query],
@@ -122,7 +116,7 @@ export default function ContactsTab() {
         renderItem={({ item }) => (
           <ContactItem
             row={item}
-            online={online.has(item.user_id.toUpperCase())}
+            online={Boolean(online[item.user_id.trim().toUpperCase()])}
             onPress={() => router.push(deepLinkHref({ orgSlug: org, wsSlug: ws, dmUserId: item.user_id }))}
           />
         )}

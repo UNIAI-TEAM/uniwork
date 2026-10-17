@@ -2,7 +2,7 @@
 
 App Expo (iOS + Android) của UniChat (lát M1, UNI-1831): đăng nhập PKCE qua
 trình duyệt hệ thống, chọn workspace, một socket realtime, push Expo, deep
-link, bốn tab khung. Spec:
+link, bốn tab; tab Chat thật từ M2a (UNI-1832, mục Cấu trúc). Spec:
 `docs/superpowers/specs/2026-10-16-unichat-mobile-foundation-design.md`;
 plan: `docs/superpowers/plans/2026-10-17-unichat-mobile-foundation.md`;
 luật gốc: ADR 0011. Mirror từ `usf/apps/mobile` — mỗi file copy ghi một dòng
@@ -51,6 +51,26 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
   systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ
   `router.push` cho chạm thông báo; URL Linking không push lần hai.
+- Tab Chat (M2a, UNI-1832; spec `2026-10-16-unichat-mobile-chat-design.md`,
+  plan `2026-10-17-unichat-mobile-chat.md`). Ba lớp:
+  `lib/*` thuần, copy từ web có ghi nguồn và test parity chạy đúng case của
+  test web (`rooms-display`, `typing-display`, `timeline-display`,
+  `send-pipeline`, `mentions`, `file-accept`, `media-body`, `search-fold`,
+  `people-display`, `message-display`, `room-list`); `data/*` — endpoint
+  (`chat-api.ts`, mỗi endpoint một case malformed), key riêng
+  (`queries/chat-keys.ts`, không import `chatKeys` web), cache
+  (`chat-timeline.ts` ← core `room-timeline`, `chat-cache.ts` ← core
+  `realtime-cache`, viewer là tham số), hàng đợi gửi trong phiên
+  (`chat-send.ts` + `stores/chat-send-store.ts`, `client_msg_id`, flush khi
+  NetInfo online hoặc socket reconnect), `realtime/chat-realtime.ts` (bảng §8
+  spec cha, thuần) và `realtime/use-chat-realtime.ts` (hook mỏng, gắn ở
+  `[org]/[ws]/_layout.tsx`, ≤ 25 scope qua `selectLazyChatScopeRoomIds`);
+  màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,channels}.tsx`
+  + `components/chat/*`. Route tab `/{org}/{ws}/chat` nhận `room`/`message`/`dm`
+  của `lib/deep-link.ts › deepLinkHref` (hợp đồng với push và tab khác).
+  Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
+  `scripts/sync-i18n.mjs`. Kind lạ → `messageView` = `unsupported` → hàng
+  "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).
 - `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
   bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
   sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.

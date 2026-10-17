@@ -8,6 +8,7 @@ import { session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { RealtimeProvider } from "@/data/realtime/realtime-provider";
+import { useChatRealtime } from "@/data/realtime/use-chat-realtime";
 import { socketTokenReaders } from "@/data/realtime/refresh-for-socket";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
@@ -15,9 +16,10 @@ import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 /** A cold-start deep link mounts the tabs under the target, so back has somewhere to go. */
 export const unstable_settings = { anchor: "(tabs)" } as const;
 
-/** Workspace-wide subscriptions; feature hooks (M2a) join them here. */
-function RealtimeSubscriptions() {
+/** Workspace-wide subscriptions; feature hooks join them here. */
+function RealtimeSubscriptions({ wsId }: { wsId: string }) {
   const queryClient = useQueryClient();
+  useChatRealtime(wsId);
   useWSSubscriptions(
     (ws) => [
       ws.onAny((message) => {
@@ -55,7 +57,7 @@ export default function WorkspaceLayout() {
       getToken={tokens.getToken}
       refreshSession={tokens.refreshSession}
     >
-      <RealtimeSubscriptions />
+      <RealtimeSubscriptions wsId={matched.id} />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>

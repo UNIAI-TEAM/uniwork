@@ -1,9 +1,10 @@
 // The contacts tab's sources, each one the web reads: the workspace members
 // (GET /workspaces/{ws}/members, the member picker's list), the organization's
 // deactivated people to leave out (a workspace row outlives deactivation and
-// ResolveDM refuses them), the viewer's nicknames (normalised like core
-// api/endpoints/chat-users.ts › listChatNicknames) and who is online (the
-// answer of the presence heartbeat, core api/endpoints/chat-presence.ts).
+// ResolveDM refuses them) and the viewer's nicknames (normalised like core
+// api/endpoints/chat-users.ts › listChatNicknames). Who is online comes from
+// the chat tab's presence store, which the workspace's one heartbeat feeds
+// (data/realtime/use-chat-realtime.ts).
 import { queryOptions } from "@tanstack/react-query";
 import { parseWithFallback } from "@uniwork/core/api/schema";
 import { z } from "zod";
@@ -33,8 +34,6 @@ const OrgMembersPageSchema = z.object({
 });
 
 const NicknamesSchema = z.object({ nicknames: z.record(z.string(), z.unknown()).catch({}) });
-
-const PresenceSchema = z.object({ online_user_ids: z.array(z.string()).optional().catch(undefined) });
 
 // shortcut: 10 pages of 100 deactivated people are read at most; past that some show, as on the web.
 const MAX_DEACTIVATED_PAGES = 10;
@@ -75,21 +74,6 @@ export async function fetchChatNicknames(wsId: string, signal?: AbortSignal): Pr
   return out;
 }
 
-/** One visible heartbeat; the workspace's online user ids, or null when the answer has none. */
-export async function beatChatPresence(wsId: string): Promise<string[] | null> {
-  const raw = await api.request(`/api/v1/workspaces/${enc(wsId)}/chat/presence`, {
-    method: "POST",
-    body: JSON.stringify({ state: "online", visible: true }),
-  });
-  const parsed = parseWithFallback<z.infer<typeof PresenceSchema>>(raw, PresenceSchema, {}, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/presence",
-  });
-  return parsed.online_user_ids ?? null;
-}
-
-/** The web beats every 15 s while its shell is open (use-chat-presence-heartbeat.ts). */
-export const PRESENCE_BEAT_MS = 15_000;
-
 export const workspaceMembersOptions = (wsId: string) =>
   queryOptions({ queryKey: ["workspace-members", wsId] as const, queryFn: ({ signal }) => fetchWorkspaceMembers(wsId, signal) });
 
@@ -102,10 +86,3 @@ export const deactivatedMembersOptions = (orgSlug: string) =>
 export const chatNicknamesOptions = (wsId: string) =>
   queryOptions({ queryKey: ["chat-nicknames", wsId] as const, queryFn: ({ signal }) => fetchChatNicknames(wsId, signal) });
 
-export const chatPresenceOptions = (wsId: string) =>
-  queryOptions({
-    queryKey: ["chat-presence", wsId] as const,
-    queryFn: () => beatChatPresence(wsId),
-    refetchInterval: PRESENCE_BEAT_MS,
-    staleTime: 0,
-  });
