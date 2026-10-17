@@ -12,27 +12,11 @@ import { docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedA
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import { DocsProtocolError, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
 import {
-  armWatchdog,
-  attachFrameBundleProbe,
-  lockAwareSave,
-  onSizeEvents,
-  postDocDownload,
-  readOnly,
-  saveBlockedMaxBytes,
-  shapeOf,
-  shelvedGuard,
-  toFrameLimits,
-  unauthorized,
-  type DocsFrameBundleFailure,
-  type DocsFrameSaveBlocked,
-  type DocsFrameSaveOutcome,
-  type DocsFrameSaveState,
-  type DocsFrameSession,
-  type DocsFrameSessionOptions,
-  type DocsFrameSizeWarning,
-  type DocsFrameStatus,
-  type FrameLife,
-  type HostSaveWatch,
+  armWatchdog, attachFrameBundleProbe, lockAwareSave, onSizeEvents, postDocDownload, readOnly,
+  saveBlockedMaxBytes, shapeOf, shelvedGuard, toFrameLimits, unauthorized,
+  type DocsFrameBundleFailure, type DocsFrameSaveBlocked, type DocsFrameSaveOutcome, type DocsFrameSaveState,
+  type DocsFrameSession, type DocsFrameSessionOptions, type DocsFrameSizeWarning, type DocsFrameStatus,
+  type FrameLife, type HostSaveWatch,
 } from "./docs-frame-session-model";
 import { composeFrameInit } from "./docs-frame-init";
 import { useShelvedFlag } from "./use-shelved-flag";

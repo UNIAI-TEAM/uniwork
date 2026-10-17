@@ -56,7 +56,7 @@ function setup({ canEdit = true, api = {} as Partial<DocsFrameApi> } = {}) {
   const invalidate = vi.spyOn(client, "invalidateQueries");
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const options: DocsFrameSessionOptions = {
-    iframeRef: { current: iframe }, frameOrigin: window.location.origin, module: "docs", wsId: "ws-1", documentId: "doc-1",
+    iframeRef: { current: iframe }, frameOrigin: window.location.origin, module: "docs", wsId: "ws-1", fileRef: { kind: "document", id: "doc-1" },
     readonly: false, locale: "vi", theme: "light", onError, onShelved,
     api: { open: vi.fn(), save: vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" })), recents: vi.fn(), ...api } as unknown as DocsFrameApi,
   };
