@@ -157,6 +157,19 @@ func TestDocumentAccessBatchAndCandidatesOverHTTP(t *testing.T) {
 	if w0["code"] == nil || w0["index"] == nil {
 		t.Fatalf("dry_run preview.warnings[0] = %v, want {code, index}", w0)
 	}
+	// R1-12: preview.groups carries counts only, never a workspace/organization
+	// name (contract 1.1). The group item here is the organization.
+	groups, _ := preview["groups"].([]any)
+	if len(groups) != 1 {
+		t.Fatalf("dry_run preview.groups = %v, want 1", groups)
+	}
+	g0, _ := groups[0].(map[string]any)
+	if _, hasName := g0["name"]; hasName {
+		t.Fatalf("dry_run preview.groups[0] = %v, must not carry name", g0)
+	}
+	if g0["principal_type"] != "organization" || g0["member_count"] == nil || g0["losing_count"] == nil {
+		t.Fatalf("dry_run preview.groups[0] = %v, want principal_type + counts", g0)
+	}
 
 	// PUT /documents/{id}/access live commit: grants organization edit + user view + home ws view.
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+doc+"/access", w.token, map[string]any{

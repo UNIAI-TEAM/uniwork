@@ -513,7 +513,7 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 			t.Fatalf("dry_run preview.users = %+v", dry.Preview.Users)
 		}
 		if len(dry.Preview.Groups) != 1 || dry.Preview.Groups[0].PrincipalType != DocumentPrincipalWorkspace ||
-			dry.Preview.Groups[0].PrincipalID != tn.wsB || dry.Preview.Groups[0].Name != "B shs2p" ||
+			dry.Preview.Groups[0].PrincipalID != tn.wsB ||
 			dry.Preview.Groups[0].MemberCount != 3 || dry.Preview.Groups[0].LosingCount != 0 {
 			t.Fatalf("dry_run preview.groups = %+v", dry.Preview.Groups)
 		}

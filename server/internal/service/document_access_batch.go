@@ -82,10 +82,10 @@ type DocumentAccessPreviewUser struct {
 }
 
 // DocumentAccessPreviewGroup is a workspace/organization item's summary counts.
+// It carries no name: the preview answers counts only (contract §1.1, R1-12).
 type DocumentAccessPreviewGroup struct {
 	PrincipalType string
 	PrincipalID   string
-	Name          string
 	Level         *DocumentLevel
 	MemberCount   int
 	LosingCount   int
@@ -381,21 +381,6 @@ func (s *DocumentService) buildAccessBatchPreview(
 			continue
 		}
 
-		var name string
-		if it.PrincipalType == DocumentPrincipalWorkspace {
-			ws, err := q.GetWorkspaceByID(ctx, it.PrincipalID)
-			if err != nil {
-				return DocumentAccessPreview{}, err
-			}
-			name = ws.Name
-		} else {
-			org, err := q.GetOrganizationByID(ctx, it.PrincipalID)
-			if err != nil {
-				return DocumentAccessPreview{}, err
-			}
-			name = org.Name
-		}
-
 		var prevLvl, afterLvl DocumentLevel
 		var hasAfter bool
 		isHome := it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == docBefore.WorkspaceID
@@ -464,7 +449,6 @@ func (s *DocumentService) buildAccessBatchPreview(
 		preview.Groups = append(preview.Groups, DocumentAccessPreviewGroup{
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Name:          name,
 			Level:         lvlPtr,
 			MemberCount:   int(counts.MemberCount),
 			LosingCount:   int(counts.LosingCount),

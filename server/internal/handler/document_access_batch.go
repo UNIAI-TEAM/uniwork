@@ -129,7 +129,6 @@ func documentAccessBatchSDO(res service.DocumentAccessBatchResult) sdo.DocumentA
 		groups = append(groups, sdo.DocumentAccessPreviewGroupSDO{
 			PrincipalType: g.PrincipalType,
 			PrincipalID:   g.PrincipalID,
-			Name:          g.Name,
 			Level:         lvl,
 			MemberCount:   g.MemberCount,
 			LosingCount:   g.LosingCount,
