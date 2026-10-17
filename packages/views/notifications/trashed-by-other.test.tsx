@@ -169,9 +169,9 @@ describe("document_trashed_by_other click target (N-4)", () => {
 });
 
 describe("document_trashed_by_other row at phone width (visual F1)", () => {
-  it("lets the sentence run to three lines so the purge date is not clamped; other kinds stay at two", () => {
+  it("lets the sentence run to four lines so the purge date is not clamped; other kinds stay at two", () => {
     const sentenceLine = (n: Notification) => row(n).querySelector(".text-body.text-pretty");
-    expect(sentenceLine(trashed())?.className).toContain("line-clamp-3");
+    expect(sentenceLine(trashed())?.className).toContain("line-clamp-4");
     cleanup();
     expect(sentenceLine({ ...trashed(), kind: "document_access_approved", title_key: "notifications.kind.document_access_approved" })?.className).toContain(
       "line-clamp-2",

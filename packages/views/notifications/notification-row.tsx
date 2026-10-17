@@ -82,8 +82,12 @@ export function NotificationRow({
         <span
           className={cn(
             // Break-glass titles carry the "(24h)" window mid-sentence, and a trash notice ends in its purge
-            // date; at phone width two lines cut both off.
-            n.kind === "document_break_glass" || n.kind === "document_trashed_by_other" ? "line-clamp-3" : "line-clamp-2",
+            // date; at phone width two lines cut both off. The vi trash sentence (actor + date) needs a 4th line.
+            n.kind === "document_trashed_by_other"
+              ? "line-clamp-4"
+              : n.kind === "document_break_glass"
+                ? "line-clamp-3"
+                : "line-clamp-2",
             "text-body text-pretty",
             unread ? "text-foreground" : "text-muted-foreground",
           )}
