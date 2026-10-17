@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { canAdministerDocument } from "@uniwork/core/permissions";
-import type { Document } from "@uniwork/core/types/document";
+import { isMyFolder, type Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -79,6 +79,7 @@ export function DocumentActionsMenu({
   const canAdminister = canAdministerDocument(doc, { userId, orgRole: null, wsRole: null }).allowed;
   const owned = !!doc.owner_kind;
   const archived = !!doc.archived_at;
+  const myFolder = isMyFolder(doc);
   const [panel, setPanel] = useState<PanelId>(null);
   const [copyUnavailable, setCopyUnavailable] = useState(false);
   const [focusRequests, setFocusRequests] = useState(false);
@@ -86,7 +87,7 @@ export function DocumentActionsMenu({
   // open Share at the requests section, then drop the parameter. An archived
   // or owned document, or a caller who cannot administer, loses it silently.
   useAccessRequestsDeepLink({
-    allowed: canAdminister && !owned && !archived,
+    allowed: canAdminister && !owned && !archived && !myFolder,
     onOpen: () => {
       setFocusRequests(true);
       setPanel("share");
@@ -98,7 +99,7 @@ export function DocumentActionsMenu({
 
   const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
-  if (canAdminister && !owned && !archived) {
+  if (canAdminister && !owned && !archived && !myFolder) {
     items.push({ id: "share", label: t("documents.actions.share"), icon: Share2 });
   }
   if (canManage && !owned && !archived) {
@@ -107,10 +108,10 @@ export function DocumentActionsMenu({
   if (canEdit && !owned && !archived && doc.kind === "file" && !copyUnavailable) {
     items.push({ id: "copy", label: t("documents.actions.copy"), icon: Copy });
   }
-  if (canManage && !owned && !archived) {
+  if (canManage && !owned && !archived && !myFolder) {
     items.push({ id: "archive", label: t("documents.actions.archive"), icon: Trash2, destructive: true });
   }
-  if (canManage && !owned && archived) {
+  if (canManage && !owned && archived && !myFolder) {
     items.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore });
   }
 

@@ -42,6 +42,7 @@ describe("DocumentsSidebar sub-nav", () => {
     const labels = navLabels();
     const order = [
       t("documents.home.sidebar.home"),
+      t("documents.home.sidebar.my_folder"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
@@ -79,8 +80,9 @@ describe("DocumentsSidebar sub-nav", () => {
 
   it("keeps the same entries on the trash view, with no Lưu trữ entry", () => {
     renderSidebar({ view: { kind: "archived" } });
-    expect(navLabels().slice(0, 6)).toEqual([
+    expect(navLabels().slice(0, 7)).toEqual([
       t("documents.home.sidebar.home"),
+      t("documents.home.sidebar.my_folder"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
@@ -118,6 +120,7 @@ describe("DocumentsSidebar icons", () => {
     renderSidebar();
     const rows = [
       ["home", "home"],
+      ["my_folder", "myFolders"],
       ["recent", "recent"],
       ["starred", "starred"],
       ["shared", "shared"],

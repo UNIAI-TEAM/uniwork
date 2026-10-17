@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { useDocumentTree, useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { useDocumentFavorites } from "@uniwork/core/documents/hooks-favorites";
+import { isMyFolder } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -150,14 +151,15 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
 
   const onDragStart = (event: DragStartEvent) => {
     const id = String(event.active.id).replace(/^doc:/, "");
-    setDragRow(rows.find((row) => row.node.id === id) ?? null);
+    const row = rows.find((item) => item.node.id === id) ?? null;
+    setDragRow(row && !isMyFolder(row.node) ? row : null);
   };
 
   const onDragEnd = (event: DragEndEvent) => {
     const dragged = dragRow;
     setDragRow(null);
     const targetId = event.over?.data.current?.id as string | undefined;
-    if (!dragged || !targetId) return;
+    if (!dragged || isMyFolder(dragged.node) || !targetId) return;
     const draggedId = dragged.node.id;
     setFocusedId(draggedId);
     if (refuseMove(draggedId, targetId)) return;
@@ -174,7 +176,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
       // the next sibling of its parent.
       if ((event.ctrlKey || event.metaKey) && event.key.startsWith("Arrow")) {
         // One move at a time, as on the drag path: a second one would race it.
-        if (movingId) {
+        if (movingId || isMyFolder(row.node)) {
           event.preventDefault();
           return;
         }
@@ -324,7 +326,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
         <DragOverlay>
           {dragRow ? (
             <div className="rounded-md border bg-background px-2 py-1 text-body shadow-md">
-              {dragRow.node.title || t("documents.detail.untitled")}
+              {(isMyFolder(dragRow.node) ? t("documents.home.my_folder.label") : dragRow.node.title) || t("documents.detail.untitled")}
             </div>
           ) : null}
         </DragOverlay>

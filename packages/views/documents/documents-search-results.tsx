@@ -4,6 +4,7 @@ import { useRef, type KeyboardEvent } from "react";
 import { CircleAlert, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { isMyFolder } from "@uniwork/core/types/document";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
@@ -59,12 +60,15 @@ export interface DocumentsSearchResultsProps {
   search: UseDocumentsSearchResult;
   onSelectFolder: (folderId: string) => void;
   onSelectDocument: (documentId: string) => void;
+  /** The caller's personal root folder id, once known, so ancestor paths use the i18n label. */
+  myFolderId?: string | null;
 }
 
 export function DocumentsSearchResults({
   search,
   onSelectFolder,
   onSelectDocument,
+  myFolderId = null,
 }: DocumentsSearchResultsProps) {
   const { t } = useTranslation();
   const radioRefs = useRef<Record<DocumentSearchFilter, HTMLButtonElement | null>>({
@@ -179,9 +183,12 @@ export function DocumentsSearchResults({
             <ul className="divide-y divide-border" aria-label={t("documents.home.search.label")}>
               {search.items.map((item) => {
                 const isFolder = item.kind === "folder";
-                const title = item.title || t("documents.detail.untitled");
+                const title = (isMyFolder(item) ? t("documents.home.my_folder.label") : item.title) || t("documents.detail.untitled");
                 const format = documentIconFormat(item.kind, title);
-                const { display, full } = formatSearchPath(item.path, rootLabel);
+                const localizedPath = item.path?.map((segment) =>
+                  segment.id === myFolderId ? { ...segment, title: t("documents.home.my_folder.label") } : segment,
+                );
+                const { display, full } = formatSearchPath(localizedPath, rootLabel);
                 return (
                   <li key={item.id}>
                     <button

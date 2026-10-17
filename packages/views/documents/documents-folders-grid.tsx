@@ -3,7 +3,7 @@
 import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, Star, StarOff } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -43,7 +43,8 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
       {folders.map((node) => {
         const doc = docById.get(node.id);
-        // Subfolders come from the tree index; the tree does not promise every
+        const myFolder = isMyFolder(node) || isMyFolder(doc);
+        const cardTitle = (myFolder ? t("documents.home.my_folder.label") : node.title) || t("documents.detail.untitled");
         // document of a folder, so the card never counts documents. The editor
         // and the last update show only when the folder's own row is loaded.
         const sub = node.children.filter((child) => child.kind === "folder").length;
@@ -71,7 +72,7 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
               </span>
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="flex items-center gap-1.5">
-                  <span className="truncate font-medium text-foreground">{node.title}</span>
+                  <span className="truncate font-medium text-foreground">{cardTitle}</span>
                   {starred ? (
                     <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
                   ) : null}
@@ -87,8 +88,8 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={t("documents.home.row.menu", { title: node.title })}
-                      title={t("documents.home.row.menu", { title: node.title })}
+                      aria-label={t("documents.home.row.menu", { title: cardTitle })}
+                      title={t("documents.home.row.menu", { title: cardTitle })}
                       className="my-auto shrink-0"
                     />
                   }
@@ -141,17 +142,18 @@ export function folderMenuItems(
 ): FolderMenuItem[] {
   if (doc.archived_at) return [];
   const level = rowLevel(doc);
+  const myFolder = isMyFolder(doc);
   const items: FolderMenuItem[] = [];
   if (handlers.onNewSubfolder && canMoveRow(level)) {
     items.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
   }
-  if (handlers.onRename && canMoveRow(level)) {
+  if (!myFolder && handlers.onRename && canMoveRow(level)) {
     items.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
   }
-  if (handlers.onMove && canMoveRow(level)) {
+  if (!myFolder && handlers.onMove && canMoveRow(level)) {
     items.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
   }
-  if (handlers.onArchive && canArchiveRow(level)) {
+  if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
     // A folder's dialog says Delete, so the card says it too (FD-D6).
     items.push({ id: "archive", label: t("documents.tree.menu.delete"), icon: Archive, run: () => handlers.onArchive?.(doc) });
   }

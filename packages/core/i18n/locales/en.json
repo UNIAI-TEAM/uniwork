@@ -9482,6 +9482,10 @@
         "html": "Untitled HTML page.html",
         "pdf": "Untitled PDF.pdf"
       },
+      "my_folder": {
+        "label": "My Folder",
+        "open_failed": "Could not open My Folder. Try again."
+      },
       "folders": {
         "default_name": "New folder",
         "create_failed": "Could not create the folder. Try again.",
@@ -9596,6 +9600,7 @@
       "sidebar": {
         "label": "Documents navigation",
         "home": "Workspace documents",
+        "my_folder": "My Folder",
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
@@ -9811,7 +9816,8 @@
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
-      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again."
+      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "my_folder_locked": "My Folder is a personal system folder — it can't be renamed, shared, moved or moved to the trash."
     }
   },
   "squads": {
