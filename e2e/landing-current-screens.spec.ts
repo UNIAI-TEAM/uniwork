@@ -61,8 +61,8 @@ test('the current chat composer sends locally and creates a task from a message'
   await landingReady(page);
   await page.waitForLoadState('networkidle');
   await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'chat');
-  await page.locator('[data-action=toggle-presentation]').click();
-  const panel = page.locator('.preview-main > [role=tabpanel]:not([hidden])');
+  await page.locator('#product-preview [data-action=toggle-presentation]').click();
+  const panel = page.locator('#product-preview .preview-main > [role=tabpanel]:not([hidden])');
   await panel.getByRole('textbox', { name: vi.landing.demo.messagePlaceholder }).fill('Tin nhắn được gửi trong demo mới.');
   await panel.getByRole('button', { name: vi.landing.demo.send, exact: true }).click();
   await expect(panel.getByRole('log')).toContainText('Tin nhắn được gửi trong demo mới.');
