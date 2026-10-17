@@ -120,25 +120,39 @@ beforeEach(() => {
 });
 
 describe("type chip over paged lists (M2)", () => {
-  it("offers Load more instead of a dead end, and shows the match from the next page", async () => {
+  it("filters on the server: the chip becomes ?format=, pages restart at the cursor base, and load more keeps filtering", async () => {
     route({
-      list: (path) => (queryOf(path).get("cursor") === "c2" ? [file("f2", "Số liệu.xlsx")] : [summary(), file("f1", "Báo giá.docx")]),
-      cursor: (path) => (queryOf(path).get("cursor") === "c2" ? null : "c2"),
+      list: (path) => {
+        const format = queryOf(path).get("format");
+        if (format === "xlsx") return queryOf(path).get("cursor") === "x2" ? [file("x2", "Thêm.xlsx")] : [];
+        return queryOf(path).get("cursor") === "c2" ? [summary({ id: "d2" })] : [summary(), file("f1", "Báo giá.docx")];
+      },
+      cursor: (path) => {
+        const format = queryOf(path).get("format");
+        if (format === "xlsx") return queryOf(path).get("cursor") === "x2" ? null : "x2";
+        return queryOf(path).get("cursor") === "c2" ? null : "c2";
+      },
     });
     renderView();
     await screen.findByText("Báo giá.docx");
 
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.xlsx") }));
+    // The server answered the filtered page: it is empty, so the state says
+    // there is no match — never "in what is loaded", the filter already ran.
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
-    expect(screen.getByText(t("documents.home.no_matches_more_description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.no_matches_more_description"))).toBeNull();
+    const filteredCalls = requestMock.mock.calls.filter(([path]) => queryOf(String(path)).get("format") === "xlsx");
+    expect(filteredCalls.length).toBeGreaterThan(0);
+    expect(filteredCalls.every(([path]) => !queryOf(String(path)).get("cursor"))).toBe(true);
 
+    // The next filtered page arrives through its own cursor.
     fireEvent.click(screen.getByRole("button", { name: t("documents.library.load_more") }));
-    expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
+    expect(await screen.findByText("Thêm.xlsx")).toBeInTheDocument();
     expect(screen.queryByText(t("documents.library.no_matches_title"))).toBeNull();
   });
 
-  it("points at the create cards when they are on screen, and offers no Load more once exhausted", async () => {
-    route({ list: () => [summary()] });
+  it("shows the plain filtered-empty line for a server-filtered list, with the create cards still above", async () => {
+    route({ list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [summary()]) });
     renderView();
     await screen.findByText("Kế hoạch Q4");
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.pdf") }));

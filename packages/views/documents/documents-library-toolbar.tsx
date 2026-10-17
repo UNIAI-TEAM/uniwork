@@ -35,6 +35,10 @@ export interface LibraryToolbarProps {
   onChip: (chip: TypeChip) => void;
   access: AccessFilter;
   onAccess: (access: AccessFilter) => void;
+  /** The options the current scope may send: the trash (archived) accepts only
+   *  `all` and `restricted` — the server 400s manage/edit there — so it shows
+   *  exactly those two. Absent means every filter. */
+  accessOptions?: readonly AccessFilter[];
   groupBy: GroupBy;
   onGroupBy: (groupBy: GroupBy) => void;
   /** Present when an open folder (`?folder`) is displayed; replaces Group by. */
@@ -43,7 +47,7 @@ export interface LibraryToolbarProps {
 }
 
 /** Scope tabs, the type chips, the access filter and "Group by" (or folder "Sort by") above the table. */
-export function LibraryToolbar({ scope, count, onScope, chip, onChip, access, onAccess, groupBy, onGroupBy, sort, onSort }: LibraryToolbarProps) {
+export function LibraryToolbar({ scope, count, onScope, chip, onChip, access, onAccess, accessOptions, groupBy, onGroupBy, sort, onSort }: LibraryToolbarProps) {
   const { t } = useTranslation();
   const groupItems = GROUP_BY.map((value) => ({ value, label: t(`documents.home.group_by.${value}`) }));
   const sortItems = FOLDER_SORT.map((value) => ({ value, label: t(`documents.home.sort.${value}`) }));
@@ -83,10 +87,11 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, access, on
         ))}
       </div>
       {/* The caption keeps the second "All" from reading as a repeat of the type chips, wherever the groups wrap. */}
-      <div className="flex max-w-full items-center gap-1.5">
+      {/* ml-3 on top of the row gap: with only two options (archive) the group fits beside the chips and must still read as its own group. */}
+      <div className="ml-3 flex max-w-full items-center gap-1.5">
         <span className="shrink-0 text-caption text-muted-foreground">{t("documents.home.access_group_caption")}</span>
         <div role="group" aria-label={t("documents.home.access_filter_label")} className="-mx-1 flex min-w-0 gap-1.5 overflow-x-auto px-1 py-0.5">
-          {ACCESS_FILTERS.map((value) => (
+          {(accessOptions ?? ACCESS_FILTERS).map((value) => (
             <button
               key={value}
               type="button"

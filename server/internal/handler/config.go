@@ -51,6 +51,18 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 		OfficeInstallers:           sdo.OfficeInstallerChannelsSDO{Dev: dev, Beta: beta, Stable: stable},
 		OfficeDeploymentID:         deploymentID,
 		OfficeAPIOrigin:            officeAPIOrigin(h.Cfg.APIPublicURL),
+		Documents: sdo.DocumentsConfigSDO{
+			Limits: sdo.DocumentLimitsSDO{
+				UploadMaxBytes: h.Cfg.EffectiveDocumentMaxBytes(),
+				SaveWarnRatio:  0.9,
+				WebOpen: sdo.DocumentWebOpenLimitsSDO{
+					DOCX: sdo.DocumentFormatOpenLimitSDO{WarnBytes: 30 << 20},
+					PPTX: sdo.DocumentFormatOpenLimitSDO{WarnBytes: 25 << 20},
+					PDF:  sdo.DocumentFormatOpenLimitSDO{WarnBytes: 50 << 20},
+					XLSX: sdo.DocumentFormatOpenLimitSDO{WarnBytes: 5 << 20},
+				},
+			},
+		},
 	})
 }
 

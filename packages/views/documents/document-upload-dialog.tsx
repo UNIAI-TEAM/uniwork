@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@uniwork/core/documents/limits";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -40,7 +41,7 @@ export function DocumentUploadDialog({
   onOpenChange,
   title,
   description,
-  accept,
+  accept = DOCUMENT_UPLOAD_ACCEPT,
   hint,
   pending = false,
   error,

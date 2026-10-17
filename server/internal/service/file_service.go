@@ -89,8 +89,12 @@ type FileServiceOptions struct {
 	// stores: adapters never rewrite it, and rows minted under another root
 	// keep reading from where they are.
 	KeyRoot string
-	// Registry is the purpose table. Nil loads files.DefaultRegistry.
+	// Registry is the purpose table. Nil loads files.DefaultRegistry (or
+	// files.SpecsWithDocumentMaxBytes when DocumentMaxBytes > 0).
 	Registry *files.Registry
+	// DocumentMaxBytes overrides only the document_file policy cap when
+	// Registry is nil; audit/tenant exports stay at 100 MiB.
+	DocumentMaxBytes int64
 	// Signer overrides the store's own URL signing; nil uses the store.
 	Signer FileObjectSigner
 	Quota  FileQuotaHook
@@ -143,6 +147,11 @@ func NewFileService(opts FileServiceOptions) (*FileService, error) {
 	registry := files.DefaultRegistry()
 	if opts.Registry != nil {
 		registry = *opts.Registry
+	} else if opts.DocumentMaxBytes > 0 {
+		var err error
+		if registry, err = files.NewRegistry(files.SpecsWithDocumentMaxBytes(opts.DocumentMaxBytes)...); err != nil {
+			return nil, err
+		}
 	}
 	clock := opts.Clock
 	if clock == nil {

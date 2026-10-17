@@ -56,7 +56,7 @@ function renderList(showType: boolean) {
       groups={[{ key: "unfiled", title: "Nhóm", rows: [documentRow(file("a"))] }]}
       loading={false}
       failure={null}
-      filtered={false}
+      filteredBy={null}
       showType={showType}
       hasMore={false}
       loadingMore={false}
