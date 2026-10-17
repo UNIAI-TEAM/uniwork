@@ -127,12 +127,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
   const focusId = searchParams.get("focus");
   const appliedFocus = useRef<string | null>(null);
-  // A row present on the first render takes the keyboard; one that only comes in after the user pressed Load more is scrolled to and highlighted, never focused.
-  const pagedByUser = useRef(false);
+  // A row present on the first render takes the keyboard; one that only comes in after the user pressed Load more for that focus id is scrolled to and highlighted, never focused.
+  const pagedByUser = useRef<string | null>(null);
   const claimFocus = useCallback((documentId: string) => {
     if (appliedFocus.current === documentId) return null;
     appliedFocus.current = documentId;
-    return pagedByUser.current ? "reveal" : "focus";
+    const mode = pagedByUser.current === documentId ? "reveal" : "focus";
+    pagedByUser.current = null;
+    return mode;
   }, []);
 
   const urlFolderId = searchParams.get("folder") || null;
@@ -478,7 +480,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}
                   onLoadMore={() => {
-                    pagedByUser.current = true;
+                    pagedByUser.current = focusId;
                     state.loadMore();
                   }}
                 />

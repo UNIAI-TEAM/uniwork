@@ -181,7 +181,7 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
                   return (
                     <td key={c} className={CELL}>
                       <Checkbox
-                        aria-label={t("channel_all", { channel: channelLabel(c) })}
+                        aria-label={c === "email" ? t("email_all") : t("channel_all", { channel: channelLabel(c) })}
                         aria-busy={anyBusy || undefined}
                         className={CHECK_HIT}
                         checked={allOn}

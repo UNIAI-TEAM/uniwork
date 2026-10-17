@@ -86,18 +86,35 @@ export function DocumentsTrashView({
 }: DocumentsTrashViewProps) {
   const { t, i18n } = useTranslation();
   const titles = useMemo(() => folderTitles(tree ?? []), [tree]);
+  const tableRef = useRef<HTMLTableElement>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const pagedFromCount = useRef<number | null>(null);
   useEffect(() => {
-    if (!focusId) return;
-    const rowEl = rowRefs.current.get(focusId);
-    if (!rowEl) return;
-    const claim = claimFocus?.(focusId);
-    if (!claim) return;
-    rowEl.scrollIntoView?.({ block: "center" });
-    if (claim === "reveal") return;
-    // focusVisible: the move comes from a pointer click on a notification, which alone would hide the ring.
-    rowEl.querySelector<HTMLElement>("[data-trash-restore]")?.focus({ focusVisible: true } as FocusOptions);
-  }, [focusId, claimFocus, rows]);
+    const prevCount = !loadingMore ? pagedFromCount.current : null;
+    if (!loadingMore && pagedFromCount.current !== null && (rows.length > pagedFromCount.current || !hasMore)) {
+      pagedFromCount.current = null;
+    }
+    const rowEl = focusId ? rowRefs.current.get(focusId) : undefined;
+    const claim = focusId && rowEl ? claimFocus?.(focusId) : null;
+    if (rowEl && claim) {
+      rowEl.scrollIntoView?.({ block: "center" });
+      if (claim === "focus" || !hasMore) {
+        const restore = rowEl.querySelector<HTMLElement>("[data-trash-restore]");
+        if (restore) {
+          // focusVisible: the move comes from a pointer click on a notification, which alone would hide the ring.
+          restore.focus({ focusVisible: true } as FocusOptions);
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+    if (prevCount !== null && !hasMore) {
+      const firstNew = rows[prevCount] ? rowRefs.current.get(rows[prevCount].id) : undefined;
+      const target = firstNew?.querySelector<HTMLElement>("[data-trash-restore]") ?? tableRef.current;
+      target?.focus({ focusVisible: true } as FocusOptions);
+    }
+  }, [focusId, claimFocus, rows, hasMore, loadingMore]);
 
   const header = (
     <div className="flex flex-col gap-1">
@@ -172,7 +189,7 @@ export function DocumentsTrashView({
             pushed off-screen (TV-2). Rungs: Xóa lúc + Xóa vĩnh viễn sau at
             40rem, Xóa bởi last at 54rem — it needs the widest room for a
             member name. */}
-        <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.trash.title")}>
+        <table ref={tableRef} tabIndex={-1} className="w-full table-fixed border-collapse text-left" aria-label={t("documents.trash.title")}>
           <colgroup>
             <col />
             <col className="hidden w-[200px] @min-[54rem]/trash:table-column" />
@@ -321,7 +338,10 @@ export function DocumentsTrashView({
             aria-disabled={loadingMore || undefined}
             aria-busy={loadingMore || undefined}
             onClick={() => {
-              if (!loadingMore) onLoadMore();
+              if (!loadingMore) {
+                pagedFromCount.current = rows.length;
+                onLoadMore();
+              }
             }}
           >
             {loadingMore ? t("documents.library.loading_more") : t("documents.library.load_more")}
