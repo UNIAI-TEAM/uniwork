@@ -1,0 +1,14 @@
+$ git rev-parse HEAD; git log --oneline -12
+edb3c7ec67fe92065b07056af814e67c2e0a9d69
+edb3c7ec6 test(documents): drop the archived prop RESTORE-01 removed from LibraryRowView
+b4b0dad08 chore: merge server lane ee644d3b3 (root 907fef493: RESTORE-01, size cap) into the edit-lock web lane
+ee644d3b3 chore: merge root 907fef493 (RESTORE-01, size cap) into the edit-lock server lane
+907fef493 chore: merge RESTORE-01 web (UNI-1843, 1dafe7b8f) into the G5-G7 root
+313ffbb40 chore: merge RESTORE-01 server + core (UNI-1843, dd780a249) into the G5-G7 root
+dd780a249 fix(documents): flag the trash-search ACL-owner leg and drop break-glass (UNI-1843)
+1dafe7b8f test(e2e): FD-A12 restore follows the Thùng rác row button
+8bebfac4b fix(web): move the landing preview trash demo onto the trash row actions
+a3d0bcd17 fix(documents): purge by bare document id, pin admin_scope trash rows
+71ba8d2b8 chore(merge): RESTORE-01 server fixes (UNI-1843, a887deb65) into RESTORE-01 web
+6b00fcb69 fix(documents): keep the trash countdown readable on phones, one short deleted-at stamp, reread the list on a stale row
+a887deb65 fix(documents): keep restricted trashed rows title-only for admins (UNI-1843)
