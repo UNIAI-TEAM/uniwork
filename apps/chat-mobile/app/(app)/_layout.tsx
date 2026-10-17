@@ -8,6 +8,7 @@ import { Platform } from "react-native";
 import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
 import { registerPushToken } from "@/data/push";
+import { easProjectId } from "@/lib/runtime-extra";
 
 export default function AppLayout() {
   const userId = useAuthStore((s) => s.user?.id ?? null);
@@ -15,9 +16,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!userId) return;
-    const eas: unknown = Constants.expoConfig?.extra?.eas;
-    const projectId = (eas as { projectId?: unknown } | undefined)?.projectId;
-    registerPushToken({ api, projectId: typeof projectId === "string" ? projectId : undefined, platform: Platform.OS }).catch(
+    registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS }).catch(
       // A simulator has no push token; the app works without one.
       (err: unknown) => console.warn("[push] registration failed", err),
     );

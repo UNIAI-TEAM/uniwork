@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { runtimeFromExtra } from "./runtime-extra";
+import { easProjectId, runtimeFromExtra } from "./runtime-extra";
+
+describe("easProjectId", () => {
+  it("reads extra.eas.projectId and nothing else", () => {
+    expect(easProjectId({ eas: { projectId: "p1" } })).toBe("p1");
+    expect(easProjectId({ eas: { projectId: "" } })).toBeUndefined();
+    expect(easProjectId({ eas: { projectId: 7 } })).toBeUndefined();
+    expect(easProjectId({})).toBeUndefined();
+    expect(easProjectId(undefined)).toBeUndefined();
+  });
+});
 
 describe("runtimeFromExtra", () => {
   it("derives the ws(s) origin from the api origin and names the mobile platform", () => {
