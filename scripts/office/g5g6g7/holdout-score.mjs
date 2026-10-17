@@ -256,8 +256,11 @@ export function valuesEqual(expected, actual, kind = null) {
   const a = toNumber(expected);
   const b = toNumber(actual);
   if (a !== null && b !== null) return Math.abs(a - b) < 1e-9;
+  // The formula note and the arrow rewrite are CELL presentations ("New value -> Old value" reports the cell's value).
+  // A heading compares by normalised equality only (review-g712-17 R17-10): "Wrong -> Approved" is a different heading,
+  // so the generic rewrite must not run for it and let it fall through to plain equality.
   const cleanCell = (v) => String(v ?? '').replace(/\s*\[formula\s*=[^\]]*\]/gi, '').replace(/^.*(?:→|->)\s*/, '').trim();
-  if (cleanCell(expected) === cleanCell(actual)) return true;
+  if (kind !== 'heading' && cleanCell(expected) === cleanCell(actual)) return true;
   return String(expected).trim() === String(actual).trim();
 }
 
