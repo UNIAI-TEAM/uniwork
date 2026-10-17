@@ -1,0 +1,4 @@
+$ cd server && unset OPENAI_API_KEY && go test -count=1 ./internal/ 2>&1 | tail -n 40; rc=${PIPESTATUS[0]}; echo; echo "GO_ARCH_EXIT=$rc"
+ok  	github.com/unicomhub/uniwork/server/internal	1.162s
+
+GO_ARCH_EXIT=0

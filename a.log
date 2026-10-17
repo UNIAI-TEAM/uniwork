@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -6
+24ee38d5b1074d8848cfdf1fb65597b744defcfb
+24ee38d5b chore: merge root 907fef493 into SRC-02b
+907fef493 chore: merge RESTORE-01 web (UNI-1843, 1dafe7b8f) into the G5-G7 root
+313ffbb40 chore: merge RESTORE-01 server + core (UNI-1843, dd780a249) into the G5-G7 root
+dd780a249 fix(documents): flag the trash-search ACL-owner leg and drop break-glass (UNI-1843)
+1dafe7b8f test(e2e): FD-A12 restore follows the Thùng rác row button
+8bebfac4b fix(web): move the landing preview trash demo onto the trash row actions
