@@ -8918,6 +8918,7 @@
       "size_hint": "Tối đa {{max}} mỗi tệp.",
       "too_large_named": "{{name}} nặng {{size}}, vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
       "unsupported_format": "Định dạng của {{name}} chưa được hỗ trợ.",
+      "unreadable_file": "Không đọc được tệp {{name}}. Tệp có thể bị hỏng.",
       "submit": "Tải lên",
       "submitting": "Đang tải lên…",
       "cancel": "Hủy",

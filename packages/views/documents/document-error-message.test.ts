@@ -115,6 +115,23 @@ describe("documentErrorMessage", () => {
     expect(tNoFile.mock.calls[0]?.[0]).toBe("documents.errors.unsupported_media_type");
   });
 
+  it("maps 415 unsupported_media_type with reason zip_unreadable to damaged-file copy in vi and en (V-2)", () => {
+    const i18n = initI18n();
+    const tVi = i18n.getFixedT("vi");
+    const tEn = i18n.getFixedT("en");
+    const err = new ApiError("unsupported", "unsupported_media_type", 415, undefined, {
+      reason: "zip_unreadable",
+    });
+    const file = { name: "corrupt30.docx", size: 30 * 1024 * 1024 };
+
+    expect(documentErrorMessage(err, tVi, "fallback", { locale: "vi", file })).toBe(
+      "Không đọc được tệp corrupt30.docx. Tệp có thể bị hỏng.",
+    );
+    expect(documentErrorMessage(err, tEn, "fallback", { locale: "en", file })).toBe(
+      "Couldn't read corrupt30.docx. The file may be damaged.",
+    );
+  });
+
   it("maps a failed upload with an open resumable session to documents.upload.failed_resumable", () => {
     const t = fakeT();
     documentErrorMessage(new Error("network timeout"), t, "fallback", { resumable: true });

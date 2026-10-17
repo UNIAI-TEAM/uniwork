@@ -99,6 +99,9 @@ export function documentErrorMessage(
   }
   if (code === "unsupported_media_type" || (error instanceof ApiError && error.status === 415)) {
     if (opts?.file) {
+      if (errorFields(error)?.reason === "zip_unreadable") {
+        return t("documents.upload.unreadable_file", { name: opts.file.name });
+      }
       return t("documents.upload.unsupported_format", { name: opts.file.name });
     }
     return t("documents.errors.unsupported_media_type");

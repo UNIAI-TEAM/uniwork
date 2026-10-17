@@ -8923,6 +8923,7 @@
       "size_hint": "Up to {{max}} per file.",
       "too_large_named": "{{name}} is {{size}}, which is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
       "unsupported_format": "The format of {{name}} is not supported.",
+      "unreadable_file": "Couldn't read {{name}}. The file may be damaged.",
       "submit": "Upload",
       "submitting": "Uploading…",
       "cancel": "Cancel",
