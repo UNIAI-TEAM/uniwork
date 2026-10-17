@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+8b15c175dcdc2af54e71b1b5fa7563cfa9b9e7af
+8b15c175d chore(merge): e6-server ARCHIVE 435e26d1c into ARCHIVE-01 web
+435e26d1c chore: merge the G5-G7 root (844aab79f) into ARCHIVE-01
+307da4a1e fix(views): update shelved frame session test for fileRef and keep session under max-lines
+acf37e32e chore(merge): G5-G7 root 95c03a58f into ARCHIVE-01 web
