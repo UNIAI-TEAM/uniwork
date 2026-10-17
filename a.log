@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; echo "HEAD_PROBE_DONE"
+30d5a188fb99c1831380941d029be9ab97aa6c20
+30d5a188f fix(office): treat a skipped second Save as lost and name a duplicate version first
+81b2e310d test(office): record host and server state between the two G7-08 Saves
+03a7989e5 fix(office): drive a real second Save, undo/redo and the old-version re-read in the G7-08 web driver
+c18b59a09 fix(office): fail closed on a model call that reports no usage
+d09eb000d fix(office): record which route the DOCX round trip ran
+6d2fa7c66 fix(office): let webSave drive the markdown and html module frames
+68c2c08cc fix(office): add an opt-in strict version count to listVersions for the G7-08 driver
+87b84a886 test(office): extract G7-08 save/AI-turn observation helpers with red-first tests
+HEAD_PROBE_DONE

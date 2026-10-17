@@ -1,0 +1,43 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/g7-08/*.test.mjs 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "G708_EXIT=$rc"
+    # Subtest: R2-1: a failed first Save is a FAIL and no second Save is sent
+    ok 4 - R2-1: a failed first Save is a FAIL and no second Save is sent
+      ---
+      duration_ms: 0.227402
+      ...
+    # Subtest: R2-3: a Save with no captured commit base_revision is BLOCKED, never "used the current revision"
+    ok 5 - R2-3: a Save with no captured commit base_revision is BLOCKED, never "used the current revision"
+      ---
+      duration_ms: 0.425436
+      ...
+    # Subtest: R2-4: the old-version evidence is the bytes read after the Save; a failed GET is BLOCKED
+    ok 6 - R2-4: the old-version evidence is the bytes read after the Save; a failed GET is BLOCKED
+      ---
+      duration_ms: 0.671442
+      ...
+    # Subtest: R2-5: undo/redo comes first; a missing control names the F selector; a change that does not come back stops before the Save
+    ok 7 - R2-5: undo/redo comes first; a missing control names the F selector; a change that does not come back stops before the Save
+      ---
+      duration_ms: 0.417319
+      ...
+    # Subtest: R2-6: a missing version list is BLOCKED at either count
+    ok 8 - R2-6: a missing version list is BLOCKED at either count
+      ---
+      duration_ms: 0.272809
+      ...
+    1..8
+ok 21 - G7-08 w2e2 runEditStage
+  ---
+  duration_ms: 5.293248
+  type: 'suite'
+  ...
+1..21
+# tests 49
+# suites 5
+# pass 49
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 439.92344
+
+G708_EXIT=0
