@@ -386,12 +386,17 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       if (!pick) {
         // DS-3 (docs/office/g5g6g7/holdout/README.md §Cách chấm & §Chấm ca sửa đổi): when the turn made no write (writes = 0)
         // on a zero-write case, preserved count invariants hold by fact; when writes happened, keep today's proof rules.
+        // A9: the fact credit applies only when the case is not an edit, no write happened, and the answer reports no
+        // conflicting value for that count — a count the reply states with a different value is never replaced by the
+        // oracle's, and an edit-category case with a zero-write ceiling is not a preserved invariant either.
+        const conflictingCount = same.some((it) => atAnchor(it));
         if (
           !editCase &&
           (ask.writes ?? 0) === 0 &&
           parsed.status === 'ok' &&
           expected.kind === 'count' &&
-          caseDoc.category !== 'structure' &&
+          caseDoc.category !== 'edit' &&
+          !conflictingCount &&
           /^(?:tables|paragraphs|slides|code_blocks|task_items|changed_paragraphs|changed_text_shapes|changed_text_runs|changedcells|overwrittencells)$/i.test(norm(expected.anchor))
         ) {
           structural.push({ kind: expected.kind, anchor: expected.anchor, value: String(expected.value) });

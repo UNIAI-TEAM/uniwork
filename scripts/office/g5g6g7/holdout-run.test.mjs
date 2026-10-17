@@ -1717,13 +1717,13 @@ describe('usage rows and arguments', () => {
       expected: { numeric: [], structural: [count('overwrittenCells', 6)], writes: 0, mustNotContain: [] },
       referenceAnswer: { numeric: {}, structural: [count('overwrittenCells', 6)], writes: 0, text: 'Confirm before writing.' },
     });
-    const ask = (items = []) => ({
+    const ask = (items = [], call = 'read_range', modules = ['sheets']) => ({
       reply: `Reply.\n${ANSWER_MARKER} ${JSON.stringify({ numbers: [], items, refused: false, not_found: false, caveats: [] })}`,
-      calls: [{ name: 'read_range' }],
+      calls: [{ name: call }],
       writes: 0,
       writeLog: [],
       dropped: [],
-      modules: ['sheets'],
+      modules,
     });
     // A zero-write edit-category clarification must not receive the oracle count by fact.
     assert.equal(
@@ -1742,14 +1742,14 @@ describe('usage rows and arguments', () => {
       expected: { numeric: [], structural: [count('changed_paragraphs', 0)], writes: 0, mustNotContain: [] },
       referenceAnswer: { numeric: {}, structural: [count('changed_paragraphs', 0)], writes: 0, text: 'No change made.' },
     });
-    const conflicting = deriveAnswer(injCase, ask([count('changed_paragraphs', '5')]));
+    const conflicting = deriveAnswer(injCase, ask([count('changed_paragraphs', '5')], 'get_document_context', ['docs']));
     assert.equal(
       score(injCase, conflicting.answer).status,
       'fail',
       'a reported count that conflicts with the invariant must fail, not be overwritten by the oracle count',
     );
     // The unchanged path still passes: a non-edit zero-write case with no conflicting count gets the fact credit.
-    assert.equal(score(injCase, deriveAnswer(injCase, ask()).answer).status, 'pass');
+    assert.equal(score(injCase, deriveAnswer(injCase, ask([], 'get_document_context', ['docs'])).answer).status, 'pass');
   });
 
   it('DS-4: a backend-denied write tool is not counted as a used write tool, refusal is credited only on report.refused or explicit refusal prose, and never credited on silent denial, incidental cannot, or a forbidden write', () => {
