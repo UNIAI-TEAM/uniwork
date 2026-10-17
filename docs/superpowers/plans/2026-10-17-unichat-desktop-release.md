@@ -1,6 +1,6 @@
 # UniChat D2 — Đóng gói và phát hành desktop — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — nhánh `feature/UNI-1835-unichat-d2-dong-goi-va-phat-hanh-desktop`, issue UNI-1835.
+> **Trạng thái:** in-progress — nhánh `feature/UNI-1835-unichat-d2-dong-goi-va-phat-hanh-desktop`, issue UNI-1835; Task 1–6 xong trên nhánh, còn chạy thật tag `chat-desktop-v0.1.0-dev.1` → release và smoke cài/cập nhật trên máy sạch (sau merge).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -55,8 +55,8 @@
 
 **Files:** Modify `scripts/office/installer-urls.mjs`, `scripts/office/installer-urls.test.mjs`
 
-- [ ] Test trước (đỏ): `installerPlatformOf(name, channel, "unichat")` nhận `unichat_0.1.0-dev.1_unsigned_*`, `unichat_0.1.0-dev.1_darwin_arm64.dmg` (ký), `unichat_1.0.0_win32_x64-setup.exe` cho `stable`; bỏ tên Office, dev cho kênh beta, version lạ; `buildInstallerUrls({ prefix })`; CLI `--prefix`.
-- [ ] Cài đặt; `node --test scripts/office/installer-urls.test.mjs`.
+- [x] Test trước (đỏ): `installerPlatformOf(name, channel, "unichat")` nhận `unichat_0.1.0-dev.1_unsigned_*`, `unichat_0.1.0-dev.1_darwin_arm64.dmg` (ký), `unichat_1.0.0_win32_x64-setup.exe` cho `stable`; bỏ tên Office, dev cho kênh beta, version lạ; `buildInstallerUrls({ prefix })`; CLI `--prefix`.
+- [x] Cài đặt; `node --test scripts/office/installer-urls.test.mjs`.
 
 ### Task 2: Cấu hình đóng gói, helper phát hành, `package.test.mjs`
 
@@ -68,8 +68,8 @@
 - `builderConfig(env): Configuration` — appId `com.uniworkos.chat`, productName `UniChat`, output `dist/package`, mac `dmg`+`zip` × `arm64`+`x64`, win `nsis` x64, linux `AppImage`+`deb` x64, `publish: { provider: "generic", url: UPDATE_FEED_URL }`, protocol `uniworkchat`.
 - `releaseFromTag(tag): { version, channel: "dev"|"beta"|"stable" }`; `absoluteFeed(yml, baseUrl): string`; CLI `node scripts/release.mjs meta <tag>` (in `version=`/`channel=`), `node scripts/release.mjs feed <baseUrl> <file.yml>…` (viết lại tại chỗ).
 
-- [ ] Test trước: ánh xạ tên → khoá qua `installerPlatformOf(…, "unichat")`, hai chế độ ký; tag → kênh; feed tuyệt đối; cấu hình bất biến (appId, publish, protocol, output).
-- [ ] Cài đặt; `pnpm --filter @uniwork/chat-desktop test|typecheck|lint`.
+- [x] Test trước: ánh xạ tên → khoá qua `installerPlatformOf(…, "unichat")`, hai chế độ ký; tag → kênh; feed tuyệt đối; cấu hình bất biến (appId, publish, protocol, output).
+- [x] Cài đặt; `pnpm --filter @uniwork/chat-desktop test|typecheck|lint`.
 
 ### Task 3: Updater ở main
 
@@ -81,7 +81,7 @@
 - `updateMode(platform, macSigned): "install" | "notify"`; `startUpdater({ updater, mode, notify, openDownloadPage })` — `autoDownload` theo mode; `install`: báo khi `update-downloaded`; `notify`: báo khi `update-available`, một lần mỗi version, click → `openDownloadPage`; kiểm ngay và mỗi 6 giờ; mọi promise có `.catch`.
 - `index.ts`: sau `createWindow()`, nếu `config.env !== "dev"` thì `startUpdater` với `autoUpdater`, `Notification` của Electron và `openExternalSafely(`${config.appUrl}/unichat`)`.
 
-- [ ] Test trước `updater.test.ts` (EventEmitter giả, fake timers); cài đặt; coverage giữ 100 %.
+- [x] Test trước `updater.test.ts` (EventEmitter giả, fake timers); cài đặt; coverage giữ 100 %.
 
 ### Task 4: Workflow `chat-desktop-release.yml`
 
@@ -93,15 +93,22 @@
 - `assemble` (ubuntu, read-only, chạy mã repo): `installer-urls.mjs --prefix unichat` → `installer-urls.env`; `release.mjs feed`; `SHA256SUMS`; summary.
 - `publish` (ubuntu, `contents: write`, không checkout): `gh release create` (prerelease trừ stable, `--latest=false`) + upload; tạo/cập nhật release `chat-desktop-feed` với các `*.yml`.
 
-- [ ] `actionlint` nếu có.
+- [x] `actionlint` nếu có.
 
 ### Task 5: Runbook, tài liệu
 
 **Files:** Create `docs/runbooks/unichat-desktop-release.md` (bốn mục bắt buộc); Modify `scripts/alerts-runbooks.test.mjs` (`OPERATOR_RUNBOOKS`), `apps/chat-desktop/CLAUDE.md`, spec D2 §2.
 
-- [ ] `node --test scripts/alerts-runbooks.test.mjs scripts/governance.test.mjs scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs`.
+- [x] `node --test scripts/alerts-runbooks.test.mjs scripts/governance.test.mjs scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs`.
 
 ### Task 6: Kiểm chứng và PR
 
-- [ ] `pnpm --filter @uniwork/chat-desktop build` rồi `package -- --mac -c.extraMetadata.version=0.1.0-dev.1` trên máy Intel này (x64 + arm64 nếu cross-build được); tên tệp ra khớp khoá; `dev-mac.yml` có hai zip; asar có `node_modules/electron-updater`. Thử `--linux`. Không commit artifact.
-- [ ] `pnpm knip`; `make issue-pr KEY=UNI-1835`; thân PR tiếng Việt; comment `[agent]`.
+- [x] `pnpm --filter @uniwork/chat-desktop build` rồi `package -- --mac -c.extraMetadata.version=0.1.0-dev.1` trên máy Intel này (x64 + arm64 nếu cross-build được); tên tệp ra khớp khoá; `dev-mac.yml` có hai zip; asar có `node_modules/electron-updater`. Thử `--linux`. Không commit artifact.
+- [x] `pnpm knip`; `make issue-pr KEY=UNI-1835`; thân PR tiếng Việt; comment `[agent]`.
+
+## Kết quả (2026-10-17)
+
+- Đóng gói thật trên máy Intel macOS này (`pnpm --filter @uniwork/chat-desktop package --mac|--linux|--win -c.extraMetadata.version=0.1.0-dev.1`): `unichat_0.1.0-dev.1_unsigned_darwin_arm64.dmg`/`.zip`, `…_darwin_x64.dmg`/`.zip`, `…_win32_x64-setup.exe`, `…_linux_x64.AppImage`, `…_linux_x64.deb`, `dev.yml`, `dev-mac.yml` (hai zip + hai dmg), `dev-linux.yml` (AppImage + deb); `app-update.yml` có `provider: generic`, `channel: dev`; hai app mac `Signature=adhoc`, `lipo` đúng arch; `app.asar` có `node_modules/electron-updater` và phụ thuộc. `installer-urls.mjs --prefix unichat` trên thư mục ra đủ 5 khoá.
+- Bước `Collect` + `assemble` của workflow chạy thử bằng bash cục bộ trên output đó: `installer-urls.env`, feed URL tuyệt đối, `SHA256SUMS` đúng.
+- Chưa chạy: tag → release thật, cài/cập nhật trên máy sạch, nhánh có chữ ký (chưa có tài khoản).
+- Theo sau: `desktopName`/`linux.syncDesktopName` cho nhóm cửa sổ trên Linux (electron-builder cảnh báo), dòng `UNICHAT_INSTALLER_*_URLS` trong `deploy/app/env/uniwork-be.env` khi có release đầu và parser của L1.
