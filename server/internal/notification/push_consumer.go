@@ -100,7 +100,7 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if err != nil {
 		return err
 	}
-	var body string
+	var body, link string
 	if isChatPushKind(n.Kind) {
 		// The preview is read at delivery, so a message deleted in the
 		// meantime sends nothing.
@@ -112,11 +112,25 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 			return err
 		}
 		body = pushBody(user.Locale, chatMsg)
+		// The row is in hand, so the link is built here instead of letting
+		// ResourceURL read it a second time.
+		base, ok, err := workspaceBase(ctx, c.q, c.origin, n)
+		if err != nil {
+			return err
+		}
+		link = c.origin + "/workspaces"
+		if ok {
+			link = chatMessageURL(base, chatMsg.RoomID, chatMsg.ID)
+		}
+	} else {
+		link, err = ResourceURL(ctx, c.q, c.origin, n)
+		if err != nil {
+			return err
+		}
 	}
-	msg, err := c.message(ctx, user.Locale, n, body)
-	if err != nil {
-		return err
-	}
+	var params map[string]string
+	_ = json.Unmarshal([]byte(n.Params), &params)
+	msg := PushMessage{Title: PushTitle(user.Locale, n.Kind, params), Body: body, URL: link, Tag: n.GroupKey}
 	var failed error
 	for _, sub := range subs {
 		err := c.sender.Send(ctx, sub, msg)
@@ -145,14 +159,25 @@ func (c *PushConsumer) count(result string) {
 	}
 }
 
-func (c *PushConsumer) message(ctx context.Context, locale string, n db.Notification, body string) (PushMessage, error) {
-	var params map[string]string
-	_ = json.Unmarshal([]byte(n.Params), &params)
-	url, err := ResourceURL(ctx, c.q, c.origin, n)
-	if err != nil {
-		return PushMessage{}, err
+// workspaceBase is origin/{orgSlug}/{wsSlug}; ok is false when the
+// notification has no workspace or its workspace is gone.
+func workspaceBase(ctx context.Context, q *db.Queries, origin string, n db.Notification) (base string, ok bool, err error) {
+	if !n.WorkspaceID.Valid {
+		return "", false, nil
 	}
-	return PushMessage{Title: PushTitle(locale, n.Kind, params), Body: body, URL: url, Tag: n.GroupKey}, nil
+	ws, err := q.GetWorkspaceWithOrg(ctx, n.WorkspaceID.String)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return origin + "/" + ws.OrganizationSlug + "/" + ws.Slug, true, nil
+}
+
+// chatMessageURL opens a message in its room, scrolled to it.
+func chatMessageURL(base, roomID, msgID string) string {
+	return base + "/chat?room=" + url.QueryEscape(roomID) + "&message=" + url.QueryEscape(msgID)
 }
 
 // ResourceURL is the deep link a notification opens, mirroring
@@ -162,17 +187,13 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	if n.ResourceType == "document" {
 		return documentResourceURL(ctx, q, origin, n)
 	}
-	if !n.WorkspaceID.Valid {
-		return origin + "/workspaces", nil
-	}
-	ws, err := q.GetWorkspaceWithOrg(ctx, n.WorkspaceID.String)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return origin + "/workspaces", nil
-	}
+	base, ok, err := workspaceBase(ctx, q, origin, n)
 	if err != nil {
 		return "", err
 	}
-	base := origin + "/" + ws.OrganizationSlug + "/" + ws.Slug
+	if !ok {
+		return origin + "/workspaces", nil
+	}
 	switch n.ResourceType {
 	case "task":
 		return base + "/tasks/" + n.ResourceID, nil
@@ -185,8 +206,7 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	case "audit_export":
 		return base + "/settings?tab=audit", nil
 	case "chat_message":
-		// A message opens in its room, scrolled to it; a message that is gone
-		// still lands in Chat.
+		// A message that is gone still lands in Chat.
 		msg, err := q.GetChatMessageByID(ctx, n.ResourceID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return base + "/chat", nil
@@ -194,7 +214,7 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 		if err != nil {
 			return "", err
 		}
-		return base + "/chat?room=" + url.QueryEscape(msg.RoomID) + "&message=" + url.QueryEscape(msg.ID), nil
+		return chatMessageURL(base, msg.RoomID, msg.ID), nil
 	case "email_account":
 		return base + "/email", nil
 	default:

@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -389,4 +389,32 @@ test("the UniAI tracking glue is wired: script, hook, workflow, rules", () => {
   for (const t of ["issue-start", "issue-pr", "issue-done", "issue-mine"]) {
     assert.match(read("Makefile"), new RegExp(`^${t}:`, "m"), `Makefile target ${t} is missing`);
   }
+});
+
+describe("ADR 0011 — apps/chat-mobile", () => {
+  // The mobile app imports only types and pure functions from packages/core.
+  // usf's sibling boundary is convention only, and its barrels pull TanStack,
+  // zustand and the web ApiClient into Metro. Here the boundary is files that
+  // must exist the day the app does; while it does not, there is nothing to hold.
+  const app = "apps/chat-mobile";
+  const exists = (p) => fs.existsSync(path.join(root, p));
+  const eslintConfig = () =>
+    exists(app) ? fs.readdirSync(path.join(root, app)).find((f) => /^eslint\.config\.[cm]?[jt]s$/.test(f)) : undefined;
+
+  test("the app carries its own CLAUDE.md", { skip: !exists(app) && "apps/chat-mobile does not exist yet" }, () => {
+    assert.ok(exists(`${app}/CLAUDE.md`), `${app}/CLAUDE.md is missing`);
+  });
+
+  test("the import boundary is a lint rule, not a convention", { skip: !exists(app) && "apps/chat-mobile does not exist yet" }, () => {
+    const cfg = eslintConfig();
+    assert.ok(cfg, `${app} has no eslint.config.*`);
+    const text = read(`${app}/${cfg}`);
+    assert.match(text, /no-restricted-imports/, `${app}/${cfg} must use no-restricted-imports`);
+    assert.match(text, /@uniwork\/views/, `${app}/${cfg} must restrict @uniwork/views`);
+  });
+
+  test("mobile verifies in its own workflow and stays out of the main CI filter", { skip: !exists(app) && "apps/chat-mobile does not exist yet" }, () => {
+    assert.ok(exists(".github/workflows/mobile-verify.yml"), "mobile-verify workflow is missing");
+    assert.match(read(".github/workflows/ci.yml"), /!@uniwork\/chat-mobile/, "ci.yml must filter out @uniwork/chat-mobile");
+  });
 });
