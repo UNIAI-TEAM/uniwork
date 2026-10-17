@@ -1,0 +1,10 @@
+{
+  "extends": "@uniwork/tsconfig/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Type-only reach into @uniwork/core/platform, whose index imports a .tsx file.
+    "jsx": "react-jsx",
+    "types": ["node"]
+  },
+  "include": ["electron.vite.config.ts", "vitest.config.ts", "src/**/*"]
+}

@@ -129,3 +129,8 @@ catalog:
   "@fullcalendar/daygrid": "^6.1.19"
   "@fullcalendar/timegrid": "^6.1.19"
   "@fullcalendar/interaction": "^6.1.19"
+
+  # UniChat desktop shell (apps/chat-desktop)
+  electron: "^43.7.6"
+  electron-vite: "^5.0.0"
+  electron-builder: "^26.0.12"

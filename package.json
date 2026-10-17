@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.28.2",
   "pnpm": {
     "onlyBuiltDependencies": [
+      "electron",
       "esbuild"
     ],
     "packageExtensions": {

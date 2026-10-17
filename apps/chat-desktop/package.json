@@ -1,0 +1,29 @@
+{
+  "name": "@uniwork/chat-desktop",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "package": "electron-builder",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run --passWithNoTests=false --coverage"
+  },
+  "dependencies": {
+    "@uniwork/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@uniwork/eslint-config": "workspace:*",
+    "@uniwork/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
+    "electron": "catalog:",
+    "electron-builder": "catalog:",
+    "electron-vite": "catalog:",
+    "eslint": "^9.32.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
