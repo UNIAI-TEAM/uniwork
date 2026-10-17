@@ -481,9 +481,11 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       const waiters = pauseWaiters;
       pauseWaiters = [];
       for (const wake of waiters) wake();
-      if (opts.storage) clearResumableUpload(opts.storage, fileKey, opts.target);
-      if (sessionId) {
-        const id = sessionId;
+      if (currentPhase !== "canceled") emit("canceled");
+      const id =
+        sessionId ??
+        (opts.storage ? findResumableUpload(opts.storage, fileKey, opts.target)?.session_id : undefined);
+      if (id) {
         try {
           if (opts.target.kind === "frame") {
             await abortFrameUploadSession(opts.target.documentId, id, {
@@ -493,11 +495,13 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
           } else {
             await abortUploadSession(id);
           }
+          if (opts.storage) clearResumableUpload(opts.storage, fileKey, opts.target);
         } catch (err) {
-          if (!isClearedSessionError(err)) throw err;
+          if (isClearedSessionError(err) && opts.storage) {
+            clearResumableUpload(opts.storage, fileKey, opts.target);
+          }
         }
       }
-      if (currentPhase !== "canceled") emit("canceled");
     },
   };
 }

@@ -708,4 +708,74 @@ describe("chunked upload engine", () => {
     expect(phases.at(-1)).toBe("done");
     expect(phases).not.toContain("failed");
   });
+
+  it("treats cancel DELETE as best-effort: swallows 409/network errors while keeping the resume record, and clears the record on 404/410", async () => {
+    const file = makeFile(10);
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    let deleteStatus = 409;
+    let partStarted!: () => void;
+    let partInFlight = new Promise<void>((r) => {
+      partStarted = r;
+    });
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(makeSessionBody("sess-cancel-f6", 1), 201);
+      }
+      if (method === "PUT" && url.includes("part-1")) {
+        partStarted();
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      }
+      if (method === "DELETE" && url === `${API}/api/v1/upload-sessions/sess-cancel-f6`) {
+        if (deleteStatus === 409) {
+          return json({ error: { code: "upload_session_busy", message: "busy" } }, 409);
+        }
+        return json({ error: { code: "not_found", message: "gone" } }, deleteStatus);
+      }
+      if (method === "GET" && url === `${API}/api/v1/upload-sessions/sess-cancel-f6`) {
+        return json({ ...makeSessionBody("sess-cancel-f6", 1), status: "open" });
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fakeFetch);
+    const upload1 = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-cancel-f6",
+      storage,
+      fetch: fakeFetch,
+    });
+
+    await partInFlight;
+    await expect(upload1.cancel()).resolves.toBeUndefined();
+    expect(findResumableUpload(storage, uploadFileKey(file), target)?.session_id).toBe(
+      "sess-cancel-f6",
+    );
+
+    // Second attempt resumes the kept session, and a 410 on cancel DELETE clears the record.
+    deleteStatus = 410;
+    partInFlight = new Promise<void>((r) => {
+      partStarted = r;
+    });
+    const upload2 = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-cancel-f6",
+      storage,
+      fetch: fakeFetch,
+    });
+    await partInFlight;
+    await expect(upload2.cancel()).resolves.toBeUndefined();
+    expect(findResumableUpload(storage, uploadFileKey(file), target)).toBeNull();
+  });
 });
