@@ -182,6 +182,7 @@ test("the header Open UniWork Office falls back to the installer dialog when no 
 let m: DocumentMatrix;
 let sharedFolderTitle: string;
 let sharedPageTitle: string;
+let privatePageTitle: string;
 
 function authHeaders(token: string): Record<string, string> {
   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
@@ -216,8 +217,14 @@ test.describe("a view-only member", () => {
       const viewerId = await userId(page.request, m.aOther.token);
       sharedFolderTitle = `Thư mục chỉ xem ${stamp}`;
       sharedPageTitle = `Trang chỉ xem ${stamp}`;
+      privatePageTitle = `Trang riêng tư ${stamp}`;
       await shareRestricted(page.request, "folder", sharedFolderTitle, viewerId);
       await shareRestricted(page.request, "page", sharedPageTitle, viewerId);
+      const privateCreated = await page.request.post(`${api}/api/v1/workspaces/${m.aOwner.wsId}/documents`, {
+        headers: authHeaders(m.aOwner.token),
+        data: { kind: "page", title: privatePageTitle, visibility: "restricted" },
+      });
+      expect(privateCreated.status(), await privateCreated.text()).toBe(201);
     } finally {
       await page.close();
     }
@@ -255,5 +262,40 @@ test.describe("a view-only member", () => {
     await expect(page.getByRole("menuitem", { name: "Mở trên web" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Di chuyển" })).toHaveCount(0);
     await expect(page.getByRole("menuitem", { name: "Chuyển vào thùng rác" })).toHaveCount(0);
+  });
+
+  test("lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ", async ({
+    browser,
+  }) => {
+    const ownerCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const recipientCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const ownerPage = await ownerCtx.newPage();
+      await loginViaUi(ownerPage, m.aOwner.email);
+      await openLibrary(ownerPage, m.aOwner.orgSlug, m.aOwner.wsSlug);
+
+      await sidebar(ownerPage).getByRole("button", { name: "Tôi đã chia sẻ", exact: true }).click();
+      await expect(ownerPage).toHaveURL(/\/documents\?view=shared-by-me$/);
+      await expect(ownerPage.getByRole("heading", { level: 2, name: "Tôi đã chia sẻ", exact: true })).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(libraryRowButton(library(ownerPage), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
+      await expect(libraryRowButton(library(ownerPage), privatePageTitle)).toHaveCount(0);
+
+      const recipientPage = await recipientCtx.newPage();
+      await loginViaUi(recipientPage, m.aOther.email);
+      await openLibrary(recipientPage, m.aOwner.orgSlug, m.aOwner.wsSlug);
+
+      await sidebar(recipientPage).getByRole("button", { name: "Tôi đã chia sẻ", exact: true }).click();
+      await expect(recipientPage).toHaveURL(/\/documents\?view=shared-by-me$/);
+      await expect(recipientPage.getByText("Chưa chia sẻ tài liệu nào", { exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(recipientPage.getByText(sharedPageTitle, { exact: true })).toHaveCount(0);
+
+      await sidebar(recipientPage).getByRole("button", { name: "Được chia sẻ với tôi", exact: true }).click();
+      await expect(libraryRowButton(library(recipientPage), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
+    } finally {
+      await ownerCtx.close();
+      await recipientCtx.close();
+    }
   });
 });

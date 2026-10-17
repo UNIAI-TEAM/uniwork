@@ -227,7 +227,7 @@ describe("server-side type and access filters (UNI-1868)", () => {
     // kind=page+access pair has no surface to assert on.
   });
 
-  it("sends format and access on recent and shared-with-me, and parent_id in an open folder", async () => {
+  it("sends format and access on recent, shared-with-me and shared-by-me, and parent_id in an open folder", async () => {
     route({
       // Folder cards on home come from the tree, not the document list.
       tree: () => [{ id: "fo1", title: "Dự án CCB", kind: "folder", position: 0, children: [] }],
@@ -236,6 +236,7 @@ describe("server-side type and access filters (UNI-1868)", () => {
         const format = queryOf(path).get("format");
         if (path.startsWith(`${LIST_BASE}/recent`)) return [format === "docx" ? file("r2", "Gần đây.docx") : summary({ id: "r1", title: "Mở gần đây" })];
         if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return [format === "docx" ? file("s2", "Chia sẻ.docx") : summary({ id: "s1", title: "Được chia sẻ" })];
+        if (queryOf(path).get("shared_by_me") === "true") return [format === "docx" ? file("sbm2", "Tôi chia sẻ.docx") : summary({ id: "sbm1", title: "Tôi chia sẻ" })];
         if (queryOf(path).get("parent_id") === "fo1") return format === "xlsx" ? [file("in-x", "Trong thư mục.xlsx", { parent_id: "fo1" })] : [file("in-1", "Trong thư mục.docx", { parent_id: "fo1" })];
         return format === "docx" ? [file("f1", "Báo giá.docx")] : [summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }), summary()];
       },
@@ -268,6 +269,21 @@ describe("server-side type and access filters (UNI-1868)", () => {
       ).toBe(true),
     );
     expect(await screen.findByText("Chia sẻ.docx")).toBeInTheDocument();
+
+    fireEvent.click(await scopeTab("shared_by_me"));
+    await screen.findByText("Tôi chia sẻ");
+    await clickChip("docx");
+    clickAccess("manage");
+    await waitFor(() =>
+      expect(
+        listCalls().some((path) => {
+          const q = queryOf(path);
+          return q.get("shared_by_me") === "true" && !q.has("parent_id") && q.get("format") === "docx" && q.get("access") === "manage";
+        }),
+      ).toBe(true),
+    );
+    expect(await screen.findByText("Tôi chia sẻ.docx")).toBeInTheDocument();
+
     // The open folder's list is the same endpoint keyed by parent_id; the
     // folder toolbar has no type/access controls (and a view switch reset
     // them anyway), so parent_id is the only param to assert.
@@ -278,13 +294,17 @@ describe("server-side type and access filters (UNI-1868)", () => {
     await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("parent_id") === "fo1")).toBe(true));
   });
 
+  const matchesScopeEndpoint = (path: string, endpoint: string) =>
+    endpoint === "shared-by-me" ? queryOf(path).get("shared_by_me") === "true" : path.startsWith(`${LIST_BASE}/${endpoint}`);
+
   it.each([
     ["recent", "recent"],
     ["shared", "shared-with-me"],
+    ["shared_by_me", "shared-by-me"],
   ])("keeps only pages under the Trang chip on %s, filtered on the client (no kind param exists there)", async (scope, endpoint) => {
     route({
       list: (path) => {
-        if (!path.startsWith(`${LIST_BASE}/${endpoint}`)) return [summary()];
+        if (!matchesScopeEndpoint(path, endpoint)) return [summary()];
         return [
           summary({ id: "p1", title: "Trang của tôi" }),
           file("f1", "Tệp của tôi.docx"),
@@ -302,17 +322,18 @@ describe("server-side type and access filters (UNI-1868)", () => {
     expect(await screen.findByText("Trang của tôi")).toBeInTheDocument();
     expect(screen.queryByText("Tệp của tôi.docx")).toBeNull();
     expect(screen.queryByText("Thư mục của tôi")).toBeNull();
-    const endpointCalls = listCalls().filter((path) => path.startsWith(`${LIST_BASE}/${endpoint}`));
+    const endpointCalls = listCalls().filter((path) => matchesScopeEndpoint(path, endpoint));
     expect(endpointCalls.every((path) => !queryOf(path).get("kind") && !queryOf(path).get("format"))).toBe(true);
   });
 
   it.each([
     ["recent", "recent"],
     ["shared", "shared-with-me"],
+    ["shared_by_me", "shared-by-me"],
   ])("says 'in what is loaded' for an empty Trang result on %s while more pages wait", async (scope, endpoint) => {
     route({
-      list: (path) => (path.startsWith(`${LIST_BASE}/${endpoint}`) ? [file("f1", "Chỉ có tệp.docx")] : [summary()]),
-      cursor: (path) => (path.startsWith(`${LIST_BASE}/${endpoint}`) ? "more" : null),
+      list: (path) => (matchesScopeEndpoint(path, endpoint) ? [file("f1", "Chỉ có tệp.docx")] : [summary()]),
+      cursor: (path) => (matchesScopeEndpoint(path, endpoint) ? "more" : null),
     });
     renderView();
     await screen.findByText("Kế hoạch Q4");
