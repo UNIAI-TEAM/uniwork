@@ -1,0 +1,10 @@
+$ grep -E 'panic|ERROR|messages/around' /tmp/rr3-server.log | tail -n 120; tail -n 30 /tmp/rr3-web.log; for p in 18551 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18551/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18551 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.3.8
+- Local:         http://localhost:3000
+- Network:       http://172.30.0.2:3000
+✓ Ready in 91ms
+✓ Running next.config.mjs took 190ms

@@ -1,0 +1,9 @@
+$ git fetch -q origin feature/UNI-923-office-g5-g6-g7 && git checkout -q --detach 157cfdfd7 && git rev-parse HEAD && pnpm install --frozen-lockfile > /tmp/rr3-install.log 2>&1; rc=$?; tail -n 5 /tmp/rr3-install.log; echo; echo "ROOT_CHECKOUT_EXIT=$rc"
+157cfdfd77b9c9ae10357c7655a9e41a3a9fb20d
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 5.2s using pnpm v10.28.2
+
+ROOT_CHECKOUT_EXIT=0

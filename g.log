@@ -1,0 +1,64 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18551 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18551 PREVIEW_ORIGIN=http://localhost:13452 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads FF_DOCUMENTS=true NEXT_PUBLIC_API_URL=http://localhost:18551 NEXT_PUBLIC_WS_URL=ws://localhost:18551 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18551 OFFICE_FORK_SHA=$(node -p "require(\"./apps/web/platform/office-frame/docs.pin.json\").gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-folders.spec.ts documents-isolation.spec.ts documents.spec.ts landing-current-screens.spec.ts landing-product-menu.spec.ts --repeat-each=1 --reporter=list > /tmp/rr3-e2e.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rr3-e2e.log | tail -n 200; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; echo "##### JUMP-DIAG"; sed -n '/\[jump-diag\] begin/,/\[jump-diag\] end/p' /tmp/rr3-e2e.log | head -c 80000; echo "##### END JUMP-DIAG"; grep -E "[0-9]+ (skipped|did not run)" /tmp/rr3-e2e.log; grep -qE "[0-9]+ passed" /tmp/rr3-e2e.log || { echo "no passing test"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+
+Running 47 tests using 1 worker
+
+(node:22480) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22480) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 documents-folders.spec.ts:34:1 › FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to depth 20; rejects blank, >255 chars, and depth 21 (6.7s)
+  ✓   2 documents-folders.spec.ts:198:1 › FD-A02 sidebar folder tree expands/collapses independently, reveals active ?folder= ancestors, and stays collapsed across a refetch (6.8s)
+  ✓   3 documents-folders.spec.ts:347:1 › FD-A03 open folder content view lists only direct children, folders first, sorted by name or updated per viewer (3.2s)
+  ✓   4 documents-folders.spec.ts:452:1 › FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă after A) or by last update, folders first, and the choice is remembered (15.9s)
+  ✓   5 documents-folders.spec.ts:556:1 › FD-A03 upload into the open folder places the uploaded file under the open folder (not at root) (2.9s)
+  ✓   6 documents-folders.spec.ts:616:1 › FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search (4.5s)
+  ✓   7 documents-folders.spec.ts:724:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live (9.7s)
+  ✓   8 documents-folders.spec.ts:962:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast (4.9s)
+  ✓   9 documents-folders.spec.ts:1049:1 › FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop (2.7s)
+  ✓  10 documents-folders.spec.ts:1151:1 › FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable aria-disabled rows with the reason Nằm trong chính nó and refuses to select them (2.9s)
+  ✓  11 documents-folders.spec.ts:1227:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision (3.7s)
+  ✓  12 documents-folders.spec.ts:1320:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành (3.2s)
+  ✓  13 documents-folders.spec.ts:1376:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder= (5.8s)
+  ✓  14 documents-folders.spec.ts:1519:1 › FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and the … menu Các cấp ẩn opens and navigates by keyboard (2.6s)
+  ✓  15 documents-folders.spec.ts:1578:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches (4.9s)
+  ✓  16 documents-folders.spec.ts:1726:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing (3.4s)
+  -  17 documents-folders.spec.ts:1983:1 › FD-A10 (entity/email link API) structured graph DOCUMENT links and email-hub thread links resolve after move
+  ✓  18 documents-folders.spec.ts:1991:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (4.0s)
+  ✓  19 documents-folders.spec.ts:2172:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 (12.5s)
+FD-A12 seeded 1000 pages in 2375 ms
+  ✓  20 documents-folders.spec.ts:2386:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button (5.6s)
+  ✓  21 documents-folders.spec.ts:2452:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts (3.2s)
+  ✓  22 documents-isolation.spec.ts:108:1 › another organization answers not found across read, history, comments and download (35ms)
+  ✓  23 documents-isolation.spec.ts:120:1 › an organization member outside the document workspace answers not found (23ms)
+  ✓  24 documents-isolation.spec.ts:124:1 › an account in no organization answers not found (27ms)
+  ✓  25 documents-isolation.spec.ts:129:1 › a deactivated member is refused with member_deactivated (6ms)
+  ✓  26 documents-isolation.spec.ts:136:1 › two saves from one base: the first wins, the stale one conflicts (16ms)
+  ✓  27 documents-isolation.spec.ts:159:1 › a create replay returns the same page; a changed payload under the same key is refused (16ms)
+  ✓  28 documents-isolation.spec.ts:175:1 › a plain member creates, types and reloads a page in the browser (5.9s)
+  ✓  29 documents-isolation.spec.ts:196:1 › a workspace member without access sees the locked card, not the content (3.4s)
+  ✓  30 documents-isolation.spec.ts:207:1 › the other organization's shell sends a foreign document URL to the picker (2.0s)
+  ✓  31 documents.spec.ts:80:1 › a page is created, typed into, and survives a reload (6.9s)
+  ✓  32 documents.spec.ts:128:1 › a file document takes a new version and downloads it (3.9s)
+  ✓  33 documents.spec.ts:160:1 › the library lists pages across its tabs and the tree opens one (5.4s)
+  ✓  34 documents.spec.ts:224:1 › the library and the page editor never call the Office service (2.3s)
+  ✓  35 landing-current-screens.spec.ts:7:3 › current product screens fit the preview at 1440px (4.8s)
+  ✓  36 landing-current-screens.spec.ts:7:3 › current product screens fit the preview at 390px (5.3s)
+  ✓  37 landing-current-screens.spec.ts:32:1 › documents use the current library and retain a locally edited page (2.5s)
+  ✓  38 landing-current-screens.spec.ts:57:1 › the current chat composer sends locally and creates a task from a message (2.2s)
+  ✓  39 landing-current-screens.spec.ts:82:1 › projects and people use the shared list controls (2.7s)
+  ✓  40 landing-current-screens.spec.ts:106:1 › feature pages share the current Documents preview (1.2s)
+  ✓  41 landing-current-screens.spec.ts:119:1 › a compact calendar keeps its grid and planner reachable (2.3s)
+  ✓  42 landing-product-menu.spec.ts:7:3 › the product menu operates the landing demo at 1440px (3.4s)
+  ✓  43 landing-product-menu.spec.ts:7:3 › the product menu operates the landing demo at 390px (3.6s)
+  ✓  44 landing-product-menu.spec.ts:49:1 › the marketing product menu opens a demo directly (2.4s)
+  ✓  45 landing-product-menu.spec.ts:62:1 › create, search and save stay inside the demo across view switches (5.7s)
+  ✓  46 landing-product-menu.spec.ts:100:3 › the app shell stays readable in dark mode 1440 (1.4s)
+  ✓  47 landing-product-menu.spec.ts:100:3 › the app shell stays readable in dark mode 390 (1.3s)
+
+  1 skipped
+  46 passed (3.0m)
+##### JUMP-DIAG
+##### END JUMP-DIAG
+  1 skipped
+
+E2E_EXIT=0
