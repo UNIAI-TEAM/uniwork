@@ -32,6 +32,10 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 			_, _ = io.WriteString(w, `{"errors":[{"code":"UNAUTHORIZED","message":"bad access token"}]}`+"\n")
 		case "ExponentPushToken[down]":
 			w.WriteHeader(http.StatusBadGateway)
+		case "ExponentPushToken[garbage]":
+			_, _ = io.WriteString(w, `{not json`)
+		case "ExponentPushToken[none]":
+			_, _ = io.WriteString(w, `{"data":[]}`)
 		default:
 			_, _ = io.WriteString(w, `{"data":[{"status":"ok","id":"t1"}]}`)
 		}
@@ -48,7 +52,9 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[gone]"}, msg); !errors.Is(err, ErrSubscriptionGone) {
 		t.Fatalf("DeviceNotRegistered → %v", err)
 	}
-	for _, to := range []string{"ExponentPushToken[big]", "ExponentPushToken[busy]", "ExponentPushToken[down]"} {
+	// A 200 whose body is not a ticket (garbage, or no ticket at all) is a
+	// retryable error too, never a revoke.
+	for _, to := range []string{"ExponentPushToken[big]", "ExponentPushToken[busy]", "ExponentPushToken[down]", "ExponentPushToken[garbage]", "ExponentPushToken[none]"} {
 		if err := s.Send(context.Background(), db.PushSubscription{Endpoint: to}, msg); err == nil || errors.Is(err, ErrSubscriptionGone) {
 			t.Fatalf("%s → %v, want a retryable error", to, err)
 		}

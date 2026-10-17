@@ -258,7 +258,8 @@ func TestChatPushCarriesBodyAndSkipsDeleted(t *testing.T) {
 	spy := &spySender{}
 	pc := NewPushConsumer(f.q, spy, "http://app.test")
 
-	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "[@Thành Viên](mention://member/" + f.member.ID + ") họp **9h** nhé"}); err != nil {
+	first, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "[@Thành Viên](mention://member/" + f.member.ID + ") họp **9h** nhé"})
+	if err != nil {
 		t.Fatal(err)
 	}
 	f.handleLast(t, "chat.dm.received")
@@ -267,6 +268,11 @@ func TestChatPushCarriesBodyAndSkipsDeleted(t *testing.T) {
 	}
 	if len(spy.sent) != 1 || spy.sent[0].Body != "@Thành Viên họp 9h nhé" || spy.sent[0].Title != "Chủ Nhóm đã nhắn tin cho bạn" {
 		t.Fatalf("sent = %+v", spy.sent)
+	}
+	// The deep link is built from the row the body was read from and matches
+	// ResourceURL's shape exactly.
+	if want := "http://app.test/notif-org/notif-ws/chat?room=" + dm.ID + "&message=" + first.ID; spy.sent[0].URL != want {
+		t.Fatalf("URL = %q, want %q", spy.sent[0].URL, want)
 	}
 
 	// Read it so the next DM opens a fresh row, then delete that message before the push runs.
@@ -390,6 +396,23 @@ func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 	}
 	if n, err := f.q.GetNotification(f.ctx, p["notification_id"]); err != nil || !n.PushedAt.Valid {
 		t.Fatalf("skipped row not marked pushed: %+v err=%v", n, err)
+	}
+
+	// Presence suppresses chat pushes only: a task assignment reaches an
+	// active recipient as before.
+	spy3, m3 := &spySender{}, &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+	pc = NewPushConsumer(f.q, spy3, "http://app.test")
+	pc.SetMetrics(m3)
+	pc.now = func() time.Time { return now }
+	pc.SetPresence(fakePresence{at: now.Add(-30 * time.Second), ok: true})
+	task := f.newTask(t, "Việc khi đang online")
+	f.assign(t, task.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy3.sent) != 1 || len(m3.suppressed) != 0 || spy3.sent[0].URL != "http://app.test/notif-org/notif-ws/tasks/"+task.ID {
+		t.Fatalf("active recipient, task push: sent=%+v suppressed=%v", spy3.sent, m3.suppressed)
 	}
 }
 
