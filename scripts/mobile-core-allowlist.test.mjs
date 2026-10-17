@@ -15,21 +15,8 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const CORE = "packages/core";
 
-// Keep in step with the M1 spec §3.1 and the app's no-restricted-imports.
-const ALLOWLIST = [
-  "api/schema",
-  "runtime-config",
-  "api/endpoints/chat-schemas",
-  "permissions/rules",
-  "paths/paths",
-  "paths/marketing",
-  "types/events",
-  ...[
-    "read-receipt-utils", "poll-utils", "post-utils", "note-utils", "reminder-utils",
-    "room-permissions-utils", "client-msg-id", "pending-message-id", "lazy-chat-scopes",
-    "message-links", "typing-user-id", "composer-priority", "chat-room-helpers",
-  ].map((m) => `chat/${m}`),
-];
+// One source for the lint rule and this walk: apps/chat-mobile/core-allowlist.json.
+const ALLOWLIST = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/core-allowlist.json"), "utf8"));
 
 const BARE_ALLOWED = new Set(["zod"]);
 

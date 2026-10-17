@@ -22,7 +22,9 @@ async function boundaryMessages(code: string): Promise<string[]> {
   const messages = result?.messages ?? [];
   // A parse failure would make every "green" case pass vacuously.
   expect(messages.filter((m) => m.fatal)).toEqual([]);
-  return messages.filter((m) => m.ruleId === "@typescript-eslint/no-restricted-imports").map((m) => m.message);
+  return messages
+    .filter((m) => m.ruleId === "@typescript-eslint/no-restricted-imports" || m.ruleId === "no-restricted-syntax")
+    .map((m) => m.message);
 }
 
 // The first lintText warms up the type-aware project service (~10 s cold).
@@ -37,6 +39,8 @@ describe("ADR 0011 import boundary", { timeout: 60_000 }, () => {
     ['import { x } from "../../packages/core/x";', /never by relative path/],
     ['import { x } from "@uniwork/core/chat/poll-utils-extra";', /mobile-core-allowlist/],
     ['import { User } from "@uniwork/core/types/user";', /import type/],
+    ['export const m = import("@uniwork/core/chat");', /dynamic import/],
+    ['import { x } from "../node_modules/@uniwork/core/chat/hooks";', /never by relative path/],
   ])("%s is red", async (code, message) => {
     const messages = await boundaryMessages(code);
     expect(messages).toHaveLength(1);

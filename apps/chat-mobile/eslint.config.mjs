@@ -1,23 +1,13 @@
 import reactConfig from "@uniwork/eslint-config/react";
 import { lucideAliasPaths } from "@uniwork/eslint-config/base";
 
-// Mirror of scripts/mobile-core-allowlist.test.mjs ALLOWLIST: the only
-// @uniwork/core subpaths a phone can carry (pure functions, zod schemas).
-// Change the two lists together; the test checks what each entry pulls in.
-const CORE_ALLOWLIST = [
-  "api/schema",
-  "runtime-config",
-  "api/endpoints/chat-schemas",
-  "permissions/rules",
-  "paths/paths",
-  "paths/marketing",
-  "types/events",
-  ...[
-    "read-receipt-utils", "poll-utils", "post-utils", "note-utils", "reminder-utils",
-    "room-permissions-utils", "client-msg-id", "pending-message-id", "lazy-chat-scopes",
-    "message-links", "typing-user-id", "composer-priority", "chat-room-helpers",
-  ].map((m) => `chat/${m}`),
-];
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+// The only @uniwork/core subpaths a phone can carry (pure functions, zod
+// schemas). One file feeds this rule and scripts/mobile-core-allowlist.test.mjs,
+// which checks what each entry pulls in transitively.
+const CORE_ALLOWLIST = JSON.parse(readFileSync(fileURLToPath(new globalThis.URL("./core-allowlist.json", import.meta.url)), "utf8"));
 
 export default [
   ...reactConfig,
@@ -49,6 +39,12 @@ export default [
       // typescript-eslint variant knows `import type`, so types/* stays open to
       // type-only imports and closed to values.
       "no-restricted-imports": "off",
+      // no-restricted-imports does not see `import()`; a dynamic import of core would
+      // typecheck (core exports the barrels) and drag web-only code into Metro.
+      "no-restricted-syntax": ["error", {
+        selector: "ImportExpression > Literal[value=/^@uniwork\\u002fcore/]",
+        message: "No dynamic import of @uniwork/core on mobile; use a static import of an allowlisted subpath (ADR 0011).",
+      }],
       "@typescript-eslint/no-restricted-imports": ["error", {
         paths: lucideAliasPaths,
         patterns: [
@@ -61,7 +57,7 @@ export default [
             message: "Import navigation hooks and themes from expo-router; its navigation context is separate.",
           },
           {
-            group: ["**/packages/**"],
+            group: ["**/packages/**", "**/node_modules/**"],
             message: "Reach packages/core through @uniwork/core/<allowlisted subpath>, never by relative path.",
           },
           {
