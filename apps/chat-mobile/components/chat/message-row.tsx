@@ -83,6 +83,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("chat.reply_quote_jump", { preview: quote.text })}
+            hitSlop={8}
             onPress={() => props.onPressQuote(quote.id)}
             className={cn("border-l-2 pl-2", own ? "border-primary-foreground/60" : "border-primary")}
           >
@@ -108,6 +109,8 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
               key={emoji}
               accessibilityRole="button"
               accessibilityLabel={t(mine.has(emoji) ? "chat.message_list.reaction_mine_aria" : "chat.message_list.reaction_aria", { emoji, count })}
+              // 32 px chip, 44 px target.
+              hitSlop={6}
               onPress={() => props.onToggleReaction(message, emoji)}
               className={cn("min-h-8 flex-row items-center gap-1 rounded-full border px-2.5", mine.has(emoji) ? "border-primary bg-primary/10" : "border-border bg-background")}
             >

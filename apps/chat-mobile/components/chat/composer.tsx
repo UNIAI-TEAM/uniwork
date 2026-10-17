@@ -9,7 +9,8 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Pressable, TextInput, View } from "react-native";
+import { Alert, Keyboard, Pressable, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionSheet } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { CHAT_FILE_MAX_LABEL, CHAT_FILE_PICKER_TYPES, isChatAcceptedFile, isChatFileTooLarge } from "@/lib/file-accept";
@@ -64,6 +65,19 @@ export function Composer(props: Props) {
   const [attachOpen, setAttachOpen] = useState(false);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allLabel = t("chat.mention_all");
+  const insets = useSafeAreaInsets();
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  // Above the home indicator while the keyboard is down; the keyboard-avoiding view takes over when it is up.
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  const bottomInset = keyboardOpen ? 0 : insets.bottom;
 
   // Editing starts from the message's own text, with its mentions as "@Tên".
   useEffect(() => {
@@ -150,20 +164,27 @@ export function Composer(props: Props) {
 
   if (!canSend) {
     return (
-      <View className="border-t border-border bg-background px-4 py-3">
+      <View className="border-t border-border bg-background px-4 pt-3" style={{ paddingBottom: 12 + insets.bottom }}>
         <Text className="text-sm text-muted-foreground text-center">{t("chat.mute_composer_placeholder")}</Text>
       </View>
     );
   }
 
   const banner = edit
-    ? { title: t("chat.edit_dialog_title"), text: deserializeMessageBodyToComposerDraft(edit.body), cancel: props.onCancelEdit }
+    ? {
+        title: t("chat.edit_dialog_title"),
+        text: deserializeMessageBodyToComposerDraft(edit.body),
+        cancel: () => {
+          setDraft("");
+          props.onCancelEdit();
+        },
+      }
     : reply
       ? { title: reply.sender, text: t("chat.replying_to", { preview: reply.text }), cancel: props.onCancelReply }
       : null;
 
   return (
-    <View className="border-t border-border bg-background">
+    <View className="border-t border-border bg-background" style={{ paddingBottom: bottomInset }}>
       {suggestions.length > 0 ? (
         <View className="border-b border-border" accessibilityLabel={t("chat.mention_picker_label")}>
           {suggestions.map((candidate) => (

@@ -145,7 +145,7 @@ export function Conversation(props: Props) {
       <MessageActionsSheet
         message={actionMessage}
         own={actionMessage?.sender === userId}
-        canThread={!threadRootId}
+        inThread={Boolean(threadRootId)}
         onClose={() => setActionMessage(null)}
         onReact={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => Alert.alert(t("chat.message_list.react_failed")))}
         onReply={(m) => {

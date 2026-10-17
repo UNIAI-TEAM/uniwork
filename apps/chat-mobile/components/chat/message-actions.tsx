@@ -15,8 +15,8 @@ const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as co
 interface Props {
   message: TimelineMessage | null;
   own: boolean;
-  /** Off inside a thread: a reply there is already in one. */
-  canThread: boolean;
+  /** Inside a thread: a reply there is already in one, and the thread API takes no quote. */
+  inThread: boolean;
   onClose: () => void;
   onReact: (message: TimelineMessage, emoji: string) => void;
   onReply: (message: TimelineMessage) => void;
@@ -29,7 +29,7 @@ interface Props {
 }
 
 export function MessageActionsSheet(props: Props) {
-  const { message, own, canThread, onClose } = props;
+  const { message, own, inThread, onClose } = props;
   const { t } = useTranslation();
   const record = message?.record;
   const actions: SheetAction[] = [];
@@ -37,8 +37,8 @@ export function MessageActionsSheet(props: Props) {
     if (message.pending.status !== "sending") actions.push({ key: "retry", label: t("chat.retry"), onPress: () => props.onRetry(message) });
     actions.push({ key: "discard", label: t("chat.action_delete"), destructive: true, onPress: () => props.onDiscard(message) });
   } else if (message && record) {
-    actions.push({ key: "reply", label: t("chat.action_reply"), onPress: () => props.onReply(message) });
-    if (canThread && !record.thread_root_id) actions.push({ key: "thread", label: t("chat.action_thread"), onPress: () => props.onThread(message) });
+    if (!inThread) actions.push({ key: "reply", label: t("chat.action_reply"), onPress: () => props.onReply(message) });
+    if (!inThread && !record.thread_root_id) actions.push({ key: "thread", label: t("chat.action_thread"), onPress: () => props.onThread(message) });
     if (messageView(record) === "text") actions.push({ key: "copy", label: t("chat.action_copy"), onPress: () => props.onCopy(message) });
     if (own && messageView(record) === "text") actions.push({ key: "edit", label: t("chat.action_edit"), onPress: () => props.onEdit(message) });
     if (own) actions.push({ key: "delete", label: t("chat.action_delete"), destructive: true, onPress: () => props.onDelete(message) });
