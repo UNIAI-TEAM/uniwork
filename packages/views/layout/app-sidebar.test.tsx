@@ -290,4 +290,21 @@ describe("AppSidebar › chat-only", () => {
     expect(await screen.findByRole("menuitem", { name: "Cài đặt" })).toHaveAttribute("href", "/acme/team/settings");
     expect(await screen.findByRole("menuitem", { name: "Đăng xuất" })).toBeInTheDocument();
   });
+
+  it("does not fetch the nav's badges or pins when the nav is not rendered", async () => {
+    renderSidebar("/acme/team/chat", { variant: "chat-only" });
+    // The switcher's workspace list is the one request the chat-only shell makes.
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalled());
+    const paths = requestMock.mock.calls.map((call) => String(call[0]));
+    expect(paths.filter((p) => /email-hub\/unread|pins/.test(p))).toEqual([]);
+  });
+
+  it("still fetches the nav's badges and pins in the full variant", async () => {
+    renderSidebar("/acme/team/chat");
+    await vi.waitFor(() => {
+      const paths = requestMock.mock.calls.map((call) => String(call[0]));
+      expect(paths.some((p) => p.includes("email-hub/unread-count"))).toBe(true);
+      expect(paths.some((p) => p.includes("pins"))).toBe(true);
+    });
+  });
 });
