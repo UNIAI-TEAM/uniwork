@@ -274,6 +274,80 @@ func TestShelvedWriteBlock(t *testing.T) {
 			})
 			return err
 		}},
+		// UNI-1645 phase 2 edit lock (ar merge1, UNI-1845 §3): every lock
+		// command that takes, renews, takes over, holds or requests a tenure
+		// is a write on the shelved document, so it refuses like the rest.
+		// Releasing a lock is the one exception and lives in the allowed
+		// table below.
+		{"edit_lock_acquire", func(t *testing.T, env *docStorageEnv) error {
+			d := shelve(t, env, pageDoc(t, env).ID)
+			_, err := env.svc.AcquireDocumentEditLock(env.f.ctx, Human(env.tn.aclOwner.ID), d.ID,
+				AcquireDocumentEditLockInput{EditorID: "e-" + util.NewID()[20:], Client: DocumentEditClientWebPage, SessionID: "sid-" + util.NewID()[20:]})
+			return err
+		}},
+		{"edit_lock_heartbeat_renew", func(t *testing.T, env *docStorageEnv) error {
+			page := pageDoc(t, env)
+			held := takeEditLock(t, env, env.tn.aclOwner, page.ID, "e-renew", DocumentEditClientWebPage, "sid-renew")
+			shelve(t, env, page.ID)
+			_, err := env.svc.HeartbeatDocumentEditLock(env.f.ctx, Human(env.tn.aclOwner.ID), page.ID, held.Lock.ID)
+			return err
+		}},
+		{"edit_lock_take_over", func(t *testing.T, env *docStorageEnv) error {
+			page := pageDoc(t, env)
+			held := takeEditLock(t, env, env.tn.member, page.ID, "e-held", DocumentEditClientWebPage, "sid-held")
+			shelve(t, env, page.ID)
+			_, err := env.svc.TakeOverDocumentEditLock(env.f.ctx, Human(env.tn.aclOwner.ID), page.ID,
+				TakeOverDocumentEditLockInput{EditorID: "e-take", Client: DocumentEditClientWebPage, SessionID: "sid-take", ExpectedLockID: held.Lock.ID})
+			return err
+		}},
+		{"edit_hold_put", func(t *testing.T, env *docStorageEnv) error {
+			page := pageDoc(t, env)
+			sid := insertEditLockDeviceSession(t, env.f.ctx, env.f.pool, env.tn.aclOwner.ID)
+			held := takeEditLock(t, env, env.tn.aclOwner, page.ID, "e-hold", DocumentEditClientDesktop, sid)
+			shelve(t, env, page.ID)
+			_, err := env.svc.PutDocumentEditHold(env.f.ctx, Human(env.tn.aclOwner.ID), page.ID, held.Lock.ID, sid)
+			return err
+		}},
+		{"edit_hold_clear", func(t *testing.T, env *docStorageEnv) error {
+			page := pageDoc(t, env)
+			sid := insertEditLockDeviceSession(t, env.f.ctx, env.f.pool, env.tn.aclOwner.ID)
+			held := takeEditLock(t, env, env.tn.aclOwner, page.ID, "e-hold", DocumentEditClientDesktop, sid)
+			if _, err := env.svc.PutDocumentEditHold(env.f.ctx, Human(env.tn.aclOwner.ID), page.ID, held.Lock.ID, sid); err != nil {
+				t.Fatal(err)
+			}
+			shelve(t, env, page.ID)
+			_, err := env.svc.ClearDocumentEditHold(env.f.ctx, Human(env.tn.aclOwner.ID), page.ID, held.Lock.ID)
+			return err
+		}},
+		{"edit_request_create", func(t *testing.T, env *docStorageEnv) error {
+			page := pageDoc(t, env)
+			takeEditLock(t, env, env.tn.aclOwner, page.ID, "e-holder", DocumentEditClientWebPage, "sid-holder")
+			shelve(t, env, page.ID)
+			_, err := env.svc.CreateDocumentEditRequest(env.f.ctx, Human(env.tn.member.ID), page.ID)
+			return err
+		}},
+		{"edit_request_answer", func(t *testing.T, env *docStorageEnv) error {
+			page := pageDoc(t, env)
+			held := takeEditLock(t, env, env.tn.aclOwner, page.ID, "e-holder", DocumentEditClientWebPage, "sid-holder")
+			req, err := env.svc.CreateDocumentEditRequest(env.f.ctx, Human(env.tn.member.ID), page.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			shelve(t, env, page.ID)
+			_, err = env.svc.AnswerDocumentEditRequest(env.f.ctx, Human(env.tn.aclOwner.ID), page.ID, req.Request.ID,
+				AnswerDocumentEditRequestInput{Decision: "decline", LockID: held.Lock.ID})
+			return err
+		}},
+		{"edit_request_cancel", func(t *testing.T, env *docStorageEnv) error {
+			page := pageDoc(t, env)
+			takeEditLock(t, env, env.tn.aclOwner, page.ID, "e-holder", DocumentEditClientWebPage, "sid-holder")
+			req, err := env.svc.CreateDocumentEditRequest(env.f.ctx, Human(env.tn.member.ID), page.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			shelve(t, env, page.ID)
+			return env.svc.CancelDocumentEditRequest(env.f.ctx, Human(env.tn.member.ID), page.ID, req.Request.ID)
+		}},
 	}
 
 	for _, row := range rows {
@@ -282,6 +356,19 @@ func TestShelvedWriteBlock(t *testing.T) {
 			wantShelvedWrite(t, row.run(t, env))
 		})
 	}
+}
+
+// takeEditLock takes u's edit lock on a live document through the public
+// command, so an edit-lock write row has a live tenure to act on before the
+// shelve.
+func takeEditLock(t *testing.T, env *docStorageEnv, u db.User, docID, editor, client, sessionID string) DocumentEditLockView {
+	t.Helper()
+	v, err := env.svc.AcquireDocumentEditLock(env.f.ctx, Human(u.ID), docID,
+		AcquireDocumentEditLockInput{EditorID: editor, Client: client, SessionID: sessionID})
+	if err != nil {
+		t.Fatalf("acquire edit lock: %v", err)
+	}
+	return v
 }
 
 // pageDoc seeds one live page the ACL owner manages (acl_owner => manage).
@@ -390,6 +477,19 @@ func TestShelvedWriteBlockAllowed(t *testing.T) {
 		}
 		if _, err := env.svc.UnshelveDocument(env.f.ctx, mgr, trashTarget.ID, ArchiveDocumentInput{}); err != nil {
 			t.Fatalf("unshelve: %v", err)
+		}
+	})
+
+	t.Run("releasing an edit lock stays allowed", func(t *testing.T) {
+		// UNI-1645 phase 2 (ar merge1): acquire/refuse is the write block's
+		// business, but releasing only frees the document, so a shelved item
+		// keeps the release path - the holder can drop the tenure the shelve
+		// left behind (S-4 is still an open TODO: a shelve does not release).
+		lockPage := pageDoc(t, env)
+		held := takeEditLock(t, env, env.tn.aclOwner, lockPage.ID, "e-release", DocumentEditClientWebPage, "sid-release")
+		shelve(t, env, lockPage.ID)
+		if err := env.svc.ReleaseDocumentEditLock(env.f.ctx, mgr, lockPage.ID, held.Lock.ID); err != nil {
+			t.Fatalf("release on a shelved page: %v", err)
 		}
 	})
 }

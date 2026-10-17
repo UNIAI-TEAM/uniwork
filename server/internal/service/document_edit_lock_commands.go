@@ -118,13 +118,34 @@ func editLockTimePtr(t pgtype.Timestamptz) *time.Time {
 
 // editLockMutation is withDocumentMutation for a lock command: the database
 // clock read once in the transaction, and the counters moved only after the
-// commit.
+// commit. It carries the default shelve gate (write refused); a lock command
+// §3 keeps allowed on a shelved item uses editLockMutationOnShelved.
 func (s *DocumentService) editLockMutation(
 	ctx context.Context, actor Actor, documentID string, required DocumentLevel,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess, now time.Time, ops *editLockOps) error,
 ) error {
+	return s.editLockMutationOn(ctx, actor, documentID, required, shelveWriteRefused, fn)
+}
+
+// editLockMutationOnShelved is editLockMutation with the §3 stance for a lock
+// command allowed on a shelved document: releasing a tenure only frees the
+// document, so the release path stays open on a shelved item (the holder can
+// drop the tenure a shelve left live, S-4).
+func (s *DocumentService) editLockMutationOnShelved(
+	ctx context.Context, actor Actor, documentID string, required DocumentLevel,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess, now time.Time, ops *editLockOps) error,
+) error {
+	return s.editLockMutationOn(ctx, actor, documentID, required, shelveWriteAllowed, fn)
+}
+
+// editLockMutationOn is the shared body: one transaction under the document
+// row lock, carrying shelve as the command's stance on a shelved item.
+func (s *DocumentService) editLockMutationOn(
+	ctx context.Context, actor Actor, documentID string, required DocumentLevel, shelve shelveGate,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess, now time.Time, ops *editLockOps) error,
+) error {
 	ops := &editLockOps{}
-	err := s.withDocumentMutation(ctx, actor, documentID, required, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err := s.withDocumentMutationLocked(ctx, actor, documentID, "", required, shelve, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		now, err := editLockClock(ctx, q)
 		if err != nil {
 			return err
@@ -516,6 +537,16 @@ func (s *DocumentService) HeartbeatDocumentEditLock(ctx context.Context, actor A
 		}
 		return DocumentEditHeartbeat{}, gateErr
 	}
+	// ARCHIVE-01 (UNI-1845 §3): a heartbeat renews the tenure, a write on
+	// the document, so a shelved item refuses it - after the access gate, so
+	// a caller who may not see the row still gets the gate's answer. The
+	// tenure is left live: shelving does not release locks (S-4 is an open
+	// TODO), so it ends by TTL/hold-cap or an explicit release, never here.
+	// This is the one lock command outside withDocumentMutation (the
+	// heartbeat takes no document row lock, §2), so the gate has to say it.
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentEditHeartbeat{}, err
+	}
 	lock, err := s.q.GetDocumentEditLock(ctx, db.GetDocumentEditLockParams{
 		ID: lockID, OrganizationID: doc.OrganizationID, DocumentID: doc.ID,
 	})
@@ -610,12 +641,15 @@ func (s *DocumentService) endOnAccessLoss(ctx context.Context, actor Actor, docu
 }
 
 // ReleaseDocumentEditLock is R4: idempotent; a tenure that is not on this
-// document or not the caller's is not found, the two cases alike.
+// document or not the caller's is not found, the two cases alike. It is the
+// one lock command §3 keeps allowed on a shelved document
+// (editLockMutationOnShelved): releasing only frees the document, so a shelf
+// that leaves a tenure live (S-4) still lets the holder drop it.
 func (s *DocumentService) ReleaseDocumentEditLock(ctx context.Context, actor Actor, documentID, lockID string) error {
 	if lockID == "" {
 		return ErrNotFound
 	}
-	return s.editLockMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, _ DocumentAccess, now time.Time, ops *editLockOps) error {
+	return s.editLockMutationOnShelved(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, _ DocumentAccess, now time.Time, ops *editLockOps) error {
 		lock, err := q.GetDocumentEditLock(ctx, db.GetDocumentEditLockParams{
 			ID: lockID, OrganizationID: doc.OrganizationID, DocumentID: doc.ID,
 		})
