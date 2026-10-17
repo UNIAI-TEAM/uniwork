@@ -547,7 +547,7 @@ func TestOfficeCopyFromUpload(t *testing.T) {
 		t.Fatalf("share edit to peer = %d %v", res.StatusCode, out)
 	}
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/edit-lock", peerTok,
-		map[string]string{"editor_id": "01J8X4ED1T0R00000000000001", "client": "office_frame"}); res.StatusCode != 201 {
+		map[string]string{"editor_id": "01J8X4ED1T0R00000000000001", "client": "web_page"}); res.StatusCode != 201 {
 		t.Fatalf("peer acquire edit lock = %d %v", res.StatusCode, out)
 	}
 	lockedBytes := frameDocx(t, "while-locked")

@@ -508,22 +508,23 @@ func TestDocumentCopyUpload(t *testing.T) {
 				copied.Document.ID).Scan(&rawChanges); err != nil {
 				t.Fatalf("read audit changes: %v", err)
 			}
-			var diff struct {
-				After map[string]any `json:"after"`
+			var changes map[string]struct {
+				From any `json:"from"`
+				To   any `json:"to"`
 			}
-			if err := json.Unmarshal(rawChanges, &diff); err != nil {
+			if err := json.Unmarshal(rawChanges, &changes); err != nil {
 				t.Fatalf("decode audit changes %s: %v", rawChanges, err)
 			}
 			wantKeys := map[string]bool{
 				"title": true, "kind": true, "version_id": true, "file_id": true,
 				"source_document_id": true, "source_version_id": true, "reason": true,
 			}
-			if len(diff.After) != len(wantKeys) || diff.After["reason"] != "copy" || diff.After["file_id"] != up.UploadID {
-				t.Fatalf("audit changes.after = %v, want exact copy keys with file_id=%s", diff.After, up.UploadID)
+			if len(changes) != len(wantKeys) || changes["reason"].To != "copy" || changes["file_id"].To != up.UploadID {
+				t.Fatalf("audit changes = %v, want exact copy keys with file_id=%s", changes, up.UploadID)
 			}
-			for k := range diff.After {
+			for k := range changes {
 				if !wantKeys[k] {
-					t.Fatalf("unexpected audit field %q in %v", k, diff.After)
+					t.Fatalf("unexpected audit field %q in %v", k, changes)
 				}
 			}
 		})
@@ -710,6 +711,7 @@ type cappedRegistryFiles struct {
 }
 
 func (c cappedRegistryFiles) Registry() files.Registry { return c.reg }
+func (c cappedRegistryFiles) Unwrap() files.Service    { return c.Service }
 
 func filesfakeWithCapFrom(base files.Service, capBytes int64) files.Service {
 	specs := files.SpecsWithDocumentMaxBytes(capBytes)
