@@ -131,11 +131,31 @@ interface Options {
   visibilityFails?: boolean;
 }
 
+function okAccessUpdate(
+  body: any,
+  preview: { users: unknown[]; groups: unknown[]; warnings: unknown[] } = { users: [], groups: [], warnings: [] },
+) {
+  const items: any[] = body?.items ?? [];
+  return {
+    batch_id: body?.dry_run ? "" : "01JBATCH1",
+    dry_run: Boolean(body?.dry_run),
+    results: items.map((item, index) => ({
+      index,
+      status: item?.level === null ? "revoked" : "granted",
+    })),
+    preview,
+  };
+}
+
 function serve(over: Options = {}) {
   requestMock.mockReset();
   requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
     if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
       return Promise.resolve(over.access ?? accessPayload);
+    }
+    if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+      if (over.shareFails) return Promise.reject(new Error("share failed"));
+      return Promise.resolve(okAccessUpdate(opts.body));
     }
     if (path === "/api/v1/documents/d1/shares" && opts?.method === "POST") {
       if (over.shareFails) return Promise.reject(new Error("share failed"));
@@ -341,12 +361,12 @@ describe("ShareDialog", () => {
   });
 
   it("shares a workspace principal at the chosen level and clears the picker", async () => {
-    const posts: any[] = [];
+    const puts: any[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
-      if (path === "/api/v1/documents/d1/shares" && opts?.method === "POST") {
-        posts.push(opts.body);
-        return Promise.resolve({ share: { id: "s9", principal_id: opts.body.principal_id, level: opts.body.level } });
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        if (!opts.body?.dry_run) puts.push(opts.body);
+        return Promise.resolve(okAccessUpdate(opts.body));
       }
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
@@ -355,16 +375,18 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
-    await pickOption(t("documents.share.principal_placeholder"), "Design");
+    await pickPerson("Design");
     await pickOption(t("documents.share.level_label"), t("documents.share.level_edit"));
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
-    await waitFor(() => expect(posts.length).toBe(1));
-    expect(posts[0]).toEqual({ principal_type: "workspace", principal_id: "w2", level: "edit" });
+    await waitFor(() => expect(puts.length).toBe(1));
+    expect(puts[0]).toEqual({
+      items: [{ principal_type: "workspace", principal_id: "w2", level: "edit" }],
+      dry_run: false,
+    });
   });
 
-  it("never offers the document's own workspace as a share principal", async () => {
+  it("caps the document's own home workspace at edit in the unified picker (Q-S1)", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
@@ -381,30 +403,23 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
-    // SH-S1: the document's own workspace is its home row, moved only by the
-    // visibility control, so the workspace list leaves it out.
-    fireEvent.click(screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") }));
-    expect(await screen.findByRole("option", { name: "Design" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Team" })).toBeNull();
+    await pickPerson("Team");
+    fireEvent.click(screen.getByRole("combobox", { name: t("documents.share.level_label") }));
+    expect(await screen.findByRole("option", { name: t("documents.share.level_edit") })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: t("documents.share.level_manage") })).toBeNull();
   });
 
   it("judges the home row by the document's workspace, not the route's (BE-SHS1-20)", async () => {
-    // Route workspace ws1, document home w2 (an organization-wide shared-with-me
-    // row opened from another workspace): ws1 is an ordinary recipient, w2 is
-    // the home row, and the merged w2 answer (empty share id) is the write.
     let shareReads = 0;
-    const posts: any[] = [];
+    const puts: any[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
         shareReads += 1;
         return Promise.resolve(accessPayload);
       }
-      if (path === "/api/v1/documents/d1/shares" && opts?.method === "POST") {
-        posts.push(opts.body);
-        return Promise.resolve({
-          share: { id: "", principal_type: "workspace", principal_id: "w2", level: opts.body.level },
-        });
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        if (!opts.body?.dry_run) puts.push(opts.body);
+        return Promise.resolve(okAccessUpdate(opts.body));
       }
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) {
@@ -420,19 +435,10 @@ describe("ShareDialog", () => {
     renderDialog(documentFixture({ workspace_id: "w2" }));
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
-    fireEvent.click(screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") }));
-    expect(await screen.findByRole("option", { name: "Team" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Design" })).toBeNull();
-    fireEvent.pointerDown(screen.getByRole("option", { name: "Team" }), { pointerType: "mouse" });
-    fireEvent.pointerUp(screen.getByRole("option", { name: "Team" }), { pointerType: "mouse" });
-    fireEvent.click(screen.getByRole("option", { name: "Team" }));
-    await waitFor(() => expect(screen.queryAllByRole("option")).toHaveLength(0));
-
+    await pickPerson("Team");
     const before = shareReads;
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
-    await waitFor(() => expect(posts.length).toBe(1));
-    // The answer verifies against w2: the shares key is invalidated and read again.
+    await waitFor(() => expect(puts.length).toBe(1));
     await waitFor(() => expect(shareReads).toBeGreaterThan(before));
     expect(screen.queryByText(t("documents.share.submit_failed"))).toBeNull();
   });
@@ -440,7 +446,7 @@ describe("ShareDialog", () => {
   it("words the home-row level refusal with the ceiling the server names", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
-      if (path === "/api/v1/documents/d1/shares" && opts?.method === "POST") {
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
         return Promise.reject(
           new ApiError("dòng Workspace gốc chỉ nhận view, comment hoặc edit", "level_not_allowed", 422, undefined, {
             max: "edit",
@@ -454,8 +460,7 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
-    await pickOption(t("documents.share.principal_placeholder"), "Design");
+    await pickPerson("Design");
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -476,23 +481,25 @@ describe("ShareDialog", () => {
     expect(screen.getByRole("button", { name: t("documents.share.submit") })).not.toHaveAttribute("aria-disabled", "true");
   });
 
-  it("shares three people at one level with ONE batch POST and lists the three grants", async () => {
-    const posts: { path: string; body: any }[] = [];
+  it("shares three people at one level with ONE batch PUT and lists the three grants", async () => {
+    const puts: { path: string; body: any }[] = [];
     let granted: unknown[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
         return Promise.resolve({ ...accessPayload, shares: granted });
       }
-      if (opts?.method === "POST") {
-        posts.push({ path, body: opts.body });
-        granted = opts.body.principal_ids.map((id: string, i: number) => ({
-          id: `s${i + 10}`,
-          principal_type: "user",
-          principal_id: id,
-          level: opts.body.level,
-          active: true,
-        }));
-        return Promise.resolve({ shares: granted });
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        if (!opts.body?.dry_run) {
+          puts.push({ path, body: opts.body });
+          granted = opts.body.items.map((item: any, i: number) => ({
+            id: `s${i + 10}`,
+            principal_type: item.principal_type,
+            principal_id: item.principal_id,
+            level: item.level,
+            active: true,
+          }));
+        }
+        return Promise.resolve(okAccessUpdate(opts.body));
       }
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(threeMembersPayload);
       return Promise.resolve({});
@@ -506,10 +513,17 @@ describe("ShareDialog", () => {
     expect(screen.getByText(t("documents.share.people_selected", { count: 3 }))).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
-    await waitFor(() => expect(posts).toHaveLength(1));
-    expect(posts[0]).toEqual({
-      path: "/api/v1/documents/d1/shares/batch",
-      body: { principal_ids: ["u2", "u3", "u4"], level: "view" },
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]).toEqual({
+      path: "/api/v1/documents/d1/access",
+      body: {
+        items: [
+          { principal_type: "user", principal_id: "u2", level: "view" },
+          { principal_type: "user", principal_id: "u3", level: "view" },
+          { principal_type: "user", principal_id: "u4", level: "view" },
+        ],
+        dry_run: false,
+      },
     });
     const access = screen.getByRole("region", { name: t("documents.share.access_title") });
     for (const name of ["Bình", "Chi", "Dũng"]) {
@@ -526,7 +540,7 @@ describe("ShareDialog", () => {
     const { ApiError } = await import("@uniwork/core/api");
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
-      if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
         return Promise.reject(
           new ApiError("not in organization", "principal_not_in_organization", 422, undefined, {
             principal_ids: ["u3"],
@@ -563,16 +577,15 @@ describe("ShareDialog", () => {
     expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("drops the picked people when the principal type moves away from person", async () => {
+  it("allows mixing person and workspace chips in the unified picker", async () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
     await pickPerson("Chi");
-    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
-    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_user"));
+    await pickPerson("Design");
 
-    expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Chi" }) })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Design" }) })).toBeInTheDocument();
   });
 
   it("drops the picked people when the dialog closes and opens again", async () => {
@@ -599,27 +612,48 @@ describe("ShareDialog", () => {
     expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
   });
 
-  it("revokes one grant without touching the others", async () => {
-    const calls: string[] = [];
-    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+  it("revokes one grant via dry_run confirmation without touching the others", async () => {
+    const puts: any[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
-      if (opts?.method === "DELETE") calls.push(path);
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        puts.push(opts.body);
+        return Promise.resolve(
+          okAccessUpdate(opts.body, {
+            users: [{ user_id: "u2", before: { level: "view", via: "share" }, after: { level: null, via: null } }],
+            groups: [],
+            warnings: [],
+          }),
+        );
+      }
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       return Promise.resolve({});
     });
     renderDialog();
 
     fireEvent.click(await screen.findByRole("button", { name: `${t("documents.share.revoke")} Bình` }));
-    await waitFor(() => expect(calls).toContain("/api/v1/documents/d1/shares/s1"));
+    const confirmRegion = await screen.findByTestId("share-access-confirm");
+    fireEvent.click(within(confirmRegion).getByRole("button", { name: t("documents.share.confirm_accept") }));
+
+    await waitFor(() => expect(puts).toHaveLength(2));
+    expect(puts[1]).toEqual({
+      items: [{ principal_type: "user", principal_id: "u2", level: null }],
+      dry_run: false,
+    });
   });
 
-  it("saves a visibility change on the revision it read", async () => {
-    const patches: any[] = [];
+  it("updates the home workspace row level via PUT /access", async () => {
+    const puts: any[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
-      if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
-      if (path === "/api/v1/documents/d1" && opts?.method === "PATCH") {
-        patches.push(opts.body);
-        return Promise.resolve({ document: documentFixture({ visibility: opts.body.visibility }) });
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
+        return Promise.resolve({
+          ...accessPayload,
+          home_workspace: { workspace_id: WS, workspace_name: "Team", level: "edit" },
+        });
+      }
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        if (!opts.body?.dry_run) puts.push(opts.body);
+        return Promise.resolve(okAccessUpdate(opts.body));
       }
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       return Promise.resolve({});
@@ -627,20 +661,33 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.share.visibility_restricted")) }));
-    fireEvent.click(screen.getByRole("button", { name: t("documents.share.visibility_save") }));
+    await pickOption(`${t("documents.share.level_label")} Team`, t("documents.share.level_view"));
 
-    await waitFor(() => expect(patches.length).toBe(1));
-    expect(patches[0]).toEqual({ visibility: "restricted", revision: "7" });
+    await waitFor(() => expect(puts.length).toBe(1));
+    expect(puts[0]).toEqual({
+      items: [{ principal_type: "workspace", principal_id: WS, level: "view", on_existing: "update" }],
+      dry_run: false,
+    });
   });
 
-  it("keeps a failed visibility change with its message", async () => {
-    serve({ visibilityFails: true });
+  it("keeps a failed home-workspace change with its message", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
+        return Promise.resolve({
+          ...accessPayload,
+          home_workspace: { workspace_id: WS, workspace_name: "Team", level: "edit" },
+        });
+      }
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        return Promise.reject(new Error("visibility failed"));
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      return Promise.resolve({});
+    });
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.share.visibility_restricted")) }));
-    fireEvent.click(screen.getByRole("button", { name: t("documents.share.visibility_save") }));
+    await pickOption(`${t("documents.share.level_label")} Team`, t("documents.share.level_view"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("visibility failed");
   });
@@ -676,13 +723,13 @@ describe("ShareDialog", () => {
     expect(url).toHaveTextContent("https://app.uniwork.vn/share/raw-token");
   });
 
-  it("keeps the organization picked after an organization grant", async () => {
-    const posts: any[] = [];
+  it("shares the organization via PUT /access and clears the picker", async () => {
+    const puts: any[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
-      if (path === "/api/v1/documents/d1/shares" && opts?.method === "POST") {
-        posts.push(opts.body);
-        return Promise.resolve({ share: { id: "s9", principal_id: opts.body.principal_id, level: opts.body.level } });
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        if (!opts.body?.dry_run) puts.push(opts.body);
+        return Promise.resolve(okAccessUpdate(opts.body));
       }
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
@@ -691,12 +738,15 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_organization"));
+    await pickPerson("Acme");
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
-    await waitFor(() => expect(posts.length).toBe(1));
-    expect(posts[0]).toEqual({ principal_type: "organization", principal_id: ORG, level: "view" });
-    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.share.submit") })).not.toHaveAttribute("aria-disabled", "true"));
+    await waitFor(() => expect(puts.length).toBe(1));
+    expect(puts[0]).toEqual({
+      items: [{ principal_type: "organization", principal_id: ORG, level: "view" }],
+      dry_run: false,
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true"));
   });
 
   it("explains the link limit without leaving the dialog", async () => {
@@ -742,12 +792,12 @@ describe("ShareDialog", () => {
   });
 
   it("offers the Comment level in the level picker and submits level='comment'", async () => {
-    const posts: any[] = [];
+    const puts: any[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
-      if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
-        posts.push(opts.body);
-        return Promise.resolve({ shares: [] });
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        if (!opts.body?.dry_run) puts.push(opts.body);
+        return Promise.resolve(okAccessUpdate(opts.body));
       }
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
       if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
@@ -760,18 +810,18 @@ describe("ShareDialog", () => {
     await pickOption(t("documents.share.level_label"), t("documents.share.level_comment"));
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
-    await waitFor(() => expect(posts.length).toBe(1));
-    expect(posts[0]).toEqual({ principal_ids: ["u2"], level: "comment" });
+    await waitFor(() => expect(puts.length).toBe(1));
+    expect(puts[0]).toEqual({
+      items: [{ principal_type: "user", principal_id: "u2", level: "comment", on_existing: "keep" }],
+      dry_run: false,
+    });
   });
 
-  it("shows documents.breakGlass.selfShareError when share or visibility save fails with 403 break_glass_required", async () => {
+  it("shows documents.breakGlass.selfShareError when share fails with 403 break_glass_required", async () => {
     const { ApiError } = await import("@uniwork/core/api");
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
-      if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
-        return Promise.reject(new ApiError("break glass required", "break_glass_required", 403));
-      }
-      if (path === "/api/v1/documents/d1" && opts?.method === "PATCH") {
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
         return Promise.reject(new ApiError("break glass required", "break_glass_required", 403));
       }
       if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
@@ -784,11 +834,6 @@ describe("ShareDialog", () => {
     await pickPerson("Bình");
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
     expect(await screen.findByRole("alert")).toHaveTextContent(t("documents.breakGlass.selfShareError"));
-
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.share.visibility_restricted")) }));
-    fireEvent.click(screen.getByRole("button", { name: t("documents.share.visibility_save") }));
-    const alerts = await screen.findAllByRole("alert");
-    expect(alerts.some((el) => el.textContent === t("documents.breakGlass.selfShareError"))).toBe(true);
   });
 
   it("renders active emergency access grants under 'Truy cập khẩn cấp đang mở' and revokes them", async () => {
@@ -832,15 +877,15 @@ describe("ShareDialog", () => {
   });
 
   /** Members split over two pages: page 2 holds Minh (u5) and the ACL owner (u9). */
-  function servePagedMembers(onPost?: (body: any) => void) {
+  function servePagedMembers(onPut?: (body: any) => void) {
     const memberPaths: string[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
         return Promise.resolve({ ...accessPayload, acl_owner: { user_id: "u9", level: "manage", via: "member" } });
       }
-      if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
-        onPost?.(opts.body);
-        return Promise.resolve({ shares: [] });
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        if (!opts.body?.dry_run) onPut?.(opts.body);
+        return Promise.resolve(okAccessUpdate(opts.body));
       }
       if (path.startsWith("/api/v1/orgs/acme/members")) {
         memberPaths.push(path);
@@ -870,7 +915,14 @@ describe("ShareDialog", () => {
     await pickPerson("Minh");
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
-    await waitFor(() => expect(bodies).toEqual([{ principal_ids: ["u5"], level: "view" }]));
+    await waitFor(() =>
+      expect(bodies).toEqual([
+        {
+          items: [{ principal_type: "user", principal_id: "u5", level: "view" }],
+          dry_run: false,
+        },
+      ]),
+    );
     expect(memberPaths.some((p) => p.includes("cursor=c2"))).toBe(true);
   });
 
@@ -911,21 +963,17 @@ describe("ShareDialog", () => {
     expect(input.closest(".sm\\:col-span-2")).not.toBeNull();
   });
 
-  it("keeps disabled submit and visibility-save buttons in the tab order via aria-disabled and blocks clicks (VIS-SHS1-11)", async () => {
+  it("keeps disabled submit button in the tab order via aria-disabled and blocks clicks (VIS-SHS1-11)", async () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
     const submitBtn = screen.getByRole("button", { name: t("documents.share.submit") });
-    const saveVisBtn = screen.getByRole("button", { name: t("documents.share.visibility_save") });
 
     expect(submitBtn).not.toBeDisabled();
     expect(submitBtn).toHaveAttribute("aria-disabled", "true");
-    expect(saveVisBtn).not.toBeDisabled();
-    expect(saveVisBtn).toHaveAttribute("aria-disabled", "true");
 
     const callsBefore = requestMock.mock.calls.length;
     fireEvent.click(submitBtn);
-    fireEvent.click(saveVisBtn);
     expect(requestMock.mock.calls.length).toBe(callsBefore);
   });
 
@@ -1020,7 +1068,7 @@ describe("ShareDialog requests section (DOC7-W02)", () => {
   }
   const listed = () => requestMock.mock.calls.some(([path]) => path === LIST);
 
-  it("orders dialog sections as add -> access list -> access requests -> visibility -> public links (VIS-SHS1-02)", async () => {
+  it("orders dialog sections as add -> access list -> access requests -> public links (VIS-SHS1-02)", async () => {
     serveRequests();
     renderDialog();
     const requestsHeading = await screen.findByRole("heading", {
@@ -1030,13 +1078,11 @@ describe("ShareDialog requests section (DOC7-W02)", () => {
     const addSection = screen.getByRole("region", { name: t("documents.share.add_title") });
     const accessSection = screen.getByRole("region", { name: t("documents.share.access_title") });
     const requestsSection = requestsHeading.closest("section")!;
-    const visibilitySection = screen.getByRole("region", { name: t("documents.share.visibility_title") });
     const linksSection = screen.getByRole("region", { name: t("documents.share.links_title") });
 
     expect(addSection.compareDocumentPosition(accessSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(accessSection.compareDocumentPosition(requestsSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(requestsSection.compareDocumentPosition(visibilitySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(visibilitySection.compareDocumentPosition(linksSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(requestsSection.compareDocumentPosition(linksSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("is there for a pure admin (admin_scope without a level)", async () => {

@@ -1,12 +1,6 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
 import {
-  DocumentBreakGlassGrantSchema,
-  DocumentPersonAccessSchema,
-  type DocumentBreakGlassGrant,
-  type DocumentPersonAccess,
-} from "./document-access";
-import {
   DOCUMENT_COMMENT_KINDS,
   DocumentCommentMentionSchema,
   DocumentCommentRevisionListEnvelopeSchema,
@@ -486,85 +480,27 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
 export const DocumentTreeSchema = z.object({ documents: z.array(DocumentTreeNodeSchema) });
 export type DocumentTree = z.infer<typeof DocumentTreeSchema>;
 
-export { DocumentPersonAccessSchema, type DocumentPersonAccess };
-
-export const DocumentShareSchema = z.object({
-  id: z.string(),
-  principal_type: z.string(),
-  principal_id: z.string(),
-  level: z.string(),
-  active: z.boolean().optional().default(true),
-  effective_level: z.string().nullable().optional(),
-  effective_via: z.string().nullable().optional(),
-  granted_by: z.string().optional().default(""),
-  granted_by_kind: z.string().optional().default("human"),
-  created_at: z.string().optional().default(""),
-});
-export type DocumentShare = Omit<z.infer<typeof DocumentShareSchema>, "level" | "effective_level" | "effective_via"> & {
-  level: DocumentAccessLevel;
-  effective_level?: DocumentAccessLevel | null;
-  effective_via?: DocumentAccessVia | null;
-};
-
-export const DocumentLinkSchema = z.object({
-  id: z.string(),
-  expires_at: z.string().nullable().optional(),
-  view_count: z.number().optional().default(0),
-  created_by: z.string().optional().default(""),
-  created_by_kind: z.string().optional().default("human"),
-  created_at: z.string().optional().default(""),
-});
-export type DocumentLink = z.infer<typeof DocumentLinkSchema>;
-
-/** The access overview: my level always; grants/links/acl-owner/break-glass at manage or admin scope. */
-export const DocumentAccessSchema = z
-  .object({
-    my_level: z.string().optional(),
-    admin_scope: z.boolean().optional().catch(undefined),
-    via: z.string().optional().default(""),
-    acl_owner: DocumentPersonAccessSchema.nullable().optional(),
-    shares: z.array(DocumentShareSchema).optional(),
-    links: z.array(DocumentLinkSchema).optional(),
-    break_glass: z
-      .unknown()
-      .optional()
-      .transform((raw): DocumentBreakGlassGrant[] | undefined => {
-        if (raw === undefined || raw === null) return undefined;
-        if (!Array.isArray(raw)) return [];
-        const grants: DocumentBreakGlassGrant[] = [];
-        for (const item of raw) {
-          const parsed = DocumentBreakGlassGrantSchema.safeParse(item);
-          if (parsed.success) grants.push(parsed.data as DocumentBreakGlassGrant);
-        }
-        return grants;
-      }),
-  })
-  // The level is how a real answer is told from a malformed one. It may be
-  // empty (an admin-only caller holds no level), but the key must be there
-  // unless the server says admin_scope; anything else degrades to null.
-  .refine((v) => v.my_level !== undefined || v.admin_scope === true)
-  .transform((v) => ({ ...v, my_level: v.my_level ?? "" }));
-export type DocumentAccess = Omit<z.infer<typeof DocumentAccessSchema>, "my_level" | "via"> & {
-  my_level: DocumentAccessLevel;
-  via: DocumentAccessVia;
-  /** True for a workspace admin administering a restricted document they do not own (DOC-05). */
-  admin_scope?: boolean;
-};
-
-export const DocumentShareEnvelopeSchema = z.object({ share: DocumentShareSchema });
-export type DocumentShareEnvelope = { share: DocumentShare };
-
-/** A batch grant (UNI-1641): one live row per distinct principal, in request order. */
-export const DocumentShareBatchSchema = z.object({ shares: z.array(DocumentShareSchema) });
-export type DocumentShareBatch = { shares: DocumentShare[] };
-
-/** A freshly minted link: the raw token rides this answer exactly once. */
-export const DocumentLinkEnvelopeSchema = z.object({
-  link: DocumentLinkSchema,
-  token: z.string(),
-  url: z.string(),
-});
-export type DocumentLinkEnvelope = { link: DocumentLink; token: string; url: string };
+export {
+  DocumentAccessSchema,
+  DocumentAccessSourceSchema,
+  DocumentHomeWorkspaceAccessSchema,
+  DocumentLinkEnvelopeSchema,
+  DocumentLinkSchema,
+  DocumentPersonAccessSchema,
+  DocumentShareBatchSchema,
+  DocumentShareEnvelopeSchema,
+  DocumentShareSchema,
+  type DocumentAccess,
+  type DocumentAccessSource,
+  type DocumentHomeWorkspaceAccess,
+  type DocumentLink,
+  type DocumentLinkEnvelope,
+  type DocumentPersonAccess,
+  type DocumentShare,
+  type DocumentShareBatch,
+  type DocumentShareEnvelope,
+  type DocumentShareWarningCode,
+} from "./document-access";
 
 export const DocumentAccessLogSchema = z.object({
   id: z.string(),
