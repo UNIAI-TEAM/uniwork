@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1847-save-01-desktop; git log --oneline -3
+fc063d9743f5f55758190c78ee5f99532aa4877a
+fc063d9743f5f55758190c78ee5f99532aa4877a
+fc063d97 test(uniwork-docs): SAVE-01 r3 first-save regression pins - cleanup diagnostics, idempotency verdict matrix, retry bytes
+4544ea24 fix(uniwork-docs): SAVE-01 r3 first-save ordering, send race, body-bound retry key, cleanup on thrown write (S01-R2-1,-2,-3,-5,-6)
+86727353 test(uniwork-docs): SAVE-01 r3 first-save coverage (S01-R2-1,-2,-3,-5,-6)
