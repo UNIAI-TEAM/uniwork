@@ -159,12 +159,27 @@ func applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor
 		PrincipalType:  in.PrincipalType,
 		PrincipalID:    in.PrincipalID,
 	})
-	var before map[string]any
-	switch {
-	case err == nil:
-		if prev.Level == string(in.Level) {
-			return prev, nil
+	if err == nil && prev.Level == string(in.Level) {
+		return prev, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return db.DocumentShare{}, err
+	}
+	// SH-S3 (UNI-1782; addendum §8, §10 Q-S2): notify a user recipient only
+	// when the command strictly raises their effective level on the document
+	// compared to before the grant is written.
+	var notifyUserID string
+	if in.PrincipalType == DocumentPrincipalUser && !(actor.Kind == audit.KindHuman && in.PrincipalID == actor.ID) {
+		beforeAccess, err := (&DocumentService{orgs: &OrganizationService{}, ws: &WorkspaceService{}}).effectiveLevel(ctx, q, Human(in.PrincipalID), doc)
+		if err != nil && !isGateRefusal(err) {
+			return db.DocumentShare{}, err
 		}
+		if err == nil && in.Level.rank() > beforeAccess.Level.rank() {
+			notifyUserID = in.PrincipalID
+		}
+	}
+	var before map[string]any
+	if err == nil {
 		if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 			ID: prev.ID, OrganizationID: prev.OrganizationID, WorkspaceID: prev.WorkspaceID,
 			DocumentID: prev.DocumentID, RevokedBy: nullText(actor.ID),
@@ -172,9 +187,6 @@ func applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor
 			return db.DocumentShare{}, err
 		}
 		before = map[string]any{"level": prev.Level}
-	case errors.Is(err, pgx.ErrNoRows):
-	default:
-		return db.DocumentShare{}, err
 	}
 	sh, err := q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
 		ID:             util.NewID(),
@@ -198,6 +210,14 @@ func applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor
 	if batchID != "" {
 		meta["batch_id"] = batchID
 	}
+	payload := map[string]string{
+		"document_id":  doc.ID,
+		"workspace_id": doc.WorkspaceID,
+		"share_id":     sh.ID,
+	}
+	if notifyUserID != "" {
+		payload["notify_user_id"] = notifyUserID
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
@@ -207,11 +227,7 @@ func applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor
 		ResourceID:     doc.ID,
 		Changes:        audit.Diff(before, map[string]any{"level": sh.Level}),
 		Metadata:       meta,
-	}, audit.Event{Topic: "document.shared", Payload: map[string]string{
-		"document_id":  doc.ID,
-		"workspace_id": doc.WorkspaceID,
-		"share_id":     sh.ID,
-	}}); err != nil {
+	}, audit.Event{Topic: "document.shared", Payload: payload}); err != nil {
 		return db.DocumentShare{}, err
 	}
 	return sh, nil
@@ -704,6 +720,9 @@ type SharedDocument struct {
 	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
 	// carries the tenure id.
 	EditLock *DocumentEditLockSummary
+	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
+	// addendum §6.4, §7); nil for agent actors.
+	ShareScope *DocumentShareScope
 }
 
 // SharedWithMeQuery is one page request of the recipient's shared list.
@@ -764,7 +783,10 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	for i := range page.Items {
 		page.Items[i].Facts = facts[i]
 	}
-	return page, s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items)
+	if err := s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
+	return page, s.attachSharedShareScopes(ctx, Human(userID), organizationID, page.Items)
 }
 
 func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, organizationID string, in SharedWithMeQuery) (SharedWithMePage, error) {

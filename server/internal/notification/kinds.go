@@ -57,6 +57,8 @@ const (
 	KindDocumentAccessRequested = "document_access_requested"
 	KindDocumentAccessApproved  = "document_access_approved"
 	KindDocumentAccessDeclined  = "document_access_declined"
+	// Direct user document share that raises effective access (SH-S3, UNI-1782).
+	KindDocumentShared = "document_shared"
 )
 
 // Kinds is the list in display order.
@@ -70,6 +72,7 @@ var Kinds = []string{
 	KindDocumentBreakGlass,
 	KindChatMentioned, KindChatDM, KindChatThreadReplied,
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
+	KindDocumentShared,
 }
 
 var kindSet = func() map[string]bool {

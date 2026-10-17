@@ -21,6 +21,7 @@ type Prefs struct {
 // An emergency access to a restricted document also pushes (DOC-05).
 func DefaultPrefs(kind string) Prefs {
 	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
+		kind == KindDocumentShared ||
 		kind == KindTaskAssigned || kind == KindMeetingStarting ||
 		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM ||
 		kind == KindDocumentEditRequested || kind == KindDocumentEditTakenOver

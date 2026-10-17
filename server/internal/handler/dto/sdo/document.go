@@ -214,6 +214,19 @@ type DocumentSummaryDTO struct {
 	UpdatedAt     string                      `json:"updated_at" example:"2026-09-27T09:00:00Z"`
 	// Path rides only on a search (q) result row (E6/FD-05, UNI-1465).
 	Path []DocumentPathItemSDO `json:"path,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha trực tiếp; cắt ở tổ tiên đầu tiên người gọi không đọc được; chỉ có trên dòng kết quả tìm bằng q" example:"[{\"id\":\"01J8X4DOC0N1P2Q3R4S5T6U7W9\",\"title\":\"Tài liệu nội bộ\"}]"`
+	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
+	// addendum §6.4, §7); absent for agent actors (C-01 §4).
+	ShareScope *DocumentShareScopeSDO `json:"share_scope,omitempty" description:"Tóm tắt phạm vi chia sẻ trên dòng danh sách (Workspace gốc, số người dùng, số workspace khác, toàn tổ chức, liên kết công khai còn sống); vắng mặt với tác nhân agent" example:"{\"home_workspace\":true,\"users\":2,\"workspaces\":1,\"organization\":false,\"public_link\":false}"`
+}
+
+// DocumentShareScopeSDO is the share_scope block of DocumentSummaryDTO
+// (SH-S3, UNI-1782; addendum §6.4, §7).
+type DocumentShareScopeSDO struct {
+	HomeWorkspace bool `json:"home_workspace" description:"true = dòng Workspace gốc đang bật (visibility = workspace) hoặc còn grant sống cho chính workspace gốc" example:"true"`
+	Users         int  `json:"users" description:"Số grant trực tiếp còn sống cho người dùng (principal_type = user)" example:"2"`
+	Workspaces    int  `json:"workspaces" description:"Số grant trực tiếp còn sống cho workspace khác (principal_type = workspace, khác workspace gốc)" example:"1"`
+	Organization  bool `json:"organization" description:"true = có grant trực tiếp còn sống cho toàn tổ chức" example:"false"`
+	PublicLink    bool `json:"public_link" description:"true = có ít nhất một liên kết công khai chưa thu hồi và chưa hết hạn" example:"false"`
 }
 
 // DocumentListSDO is the page shape shared by list, recent and

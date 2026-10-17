@@ -110,14 +110,17 @@ var rules = map[string]rule{
 	// DOC-05 (UNI-1628): an admin opened emergency view access to a
 	// restricted document; the owner must hear about it.
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
-	"participant.invited":          ruleParticipantInvited,
-	"member.joined":                ruleMemberJoined,
-	"member.role_changed":          ruleRoleChanged,
-	"audit.exported":               ruleAuditExported,
-	"chat.follow_up.created":       ruleChatFollowUpCreated,
-	"chat.reminder.due":            ruleChatReminderDue,
-	"email_hub.new_mail":           ruleEmailHubNewMail,
-	"meeting.ended":                ruleMeetingEnded,
+	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
+	// effective level on the document.
+	"document.shared":        ruleDocumentShared,
+	"participant.invited":    ruleParticipantInvited,
+	"member.joined":          ruleMemberJoined,
+	"member.role_changed":    ruleRoleChanged,
+	"audit.exported":         ruleAuditExported,
+	"chat.follow_up.created": ruleChatFollowUpCreated,
+	"chat.reminder.due":      ruleChatReminderDue,
+	"email_hub.new_mail":     ruleEmailHubNewMail,
+	"meeting.ended":          ruleMeetingEnded,
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
@@ -628,6 +631,75 @@ func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p 
 		"document_id": doc.ID, "grant_id": p["grant_id"],
 	}
 	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params)
+}
+
+// ruleDocumentShared notifies a person when a direct user share raised their
+// effective level on the document (SH-S3, UNI-1782; addendum §8, §10 Q-S2).
+// The mutation transaction stamps notify_user_id on the event only when that
+// rise holds; this rule re-checks CanReadDocument at delivery time so a grant
+// revoked before the consumer runs sends nothing.
+func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid := p["notify_user_id"]
+	if e.docs == nil || p["document_id"] == "" || p["share_id"] == "" || uid == "" {
+		return nil, nil
+	}
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	var level string
+	sh, err := e.q.GetLiveDocumentShareByID(ctx, db.GetLiveDocumentShareByIDParams{
+		ID: p["share_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	switch {
+	case err == nil:
+		if sh.PrincipalType != "user" || sh.PrincipalID != uid {
+			return nil, nil
+		}
+		level = sh.Level
+	case errors.Is(err, pgx.ErrNoRows):
+		changes, err := changedFields(ctx, e.q, ev, audit.ActionDocumentShared, doc.ID)
+		if err != nil {
+			return nil, err
+		}
+		level, _ = changeTo(changes, "level")
+		if level == "" {
+			return nil, nil
+		}
+	default:
+		return nil, err
+	}
+	return []Draft{{
+		UserID:         uid,
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Kind:           KindDocumentShared,
+		GroupKey:       "document:" + doc.ID + ":shared",
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		ActorKind:      actorKindOf(ev),
+		ActorID:        ev.ActorID.String,
+		Params: map[string]string{
+			"actor":       actorName(ctx, e.q, ev),
+			"document":    doc.Title,
+			"document_id": doc.ID,
+			"level":       level,
+		},
+	}}, nil
 }
 
 func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
