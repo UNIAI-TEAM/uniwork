@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   ChunkedUploadError,
   chunkedUploadThreshold,
@@ -64,7 +65,17 @@ export function useDocumentFileUpload({
 
   const uploadDroppedFile = async (file: File): Promise<void> => {
     if (isChunkedFile(file)) {
-      await chunked.start({ file, filename: file.name });
+      const toastId = toast.loading(t("documents.upload.progress_status", { name: file.name }), {
+        action: {
+          label: t("documents.upload.cancel"),
+          onClick: () => void chunked.cancel(file),
+        },
+      });
+      try {
+        await chunked.start({ file, filename: file.name });
+      } finally {
+        toast.dismiss(toastId);
+      }
       return;
     }
     await createFile.mutateAsync({

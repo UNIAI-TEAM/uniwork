@@ -3,6 +3,7 @@
 import { useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
 import { DEFAULT_DOCUMENT_MAX_BYTES } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 
@@ -42,6 +43,9 @@ export function useDropUpload({
         await upload(file);
         done += 1;
       } catch (error) {
+        if (error instanceof ChunkedUploadError && error.code === "upload_canceled") {
+          continue;
+        }
         toast.error(
           documentErrorMessage(error, t, "documents.home.drop_failed", {
             locale: i18n.language,

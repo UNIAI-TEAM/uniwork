@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -692,5 +693,107 @@ describe("Chunked document upload in views", () => {
 
     expect(onOpen).not.toHaveBeenCalled();
   });
+
+  it("shows a loading toast with a Cancel action when dropping a file above threshold and suppresses toast.error on cancel", async () => {
+    const calls: string[] = [];
+    const loadingSpy = vi.spyOn(toast, "loading").mockReturnValue("drop-toast-1");
+    const dismissSpy = vi.spyOn(toast, "dismiss").mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const successSpy = vi.spyOn(toast, "success").mockImplementation(() => "");
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) {
+        return {
+          flags: { documents: true },
+          documents: {
+            limits: {
+              upload_max_bytes: 200 * 1024 * 1024,
+              chunked_upload_threshold_bytes: THRESHOLD,
+              docx_max_bytes: 200 * 1024 * 1024,
+              xlsx_max_bytes: 200 * 1024 * 1024,
+              pptx_max_bytes: 200 * 1024 * 1024,
+              pdf_max_bytes: 200 * 1024 * 1024,
+            },
+          },
+        };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-drop-cancel",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-drop-cancel" && method === "DELETE") {
+        return {};
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("part-1")) {
+          return new Response(null, { status: 200, headers: { ETag: '"etag-1"' } });
+        }
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      }),
+    );
+
+    renderPageView();
+    await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    await waitFor(() => {
+      expect(calls.some((c) => c.startsWith("GET /api/v1/config"))).toBe(true);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const dropRegion = screen.getByRole("region", { name: t("documents.page.title") });
+    const bigFile = makePdfFile(THRESHOLD * 2, "dropped-large.pdf");
+
+    fireEvent.drop(dropRegion, {
+      dataTransfer: { types: ["Files"], files: [bigFile] },
+    });
+
+    await waitFor(() => {
+      expect(loadingSpy).toHaveBeenCalledWith(
+        t("documents.upload.progress_status", { name: "dropped-large.pdf" }),
+        expect.objectContaining({
+          action: expect.objectContaining({
+            label: t("documents.upload.cancel"),
+          }),
+        }),
+      );
+      expect(calls).toContain(`POST /api/v1/workspaces/${WS}/documents/upload-sessions`);
+    });
+
+    const toastOpts = loadingSpy.mock.calls[0]?.[1] as {
+      action?: { label: string; onClick: () => void };
+    };
+    act(() => {
+      toastOpts.action?.onClick();
+    });
+
+    await waitFor(() => {
+      expect(calls).toContain("DELETE /api/v1/upload-sessions/sess-drop-cancel");
+      expect(dismissSpy).toHaveBeenCalledWith("drop-toast-1");
+    });
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(successSpy).not.toHaveBeenCalled();
+  });
 });
+
 
