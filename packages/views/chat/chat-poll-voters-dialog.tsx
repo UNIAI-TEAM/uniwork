@@ -11,6 +11,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Progress } from "@uniwork/ui/components/ui/progress";
 import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 
@@ -33,7 +34,7 @@ function PollVoterList({ voterIds, names }: { voterIds: string[]; names: VoterNa
     return <p className="text-caption text-muted-foreground">{t("chat.poll_voters_empty")}</p>;
   }
   return (
-    <ul className="space-y-2">
+    <ul className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2">
       {voterIds.map((userId) => {
         const label = resolvePollVoterLabel(
           userId,
@@ -42,12 +43,12 @@ function PollVoterList({ voterIds, names }: { voterIds: string[]; names: VoterNa
           names.youLabel,
         );
         return (
-          <li key={userId} className="flex min-w-0 items-center gap-2">
+          <li key={userId} className="flex min-w-0 items-center gap-2.5">
             <ActorAvatar
               name={label}
               initials={voterInitial(label)}
               avatarUrl={resolveAvatarUrlFromNameContext(names.nameContext, userId)}
-              size="sm"
+              size="md"
             />
             <span className="truncate text-body text-foreground">{label}</span>
           </li>
@@ -70,10 +71,10 @@ function PollOptionVotersSection({
 }) {
   const { t } = useTranslation();
   return (
-    <section className="space-y-3 rounded-lg border border-border p-3">
+    <section className="space-y-3 rounded-xl border border-border px-3.5 pt-3 pb-3.5">
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="min-w-0 truncate text-body font-semibold text-foreground">{option.label}</p>
+          <p className="min-w-0 truncate text-body-lg font-semibold text-foreground">{option.label}</p>
           <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
             {t("chat.poll_voters_option_count", { count: option.votes })}
           </span>
@@ -120,14 +121,14 @@ export function ChatPollVotersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
         <FormDialogHeader
           title={focusedOption ? focusedOption.label : t("chat.poll_voters_title")}
           description={question}
         />
 
         <FormDialogBody className="space-y-3">
-          <p className="text-overline uppercase text-muted-foreground">
+          <p className="text-overline font-semibold uppercase text-muted-foreground tabular-nums">
             {focusedOption
               ? t("chat.poll_voters_option_count", { count: focusedOption.votes })
               : t("chat.poll_vote_hint", { count: totalVotes })}

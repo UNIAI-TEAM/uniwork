@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioLines, Play } from "lucide-react";
+import { AudioLines, CircleDot, Mic, Play } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatVoiceRecordingItem } from "@uniwork/core/api/endpoints/chat-voice";
@@ -23,7 +23,13 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { moduleTone } from "../layout/module-tones";
+import {
+  CHAT_EMPTY_TILE_CLASS,
+  CHAT_EMPTY_TITLE_CLASS,
+  CHAT_PILL_SM_CLASS,
+  CHAT_SHEET_CLASS,
+  CHAT_SHEET_HEADER_CLASS,
+} from "./chat-dialog-look";
 import { formatMessageDateTime, formatMessageDay, formatMessageTime } from "./chat-message-time";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { formatVoiceCallDuration } from "./voice-call-duration";
@@ -95,7 +101,10 @@ function RecordingStatusPill({ status }: { status: RecordingStatus }) {
   return (
     <span
       data-status={status}
-      className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-micro font-semibold", STATUS_TONE[status])}
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-micro font-semibold",
+        STATUS_TONE[status],
+      )}
     >
       {t(STATUS_LABEL_KEY[status])}
     </span>
@@ -130,11 +139,14 @@ function RecordingRow({
     t("chat.voice_recordings_unknown_member"),
   );
 
+  const live = status === "active";
   return (
-    <li className="rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors duration-(--duration-fast) hover:bg-surface-hover">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p id={`${describedById}-when`} className="text-body font-medium text-foreground tabular-nums">
+    <li className="flex items-start gap-3 px-2 py-3.5">
+      {/* A running recording is the red record mark; a finished one is the mic. */}
+      <IconTile icon={live ? CircleDot : Mic} tone={live ? "destructive" : "muted"} size="md" />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <p id={`${describedById}-when`} className="min-w-0 truncate text-body-lg font-semibold text-foreground tabular-nums">
             {startedTs === null ? (
               t("chat.voice_recordings_unknown_time")
             ) : (
@@ -149,24 +161,24 @@ function RecordingRow({
               </time>
             )}
           </p>
-          <p id={`${describedById}-who`} className="mt-0.5 truncate text-caption text-muted-foreground tabular-nums">
-            {t("chat.voice_recordings_started_by", { name: who })}
-            {duration !== null
-              ? ` · ${t("chat.voice_recordings_duration", { duration: formatVoiceCallDuration(duration) })}`
-              : null}
-          </p>
+          <RecordingStatusPill status={status} />
         </div>
-        <RecordingStatusPill status={status} />
+        <p id={`${describedById}-who`} className="mt-0.5 truncate text-label text-muted-foreground tabular-nums">
+          {t("chat.voice_recordings_started_by", { name: who })}
+          {duration !== null
+            ? ` · ${t("chat.voice_recordings_duration", { duration: formatVoiceCallDuration(duration) })}`
+            : null}
+        </p>
+        {status === "failed" ? (
+          <p className="mt-2 text-caption text-muted-foreground">{t("chat.voice_recordings_failed_hint")}</p>
+        ) : null}
       </div>
-      {status === "failed" ? (
-        <p className="mt-2 text-caption text-muted-foreground">{t("chat.voice_recordings_failed_hint")}</p>
-      ) : null}
       {status === "complete" ? (
         <Button
           type="button"
-          variant="outline"
+          variant="brandSubtle"
           size="sm"
-          className="mt-2.5"
+          className={cn(CHAT_PILL_SM_CLASS, "h-9 self-center text-body")}
           aria-describedby={`${describedById}-when ${describedById}-who`}
           onClick={() => onPlay(item.id)}
         >
@@ -184,12 +196,13 @@ function RecordingListSkeleton({ label }: { label: string }) {
     <div className="space-y-2" aria-busy>
       <span className="sr-only">{label}</span>
       {["w-40", "w-32", "w-36"].map((w) => (
-        <div key={w} className="flex items-start gap-3 rounded-lg border border-border px-3 py-3">
+        <div key={w} className="flex items-start gap-3 px-2 py-3.5">
+          <Skeleton className="size-10 shrink-0 rounded-lg" />
           <div className="flex flex-1 flex-col gap-1.5">
             <Skeleton className={cn("h-3.5", w)} />
             <Skeleton className="h-3 w-28" />
           </div>
-          <Skeleton className="h-4 w-14" />
+          <Skeleton className="h-9 w-16 self-center rounded-full" />
         </div>
       ))}
     </div>
@@ -228,18 +241,24 @@ export function ChatVoiceRecordingsSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
-          <SheetHeader className="border-b border-border px-4 py-3">
+        <SheetContent side="right" closeLabel={t("common.close")} className={CHAT_SHEET_CLASS}>
+          <SheetHeader className={CHAT_SHEET_HEADER_CLASS}>
             <SheetTitle>{t("chat.voice_recordings_title")}</SheetTitle>
             <SheetDescription>{t("chat.voice_recordings_description")}</SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
             {isLoading ? (
               <RecordingListSkeleton label={t("chat.voice_recordings_loading")} />
             ) : isError ? (
-              <div role="alert" className="flex flex-col items-start gap-2 px-1">
+              <div role="alert" className="flex flex-col items-start gap-2 px-2 pt-3">
                 <p className="text-body text-destructive">{t("chat.voice_recordings_load_failed")}</p>
-                <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={CHAT_PILL_SM_CLASS}
+                  onClick={() => void refetch()}
+                >
                   {t("chat.retry")}
                 </Button>
               </div>
@@ -247,16 +266,16 @@ export function ChatVoiceRecordingsSheet({
               <Empty className="py-10">
                 <EmptyHeader>
                   <EmptyMedia>
-                    <IconTile icon={AudioLines} tone={moduleTone("chat")} size="lg" />
+                    <IconTile icon={AudioLines} tone="brand" size="lg" className={CHAT_EMPTY_TILE_CLASS} />
                   </EmptyMedia>
-                  <EmptyTitle>{t("chat.voice_recordings_empty")}</EmptyTitle>
-                  <EmptyDescription className="text-caption">
+                  <EmptyTitle className={CHAT_EMPTY_TITLE_CLASS}>{t("chat.voice_recordings_empty")}</EmptyTitle>
+                  <EmptyDescription className="max-w-80">
                     {t("chat.voice_recordings_empty_hint")}
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : (
-              <ul className="space-y-2">
+              <ul className="divide-y divide-border">
                 {sorted.map((item) => (
                   <RecordingRow
                     key={item.id}

@@ -11,6 +11,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberLookupResult,
@@ -106,7 +107,7 @@ export function AddGroupMembersDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
         <FormDialogHeader
           title={isChannel ? t("chat.channel.add_members_title") : t("chat.add_group_members_title")}
           description={

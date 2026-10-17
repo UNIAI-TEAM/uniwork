@@ -25,8 +25,8 @@ export function PinToTopRow({
   const reasonId = `${id}-reason`;
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between gap-3">
-        <Label id={labelId} htmlFor={id} className="font-normal text-body text-foreground">
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <Label id={labelId} htmlFor={id} className="font-normal text-body-lg text-foreground">
           {label}
         </Label>
         <Switch

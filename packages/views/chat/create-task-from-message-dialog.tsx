@@ -22,6 +22,7 @@ import {
   ChatTaskProjectField,
   chatTaskTitleInput,
 } from "./chat-task-peek-fields";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatFormFooterNote, RequiredMark } from "./chat-form-parts";
 import { useChatTaskNav } from "./use-chat-task-nav";
@@ -98,14 +99,14 @@ export function CreateTaskFromMessageDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg">
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
         <FormDialogHeader
           title={t("chat.link.create_task_title")}
           description={t("chat.link.create_task_description")}
         />
 
         <FormDialogBody>
-          <Label htmlFor="chat-task-title" className="-mb-2 px-1 text-caption text-muted-foreground">
+          <Label htmlFor="chat-task-title" className="-mb-2 px-1 text-caption font-semibold text-muted-foreground">
             {t("chat.link.title_label")}
             <RequiredMark />
           </Label>
@@ -144,7 +145,7 @@ export function CreateTaskFromMessageDialog({
                 className="mt-0.5"
               />
               <span className="min-w-0 space-y-0.5">
-                <span className="block text-body text-foreground">{t("chat.link.sync_thread")}</span>
+                <span className="block text-body-lg text-foreground">{t("chat.link.sync_thread")}</span>
                 <span className="block text-caption text-muted-foreground">
                   {t("chat.link.sync_thread_hint")}
                 </span>

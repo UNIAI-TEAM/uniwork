@@ -15,6 +15,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
@@ -90,7 +91,7 @@ export function ChatCreatePostDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg">
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
         <FormDialogHeader title={t("chat.post_create_title")} description={t("chat.post_create_description")} />
 
         <form
@@ -104,7 +105,7 @@ export function ChatCreatePostDialog({
           <FormDialogBody className="space-y-5">
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
-                <Label htmlFor="post-title">
+                <Label htmlFor="post-title" className="text-label font-semibold">
                   {t("chat.post_title_label")}
                   <RequiredMark />
                 </Label>
@@ -132,7 +133,7 @@ export function ChatCreatePostDialog({
 
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
-                <Label htmlFor="post-body">
+                <Label htmlFor="post-body" className="text-label font-semibold">
                   {t("chat.post_body_label")}
                   <RequiredMark />
                 </Label>

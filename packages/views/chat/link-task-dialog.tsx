@@ -24,6 +24,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 
 /** Rows asked of the server per search; past this the list asks for a narrower search. */
@@ -130,7 +131,7 @@ export function LinkTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
         <FormDialogHeader
           title={t("chat.link.link_task_title")}
           description={t("chat.link.link_task_description")}
@@ -140,7 +141,7 @@ export function LinkTaskDialog({
           <Command
             shouldFilter={false}
             label={listLabel}
-            className="rounded-lg! border border-border bg-background p-0"
+            className="rounded-xl! border border-border bg-background p-0"
           >
             <CommandInput
               value={query}
@@ -154,12 +155,18 @@ export function LinkTaskDialog({
             ) : tasksQuery.isError ? (
               <div role="alert" className="flex items-center justify-between gap-3 px-3 py-4">
                 <p className="text-body text-muted-foreground">{t("chat.link.tasks_load_error")}</p>
-                <Button type="button" size="sm" variant="outline" onClick={() => void tasksQuery.refetch()}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8.5 rounded-full px-3.5 font-semibold"
+                  onClick={() => void tasksQuery.refetch()}
+                >
                   {t("common.retry")}
                 </Button>
               </div>
             ) : (
-              <CommandList aria-label={listLabel} aria-busy={searching || undefined} className="max-h-64 p-1">
+              <CommandList aria-label={listLabel} aria-busy={searching || undefined} className="max-h-72 p-1.5">
                 <CommandEmpty className="py-6 text-body text-muted-foreground">
                   {search ? t("chat.link.empty") : t("chat.link.empty_workspace")}
                 </CommandEmpty>
@@ -182,17 +189,19 @@ export function LinkTaskDialog({
                         setSelectedTitle(task.title);
                         setLinkError(null);
                       }}
-                      className="items-start data-[checked=true]:bg-surface-selected data-[checked=true]:text-surface-selected-foreground"
+                      className="min-h-14 items-center rounded-lg px-2.5 py-2 data-[checked=true]:bg-brand-subtle data-[checked=true]:text-brand-subtle-foreground"
                     >
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-body font-medium">{task.title}</span>
-                        <span className="truncate text-caption text-muted-foreground">
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className={cn("truncate text-body", selected ? "font-semibold" : "font-medium")}>
+                          {task.title}
+                        </span>
+                        <span className="truncate text-caption text-muted-foreground tabular-nums">
                           {task.identifier || task.id}
                         </span>
                       </span>
                       <Check
                         aria-hidden
-                        className={cn("mt-0.5 size-4 shrink-0", selected ? "opacity-100" : "opacity-0")}
+                        className={cn("size-5 shrink-0 text-brand", selected ? "opacity-100" : "opacity-0")}
                       />
                     </CommandItem>
                   );

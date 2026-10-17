@@ -6,7 +6,9 @@ import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import {
+  MemberRowActionMark,
   WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
@@ -71,7 +73,7 @@ export function StartDmDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
         <FormDialogHeader title={t("chat.start_dm_title")} description={t("chat.start_dm_description")} />
         <FormDialogBody>
           <WorkspaceMemberSearchField
@@ -99,12 +101,7 @@ export function StartDmDialog({
             loading={isLoading}
             query={query}
             hasOtherMembers={hasOtherMembers}
-            actionIcon={
-              <MessageCircle
-                className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
-                aria-hidden
-              />
-            }
+            actionIcon={<MemberRowActionMark icon={MessageCircle} />}
             onPick={pickContact}
           />
         </FormDialogBody>

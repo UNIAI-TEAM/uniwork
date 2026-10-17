@@ -12,6 +12,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberLookupResult,
@@ -106,14 +107,14 @@ export function CreateGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
         <FormDialogHeader
           title={t("chat.create_group_title")}
           description={t("chat.create_group_description")}
         />
         <FormDialogBody>
           <div className="space-y-2">
-            <Label htmlFor="group-name" className="text-label font-medium">
+            <Label htmlFor="group-name" className="text-label font-semibold">
               {t("chat.group_name_optional_label")}
             </Label>
             <Input

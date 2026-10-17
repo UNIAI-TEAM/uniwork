@@ -27,11 +27,11 @@ const NONE = "__none__";
  * dialog, so they already sit above it (the tasks pickers rely on the same).
  */
 const chatTaskPillTrigger =
-  "h-8 w-auto min-w-0 gap-1.5 rounded-full border border-border bg-background px-2.5 text-caption font-medium text-foreground shadow-none hover:bg-surface-hover dark:bg-background";
+  "h-8.5 w-auto min-w-0 gap-1.5 rounded-full border border-border bg-background px-3 text-label font-medium text-foreground shadow-none hover:bg-surface-hover dark:bg-background";
 
 /** Borderless display-size title; the field still shows a border on hover and focus. */
 export const chatTaskTitleInput =
-  "h-auto rounded-md border-transparent bg-transparent px-1 py-0.5 text-display-sm font-bold leading-snug tracking-tight text-foreground hover:border-border md:text-display-sm dark:bg-transparent";
+  "h-auto rounded-lg border-transparent bg-transparent px-1 py-0.5 font-display text-display-sm font-bold leading-snug tracking-tight text-foreground hover:border-border md:text-display-sm dark:bg-transparent";
 
 export function ChatTaskProjectField({
   workspaceId,

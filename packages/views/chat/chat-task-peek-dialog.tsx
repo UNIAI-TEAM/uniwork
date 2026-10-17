@@ -13,6 +13,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
 import { AppLink } from "../navigation";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatTaskPeekFields, chatTaskTitleInput } from "./chat-task-peek-fields";
 import { useChatTaskNav } from "./use-chat-task-nav";
@@ -30,7 +31,7 @@ function PeekSaveStatus({ state }: { state: SaveState }) {
     );
   }
   return (
-    <p role="status" className="flex items-center gap-1 text-caption text-muted-foreground">
+    <p role="status" className="flex items-center gap-1.5 text-label text-muted-foreground">
       {state.kind === "saving" ? t("chat.link.saving") : null}
       {state.kind === "saved" ? (
         <>
@@ -49,7 +50,7 @@ function PeekSkeleton({ label }: { label: string }) {
       <span className="sr-only">{label}</span>
       <div className="flex flex-wrap gap-2" aria-hidden>
         {["w-24", "w-20", "w-20", "w-28", "w-24"].map((w, i) => (
-          <Skeleton key={i} className={`h-8 rounded-full ${w}`} />
+          <Skeleton key={i} className={`h-8.5 rounded-full ${w}`} />
         ))}
       </div>
       <Skeleton className="h-8 w-2/3" aria-hidden />
@@ -132,18 +133,18 @@ export function ChatTaskPeekDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className="sm:max-w-2xl">
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-2xl`}>
         <div data-testid="chat-task-peek-dialog" className="contents">
           <FormDialogHeader title={identifier} description={t("chat.link.peek_description")} />
 
           {task ? (
-            <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border px-5 py-1.5">
+            <div className="mt-3 flex min-h-13 items-center justify-between gap-3 border-y border-border py-1 pr-4 pl-5">
               <PeekSaveStatus state={saveState} />
               {href && canLink ? (
                 <AppLink
                   href={href}
                   onClick={() => onOpenChange(false)}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-label font-medium text-foreground hover:bg-surface-hover"
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-secondary pr-3.5 pl-3 text-body font-semibold text-secondary-foreground transition-colors hover:bg-secondary/80"
                 >
                   <ExternalLink aria-hidden className="size-3.5" />
                   {t("chat.link.open_task_page")}
@@ -166,6 +167,7 @@ export function ChatTaskPeekDialog({
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="h-8.5 rounded-full px-3.5 font-semibold"
                   disabled={isFetching}
                   onClick={() => void refetch()}
                 >

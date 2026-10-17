@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, UserPlus, X } from "lucide-react";
+import { Search, UserPlus, X, type LucideIcon } from "lucide-react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,6 +24,7 @@ import {
   shouldLookupEmailOutsideWorkspace,
 } from "./workspace-member-picker-utils";
 import { memberAvatarUrl } from "./chat-member-avatar";
+import { CHAT_PILL_SM_CLASS } from "./chat-dialog-look";
 import { initialOf } from "./chat-initials";
 
 /**
@@ -62,7 +63,7 @@ export function WorkspaceMemberSearchField({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={id} className="text-label font-medium text-foreground">
+      <Label htmlFor={id} className="text-label font-semibold text-foreground">
         {label}
       </Label>
       <form
@@ -157,13 +158,25 @@ function moveRowFocus(event: KeyboardEvent<HTMLUListElement>): number | null {
 
 function MemberRowSkeleton() {
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5" aria-hidden>
-      <Skeleton className="size-8 shrink-0 rounded-full" />
+    <li className="flex min-h-14 items-center gap-3 px-3.5 py-2" aria-hidden>
+      <Skeleton className="size-10 shrink-0 rounded-full" />
       <span className="min-w-0 flex-1 space-y-1.5">
         <Skeleton className="h-3.5 w-2/5" />
         <Skeleton className="h-3 w-3/5" />
       </span>
     </li>
+  );
+}
+
+/** A row's trailing action mark: it takes the brand wash while the row is hovered or focused. */
+export function MemberRowActionMark({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <span
+      aria-hidden
+      className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors group-hover:bg-brand-subtle group-hover:text-brand-subtle-foreground group-focus-visible:bg-brand-subtle group-focus-visible:text-brand-subtle-foreground"
+    >
+      <Icon className="size-5" />
+    </span>
   );
 }
 
@@ -209,7 +222,7 @@ export function WorkspaceMemberPickerList({
     body = (
       <div role="status">
         <span className="sr-only">{t("chat.loading_members")}</span>
-        <ul className="divide-y divide-border rounded-lg border border-border" aria-hidden>
+        <ul className="divide-y divide-border rounded-xl border border-border" aria-hidden>
           <MemberRowSkeleton />
           <MemberRowSkeleton />
           <MemberRowSkeleton />
@@ -231,7 +244,7 @@ export function WorkspaceMemberPickerList({
       // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
       <ul
         aria-labelledby={headingId}
-        className="divide-y divide-border rounded-lg border border-border"
+        className="divide-y divide-border rounded-xl border border-border"
         onKeyDown={(event) => {
           const next = moveRowFocus(event);
           if (next !== null) setFocusIndex(next);
@@ -242,33 +255,28 @@ export function WorkspaceMemberPickerList({
           // A names-only screen never falls back to the email local part.
           const label = nameOnly ? member.display_name.trim() || t("chat.workspace_member_unnamed") : memberDisplayLabel(member);
           return (
-            <li key={member.user_id} className="first:*:rounded-t-lg last:*:rounded-b-lg">
+            <li key={member.user_id} className="first:*:rounded-t-xl last:*:rounded-b-xl">
               <button
                 type="button"
                 data-member-picker-row=""
                 tabIndex={index === tabStop ? 0 : -1}
                 onFocus={() => setFocusIndex(index)}
-                className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-hover pointer-coarse:min-h-11"
+                className="group flex min-h-14 w-full items-center gap-3 py-2 pr-2 pl-3.5 text-left transition-colors hover:bg-surface-hover"
                 onClick={() => onPick(contact)}
               >
                 <ActorAvatar
                   name={label}
                   initials={initialOf(label)}
                   avatarUrl={memberAvatarUrl(member.avatar_url)}
-                  size="lg"
+                  size="xl"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body font-medium text-foreground">{label}</span>
+                  <span className="block truncate text-body-lg font-medium text-foreground">{label}</span>
                   {nameOnly ? null : (
-                    <span className="block truncate text-caption text-muted-foreground">{member.email}</span>
+                    <span className="block truncate text-label text-muted-foreground">{member.email}</span>
                   )}
                 </span>
-                {actionIcon ?? (
-                  <UserPlus
-                    className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
-                    aria-hidden
-                  />
-                )}
+                {actionIcon ?? <MemberRowActionMark icon={UserPlus} />}
               </button>
             </li>
           );
@@ -359,16 +367,18 @@ export function ExternalMemberLookupRow({
   return (
     <div className="space-y-2">
       <p className="text-overline uppercase text-muted-foreground">{hint}</p>
-      <div className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
-        <ActorAvatar name={label} initials={initialOf(label)} size="lg" />
+      <div className="flex items-center gap-3 rounded-xl border border-border py-3 pr-3 pl-3.5">
+        <ActorAvatar name={label} initials={initialOf(label)} size="xl" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-body font-medium text-foreground">{label}</p>
-          <p className="truncate text-caption text-muted-foreground">{lookup.email}</p>
+          <p className="truncate text-body-lg font-semibold text-foreground">{label}</p>
+          <p className="truncate text-label text-muted-foreground">{lookup.email}</p>
         </div>
         {unavailableLabel ? (
-          <span className="shrink-0 text-caption text-muted-foreground">{unavailableLabel}</span>
+          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-caption font-semibold text-muted-foreground">
+            {unavailableLabel}
+          </span>
         ) : (
-          <Button type="button" size="sm" variant="secondary" onClick={() => onPick(contact)}>
+          <Button type="button" size="sm" variant="secondary" className={CHAT_PILL_SM_CLASS} onClick={() => onPick(contact)}>
             {actionLabel}
           </Button>
         )}
@@ -400,9 +410,9 @@ export function WorkspaceMemberLookupResult({
 
   if (lookup.isFetching) {
     return (
-      <div role="status" className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
+      <div role="status" className="flex items-center gap-3 rounded-xl border border-border py-3 pr-3 pl-3.5">
         <span className="sr-only">{t("chat.searching")}</span>
-        <Skeleton className="size-8 shrink-0 rounded-full" aria-hidden />
+        <Skeleton className="size-10 shrink-0 rounded-full" aria-hidden />
         <span className="min-w-0 flex-1 space-y-1.5" aria-hidden>
           <Skeleton className="h-3.5 w-2/5" />
           <Skeleton className="h-3 w-3/5" />

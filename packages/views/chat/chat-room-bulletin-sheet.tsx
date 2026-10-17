@@ -15,7 +15,8 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useChatRoomMessages } from "@uniwork/core/chat";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
-import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { IconTile, tintForegroundClass, type IconTileTone, type Tint } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -38,6 +39,8 @@ import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
 import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
+import { CHAT_PILL_SM_CLASS } from "./chat-dialog-look";
+import { initialOf } from "./chat-initials";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import {
   bulletinMessagePreview,
@@ -54,16 +57,26 @@ type LoadMore = {
   loadMore: () => void;
 };
 
-const KIND_VISUAL: Record<string, { icon: LucideIcon; tone: IconTileTone }> = {
-  note: { icon: StickyNote, tone: "yellow" },
-  post: { icon: Megaphone, tone: "orange" },
-  reminder: { icon: Clock, tone: "teal" },
-  poll: { icon: ChartColumn, tone: "blue" },
+/** Glyph, tint and kind label (the tab's word) of a bulletin card. */
+type KindVisual = { icon: LucideIcon; tone: IconTileTone; labelKey: string };
+
+const KIND_VISUAL: Record<string, KindVisual> = {
+  note: { icon: StickyNote, tone: "yellow", labelKey: "chat.bulletin_tab_notes" },
+  post: { icon: Megaphone, tone: "orange", labelKey: "chat.bulletin_tab_posts" },
+  reminder: { icon: Clock, tone: "teal", labelKey: "chat.bulletin_tab_reminders" },
+  poll: { icon: ChartColumn, tone: "blue", labelKey: "chat.bulletin_tab_polls" },
 };
 
+const PINNED_VISUAL: KindVisual = { icon: Pin, tone: "muted", labelKey: "chat.bulletin_tab_pinned" };
+
+/** The kind overline takes its tile's glyph colour. */
+function overlineClass(tone: IconTileTone): string {
+  return tone in tintForegroundClass ? tintForegroundClass[tone as Tint] : "text-muted-foreground";
+}
+
 /** Same tint and glyph per kind as the timeline cards; anything else is a pinned message. */
-function bulletinKindVisual(kind: string): { icon: LucideIcon; tone: IconTileTone } {
-  return KIND_VISUAL[kind] ?? { icon: Pin, tone: "muted" };
+function bulletinKindVisual(kind: string): KindVisual {
+  return KIND_VISUAL[kind] ?? PINNED_VISUAL;
 }
 
 const EMPTY_KEY: Record<BulletinTab, string> = {
@@ -81,8 +94,8 @@ function BulletinListSkeleton({ label }: { label: string }) {
       <span className="sr-only">{label}</span>
       <ul aria-hidden className="space-y-2">
         {[0, 1, 2, 3].map((row) => (
-          <li key={row} className="flex items-start gap-3 rounded-xl border border-border px-3 py-3">
-            <Skeleton className="size-7 shrink-0 rounded-md" />
+          <li key={row} className="flex items-start gap-3 rounded-xl border border-border bg-surface py-3 pr-4 pl-3">
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
             <span className="flex min-w-0 flex-1 flex-col gap-2">
               <Skeleton className="h-4 w-4/5" />
               <Skeleton className="h-3 w-24" />
@@ -109,6 +122,7 @@ function BulletinLoadMore({ more }: { more: LoadMore }) {
         type="button"
         variant="outline"
         size="sm"
+        className={CHAT_PILL_SM_CLASS}
         disabled={more.loadingMore}
         aria-busy={more.loadingMore || undefined}
         onClick={more.loadMore}
@@ -152,7 +166,7 @@ function BulletinTabPanel({
         layout="inline"
         live="assertive"
         action={
-          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          <Button type="button" variant="outline" size="sm" className={CHAT_PILL_SM_CLASS} onClick={onRetry}>
             {t("common.retry")}
           </Button>
         }
@@ -177,29 +191,58 @@ function BulletinTabPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <ul className="space-y-2">
+      <ul className="space-y-2.5">
         {filtered.map((item) => {
           const visual = bulletinKindVisual(item.kind);
           const preview = bulletinMessagePreview(item, voiceCallLabel);
+          const sender = item.sender_display_name.trim();
+          // A pinned note or post says so beside its kind; a plain pinned message already reads "Tin ghim".
+          const pinnedKind = item.pinned && visual !== PINNED_VISUAL;
           return (
             <li key={item.id}>
               <button
                 type="button"
-                className="flex w-full items-start gap-3 rounded-xl border border-border px-3 py-3 text-left transition-colors hover:bg-surface-hover"
+                className="flex w-full items-start gap-3 rounded-xl border border-border bg-surface py-3 pr-4 pl-3 text-left transition-colors hover:bg-surface-hover"
                 onClick={() => {
                   onSelectMessage?.(item.id);
                   onClose();
                 }}
               >
-                <IconTile icon={visual.icon} tone={visual.tone} size="sm" />
-                <span className="min-w-0 flex-1">
-                  <span className="line-clamp-3 text-body text-foreground">{preview}</span>
-                  <time
-                    dateTime={item.created_at}
-                    className="mt-1 block text-caption text-muted-foreground tabular-nums"
+                <IconTile icon={visual.icon} tone={visual.tone} size="md" className="size-9" />
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="flex items-center gap-2">
+                    <span className={cn("flex-1 text-overline font-semibold uppercase", overlineClass(visual.tone))}>
+                      {t(visual.labelKey)}
+                    </span>
+                    {pinnedKind ? (
+                      <span className="inline-flex items-center gap-1 text-caption font-semibold text-muted-foreground">
+                        <Pin aria-hidden className="size-3" />
+                        {t("chat.pinned_label")}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span
+                    className={cn(
+                      "line-clamp-3 text-body-lg text-foreground",
+                      // A poll's question and a post's title read as headings; a body stays body text.
+                      (item.kind === "poll" || (item.kind === "post" && item.post?.title.trim())) &&
+                        "font-display font-bold",
+                    )}
                   >
-                    {formatBulletinTime(item.created_at, i18n.language)}
-                  </time>
+                    {preview}
+                  </span>
+                  <span className="mt-1 flex min-w-0 items-center gap-1.5 text-label text-muted-foreground">
+                    {sender ? (
+                      <>
+                        <ActorAvatar name={sender} initials={initialOf(sender)} size="sm" />
+                        <span className="truncate">{sender}</span>
+                        <span aria-hidden>·</span>
+                      </>
+                    ) : null}
+                    <time dateTime={item.created_at} className="shrink-0 tabular-nums">
+                      {formatBulletinTime(item.created_at, i18n.language)}
+                    </time>
+                  </span>
                 </span>
               </button>
             </li>
@@ -305,27 +348,26 @@ export function ChatRoomBulletinSheet({
         <DialogContent
           showCloseButton={false}
           closeLabel={t("common.close")}
-          className="flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(720px,92vh)] sm:max-w-2xl sm:rounded-xl"
+          className="flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(720px,92vh)] sm:max-w-2xl sm:rounded-2xl"
         >
           <DialogHeader className="sr-only">
             <DialogDescription>{t("chat.bulletin_sheet_description")}</DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-center gap-2 border-b border-border px-2 py-3">
+          <div className="flex h-18 shrink-0 items-center gap-3 pr-5 pl-3">
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="size-9 shrink-0"
+              className="size-11 shrink-0 rounded-lg"
               aria-label={t("chat.bulletin_back")}
               onClick={() => handleOpenChange(false)}
             >
               <ChevronLeft className="size-5" aria-hidden />
             </Button>
-            <DialogTitle className="min-w-0 flex-1 truncate text-center text-body font-semibold text-foreground">
+            <DialogTitle className="min-w-0 flex-1 truncate font-display text-title font-bold text-foreground">
               {title}
             </DialogTitle>
-            <span className="size-9 shrink-0" aria-hidden />
           </div>
 
           <Tabs
@@ -336,18 +378,18 @@ export function ChatRoomBulletinSheet({
             {/* Six tabs do not fit a phone: the row scrolls sideways instead of cutting labels. */}
             <TabsList
               variant="line"
-              className="flex h-auto w-full shrink-0 justify-start gap-0 overflow-x-auto overscroll-x-contain rounded-none border-b border-border bg-transparent px-1 [scrollbar-width:none] sm:px-2"
+              className="flex h-auto w-full shrink-0 justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-none border-b border-border bg-transparent px-2 [scrollbar-width:none] sm:px-4"
             >
               {visibleTabs.map((entry) => (
                 <TabsTrigger
                   key={entry.value}
                   value={entry.value}
                   className={cn(
-                    "shrink-0 grow rounded-none border-x-0 border-t-0 border-b-2 border-solid border-transparent bg-transparent px-3 pb-3 text-caption text-muted-foreground shadow-none -mb-px",
-                    "data-active:border-x-0 data-active:border-t-0 data-active:border-b-foreground data-active:bg-transparent data-active:font-medium data-active:text-foreground data-active:shadow-none",
-                    "dark:data-active:border-x-0 dark:data-active:border-t-0 dark:data-active:border-b-foreground dark:data-active:bg-transparent",
+                    "h-11 shrink-0 rounded-none border-x-0 border-t-0 border-b-2 border-solid border-transparent bg-transparent px-3 text-body font-semibold text-muted-foreground shadow-none -mb-px",
+                    "data-active:border-x-0 data-active:border-t-0 data-active:border-b-brand data-active:bg-transparent data-active:text-brand data-active:shadow-none",
+                    "dark:data-active:border-x-0 dark:data-active:border-t-0 dark:data-active:border-b-brand dark:data-active:bg-transparent",
                     "focus-visible:border-x-0 focus-visible:border-t-0",
-                    "after:hidden sm:text-body",
+                    "after:hidden",
                   )}
                 >
                   <span className="block whitespace-nowrap">{entry.label}</span>
@@ -361,7 +403,7 @@ export function ChatRoomBulletinSheet({
                 value={entry.value}
                 className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
               >
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                <div className="min-h-0 flex-1 overflow-y-auto bg-muted px-4 py-4 sm:px-5">
                   <BulletinTabPanel
                     tab={entry.value}
                     rows={rows}
@@ -378,18 +420,20 @@ export function ChatRoomBulletinSheet({
           </Tabs>
 
           {createItems.length > 0 ? (
-            <div className="flex shrink-0 justify-end border-t border-border bg-surface px-4 py-3">
+            <div className="flex h-17 shrink-0 items-center justify-end border-t border-border bg-surface px-5">
               <DropdownMenu>
-                <DropdownMenuTrigger render={<Button type="button" />}>
+                <DropdownMenuTrigger
+                  render={<Button type="button" className="h-10 rounded-full px-4 font-semibold" />}
+                >
                   <Plus aria-hidden />
                   {t("chat.bulletin_create_menu")}
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" side="top" className="min-w-48">
+                <DropdownMenuContent align="end" side="top" className="min-w-56 p-1.5">
                   {createItems.map((item) => {
                     const visual = bulletinKindVisual(item.kind);
                     return (
-                      <DropdownMenuItem key={item.key} className="gap-2.5 py-1.5" onClick={item.onSelect}>
-                        <IconTile icon={visual.icon} tone={visual.tone} size="xs" />
+                      <DropdownMenuItem key={item.key} className="min-h-11 gap-3 py-2" onClick={item.onSelect}>
+                        <IconTile icon={visual.icon} tone={visual.tone} size="sm" />
                         {item.label}
                       </DropdownMenuItem>
                     );

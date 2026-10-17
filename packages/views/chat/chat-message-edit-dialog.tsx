@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 
 export function ChatMessageEditDialog({
@@ -48,7 +49,7 @@ export function ChatMessageEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
         <FormDialogHeader title={t("chat.edit_dialog_title")} description={t("chat.edit_dialog_description")} />
         <FormDialogBody>
           <Textarea

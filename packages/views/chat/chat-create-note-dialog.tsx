@@ -10,6 +10,7 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
@@ -71,7 +72,7 @@ export function ChatCreateNoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
         <FormDialogHeader title={t("chat.note_create_title")} description={t("chat.note_create_description")} />
 
         <form
@@ -85,7 +86,7 @@ export function ChatCreateNoteDialog({
           <FormDialogBody className="space-y-5">
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
-                <Label htmlFor="note-body">
+                <Label htmlFor="note-body" className="text-label font-semibold">
                   {t("chat.note_body_label")}
                   <RequiredMark />
                 </Label>

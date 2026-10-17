@@ -25,11 +25,16 @@ import {
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
-import { moduleTone } from "../layout/module-tones";
+import {
+  CHAT_EMPTY_TILE_CLASS,
+  CHAT_EMPTY_TITLE_CLASS,
+  CHAT_PILL_SM_CLASS,
+  CHAT_SHEET_CLASS,
+} from "./chat-dialog-look";
 import { toastChatError } from "./chat-error-message";
-import { ChatRoomMark } from "./chat-room-mark";
 import { foldedIncludes } from "./chat-search-fold";
 
 /** Channels are loading: rows in their own shape — a mark, a name, a line. */
@@ -38,13 +43,13 @@ function ChannelDirectorySkeleton({ label }: { label: string }) {
     <div role="status" className="space-y-1">
       <span className="sr-only">{label}</span>
       {["w-32", "w-24", "w-40", "w-28"].map((w) => (
-        <div key={w} className="flex items-center gap-3 px-2 py-2.5" aria-hidden>
-          <Skeleton className="size-8 shrink-0 rounded-md" />
+        <div key={w} className="flex min-h-17 items-center gap-3 py-2.5 pr-2.5 pl-3" aria-hidden>
+          <Skeleton className="size-11 shrink-0 rounded-xl" />
           <div className="flex flex-1 flex-col gap-1.5">
             <Skeleton className={cn("h-3.5", w)} />
             <Skeleton className="h-3 w-20" />
           </div>
-          <Skeleton className="h-8 w-20 rounded-lg" />
+          <Skeleton className="h-8.5 w-20 rounded-full" />
         </div>
       ))}
     </div>
@@ -122,7 +127,13 @@ export function ChannelDirectorySheet({
         layout="inline"
         live="assertive"
         action={
-          <Button type="button" variant="outline" size="sm" onClick={() => void discoverQuery.refetch()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={CHAT_PILL_SM_CLASS}
+            onClick={() => void discoverQuery.refetch()}
+          >
             {t("chat.retry")}
           </Button>
         }
@@ -135,15 +146,17 @@ export function ChannelDirectorySheet({
       <Empty className="py-10">
         <EmptyHeader>
           <EmptyMedia>
-            <IconTile icon={Search} tone="muted" size="lg" />
+            <IconTile icon={Search} tone="muted" size="lg" className={CHAT_EMPTY_TILE_CLASS} />
           </EmptyMedia>
-          <EmptyTitle>{t("chat.channel.directory_no_match_title", { query: trimmedQuery })}</EmptyTitle>
+          <EmptyTitle className={CHAT_EMPTY_TITLE_CLASS}>
+            {t("chat.channel.directory_no_match_title", { query: trimmedQuery })}
+          </EmptyTitle>
           <EmptyDescription className="text-caption">
             {t("chat.channel.directory_no_match_hint")}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button type="button" variant="outline" size="sm" onClick={() => setQuery("")}>
+          <Button type="button" variant="secondary" size="sm" className={CHAT_PILL_SM_CLASS} onClick={() => setQuery("")}>
             {t("chat.channel.directory_clear_search")}
           </Button>
         </EmptyContent>
@@ -154,9 +167,9 @@ export function ChannelDirectorySheet({
       <Empty className="py-10">
         <EmptyHeader>
           <EmptyMedia>
-            <IconTile icon={Compass} tone={moduleTone("chat")} size="lg" />
+            <IconTile icon={Compass} tone="brand" size="lg" className={CHAT_EMPTY_TILE_CLASS} />
           </EmptyMedia>
-          <EmptyTitle>{t("chat.channel.directory_none_title")}</EmptyTitle>
+          <EmptyTitle className={CHAT_EMPTY_TITLE_CLASS}>{t("chat.channel.directory_none_title")}</EmptyTitle>
           <EmptyDescription className="text-caption">
             {onCreateChannel
               ? t("chat.channel.directory_none_hint")
@@ -165,7 +178,7 @@ export function ChannelDirectorySheet({
         </EmptyHeader>
         {onCreateChannel ? (
           <EmptyContent>
-            <Button type="button" size="sm" onClick={onCreateChannel}>
+            <Button type="button" size="sm" className={CHAT_PILL_SM_CLASS} onClick={onCreateChannel}>
               <Plus aria-hidden />
               {t("chat.channel.create")}
             </Button>
@@ -184,12 +197,19 @@ export function ChannelDirectorySheet({
           return (
             <li
               key={room.id}
-              className="flex min-h-14 items-center gap-3 rounded-lg px-2 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-hover"
+              className="flex min-h-17 items-center gap-3 rounded-xl py-2.5 pr-2.5 pl-3 transition-colors duration-(--duration-fast) hover:bg-surface-hover"
             >
-              <ChatRoomMark icon={isPrivate ? Lock : Hash} />
+              {/* The channel squircle: slate with a white # (or lock for a private one). */}
+              <IconTile
+                icon={isPrivate ? Lock : Hash}
+                tone="gray"
+                variant="solid"
+                size="md"
+                className="size-11 rounded-xl"
+              />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-body font-medium text-foreground">{room.name}</p>
-                <p className="truncate text-caption text-muted-foreground">
+                <p className="truncate font-display text-body-lg font-bold text-foreground">{room.name}</p>
+                <p className="mt-0.5 truncate text-label text-muted-foreground">
                   {topic ||
                     (isPrivate
                       ? t("chat.channel.visibility_private_title")
@@ -201,8 +221,8 @@ export function ChannelDirectorySheet({
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  className="shrink-0"
+                  variant="secondary"
+                  className={cn("shrink-0", CHAT_PILL_SM_CLASS, "px-4")}
                   aria-label={t("chat.channel.open_named", { name: room.name })}
                   onClick={() => onJoined?.(room)}
                 >
@@ -213,12 +233,13 @@ export function ChannelDirectorySheet({
                   type="button"
                   size="sm"
                   variant={joining ? "outline" : "default"}
-                  className="shrink-0"
+                  className={cn("shrink-0", CHAT_PILL_SM_CLASS, !joining && "px-4")}
                   aria-busy={joining || undefined}
                   aria-label={joining ? undefined : t("chat.channel.join_named", { name: room.name })}
                   disabled={joining}
                   onClick={() => handleJoin(room)}
                 >
+                  {joining ? <Spinner data-icon="inline-start" /> : null}
                   {joining ? t("chat.channel.joining") : t("chat.channel.join")}
                 </Button>
               )}
@@ -237,17 +258,17 @@ export function ChannelDirectorySheet({
         onOpenChange(next);
       }}
     >
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md" closeLabel={t("common.close")}>
-        <SheetHeader className="space-y-1 border-b border-border px-5 py-4">
+      <SheetContent side="right" className={CHAT_SHEET_CLASS} closeLabel={t("common.close")}>
+        <SheetHeader className="gap-1 pt-4 pr-16 pb-3.5 pl-5">
           <SheetTitle>{t("chat.channel.directory_title")}</SheetTitle>
           <SheetDescription>{t("chat.channel.directory_description")}</SheetDescription>
         </SheetHeader>
 
-        <div className="border-b border-border px-5 py-3">
+        <div className="border-b border-border px-5 pb-3.5">
           <div className="relative">
             <Search
               aria-hidden
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               value={query}
@@ -255,12 +276,13 @@ export function ChannelDirectorySheet({
               placeholder={t("chat.channel.directory_search")}
               aria-label={t("chat.channel.directory_search")}
               type="search"
-              className="h-10 rounded-full pl-9"
+              variant="subtle"
+              className="h-11 rounded-full pl-10"
             />
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">{body}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">{body}</div>
       </SheetContent>
     </Sheet>
   );

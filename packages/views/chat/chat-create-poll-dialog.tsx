@@ -26,6 +26,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { DateTimeField } from "../common/datetime-field";
 import { toDateOnly } from "../common/date-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatFormFooterNote } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
@@ -154,13 +155,13 @@ export function ChatCreatePollDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg">
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
         <FormDialogHeader title={t("chat.poll_create_title")} description={t("chat.poll_create_description")} />
 
         <FormDialogBody className="space-y-5">
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
-              <Label htmlFor="poll-question">{t("chat.poll_question_label")}</Label>
+              <Label htmlFor="poll-question" className="text-label font-semibold">{t("chat.poll_question_label")}</Label>
               <span id="poll-question-count" className="text-caption tabular-nums text-muted-foreground">
                 {question.length}/{POLL_QUESTION_MAX_LENGTH}
               </span>
@@ -177,7 +178,7 @@ export function ChatCreatePollDialog({
           </div>
 
           <FieldSet className="gap-2">
-            <FieldLegend variant="label" className="mb-0">
+            <FieldLegend variant="label" className="mb-0 text-label font-semibold">
               {t("chat.poll_options_label")}
             </FieldLegend>
             <FieldDescription className="text-caption" aria-live="polite">
@@ -220,7 +221,7 @@ export function ChatCreatePollDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="self-start"
+                className="h-9 self-start rounded-full pr-3 pl-2 text-body font-semibold text-brand hover:text-brand"
                 onClick={addOption}
               >
                 <Plus aria-hidden />
@@ -230,7 +231,7 @@ export function ChatCreatePollDialog({
           </FieldSet>
 
           <div className="space-y-2">
-            <Label htmlFor="poll-deadline" id="poll-deadline-label">
+            <Label htmlFor="poll-deadline" id="poll-deadline-label" className="text-label font-semibold">
               {t("chat.poll_deadline_label")}
             </Label>
             <div
@@ -258,8 +259,8 @@ export function ChatCreatePollDialog({
             ) : null}
           </div>
 
-          <FieldSet className="gap-3 border-t border-border pt-4">
-            <legend className="mb-0 text-overline text-muted-foreground uppercase">
+          <FieldSet className="gap-0 border-t border-border pt-4">
+            <legend className="mb-1 text-overline font-semibold text-muted-foreground uppercase">
               {t("chat.poll_advanced_settings")}
             </legend>
             <PinToTopRow
@@ -283,8 +284,8 @@ export function ChatCreatePollDialog({
             />
           </FieldSet>
 
-          <FieldSet className="gap-3 border-t border-border pt-4">
-            <legend className="mb-0 text-overline text-muted-foreground uppercase">
+          <FieldSet className="gap-0 border-t border-border pt-4">
+            <legend className="mb-1 text-overline font-semibold text-muted-foreground uppercase">
               {t("chat.poll_anonymous_title")}
             </legend>
             <PollSettingRow
@@ -334,8 +335,8 @@ function PollSettingRow({
 }) {
   const labelId = `${id}-label`;
   return (
-    <div className="flex items-center justify-between gap-3">
-      <Label id={labelId} htmlFor={id} className="font-normal text-body text-foreground">
+    <div className="flex min-h-11 items-center justify-between gap-3">
+      <Label id={labelId} htmlFor={id} className="font-normal text-body-lg text-foreground">
         {label}
       </Label>
       <Switch id={id} aria-labelledby={labelId} checked={checked} onCheckedChange={onCheckedChange} />

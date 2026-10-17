@@ -26,15 +26,16 @@ import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-g
 import { DateTimeField } from "../common/datetime-field";
 import { toDateOnly } from "../common/date-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
 
 const QUICK_PRESETS: ReminderQuickPreset[] = ["15m", "30m", "tomorrow_9", "custom"];
 
-/** The app's filter-chip look (see notifications/inbox-toolbar.tsx): a pressed chip is a raised surface. */
+/** A time preset is its own pill; the picked one takes the brand wash. */
 const CHIP =
-  "h-8 gap-1.5 rounded-md border border-transparent px-2.5 text-label font-medium text-muted-foreground pointer-coarse:h-11 " +
-  "hover:bg-surface-hover hover:text-foreground aria-pressed:border-border aria-pressed:bg-surface aria-pressed:text-foreground aria-pressed:shadow-[var(--surface-shadow)]";
+  "h-9 gap-1.5 rounded-full border border-transparent bg-muted px-3.5 text-body font-semibold text-muted-foreground pointer-coarse:h-11 " +
+  "hover:bg-surface-hover hover:text-foreground aria-pressed:border-brand/30 aria-pressed:bg-brand-subtle aria-pressed:text-brand-subtle-foreground";
 
 function presetLabelKey(preset: ReminderQuickPreset): string {
   switch (preset) {
@@ -189,13 +190,13 @@ export function ChatCreateReminderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg">
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
         <FormDialogHeader title={t("chat.reminder_create_title")} description={t("chat.reminder_create_description")} />
 
         <FormDialogBody className="space-y-5">
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
-              <Label htmlFor="reminder-body">
+              <Label htmlFor="reminder-body" className="text-label font-semibold">
                 {t("chat.reminder_body_label")}
                 <RequiredMark />
               </Label>
@@ -219,7 +220,7 @@ export function ChatCreateReminderDialog({
           </div>
 
           <div className="space-y-2">
-            <p id="reminder-preset-label" className="text-label font-medium text-foreground">
+            <p id="reminder-preset-label" className="text-label font-semibold text-foreground">
               {t("chat.reminder_quick_time_label")}
             </p>
             <ToggleGroup
@@ -229,8 +230,8 @@ export function ChatCreateReminderDialog({
                 if (next) handlePresetChange(next);
               }}
               aria-labelledby="reminder-preset-label"
-              spacing={1}
-              className="flex-wrap rounded-lg bg-muted p-1"
+              spacing={2}
+              className="flex-wrap"
             >
               {QUICK_PRESETS.map((item) => (
                 <ToggleGroupItem key={item} value={item} className={CHIP}>
@@ -242,7 +243,7 @@ export function ChatCreateReminderDialog({
 
           {showCustomPicker ? (
             <div className="space-y-2">
-              <Label htmlFor="reminder-at">{t("chat.reminder_datetime_label")}</Label>
+              <Label htmlFor="reminder-at" className="text-label font-semibold">{t("chat.reminder_datetime_label")}</Label>
               <div role="group" aria-describedby={timeInPast ? "reminder-at-error" : zone ? "reminder-at-zone" : undefined}>
                 <DateTimeField
                   id="reminder-at"
@@ -266,22 +267,22 @@ export function ChatCreateReminderDialog({
             </div>
           ) : (
             <div className="space-y-2">
-              <p id="reminder-at-summary-label" className="text-label font-medium text-foreground">
+              <p id="reminder-at-summary-label" className="text-label font-semibold text-foreground">
                 {t("chat.reminder_scheduled_label")}
               </p>
               <output
                 aria-labelledby="reminder-at-summary-label"
-                className="flex items-center gap-2 rounded-lg border border-border bg-surface-hover px-3 py-2 text-body text-foreground"
+                className="flex min-h-11 items-center gap-2.5 rounded-lg bg-tint-teal px-3.5 py-2.5 text-body text-foreground"
               >
-                <Clock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                <span>{scheduleLabel}</span>
+                <Clock className="size-4 shrink-0 text-tint-teal-foreground" aria-hidden />
+                <span className="font-semibold">{scheduleLabel}</span>
                 {zone ? <span className="text-caption text-muted-foreground">{zone}</span> : null}
               </output>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="reminder-repeat">{t("chat.reminder_repeat_label")}</Label>
+            <Label htmlFor="reminder-repeat" className="text-label font-semibold">{t("chat.reminder_repeat_label")}</Label>
             <Select
               id="reminder-repeat"
               value={repeat}

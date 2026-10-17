@@ -1,5 +1,6 @@
 "use client";
 
+import { Globe, Hash, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
@@ -24,6 +25,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
@@ -144,14 +146,16 @@ export function CreateChannelDialog({
       });
   };
 
-  const visibilityOptions: { value: Visibility; title: string; hint: string }[] = [
+  const visibilityOptions: { value: Visibility; icon: typeof Globe; title: string; hint: string }[] = [
     {
       value: "public",
+      icon: Globe,
       title: t("chat.channel.visibility_public_title"),
       hint: t("chat.channel.visibility_public_hint"),
     },
     {
       value: "private",
+      icon: Lock,
       title: t("chat.channel.visibility_private_title"),
       hint: t("chat.channel.visibility_private_hint"),
     },
@@ -159,37 +163,44 @@ export function CreateChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="lg">
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-2xl`}>
         <FormDialogHeader
           title={t("chat.channel.create_title")}
           description={t("chat.channel.create_description")}
         />
         <FormDialogBody className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="channel-name" className="text-label font-medium">
+            <Label htmlFor="channel-name" className="text-label font-semibold">
               {t("chat.channel.name_label")}
             </Label>
-            <Input
-              id="channel-name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                e.preventDefault();
-                submit();
-              }}
-              placeholder={t("chat.channel.name_placeholder")}
-              autoFocus
-              maxLength={NAME_MAX}
-            />
+            <div className="relative">
+              <Hash
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="channel-name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                  e.preventDefault();
+                  submit();
+                }}
+                placeholder={t("chat.channel.name_placeholder")}
+                autoFocus
+                maxLength={NAME_MAX}
+                className="pl-9"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="channel-topic" className="text-label font-medium">
+            <Label htmlFor="channel-topic" className="text-label font-semibold">
               {t("chat.channel.topic_label")}
             </Label>
             <Textarea
@@ -203,7 +214,7 @@ export function CreateChannelDialog({
           </div>
 
           <div className="space-y-2">
-            <p id="channel-visibility-label" className="text-label font-medium text-foreground">
+            <p id="channel-visibility-label" className="text-label font-semibold text-foreground">
               {t("chat.channel.visibility_label")}
             </p>
             <RadioGroup
@@ -212,13 +223,13 @@ export function CreateChannelDialog({
               onValueChange={(value) => {
                 if (value === "public" || value === "private") setVisibility(value);
               }}
-              className="gap-2 sm:grid-cols-2"
+              className="gap-3 sm:grid-cols-2"
             >
               {visibilityOptions.map((option) => (
                 <Label
                   key={option.value}
                   htmlFor={`channel-vis-${option.value}`}
-                  className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-3 py-2.5 font-normal transition-colors hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle"
+                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3.5 font-normal transition-colors hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle has-[[data-checked]]:ring-1 has-[[data-checked]]:ring-primary"
                 >
                   <RadioGroupItem
                     value={option.value}
@@ -226,8 +237,11 @@ export function CreateChannelDialog({
                     aria-describedby={`channel-vis-${option.value}-hint`}
                     className="mt-0.5"
                   />
-                  <span className="min-w-0 space-y-0.5">
-                    <span className="block text-body font-medium text-foreground">{option.title}</span>
+                  <span className="min-w-0 space-y-1">
+                    <span className="flex items-center gap-1.5 text-body-lg font-semibold text-foreground">
+                      <option.icon aria-hidden className="size-4 shrink-0" />
+                      {option.title}
+                    </span>
                     <span
                       id={`channel-vis-${option.value}-hint`}
                       className="block text-caption text-pretty text-muted-foreground"
@@ -241,7 +255,7 @@ export function CreateChannelDialog({
           </div>
 
           <div className="space-y-2">
-            <Label id="channel-project-label" htmlFor="channel-project" className="text-label font-medium">
+            <Label id="channel-project-label" htmlFor="channel-project" className="text-label font-semibold">
               {t("chat.channel.project_label")}
             </Label>
             <Select
