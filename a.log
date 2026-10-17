@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+a887deb65b042ee74b2578083dc6d368f1b5350e
+a8b2b39141c7baa70d1a6f5739bb84d6f6f9fa6f
+a887deb65 fix(documents): keep restricted trashed rows title-only for admins (UNI-1843)
+a7c229f3a fix(documents): match trashed rows on content only for manage holders (UNI-1843)
+03830b3d0 docs(documents): correct the restore bound comment (UNI-1843)
+88d01d695 fix(documents): align purge client and canManageTrashed with the server contract (UNI-1843)
+f8dd6a226 fix(documents): re-root surviving children before a hard delete (UNI-1843)
+f048c32c4 fix(documents): hide trashed items below edit in the shared archive gate (UNI-1843)
+3ddbdd3ea Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1843-restore-purge
+a8b2b3914 chore: merge SIZE-S1 + SIZE-W1a (UNI-1859/1860, 73f056af2) into the G5-G7 root
