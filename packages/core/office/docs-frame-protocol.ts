@@ -693,7 +693,6 @@ export type DocBlockedReason =
   | 'organization_suspended'
   | 'member_deactivated'
   | 'document_archived'
-  | 'document_shelved'
 
 /**
  * additive (G5-03w): the host learned that the open document can no longer be saved by this viewer
