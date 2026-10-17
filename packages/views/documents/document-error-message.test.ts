@@ -77,5 +77,47 @@ describe("documentErrorMessage", () => {
       "Định dạng của bad.exe chưa được hỗ trợ.",
     );
   });
+
+  it("maps upload session error codes and quota_exceeded to localized messages in vi and en", () => {
+    const i18n = initI18n();
+    const tVi = i18n.getFixedT("vi");
+    const tEn = i18n.getFixedT("en");
+
+    for (const code of [
+      "upload_sessions_exhausted",
+      "upload_session_expired",
+      "upload_parts_invalid",
+      "upload_size_mismatch",
+      "upload_probe_mismatch",
+      "quota_exceeded",
+    ]) {
+      const err = new ApiError("server fallback", code, 422);
+      const viMsg = documentErrorMessage(err, tVi, "documents.page.upload_failed", { locale: "vi" });
+      const enMsg = documentErrorMessage(err, tEn, "documents.page.upload_failed", { locale: "en" });
+      expect(viMsg).not.toBe("server fallback");
+      expect(viMsg).not.toBe(`documents.errors.${code}`);
+      expect(enMsg).not.toBe("server fallback");
+      expect(enMsg).not.toBe(`documents.errors.${code}`);
+    }
+  });
+
+  it("maps 415 unsupported_media_type with and without file context", () => {
+    const t = fakeT();
+    const err = new ApiError("unsupported", "unsupported_media_type", 415);
+    documentErrorMessage(err, t, "fallback", {
+      file: { name: "bad.bin", size: 1024 },
+    });
+    expect(t).toHaveBeenCalledWith("documents.upload.unsupported_format", { name: "bad.bin" });
+
+    const tNoFile = fakeT();
+    documentErrorMessage(err, tNoFile, "fallback");
+    expect(tNoFile.mock.calls[0]?.[0]).toBe("documents.errors.unsupported_media_type");
+  });
+
+  it("maps a failed upload with an open resumable session to documents.upload.failed_resumable", () => {
+    const t = fakeT();
+    documentErrorMessage(new Error("network timeout"), t, "fallback", { resumable: true });
+    expect(t).toHaveBeenCalledWith("documents.upload.failed_resumable");
+  });
 });
 
