@@ -5134,8 +5134,8 @@
       "document_access_approved": "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",
       "document_access_approved_untitled": "{{actor}} đã cấp cho bạn quyền truy cập một tài liệu.",
       "document_access_declined": "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
-      "document_shared": "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn.",
-      "document_shared_untitled": "{{actor}} đã chia sẻ một tài liệu với bạn."
+      "document_shared": "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn. Quyền: {{level}}.",
+      "document_shared_untitled": "{{actor}} đã chia sẻ một tài liệu với bạn. Quyền: {{level}}."
     },
     "kindTitle": {
       "document_mentioned": "Bạn được nhắc tên trong bình luận",

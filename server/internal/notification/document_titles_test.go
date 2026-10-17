@@ -41,7 +41,7 @@ var documentNameCases = []struct {
 	{KindDocumentDiscussionReplied, `An đã phản hồi nội dung thảo luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your discussion post in “A "b" & <c>”.`},
 	{KindDocumentCommentResolved, `An đã đánh dấu bình luận của bạn trong tài liệu “A "b" & <c>” là đã giải quyết.`, `An marked your comment in “A "b" & <c>” as resolved.`},
 	{KindDocumentBreakGlass, `An đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “A "b" & <c>”.`, `An opened emergency view access (24h) to “A "b" & <c>”.`},
-	{KindDocumentShared, `An đã chia sẻ tài liệu “A "b" & <c>” với bạn.`, `An shared “A "b" & <c>” with you.`},
+	{KindDocumentShared, `An đã chia sẻ tài liệu “A "b" & <c>” với bạn. Quyền: Chỉ xem.`, `An shared “A "b" & <c>” with you (View).`},
 }
 
 // shortPushTitleCases is the short titles OQ-C8 splits out, vi and en.
@@ -69,7 +69,7 @@ var htmlEscapeMarks = []string{"&amp;", "&lt;", "&gt;", "&quot;", "&#39;", "&#x2
 // Title for vi and en with a name carrying quotes, an ampersand and angle
 // brackets, and asserts the exact sentence - the name verbatim, no escaping.
 func TestTitleDocumentNameVerbatimAllKinds(t *testing.T) {
-	params := map[string]string{"actor": "An", "document": documentName}
+	params := map[string]string{"actor": "An", "document": documentName, "level": "view"}
 	for _, tc := range documentNameCases {
 		for _, locale := range []string{"vi", "en"} {
 			want := tc.vi
@@ -88,6 +88,29 @@ func TestTitleDocumentNameVerbatimAllKinds(t *testing.T) {
 					t.Errorf("Title(%s, %s) HTML-escaped the name: %q", locale, tc.kind, got)
 				}
 			}
+		}
+	}
+}
+
+func TestTitleDocumentSharedLevels(t *testing.T) {
+	cases := []struct {
+		level string
+		vi    string
+		en    string
+	}{
+		{"view", "Chỉ xem", "View"},
+		{"comment", "Nhận xét", "Comment"},
+		{"edit", "Chỉnh sửa", "Edit"},
+		{"manage", "Quản lý", "Manage"},
+		{"custom_future", "custom_future", "custom_future"},
+	}
+	for _, tc := range cases {
+		p := map[string]string{"actor": "An", "document": "Kế hoạch", "level": tc.level}
+		if got, want := Title("vi", KindDocumentShared, p), "An đã chia sẻ tài liệu “Kế hoạch” với bạn. Quyền: "+tc.vi+"."; got != want {
+			t.Errorf("Title(vi, %s) = %q, want %q", tc.level, got, want)
+		}
+		if got, want := Title("en", KindDocumentShared, p), "An shared “Kế hoạch” with you ("+tc.en+")."; got != want {
+			t.Errorf("Title(en, %s) = %q, want %q", tc.level, got, want)
 		}
 	}
 }

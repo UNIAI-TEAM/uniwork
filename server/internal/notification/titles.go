@@ -44,7 +44,7 @@ var titles = map[string]map[string]string{
 		KindDocumentAccessRequested:     "{{actor}} xin quyền truy cập tài liệu “{{document}}”.",
 		KindDocumentAccessApproved:      "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",
 		KindDocumentAccessDeclined:      "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
-		KindDocumentShared:              "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn.",
+		KindDocumentShared:              "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn. Quyền: {{level}}.",
 	},
 	"en": {
 		KindTaskAssigned:                "{{actor}} assigned you “{{task}}”",
@@ -77,7 +77,25 @@ var titles = map[string]map[string]string{
 		KindDocumentAccessRequested:     "{{actor}} requested access to “{{document}}”.",
 		KindDocumentAccessApproved:      "{{actor}} gave you access to “{{document}}”.",
 		KindDocumentAccessDeclined:      "Your request to access a document was declined.",
-		KindDocumentShared:              "{{actor}} shared “{{document}}” with you.",
+		KindDocumentShared:              "{{actor}} shared “{{document}}” with you ({{level}}).",
+	},
+}
+
+// documentLevelLabels translates the wire share level on server-rendered
+// document_shared titles (digest / push fallback) so a raw enum never leaks;
+// unknown values stay as-is.
+var documentLevelLabels = map[string]map[string]string{
+	"vi": {
+		"view":    "Chỉ xem",
+		"comment": "Nhận xét",
+		"edit":    "Chỉnh sửa",
+		"manage":  "Quản lý",
+	},
+	"en": {
+		"view":    "View",
+		"comment": "Comment",
+		"edit":    "Edit",
+		"manage":  "Manage",
 	},
 }
 
@@ -124,6 +142,7 @@ const editRequestDeclinedTitleKey = KindDocumentEditRequestAnswered + "_declined
 func Title(locale, kind string, params map[string]string) string {
 	loc := titles[locale]
 	if loc == nil {
+		locale = "en"
 		loc = titles["en"]
 	}
 	if kind == KindDocumentEditRequestAnswered && params["decision"] == editDecisionDecline {
@@ -134,6 +153,11 @@ func Title(locale, kind string, params map[string]string) string {
 		return kind
 	}
 	for k, v := range params {
+		if k == "level" && kind == KindDocumentShared {
+			if label := documentLevelLabels[locale][v]; label != "" {
+				v = label
+			}
+		}
 		s = strings.ReplaceAll(s, "{{"+k+"}}", v)
 	}
 	return s
