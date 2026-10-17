@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1847-save-01-desktop; git log --oneline -3
+bed3fb84715cd3b5eeb49790ec0ac28e4bdf8690
+bed3fb84715cd3b5eeb49790ec0ac28e4bdf8690
+bed3fb84 merge: FD-13 case h e2e fix (a49cc106f) into SAVE-01
+a49cc106 test(e2e): wait for Home UniWork launch reads before case h save check
+f9e5269e merge: FD-13 desktop frame head (a82016f3a) into SAVE-01 for the FE half
