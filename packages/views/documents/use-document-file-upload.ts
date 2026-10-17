@@ -43,15 +43,19 @@ export function useDocumentFileUpload({
   // The loading toast of the drop currently in flight. `chunked.start()` never
   // settles once the hook's own cleanup paused the engine, so its `finally`
   // never dismisses the toast (R2-2): the unmount effect below has to.
-  const dropToastIdRef = useRef<string | number | null>(null);
+  const dropToastRef = useRef<{
+    id: string | number;
+    file: File;
+    percent: number;
+  } | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      if (dropToastIdRef.current !== null) {
-        toast.dismiss(dropToastIdRef.current);
-        dropToastIdRef.current = null;
+      if (dropToastRef.current !== null) {
+        toast.dismiss(dropToastRef.current.id);
+        dropToastRef.current = null;
       }
     };
   }, []);
@@ -65,7 +69,26 @@ export function useDocumentFileUpload({
     }),
     [wsId, parentId],
   );
-  const chunked = useChunkedDocumentUpload(target);
+  const chunked = useChunkedDocumentUpload(target, {
+    onProgress: (p) => {
+      const activeDrop = dropToastRef.current;
+      if (!activeDrop || !mountedRef.current) return;
+      const percent =
+        p.totalBytes > 0 ? Math.min(100, Math.floor((p.sentBytes / p.totalBytes) * 100)) : 0;
+      if (percent === activeDrop.percent) return;
+      activeDrop.percent = percent;
+      toast.loading(
+        t("documents.upload.drop_progress", { name: activeDrop.file.name, percent }),
+        {
+          id: activeDrop.id,
+          action: {
+            label: t("documents.upload.cancel"),
+            onClick: () => void chunked.cancel(activeDrop.file),
+          },
+        },
+      );
+    },
+  });
   const threshold = chunkedUploadThreshold(limits);
 
   const isChunkedFile = (file: { size: number }): boolean =>
@@ -73,17 +96,20 @@ export function useDocumentFileUpload({
 
   const uploadDroppedFile = async (file: File): Promise<void> => {
     if (isChunkedFile(file)) {
-      const toastId = toast.loading(t("documents.upload.progress_status", { name: file.name }), {
-        action: {
-          label: t("documents.upload.cancel"),
-          onClick: () => void chunked.cancel(file),
+      const toastId = toast.loading(
+        t("documents.upload.drop_progress", { name: file.name, percent: 0 }),
+        {
+          action: {
+            label: t("documents.upload.cancel"),
+            onClick: () => void chunked.cancel(file),
+          },
         },
-      });
-      dropToastIdRef.current = toastId;
+      );
+      dropToastRef.current = { id: toastId, file, percent: 0 };
       try {
         await chunked.start({ file, filename: file.name });
       } finally {
-        if (dropToastIdRef.current === toastId) dropToastIdRef.current = null;
+        if (dropToastRef.current?.id === toastId) dropToastRef.current = null;
         toast.dismiss(toastId);
       }
       return;

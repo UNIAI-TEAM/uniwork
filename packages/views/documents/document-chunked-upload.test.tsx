@@ -844,8 +844,17 @@ describe("Chunked document upload in views", () => {
 
     await waitFor(() => {
       expect(loadingSpy).toHaveBeenCalledWith(
-        t("documents.upload.progress_status", { name: "dropped-large.pdf" }),
+        "Đang tải lên dropped-large.pdf · 0%",
         expect.objectContaining({
+          action: expect.objectContaining({
+            label: t("documents.upload.cancel"),
+          }),
+        }),
+      );
+      expect(loadingSpy).toHaveBeenCalledWith(
+        "Đang tải lên dropped-large.pdf · 50%",
+        expect.objectContaining({
+          id: "drop-toast-1",
           action: expect.objectContaining({
             label: t("documents.upload.cancel"),
           }),
@@ -853,6 +862,7 @@ describe("Chunked document upload in views", () => {
       );
       expect(calls).toContain(`POST /api/v1/workspaces/${WS}/documents/upload-sessions`);
     });
+    expect(loadingSpy).toHaveBeenCalledTimes(2);
 
     const toastOpts = loadingSpy.mock.calls[0]?.[1] as {
       action?: { label: string; onClick: () => void };

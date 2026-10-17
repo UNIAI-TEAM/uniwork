@@ -8932,6 +8932,7 @@
       "checking": "Checking file…",
       "resume_hint": "Continuing upload from last time.",
       "progress_status": "Uploading {{name}}",
+      "drop_progress": "Uploading {{name}} · {{percent}}%",
       "paused_status": "Paused",
       "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue."
     },

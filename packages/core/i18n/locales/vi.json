@@ -8927,6 +8927,7 @@
       "checking": "Đang kiểm tra tệp…",
       "resume_hint": "Tiếp tục tải lên từ lần trước.",
       "progress_status": "Đang tải lên {{name}}",
+      "drop_progress": "Đang tải lên {{name}} · {{percent}}%",
       "paused_status": "Đã tạm dừng",
       "failed_resumable": "Chưa tải lên hết tệp. Tiến độ đã được giữ lại — bấm Tải lên để tiếp tục."
     },
