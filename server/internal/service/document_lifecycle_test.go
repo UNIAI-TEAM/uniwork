@@ -1301,5 +1301,81 @@ func TestDocumentTrashEditHolders(t *testing.T) {
 		if !containsID(listIDs(adminTitle), restrictedHit.ID) {
 			t.Fatalf("admin title search missing %s (got %v)", restrictedHit.ID, listIDs(adminTitle))
 		}
+
+		// BE-RS-9: the content branch admits only a live manage share. A
+		// restricted trashed row is reached only through the share leg, so
+		// the level filter is what keeps an edit holder's content term out.
+		shareEditRow := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			title: "Share Edit Row", searchText: "Share Edit Row mandolin body only",
+		})
+		f.share(t, shareEditRow, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
+		shareManageRow := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			title: "Share Manage Row", searchText: "Share Manage Row sitar body only",
+		})
+		f.share(t, shareManageRow, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
+
+		// BE-RS-8: removed from the workspace but still an organization
+		// member, the ACL owner is admitted by their live edit share alone;
+		// the content branch must not let the raw acl_owner_id leg stand in
+		// for the manage the resolver never grants a non-member.
+		formerOwnerRow := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			title: "Former Owner Row", searchText: "Former Owner Row harpsichord body only",
+		})
+		f.share(t, formerOwnerRow, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.member.ID)
+		for _, id := range []string{shareEditRow.ID, shareManageRow.ID, formerOwnerRow.ID} {
+			var actor Actor
+			if id == formerOwnerRow.ID {
+				actor = editor // tn.member is this row's ACL owner (manage)
+			} else {
+				actor = owner
+			}
+			if _, err := f.svc.ArchiveDocument(f.ctx, actor, id, ArchiveDocumentInput{}); err != nil {
+				t.Fatalf("archive %s: %v", id, err)
+			}
+		}
+
+		editShareContent, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "mandolin", Limit: 100})
+		if err != nil {
+			t.Fatalf("edit-share content search: %v", err)
+		}
+		if containsID(listIDs(editShareContent), shareEditRow.ID) {
+			t.Fatalf("edit share content search leaked %s (got %v)", shareEditRow.ID, listIDs(editShareContent))
+		}
+		editShareTitle, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "Share Edit Row", Limit: 100})
+		if err != nil {
+			t.Fatalf("edit-share title search: %v", err)
+		}
+		if !containsID(listIDs(editShareTitle), shareEditRow.ID) {
+			t.Fatalf("edit share title search missing %s (got %v)", shareEditRow.ID, listIDs(editShareTitle))
+		}
+
+		manageShareContent, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "sitar", Limit: 100})
+		if err != nil {
+			t.Fatalf("manage-share content search: %v", err)
+		}
+		if !containsID(listIDs(manageShareContent), shareManageRow.ID) {
+			t.Fatalf("manage share content search missing %s (got %v)", shareManageRow.ID, listIDs(manageShareContent))
+		}
+
+		if _, err := f.pool.Exec(f.ctx, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, tn.wsA, tn.member.ID); err != nil {
+			t.Fatal(err)
+		}
+		formerContent, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "harpsichord", Limit: 100})
+		if err != nil {
+			t.Fatalf("former-member content search: %v", err)
+		}
+		if containsID(listIDs(formerContent), formerOwnerRow.ID) {
+			t.Fatalf("former member content search leaked %s via the unflagged ACL-owner leg (got %v)", formerOwnerRow.ID, listIDs(formerContent))
+		}
+		formerTitle, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "Former Owner Row", Limit: 100})
+		if err != nil {
+			t.Fatalf("former-member title search: %v", err)
+		}
+		if !containsID(listIDs(formerTitle), formerOwnerRow.ID) {
+			t.Fatalf("former member title search missing %s (got %v)", formerOwnerRow.ID, listIDs(formerTitle))
+		}
 	})
 }
