@@ -1,0 +1,177 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); pnpm --filter @uniwork/web build && (PORT=3000 nohup pnpm --filter @uniwork/web start > /tmp/rootb-web.log 2>&1 &); sleep 2; echo started
+
+> @uniwork/web@0.0.0 build /workspace/apps/web
+> node scripts/office-frame-sync.mjs --ensure && next build
+
+office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-5a72c13
+office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-5a72c13
+office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-5a72c13
+office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-5a72c13
+office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-5a72c13
+office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-5a72c13
+▲ Next.js 16.3.8 (Turbopack)
+✓ Running next.config.mjs took 137ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+  Creating an optimized production build ...
+Found 2 warnings while optimizing generated CSS:
+
+Issue #1:
+[2m│   }[22m
+[2m│ }[22m
+[2m│[22m ::highlight(task-find) {
+[2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+[2m┆[22m
+[2m│   background-color: var(--selection);[22m
+[2m│   color: var(--selection-foreground);[22m
+
+Issue #2:
+[2m│   color: var(--selection-foreground);[22m
+[2m│ }[22m
+[2m│[22m ::highlight(task-find-active) {
+[2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+[2m┆[22m
+[2m│   background-color: var(--brand);[22m
+[2m│   color: var(--brand-foreground);[22m
+
+✓ Compiled successfully in 37.7s
+  Running TypeScript ...
+  Finished TypeScript in 35.1s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/102) ...
+  Generating static pages using 3 workers (25/102) 
+  Generating static pages using 3 workers (50/102) 
+  Generating static pages using 3 workers (76/102) 
+✓ Generating static pages using 3 workers (102/102) in 647ms
+Turbopack build encountered 2 warnings:
+./apps/web/app/globals.css:2:303209
+Warning: Parsing CSS source code failed
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:2:303209
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+./apps/web/app/globals.css:2:303300
+Warning: Parsing CSS source code failed
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:2:303300
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /[orgSlug]/[workspaceSlug]
+├ ƒ /[orgSlug]/[workspaceSlug]/calendar
+├ ƒ /[orgSlug]/[workspaceSlug]/chat
+├ ƒ /[orgSlug]/[workspaceSlug]/documents
+├ ƒ /[orgSlug]/[workspaceSlug]/documents/[documentId]
+├ ƒ /[orgSlug]/[workspaceSlug]/documents/access-report
+├ ƒ /[orgSlug]/[workspaceSlug]/email
+├ ƒ /[orgSlug]/[workspaceSlug]/inbox
+├ ƒ /[orgSlug]/[workspaceSlug]/meetings
+├ ƒ /[orgSlug]/[workspaceSlug]/meetings/[meetingId]
+├ ƒ /[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room
+├ ƒ /[orgSlug]/[workspaceSlug]/members
+├ ƒ /[orgSlug]/[workspaceSlug]/my-tasks
+├ ƒ /[orgSlug]/[workspaceSlug]/people
+├ ƒ /[orgSlug]/[workspaceSlug]/people/[userId]
+├ ƒ /[orgSlug]/[workspaceSlug]/projects
+├ ƒ /[orgSlug]/[workspaceSlug]/projects/[projectId]
+├ ƒ /[orgSlug]/[workspaceSlug]/settings
+├ ƒ /[orgSlug]/[workspaceSlug]/tasks
+├ ƒ /[orgSlug]/[workspaceSlug]/tasks/[taskId]
+├ ƒ /about
+├ ƒ /admin
+├ ƒ /admin/demo-requests
+├ ƒ /admin/flags
+├ ƒ /admin/invoices
+├ ƒ /admin/organizations
+├ ƒ /admin/organizations/[id]
+├ ƒ /admin/plans
+├ ƒ /admin/quota
+├ ƒ /admin/system
+├ ƒ /admin/trace
+├ ○ /apple-icon.png
+├ ƒ /auth/callback
+├ ƒ /auth/connect/authorize
+├ ƒ /auth/desktop/authorize
+├ ƒ /changelog
+├ ƒ /enterprise
+├ ƒ /features
+├ ƒ /features/[slug]
+├ ƒ /forgot-password
+├ ƒ /get-started
+├ ○ /icon.svg
+├ ƒ /invitations
+├ ƒ /invite/[token]
+├ ƒ /invite/meeting/[linkId]
+├ ƒ /invite/meeting/[linkId]/room
+├ ƒ /learn
+├ ƒ /learn/[slug]
+├ ƒ /login
+├ ○ /manifest.webmanifest
+├ ƒ /no-workspace
+├ ƒ /office
+├ ƒ /onboarding
+├ ○ /opengraph-image.png
+├ ƒ /pricing
+├ ƒ /register
+├ ƒ /request-demo
+├ ƒ /reset-password
+├ ○ /robots.txt
+├ ƒ /security
+├ ƒ /share/[token]
+├ ○ /sitemap.xml
+├ ƒ /solutions
+├ ƒ /solutions/operations
+├ ƒ /solutions/product
+├ ƒ /verify
+├ ƒ /vi/[[...segments]]
+├ ƒ /why-uniwork
+├ ƒ /workspaces
+└ ƒ /workspaces/new
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+started
