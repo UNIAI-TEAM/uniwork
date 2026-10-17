@@ -592,37 +592,61 @@ func TestDocumentSourceChatMarkdownOpens(t *testing.T) {
 	roomID := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
 	s.roomMember(tn.orgID, tn.wsA, roomID, tn.owner.ID, "active")
 	s.roomMember(tn.orgID, tn.wsA, roomID, tn.member.ID, "active")
-	mdBody := []byte("# Probe MD\n\nBody.\n")
-	msg, err := chat.SendFileMessage(s.ctx, tn.owner.ID, tn.wsA, roomID, SendFileMessageInput{
-		Filename:    "probe-md.md",
-		Body:        bytes.NewReader(mdBody),
-		ClientMsgID: "chat-md-1",
-	})
-	if err != nil {
-		t.Fatalf("SendFileMessage(.md): %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = env.f.pool.Exec(context.Background(), `DELETE FROM chat_messages WHERE id = $1`, msg.ID)
-	})
-	var fileID string
-	if err := env.f.pool.QueryRow(s.ctx, `SELECT file_id::text FROM chat_messages WHERE id = $1`, msg.ID).Scan(&fileID); err != nil {
-		t.Fatalf("chat file_id: %v", err)
-	}
-	s.exec(`INSERT INTO files (id, organization_id, storage, object_key, original_filename, status, content_type, size_bytes, ready_at)
-		VALUES ($1, $2, 'local', $3, 'probe-md.md', 'ready', 'text/markdown', $4, now())`,
-		fileID, tn.orgID, "src/"+strings.ToLower(fileID), len(mdBody))
+	for _, tc := range []struct {
+		ext         string
+		filename    string
+		contentType string
+		clientMsgID string
+		body        []byte
+	}{
+		{
+			ext:         ".md",
+			filename:    "probe-md.md",
+			contentType: "text/markdown",
+			clientMsgID: "chat-md-1",
+			body:        []byte("# Probe MD\n\nBody.\n"),
+		},
+		{
+			ext:         ".csv",
+			filename:    "probe-csv.csv",
+			contentType: "text/csv",
+			clientMsgID: "chat-csv-1",
+			body:        []byte("id,name\n1,Alpha\n2,Beta\n"),
+		},
+	} {
+		t.Run(tc.ext, func(t *testing.T) {
+			msg, err := chat.SendFileMessage(s.ctx, tn.owner.ID, tn.wsA, roomID, SendFileMessageInput{
+				Filename:    tc.filename,
+				Body:        bytes.NewReader(tc.body),
+				ClientMsgID: tc.clientMsgID,
+			})
+			if err != nil {
+				t.Fatalf("SendFileMessage(%s): %v", tc.ext, err)
+			}
+			t.Cleanup(func() {
+				_, _ = env.f.pool.Exec(context.Background(), `DELETE FROM chat_messages WHERE id = $1`, msg.ID)
+			})
+			var fileID string
+			if err := env.f.pool.QueryRow(s.ctx, `SELECT file_id::text FROM chat_messages WHERE id = $1`, msg.ID).Scan(&fileID); err != nil {
+				t.Fatalf("chat file_id(%s): %v", tc.ext, err)
+			}
+			s.exec(`INSERT INTO files (id, organization_id, storage, object_key, original_filename, status, content_type, size_bytes, ready_at)
+				VALUES ($1, $2, 'local', $3, $4, 'ready', $5, $6, now())`,
+				fileID, tn.orgID, "src/"+strings.ToLower(fileID), tc.filename, tc.contentType, len(tc.body))
 
-	opened, err := svc.Open(s.ctx, human(tn.member), tn.wsA, "chat:"+msg.ID)
-	if err != nil {
-		t.Fatalf("DocumentSourceService.Open(chat:.md): %v", err)
-	}
-	got, err := io.ReadAll(opened.Body)
-	_ = opened.Body.Close()
-	if err != nil {
-		t.Fatalf("read opened .md body: %v", err)
-	}
-	if !bytes.Equal(got, mdBody) {
-		t.Fatalf("opened .md body = %q, want %q", got, mdBody)
+			opened, err := svc.Open(s.ctx, human(tn.member), tn.wsA, "chat:"+msg.ID)
+			if err != nil {
+				t.Fatalf("DocumentSourceService.Open(chat:%s): %v", tc.ext, err)
+			}
+			got, err := io.ReadAll(opened.Body)
+			_ = opened.Body.Close()
+			if err != nil {
+				t.Fatalf("read opened %s body: %v", tc.ext, err)
+			}
+			if !bytes.Equal(got, tc.body) {
+				t.Fatalf("opened %s body = %q, want %q", tc.ext, got, tc.body)
+			}
+		})
 	}
 }
 
