@@ -238,7 +238,10 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
      cho kiểm tra allowlist.
   2. Giá trị mà bản sửa đưa vào (không có trong tài liệu trước khi sửa: ô mới, ô PDF, tiêu đề hay ô bảng đổi, định dạng phần
      trăm) phải nằm trong đối số của một lần ghi đã áp: ô xlsx cần địa chỉ và giá trị trong cùng một thao tác (G712-17), các giá
-     trị còn lại cần xuất hiện trong đối số. Không có thì mục đó trượt (đếm là "không có bằng chứng ghi").
+     trị còn lại cần xuất hiện trong đối số. Không có thì mục đó trượt (đếm là "không có bằng chứng ghi"). Một thao tác cấu hình
+     (`config_op`: đặt vùng in, cố định dòng/cột, …) là ngoại lệ có chủ đích (review-g712-16 A2): nó không đưa văn bản mới vào tài
+     liệu, nên nó được chứng minh bằng **chính đối số** của lần ghi đã áp — tên thao tác, sheet đích và các thiết lập — chứ không
+     bằng văn bản mới hay số đếm tự báo cáo.
   3. Giá trị tài liệu vốn đã có (tiêu đề hay tổng không đụng tới, ô trống để nguyên) và số đếm (cùng dò định dạng khác phần trăm)
      chỉ có tự báo cáo của model: vẫn được tính nhưng gắn nhãn "tự báo cáo (giữ nguyên)" hoặc "tự báo cáo (số đếm, dò định dạng)"
      theo từng mục, không phải bằng chứng. Một tiêu đề hay ô được sửa mà chỉ là bản rút gọn/kéo dài của dòng cũ vẫn là giá trị mới.
