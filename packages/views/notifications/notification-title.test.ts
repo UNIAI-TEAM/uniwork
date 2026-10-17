@@ -34,7 +34,7 @@ const { t } = initI18n();
 const DOCUMENT_KINDS = [
   "document_commented", "document_mentioned", "document_comment_replied",
   "document_discussion_mentioned", "document_discussion_replied", "document_comment_resolved",
-  "document_break_glass", "document_access_requested", "document_access_approved",
+  "document_break_glass", "document_access_requested", "document_access_approved", "document_shared",
 ];
 
 describe("notificationTitleKey", () => {
