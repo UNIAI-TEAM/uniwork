@@ -267,7 +267,8 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 	if r.folder != nil {
 		rows, err := r.q.ListDocumentAccessReportSubtreeCandidates(ctx, db.ListDocumentAccessReportSubtreeCandidatesParams{
 			OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, RootID: r.folder.ID,
-			MaxLevel: subtreeMaxLevel(), Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
+			SeeAll: r.scope.seeAll, ActorID: r.scope.actorID, MaxLevel: subtreeMaxLevel(),
+			Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
 		})
 		if err != nil {
 			return out, err
@@ -279,6 +280,7 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 	} else {
 		rows, err := r.q.ListDocumentAccessReportWorkspaceCandidates(ctx, db.ListDocumentAccessReportWorkspaceCandidatesParams{
 			OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID,
+			SeeAll: r.scope.seeAll, ActorID: r.scope.actorID, MaxLevel: subtreeMaxLevel(),
 			Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
 		})
 		if err != nil {

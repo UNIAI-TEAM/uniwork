@@ -203,6 +203,16 @@ WHERE d.organization_id = $2
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($10::text[]))))))
+  -- MYFOLDER-01 (UNI-1891): the snapshot is the list predicate materialised
+  -- at one MVCC point, so it carries the list's ancestor-My-Folder exclusion
+  -- too - an admin's cold start must not seed the offline library with a
+  -- document inside another member's My Folder. Gated on see_all; the set is
+  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  AND (NOT $4::boolean
+       OR NOT EXISTS (
+            SELECT 1 FROM uw_my_folder_foreign_ids(
+              $8, $2, $3, $11::int
+            ) mfs WHERE mfs.document_id = d.id))
 `
 
 type InsertDocumentChangeSnapshotItemsParams struct {
@@ -216,6 +226,7 @@ type InsertDocumentChangeSnapshotItemsParams struct {
 	ActorID         string   `json:"actor_id"`
 	AllowShares     bool     `json:"allow_shares"`
 	ShareWorkspaces []string `json:"share_workspaces"`
+	MaxLevel        int32    `json:"max_level"`
 }
 
 // The documents the actor reads in the workspace tree: the same legs as the
@@ -234,6 +245,7 @@ func (q *Queries) InsertDocumentChangeSnapshotItems(ctx context.Context, arg Ins
 		arg.ActorID,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
+		arg.MaxLevel,
 	)
 	if err != nil {
 		return 0, err

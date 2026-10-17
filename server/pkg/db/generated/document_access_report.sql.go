@@ -103,14 +103,14 @@ WITH RECURSIVE sub AS (
   FROM documents r
   WHERE r.organization_id = $1
     AND r.workspace_id = $2
-    AND r.id = $6
+    AND r.id = $9
   UNION ALL
   SELECT c.id, sub.lvl + 1
   FROM documents c
   JOIN sub ON c.parent_id = sub.id
   WHERE c.organization_id = $1
     AND c.workspace_id = $2
-    AND sub.lvl < $7::int
+    AND sub.lvl < $6::int
 )
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
   d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
@@ -121,19 +121,32 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
   AND ($3::text = '' OR d.visibility = $3::text)
-  AND d.id > $4::text
+  -- MYFOLDER-01 (UNI-1891): the report is an admin (see_all) surface, so it
+  -- carries the same ancestor-My-Folder exclusion as the lists
+  -- (document_search.sql): a document inside another member's My Folder is
+  -- not a candidate, whatever it carries. Gated on see_all so a non-admin
+  -- administer-their-own read is untouched; the set is
+  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  AND (NOT $4::boolean
+       OR NOT EXISTS (
+            SELECT 1 FROM uw_my_folder_foreign_ids(
+              $5, $1, $2, $6::int
+            ) mfs WHERE mfs.document_id = d.id))
+  AND d.id > $7::text
 ORDER BY d.id
-LIMIT $5
+LIMIT $8
 `
 
 type ListDocumentAccessReportSubtreeCandidatesParams struct {
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
 	Visibility     string `json:"visibility"`
+	SeeAll         bool   `json:"see_all"`
+	ActorID        string `json:"actor_id"`
+	MaxLevel       int32  `json:"max_level"`
 	AfterID        string `json:"after_id"`
 	MaxRows        int32  `json:"max_rows"`
 	RootID         string `json:"root_id"`
-	MaxLevel       int32  `json:"max_level"`
 }
 
 type ListDocumentAccessReportSubtreeCandidatesRow struct {
@@ -161,10 +174,12 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.Visibility,
+		arg.SeeAll,
+		arg.ActorID,
+		arg.MaxLevel,
 		arg.AfterID,
 		arg.MaxRows,
 		arg.RootID,
-		arg.MaxLevel,
 	)
 	if err != nil {
 		return nil, err
@@ -208,15 +223,29 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
   AND ($3::text = '' OR d.visibility = $3::text)
-  AND d.id > $4::text
+  -- MYFOLDER-01 (UNI-1891): the report is an admin (see_all) surface, so it
+  -- carries the same ancestor-My-Folder exclusion as the lists
+  -- (document_search.sql): a document inside another member's My Folder is
+  -- not a candidate, whatever it carries. Gated on see_all so a non-admin
+  -- administer-their-own read is untouched; the set is
+  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  AND (NOT $4::boolean
+       OR NOT EXISTS (
+            SELECT 1 FROM uw_my_folder_foreign_ids(
+              $5, $1, $2, $6::int
+            ) mfs WHERE mfs.document_id = d.id))
+  AND d.id > $7::text
 ORDER BY d.id
-LIMIT $5
+LIMIT $8
 `
 
 type ListDocumentAccessReportWorkspaceCandidatesParams struct {
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
 	Visibility     string `json:"visibility"`
+	SeeAll         bool   `json:"see_all"`
+	ActorID        string `json:"actor_id"`
+	MaxLevel       int32  `json:"max_level"`
 	AfterID        string `json:"after_id"`
 	MaxRows        int32  `json:"max_rows"`
 }
@@ -248,6 +277,9 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.Visibility,
+		arg.SeeAll,
+		arg.ActorID,
+		arg.MaxLevel,
 		arg.AfterID,
 		arg.MaxRows,
 	)

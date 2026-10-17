@@ -14,6 +14,17 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
   AND (sqlc.arg(visibility)::text = '' OR d.visibility = sqlc.arg(visibility)::text)
+  -- MYFOLDER-01 (UNI-1891): the report is an admin (see_all) surface, so it
+  -- carries the same ancestor-My-Folder exclusion as the lists
+  -- (document_search.sql): a document inside another member's My Folder is
+  -- not a candidate, whatever it carries. Gated on see_all so a non-admin
+  -- administer-their-own read is untouched; the set is
+  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  AND (NOT sqlc.arg(see_all)::boolean
+       OR NOT EXISTS (
+            SELECT 1 FROM uw_my_folder_foreign_ids(
+              sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+            ) mfs WHERE mfs.document_id = d.id))
   AND d.id > sqlc.arg(after_id)::text
 ORDER BY d.id
 LIMIT sqlc.arg(max_rows);
@@ -46,6 +57,17 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
   AND (sqlc.arg(visibility)::text = '' OR d.visibility = sqlc.arg(visibility)::text)
+  -- MYFOLDER-01 (UNI-1891): the report is an admin (see_all) surface, so it
+  -- carries the same ancestor-My-Folder exclusion as the lists
+  -- (document_search.sql): a document inside another member's My Folder is
+  -- not a candidate, whatever it carries. Gated on see_all so a non-admin
+  -- administer-their-own read is untouched; the set is
+  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  AND (NOT sqlc.arg(see_all)::boolean
+       OR NOT EXISTS (
+            SELECT 1 FROM uw_my_folder_foreign_ids(
+              sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+            ) mfs WHERE mfs.document_id = d.id))
   AND d.id > sqlc.arg(after_id)::text
 ORDER BY d.id
 LIMIT sqlc.arg(max_rows);

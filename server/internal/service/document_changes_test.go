@@ -805,3 +805,47 @@ func TestDocumentChangesFlagOffAnswersCapabilityOff(t *testing.T) {
 		t.Fatalf("a refused caller opened %d snapshots (%v)", n, err)
 	}
 }
+
+// MYFOLDER-01 (UNI-1891): the cold-start snapshot is the list predicate
+// materialised at one MVCC point, so it carries the same ancestor-My-Folder
+// exclusion - an admin's cold start must not seed the offline library with a
+// document inside another member's My Folder, while the member who owns it
+// still gets it. The admin is wsAdmin (a workspace admin, see_all = true).
+func TestDocumentChangesSnapshotHidesForeignMyFolderSubtree(t *testing.T) {
+	w := newChangeWorld(t, "chgmfs", nil)
+
+	// A is a plain workspace member; their My Folder plus a page inside it.
+	env := w.f
+	mf, _, err := env.svc.EnsureMyFolder(env.ctx, Human(w.tn.member.ID), w.tn.wsA)
+	if err != nil {
+		t.Fatalf("EnsureMyFolder(member): %v", err)
+	}
+	page, err := env.svc.CreatePage(env.ctx, Human(w.tn.member.ID), w.tn.wsA, CreatePageInput{
+		Title: "mfs-secret", Destination: DocumentSystemKindMyFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(inside My Folder): %v", err)
+	}
+
+	// The admin's cold start: neither the My Folder nor the page inside it.
+	admin, _ := w.drain(t, w.tn.wsAdmin.ID, 50, nil)
+	for _, c := range admin {
+		if c.DocumentID == mf.Document.ID || c.DocumentID == page.Document.ID {
+			t.Fatalf("admin snapshot leaked A's My Folder subtree: %s", c.DocumentID)
+		}
+	}
+	// The owner's cold start holds both.
+	owner, _ := w.drain(t, w.tn.member.ID, 50, nil)
+	var sawMF, sawPage bool
+	for _, c := range owner {
+		switch c.DocumentID {
+		case mf.Document.ID:
+			sawMF = true
+		case page.Document.ID:
+			sawPage = true
+		}
+	}
+	if !sawMF || !sawPage {
+		t.Fatalf("owner snapshot saw My Folder=%v page=%v, want both", sawMF, sawPage)
+	}
+}

@@ -257,3 +257,51 @@ func TestMyFolderIsolation(t *testing.T) {
 		t.Fatalf("owner control POST my-folder = %d %v, want 200", resControl.StatusCode, outControl)
 	}
 }
+
+// MYFOLDER-01 (UNI-1891) over HTTP: a workspace admin's flat search (the
+// admin_scope listing) does not leak a page that lives inside another
+// member's My Folder - neither its title nor its id - while the member who
+// owns the folder finds it. The list route is where the visual finding MF-V7
+// was seen.
+func TestMyFolderAdminSearchHidesForeignSubtreeRoutes(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, _ := docsJoinWorkspace(t, w, "member-mfs-http@example.com")
+	docsBase := "/api/v1/workspaces/" + w.wsID + "/documents"
+
+	// The member creates a page inside their My Folder (lazily created).
+	resChild, outChild := doJSON(t, w.srv, "POST", docsBase, memberTok, map[string]any{
+		"title": "mfs-secret-http", "destination": "my_folder",
+	})
+	if resChild.StatusCode != 201 {
+		t.Fatalf("member POST page in My Folder = %d %v", resChild.StatusCode, outChild)
+	}
+	childID := outChild["document"].(map[string]any)["id"].(string)
+
+	// The workspace owner (admin) searching does not see the page.
+	resAdmin, outAdmin := doJSON(t, w.srv, "GET", docsBase+"?q=mfs-secret-http", w.token, nil)
+	if resAdmin.StatusCode != 200 {
+		t.Fatalf("admin GET search = %d %v", resAdmin.StatusCode, outAdmin)
+	}
+	for _, raw := range outAdmin["documents"].([]any) {
+		it, _ := raw.(map[string]any)
+		if it["id"] == childID {
+			t.Fatalf("admin search leaked a page inside a member's My Folder: %v", it)
+		}
+	}
+
+	// Control: the member finds their own page.
+	resMember, outMember := doJSON(t, w.srv, "GET", docsBase+"?q=mfs-secret-http", memberTok, nil)
+	if resMember.StatusCode != 200 {
+		t.Fatalf("member GET search = %d %v", resMember.StatusCode, outMember)
+	}
+	var found bool
+	for _, raw := range outMember["documents"].([]any) {
+		it, _ := raw.(map[string]any)
+		if it["id"] == childID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("member search did not find their own page: %v", outMember)
+	}
+}

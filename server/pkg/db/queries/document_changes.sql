@@ -43,7 +43,17 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))));
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
+  -- MYFOLDER-01 (UNI-1891): the snapshot is the list predicate materialised
+  -- at one MVCC point, so it carries the list's ancestor-My-Folder exclusion
+  -- too - an admin's cold start must not seed the offline library with a
+  -- document inside another member's My Folder. Gated on see_all; the set is
+  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  AND (NOT sqlc.arg(see_all)::boolean
+       OR NOT EXISTS (
+            SELECT 1 FROM uw_my_folder_foreign_ids(
+              sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+            ) mfs WHERE mfs.document_id = d.id));
 
 -- name: SetDocumentChangeSnapshotCount :exec
 UPDATE document_change_snapshots
