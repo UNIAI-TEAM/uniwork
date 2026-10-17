@@ -153,6 +153,7 @@ export function DocumentUploadDialog({
             <div className="flex flex-col gap-1.5" data-testid="document-upload-progress">
               <Progress
                 value={percentage}
+                className="*:data-[slot=progress-track]:bg-border"
                 aria-label={t("documents.upload.progress_status", { name: file?.name ?? "" })}
               >
                 <ProgressLabel className="truncate text-caption">{file?.name}</ProgressLabel>

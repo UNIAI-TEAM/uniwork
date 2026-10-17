@@ -188,7 +188,7 @@ describe("Chunked document upload in views", () => {
     fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
 
     expect(await screen.findByText(t("documents.upload.checking"))).toBeInTheDocument();
-    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveClass("*:data-[slot=progress-track]:bg-border");
     expect(screen.getByText("100%")).toBeInTheDocument();
 
     await act(async () => {
