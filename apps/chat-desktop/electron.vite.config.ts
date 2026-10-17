@@ -7,6 +7,9 @@ const define = {
   "process.env.UNICHAT_APP_URL": JSON.stringify(process.env.UNICHAT_APP_URL ?? "http://localhost:3000"),
   "process.env.UNICHAT_API_URL": JSON.stringify(process.env.UNICHAT_API_URL ?? "http://localhost:8080"),
   "process.env.UNICHAT_DEPLOYMENT_ID": JSON.stringify(process.env.UNICHAT_DEPLOYMENT_ID ?? "default"),
+  // electron-builder.ts signs the mac app exactly when CSC_LINK is set; only a
+  // signed app can install an update itself (src/main/updater.ts).
+  "process.env.UNICHAT_MAC_SIGNED": JSON.stringify(process.env.CSC_LINK ? "1" : ""),
 };
 
 export default defineConfig({
