@@ -1,0 +1,5 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; PGPASSWORD=uniwork psql -h localhost -U uniwork -d postgres -c 'DROP DATABASE IF EXISTS uniwork_test_scdh WITH (FORCE)' -c 'CREATE DATABASE uniwork_test_scdh'; rc=$?; echo; echo "TEST_DB_EXIT=$rc"
+DROP DATABASE
+CREATE DATABASE
+
+TEST_DB_EXIT=0
