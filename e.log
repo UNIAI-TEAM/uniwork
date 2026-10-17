@@ -1,0 +1,953 @@
+$ echo "=== T3 ==="; xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t3-upgrade-rollback.mjs; rc=$?; echo; echo "T3_SUITE_EXIT=$rc"
+=== T3 ===
+==================================================================
+[g7-05/t3] Step 1: Install & run N' (v1.0.0-beta.3, APP_STORE_LEVEL=2)
+==================================================================
+[g7-05/t3] Installing /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office_1.0.0_amd64.deb via sudo dpkg -i ...
+==================================================================
+[g7-05/t3] Step 2: Upgrade to N+1 (1.0.0-g705n1, APP_STORE_LEVEL=3)
+==================================================================
+[g7-05/t3] Installing /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb via sudo dpkg -i ...
+T3_UPGRADE_EXIT=0
+==================================================================
+[g7-05/t3] Step 3: Rollback to N' (v1.0.0-beta.3, APP_STORE_LEVEL=2)
+==================================================================
+[g7-05/t3] Installing /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office_1.0.0_amd64.deb via sudo dpkg -i ...
+[g7-05/t3] Step 3b: Verifying N' .AppImage portable rollback guard on same userData...
+T3_ROLLBACK_EXIT=0
+==================================================================
+[g7-05/t3] Step 4: Re-upgrade to N+1 (1.0.0-g705n1, APP_STORE_LEVEL=3)
+==================================================================
+[g7-05/t3] Installing /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb via sudo dpkg -i ...
+T3_REUPGRADE_EXIT=0
+[g7-05/t3] Saved T3 report to /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05/t3-upgrade-rollback.json
+G7_05_T3_JSON_BEGIN
+{
+  "suite": "T3-upgrade-rollback",
+  "startedAt": "2026-10-17T17:42:20.907Z",
+  "builds": {
+    "nPrime": {
+      "role": "N' (v1.0.0-beta.3)",
+      "forkSha": "4bdba928d1210df9b04bfdaf549bbcdd6419d206",
+      "tag": "v1.0.0-beta.3",
+      "appVersion": "1.0.0",
+      "storeSchema": 2,
+      "appStoreLevel": 2,
+      "buildExitCode": 0,
+      "logPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime-build.log",
+      "deb": {
+        "name": "UniWork-Office_1.0.0_amd64.deb",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office_1.0.0_amd64.deb",
+        "bytes": 151954288,
+        "mib": 144.91,
+        "sha256": "12e09d8844a336b86d9d6b84e573105c0dab9321bb02ec4ebb258080eee8be9a"
+      },
+      "appImage": {
+        "name": "UniWork-Office-1.0.0-x86_64.AppImage",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office-1.0.0-x86_64.AppImage",
+        "bytes": 186719270,
+        "mib": 178.07,
+        "sha256": "a2975019bcbcf454425be47c3eba548cb9bc18b153c39dab6bd9a288510120a4"
+      },
+      "rpm": {
+        "name": "UniWork-Office-1.0.0.x86_64.rpm",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office-1.0.0.x86_64.rpm",
+        "bytes": 123108113,
+        "mib": 117.41,
+        "sha256": "81cd41702a6b1fe4d18ded15abfd4b7c10fce5367e69afc3a985e7d9f0daf167"
+      }
+    },
+    "n1": {
+      "role": "N+1 (synthetic store-level 3 test build)",
+      "forkSha": "db29e1d59d7859218105166ce3c19f222b999494",
+      "baseCommitSha": "db29e1d59d7859218105166ce3c19f222b999494",
+      "patchScript": "tools/g7-05/apply-n1-patch.mjs",
+      "appVersion": "1.0.0-g705n1",
+      "storeSchema": 2,
+      "appStoreLevel": 3,
+      "buildExitCode": 0,
+      "logPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1-build.log",
+      "deb": {
+        "name": "UniWork-Office_1.0.0-g705n1_amd64.deb",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb",
+        "bytes": 152617064,
+        "mib": 145.55,
+        "sha256": "ab163b6aae1aaf59fc0604453f6d37680aa2370737f63f7a109cab7f81359cdb"
+      },
+      "appImage": {
+        "name": "UniWork-Office-1.0.0-g705n1-x86_64.AppImage",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office-1.0.0-g705n1-x86_64.AppImage",
+        "bytes": 187333673,
+        "mib": 178.66,
+        "sha256": "014d483b78796cd9ad2c8cdc14946d19e3af1dd0a334d49f213ad959af8696d0"
+      },
+      "rpm": {
+        "name": "UniWork-Office-1.0.0-g705n1.x86_64.rpm",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office-1.0.0-g705n1.x86_64.rpm",
+        "bytes": 123292285,
+        "mib": 117.58,
+        "sha256": "6e06071386c0fd00f806a53867efc0ef2cc1e95d97cbb69e972c872bf25e55b2"
+      }
+    }
+  },
+  "ids": {
+    "deploymentId": "dep-g705-matrix",
+    "accountId": "acct-g705-user",
+    "deviceSessionId": "dev-g705-1",
+    "sessionId": "sess-g705-1",
+    "documentId": "doc-g705-bound-1",
+    "workspaceId": "ws-g705-1",
+    "orgId": "org-g705-1",
+    "filename": "fx-docx-report-vi.docx",
+    "title": "fx-docx-report-vi",
+    "apiOrigin": "https://127.0.0.1:1",
+    "intentId": "intent-g705-seed-1",
+    "intentKey": "office-save-seed-1"
+  },
+  "steps": {
+    "step0Seed": {
+      "docPath": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+      "docSha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "store": {
+        "binding": {
+          "schema": 1,
+          "documentId": "doc-g705-bound-1",
+          "workspaceId": "ws-g705-1",
+          "orgId": "org-g705-1",
+          "title": "fx-docx-report-vi",
+          "filename": "fx-docx-report-vi.docx",
+          "format": "docx",
+          "access": "edit",
+          "baseRevision": "1",
+          "baseVersion": 1,
+          "baseChecksum": "0000000000000000000000000000000000000000000000000000000000000000",
+          "state": "dirty",
+          "lastSyncedAt": "2026-10-17T00:00:00.000Z",
+          "pendingIntent": {
+            "intentId": "intent-g705-seed-1",
+            "idempotencyKey": "office-save-seed-1",
+            "documentId": "doc-g705-bound-1",
+            "baseRevision": "1",
+            "checksum": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+            "createdAt": "2026-10-17T00:00:00.000Z"
+          }
+        },
+        "bindingSha256": "037b14d1402edb1d7a21efbc98dbac0838c4d6e12b7b7f7eb583e611816d9978",
+        "docSha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+        "docBytes": 11187,
+        "hasLegacyPendingUpload": true,
+        "hasEncryptedIntentRecord": false,
+        "intentRecord": null,
+        "docsTree": [
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 715,
+            "sha256": "037b14d1402edb1d7a21efbc98dbac0838c4d6e12b7b7f7eb583e611816d9978"
+          },
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 11187,
+            "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+          },
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/pending-upload.bin",
+            "bytes": 11187,
+            "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+          },
+          {
+            "relPath": "last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          }
+        ],
+        "syncTree": [
+          {
+            "relPath": "keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          }
+        ],
+        "combinedTree": [
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 715,
+            "sha256": "037b14d1402edb1d7a21efbc98dbac0838c4d6e12b7b7f7eb583e611816d9978"
+          },
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 11187,
+            "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+          },
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/pending-upload.bin",
+            "bytes": 11187,
+            "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+          },
+          {
+            "relPath": "uniwork-documents/last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          },
+          {
+            "relPath": "uniwork-sync/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          }
+        ]
+      }
+    },
+    "step1NPrime": {
+      "pass": true,
+      "install": {
+        "debPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office_1.0.0_amd64.deb",
+        "expectedVersion": "1.0.0",
+        "expectedDebVersion": "1.0.0",
+        "dpkgQuery": "install ok installed 1.0.0",
+        "binaryPath": "/usr/bin/uniwork-office"
+      },
+      "runtime": {
+        "accountAfterRetry": {
+          "loggedIn": false,
+          "email": "matrix@uniwork.test",
+          "profile": {
+            "accountId": "acct-g705-user",
+            "email": "matrix@uniwork.test",
+            "displayName": "G7-05 Matrix User"
+          },
+          "state": "server-unreachable",
+          "org": {
+            "id": "org-g705-1",
+            "name": "G7-05 Matrix Org",
+            "slug": "g705-matrix-org",
+            "role": "admin",
+            "membership": "active"
+          },
+          "orgs": [
+            {
+              "id": "org-g705-1",
+              "name": "G7-05 Matrix Org",
+              "slug": "g705-matrix-org",
+              "role": "admin",
+              "membership": "active"
+            }
+          ],
+          "needsOrgChoice": false,
+          "rememberedGone": false,
+          "entitlements": null,
+          "serverOrigin": "127.0.0.1:1",
+          "serverUrl": "https://127.0.0.1:1",
+          "error": "network"
+        },
+        "editorState": {
+          "hasProseMirror": true,
+          "textLength": 595,
+          "textPreview": "Báo cáo kinh doanh quý 1 năm 20261. Tóm tắt điều hànhTổng doanh thu quý 1 đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiề"
+        },
+        "shellState": {
+          "locks": [],
+          "docStatus": {
+            "path": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "documentId": "doc-g705-bound-1",
+            "workspaceId": "ws-g705-1",
+            "title": "fx-docx-report-vi",
+            "format": "docx",
+            "access": "edit",
+            "state": "dirty"
+          },
+          "tabs": [
+            {
+              "id": "home",
+              "kind": "home",
+              "title": "UniWork Office",
+              "closable": false,
+              "active": false
+            },
+            {
+              "id": "t1",
+              "kind": "docs",
+              "title": "fx-docx-report-vi.docx",
+              "closable": true,
+              "active": true,
+              "filePath": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx"
+            }
+          ],
+          "lockPanelDom": null
+        }
+      },
+      "store": {
+        "binding": {
+          "schema": 2,
+          "documentId": "doc-g705-bound-1",
+          "workspaceId": "ws-g705-1",
+          "orgId": "org-g705-1",
+          "title": "fx-docx-report-vi",
+          "filename": "fx-docx-report-vi.docx",
+          "format": "docx",
+          "access": "edit",
+          "baseRevision": "1",
+          "baseVersion": 1,
+          "baseChecksum": "0000000000000000000000000000000000000000000000000000000000000000",
+          "state": "dirty",
+          "min_store_level": 2,
+          "min_app_version": "1.0.0"
+        },
+        "bindingSha256": "bb0147bbabe2728278d4903e135ceabc0028451b7cabb1c6fd69fd8bb911a05e",
+        "docSha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+        "docBytes": 11187,
+        "hasLegacyPendingUpload": false,
+        "hasEncryptedIntentRecord": true,
+        "intentRecord": {
+          "magic": "UWS1",
+          "headerLength": 32,
+          "header": {
+            "schema": 1,
+            "min_store_level": 2
+          },
+          "totalBytes": 11496,
+          "sha256": "fb5b52e10de068901899a1076fd9bb9ea77cb6eeea0306cba1b06cc04e7d7bdb"
+        },
+        "docsTree": [
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 424,
+            "sha256": "bb0147bbabe2728278d4903e135ceabc0028451b7cabb1c6fd69fd8bb911a05e"
+          },
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 11187,
+            "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+          },
+          {
+            "relPath": "last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          }
+        ],
+        "syncTree": [
+          {
+            "relPath": "keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          },
+          {
+            "relPath": "store/dep-g705-matrix/acct-g705-user/intents/bf8f1683962f81e4f5e2df9e2b62078ef874538285fdabcac35677e0f30b064c.rec",
+            "bytes": 11496,
+            "sha256": "fb5b52e10de068901899a1076fd9bb9ea77cb6eeea0306cba1b06cc04e7d7bdb"
+          }
+        ],
+        "combinedTree": [
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 424,
+            "sha256": "bb0147bbabe2728278d4903e135ceabc0028451b7cabb1c6fd69fd8bb911a05e"
+          },
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 11187,
+            "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+          },
+          {
+            "relPath": "uniwork-documents/last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          },
+          {
+            "relPath": "uniwork-sync/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          },
+          {
+            "relPath": "uniwork-sync/store/dep-g705-matrix/acct-g705-user/intents/bf8f1683962f81e4f5e2df9e2b62078ef874538285fdabcac35677e0f30b064c.rec",
+            "bytes": 11496,
+            "sha256": "fb5b52e10de068901899a1076fd9bb9ea77cb6eeea0306cba1b06cc04e7d7bdb"
+          }
+        ]
+      }
+    },
+    "step2UpgradeN1": {
+      "pass": true,
+      "install": {
+        "debPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb",
+        "expectedVersion": "1.0.0-g705n1",
+        "expectedDebVersion": "1.0.0~g705n1",
+        "dpkgQuery": "install ok installed 1.0.0~g705n1",
+        "binaryPath": "/usr/bin/uniwork-office"
+      },
+      "preEditDocSha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "step2BaselineDocSha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e",
+      "runtime": {
+        "accountAfterRetry": {
+          "loggedIn": false,
+          "email": "matrix@uniwork.test",
+          "profile": {
+            "accountId": "acct-g705-user",
+            "email": "matrix@uniwork.test",
+            "displayName": "G7-05 Matrix User"
+          },
+          "state": "server-unreachable",
+          "org": {
+            "id": "org-g705-1",
+            "name": "G7-05 Matrix Org",
+            "slug": "g705-matrix-org",
+            "role": "admin",
+            "membership": "active"
+          },
+          "orgs": [
+            {
+              "id": "org-g705-1",
+              "name": "G7-05 Matrix Org",
+              "slug": "g705-matrix-org",
+              "role": "admin",
+              "membership": "active"
+            }
+          ],
+          "needsOrgChoice": false,
+          "rememberedGone": false,
+          "entitlements": null,
+          "serverOrigin": "127.0.0.1:1",
+          "serverUrl": "https://127.0.0.1:1",
+          "error": "network"
+        },
+        "cancelBeforeEdit": "cancelled-via-sync-center",
+        "fallbackSaveTriggered": false,
+        "saveMs": 26.5,
+        "preEditDocSha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+        "postEditDocSha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e",
+        "editorState": {
+          "hasProseMirror": true,
+          "textLength": 614,
+          "textPreview": "Báo cáo kinh doanh quý 1 năm 20261. Tóm tắt điều hànhTổng doanh thu quý 1 đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiề",
+          "textIncludesEditMarker": true
+        },
+        "shellState": {
+          "locks": [],
+          "docStatus": {
+            "path": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "documentId": "doc-g705-bound-1",
+            "workspaceId": "ws-g705-1",
+            "title": "fx-docx-report-vi",
+            "format": "docx",
+            "access": "edit",
+            "state": "offline",
+            "error": "network"
+          },
+          "tabs": [
+            {
+              "id": "home",
+              "kind": "home",
+              "title": "UniWork Office",
+              "closable": false,
+              "active": false
+            },
+            {
+              "id": "t1",
+              "kind": "docs",
+              "title": "fx-docx-report-vi.docx",
+              "closable": true,
+              "active": true,
+              "filePath": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx"
+            }
+          ],
+          "lockPanelDom": null
+        }
+      },
+      "store": {
+        "binding": {
+          "schema": 2,
+          "documentId": "doc-g705-bound-1",
+          "workspaceId": "ws-g705-1",
+          "orgId": "org-g705-1",
+          "title": "fx-docx-report-vi",
+          "filename": "fx-docx-report-vi.docx",
+          "format": "docx",
+          "access": "edit",
+          "baseRevision": "1",
+          "baseVersion": 1,
+          "baseChecksum": "0000000000000000000000000000000000000000000000000000000000000000",
+          "state": "offline",
+          "error": "network",
+          "min_store_level": 3,
+          "min_app_version": "1.0.0"
+        },
+        "bindingSha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9",
+        "docSha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e",
+        "docBytes": 4413,
+        "hasLegacyPendingUpload": false,
+        "hasEncryptedIntentRecord": true,
+        "intentRecord": {
+          "magic": "UWS1",
+          "headerLength": 32,
+          "header": {
+            "schema": 1,
+            "min_store_level": 3
+          },
+          "totalBytes": 4949,
+          "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+        },
+        "docsTree": [
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 448,
+            "sha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9"
+          },
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 4413,
+            "sha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e"
+          },
+          {
+            "relPath": "last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          }
+        ],
+        "syncTree": [
+          {
+            "relPath": "keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          },
+          {
+            "relPath": "library/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "bcb2cbe7b0a0fcb96676e6e89f6a27dc2e9ed5d794918f8d7cd0d3eb21c48af7"
+          },
+          {
+            "relPath": "store/dep-g705-matrix/acct-g705-user/intents/bf8f1683962f81e4f5e2df9e2b62078ef874538285fdabcac35677e0f30b064c.rec",
+            "bytes": 4949,
+            "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+          }
+        ],
+        "combinedTree": [
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 448,
+            "sha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9"
+          },
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 4413,
+            "sha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e"
+          },
+          {
+            "relPath": "uniwork-documents/last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          },
+          {
+            "relPath": "uniwork-sync/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          },
+          {
+            "relPath": "uniwork-sync/library/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "bcb2cbe7b0a0fcb96676e6e89f6a27dc2e9ed5d794918f8d7cd0d3eb21c48af7"
+          },
+          {
+            "relPath": "uniwork-sync/store/dep-g705-matrix/acct-g705-user/intents/bf8f1683962f81e4f5e2df9e2b62078ef874538285fdabcac35677e0f30b064c.rec",
+            "bytes": 4949,
+            "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+          }
+        ]
+      }
+    },
+    "step3RollbackNPrime": {
+      "pass": true,
+      "install": {
+        "debPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office_1.0.0_amd64.deb",
+        "expectedVersion": "1.0.0",
+        "expectedDebVersion": "1.0.0",
+        "dpkgQuery": "install ok installed 1.0.0",
+        "binaryPath": "/usr/bin/uniwork-office"
+      },
+      "debRuntime": {
+        "locks": [
+          {
+            "path": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "reason": "store_newer",
+            "name": "fx-docx-report-vi.docx"
+          }
+        ],
+        "docStatus": null,
+        "saveAttempt": null,
+        "tabs": [
+          {
+            "id": "home",
+            "kind": "home",
+            "title": "UniWork Office",
+            "closable": false,
+            "active": true
+          }
+        ],
+        "lockPanelDom": {
+          "role": "region",
+          "title": "A newer app version is needed",
+          "body": "This data needs a newer app version. Update UniWork Office; nothing was deleted and no new save was created.",
+          "action": "Close",
+          "alertText": "A newer app version is needed. This data needs a newer app version. Update UniWork Office; nothing was deleted and no new save was created."
+        },
+        "mountedDocsViews": 0
+      },
+      "screenshotPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05/t3-step3-rollback-lock-panel.png",
+      "storeAfterDeb": {
+        "binding": {
+          "schema": 2,
+          "documentId": "doc-g705-bound-1",
+          "workspaceId": "ws-g705-1",
+          "orgId": "org-g705-1",
+          "title": "fx-docx-report-vi",
+          "filename": "fx-docx-report-vi.docx",
+          "format": "docx",
+          "access": "edit",
+          "baseRevision": "1",
+          "baseVersion": 1,
+          "baseChecksum": "0000000000000000000000000000000000000000000000000000000000000000",
+          "state": "offline",
+          "error": "network",
+          "min_store_level": 3,
+          "min_app_version": "1.0.0"
+        },
+        "bindingSha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9",
+        "docSha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e",
+        "docBytes": 4413,
+        "hasLegacyPendingUpload": false,
+        "hasEncryptedIntentRecord": true,
+        "intentRecord": {
+          "magic": "UWS1",
+          "headerLength": 32,
+          "header": {
+            "schema": 1,
+            "min_store_level": 3
+          },
+          "totalBytes": 4949,
+          "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+        },
+        "docsTree": [
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 448,
+            "sha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9"
+          },
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 4413,
+            "sha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e"
+          },
+          {
+            "relPath": "last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          }
+        ],
+        "syncTree": [
+          {
+            "relPath": "keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          },
+          {
+            "relPath": "library/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "bcb2cbe7b0a0fcb96676e6e89f6a27dc2e9ed5d794918f8d7cd0d3eb21c48af7"
+          },
+          {
+            "relPath": "store/dep-g705-matrix/acct-g705-user/intents/bf8f1683962f81e4f5e2df9e2b62078ef874538285fdabcac35677e0f30b064c.rec",
+            "bytes": 4949,
+            "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+          }
+        ],
+        "combinedTree": [
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 448,
+            "sha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9"
+          },
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 4413,
+            "sha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e"
+          },
+          {
+            "relPath": "uniwork-documents/last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          },
+          {
+            "relPath": "uniwork-sync/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          },
+          {
+            "relPath": "uniwork-sync/library/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "bcb2cbe7b0a0fcb96676e6e89f6a27dc2e9ed5d794918f8d7cd0d3eb21c48af7"
+          },
+          {
+            "relPath": "uniwork-sync/store/dep-g705-matrix/acct-g705-user/intents/bf8f1683962f81e4f5e2df9e2b62078ef874538285fdabcac35677e0f30b064c.rec",
+            "bytes": 4949,
+            "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+          }
+        ]
+      },
+      "diffFromStep2AfterDeb": {
+        "identical": true,
+        "added": [],
+        "removed": [],
+        "modified": []
+      },
+      "network": {
+        "straceLogPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05/t3-step3-rollback.strace.log",
+        "straceOutboundCount": 0,
+        "straceDnsCount": 0,
+        "apiOriginConnects": {
+          "targetIp": "127.0.0.1",
+          "targetPort": 1,
+          "count": 0,
+          "matches": []
+        },
+        "netLogPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05/t3-step3-rollback.netlog.log",
+        "netLogOutboundUrlCount": 0
+      },
+      "appImageCheck": {
+        "binaryPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n-prime/UniWork-Office-1.0.0-x86_64.AppImage",
+        "runtime": {
+          "locks": [
+            {
+              "path": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+              "reason": "store_newer",
+              "name": "fx-docx-report-vi.docx"
+            }
+          ],
+          "docStatus": null,
+          "saveAttempt": null,
+          "tabs": [
+            {
+              "id": "home",
+              "kind": "home",
+              "title": "UniWork Office",
+              "closable": false,
+              "active": true
+            }
+          ],
+          "lockPanelDom": {
+            "role": "region",
+            "title": "A newer app version is needed",
+            "body": "This data needs a newer app version. Update UniWork Office; nothing was deleted and no new save was created.",
+            "action": "Close",
+            "alertText": "A newer app version is needed. This data needs a newer app version. Update UniWork Office; nothing was deleted and no new save was created."
+          }
+        },
+        "diffFromStep2AfterAppImage": {
+          "identical": true,
+          "added": [],
+          "removed": [],
+          "modified": []
+        }
+      }
+    },
+    "step4ReupgradeN1": {
+      "pass": true,
+      "install": {
+        "debPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb",
+        "expectedVersion": "1.0.0-g705n1",
+        "expectedDebVersion": "1.0.0~g705n1",
+        "dpkgQuery": "install ok installed 1.0.0~g705n1",
+        "binaryPath": "/usr/bin/uniwork-office"
+      },
+      "runtime": {
+        "accountAfterRetry": {
+          "loggedIn": false,
+          "email": "matrix@uniwork.test",
+          "profile": {
+            "accountId": "acct-g705-user",
+            "email": "matrix@uniwork.test",
+            "displayName": "G7-05 Matrix User"
+          },
+          "state": "server-unreachable",
+          "org": {
+            "id": "org-g705-1",
+            "name": "G7-05 Matrix Org",
+            "slug": "g705-matrix-org",
+            "role": "admin",
+            "membership": "active"
+          },
+          "orgs": [
+            {
+              "id": "org-g705-1",
+              "name": "G7-05 Matrix Org",
+              "slug": "g705-matrix-org",
+              "role": "admin",
+              "membership": "active"
+            }
+          ],
+          "needsOrgChoice": false,
+          "rememberedGone": false,
+          "entitlements": null,
+          "serverOrigin": "127.0.0.1:1",
+          "serverUrl": "https://127.0.0.1:1",
+          "error": "network"
+        },
+        "editorState": {
+          "hasProseMirror": true,
+          "textLength": 614,
+          "textPreview": "Báo cáo kinh doanh quý 1 năm 20261. Tóm tắt điều hànhTổng doanh thu quý 1 đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiề",
+          "textIncludesEditMarker": true
+        },
+        "shellState": {
+          "locks": [],
+          "docStatus": {
+            "path": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "documentId": "doc-g705-bound-1",
+            "workspaceId": "ws-g705-1",
+            "title": "fx-docx-report-vi",
+            "format": "docx",
+            "access": "edit",
+            "state": "offline",
+            "error": "network"
+          },
+          "tabs": [
+            {
+              "id": "home",
+              "kind": "home",
+              "title": "UniWork Office",
+              "closable": false,
+              "active": false
+            },
+            {
+              "id": "t1",
+              "kind": "docs",
+              "title": "fx-docx-report-vi.docx",
+              "closable": true,
+              "active": true,
+              "filePath": "/tmp/g7-05-t3-env-29i9JL/xdg-config/UniWork Office/uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx"
+            }
+          ],
+          "lockPanelDom": null
+        }
+      },
+      "store": {
+        "binding": {
+          "schema": 2,
+          "documentId": "doc-g705-bound-1",
+          "workspaceId": "ws-g705-1",
+          "orgId": "org-g705-1",
+          "title": "fx-docx-report-vi",
+          "filename": "fx-docx-report-vi.docx",
+          "format": "docx",
+          "access": "edit",
+          "baseRevision": "1",
+          "baseVersion": 1,
+          "baseChecksum": "0000000000000000000000000000000000000000000000000000000000000000",
+          "state": "offline",
+          "error": "network",
+          "min_store_level": 3,
+          "min_app_version": "1.0.0"
+        },
+        "bindingSha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9",
+        "docSha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e",
+        "docBytes": 4413,
+        "hasLegacyPendingUpload": false,
+        "hasEncryptedIntentRecord": true,
+        "intentRecord": {
+          "magic": "UWS1",
+          "headerLength": 32,
+          "header": {
+            "schema": 1,
+            "min_store_level": 3
+          },
+          "totalBytes": 4949,
+          "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+        },
+        "docsTree": [
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 448,
+            "sha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9"
+          },
+          {
+            "relPath": "dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 4413,
+            "sha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e"
+          },
+          {
+            "relPath": "last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          }
+        ],
+        "syncTree": [
+          {
+            "relPath": "keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          },
+          {
+            "relPath": "library/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "bcb2cbe7b0a0fcb96676e6e89f6a27dc2e9ed5d794918f8d7cd0d3eb21c48af7"
+          },
+          {
+            "relPath": "store/dep-g705-matrix/acct-g705-user/intents/bf8f1683962f81e4f5e2df9e2b62078ef874538285fdabcac35677e0f30b064c.rec",
+            "bytes": 4949,
+            "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+          }
+        ],
+        "combinedTree": [
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/binding.json",
+            "bytes": 448,
+            "sha256": "d62565b0b849de907adcc3eab368c2a4b31c14d1ecf58c700fc98f31093a92a9"
+          },
+          {
+            "relPath": "uniwork-documents/dep-g705-matrix/acct-g705-user/doc-g705-bound-1/fx-docx-report-vi.docx",
+            "bytes": 4413,
+            "sha256": "e38528c81065817b17cbf6e7708900f8811763a72236b8d7024d0027e97bdd6e"
+          },
+          {
+            "relPath": "uniwork-documents/last-account.json",
+            "bytes": 73,
+            "sha256": "a4e46bd6ceb62067733f1c681f1896fa9061d6ced425a43c177adf2c8657aded"
+          },
+          {
+            "relPath": "uniwork-sync/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "b1dd246ac9f820920cc3c7b650d87fedd29b3986a2762b4037711dcf0635041d"
+          },
+          {
+            "relPath": "uniwork-sync/library/keys/dep-g705-matrix/acct-g705-user.key",
+            "bytes": 64,
+            "sha256": "bcb2cbe7b0a0fcb96676e6e89f6a27dc2e9ed5d794918f8d7cd0d3eb21c48af7"
+          },
+          {
+            "relPath": "uniwork-sync/store/dep-g705-matrix/acct-g705-user/intents/bf8f1683962f81e4f5e2df9e2b62078ef874538285fdabcac35677e0f30b064c.rec",
+            "bytes": 4949,
+            "sha256": "3dab9dc0c9d975d71792ed82ff7353b64f1a688aa32b852a8ad763fadf3b31ae"
+          }
+        ]
+      },
+      "diffFromStep2": {
+        "identical": true,
+        "added": [],
+        "removed": [],
+        "modified": []
+      }
+    }
+  },
+  "n1EnvSnapshotDir": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05/t3-n1-env-snapshot",
+  "completedAt": "2026-10-17T17:43:09.330Z",
+  "markers": {
+    "T3_UPGRADE_EXIT": 0,
+    "T3_ROLLBACK_EXIT": 0,
+    "T3_REUPGRADE_EXIT": 0,
+    "G7_05_T3_EXIT": 0
+  },
+  "allPass": true
+}
+G7_05_T3_JSON_END
+T3_UPGRADE_EXIT=0
+T3_ROLLBACK_EXIT=0
+T3_REUPGRADE_EXIT=0
+G7_05_T3_EXIT=0
+
+T3_SUITE_EXIT=0
