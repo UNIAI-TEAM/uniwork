@@ -130,7 +130,32 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 // the moment to bump Version instead.
 func TestPromptSnapshots(t *testing.T) {
 	quorumMet := true
+	meetingWithFacts := map[string]any{
+		"title": "Standup", "agenda": "Ship F-09", "locale": "vi",
+		"notes":      []string{"Ghi chú 1"},
+		"transcript": []TranscriptLine{{Speaker: "An", Text: "Chốt thứ Sáu"}},
+		"attendance": &AttendanceFacts{
+			Members: 4, Present: 2, Late: 1, Excused: 1, Absent: 0,
+			QuorumPercent: 60, QuorumMet: &quorumMet, Finalized: true,
+			NamesByStatus: map[string][]string{"PRESENT": {"An", "Bình"}, "LATE": {"Chi"}, "EXCUSED": {"Dũng"}},
+		},
+		"motions": []MotionFact{
+			{Title: "Thông qua kế hoạch quý IV", BallotMode: "SECRET", Yes: 3, No: 0, Abstain: 0, Required: 2, Outcome: "PASSED"},
+			{Title: "Tăng ngân sách quảng cáo", BallotMode: "PUBLIC", Yes: 1, No: 1, Abstain: 1, Required: 3, Outcome: "FAILED"},
+		},
+	}
+	email := map[string]any{
+		"locale": "vi", "subject": "Demo F-09", "from": "an@example.com",
+		"to": "team@example.com", "sent_at": "2026-09-06T10:00:00Z",
+		"body": "Chốt demo thứ Sáu.",
+	}
 	fixtures := map[string]map[string]any{
+		// Superseded versions stay registered for old usage rows; their keys
+		// are literal so moving a Prompt* constant cannot re-point a fixture.
+		"meeting_summary@2":      meetingWithFacts,
+		PromptMeetingSummary:     meetingWithFacts,
+		"email_thread_summary@1": email,
+		PromptEmailThreadSummary: email,
 		PromptMediaAnalysis: {
 			"locale": "vi", "files": "image/png, application/pdf",
 			"requirements": "Tóm tắt nội dung hai tệp.",
@@ -141,20 +166,6 @@ func TestPromptSnapshots(t *testing.T) {
 			"title": "Standup", "agenda": "Ship F-09", "locale": "vi",
 			"notes":      []string{"Ghi chú 1"},
 			"transcript": []TranscriptLine{{Speaker: "An", Text: "Chốt thứ Sáu"}},
-		},
-		PromptMeetingSummary: {
-			"title": "Standup", "agenda": "Ship F-09", "locale": "vi",
-			"notes":      []string{"Ghi chú 1"},
-			"transcript": []TranscriptLine{{Speaker: "An", Text: "Chốt thứ Sáu"}},
-			"attendance": &AttendanceFacts{
-				Members: 4, Present: 2, Late: 1, Excused: 1, Absent: 0,
-				QuorumPercent: 60, QuorumMet: &quorumMet, Finalized: true,
-				NamesByStatus: map[string][]string{"PRESENT": {"An", "Bình"}, "LATE": {"Chi"}, "EXCUSED": {"Dũng"}},
-			},
-			"motions": []MotionFact{
-				{Title: "Thông qua kế hoạch quý IV", BallotMode: "SECRET", Yes: 3, No: 0, Abstain: 0, Required: 2, Outcome: "PASSED"},
-				{Title: "Tăng ngân sách quảng cáo", BallotMode: "PUBLIC", Yes: 1, No: 1, Abstain: 1, Required: 3, Outcome: "FAILED"},
-			},
 		},
 		PromptCopilotAnswer: {
 			"question": "task nào quá hạn?", "locale": "vi", "today": "2026-09-06",
@@ -170,11 +181,6 @@ func TestPromptSnapshots(t *testing.T) {
 				{ID: "S1", Kind: "chat", Title: "Cuộc gọi", Excerpt: "Cuộc gọi thoại · 1:05 · An, Bình"},
 				{ID: "S2", Kind: "chat", Title: "An · 09:00", Excerpt: "Chốt demo thứ Sáu"},
 			}),
-		},
-		PromptEmailThreadSummary: {
-			"locale": "vi", "subject": "Demo F-09", "from": "an@example.com",
-			"to": "team@example.com", "sent_at": "2026-09-06T10:00:00Z",
-			"body": "Chốt demo thứ Sáu.",
 		},
 	}
 	for _, k := range PromptKeys() {
@@ -209,9 +215,9 @@ func TestPromptSnapshots(t *testing.T) {
 // provider's meeting-summary branch (E2E runs on AI_PROVIDER=fake).
 func TestMeetingSummaryV2Facts(t *testing.T) {
 	v1, _ := LookupPrompt("meeting_summary@1")
-	v2, ok := LookupPrompt(PromptMeetingSummary)
+	v2, ok := LookupPrompt("meeting_summary@2")
 	if !ok || v2.Key() != "meeting_summary@2" {
-		t.Fatalf("PromptMeetingSummary = %q", PromptMeetingSummary)
+		t.Fatal("meeting_summary@2 must stay registered")
 	}
 	// Summarize passes a typed nil when the meeting has no members.
 	base := map[string]any{"title": "Họp", "locale": "vi", "attendance": (*AttendanceFacts)(nil), "motions": []MotionFact{}}

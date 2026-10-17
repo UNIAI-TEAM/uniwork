@@ -115,7 +115,12 @@ func TestProjectTaskDependenciesAndOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := f.meetings.CreateTasksFromSummary(f.ctx, f.owner.ID, m.ID, []service.SummaryTaskItem{{Title: "Gửi báo giá"}, {Title: "Chốt hợp đồng"}})
+	// Tasks a meeting gave rise to (what CreateTasksFromSummary writes).
+	origin := m.ID
+	created, err := f.tasks.CreateMany(f.ctx, service.Human(f.owner.ID), f.wsID, []service.CreateTaskInput{
+		{Title: "Gửi báo giá", OriginType: "meeting", OriginID: &origin},
+		{Title: "Chốt hợp đồng", OriginType: "meeting", OriginID: &origin},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

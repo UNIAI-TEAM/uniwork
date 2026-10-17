@@ -154,10 +154,9 @@ func normalizeChatMessage(text string) (string, error) {
 	if text == "" {
 		return "", Invalid("nội dung không được để trống")
 	}
-	if len(text) > 4000 {
-		text = text[:4000]
-	}
-	return text, nil
+	// Cut by character, not byte: a byte cut can split a UTF-8 sequence and
+	// Postgres refuses the invalid text the insert would carry.
+	return capRunes(text, transcriptSegmentRunes, ""), nil
 }
 
 func (s *MeetingService) AppendChatMessage(ctx context.Context, userID, guestID, meetingID, message string) (db.MeetingChatMessage, error) {

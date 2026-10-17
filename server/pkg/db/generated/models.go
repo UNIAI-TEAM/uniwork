@@ -1619,6 +1619,27 @@ type MeetingSummary struct {
 	OrganizationID string             `json:"organization_id"`
 }
 
+type MeetingSummaryRun struct {
+	OrganizationID string             `json:"organization_id"`
+	MeetingID      string             `json:"meeting_id"`
+	RunID          string             `json:"run_id"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type MeetingSummaryTaskLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MeetingID      string             `json:"meeting_id"`
+	SummaryID      string             `json:"summary_id"`
+	ItemIndex      int32              `json:"item_index"`
+	TaskID         string             `json:"task_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type MeetingTranscriptSegment struct {
 	ID             string             `json:"id"`
 	MeetingID      string             `json:"meeting_id"`

@@ -18,6 +18,10 @@ type Error struct {
 	// Fields["retry_after"] (G6-03a A5) and the error envelope shows them.
 	// Optional; nil on every refusal that carries none.
 	Fields map[string]any
+	// UsageEventID is the ai_usage_events row a call that reached the vendor
+	// settled before it was refused, for the caller's log; "" when the call
+	// never got that far. Never sent to clients.
+	UsageEventID string
 }
 
 func (e *Error) Error() string {
@@ -37,6 +41,11 @@ func (e *Error) Is(target error) bool {
 
 func (e *Error) wrap(err error) error {
 	return &Error{Code: e.Code, Status: e.Status, Msg: e.Msg, Err: err}
+}
+
+// wrapUsage is wrap for a call that settled the usage row usageEventID.
+func (e *Error) wrapUsage(err error, usageEventID string) error {
+	return &Error{Code: e.Code, Status: e.Status, Msg: e.Msg, Err: err, UsageEventID: usageEventID}
 }
 
 var (

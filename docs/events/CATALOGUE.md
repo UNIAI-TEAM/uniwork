@@ -1,6 +1,6 @@
 # Catalogue sự kiện UniWork
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-09 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-16 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
 
 Bảng dưới là hợp đồng giữa server và mọi client. Ba nơi phải khớp nhau —
 file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mjs`
@@ -195,7 +195,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `recording.stopped` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `session.revoked` | 1 | `user_id`, `session_id` | — | - | outbox |
 | `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | — | user | outbox |
-| `summary.created` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `summary.created` | 1 | `meeting_id`, `summary_id`, `workspace_id` | — | workspace | outbox |
+| `summary.tasks_linked` | 1 | `meeting_id`, `summary_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_updated` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_deleted` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
