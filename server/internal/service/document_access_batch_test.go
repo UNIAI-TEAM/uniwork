@@ -93,7 +93,7 @@ func TestDocumentAccessBatch(t *testing.T) {
 			t.Fatalf("AC01 result = %+v", res1)
 		}
 		r0 := res1.Results[0]
-		if r0.Action != DocumentAccessActionGranted || r0.ShareID == "" || r0.Level == nil || *r0.Level != DocumentLevelView || r0.PreviousLevel != nil {
+		if r0.Index != 0 || r0.Status != DocumentAccessStatusGranted || r0.ShareID == "" || r0.Level == nil || *r0.Level != DocumentLevelView || r0.PreviousLevel != nil {
 			t.Fatalf("AC01 item[0] = %+v", r0)
 		}
 		if got := level(t, f, H(tn.outsider.ID), doc1); got != DocumentLevelView {
@@ -119,7 +119,7 @@ func TestDocumentAccessBatch(t *testing.T) {
 			t.Fatalf("AC02 results len = %d, want 10", len(res2.Results))
 		}
 		for i, r := range res2.Results {
-			if r.Action != DocumentAccessActionGranted || r.ShareID == "" || r.Level == nil || *r.Level != DocumentLevelView {
+			if r.Index != i || r.Status != DocumentAccessStatusGranted || r.ShareID == "" || r.Level == nil || *r.Level != DocumentLevelView {
 				t.Fatalf("AC02 results[%d] = %+v", i, r)
 			}
 			if got := level(t, f, H(users10[i].ID), doc2); got != DocumentLevelView {
@@ -155,8 +155,8 @@ func TestDocumentAccessBatch(t *testing.T) {
 			if i < 3 {
 				want = DocumentLevelEdit
 			}
-			if res.Results[i].Level == nil || *res.Results[i].Level != want {
-				t.Fatalf("AC03 results[%d].Level = %v, want %q", i, res.Results[i].Level, want)
+			if res.Results[i].Index != i || res.Results[i].Level == nil || *res.Results[i].Level != want {
+				t.Fatalf("AC03 results[%d] = %+v, want %q", i, res.Results[i], want)
 			}
 			if got := level(t, f, H(u.ID), doc); got != want {
 				t.Fatalf("AC03 user[%d] effective = %q, want %q", i, got, want)
@@ -175,7 +175,7 @@ func TestDocumentAccessBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AC04 wsB view: %v", err)
 		}
-		if res.Results[0].Action != DocumentAccessActionGranted || res.Results[0].ShareID == "" {
+		if res.Results[0].Index != 0 || res.Results[0].Status != DocumentAccessStatusGranted || res.Results[0].ShareID == "" {
 			t.Fatalf("AC04 result = %+v", res.Results[0])
 		}
 		if got := level(t, f, H(tn.bMember.ID), doc); got != DocumentLevelView {
@@ -189,7 +189,7 @@ func TestDocumentAccessBatch(t *testing.T) {
 			t.Fatalf("AC11 workspace_id changed to %q, want %q", reloaded.WorkspaceID, tn.wsA)
 		}
 
-		// Other workspace + manage -> allowed + wide_scope warning (Q-S1).
+		// Other workspace + manage -> allowed + wide_scope warning with index 0 (Q-S1, fix1 #3 & #4).
 		resManageWS, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
 			Items: []DocumentAccessBatchItem{
 				{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsB, Level: docLevelPtr(DocumentLevelManage)},
@@ -198,20 +198,20 @@ func TestDocumentAccessBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Q-S1 other ws manage: %v", err)
 		}
-		if resManageWS.Results[0].Action != DocumentAccessActionUpdated || *resManageWS.Results[0].PreviousLevel != DocumentLevelView {
+		if resManageWS.Results[0].Status != DocumentAccessStatusUpdated || *resManageWS.Results[0].PreviousLevel != DocumentLevelView {
 			t.Fatalf("Q-S1 other ws manage result = %+v", resManageWS.Results[0])
 		}
 		hasWideScope := false
 		for _, w := range resManageWS.Preview.Warnings {
-			if w == DocumentAccessWarningWideScope {
+			if w.Code == DocumentAccessWarningWideScope && w.Index == 0 {
 				hasWideScope = true
 			}
 		}
 		if !hasWideScope {
-			t.Fatalf("Q-S1 other ws manage warnings = %v, want wide_scope", resManageWS.Preview.Warnings)
+			t.Fatalf("Q-S1 other ws manage warnings = %+v, want {wide_scope, 0}", resManageWS.Preview.Warnings)
 		}
 
-		// AC05: organization edit -> allowed + wide_scope warning.
+		// AC05: organization edit -> allowed + wide_scope warning with index 0.
 		resOrg, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
 			Items: []DocumentAccessBatchItem{
 				{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: docLevelPtr(DocumentLevelEdit)},
@@ -220,8 +220,11 @@ func TestDocumentAccessBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AC05 org edit: %v", err)
 		}
-		if resOrg.Results[0].Action != DocumentAccessActionGranted || *resOrg.Results[0].Level != DocumentLevelEdit {
+		if resOrg.Results[0].Status != DocumentAccessStatusGranted || *resOrg.Results[0].Level != DocumentLevelEdit {
 			t.Fatalf("AC05 org edit result = %+v", resOrg.Results[0])
+		}
+		if len(resOrg.Preview.Warnings) != 1 || resOrg.Preview.Warnings[0] != (DocumentAccessWarning{Code: DocumentAccessWarningWideScope, Index: 0}) {
+			t.Fatalf("AC05 org edit warnings = %+v, want [{wide_scope 0}]", resOrg.Preview.Warnings)
 		}
 		if got := level(t, f, H(tn.outsider.ID), doc); got != DocumentLevelEdit {
 			t.Fatalf("AC05 outsider level = %q, want edit", got)
@@ -234,7 +237,7 @@ func TestDocumentAccessBatch(t *testing.T) {
 			},
 		})
 		rej := rejectedItemsFromError(t, err)
-		if len(rej) != 1 || rej[0].Index != 0 || rej[0].Reason != "level_not_allowed" {
+		if len(rej) != 1 || rej[0].Index != 0 || rej[0].Code != "level_not_allowed" {
 			t.Fatalf("Q-S1 org manage rejected = %+v", rej)
 		}
 
@@ -245,7 +248,7 @@ func TestDocumentAccessBatch(t *testing.T) {
 			},
 		})
 		rej = rejectedItemsFromError(t, err)
-		if len(rej) != 1 || rej[0].Index != 0 || rej[0].Reason != "level_not_allowed" {
+		if len(rej) != 1 || rej[0].Index != 0 || rej[0].Code != "level_not_allowed" {
 			t.Fatalf("Q-S1 home ws manage rejected = %+v", rej)
 		}
 	})
@@ -261,8 +264,8 @@ func TestDocumentAccessBatch(t *testing.T) {
 		})
 		rej := rejectedItemsFromError(t, err)
 		if len(rej) != 2 ||
-			rej[0].Index != 1 || rej[0].Reason != "principal_not_in_organization" ||
-			rej[1].Index != 2 || rej[1].Reason != "level_not_allowed" {
+			rej[0].Index != 1 || rej[0].Code != "principal_not_in_organization" ||
+			rej[1].Index != 2 || rej[1].Code != "level_not_allowed" {
 			t.Fatalf("U-SH3 rejected = %+v", rej)
 		}
 		var shareCount int
@@ -280,28 +283,28 @@ func TestDocumentAccessBatch(t *testing.T) {
 		}
 	})
 
-	t.Run("AC13 on_existing keep vs update, duplicate principal, home workspace merge and revoke", func(t *testing.T) {
+	t.Run("AC13 per-item on_existing keep vs update, duplicate principal, home workspace merge and revoke", func(t *testing.T) {
 		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		existing := f.share(t, doc, DocumentPrincipalUser, tn.outsider.ID, DocumentLevelEdit, tn.aclOwner.ID)
 
-		// on_existing=keep preserves existing edit grant and writes no audit row.
+		// items[0].on_existing=keep preserves existing edit grant and writes no audit row; items[1] defaults to update.
 		resKeep, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
-			OnExisting: DocumentAccessOnExistingKeep,
 			Items: []DocumentAccessBatchItem{
-				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: docLevelPtr(DocumentLevelView)},
+				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: docLevelPtr(DocumentLevelView), OnExisting: DocumentAccessOnExistingKeep},
 				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.bMember.ID, Level: docLevelPtr(DocumentLevelView)},
 			},
 		})
 		if err != nil {
 			t.Fatalf("AC13 keep: %v", err)
 		}
-		if resKeep.Results[0].Action != DocumentAccessActionKept ||
+		if resKeep.Results[0].Index != 0 ||
+			resKeep.Results[0].Status != DocumentAccessStatusKept ||
 			resKeep.Results[0].ShareID != existing.ID ||
 			*resKeep.Results[0].Level != DocumentLevelEdit ||
 			*resKeep.Results[0].PreviousLevel != DocumentLevelEdit {
 			t.Fatalf("AC13 kept item = %+v", resKeep.Results[0])
 		}
-		if resKeep.Results[1].Action != DocumentAccessActionGranted || *resKeep.Results[1].Level != DocumentLevelView {
+		if resKeep.Results[1].Index != 1 || resKeep.Results[1].Status != DocumentAccessStatusGranted || *resKeep.Results[1].Level != DocumentLevelView {
 			t.Fatalf("AC13 granted item = %+v", resKeep.Results[1])
 		}
 		// Only bMember's grant wrote an audit row.
@@ -317,11 +320,11 @@ func TestDocumentAccessBatch(t *testing.T) {
 			},
 		})
 		rej := rejectedItemsFromError(t, err)
-		if len(rej) != 1 || rej[0].Index != 1 || rej[0].Reason != "duplicate_principal" {
+		if len(rej) != 1 || rej[0].Index != 1 || rej[0].Code != "duplicate_principal" {
 			t.Fatalf("AC13 duplicate rejected = %+v", rej)
 		}
 
-		// Home workspace in batch -> updates home row, no document_shares row, share_id empty.
+		// Home workspace in batch -> updates home row, no document_shares row, share_id empty, no wide_scope warning on home row.
 		resHome, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
 			Items: []DocumentAccessBatchItem{
 				{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: docLevelPtr(DocumentLevelEdit)},
@@ -330,11 +333,15 @@ func TestDocumentAccessBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AC13 home ws grant: %v", err)
 		}
-		if resHome.Results[0].Action != DocumentAccessActionGranted ||
+		if resHome.Results[0].Index != 0 ||
+			resHome.Results[0].Status != DocumentAccessStatusGranted ||
 			resHome.Results[0].ShareID != "" ||
 			*resHome.Results[0].Level != DocumentLevelEdit ||
 			resHome.Results[0].PreviousLevel != nil {
 			t.Fatalf("AC13 home ws grant result = %+v", resHome.Results[0])
+		}
+		if len(resHome.Preview.Warnings) != 0 {
+			t.Fatalf("AC13 home ws edit must not emit wide_scope warning: %+v", resHome.Preview.Warnings)
 		}
 		var homeShareRows int
 		if err := f.pool.QueryRow(f.ctx,
@@ -361,15 +368,15 @@ func TestDocumentAccessBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("revoke batch: %v", err)
 		}
-		if resRev.Results[0].Action != DocumentAccessActionRevoked || resRev.Results[0].ShareID != "" ||
+		if resRev.Results[0].Index != 0 || resRev.Results[0].Status != DocumentAccessStatusRevoked || resRev.Results[0].ShareID != "" ||
 			resRev.Results[0].Level != nil || *resRev.Results[0].PreviousLevel != DocumentLevelEdit {
 			t.Fatalf("revoke user result = %+v", resRev.Results[0])
 		}
-		if resRev.Results[1].Action != DocumentAccessActionRevoked || resRev.Results[1].ShareID != "" ||
+		if resRev.Results[1].Index != 1 || resRev.Results[1].Status != DocumentAccessStatusRevoked || resRev.Results[1].ShareID != "" ||
 			resRev.Results[1].Level != nil || *resRev.Results[1].PreviousLevel != DocumentLevelEdit {
 			t.Fatalf("revoke home ws result = %+v", resRev.Results[1])
 		}
-		if resRev.Results[2].Action != DocumentAccessActionUnchanged || resRev.Results[2].ShareID != "" ||
+		if resRev.Results[2].Index != 2 || resRev.Results[2].Status != DocumentAccessStatusUnchanged || resRev.Results[2].ShareID != "" ||
 			resRev.Results[2].Level != nil || resRev.Results[2].PreviousLevel != nil {
 			t.Fatalf("revoke non-existent result = %+v", resRev.Results[2])
 		}
@@ -412,23 +419,25 @@ func TestDocumentAccessBatch(t *testing.T) {
 			},
 		})
 		rej := rejectedItemsFromError(t, err)
-		if len(rej) != 2 || rej[0].Reason != "break_glass_required" || rej[1].Reason != "break_glass_required" {
+		if len(rej) != 2 || rej[0].Code != "break_glass_required" || rej[1].Code != "break_glass_required" {
 			t.Fatalf("AdminScope self-grant rejected = %+v", rej)
 		}
 
-		// 400 validation: empty items, >100 items, agent principal_type (D1), invalid on_existing, invalid level.
+		// 400 validation: empty items, >100 items, agent principal_type (D1), invalid item on_existing, invalid level (including "none").
 		over100 := make([]DocumentAccessBatchItem, 101)
 		for i := range over100 {
 			over100[i] = DocumentAccessBatchItem{PrincipalType: DocumentPrincipalUser, PrincipalID: util.NewID(), Level: docLevelPtr(DocumentLevelView)}
 		}
 		badLevel := DocumentLevel("owner")
+		noneLevel := DocumentLevel("none")
 		for name, bad := range map[string]UpdateDocumentAccessInput{
 			"empty items":        {},
 			"over 100 items":     {Items: over100},
 			"agent principal":    {Items: []DocumentAccessBatchItem{{PrincipalType: "agent", PrincipalID: tn.agent, Level: docLevelPtr(DocumentLevelView)}}},
 			"empty principal_id": {Items: []DocumentAccessBatchItem{{PrincipalType: DocumentPrincipalUser, PrincipalID: "  ", Level: docLevelPtr(DocumentLevelView)}}},
-			"bad on_existing":    {OnExisting: "replace", Items: validIn.Items},
+			"bad on_existing":    {Items: []DocumentAccessBatchItem{{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.bMember.ID, Level: docLevelPtr(DocumentLevelView), OnExisting: "replace"}}},
 			"bad level":          {Items: []DocumentAccessBatchItem{{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.bMember.ID, Level: &badLevel}}},
+			"level none string":  {Items: []DocumentAccessBatchItem{{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.bMember.ID, Level: &noneLevel}}},
 		} {
 			var ve ValidationError
 			if _, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, bad); !errors.As(err, &ve) {
@@ -493,8 +502,7 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 		}
 		if len(dry.Preview.Users) != 1 || dry.Preview.Users[0].UserID != tn.outsider.ID ||
 			dry.Preview.Users[0].DisplayName != tn.outsider.DisplayName ||
-			dry.Preview.Users[0].Before != nil ||
-			dry.Preview.Users[0].After == nil ||
+			dry.Preview.Users[0].Before.Level != "" || dry.Preview.Users[0].Before.Via != "" ||
 			dry.Preview.Users[0].After.Level != DocumentLevelView ||
 			dry.Preview.Users[0].After.Via != string(DocumentViaShare) {
 			t.Fatalf("dry_run preview.users = %+v", dry.Preview.Users)
@@ -504,6 +512,9 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 			dry.Preview.Groups[0].MemberCount != 2 || dry.Preview.Groups[0].LosingCount != 0 {
 			t.Fatalf("dry_run preview.groups = %+v", dry.Preview.Groups)
 		}
+		if len(dry.Preview.Warnings) != 1 || dry.Preview.Warnings[0] != (DocumentAccessWarning{Code: DocumentAccessWarningWideScope, Index: 1}) {
+			t.Fatalf("dry_run preview.warnings = %+v, want [{wide_scope 1}]", dry.Preview.Warnings)
+		}
 
 		// D2: running with dry_run=false returns the same preview.
 		in.DryRun = false
@@ -511,7 +522,7 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("dry_run=false: %v", err)
 		}
-		if len(live.Preview.Users) != 1 || live.Preview.Users[0].After == nil || live.Preview.Users[0].After.Level != DocumentLevelView {
+		if len(live.Preview.Users) != 1 || live.Preview.Users[0].After.Level != DocumentLevelView {
 			t.Fatalf("D2 live preview.users = %+v", live.Preview.Users)
 		}
 		if len(live.Preview.Groups) != 1 || live.Preview.Groups[0].MemberCount != 2 || live.Preview.Groups[0].LosingCount != 0 {
@@ -537,14 +548,14 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 			t.Fatalf("AC07 preview.users = %+v, want 1 entry", res.Preview.Users)
 		}
 		u := res.Preview.Users[0]
-		if u.Before == nil || u.Before.Level != DocumentLevelEdit || u.Before.Via != string(DocumentViaShare) {
+		if u.Before.Level != DocumentLevelEdit || u.Before.Via != string(DocumentViaShare) {
 			t.Fatalf("AC07 before = %+v, want edit via share", u.Before)
 		}
-		if u.After == nil || u.After.Level != DocumentLevelView || u.After.Via != string(DocumentViaMember) {
+		if u.After.Level != DocumentLevelView || u.After.Via != string(DocumentViaMember) {
 			t.Fatalf("AC07 after = %+v, want view via member", u.After)
 		}
-		if len(res.Preview.Warnings) != 1 || res.Preview.Warnings[0] != DocumentAccessWarningDowngrade {
-			t.Fatalf("AC07 warnings = %v, want [downgrade]", res.Preview.Warnings)
+		if len(res.Preview.Warnings) != 1 || res.Preview.Warnings[0] != (DocumentAccessWarning{Code: DocumentAccessWarningDowngrade, Index: 0}) {
+			t.Fatalf("AC07 warnings = %+v, want [{downgrade 0}]", res.Preview.Warnings)
 		}
 	})
 
@@ -561,17 +572,11 @@ func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("direct_below_group preview: %v", err)
 		}
-		if len(res.Preview.Users) != 1 || res.Preview.Users[0].After == nil || res.Preview.Users[0].After.Level != DocumentLevelEdit {
+		if len(res.Preview.Users) != 1 || res.Preview.Users[0].After.Level != DocumentLevelEdit {
 			t.Fatalf("direct_below_group preview.users = %+v", res.Preview.Users)
 		}
-		hasDirectBelow := false
-		for _, w := range res.Preview.Warnings {
-			if w == DocumentAccessWarningDirectBelowGroup {
-				hasDirectBelow = true
-			}
-		}
-		if !hasDirectBelow {
-			t.Fatalf("direct_below_group warnings = %v, want direct_below_group", res.Preview.Warnings)
+		if len(res.Preview.Warnings) != 1 || res.Preview.Warnings[0] != (DocumentAccessWarning{Code: DocumentAccessWarningDirectBelowGroup, Index: 0}) {
+			t.Fatalf("direct_below_group warnings = %+v, want [{direct_below_group 0}]", res.Preview.Warnings)
 		}
 	})
 

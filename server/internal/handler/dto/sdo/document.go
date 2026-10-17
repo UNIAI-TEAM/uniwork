@@ -637,43 +637,50 @@ type DocumentAccessBatchSDO struct {
 
 // DocumentAccessItemResultSDO is the outcome for one item in DocumentAccessBatchSDO.
 type DocumentAccessItemResultSDO struct {
-	PrincipalType string  `json:"principal_type" enums:"user,workspace,organization" example:"user"`
-	PrincipalID   string  `json:"principal_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Action        string  `json:"action" enums:"granted,updated,revoked,kept,unchanged" example:"granted"`
-	ShareID       string  `json:"share_id,omitempty" example:"01J8X4SHR0N1P2Q3R4S5T6U7V8"`
-	Level         *string `json:"level" example:"view"`
-	PreviousLevel *string `json:"previous_level" example:"edit"`
+	Index         int     `json:"index" description:"Vị trí mục trong items gửi lên (0-indexed)" example:"0"`
+	PrincipalType string  `json:"principal_type" description:"user, workspace hoặc organization" enums:"user,workspace,organization" example:"user"`
+	PrincipalID   string  `json:"principal_id" description:"ULID principal" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Status        string  `json:"status" description:"granted, updated, revoked, kept hoặc unchanged" enums:"granted,updated,revoked,kept,unchanged" example:"granted"`
+	ShareID       string  `json:"share_id,omitempty" description:"ULID dòng document_shares khi có" example:"01J8X4SHR0N1P2Q3R4S5T6U7V8"`
+	Level         *string `json:"level" description:"Mức quyền sau thao tác; null khi thu hồi hoặc không có grant" example:"view"`
+	PreviousLevel *string `json:"previous_level" description:"Mức quyền trực tiếp trước thao tác; null khi chưa có grant" example:"edit"`
+}
+
+// DocumentAccessWarningSDO is one warning entry in DocumentAccessPreviewSDO.Warnings.
+type DocumentAccessWarningSDO struct {
+	Code  string `json:"code" description:"wide_scope, direct_below_group hoặc downgrade" enums:"wide_scope,direct_below_group,downgrade" example:"direct_below_group"`
+	Index int    `json:"index" description:"Vị trí mục trong items gây ra cảnh báo" example:"0"`
 }
 
 // DocumentAccessPreviewSDO is the preview block of DocumentAccessBatchSDO.
 type DocumentAccessPreviewSDO struct {
-	Users    []DocumentAccessPreviewUserSDO  `json:"users"`
-	Groups   []DocumentAccessPreviewGroupSDO `json:"groups"`
-	Warnings []string                        `json:"warnings"`
+	Users    []DocumentAccessPreviewUserSDO  `json:"users" description:"Trước/sau quyền hiệu lực của từng mục user"`
+	Groups   []DocumentAccessPreviewGroupSDO `json:"groups" description:"Số thành viên và số người giảm quyền của từng mục workspace/organization"`
+	Warnings []DocumentAccessWarningSDO      `json:"warnings" description:"Danh sách cảnh báo kèm index mục tương ứng"`
 }
 
 // DocumentAccessPreviewLevelSDO is one effective level + via pair in DocumentAccessPreviewUserSDO.
 type DocumentAccessPreviewLevelSDO struct {
-	Level string `json:"level" enums:"view,comment,edit,manage" example:"view"`
-	Via   string `json:"via" example:"share"`
+	Level string `json:"level" description:"view, comment, edit, manage hoặc chuỗi rỗng khi không có quyền" enums:"view,comment,edit,manage," example:"view"`
+	Via   string `json:"via" description:"owner, member, share, org_admin, break_glass, work_product hoặc chuỗi rỗng khi không có quyền" example:"share"`
 }
 
 // DocumentAccessPreviewUserSDO is one user item's before/after effective standing.
 type DocumentAccessPreviewUserSDO struct {
-	UserID      string                         `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	DisplayName string                         `json:"display_name" example:"Nguyễn Văn An"`
-	Before      *DocumentAccessPreviewLevelSDO `json:"before"`
-	After       *DocumentAccessPreviewLevelSDO `json:"after"`
+	UserID      string                        `json:"user_id" description:"ULID người dùng" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	DisplayName string                        `json:"display_name" description:"Tên hiển thị" example:"Nguyễn Văn An"`
+	Before      DocumentAccessPreviewLevelSDO `json:"before" description:"Quyền hiệu lực trước thao tác"`
+	After       DocumentAccessPreviewLevelSDO `json:"after" description:"Quyền hiệu lực sau thao tác"`
 }
 
 // DocumentAccessPreviewGroupSDO is one workspace/organization item's summary counts.
 type DocumentAccessPreviewGroupSDO struct {
-	PrincipalType string  `json:"principal_type" enums:"workspace,organization" example:"workspace"`
-	PrincipalID   string  `json:"principal_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	Name          string  `json:"name" example:"Kỹ thuật"`
-	Level         *string `json:"level" example:"edit"`
-	MemberCount   int     `json:"member_count" example:"12"`
-	LosingCount   int     `json:"losing_count" example:"0"`
+	PrincipalType string  `json:"principal_type" description:"workspace hoặc organization" enums:"workspace,organization" example:"workspace"`
+	PrincipalID   string  `json:"principal_id" description:"ULID workspace hoặc tổ chức" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	Name          string  `json:"name" description:"Tên workspace hoặc tổ chức" example:"Kỹ thuật"`
+	Level         *string `json:"level" description:"Mức quyền nhóm sau thao tác; null khi thu hồi" example:"edit"`
+	MemberCount   int     `json:"member_count" description:"Tổng số thành viên đang hoạt động trong nhóm" example:"12"`
+	LosingCount   int     `json:"losing_count" description:"Số thành viên bị giảm mức quyền hiệu lực khi hạ/thu hồi grant nhóm" example:"0"`
 }
 
 // DocumentShareCandidateDTO is one item in GET /api/v1/documents/{documentID}/share-candidates

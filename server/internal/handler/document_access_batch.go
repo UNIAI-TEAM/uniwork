@@ -34,6 +34,7 @@ func (h *handlers) updateDocumentAccess(w http.ResponseWriter, r *http.Request) 
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
 			Level:         lvl,
+			OnExisting:    it.OnExisting,
 		}
 	}
 	res, err := h.Documents.UpdateDocumentAccess(
@@ -41,9 +42,8 @@ func (h *handlers) updateDocumentAccess(w http.ResponseWriter, r *http.Request) 
 		service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "documentID"),
 		service.UpdateDocumentAccessInput{
-			Items:      items,
-			OnExisting: in.OnExisting,
-			DryRun:     in.DryRun,
+			Items:  items,
+			DryRun: in.DryRun,
 		},
 	)
 	if err != nil {
@@ -66,9 +66,10 @@ func documentAccessBatchSDO(res service.DocumentAccessBatchResult) sdo.DocumentA
 			prev = &s
 		}
 		results = append(results, sdo.DocumentAccessItemResultSDO{
+			Index:         r.Index,
 			PrincipalType: r.PrincipalType,
 			PrincipalID:   r.PrincipalID,
-			Action:        r.Action,
+			Status:        r.Status,
 			ShareID:       r.ShareID,
 			Level:         lvl,
 			PreviousLevel: prev,
@@ -76,24 +77,17 @@ func documentAccessBatchSDO(res service.DocumentAccessBatchResult) sdo.DocumentA
 	}
 	users := make([]sdo.DocumentAccessPreviewUserSDO, 0, len(res.Preview.Users))
 	for _, u := range res.Preview.Users {
-		var before, after *sdo.DocumentAccessPreviewLevelSDO
-		if u.Before != nil {
-			before = &sdo.DocumentAccessPreviewLevelSDO{
-				Level: string(u.Before.Level),
-				Via:   u.Before.Via,
-			}
-		}
-		if u.After != nil {
-			after = &sdo.DocumentAccessPreviewLevelSDO{
-				Level: string(u.After.Level),
-				Via:   u.After.Via,
-			}
-		}
 		users = append(users, sdo.DocumentAccessPreviewUserSDO{
 			UserID:      u.UserID,
 			DisplayName: u.DisplayName,
-			Before:      before,
-			After:       after,
+			Before: sdo.DocumentAccessPreviewLevelSDO{
+				Level: string(u.Before.Level),
+				Via:   u.Before.Via,
+			},
+			After: sdo.DocumentAccessPreviewLevelSDO{
+				Level: string(u.After.Level),
+				Via:   u.After.Via,
+			},
 		})
 	}
 	groups := make([]sdo.DocumentAccessPreviewGroupSDO, 0, len(res.Preview.Groups))
@@ -112,9 +106,12 @@ func documentAccessBatchSDO(res service.DocumentAccessBatchResult) sdo.DocumentA
 			LosingCount:   g.LosingCount,
 		})
 	}
-	warnings := res.Preview.Warnings
-	if warnings == nil {
-		warnings = make([]string, 0)
+	warnings := make([]sdo.DocumentAccessWarningSDO, 0, len(res.Preview.Warnings))
+	for _, w := range res.Preview.Warnings {
+		warnings = append(warnings, sdo.DocumentAccessWarningSDO{
+			Code:  w.Code,
+			Index: w.Index,
+		})
 	}
 	return sdo.DocumentAccessBatchSDO{
 		BatchID: res.BatchID,

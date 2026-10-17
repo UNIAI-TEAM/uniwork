@@ -18,11 +18,11 @@ const (
 	DocumentAccessOnExistingUpdate = "update"
 	DocumentAccessOnExistingKeep   = "keep"
 
-	DocumentAccessActionGranted   = "granted"
-	DocumentAccessActionUpdated   = "updated"
-	DocumentAccessActionRevoked   = "revoked"
-	DocumentAccessActionKept      = "kept"
-	DocumentAccessActionUnchanged = "unchanged"
+	DocumentAccessStatusGranted   = "granted"
+	DocumentAccessStatusUpdated   = "updated"
+	DocumentAccessStatusRevoked   = "revoked"
+	DocumentAccessStatusKept      = "kept"
+	DocumentAccessStatusUnchanged = "unchanged"
 
 	DocumentAccessWarningWideScope        = "wide_scope"
 	DocumentAccessWarningDirectBelowGroup = "direct_below_group"
@@ -31,19 +31,20 @@ const (
 
 // DocumentAccessBatchItem is one principal change in UpdateDocumentAccessInput.
 // Level is nil to revoke the principal's live grant (or turn the home row off
-// to restricted when targeting the document's own workspace).
+// to restricted when targeting the document's own workspace). OnExisting is
+// per-item ("update" default | "keep").
 type DocumentAccessBatchItem struct {
 	PrincipalType string
 	PrincipalID   string
 	Level         *DocumentLevel
+	OnExisting    string
 }
 
 // UpdateDocumentAccessInput is the input to PUT /api/v1/documents/{documentID}/access
 // (SH-S2, UNI-1781).
 type UpdateDocumentAccessInput struct {
-	Items      []DocumentAccessBatchItem
-	OnExisting string
-	DryRun     bool
+	Items  []DocumentAccessBatchItem
+	DryRun bool
 }
 
 // DocumentAccessRejectedItem is one rejected item in fields.rejected of a 422
@@ -52,14 +53,15 @@ type DocumentAccessRejectedItem struct {
 	Index         int    `json:"index"`
 	PrincipalType string `json:"principal_type"`
 	PrincipalID   string `json:"principal_id"`
-	Reason        string `json:"reason"`
+	Code          string `json:"code"`
 }
 
 // DocumentAccessItemResult is the outcome for one item in UpdateDocumentAccess.
 type DocumentAccessItemResult struct {
+	Index         int
 	PrincipalType string
 	PrincipalID   string
-	Action        string
+	Status        string
 	ShareID       string
 	Level         *DocumentLevel
 	PreviousLevel *DocumentLevel
@@ -75,8 +77,8 @@ type DocumentAccessPreviewLevel struct {
 type DocumentAccessPreviewUser struct {
 	UserID      string
 	DisplayName string
-	Before      *DocumentAccessPreviewLevel
-	After       *DocumentAccessPreviewLevel
+	Before      DocumentAccessPreviewLevel
+	After       DocumentAccessPreviewLevel
 }
 
 // DocumentAccessPreviewGroup is a workspace/organization item's summary counts.
@@ -89,12 +91,18 @@ type DocumentAccessPreviewGroup struct {
 	LosingCount   int
 }
 
+// DocumentAccessWarning is one warning entry in DocumentAccessPreview.Warnings.
+type DocumentAccessWarning struct {
+	Code  string
+	Index int
+}
+
 // DocumentAccessPreview is the preview returned by UpdateDocumentAccess on both
 // dry_run=true and dry_run=false (D2).
 type DocumentAccessPreview struct {
 	Users    []DocumentAccessPreviewUser
 	Groups   []DocumentAccessPreviewGroup
-	Warnings []string
+	Warnings []DocumentAccessWarning
 }
 
 // DocumentAccessBatchResult is the result of UpdateDocumentAccess.
@@ -114,17 +122,9 @@ func errDocumentAccessRejected(rejected []DocumentAccessRejectedItem) error {
 	}
 }
 
-func validateAccessBatchInput(in UpdateDocumentAccessInput) ([]DocumentAccessBatchItem, string, error) {
+func validateAccessBatchInput(in UpdateDocumentAccessInput) ([]DocumentAccessBatchItem, error) {
 	if len(in.Items) < 1 || len(in.Items) > maxDocumentAccessBatch {
-		return nil, "", Invalid("items phải có từ 1 đến 100 mục")
-	}
-	onExisting := strings.TrimSpace(in.OnExisting)
-	switch onExisting {
-	case "":
-		onExisting = DocumentAccessOnExistingUpdate
-	case DocumentAccessOnExistingUpdate, DocumentAccessOnExistingKeep:
-	default:
-		return nil, "", Invalid("on_existing phải là update hoặc keep")
+		return nil, Invalid("items phải có từ 1 đến 100 mục")
 	}
 	items := make([]DocumentAccessBatchItem, len(in.Items))
 	for i, raw := range in.Items {
@@ -132,17 +132,25 @@ func validateAccessBatchInput(in UpdateDocumentAccessInput) ([]DocumentAccessBat
 		switch pt {
 		case DocumentPrincipalUser, DocumentPrincipalWorkspace, DocumentPrincipalOrganization:
 		default:
-			return nil, "", Invalid("principal_type phải là user, workspace hoặc organization")
+			return nil, Invalid("principal_type phải là user, workspace hoặc organization")
 		}
 		pid := strings.TrimSpace(raw.PrincipalID)
 		if pid == "" {
-			return nil, "", Invalid("principal_id bắt buộc")
+			return nil, Invalid("principal_id bắt buộc")
+		}
+		onExisting := strings.TrimSpace(raw.OnExisting)
+		switch onExisting {
+		case "":
+			onExisting = DocumentAccessOnExistingUpdate
+		case DocumentAccessOnExistingUpdate, DocumentAccessOnExistingKeep:
+		default:
+			return nil, Invalid("on_existing phải là update hoặc keep")
 		}
 		var lvl *DocumentLevel
 		if raw.Level != nil {
 			trimmed := DocumentLevel(strings.TrimSpace(string(*raw.Level)))
 			if err := validShareLevel(trimmed); err != nil {
-				return nil, "", err
+				return nil, err
 			}
 			lvl = &trimmed
 		}
@@ -150,9 +158,10 @@ func validateAccessBatchInput(in UpdateDocumentAccessInput) ([]DocumentAccessBat
 			PrincipalType: pt,
 			PrincipalID:   pid,
 			Level:         lvl,
+			OnExisting:    onExisting,
 		}
 	}
-	return items, onExisting, nil
+	return items, nil
 }
 
 // UpdateDocumentAccess applies or previews a batch of mixed-principal access
@@ -160,7 +169,7 @@ func validateAccessBatchInput(in UpdateDocumentAccessInput) ([]DocumentAccessBat
 // any write; if one fails semantic validation, the whole batch is refused with
 // 422 document_access_rejected and zero rows are written.
 func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor, documentID string, in UpdateDocumentAccessInput) (DocumentAccessBatchResult, error) {
-	items, onExisting, err := validateAccessBatchInput(in)
+	items, err := validateAccessBatchInput(in)
 	if err != nil {
 		return DocumentAccessBatchResult{}, err
 	}
@@ -172,7 +181,7 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 		Preview: DocumentAccessPreview{
 			Users:    make([]DocumentAccessPreviewUser, 0),
 			Groups:   make([]DocumentAccessPreviewGroup, 0),
-			Warnings: make([]string, 0),
+			Warnings: make([]DocumentAccessWarning, 0),
 		},
 	}
 	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
@@ -195,34 +204,19 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 		if err != nil {
 			return err
 		}
-		docAfter, sharesAfter := simulateAccessBatchState(doc, sharesBefore, items, onExisting)
-		preview, warnSet, err := s.buildAccessBatchPreview(ctx, q, doc, sharesBefore, docAfter, sharesAfter, items)
+		docAfter, sharesAfter := simulateAccessBatchState(doc, sharesBefore, items)
+		preview, err := s.buildAccessBatchPreview(ctx, q, doc, sharesBefore, docAfter, sharesAfter, items)
 		if err != nil {
 			return err
 		}
 
-		for _, it := range items {
-			res, updatedDoc, err := s.applyAccessBatchItem(ctx, q, actor, doc, access, it, onExisting, batchID, in.DryRun)
+		for i, it := range items {
+			res, updatedDoc, err := s.applyAccessBatchItem(ctx, q, actor, doc, access, i, it, batchID, in.DryRun)
 			if err != nil {
 				return err
 			}
 			doc = updatedDoc
-			if res.PreviousLevel != nil {
-				if res.Action == DocumentAccessActionRevoked ||
-					(res.Action == DocumentAccessActionUpdated && res.Level != nil && res.Level.rank() < res.PreviousLevel.rank()) {
-					warnSet[DocumentAccessWarningDowngrade] = true
-				}
-			}
 			out.Results = append(out.Results, res)
-		}
-		for _, code := range []string{
-			DocumentAccessWarningWideScope,
-			DocumentAccessWarningDirectBelowGroup,
-			DocumentAccessWarningDowngrade,
-		} {
-			if warnSet[code] {
-				preview.Warnings = append(preview.Warnings, code)
-			}
 		}
 		out.Preview = preview
 		return nil
@@ -256,7 +250,6 @@ func simulateAccessBatchState(
 	doc db.Document,
 	sharesBefore []db.DocumentShare,
 	items []DocumentAccessBatchItem,
-	onExisting string,
 ) (db.Document, []db.DocumentShare) {
 	docAfter := doc
 	sharesAfter := make([]db.DocumentShare, len(sharesBefore))
@@ -284,7 +277,7 @@ func simulateAccessBatchState(
 				}
 				continue
 			}
-			if hasLive && onExisting == DocumentAccessOnExistingKeep {
+			if hasLive && it.OnExisting == DocumentAccessOnExistingKeep {
 				continue
 			}
 			docAfter.Visibility = documentVisibilityWorkspace
@@ -300,7 +293,7 @@ func simulateAccessBatchState(
 			}
 			continue
 		}
-		if hasLive && onExisting == DocumentAccessOnExistingKeep {
+		if hasLive && it.OnExisting == DocumentAccessOnExistingKeep {
 			continue
 		}
 		target := string(*it.Level)
@@ -334,54 +327,56 @@ func (s *DocumentService) buildAccessBatchPreview(
 	docAfter db.Document,
 	sharesAfter []db.DocumentShare,
 	items []DocumentAccessBatchItem,
-) (DocumentAccessPreview, map[string]bool, error) {
+) (DocumentAccessPreview, error) {
 	preview := DocumentAccessPreview{
 		Users:    make([]DocumentAccessPreviewUser, 0),
 		Groups:   make([]DocumentAccessPreviewGroup, 0),
-		Warnings: make([]string, 0),
+		Warnings: make([]DocumentAccessWarning, 0),
 	}
-	warnSet := map[string]bool{}
 
 	homeAfterLvl, _ := currentHomeWorkspaceLevel(docAfter, filterHomeWorkspaceShares(sharesAfter, docAfter.WorkspaceID))
 	orgAfterLvl, _ := shareLevelInSlice(sharesAfter, DocumentPrincipalOrganization, docAfter.OrganizationID)
 
-	for _, it := range items {
-		if (it.PrincipalType == DocumentPrincipalWorkspace || it.PrincipalType == DocumentPrincipalOrganization) &&
-			it.Level != nil && (*it.Level == DocumentLevelEdit || *it.Level == DocumentLevelManage) {
-			warnSet[DocumentAccessWarningWideScope] = true
-		}
-
+	for idx, it := range items {
 		if it.PrincipalType == DocumentPrincipalUser {
 			u, err := q.GetUserByID(ctx, it.PrincipalID)
 			if err != nil {
-				return DocumentAccessPreview{}, nil, err
+				return DocumentAccessPreview{}, err
 			}
 			accBefore, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docBefore, sharesBefore)
 			if err != nil {
-				return DocumentAccessPreview{}, nil, err
+				return DocumentAccessPreview{}, err
 			}
 			accAfter, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docAfter, sharesAfter)
 			if err != nil {
-				return DocumentAccessPreview{}, nil, err
+				return DocumentAccessPreview{}, err
 			}
-			var beforePtr, afterPtr *DocumentAccessPreviewLevel
+			var beforeLvl, afterLvl DocumentAccessPreviewLevel
 			if accBefore.Level != DocumentLevelNone {
-				beforePtr = &DocumentAccessPreviewLevel{Level: accBefore.Level, Via: string(accBefore.Via)}
+				beforeLvl = DocumentAccessPreviewLevel{Level: accBefore.Level, Via: string(accBefore.Via)}
 			}
 			if accAfter.Level != DocumentLevelNone {
-				afterPtr = &DocumentAccessPreviewLevel{Level: accAfter.Level, Via: string(accAfter.Via)}
+				afterLvl = DocumentAccessPreviewLevel{Level: accAfter.Level, Via: string(accAfter.Via)}
 			}
-			if it.Level != nil && afterPtr != nil && afterPtr.Level.rank() > (*it.Level).rank() {
-				warnSet[DocumentAccessWarningDirectBelowGroup] = true
+			prevDirect, _ := shareLevelInSlice(sharesBefore, DocumentPrincipalUser, it.PrincipalID)
+			afterDirect, _ := shareLevelInSlice(sharesAfter, DocumentPrincipalUser, it.PrincipalID)
+			if it.Level != nil && afterLvl.Level.rank() > (*it.Level).rank() {
+				preview.Warnings = append(preview.Warnings, DocumentAccessWarning{
+					Code:  DocumentAccessWarningDirectBelowGroup,
+					Index: idx,
+				})
 			}
-			if beforePtr != nil && (afterPtr == nil || afterPtr.Level.rank() < beforePtr.Level.rank()) {
-				warnSet[DocumentAccessWarningDowngrade] = true
+			if prevDirect.rank() > 0 && afterDirect.rank() < prevDirect.rank() {
+				preview.Warnings = append(preview.Warnings, DocumentAccessWarning{
+					Code:  DocumentAccessWarningDowngrade,
+					Index: idx,
+				})
 			}
 			preview.Users = append(preview.Users, DocumentAccessPreviewUser{
 				UserID:      it.PrincipalID,
 				DisplayName: u.DisplayName,
-				Before:      beforePtr,
-				After:       afterPtr,
+				Before:      beforeLvl,
+				After:       afterLvl,
 			})
 			continue
 		}
@@ -390,20 +385,21 @@ func (s *DocumentService) buildAccessBatchPreview(
 		if it.PrincipalType == DocumentPrincipalWorkspace {
 			ws, err := q.GetWorkspaceByID(ctx, it.PrincipalID)
 			if err != nil {
-				return DocumentAccessPreview{}, nil, err
+				return DocumentAccessPreview{}, err
 			}
 			name = ws.Name
 		} else {
 			org, err := q.GetOrganizationByID(ctx, it.PrincipalID)
 			if err != nil {
-				return DocumentAccessPreview{}, nil, err
+				return DocumentAccessPreview{}, err
 			}
 			name = org.Name
 		}
 
 		var prevLvl, afterLvl DocumentLevel
 		var hasAfter bool
-		if it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == docBefore.WorkspaceID {
+		isHome := it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == docBefore.WorkspaceID
+		if isHome {
 			prevLvl, _ = currentHomeWorkspaceLevel(docBefore, filterHomeWorkspaceShares(sharesBefore, docBefore.WorkspaceID))
 			afterLvl, hasAfter = currentHomeWorkspaceLevel(docAfter, filterHomeWorkspaceShares(sharesAfter, docAfter.WorkspaceID))
 		} else {
@@ -418,6 +414,19 @@ func (s *DocumentService) buildAccessBatchPreview(
 
 		prevRank := prevLvl.rank()
 		afterRank := afterLvl.rank()
+		if !isHome && hasAfter && afterRank > prevRank && (afterLvl == DocumentLevelEdit || afterLvl == DocumentLevelManage) {
+			preview.Warnings = append(preview.Warnings, DocumentAccessWarning{
+				Code:  DocumentAccessWarningWideScope,
+				Index: idx,
+			})
+		}
+		if prevRank > 0 && afterRank < prevRank {
+			preview.Warnings = append(preview.Warnings, DocumentAccessWarning{
+				Code:  DocumentAccessWarningDowngrade,
+				Index: idx,
+			})
+		}
+
 		preservedUsers := make([]string, 0)
 		preservedWS := make([]string, 0)
 		if prevRank > 0 && afterRank < prevRank {
@@ -449,7 +458,7 @@ func (s *DocumentService) buildAccessBatchPreview(
 			PrincipalID:      it.PrincipalID,
 		})
 		if err != nil {
-			return DocumentAccessPreview{}, nil, err
+			return DocumentAccessPreview{}, err
 		}
 		preview.Groups = append(preview.Groups, DocumentAccessPreviewGroup{
 			PrincipalType: it.PrincipalType,
@@ -460,7 +469,7 @@ func (s *DocumentService) buildAccessBatchPreview(
 			LosingCount:   int(counts.LosingCount),
 		})
 	}
-	return preview, warnSet, nil
+	return preview, nil
 }
 
 func (s *DocumentService) validateAccessBatchSemantics(
@@ -482,7 +491,7 @@ func (s *DocumentService) validateAccessBatchSemantics(
 		if seen[key] {
 			rejected = append(rejected, DocumentAccessRejectedItem{
 				Index: i, PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID,
-				Reason: "duplicate_principal",
+				Code: "duplicate_principal",
 			})
 			continue
 		}
@@ -495,7 +504,7 @@ func (s *DocumentService) validateAccessBatchSemantics(
 			if codedIs(err, "principal_not_in_organization") {
 				rejected = append(rejected, DocumentAccessRejectedItem{
 					Index: i, PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID,
-					Reason: "principal_not_in_organization",
+					Code: "principal_not_in_organization",
 				})
 				continue
 			}
@@ -507,7 +516,7 @@ func (s *DocumentService) validateAccessBatchSemantics(
 				(it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == doc.WorkspaceID) {
 				rejected = append(rejected, DocumentAccessRejectedItem{
 					Index: i, PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID,
-					Reason: "level_not_allowed",
+					Code: "level_not_allowed",
 				})
 				continue
 			}
@@ -518,7 +527,7 @@ func (s *DocumentService) validateAccessBatchSemantics(
 				doc.Visibility == documentVisibilityRestricted && !access.Level.AtLeast(DocumentLevelManage) {
 				rejected = append(rejected, DocumentAccessRejectedItem{
 					Index: i, PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID,
-					Reason: "break_glass_required",
+					Code: "break_glass_required",
 				})
 				continue
 			}
@@ -529,7 +538,7 @@ func (s *DocumentService) validateAccessBatchSemantics(
 				if codedIs(err, "break_glass_required") {
 					rejected = append(rejected, DocumentAccessRejectedItem{
 						Index: i, PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID,
-						Reason: "break_glass_required",
+						Code: "break_glass_required",
 					})
 					continue
 				}
@@ -559,12 +568,13 @@ func (s *DocumentService) applyAccessBatchItem(
 	actor Actor,
 	doc db.Document,
 	access DocumentAccess,
+	index int,
 	it DocumentAccessBatchItem,
-	onExisting, batchID string,
+	batchID string,
 	dryRun bool,
 ) (DocumentAccessItemResult, db.Document, error) {
 	if it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == doc.WorkspaceID {
-		return s.applyHomeWorkspaceBatchItem(ctx, q, actor, doc, it, onExisting, batchID, dryRun)
+		return s.applyHomeWorkspaceBatchItem(ctx, q, actor, doc, index, it, batchID, dryRun)
 	}
 	prevShare, err := q.GetDocumentShare(ctx, db.GetDocumentShareParams{
 		OrganizationID: doc.OrganizationID,
@@ -581,9 +591,10 @@ func (s *DocumentService) applyAccessBatchItem(
 	if it.Level == nil {
 		if !hasLive {
 			return DocumentAccessItemResult{
+				Index:         index,
 				PrincipalType: it.PrincipalType,
 				PrincipalID:   it.PrincipalID,
-				Action:        DocumentAccessActionUnchanged,
+				Status:        DocumentAccessStatusUnchanged,
 			}, doc, nil
 		}
 		prev := DocumentLevel(prevShare.Level)
@@ -593,9 +604,10 @@ func (s *DocumentService) applyAccessBatchItem(
 			}
 		}
 		return DocumentAccessItemResult{
+			Index:         index,
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Action:        DocumentAccessActionRevoked,
+			Status:        DocumentAccessStatusRevoked,
 			PreviousLevel: &prev,
 		}, doc, nil
 	}
@@ -613,21 +625,23 @@ func (s *DocumentService) applyAccessBatchItem(
 			shareID = sh.ID
 		}
 		return DocumentAccessItemResult{
+			Index:         index,
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Action:        DocumentAccessActionGranted,
+			Status:        DocumentAccessStatusGranted,
 			ShareID:       shareID,
 			Level:         &target,
 		}, doc, nil
 	}
 
 	prev := DocumentLevel(prevShare.Level)
-	if onExisting == DocumentAccessOnExistingKeep {
+	if it.OnExisting == DocumentAccessOnExistingKeep {
 		kept := prev
 		return DocumentAccessItemResult{
+			Index:         index,
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Action:        DocumentAccessActionKept,
+			Status:        DocumentAccessStatusKept,
 			ShareID:       prevShare.ID,
 			Level:         &kept,
 			PreviousLevel: &prev,
@@ -636,9 +650,10 @@ func (s *DocumentService) applyAccessBatchItem(
 	if prev == target {
 		unchanged := target
 		return DocumentAccessItemResult{
+			Index:         index,
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Action:        DocumentAccessActionUnchanged,
+			Status:        DocumentAccessStatusUnchanged,
 			Level:         &unchanged,
 			PreviousLevel: &prev,
 		}, doc, nil
@@ -655,9 +670,10 @@ func (s *DocumentService) applyAccessBatchItem(
 		shareID = sh.ID
 	}
 	return DocumentAccessItemResult{
+		Index:         index,
 		PrincipalType: it.PrincipalType,
 		PrincipalID:   it.PrincipalID,
-		Action:        DocumentAccessActionUpdated,
+		Status:        DocumentAccessStatusUpdated,
 		ShareID:       shareID,
 		Level:         &target,
 		PreviousLevel: &prev,
@@ -669,8 +685,9 @@ func (s *DocumentService) applyHomeWorkspaceBatchItem(
 	q *db.Queries,
 	actor Actor,
 	doc db.Document,
+	index int,
 	it DocumentAccessBatchItem,
-	onExisting, batchID string,
+	batchID string,
 	dryRun bool,
 ) (DocumentAccessItemResult, db.Document, error) {
 	legacy, err := homeWorkspaceShares(ctx, q, doc)
@@ -682,9 +699,10 @@ func (s *DocumentService) applyHomeWorkspaceBatchItem(
 	if it.Level == nil {
 		if !hasLive {
 			return DocumentAccessItemResult{
+				Index:         index,
 				PrincipalType: it.PrincipalType,
 				PrincipalID:   it.PrincipalID,
-				Action:        DocumentAccessActionUnchanged,
+				Status:        DocumentAccessStatusUnchanged,
 			}, doc, nil
 		}
 		prev := cur
@@ -700,9 +718,10 @@ func (s *DocumentService) applyHomeWorkspaceBatchItem(
 			doc = updated
 		}
 		return DocumentAccessItemResult{
+			Index:         index,
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Action:        DocumentAccessActionRevoked,
+			Status:        DocumentAccessStatusRevoked,
 			PreviousLevel: &prev,
 		}, doc, nil
 	}
@@ -721,20 +740,22 @@ func (s *DocumentService) applyHomeWorkspaceBatchItem(
 			doc = updated
 		}
 		return DocumentAccessItemResult{
+			Index:         index,
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Action:        DocumentAccessActionGranted,
+			Status:        DocumentAccessStatusGranted,
 			Level:         &target,
 		}, doc, nil
 	}
 
 	prev := cur
-	if onExisting == DocumentAccessOnExistingKeep {
+	if it.OnExisting == DocumentAccessOnExistingKeep {
 		kept := prev
 		return DocumentAccessItemResult{
+			Index:         index,
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Action:        DocumentAccessActionKept,
+			Status:        DocumentAccessStatusKept,
 			Level:         &kept,
 			PreviousLevel: &prev,
 		}, doc, nil
@@ -742,9 +763,10 @@ func (s *DocumentService) applyHomeWorkspaceBatchItem(
 	if doc.Visibility == documentVisibilityWorkspace && DocumentLevel(doc.WorkspaceLevel) == target && len(legacy) == 0 {
 		unchanged := target
 		return DocumentAccessItemResult{
+			Index:         index,
 			PrincipalType: it.PrincipalType,
 			PrincipalID:   it.PrincipalID,
-			Action:        DocumentAccessActionUnchanged,
+			Status:        DocumentAccessStatusUnchanged,
 			Level:         &unchanged,
 			PreviousLevel: &prev,
 		}, doc, nil
@@ -761,9 +783,10 @@ func (s *DocumentService) applyHomeWorkspaceBatchItem(
 		doc = updated
 	}
 	return DocumentAccessItemResult{
+		Index:         index,
 		PrincipalType: it.PrincipalType,
 		PrincipalID:   it.PrincipalID,
-		Action:        DocumentAccessActionUpdated,
+		Status:        DocumentAccessStatusUpdated,
 		Level:         &target,
 		PreviousLevel: &prev,
 	}, doc, nil
