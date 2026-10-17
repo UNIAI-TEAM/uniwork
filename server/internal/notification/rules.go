@@ -81,8 +81,10 @@ type Draft struct {
 }
 
 // CallRingChecker says whether a chat call still rings for a user: live, and
-// not answered by them here or on another device. ChatService implements it;
-// it is injected through SetCallRinging.
+// not answered by them here or on another device. ChatService implements it
+// over its in-memory call sessions, so it answers for this node only: the
+// backend runs one replica (deploy/app/uniwork/values.yaml), the same
+// assumption the call's token mint makes. It is injected through SetCallRinging.
 type CallRingChecker interface {
 	VoiceCallRinging(roomID, callID, userID string) bool
 }

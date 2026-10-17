@@ -139,6 +139,30 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Answered after the rule wrote the row but before the push lane ran (a
+	// consumer without the ring check stands in for that race): no push, row closed.
+	if err := chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-race", false); err != nil {
+		t.Fatal(err)
+	}
+	race := f.lastEvent(t, "chat.voice.invite_received")
+	if err := chat.SignalVoiceAccept(f.ctx, f.member.ID, f.wsID, dm.ID, "call-push-race"); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewConsumer(f.pool, f.q, f.ws).Handle(f.ctx, race); err != nil {
+		t.Fatal(err)
+	}
+	pc.SetCallRinging(chat)
+	raced := f.lastEvent(t, TopicPush)
+	if err := pc.Handle(f.ctx, raced); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.sent) != 1 || !f.notificationOf(t, raced).ReadAt.Valid {
+		t.Fatalf("a ring answered before the push lane was pushed or left open: %+v", spy.sent)
+	}
+	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-race"); err != nil {
+		t.Fatal(err)
+	}
+
 	// A push lane that falls behind the ring window drops the push too.
 	if err := chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-5", false); err != nil {
 		t.Fatal(err)
@@ -149,8 +173,8 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	if err := pc.Handle(f.ctx, behind); err != nil {
 		t.Fatal(err)
 	}
-	if len(spy.sent) != 1 || !f.notificationOf(t, behind).PushedAt.Valid {
-		t.Fatalf("a ring past its window was pushed or left pending: %+v", spy.sent)
+	if len(spy.sent) != 1 || !f.notificationOf(t, behind).ReadAt.Valid {
+		t.Fatalf("a ring past its window was pushed or left open: %+v", spy.sent)
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-5"); err != nil {
 		t.Fatal(err)
