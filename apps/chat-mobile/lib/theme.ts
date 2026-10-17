@@ -27,6 +27,7 @@ export const THEME = {
     ring: "hsl(220.4 91.7% 47.1%)",
     brand: "hsl(220.4 91.7% 47.1%)",
     brandForeground: "hsl(0 0% 100%)",
+    successSolid: "hsl(149.4 71.1% 29.8%)",
   },
   dark: {
     background: "hsl(0 0% 6.7%)",
@@ -50,6 +51,7 @@ export const THEME = {
     ring: "hsl(218.2 100% 67.6%)",
     brand: "hsl(218.2 100% 67.6%)",
     brandForeground: "hsl(224.2 42.2% 8.8%)",
+    successSolid: "hsl(149.4 71.1% 29.8%)",
   },
 };
 

@@ -48,7 +48,7 @@ function AuthInitializer({ children }: { children: ReactNode }) {
   const signingOut = useRef(false);
 
   useEffect(() => {
-    api.setOnUnauthorized(() => {
+    const signOut = () => {
       if (signingOut.current) return;
       signingOut.current = true;
       void (async () => {
@@ -58,10 +58,15 @@ function AuthInitializer({ children }: { children: ReactNode }) {
         router.replace("/login");
         signingOut.current = false;
       })();
-    });
-    // A callback that arrives as a deep link adopts the session outside login(): load /me so index.tsx leaves /login.
+    };
+    api.setOnUnauthorized(signOut);
     const unsubscribe = session.onChange((token) => {
+      // A callback that arrives as a deep link adopts the session outside login(): load /me so index.tsx leaves /login.
       if (token) void useAuthStore.getState().adoptSession();
+      // The server ended the session while a user is in (this device revoked elsewhere: socket 4001,
+      // refresh device_revoked): out now, not at the next request. logout() clears the user first,
+      // so the sign-out the app asked for never comes back here.
+      else if (useAuthStore.getState().user) signOut();
     });
     // The workspace first, so index.tsx sees it the moment isLoading drops.
     void useWorkspaceStore

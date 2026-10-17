@@ -42,6 +42,32 @@ type VoiceCallLogDTO struct {
 	RecordingURL    string                    `json:"recording_url,omitempty" description:"Playback URL when recording is complete" example:"https://s3.example/chat-voice/rec.mp4"`
 }
 
+// ChatCallLogDTO is one call of the UniChat calls tab: a voice call log
+// message with the room it was posted in. Recording fields stay on the
+// message (ChatMessageDTO.voice_call); this list does not carry them.
+type ChatCallLogDTO struct {
+	MessageID       string                    `json:"message_id" description:"Id tin call-log, để mở phòng tại đúng tin" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	RoomID          string                    `json:"room_id" description:"Phòng chứa cuộc gọi" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	RoomKind        string                    `json:"room_kind" description:"dm, group hoặc channel" example:"dm"`
+	RoomName        string                    `json:"room_name" description:"Tên phòng; với DM là tên hiển thị của người kia" example:"Trần Hoàng Long"`
+	PeerUserID      string                    `json:"peer_user_id,omitempty" description:"Người kia của DM; bỏ trống với phòng khác" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	CallID          string                    `json:"call_id" description:"Id cuộc gọi" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Outcome         string                    `json:"outcome" description:"completed, unanswered hoặc declined; rỗng khi metadata hỏng" example:"completed"`
+	Video           bool                      `json:"video" description:"true khi cuộc gọi bắt đầu với camera bật" example:"false"`
+	CallerID        string                    `json:"caller_id" description:"Người gọi" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	CallerName      string                    `json:"caller_name" description:"Tên hiển thị hiện tại của người gọi" example:"Nguyễn Văn An"`
+	DurationSeconds int                       `json:"duration_seconds" description:"Thời lượng nói chuyện, giây; 0 khi không ai nghe" example:"125"`
+	StartedAt       string                    `json:"started_at" description:"Lúc bắt đầu nói chuyện (RFC3339); cuộc không ai nghe thì bằng ended_at" example:"2026-10-17T08:58:00Z"`
+	EndedAt         string                    `json:"ended_at" description:"Lúc gác máy (RFC3339)" example:"2026-10-17T09:00:05Z"`
+	Participants    []VoiceCallParticipantDTO `json:"participants" description:"Những người có mặt trong cuộc gọi"`
+}
+
+// ChatCallLogListSDO is GET /workspaces/{workspaceID}/chat/call-logs.
+type ChatCallLogListSDO struct {
+	CallLogs   []ChatCallLogDTO `json:"call_logs" description:"Mới nhất trước"`
+	NextCursor *string          `json:"next_cursor" description:"Con trỏ trang kế; null ở trang cuối" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
 // ChatVoiceRecordingDTO is a LiveKit egress row for a chat voice call.
 type ChatVoiceRecordingDTO struct {
 	ID        string `json:"id" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`

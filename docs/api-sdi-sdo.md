@@ -87,6 +87,7 @@ Domain hiện có:
 | Task / comments | `dto/sdi/task.go` | `dto/sdo/task.go` |
 | Meeting / notes / token | `dto/sdi/meeting.go` | `dto/sdo/meeting.go` |
 | Office engine jobs | `dto/sdi/office.go` | `dto/sdo/office.go` |
+| Chat (phòng, tin, gọi thoại, lịch sử cuộc gọi) | `dto/sdi/chat.go` | `dto/sdo/chat.go` |
 | MCP connector (consent, ứng dụng AI đã kết nối, công tắc tổ chức) | `dto/sdi/mcp.go` | `dto/sdo/mcp.go` |
 
 Domain mới: tạo cặp `dto/sdi/{domain}.go` + `dto/sdo/{domain}.go`.
@@ -131,6 +132,12 @@ TypeScript).
 | Multipart | `formData:"name"` | `File []byte \`formData:"file" description:"…"\`` |
 | Path | **không** gắn trên SDI domain | `pathParamSDI` trong `openapi.go` |
 | Query / header | chưa có tag; header mà middleware đọc (vd `X-UniWork-Device` của `/auth/desktop/refresh`) được nêu trong `description` của `apiOp`; khi cần schema: `query:"…"`, `header:"…"` trên SDI của đúng route | |
+
+Danh sách phân trang con trỏ: SDI chỉ để docs có `Cursor` (`query:"cursor"`)
+và `Limit` (`query:"limit"`); SDO là `{Resource}ListSDO` với
+`NextCursor *string \`json:"next_cursor"\`` — `null` ở trang cuối, client
+gửi lại nguyên văn. Ví dụ: `sdi.ListChatCallLogsSDI` /
+`sdo.ChatCallLogListSDO` của `GET /workspaces/{workspaceID}/chat/call-logs`.
 
 Không dùng tag Gin `binding:"required"`. Field bắt buộc = value
 (không pointer), không `omitempty`. Optional PATCH = `*string`.

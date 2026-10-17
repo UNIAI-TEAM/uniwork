@@ -10,6 +10,12 @@ function stringOr(value: unknown, fallback: string): string {
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
+/** extra.eas.projectId, the one input of an Expo push token; undefined without EAS (spec §12 Q8). */
+export function easProjectId(extra: Record<string, unknown> | undefined): string | undefined {
+  const projectId = (extra?.eas as { projectId?: unknown } | undefined)?.projectId;
+  return typeof projectId === "string" && projectId.length > 0 ? projectId : undefined;
+}
+
 export function runtimeFromExtra(extra: Record<string, unknown> | undefined): Partial<RuntimeConfig> {
   const apiUrl = stringOr(extra?.apiUrl, DEV_API_URL);
   return {
