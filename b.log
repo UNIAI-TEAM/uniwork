@@ -1,0 +1,21 @@
+$ pnpm install --frozen-lockfile; rc=$?; echo; echo "INSTALL_EXIT=$rc"
+Scope: all 12 workspace projects
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+packages/office-upstream prepare$ node ../../scripts/office/build-upstream.mjs
+. prepare$ git config core.hooksPath .githooks || node -e 0
+. prepare: Done
+packages/office-upstream prepare: {"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+packages/office-upstream prepare: Done
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: core-js@3.50.0, unicode-animations@1.0.3,           │
+│   unrs-resolver@1.12.2.                                                      │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 6.5s using pnpm v10.28.2
+
+INSTALL_EXIT=0
