@@ -21,6 +21,18 @@ const APP_LINK_HOST = "app.uniworkos.com";
 // the app. UNICHAT_EAS_PROJECT_ID overrides it; "" turns EAS off for a build.
 const EAS_PROJECT_ID = "";
 
+// What iOS shows when UniChat first asks for the photos, the camera and the microphone.
+const USAGE_VI = {
+  NSPhotoLibraryUsageDescription: "UniChat mở thư viện ảnh để bạn gửi ảnh vào cuộc trò chuyện.",
+  NSCameraUsageDescription: "UniChat dùng camera khi bạn gọi video.",
+  NSMicrophoneUsageDescription: "UniChat dùng micro khi bạn gọi điện và ghi tin thoại.",
+};
+const USAGE_EN: typeof USAGE_VI = {
+  NSPhotoLibraryUsageDescription: "UniChat opens your photo library so you can send photos to a conversation.",
+  NSCameraUsageDescription: "UniChat uses the camera for video calls.",
+  NSMicrophoneUsageDescription: "UniChat uses the microphone for calls and voice messages.",
+};
+
 function appEnv(): AppEnv {
   const value = process.env.UNICHAT_ENV;
   return value === "staging" || value === "production" ? value : "dev";
@@ -74,9 +86,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       appleTeamId: process.env.EXPO_APPLE_TEAM_ID,
       bundleIdentifier: appId,
       associatedDomains: [`applinks:${APP_LINK_HOST}`],
+      // A call keeps its audio when the person switches app or locks the phone.
+      infoPlist: { UIBackgroundModes: ["audio"] },
     },
     android: {
       package: appId,
+      // The WebRTC plugin asks to draw over other apps; a call never does, and Play reviews it.
+      blockedPermissions: ["android.permission.SYSTEM_ALERT_WINDOW"],
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundImage: "./assets/adaptive-icon-background.png",
@@ -90,6 +106,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
       ],
     },
+    // The permission prompts in English for an English phone; the plugins below
+    // write the Vietnamese ones into Info.plist as the base strings.
+    locales: { en: USAGE_EN },
     plugins: [
       "expo-router",
       "expo-secure-store",
@@ -98,11 +117,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "expo-notifications",
       // SDK 57's scene runtime is required for Xcode 27 builds.
       ["expo-build-properties", { ios: { enableSceneSupport: true } }],
-      // Chat attachments (M2a) pick from the library only. The microphone is left
-      // at the plugin default, not blocked: voice recording lands in M3.
+      // Every plugin that writes a usage string gets the same one: the last to
+      // run wins. A `false` here would also block the Android permission the
+      // video call needs.
       [
         "expo-image-picker",
-        { photosPermission: "UniChat mở thư viện ảnh để bạn gửi ảnh vào cuộc trò chuyện.", cameraPermission: false },
+        { photosPermission: USAGE_VI.NSPhotoLibraryUsageDescription, cameraPermission: USAGE_VI.NSCameraUsageDescription, microphonePermission: USAGE_VI.NSMicrophoneUsageDescription },
+      ],
+      // Voice messages (M3); background playback adds UIBackgroundModes: audio,
+      // which also keeps a call's audio going when the app leaves the screen.
+      ["expo-audio", { microphonePermission: USAGE_VI.NSMicrophoneUsageDescription }],
+      // Calls (M3): LiveKit's native setup, then WebRTC's permissions.
+      "@livekit/react-native-expo-plugin",
+      [
+        "@config-plugins/react-native-webrtc",
+        { cameraPermission: USAGE_VI.NSCameraUsageDescription, microphonePermission: USAGE_VI.NSMicrophoneUsageDescription },
       ],
     ],
     extra: {

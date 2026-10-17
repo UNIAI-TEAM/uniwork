@@ -18,7 +18,11 @@
     }
   },
   "dependencies": {
+    "@config-plugins/react-native-webrtc": "15.0.2",
     "@expo/vector-icons": "^15.1.1",
+    "@livekit/react-native": "3.0.0",
+    "@livekit/react-native-expo-plugin": "1.0.3",
+    "@livekit/react-native-webrtc": "144.2.0",
     "@react-native-community/netinfo": "12.0.1",
     "@rn-primitives/avatar": "^1.4.0",
     "@rn-primitives/portal": "^1.4.0",
@@ -50,6 +54,7 @@
     "expo-updates": "~57.0.26",
     "expo-web-browser": "~57.0.3",
     "i18next": "catalog:",
+    "livekit-client": "^2.21.0",
     "nativewind": "^4.1.23",
     "react": "catalog:",
     "react-dom": "catalog:",
