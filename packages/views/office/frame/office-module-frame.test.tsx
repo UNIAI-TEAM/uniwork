@@ -20,9 +20,15 @@ import { OfficeTooLargeProvider } from "../too-large-notice";
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
+const SOURCE_MINT_PATH = `/api/v1/workspaces/ws-1/documents/sources/${encodeURIComponent("chat:s-1")}/office/frame-token`;
 const minted = {
   token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: true, module: "pdf",
+};
+const mintedSource = {
+  token: "ofs1.tok", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
+  source_id: "chat:s-1", parent_kind: "chat_channel", parent_id: "c-1",
+  workspace_id: "ws-1", organization_id: "org-1", can_edit: false, module: "docs", readonly: true,
 };
 
 let lastApi: DocsFrameApi | null = null;
@@ -33,11 +39,12 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, ackComments = false, ackCapabilities }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
-  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, ackComments = false, ackCapabilities, fileRef }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
+  const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
+  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : path === SOURCE_MINT_PATH ? Promise.resolve({ ...mintedSource, module: tokenModule }) : Promise.reject(new Error(`unexpected ${path}`))));
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const bare = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} />;
+  const bare = <OfficeModuleFrame module={module} wsId="ws-1" fileRef={ref} title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} />;
   const framed = fileActions
     ? <OfficeTooLargeProvider value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
     : bare;
@@ -90,6 +97,23 @@ describe("OfficeModuleFrame", () => {
       module: "pdf", documentId: "doc-1", token: "tok-1",
       capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
     });
+  });
+
+  it("opens a source file view-only on the source token, with no write or host extra granted", async () => {
+    const frame = mountFrame("docs", { fileRef: { kind: "source", id: "chat:s-1" } });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === SOURCE_MINT_PATH)).toBe(true));
+    expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(false);
+    await frame.ready({ module: "docs" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const init = frame.inits()[0]?.payload as { documentId?: string; token?: string; capabilities?: { comments?: boolean } & Record<string, boolean> };
+    expect(init).toMatchObject({
+      documentId: "chat:s-1",
+      token: "ofs1.tok",
+      capabilities: { save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false, desktopOpen: false, download: false },
+    });
+    // No comments claim and no save control for a read-only source.
+    expect(init?.capabilities?.comments ?? false).toBe(false);
+    expect(screen.queryByLabelText("Lưu vào UniWork")).toBeNull();
   });
 
   it("takes back its comments claim when the frame unmounts, so the page's own panel returns", async () => {

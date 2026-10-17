@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
@@ -10,16 +11,25 @@ import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
+const SOURCE_ID = "chat:s-1";
+const SOURCE_MINT_PATH = `/api/v1/workspaces/ws-1/documents/sources/${encodeURIComponent(SOURCE_ID)}/office/frame-token`;
 const FILE = { fileId: "doc-1", name: "Plan.docx" };
 const minted = (canEdit = true) => ({
   token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: canEdit, module: "docs",
 });
+const mintedSource = () => ({
+  token: "ofs1.tok", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
+  source_id: SOURCE_ID, parent_kind: "chat_channel", parent_id: "c-1",
+  workspace_id: "ws-1", organization_id: "org-1", can_edit: false, module: "docs", readonly: true,
+});
 
 /** A frame on the other side of the wire: records what the host posts, posts back as the iframe's window. */
-function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, uploadMaxBytes }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; uploadMaxBytes?: number } = {}) {
-  requestMock.mockImplementation((path: string) => {
+function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, uploadMaxBytes, fileRef }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; uploadMaxBytes?: number; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
+  const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
+  requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
+    if (path === SOURCE_MINT_PATH) return Promise.resolve({ ...mintedSource(), module });
     if (String(path).startsWith("/api/v1/config")) {
       return Promise.resolve(uploadMaxBytes !== undefined ? { flags: {}, documents: { limits: { upload_max_bytes: uploadMaxBytes } } } : { flags: {} });
     }
@@ -46,7 +56,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const options: DocsFrameSessionOptions = {
-    iframeRef: { current: iframe }, frameOrigin: window.location.origin, module, wsId: "ws-1", documentId: "doc-1",
+    iframeRef: { current: iframe }, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: ref,
     readonly, locale: "vi", theme: "light", onError, downloadName: () => "Kế hoạch: Q4 (bản của tôi)",
     api: { open: vi.fn(), save: vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" })), recents: vi.fn(), ...api } as unknown as DocsFrameApi,
   };
@@ -501,5 +511,66 @@ describe("useDocsFrameSession: api.download", () => {
     const id = frame.request("api.download", { data: "not bytes" });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("malformed"));
     expect(clicks).toHaveLength(0);
+  });
+});
+
+describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
+  const sourceRef = { kind: "source" as const, id: SOURCE_ID };
+
+  it("mints on the source route, opens view-only and never offers a write or host extra", async () => {
+    const frame = setup({ fileRef: sourceRef });
+    await frame.boot();
+    expect(requestMock.mock.calls.some(([path]) => path === SOURCE_MINT_PATH)).toBe(true);
+    expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(false);
+    const init = frame.sent("init")[0]?.payload as {
+      documentId: string; token: string;
+      capabilities: { comments?: boolean } & Record<string, boolean>;
+      user?: unknown; recovery?: unknown; commentsLevel?: unknown;
+    };
+    expect(init.token).toBe("ofs1.tok");
+    expect(init.documentId).toBe(SOURCE_ID);
+    // A source frame can look and print only: every write, export, asset, AI and
+    // desktop/download capability is off by construction.
+    expect(init.capabilities).toMatchObject({
+      save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false,
+      attachments: false, images: false, ai: false, uniworkAi: false,
+      desktopOpen: false, download: false,
+      print: true,
+    });
+    expect(init.capabilities.comments ?? false).toBe(false);
+    expect(init.commentsLevel).toBeUndefined();
+    expect(init.user).toBeUndefined();
+    expect(init.recovery).toBeUndefined();
+    expect(frame.hook.result.current.viewOnly).toBe(true);
+  });
+
+  it("refuses api.save and api.download even if a frame asks anyway", async () => {
+    const frame = setup({ fileRef: sourceRef });
+    await frame.boot();
+    const saveId = frame.request("api.save", { fileId: SOURCE_ID, data: new ArrayBuffer(4), etag: "0" });
+    await waitFor(() => expect(frame.answerTo(saveId)?.error?.code).toBe("forbidden"));
+    const dlId = frame.request("api.download", { data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.answerTo(dlId)?.error?.code).toBe("forbidden"));
+  });
+
+  it("fails the session as not_found when the mint is refused", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === SOURCE_MINT_PATH
+        ? Promise.reject(new ApiError("not found", "not_found", 404))
+        : Promise.reject(new Error(`unexpected ${path}`)),
+    );
+    const iframe = document.createElement("iframe");
+    document.body.append(iframe);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const hook = renderHook(
+      () => useDocsFrameSession({
+        iframeRef: { current: iframe }, frameOrigin: window.location.origin, module: "docs", wsId: "ws-1", fileRef: sourceRef,
+        readonly: false, locale: "vi", theme: "light", onError: vi.fn(), api: {} as DocsFrameApi,
+      }),
+      { wrapper },
+    );
+    await waitFor(() => expect(hook.result.current.status).toBe("failed"));
+    expect(hook.result.current.failure?.code).toBe("not_found");
   });
 });

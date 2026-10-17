@@ -115,14 +115,14 @@ function nav(): NavigationAdapter {
   };
 }
 
-function renderView(adapter: NavigationAdapter = nav()) {
+function renderView(adapter: NavigationAdapter = nav(), viewProps: Partial<Parameters<typeof DocumentsPageView>[0]> = {}) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   render(
     wrap(
       <NavigationProvider value={adapter}>
         <WorkspaceProvider workspace={workspace} user={user}>
           <FeatureFlagsProvider service={service}>
-            <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            <DocumentsPageView wsId={WS} onOpen={vi.fn()} {...viewProps} />
           </FeatureFlagsProvider>
         </WorkspaceProvider>
       </NavigationProvider>,
@@ -197,10 +197,40 @@ describe("file from another module", () => {
     }
   });
 
-  it("downloads the file on the primary click for a kind with no view-only open yet", async () => {
-    // U-SRC1 wants Office formats in the Office viewer; until a source view-only
-    // frame route exists (UNI-1815 server gap) a docx source downloads.
-    route({ sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })] });
+  it("opens an Office source in the view-only dialog on the primary click — no download", async () => {
+    // UNI-1869: the office frame hosts the file read-only; the dialog carries
+    // the file's name and its own close, and the bytes never take the
+    // download route.
+    route({
+      sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })],
+      post: (path) =>
+        path.includes("/office/frame-token")
+          ? {
+              token: "ofs1.tok", token_type: "Bearer", expires_at: "2026-10-17T09:10:00Z", expires_in: 600,
+              source_id: "chat:d9", parent_kind: "chat_channel", parent_id: "c1",
+              workspace_id: WS, organization_id: "org1", can_edit: false, module: "docs", readonly: true,
+            }
+          : {},
+    });
+    const adapter = renderView(nav(), { officeFrameVersion: () => "9.9.9-test" });
+    const row = await rowOf("Kế hoạch.docx");
+    const nameButton = sourceNameButton(row);
+    nameButton.focus();
+    fireEvent.click(nameButton);
+    const dialog = await screen.findByRole("dialog", { name: /Kế hoạch\.docx/ });
+    expect(within(dialog).getByTestId("office-docs-frame-iframe").getAttribute("src")).toBe("/office-frame/docs/9.9.9-test/index.html");
+    expect(within(dialog).getByText(t("documents.home.row.view_only"))).toBeInTheDocument();
+    expect(downloadBlob).not.toHaveBeenCalled();
+    expect(adapter.push).not.toHaveBeenCalled();
+    expect(calls("POST").some(([path]) => String(path).endsWith("/sources/chat%3Ad9/office/frame-token"))).toBe(true);
+    // Esc closes it and focus returns to the row's own button.
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(nameButton);
+  });
+
+  it("still downloads a docx the server does not mark openable", async () => {
+    route({ sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx", can_open_in_app: false })] });
     downloadBlob.mockResolvedValue(new Blob(["docx"]));
     const adapter = renderView();
     const { clicked, revokeUrl, restore } = stubDownload();
@@ -211,9 +241,42 @@ describe("file from another module", () => {
       expect(clicked[0]).toBe("Kế hoạch.docx|blob:budget");
       expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Ad9/download`);
       expect(adapter.push).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
       // The download revokes its object URL a second later (documents-page-view
       // onDownloadSource); let that timer land on THIS stub so it cannot leak
       // into a later test's.
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
+    } finally {
+      restore();
+    }
+  });
+
+  it("closes with the failed toast when the viewer's token mint is refused", async () => {
+    route({
+      sources: () => [source({ id: "chat:d5", name: "Mất quyền.docx", extension: "docx" })],
+      post: (path) => {
+        if (path.includes("/office/frame-token")) throw new ApiError("not found", "not_found", 404);
+        return {};
+      },
+    });
+    renderView(nav(), { officeFrameVersion: () => "9.9.9-test" });
+    const row = await rowOf("Mất quyền.docx");
+    fireEvent.click(sourceNameButton(row));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("downloads instead when no frame build is installed for the module", async () => {
+    route({ sources: () => [source({ id: "chat:d7", name: "Kế hoạch.docx", extension: "docx" })] });
+    downloadBlob.mockResolvedValue(new Blob(["docx"]));
+    renderView(nav(), { officeFrameVersion: () => "" });
+    const { clicked, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Kế hoạch.docx");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(screen.queryByRole("dialog")).toBeNull();
       await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
     } finally {
       restore();

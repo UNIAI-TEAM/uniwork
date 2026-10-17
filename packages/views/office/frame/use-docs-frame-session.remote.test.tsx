@@ -95,7 +95,7 @@ function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const options: DocsFrameSessionOptions = {
-    iframeRef: { current: iframe }, frameOrigin: window.location.origin, wsId: "ws-1", documentId: "doc-1",
+    iframeRef: { current: iframe }, frameOrigin: window.location.origin, wsId: "ws-1", fileRef: { kind: "document", id: "doc-1" },
     readonly: false, locale: "vi", theme: "light", onError: vi.fn(),
     api: { open, save, recents: vi.fn() } as unknown as DocsFrameApi,
   };
@@ -605,7 +605,7 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     const frame = await openedFrame();
     await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
     expect(frame.hook.result.current.blocked).toBe("document_deleted");
-    frame.hook.rerender({ documentId: "doc-2" });
+    frame.hook.rerender({ fileRef: { kind: "document", id: "doc-2" } });
     expect(frame.hook.result.current.blocked).toBeNull();
     const before = frame.events("doc.blocked").length;
     await frame.boot();

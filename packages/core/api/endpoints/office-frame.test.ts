@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { ApiError } from "../http";
 import { setAccessToken } from "../session";
-import { createOfficeFrameClient, mintOfficeFrameToken } from "./office-frame";
+import { createOfficeFrameClient, mintDocumentSourceFrameToken, mintOfficeFrameToken } from "./office-frame";
 
 const docId = "01J8X4DOC0N1P2Q3R4S5T6U7";
 const token = {
@@ -117,8 +117,9 @@ describe("Office Docs frame endpoints", () => {
     for (const drifted of [["a.png"], "a.png", { "a.png": 3 }, { "": "/x" }]) {
       f.mockResolvedValueOnce(json({ ...document, assets: drifted }));
       const opened = await client.open(docId);
-      expect(opened?.document_id).toBe(docId);
-      expect(opened?.assets).toBeUndefined();
+      if (!opened || !("document_id" in opened)) throw new Error("expected a document open answer");
+      expect(opened.document_id).toBe(docId);
+      expect(opened.assets).toBeUndefined();
     }
   });
 
@@ -250,5 +251,90 @@ describe("Office Docs frame endpoints", () => {
       await expect(client.exportPdf(docId, {})).rejects.toMatchObject({ status: 504, code: "internal" });
       await expect(client.exportPdf(docId, {})).rejects.toMatchObject({ status: 413, code: "payload_too_large" });
     });
+  });
+});
+
+describe("Office source frame endpoints (UNI-1869)", () => {
+  const sourceId = "chat:01J8X4MSG0N1P2Q3R4S5T6U7V8";
+  const sourceToken = {
+    token: "ofs1.payload.sig",
+    token_type: "Bearer",
+    expires_at: "2026-10-17T09:10:00Z",
+    expires_in: 600,
+    source_id: sourceId,
+    parent_kind: "chat_channel",
+    parent_id: "01J8X4ROOM0N1P2Q3R4S5T6U7V8",
+    workspace_id: token.workspace_id,
+    organization_id: token.organization_id,
+    can_edit: false,
+    module: "docs",
+    readonly: true,
+  };
+  const source = {
+    source_id: sourceId,
+    principal: "source",
+    workspace_id: token.workspace_id,
+    organization_id: token.organization_id,
+    title: "Báo cáo quý 3.docx",
+    revision: "0",
+    module: "docs",
+    can_edit: false,
+    readonly: true,
+    parent: { kind: "chat_channel", id: "01J8X4ROOM0N1P2Q3R4S5T6U7V8", title: "Kênh chung", message_id: "msg1" },
+    file: { version: 1, filename: "Báo cáo quý 3.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 48213 },
+    download_url: `/api/v1/office-frame/sources/${encodeURIComponent(sourceId)}/content`,
+    updated_at: "2026-10-17T08:00:00Z",
+  };
+  beforeEach(() => {
+    setAccessToken("session-token");
+    configureRuntime({ apiUrl: "http://api.test" });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    setAccessToken(null);
+    resetRuntimeConfig();
+  });
+
+  it("mints a source frame token with the session on the R1 route", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(sourceToken, 201));
+    await expect(mintDocumentSourceFrameToken("ws1", sourceId)).resolves.toEqual(sourceToken);
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toBe(`http://api.test/api/v1/workspaces/ws1/documents/sources/${encodeURIComponent(sourceId)}/office/frame-token`);
+    expect(init?.method).toBe("POST");
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer session-token");
+  });
+
+  it("lets a refused mint (404/403) reject as an ApiError, and a malformed answer degrade to null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_found", message: "not found" } }, 404));
+    await expect(mintDocumentSourceFrameToken("ws1", sourceId)).rejects.toMatchObject({ status: 404, code: "not_found" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "feature_disabled", message: "feature is disabled" } }, 403));
+    await expect(mintDocumentSourceFrameToken("ws1", sourceId)).rejects.toMatchObject({ status: 403, code: "feature_disabled" });
+    for (const body of [{ nope: true }, null, [], "malformed", { ...sourceToken, expires_in: "600" }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body, 201));
+      await expect(mintDocumentSourceFrameToken("ws1", sourceId)).resolves.toBeNull();
+    }
+  });
+
+  it("opens and reads a source under the /office-frame/sources/ base", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ scope: "sources", getToken: () => "ofs1.frame", fetch: f, apiUrl: "http://frame.test" });
+    f.mockResolvedValueOnce(json(source));
+    await expect(client.open(sourceId)).resolves.toEqual(source);
+    expect(String(f.mock.calls[0]?.[0])).toBe(`http://frame.test/api/v1/office-frame/sources/${encodeURIComponent(sourceId)}`);
+    f.mockResolvedValueOnce(new Response("source-bytes"));
+    await expect((await client.content(source.download_url)).text()).resolves.toBe("source-bytes");
+    await expect(client.content("https://evil.test/x")).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("degrades malformed source opens instead of throwing", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ scope: "sources", getToken: () => "ofs1.frame", fetch: f, apiUrl: "" });
+    for (const body of [{ nope: true }, null, [], "malformed", { ...source, file: { ...source.file, size_bytes: "big" } }]) {
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.open(sourceId)).resolves.toBeNull();
+    }
+    f.mockResolvedValueOnce(new Response("not json", { status: 200 }));
+    await expect(client.open(sourceId)).resolves.toBeNull();
   });
 });

@@ -78,7 +78,7 @@ function mount(props: Partial<OfficeDocsFrameProps> = {}, api = fakeApi(), token
       <NavigationProvider value={navigation}>
         <ThemeProvider defaultTheme="light" enableSystem={false}>
           <ThemeFlip />
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
         </ThemeProvider>
       </NavigationProvider>
     </QueryClientProvider>
@@ -381,7 +381,7 @@ describe("OfficeDocsFrame", () => {
     render(
       <QueryClientProvider client={client}>
         <DocsFrameRefusalContext.Provider value={refuse}>
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi()} />
         </DocsFrameRefusalContext.Provider>
       </QueryClientProvider>,
     );
@@ -590,7 +590,7 @@ describe("OfficeDocsFrame", () => {
       <QueryClientProvider client={client}>
         <HeaderActionsSlotProvider>
           <header data-testid="page-header"><HeaderActionsSlot /></header>
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
         </HeaderActionsSlotProvider>
       </QueryClientProvider>,
     );
@@ -633,7 +633,7 @@ describe("OfficeDocsFrame", () => {
       <QueryClientProvider client={client}>
         <HeaderActionsSlotProvider>
           <header data-testid="page-header"><HeaderActionsSlot /></header>
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
         </HeaderActionsSlotProvider>
       </QueryClientProvider>,
     );
@@ -663,7 +663,7 @@ describe("OfficeDocsFrame", () => {
     render(
       <QueryClientProvider client={client}>
         <OfficeTooLargeProvider value={{ desktopAction: <button type="button">Mở trong UniWork Office</button>, onDownload }}>
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi()} />
         </OfficeTooLargeProvider>
       </QueryClientProvider>,
     );
@@ -770,7 +770,7 @@ describe("OfficeDocsFrame", () => {
     render(
       <QueryClientProvider client={client}>
         <nav data-testid="chrome">sidebar</nav>
-        <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+        <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi()} />
       </QueryClientProvider>,
     );
     const frame = fakeFrame();
