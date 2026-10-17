@@ -194,6 +194,10 @@ export function ShareCandidatePicker({
                 <span className="max-w-60 truncate">{chipDisplay}</span>
                 {item.candidate.direct_level ? (
                   <Select
+                    items={[
+                      { value: "keep", label: keepLabel },
+                      { value: "update", label: updateLabel },
+                    ]}
                     value={item.onExisting}
                     onValueChange={(v) => onChangeOnExisting(item.key, v as DocumentAccessOnExisting)}
                   >
@@ -311,12 +315,20 @@ export function ShareCandidatePicker({
                         <div
                           key={key}
                           role="option"
+                          tabIndex={-1}
                           aria-selected={isPicked}
                           aria-disabled={isPicked || atLimit || undefined}
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             onSelectCandidate(candidate);
                             setDropdownOpen(false);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onSelectCandidate(candidate);
+                              setDropdownOpen(false);
+                            }
                           }}
                           className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-body hover:bg-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                         >

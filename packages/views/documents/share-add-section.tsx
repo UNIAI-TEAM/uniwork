@@ -187,7 +187,7 @@ export function ShareAddSection({
     [selected, commonLevel],
   );
 
-  const customLevelsSummaryText = useMemo(() => {
+  const customLevelsSummaryText = (() => {
     if (!selected.length) return "";
     const counts = new Map<DocumentAccessLevel, number>();
     for (const item of selected) {
@@ -197,7 +197,7 @@ export function ShareAddSection({
     return DOCUMENT_ACCESS_LEVELS.filter((lvl) => (counts.get(lvl) ?? 0) > 0)
       .map((lvl) => `${counts.get(lvl)} ${levelLabel(lvl)}`)
       .join(" · ");
-  }, [selected, commonLevel]);
+  })();
 
   const selectCandidate = (candidate: DocumentShareCandidate) => {
     const key = `${candidate.principal_type}:${candidate.principal_id}`;
@@ -370,6 +370,7 @@ export function ShareAddSection({
             <Label htmlFor={levelId}>{t("documents.share.level_label")}</Label>
             <Select
               value={commonLevel}
+              items={DOCUMENT_ACCESS_LEVELS.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
               onValueChange={(v) => {
                 const next = v as DocumentAccessLevel;
                 if (hasCustomOverrides) setPendingApplyAllLevel(next);
@@ -413,12 +414,8 @@ export function ShareAddSection({
         >
           <span>{t("documents.share.apply_all_confirm", { count: selected.length, level: levelLabel(pendingApplyAllLevel) })}</span>
           <div className="flex items-center gap-1.5">
-            <Button type="button" size="sm" onClick={() => confirmApplyAll(pendingApplyAllLevel)}>
-              {t("documents.share.apply_all_accept")}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setPendingApplyAllLevel(null)}>
-              {t("documents.share.apply_all_cancel")}
-            </Button>
+            <Button type="button" size="sm" onClick={() => confirmApplyAll(pendingApplyAllLevel)}>{t("documents.share.apply_all_accept")}</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setPendingApplyAllLevel(null)}>{t("documents.share.apply_all_cancel")}</Button>
           </div>
         </div>
       ) : null}
@@ -448,10 +445,9 @@ export function ShareAddSection({
                   <div className="w-36 shrink-0">
                     <Select
                       value={currentLvl}
+                      items={allowed.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
                       onValueChange={(v) =>
-                        setSelected((prev) =>
-                          prev.map((s) => (s.key === item.key ? { ...s, customLevel: v as DocumentAccessLevel } : s)),
-                        )
+                        setSelected((prev) => prev.map((s) => (s.key === item.key ? { ...s, customLevel: v as DocumentAccessLevel } : s)))
                       }
                     >
                       <SelectTrigger aria-label={`${t("documents.share.level_label")} ${item.candidate.name}`}>

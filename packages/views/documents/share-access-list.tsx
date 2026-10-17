@@ -69,7 +69,7 @@ export function ShareAccessList({
   const aclOwner = access?.acl_owner ?? null;
   const homeWorkspace = access?.home_workspace ?? null;
   const homeWsId = homeWorkspace?.workspace_id || docWorkspaceId || "";
-  const rawShares = access?.shares ?? [];
+  const rawShares = useMemo(() => access?.shares ?? [], [access?.shares]);
 
   const levelLabel = (lvl: DocumentAccessLevel | string) =>
     lvl === "manage" ? t("documents.share.level_manage")
@@ -106,7 +106,7 @@ export function ShareAccessList({
         (homeWorkspace && (!src.principal_id || src.principal_id === homeWorkspace.workspace_id) ? homeWorkspace.workspace_name : "");
       return wsName ? t("documents.share.via_workspace_named", { name: wsName }) : t("documents.share.via_member");
     }
-    if (src.principal_type === "organization" || src.via === "organization") {
+    if (src.principal_type === "organization" || String(src.via) === "organization") {
       return organization?.name ? t("documents.share.via_organization_named", { name: organization.name }) : t("documents.share.via_organization");
     }
     return viaLabel(src.via);
@@ -332,6 +332,7 @@ export function ShareAccessList({
                   <div className="w-32">
                     <Select
                       value={homeRow.level}
+                      items={allowedLevelsForPrincipal("workspace", true).map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
                       onValueChange={(v) =>
                         void requestRowChange(`home:${homeRow.workspace_id}`, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, v as DocumentAccessLevel)
                       }
@@ -409,6 +410,7 @@ export function ShareAccessList({
                     <div className="w-32">
                       <Select
                         value={share.level}
+                        items={allowedLevels.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
                         onValueChange={(v) =>
                           void requestRowChange(rowKey, share.principal_type as DocumentPrincipalType, share.principal_id, displayLabel, share.level, v as DocumentAccessLevel)
                         }

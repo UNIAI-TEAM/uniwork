@@ -62,8 +62,8 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     const user = userEvent.setup();
     renderAccessList({
       my_level: "manage",
-      via: "owner",
-      acl_owner: { user_id: "u1", level: "manage", via: "owner" },
+      via: "member",
+      acl_owner: { user_id: "u1", level: "manage", via: "member" },
       home_workspace: { workspace_id: "w1", workspace_name: "Kinh doanh", level: "edit" },
       shares: [
         {
@@ -144,7 +144,7 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     const user = userEvent.setup();
     renderAccessList({
       my_level: "manage",
-      via: "owner",
+      via: "member",
       home_workspace: { workspace_id: "w1", workspace_name: "Kinh doanh", level: "view" },
       shares: [
         {
