@@ -14,8 +14,8 @@ import type {
   DocumentHomeWorkspaceAccess,
   DocumentShare,
 } from "@uniwork/core/types/document";
+import type { OrgMember } from "@uniwork/core/types/people";
 import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import {
@@ -27,7 +27,14 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import type { SelectedShareCandidate } from "./share-add-section";
-import type { ShareMembersDirectory } from "./use-share-members";
+
+export interface ShareMembersDirectory {
+  rows: readonly OrgMember[];
+  loading?: boolean;
+  isLoading?: boolean;
+  error?: string | null;
+  retry?: () => void;
+}
 
 const PRINCIPAL_GROUPS: DocumentPrincipalType[] = ["user", "workspace", "organization"];
 
@@ -69,14 +76,27 @@ export function resolveShareCandidates(
       is_home_workspace: false,
     });
   }
+  const homeWsId = homeWorkspace?.workspace_id || docWorkspaceId;
+  const seenWs = new Set<string>();
   for (const w of orgWorkspaces) {
+    seenWs.add(w.id);
     fallback.push({
       principal_type: "workspace",
       principal_id: w.id,
       name: w.name,
       secondary: "",
       direct_level: directByKey.get(`workspace:${w.id}`) ?? null,
-      is_home_workspace: w.id === (homeWorkspace?.workspace_id || docWorkspaceId),
+      is_home_workspace: w.id === homeWsId,
+    });
+  }
+  if (homeWorkspace?.workspace_id && homeWorkspace.workspace_name && !seenWs.has(homeWorkspace.workspace_id)) {
+    fallback.push({
+      principal_type: "workspace",
+      principal_id: homeWorkspace.workspace_id,
+      name: homeWorkspace.workspace_name,
+      secondary: "",
+      direct_level: directByKey.get(`workspace:${homeWorkspace.workspace_id}`) ?? null,
+      is_home_workspace: true,
     });
   }
   if (organization?.id) {
@@ -100,11 +120,11 @@ export interface ShareCandidatePickerProps {
   selected: SelectedShareCandidate[];
   selectedKeys: Set<string>;
   filteredCandidates: DocumentShareCandidate[];
+  alreadySharedUserIds?: readonly (string | null | undefined)[];
   isLoading: boolean;
   disabled: boolean;
   atLimit: boolean;
   rejectedByKey: Record<string, DocumentAccessRejectedCode>;
-  members: ShareMembersDirectory;
   onSelectCandidate: (candidate: DocumentShareCandidate) => void;
   onRemoveCandidate: (key: string, displayName: string) => void;
   onChangeOnExisting: (key: string, onExisting: DocumentAccessOnExisting) => void;
@@ -121,11 +141,11 @@ export function ShareCandidatePicker({
   selected,
   selectedKeys,
   filteredCandidates,
+  alreadySharedUserIds,
   isLoading,
   disabled,
   atLimit,
   rejectedByKey,
-  members,
   onSelectCandidate,
   onRemoveCandidate,
   onChangeOnExisting,
@@ -137,26 +157,18 @@ export function ShareCandidatePicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-
-  const membersErrorBanner =
-    members.error === "first_page"
-      ? t("documents.share.members_error_first")
-      : members.error === "partial"
-        ? t("documents.share.members_error_partial")
-        : members.error === "limit_reached"
-          ? t("documents.share.members_error_limit")
-          : null;
+  const alreadySharedSet = new Set((alreadySharedUserIds ?? []).filter((id): id is string => Boolean(id)));
 
   return (
     <div
       ref={containerRef}
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-2 sm:col-span-2"
       onBlur={(event) => {
         const next = event.relatedTarget as Node | null;
         if (!next || !containerRef.current?.contains(next)) setDropdownOpen(false);
       }}
     >
-      <Label htmlFor={inputId}>{t("documents.share.people_placeholder")}</Label>
+      <Label htmlFor={inputId}>{t("documents.share.principal_placeholder")}</Label>
 
       {selected.length > 0 ? (
         <ul aria-label={t("documents.share.people_chosen")} className="flex flex-wrap gap-1.5">
@@ -204,10 +216,10 @@ export function ShareCandidatePicker({
                 ) : null}
                 <button
                   type="button"
-                  aria-label={t("documents.share.people_remove", { name: chipDisplay })}
+                  aria-label={t("documents.share.people_remove", { name: item.candidate.name })}
                   disabled={disabled}
                   className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => onRemoveCandidate(item.key, chipDisplay)}
+                  onClick={() => onRemoveCandidate(item.key, item.candidate.name)}
                 >
                   <X aria-hidden className="size-3" />
                 </button>
@@ -228,6 +240,7 @@ export function ShareCandidatePicker({
           value={query}
           disabled={disabled || atLimit}
           onFocus={() => setDropdownOpen(true)}
+          onClick={() => setDropdownOpen(true)}
           onChange={(event) => {
             onQueryChange(event.target.value);
             setDropdownOpen(true);
@@ -251,6 +264,7 @@ export function ShareCandidatePicker({
             } else if (event.key === "Enter" && dropdownOpen && filteredCandidates[activeIndex]) {
               event.preventDefault();
               onSelectCandidate(filteredCandidates[activeIndex]);
+              setDropdownOpen(false);
             }
           }}
         />
@@ -259,7 +273,7 @@ export function ShareCandidatePicker({
           <div
             id={listboxId}
             role="listbox"
-            aria-label={t("documents.share.people_placeholder")}
+            aria-label={t("documents.share.principal_placeholder")}
             className="mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
           >
             {isLoading && filteredCandidates.length === 0 ? (
@@ -300,7 +314,10 @@ export function ShareCandidatePicker({
                           aria-selected={isPicked}
                           aria-disabled={isPicked || atLimit || undefined}
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => onSelectCandidate(candidate)}
+                          onClick={() => {
+                            onSelectCandidate(candidate);
+                            setDropdownOpen(false);
+                          }}
                           className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-body hover:bg-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                         >
                           <span className="flex min-w-0 items-center gap-2">
@@ -327,6 +344,10 @@ export function ShareCandidatePicker({
                             <Badge variant="outline" className="shrink-0">
                               {t("documents.share.candidate_has_access", { level: levelLabel(candidate.direct_level) })}
                             </Badge>
+                          ) : candidate.principal_type === "user" && alreadySharedSet.has(candidate.principal_id) ? (
+                            <span className="shrink-0 text-caption text-muted-foreground">
+                              {t("documents.share.people_already_shared")}
+                            </span>
                           ) : null}
                         </div>
                       );
@@ -338,20 +359,6 @@ export function ShareCandidatePicker({
           </div>
         ) : null}
       </div>
-
-      {membersErrorBanner ? (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-caption text-destructive"
-        >
-          <span>{membersErrorBanner}</span>
-          {members.error !== "limit_reached" ? (
-            <Button type="button" variant="outline" size="sm" onClick={members.retry}>
-              {t("documents.share.retry")}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }
