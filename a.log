@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+e40c9c519e31509c52b2f8385153829035132e20
+e40c9c519 feat(documents): validate single-request uploads on the spool before Put (UNI-1870)
+210d64ca8 test(documents): pin spool-first validation of single-request uploads (UNI-1870)
+98f36067a fix(documents): classify the multipart upload table in the file and export guards (UNI-1862)
+2b833bac4 chore(merge): G5-G7 root bf693b001 into the BIGUP-S1 lane
+1b18e6e1f fix(documents): describe large upload session completion and abort in OpenAPI (UNI-1862)
+cff7dceae docs(documents): runbook and env checklist for large upload sessions (UNI-1862)
+bf693b001 chore: merge TRASH-01 documents layout (UNI-1841, c49fc5aad) into the G5-G7 root
+4dd23bec8 test(documents): cover the large upload session HTTP surface and isolation (UNI-1862)
