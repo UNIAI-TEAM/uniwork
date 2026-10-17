@@ -77,7 +77,7 @@ describe("phone row layout (finding 1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(file("f1", "Báo giá tháng 10.docx"))} handlers={handlers} archived={false} ladder={libraryLadder(false)} />
+          <LibraryRowView row={documentRow(file("f1", "Báo giá tháng 10.docx"))} handlers={handlers} ladder={libraryLadder(false)} />
         </tbody>
       </table>,
     );
