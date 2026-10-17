@@ -26,18 +26,18 @@ export const FORK_SELECTOR_OWNER = 'F (uniwork-office frame)';
 export const REAL_AI_BLOCKER = 'real-AI upstream required, acceptance.md l.87';
 
 export const FRAME_AI_SELECTORS = Object.freeze({
-  panel: '.ai-panel, .copilot:not(.collapsed)',
-  expandRail: '.ai-rail, .expand-copilot',
-  modelChip: 'button.ai-model-chip',
-  modelOption: '.ai-model-pop-list button.ai-model-item[role="option"]',
-  disclosureAck: '.ai-uniwork-disclosure button.ai-uniwork-disclosure-ack',
-  composer: '.ai-input-box textarea.ai-input, .ai-input-box textarea',
-  sendBtn: '.ai-input-box button.ai-send-btn:not(.ai-stop-btn)',
+  panel: '.ai-panel, .copilot:not(.collapsed), .ai-chat',
+  expandRail: '.ai-rail, .expand-copilot, button[aria-label*="AI"]',
+  modelChip: '.ai-model-chip',
+  modelOption: '.ai-model-pop-list button.ai-model-item[role="option"], .ai-model-pop [role="option"]',
+  disclosureAck: '.ai-uniwork-disclosure button.ai-uniwork-disclosure-ack, .ai-composer button.ai-uniwork-disclosure-ack',
+  composer: '.ai-composer textarea, .ai-composer [contenteditable="true"], .ai-input-box textarea.ai-input, .ai-input-box textarea',
+  sendBtn: '.ai-send-btn:not(.ai-stop-btn)',
   busy: 'button.ai-stop-btn, .ai-msg-streaming, .ai-typing-row, .ai-work-group-summary.running',
   assistantMsg: '.ai-msg-assistant',
   assistantAnswer: '.ai-msg-assistant .ai-msg-answer',
   stepTitle: '.ai-step-title',
-  footprint: '.ai-result-chip, .ai-result-meta, .ai-work-group-summary, .ai-auto-applied-text',
+  footprint: '.ai-result-chip, .ai-result-meta, .ai-work-group-summary, .ai-auto-applied-text, .ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions',
   undoBtn: 'button.ai-rollback-btn, button.ai-undo-btn, button.ai-version-rollback',
   htmlPreviewFrame: 'iframe[sandbox], iframe.preview-frame',
 });
@@ -297,6 +297,18 @@ export async function runWebMatrixRow(runEntry, {
       });
       const { token: stubFrameToken } = await mintRes.json();
 
+      await web.page.route('**/api/v1/documents/*/office/frame-token', async (route) => {
+        const res = await route.fetch();
+        const body = await res.json().catch(() => ({}));
+        if (body && typeof body === 'object') body.ai = { ...(body.ai || {}), ai: true, uniwork_ai: true };
+        await route.fulfill({ response: res, json: body });
+      });
+      await web.page.route('**/api/v1/office-frame/documents/*/ai/uniwork/models', async (route) => {
+        const up = await fetchImpl(`${stub.url}/api/v1/office-frame/documents/${documentId}/ai/uniwork/models`, {
+          headers: { Authorization: `Bearer ${stubFrameToken}` },
+        });
+        await route.fulfill({ status: up.status, contentType: 'application/json', body: await up.text() });
+      });
       await web.page.route('**/api/v1/office-frame/documents/*/ai/*/chat/completions', async (route) => {
         const postBody = route.request().postData() || '{}';
         try { wireRequests.push({ body: JSON.parse(postBody) }); } catch { /* ignore */ }
@@ -356,15 +368,17 @@ export async function runWebMatrixRow(runEntry, {
 
     const modelChip = await frame.$(FRAME_AI_SELECTORS.modelChip);
     if (!modelChip) return missingSelectorVerdict(FRAME_AI_SELECTORS.modelChip, { rowId: row.id });
+    await modelChip.click().catch(() => {});
+    await sleep(200);
     if (runEntry?.provider === 'byok') {
-      await modelChip.click().catch(() => {});
       const byokOpt = await frame.$(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`);
       if (!byokOpt) return missingSelectorVerdict(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`, { rowId: row.id });
       await byokOpt.click().catch(() => {});
+    } else {
+      const uwOpt = await frame.$('.ai-model-pop [role="option"]');
+      if (uwOpt) await uwOpt.click().catch(() => {});
     }
 
-    const ackBtn = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
-    if (ackBtn) await ackBtn.click().catch(() => {});
     const composer = await frame.$(FRAME_AI_SELECTORS.composer);
     if (!composer) return missingSelectorVerdict(FRAME_AI_SELECTORS.composer, { rowId: row.id });
     const sendBtn = await frame.$(FRAME_AI_SELECTORS.sendBtn);
@@ -372,6 +386,9 @@ export async function runWebMatrixRow(runEntry, {
 
     inAiTurn = true;
     await composer.fill(row.prompt);
+    await sleep(150);
+    const ackBtn = (await frame.$(FRAME_AI_SELECTORS.disclosureAck)) || (await frame.getByRole?.('button', { name: /Đã hiểu|Got it/i })?.elementHandle().catch(() => null));
+    if (ackBtn) await ackBtn.click().catch(() => {});
     await sendBtn.click();
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
