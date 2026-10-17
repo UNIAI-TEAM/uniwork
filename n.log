@@ -1,0 +1,63 @@
+$ node --test scripts/office/frame-protocol-vendor.test.mjs 2>&1 | tail -60; rc=${PIPESTATUS[0]}; echo; echo "VENDOR_PIN_EXIT=$rc"
+  error: |-
+    docs.pin.json was built against another frame protocol than packages/core/office vendors; re-vendor or re-pin
+    + actual - expected
+    
+      {
+        endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc',
+        host: '990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0',
+    +   protocol: '1104d698a9935b8a4bddf206d9ee6c91c0a116d34e13dffa883a83c2478c0a8f'
+    -   protocol: '5d97a068e23e253eaba87c87a9a4bac90f65b0ccac725bb5f3246cc23b61022e'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    protocol: '5d97a068e23e253eaba87c87a9a4bac90f65b0ccac725bb5f3246cc23b61022e'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0'
+  actual:
+    protocol: '1104d698a9935b8a4bddf206d9ee6c91c0a116d34e13dffa883a83c2478c0a8f'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:112:12)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 4 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 0.782815
+  ...
+# Subtest: the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+ok 5 - the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+  ---
+  duration_ms: 0.835823
+  ...
+# Subtest: the three vendored files name one fork commit in their header
+ok 6 - the three vendored files name one fork commit in their header
+  ---
+  duration_ms: 0.785281
+  ...
+# Subtest: the vendored protocol carries the OQ-C2 comments.create anchor rule
+ok 7 - the vendored protocol carries the OQ-C2 comments.create anchor rule
+  ---
+  duration_ms: 0.673533
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 57.079616
+
+VENDOR_PIN_EXIT=1

@@ -1,0 +1,33 @@
+$ node --test scripts/office/g5g6g7/g7-06/*.test.mjs scripts/office/g5g6g7/harness/*.test.mjs scripts/office/g5g6g7/g8-19/*.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "G706_UNIT_EXIT=$rc"
+  ...
+# Subtest: upload, share, revokeShare, deactivate go to the server as the named user and land in the record
+ok 646 - upload, share, revokeShare, deactivate go to the server as the named user and land in the record
+  ---
+  duration_ms: 26.404584
+  ...
+# Subtest: a seeding step the server refuses throws an ApiError naming the call, with no token in it
+ok 647 - a seeding step the server refuses throws an ApiError naming the call, with no token in it
+  ---
+  duration_ms: 3.39368
+  ...
+# Subtest: cleanup asks each owner to delete its org, deletes every account, removes the cache and lists leftovers
+ok 648 - cleanup asks each owner to delete its org, deletes every account, removes the cache and lists leftovers
+  ---
+  duration_ms: 27.076056
+  ...
+# Subtest: nothing secret is printed: no password, token, email or database URL
+ok 649 - nothing secret is printed: no password, token, email or database URL
+  ---
+  duration_ms: 28.411434
+  ...
+1..649
+# tests 727
+# suites 18
+# pass 709
+# fail 0
+# cancelled 0
+# skipped 18
+# todo 0
+# duration_ms 150335.499245
+
+G706_UNIT_EXIT=0
