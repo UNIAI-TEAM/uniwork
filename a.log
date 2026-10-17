@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+5aa5fd9bf24a4d86d83dd6beb474c805e42a7d5b
+907fef4933177418ef994355c7f83e865fc4e898
+5aa5fd9bf fix(documents): keep the keyboard on Load more, announce the further-down line, drop the current year from the purge date
+acf94f336 fix(notifications): keep the trash notice's date and count visible, drop an unreadable date
+fc9bb9906 fix(documents): apply the trash focus once, mark it clearly and say when it is further down
+dcec98d91 feat(notifications): render the trashed-by-other notice and open the trash
+9888de12e feat(documents): focus one trashed document from the Thùng rác link
+eac3d6b82 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1844-trash-notify
+23869a1c1 feat(notifications): register document_trashed_by_other in the client (UNI-1844)
+dbdab9114 feat(notifications): notify the ACL owner when someone else trashes their document (UNI-1844)
+907fef493 chore: merge RESTORE-01 web (UNI-1843, 1dafe7b8f) into the G5-G7 root
+313ffbb40 chore: merge RESTORE-01 server + core (UNI-1843, dd780a249) into the G5-G7 root
