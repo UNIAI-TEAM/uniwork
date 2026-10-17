@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import type { User } from "../types/user";
 import { usePresenceStore } from "./presence-store";
+import { useHostFocus } from "../platform/host-focus";
 import { useChatPresenceHeartbeat } from "./use-chat-presence-heartbeat";
 
 const beatChatPresence = vi.fn<(workspaceId: string, visible: boolean) => Promise<string[] | null>>();
@@ -109,6 +110,26 @@ describe("useChatPresenceHeartbeat", () => {
     renderHook(() => useChatPresenceHeartbeat("ws1"));
     expect(beatChatPresence).toHaveBeenCalledWith("ws1", false);
     state.mockRestore();
+  });
+
+  it("marks a beat from an unfocused UniChat window as not visible", async () => {
+    beatChatPresence.mockResolvedValue([]);
+    // Electron keeps visibilityState "visible" behind other windows; the bridge's focus is the truth.
+    (window as Window & { desktopAPI?: unknown }).desktopAPI = {
+      app: "unichat",
+      isFocused: async () => false,
+      onFocusChange: () => () => {},
+    };
+    try {
+      const focus = renderHook(() => useHostFocus());
+      await act(async () => {});
+      expect(focus.result.current).toBe(false);
+      renderHook(() => useChatPresenceHeartbeat("ws1"));
+      expect(document.visibilityState).toBe("visible");
+      expect(beatChatPresence).toHaveBeenCalledWith("ws1", false);
+    } finally {
+      delete (window as Window & { desktopAPI?: unknown }).desktopAPI;
+    }
   });
 
   it("does nothing when disabled or without a workspace", () => {

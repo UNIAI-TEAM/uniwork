@@ -30,7 +30,17 @@ function subscribe(onChange: () => void): () => void {
 
 // Read on every render so a visibility flip without an event is still seen.
 function getSnapshot(): boolean {
+  if (typeof document === "undefined") return true;
   return getDesktopBridge() ? hostFocused : document.visibilityState === "visible";
+}
+
+/**
+ * The same answer as `useHostFocus()`, for code outside render (the presence beat).
+ * The bridge mirror is only kept current while a `useHostFocus()` subscriber is mounted;
+ * `WorkspaceChatAttention` in the workspace shell always is, and so is every caller.
+ */
+export function isHostFocused(): boolean {
+  return getSnapshot();
 }
 
 /** Whether the person is looking at this app: the shell window's focus inside UniChat, the tab's visibility on web. */

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { signalChatPresence } from "../api/endpoints/chat";
 import { beatChatPresence } from "../api/endpoints/chat-presence";
 import { useAuthStore } from "../auth/store";
+import { isHostFocused } from "../platform/host-focus";
 import { usePresenceStore } from "./presence-store";
 
 const HEARTBEAT_MS = 15_000;
@@ -28,8 +29,8 @@ export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): v
     const beat = () => {
       if (cancelled) return;
       const sentAt = Date.now();
-      // A hidden tab still beats (presence), but must not hold back mobile pushes.
-      void beatChatPresence(workspaceId, document.visibilityState === "visible")
+      // A hidden tab or unfocused UniChat window still beats (presence), but must not hold back mobile pushes.
+      void beatChatPresence(workspaceId, isHostFocused())
         .then((online) => {
           const self = useAuthStore.getState().user?.id;
           if (cancelled || online === null || !self) return;

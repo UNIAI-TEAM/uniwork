@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useHostFocus } from "./host-focus";
+import { isHostFocused, useHostFocus } from "./host-focus";
 
 type Win = Window & { desktopAPI?: unknown };
 
@@ -76,5 +76,31 @@ describe("useHostFocus inside UniChat", () => {
       answer?.(true);
     });
     expect(result.current).toBe(false);
+  });
+});
+
+describe("isHostFocused", () => {
+  it("reads document.visibilityState without a bridge", () => {
+    expect(isHostFocused()).toBe(true);
+    setVisibility("hidden");
+    expect(isHostFocused()).toBe(false);
+  });
+
+  it("reads the bridge's focus while a useHostFocus subscriber is mounted", async () => {
+    let onChange: ((focused: boolean) => void) | null = null;
+    (window as Win).desktopAPI = {
+      app: "unichat",
+      isFocused: () => Promise.resolve(false),
+      onFocusChange: (cb: (focused: boolean) => void) => {
+        onChange = cb;
+        return () => {};
+      },
+    };
+    const { result } = renderHook(() => useHostFocus());
+    await waitFor(() => expect(result.current).toBe(false));
+    // The tab is "visible" the whole time; only the window focus counts here.
+    expect(isHostFocused()).toBe(false);
+    act(() => onChange?.(true));
+    expect(isHostFocused()).toBe(true);
   });
 });
