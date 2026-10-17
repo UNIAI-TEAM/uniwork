@@ -94,6 +94,11 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
   const rows: NotificationPreference[] = NOTIFICATION_KINDS.map(
     (kind) => inFlight[kind] ?? prefs.data?.find((p) => p.kind === kind) ?? serverDefault(kind),
   );
+  // The kinds the bulk Email control speaks for: the trash kind can never
+  // hold email (NO_EMAIL mirrors the server's ceiling), so counting it would
+  // pin the checkbox to "mixed" and make every later click ask to switch
+  // that one ineligible row on instead of switching the rest off (BE-TN-11).
+  const emailRows = rows.filter((r) => !NO_EMAIL[r.kind]);
   const busy = (kind: Kind) => inFlight[kind] !== undefined;
   const kindLabel = (kind: Kind) => t(`kinds.${kind}`);
   const channelLabel = (c: Channel) => t(`channel_${c}`);
@@ -125,7 +130,10 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
 
   const toggleChannel = (channel: Channel, value: boolean) => {
     if (rows.some((r) => busy(r.kind))) return;
-    write(rows.filter((r) => r[channel] !== value).map((r) => ({ ...r, [channel]: value })));
+    // A kind a channel can never carry is not written: the server would
+    // clamp it back and the checkbox would lie about what it just did.
+    const target = channel === "email" ? emailRows : rows;
+    write(target.filter((r) => r[channel] !== value).map((r) => ({ ...r, [channel]: value })));
   };
 
   return (
@@ -166,8 +174,9 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
                   {t("all_kinds")}
                 </th>
                 {channels.map((c) => {
-                  const allOn = rows.every((r) => r[c]);
-                  const someOn = !allOn && rows.some((r) => r[c]);
+                  const eligible = c === "email" ? emailRows : rows;
+                  const allOn = eligible.every((r) => r[c]);
+                  const someOn = !allOn && eligible.some((r) => r[c]);
                   const anyBusy = rows.some((r) => busy(r.kind));
                   return (
                     <td key={c} className={CELL}>
