@@ -522,7 +522,11 @@ describe("DocumentFileView: new version under the edit lock", () => {
     try {
       renderView();
       await pickAndSubmit();
-      expect(await screen.findByRole("alert")).toHaveTextContent("đang bị khóa");
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
+        "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại.",
+      );
+      expect(alert).not.toHaveTextContent("đang bị khóa");
       expect(refused).toHaveBeenCalledWith({ holder_name: "An" }, "L1");
       forgetHeldEditLock("L1");
       registerHeldEditLock("d1", "L2");

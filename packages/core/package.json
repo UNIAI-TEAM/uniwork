@@ -72,6 +72,7 @@
     "./documents/keys": "./documents/keys.ts",
     "./documents/folder-limits": "./documents/folder-limits.ts",
     "./documents/limits": "./documents/limits.ts",
+    "./documents/chunked-upload": "./documents/chunked-upload/index.ts",
     "./documents/save-state": "./documents/save-state.ts",
     "./documents/hooks-edit-lock": "./documents/hooks-edit-lock.ts",
     "./documents/edit-lock-registry": "./documents/edit-lock-registry.ts",
