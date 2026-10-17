@@ -145,6 +145,7 @@ function ChatVoiceMessageRowImpl({
   showSenderName,
   compactTop,
   showAvatar,
+  lastOfRun = true,
   nameContext = [],
   onReply,
   onReact,
@@ -165,7 +166,10 @@ function ChatVoiceMessageRowImpl({
   isOwn: boolean;
   showSenderName: boolean;
   compactTop: boolean;
+  /** First message of a run: it carries the sender's name. */
   showAvatar: boolean;
+  /** Last message of a run: it carries the avatar and the tail corner. */
+  lastOfRun?: boolean;
   nameContext?: ChatNameContextEntry[];
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
@@ -193,8 +197,8 @@ function ChatVoiceMessageRowImpl({
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       {!isOwn ? (
-        <div className="w-8 shrink-0">
-          {showAvatar ? (
+        <div className="w-8 shrink-0 self-end">
+          {lastOfRun ? (
             <ChatSenderAvatar
               userId={message.sender}
               name={senderLabel}
@@ -217,7 +221,7 @@ function ChatVoiceMessageRowImpl({
             <div
               className={cn(
                 "w-72 max-w-full px-3 py-2",
-                chatBubbleShape(isOwn, !compactTop),
+                chatBubbleShape(isOwn, !compactTop, lastOfRun),
                 isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
               )}
             >

@@ -1,6 +1,7 @@
 "use client";
 
 import { Megaphone } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatMessage } from "./chat-messages";
 import { ChatCard } from "./chat-card";
@@ -15,6 +16,7 @@ export function ChatPostMessageRow({
   ts,
   showSenderName,
   compactTop,
+  avatar,
 }: {
   post: PostPayload;
   senderLabel: string;
@@ -23,6 +25,8 @@ export function ChatPostMessageRow({
   ts?: number;
   showSenderName?: boolean;
   compactTop?: boolean;
+  /** Theirs only: the sender's avatar at the card's foot, as a run's last bubble has. */
+  avatar?: ReactNode;
 }) {
   const { t } = useTranslation();
 
@@ -37,6 +41,7 @@ export function ChatPostMessageRow({
       ts={ts}
       showSenderName={showSenderName}
       compactTop={compactTop}
+      avatar={avatar}
       wide
     >
       <h3 className="text-title-sm font-bold text-balance text-foreground">{post.title}</h3>

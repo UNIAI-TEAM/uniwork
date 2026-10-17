@@ -14,6 +14,7 @@ import { formatChatFileSize } from "./chat-file-size";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
 import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
+import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER } from "./chat-message-row";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media-url";
 
 type ChatFile = NonNullable<ChatMessage["file"]>;
@@ -32,7 +33,7 @@ const FILE_TINTS: Record<string, Tint> = { pdf: "red", docx: "blue", xlsx: "gree
 function bubbleControlClass(isOwn: boolean): string {
   return isOwn
     ? "bg-chat-bubble-own-foreground/15 text-chat-bubble-own-foreground hover:bg-chat-bubble-own-foreground/25 hover:text-chat-bubble-own-foreground aria-expanded:bg-chat-bubble-own-foreground/25 aria-expanded:text-chat-bubble-own-foreground"
-    : "bg-muted text-foreground hover:bg-surface-hover";
+    : cn(CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER, "text-foreground");
 }
 
 /** The file's name, size and a download button: every attachment has one. */

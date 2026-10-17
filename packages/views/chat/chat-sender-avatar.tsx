@@ -1,7 +1,8 @@
 "use client";
 
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { ChatPersonCard, useChatPersonMessage } from "./chat-person-card";
+import { cn } from "@uniwork/ui/lib/utils";
+import { ChatPersonCard, chatPersonFaceClass, useChatPersonMessage } from "./chat-person-card";
 import { initialOf } from "./chat-initials";
 
 type SenderProfile = {
@@ -15,7 +16,7 @@ function profileFor(userId: string, nameContext: SenderProfile[]): SenderProfile
   return nameContext.find((entry) => entry.user_id.trim().toUpperCase() === key);
 }
 
-/** Incoming avatar. A click opens the person's card. */
+/** Incoming avatar: initials on the person's own colour, as in the list. A click opens the person's card. */
 export function ChatSenderAvatar({
   userId,
   name,
@@ -45,7 +46,7 @@ export function ChatSenderAvatar({
       }
       triggerClassName="inline-flex shrink-0 rounded-full"
     >
-      <ActorAvatar name={name} initials={initialOf(name)} avatarUrl={avatarUrl} size="lg" className="shrink-0" />
+      <ActorAvatar name={name} initials={initialOf(name)} avatarUrl={avatarUrl} size="lg" className={cn("shrink-0", chatPersonFaceClass(userId))} />
     </ChatPersonCard>
   );
 }

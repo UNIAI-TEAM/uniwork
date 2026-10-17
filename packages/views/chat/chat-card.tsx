@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
-import { CHAT_BUBBLE_OTHER, chatBubbleShape } from "./chat-message-row";
+import { CHAT_BUBBLE_OTHER, CHAT_ON_BUBBLE_FILL, chatBubbleShape } from "./chat-message-row";
 import { senderNameClass } from "./sender-colors";
 
 /**
@@ -28,6 +28,7 @@ export function ChatCard({
   compactTop = false,
   status,
   wide = false,
+  avatar,
   children,
 }: {
   icon: LucideIcon;
@@ -43,6 +44,8 @@ export function ChatCard({
   /** A state pill on the right of the header (closed, due…). */
   status?: ReactNode;
   wide?: boolean;
+  /** Theirs only: the sender's avatar, in the gutter at the card's foot. */
+  avatar?: ReactNode;
   children: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
@@ -66,7 +69,11 @@ export function ChatCard({
             })
           : t("chat.message_list.card_label_no_time", { kind: label, sender: senderLabel })}
       </span>
-      {isOwn ? null : <span className="w-8 shrink-0" aria-hidden />}
+      {isOwn ? null : avatar ? (
+        <span className="w-8 shrink-0 self-end">{avatar}</span>
+      ) : (
+        <span className="w-8 shrink-0" aria-hidden />
+      )}
       <div
         className={cn(
           "min-w-0 flex-1 px-3.5 pt-3 pb-2.5",
@@ -125,7 +132,7 @@ export function ChatCardStatus({
     <span
       className={cn(
         "inline-flex h-5.5 shrink-0 items-center gap-1 rounded-full px-2 text-micro font-semibold [&_svg]:size-3",
-        tone === "muted" && "bg-muted text-muted-foreground",
+        tone === "muted" && cn(CHAT_ON_BUBBLE_FILL, "text-muted-foreground"),
         tone === "success" && "bg-success-soft text-success-soft-foreground",
         tone === "warning" && "bg-warning-soft text-warning-soft-foreground",
         tone === "info" && "bg-info-soft text-info-soft-foreground",

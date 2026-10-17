@@ -3,8 +3,10 @@
 import { ListChecks, PhoneCall, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatCard } from "./chat-card";
+import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER } from "./chat-message-row";
 import { formatMessageTime } from "./chat-message-time";
 import { CreateTaskFromMessageDialog } from "./create-task-from-message-dialog";
 import { formatVoiceCallDuration } from "./voice-call-duration";
@@ -130,7 +132,11 @@ export function VoiceCallSummaryRow({
                       // pill on its right says what pressing it does.
                       <button
                         type="button"
-                        className="flex w-full items-center gap-3 rounded-xl bg-muted py-2 pr-2 pl-3 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover"
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-xl py-2 pr-2 pl-3 text-left transition-colors duration-(--duration-fast)",
+                          CHAT_ON_BUBBLE_FILL,
+                          CHAT_ON_BUBBLE_HOVER,
+                        )}
                         onClick={() => setCreateFor(item)}
                       >
                         <span className="min-w-0 flex-1">
@@ -143,7 +149,7 @@ export function VoiceCallSummaryRow({
                         </span>
                       </button>
                     ) : (
-                      <div className="rounded-xl bg-muted px-3 py-2">
+                      <div className={cn("rounded-xl px-3 py-2", CHAT_ON_BUBBLE_FILL)}>
                         <span className="block text-body font-semibold text-foreground">{item.title}</span>
                         {detail}
                       </div>

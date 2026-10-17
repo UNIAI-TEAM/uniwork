@@ -81,7 +81,8 @@ function ChatFileMessageRowImpl({
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
         {isOwn ? null : showAvatar ? (
-          <span className="shrink-0">
+          // A file is a run of its own: its avatar sits at the foot, as a run's last bubble's does.
+          <span className="shrink-0 self-end">
             <ChatSenderAvatar
               userId={message.sender}
               name={senderLabel}

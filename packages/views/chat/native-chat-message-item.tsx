@@ -18,6 +18,7 @@ import type { NameContextEntry } from "./native-chat-message-mapping";
 import { messageGrouping } from "./native-chat-message-grouping";
 import { messageDayKey } from "./chat-message-time";
 import { ChatDaySeparator, ChatUnreadSeparator } from "./chat-day-separator";
+import { ChatSenderAvatar } from "./chat-sender-avatar";
 
 export type NativeChatMessageActions = {
   onReply: (message: ChatMessage | null) => void;
@@ -153,7 +154,10 @@ function MessageBody({
   } = context;
   const { compactTop, showAvatar, senderLabel, senderAvatarUrl } = layout;
   const isOwn = message.sender === currentUserId;
-  const cardProps = { senderLabel, senderId: message.sender, isOwn, ts: message.ts, showSenderName, compactTop };
+  const avatar = isOwn ? undefined : (
+    <ChatSenderAvatar userId={message.sender} name={senderLabel} avatarUrl={senderAvatarUrl} nameContext={nameContext} />
+  );
+  const cardProps = { senderLabel, senderId: message.sender, isOwn, ts: message.ts, showSenderName, compactTop, avatar };
 
   if (message.kind === "reminder" && message.reminder) {
     return (
@@ -228,7 +232,7 @@ function MessageBody({
   };
 
   if (message.kind === "voice" && message.voice) {
-    return <ChatVoiceMessageRow {...common} />;
+    return <ChatVoiceMessageRow {...common} lastOfRun={layout.lastOfRun} />;
   }
   if (message.kind === "file" && message.file) {
     return (

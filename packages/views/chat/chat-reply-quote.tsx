@@ -176,23 +176,27 @@ export function ChatReplyComposerBar({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="bg-chat-wall px-3 pt-2 sm:px-4">
-      <div className="mx-auto flex max-w-3xl items-center gap-2.5 rounded-2xl border-l-3 border-brand bg-surface py-1.5 pr-1 pl-3 shadow-chat-bubble">
-        <Reply aria-hidden className="size-4.5 shrink-0 text-brand" />
-        <span className="min-w-0 flex-1">
-          <ChatReplyQuote message={message} senderLabel={senderLabel} compact />
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-lg"
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-          aria-label={t("chat.cancel_reply")}
-          title={t("chat.cancel_reply")}
-          onClick={onCancel}
-        >
-          <X aria-hidden />
-        </Button>
+    // Same column as the composer below, inset past its attach and send
+    // buttons (48px + gap each side), so the card caps the message field.
+    <div className="bg-chat-wall px-3 pt-2 sm:px-6">
+      <div className="mx-auto w-full max-w-183 px-14">
+        <div className="flex items-center gap-2.5 rounded-2xl border-l-3 border-brand bg-surface py-1.5 pr-1 pl-3 shadow-chat-bubble">
+          <Reply aria-hidden className="size-4.5 shrink-0 text-brand" />
+          <span className="min-w-0 flex-1">
+            <ChatReplyQuote message={message} senderLabel={senderLabel} compact />
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={t("chat.cancel_reply")}
+            title={t("chat.cancel_reply")}
+            onClick={onCancel}
+          >
+            <X aria-hidden />
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -138,7 +138,8 @@ export function ChatMessageMeta({
           {formatMessageTime(message.ts, i18n.language)}
         </time>
       ) : null}
-      {message.editedAt ? <span>· {t("chat.edited_label")}</span> : null}
+      {/* The dot only separates it from a time or a sending state before it. */}
+      {message.editedAt ? <span>{pending || showTime ? `· ${t("chat.edited_label")}` : t("chat.edited_label")}</span> : null}
       {showReadReceipt ? (
         <span
           className={cn(

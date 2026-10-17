@@ -10,6 +10,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { isChatImageFile } from "./chat-file-accept";
 import { formatChatFileSize } from "./chat-file-size";
+import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_LINE } from "./chat-message-row";
 import type { ChatVoiceRecorderError, ChatVoiceRecording, ChatVoiceRecorderState } from "./use-chat-voice-recorder";
 import { formatVoiceCallDuration } from "./voice-call-duration";
 
@@ -35,7 +36,13 @@ export function StagedFileChip({ file, onRemove }: { file: File; onRemove: () =>
   }, [file, isImage]);
 
   return (
-    <span className="inline-flex h-16 w-64 max-w-full shrink-0 items-center gap-2.5 rounded-xl border border-border bg-muted py-1.5 pr-1 pl-1.5">
+    <span
+      className={cn(
+        "inline-flex h-16 w-64 max-w-full shrink-0 items-center gap-2.5 rounded-xl border py-1.5 pr-1 pl-1.5",
+        CHAT_ON_BUBBLE_LINE,
+        CHAT_ON_BUBBLE_FILL,
+      )}
+    >
       {isImage && previewUrl ? (
         <img src={previewUrl} alt={file.name} className="size-12 shrink-0 rounded-control bg-surface object-cover" />
       ) : (

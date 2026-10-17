@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ChartColumn, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatCard, ChatCardStatus } from "./chat-card";
+import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER, CHAT_ON_BUBBLE_LINE } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatPollVotersDialog } from "./chat-poll-voters-dialog";
 import { toastChatError } from "./chat-error-message";
@@ -27,6 +28,7 @@ export function ChatPollMessageRow({
   ts,
   showSenderName,
   compactTop,
+  avatar,
   nameContext,
   currentUserId,
   youLabel,
@@ -41,6 +43,8 @@ export function ChatPollMessageRow({
   ts?: number;
   showSenderName?: boolean;
   compactTop?: boolean;
+  /** Theirs only: the sender's avatar at the card's foot, as a run's last bubble has. */
+  avatar?: ReactNode;
   nameContext: ChatNameContextEntry[];
   currentUserId: string;
   youLabel: string;
@@ -119,6 +123,7 @@ export function ChatPollMessageRow({
         ts={ts}
         showSenderName={showSenderName}
         compactTop={compactTop}
+        avatar={avatar}
         status={expired ? <ChatCardStatus>{t("chat.poll_closed_status")}</ChatCardStatus> : null}
       >
         <p id={questionId} className="font-display text-body-lg font-bold text-balance text-foreground">
@@ -148,7 +153,7 @@ export function ChatPollMessageRow({
                 <div
                   className={cn(
                     "relative flex overflow-hidden rounded-xl border transition-colors duration-(--duration-fast)",
-                    selected ? "border-brand" : "border-border",
+                    selected ? "border-brand" : CHAT_ON_BUBBLE_LINE,
                   )}
                 >
                   <button
@@ -165,7 +170,7 @@ export function ChatPollMessageRow({
                     onClick={() => void handleVote(option.id)}
                     className={cn(
                       "relative flex min-h-10 min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left pointer-coarse:min-h-11",
-                      !locked && "hover:bg-surface-hover",
+                      !locked && CHAT_ON_BUBBLE_HOVER,
                       locked && "cursor-default",
                     )}
                   >
@@ -173,7 +178,7 @@ export function ChatPollMessageRow({
                       <span
                         className={cn(
                           "absolute inset-y-0 left-0 transition-[width] duration-(--duration-standard) motion-reduce:transition-none",
-                          selected ? "bg-brand-subtle" : "bg-muted",
+                          selected ? "bg-brand-subtle" : CHAT_ON_BUBBLE_FILL,
                         )}
                         // The share is data, not a style choice: the one inline value here.
                         style={{ width: `${Math.round(ratio * 100)}%` }}
@@ -204,7 +209,10 @@ export function ChatPollMessageRow({
                           label: option.label,
                         })}
                         onClick={() => openVoters(option.id)}
-                        className="relative shrink-0 px-3 py-2 text-label font-semibold text-brand-subtle-foreground tabular-nums hover:bg-surface-hover"
+                        className={cn(
+                          "relative shrink-0 px-3 py-2 text-label font-semibold text-brand-subtle-foreground tabular-nums",
+                          CHAT_ON_BUBBLE_HOVER,
+                        )}
                       >
                         {option.votes}
                       </button>
@@ -220,7 +228,7 @@ export function ChatPollMessageRow({
           })}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border pt-2">
+        <div className={cn("mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t pt-2", CHAT_ON_BUBBLE_LINE)}>
           <p className="text-caption text-muted-foreground tabular-nums">
             {expired
               ? t("chat.poll_closed")

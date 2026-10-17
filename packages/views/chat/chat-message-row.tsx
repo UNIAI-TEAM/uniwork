@@ -18,8 +18,11 @@ import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
 
-/** Fixed gutter matching the 32px avatar — keeps grouped bubbles aligned. */
-const INCOMING_AVATAR_SLOT_CLASS = "w-8 shrink-0";
+/**
+ * Fixed gutter matching the 32px avatar — keeps grouped bubbles aligned. The
+ * avatar closes a run, at the foot of its last bubble; the name opens it.
+ */
+const INCOMING_AVATAR_SLOT_CLASS = "w-8 shrink-0 self-end";
 
 /**
  * The two bubble fills. Mine is the brand fill with its own text colour (the
@@ -28,6 +31,16 @@ const INCOMING_AVATAR_SLOT_CLASS = "w-8 shrink-0";
  */
 export const CHAT_BUBBLE_OWN = "bg-chat-bubble-own text-chat-bubble-own-foreground";
 export const CHAT_BUBBLE_OTHER = "bg-chat-bubble-other text-foreground shadow-chat-bubble";
+
+/**
+ * A soft fill, its hover and a hairline for controls inside their bubble, a
+ * card or the composer field. In dark, --muted, --surface-hover and the
+ * bubble are one grey (and --border all but vanishes on it), so there they
+ * lift with a little ink instead.
+ */
+export const CHAT_ON_BUBBLE_FILL = "bg-muted dark:bg-foreground/8";
+export const CHAT_ON_BUBBLE_HOVER = "hover:bg-surface-hover dark:hover:bg-foreground/12";
+export const CHAT_ON_BUBBLE_LINE = "border-border dark:border-foreground/12";
 
 /**
  * A bubble's corners by its place in the run: round everywhere except the
@@ -119,9 +132,10 @@ type ChatMessageRowProps = {
   onFollowUp?: (message: ChatMessage) => void;
   showSenderName?: boolean;
   compactTop?: boolean;
+  /** First message of a run: it carries the sender's name. */
   showAvatar?: boolean;
   senderAvatarUrl?: string;
-  /** The next message starts a new run (other sender or a pause): print the time here. */
+  /** The next message starts a new run (other sender or a pause): print the time and the avatar here. */
   lastOfRun?: boolean;
   highlighted?: boolean;
   nameContext?: ChatNameContextEntry[];
@@ -197,7 +211,7 @@ function ChatMessageRowImpl({
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       {!isOwn ? (
         <div className={INCOMING_AVATAR_SLOT_CLASS}>
-          {showAvatar ? (
+          {lastOfRun ? (
             <ChatSenderAvatar
               userId={message.sender}
               name={senderLabel}

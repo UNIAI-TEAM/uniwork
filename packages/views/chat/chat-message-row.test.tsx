@@ -40,6 +40,27 @@ describe("ChatMessageRow", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 
+  it("names the sender on a run's first bubble and puts the avatar on its last", () => {
+    const row = (overrides: { showAvatar: boolean; lastOfRun: boolean; id: string }) => (
+      <ChatMessageRow
+        message={message({ id: overrides.id })}
+        senderLabel="Alice"
+        isOwn={false}
+        showReadReceipt={false}
+        showSenderName
+        showAvatar={overrides.showAvatar}
+        lastOfRun={overrides.lastOfRun}
+      />
+    );
+    const { rerender } = render(wrap(row({ id: "first", showAvatar: true, lastOfRun: false })));
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Xem thông tin của Alice" })).not.toBeInTheDocument();
+
+    rerender(wrap(row({ id: "last", showAvatar: false, lastOfRun: true })));
+    expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Xem thông tin của Alice" })).toBeInTheDocument();
+  });
+
   it("shows the sender email when the avatar is focused", async () => {
     render(
       wrap(

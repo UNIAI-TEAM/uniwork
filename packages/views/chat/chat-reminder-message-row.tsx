@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bell, Clock, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -30,6 +30,7 @@ export function ChatReminderMessageRow({
   ts,
   showSenderName,
   compactTop,
+  avatar,
   onDelete,
 }: {
   reminder: ReminderPayload;
@@ -39,6 +40,8 @@ export function ChatReminderMessageRow({
   ts?: number;
   showSenderName?: boolean;
   compactTop?: boolean;
+  /** Theirs only: the sender's avatar at the card's foot, as a run's last bubble has. */
+  avatar?: ReactNode;
   /** Set for the author and the room's moderators: the only way to stop a repeating reminder. */
   onDelete?: () => void;
 }) {
@@ -90,6 +93,7 @@ export function ChatReminderMessageRow({
       ts={ts}
       showSenderName={showSenderName}
       compactTop={compactTop}
+      avatar={avatar}
       status={
         isDue ? (
           <ChatCardStatus tone="warning">
