@@ -39,6 +39,8 @@ const COLORS = [
   "chart-1", "chart-2", "chart-3", "chart-4", "chart-5",
   "chat-sender-1", "chat-sender-2", "chat-sender-3", "chat-sender-4",
   "chat-sender-5", "chat-sender-6", "chat-sender-7", "chat-sender-8",
+  "chat-wall", "chat-wall-dot", "chat-bubble-own", "chat-bubble-own-foreground",
+  "chat-bubble-own-meta", "chat-bubble-other", "chat-chip", "chat-chip-foreground",
   "meeting-bar-bg", "meeting-bar-border", "meeting-bar-foreground",
   "meeting-bar-chip-bg", "meeting-bar-chip-hover",
   "meeting-tile-name-bg", "meeting-tile-name-foreground",
