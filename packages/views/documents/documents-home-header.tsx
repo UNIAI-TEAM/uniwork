@@ -39,7 +39,7 @@ export interface DocumentsHomeHeaderProps {
   onRoot: () => void;
   onFolder: (folderId: string) => void;
   /** The commands the open folder's ⋯ menu may offer (its own level gates them). */
-  folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onArchive" | "onToggleStar" | "isStarred">;
+  folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred">;
   search: UseDocumentsSearchResult;
   canCreate: boolean;
   create: CreateChoicesProps;
