@@ -108,7 +108,8 @@ type entry struct {
 	written     bool
 	writtenType string
 
-	operationID string
+	operationID    string
+	idempotencyKey string
 }
 
 // uploadAttempt is one idempotency key: the command it was bound to and what
@@ -319,4 +320,16 @@ func (f *Fake) Restore(s Snapshot) {
 		f.operations[operation] = id
 	}
 	f.storageDown = s.storageDown
+}
+
+// UploadOrigin returns the purpose, scope, actor and idempotency key of an
+// upload staged through Upload, or ok=false if the file was not staged.
+func (f *Fake) UploadOrigin(id files.FileID) (purpose files.UploadPurpose, scope files.Scope, actor audit.Actor, idemKey string, ok bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, found := f.entries[id]
+	if !found || e.idempotencyKey == "" {
+		return purpose, scope, actor, "", false
+	}
+	return e.spec.Purpose, e.scope, e.actor, e.idempotencyKey, true
 }

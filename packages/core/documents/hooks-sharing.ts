@@ -67,6 +67,10 @@ export function useShareDocument(wsId: string, documentId: string, documentWorks
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
+        // UNI-1851 F2: the grant lands the document in the caller's Shared by
+        // me list; refresh its root (prefix of every filtered key) without
+        // waiting for the document.shared frame.
+        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
       ]),
   });
 }
@@ -83,6 +87,7 @@ export function useShareDocumentBatch(wsId: string, documentId: string) {
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
+        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
       ]),
   });
 }
@@ -96,6 +101,9 @@ export function useRevokeDocumentShare(wsId: string, documentId: string) {
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
+        // UNI-1851 F2: the revoked grant can drop the document from the
+        // caller's Shared by me list before document.share_revoked arrives.
+        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
       ]),
   });
 }

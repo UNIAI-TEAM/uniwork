@@ -56,7 +56,7 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   docs: {
     flag: OFFICE_DOCS_WEB_FLAG, format: "docx", extension: "docx",
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    grant: { save: true, saveAs: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true },
+    grant: { save: true, saveAs: true, saveCopy: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true },
     recovery: true, ai: true,
   },
   pdf: { flag: "office_pdf_web", format: "pdf", extension: "pdf", mimeType: "application/pdf", grant: EDIT_PRINT, recovery: true, ai: true },

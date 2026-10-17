@@ -8932,9 +8932,19 @@
       "size_hint": "Up to {{max}} per file.",
       "too_large_named": "{{name}} is {{size}}, which is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
       "unsupported_format": "The format of {{name}} is not supported.",
+      "unreadable_file": "Couldn't read {{name}}. The file may be damaged.",
       "submit": "Upload",
       "submitting": "Uploading…",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "pause": "Pause",
+      "resume": "Resume",
+      "checking": "Checking file…",
+      "resume_hint": "Continuing upload from last time.",
+      "progress_status": "Uploading {{name}}",
+      "drop_progress": "Uploading {{name}} · {{percent}}%",
+      "paused_status": "Paused",
+      "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue.",
+      "document_locked": "Someone else is editing this document. Wait until they finish or take over editing, then try again."
     },
     "file": {
       "metadata_title": "File details",
@@ -9609,6 +9619,7 @@
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
+        "shared_by_me": "Shared by me",
         "trash": "Trash",
         "folders": "Folders",
         "elsewhere": "From elsewhere",
@@ -9628,6 +9639,7 @@
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
+        "shared_by_me": "Shared by me",
         "archived": "Trash",
         "sources": "From elsewhere",
         "chat": "Chat",
@@ -9736,6 +9748,8 @@
         "starred_description": "Star a document from a row's ⋯ menu to find it again quickly.",
         "shared_title": "Nothing has been shared with you yet",
         "shared_description": "Documents others share with you show up here.",
+        "shared_by_me_title": "You haven't shared any documents yet",
+        "shared_by_me_description": "Documents and folders you own and share with others or the workspace show up here.",
         "archived_title": "The trash is empty",
         "archived_description": "Deleted documents sit here for 30 days.",
         "sources_title": "No files yet",
@@ -9817,7 +9831,14 @@
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
-      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again."
+      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "unsupported_media_type": "This file format is not supported.",
+      "upload_sessions_exhausted": "You have too many uploads open at once. Finish or cancel one, then try again.",
+      "upload_session_expired": "The upload session expired. Choose the file again to start a new upload.",
+      "upload_parts_invalid": "The uploaded parts were incomplete or did not match. Try uploading again.",
+      "upload_size_mismatch": "The file size changed while uploading. Choose the file again and retry.",
+      "upload_probe_mismatch": "The file content does not match the selected format. Check the file and try again.",
+      "quota_exceeded": "Your organization is out of storage space. Free up space or upgrade your plan."
     }
   },
   "squads": {

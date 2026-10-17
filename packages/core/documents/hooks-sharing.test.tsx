@@ -12,6 +12,7 @@ import {
   useSetDocumentPublicLinks,
   useShareDocument,
   useShareDocumentBatch,
+  useRevokeDocumentShare,
 } from "./hooks-sharing";
 import { documentKeys } from "./keys";
 import { sharePrincipalsNotInOrganization } from "./errors";
@@ -84,15 +85,22 @@ describe("documents sharing hooks (G1-05b)", () => {
     expect(qc.getQueryData(documentKeys.shares("w1", "d1"))).toBeDefined();
   });
 
-  it("useShareDocument invalidates the overview and refuses an unverifiable grant", async () => {
+  it("useShareDocument invalidates the overview, detail and the shared-by-me root, and refuses an unverifiable grant", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ share: share() }));
     const { qc, wrapper } = setup();
     qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
+    qc.setQueryData(documentKeys.sharedByMe("w1"), { pages: [], pageParams: [] });
+    qc.setQueryData(documentKeys.sharedByMe("w1", "format=page"), { pages: [], pageParams: [] });
     const { result } = renderHook(() => useShareDocument("w1", "d1", "w1"), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({ principal_type: "user", principal_id: "u2", level: "view" });
     });
     expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
+    // The new grant lands the document in the caller's Shared by me list, so
+    // its root (the prefix of every filtered key) refreshes without waiting
+    // for a document.shared frame (UNI-1851 F2).
+    expect(qc.getQueryState(documentKeys.sharedByMe("w1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.sharedByMe("w1", "format=page"))?.isInvalidated).toBe(true);
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ share: { id: "s2" } }));
     const second = renderHook(() => useShareDocument("w1", "d1", "w1"), { wrapper });
@@ -189,6 +197,7 @@ describe("documents sharing hooks (G1-05b)", () => {
     const { qc, wrapper } = setup();
     qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
     qc.setQueryData(documentKeys.detail("w1", "d1"), { id: "d1" });
+    qc.setQueryData(documentKeys.sharedByMe("w1"), { pages: [], pageParams: [] });
     const { result } = renderHook(() => useShareDocumentBatch("w1", "d1"), { wrapper });
     await act(async () => {
       const out = await result.current.mutateAsync({ principal_ids: ["u2", "u3"], level: "view" });
@@ -196,6 +205,7 @@ describe("documents sharing hooks (G1-05b)", () => {
     });
     expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
     expect(qc.getQueryState(documentKeys.detail("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.sharedByMe("w1"))?.isInvalidated).toBe(true);
 
     // One row without its identity makes the whole answer unverifiable.
     vi.mocked(fetch).mockResolvedValueOnce(json({ shares: [share(), share({ principal_id: "" })] }));
@@ -241,6 +251,28 @@ describe("documents sharing hooks (G1-05b)", () => {
     expect(sharePrincipalsNotInOrganization(caught)).toEqual(["u9", "u8"]);
     expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(false);
     expect(sharePrincipalsNotInOrganization(new Error("offline"))).toBeNull();
+  });
+
+  it("useRevokeDocumentShare invalidates the overview, detail and the shared-by-me root", async () => {
+    // The revoked grant can drop the document from the caller's Shared by me
+    // list even before document.share_revoked arrives (UNI-1851 F2).
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
+    qc.setQueryData(documentKeys.detail("w1", "d1"), { id: "d1" });
+    qc.setQueryData(documentKeys.sharedByMe("w1"), { pages: [], pageParams: [] });
+    qc.setQueryData(documentKeys.sharedByMe("w1", "format=page"), { pages: [], pageParams: [] });
+    const { result } = renderHook(() => useRevokeDocumentShare("w1", "d1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("s1");
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/shares/s1");
+    expect((init as RequestInit).method).toBe("DELETE");
+    expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.detail("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.sharedByMe("w1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.sharedByMe("w1", "format=page"))?.isInvalidated).toBe(true);
   });
 
   it("useCreateDocumentLink verifies the one-time token and invalidates the overview", async () => {
