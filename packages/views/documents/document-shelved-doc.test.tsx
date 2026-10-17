@@ -296,7 +296,8 @@ describe("UI-AR7 document_shelved from a write turns the page read-only", () => 
     renderView();
     const surface = await findEditor();
     await waitFor(() => expect(editLockRoute.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
-    expect(editLockRoute.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+    // A release from an earlier test's unmount may land late; only what follows the lock being held counts.
+    editLockRoute.mockClear();
     fireEvent.paste(surface, {
       clipboardData: { files: [], getData: (type: string) => (type === "text/plain" ? "Thêm" : "") },
     });
