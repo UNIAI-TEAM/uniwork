@@ -291,7 +291,7 @@ describe("library row edit-lock holder", () => {
 
 describe("library row trashed badge (ARCHIVE-01 RAR-02)", () => {
   it("says the row is in the trash, not the shelf's 'Đã lưu trữ'", () => {
-    renderRow(item({ archived_at: "2026-10-16T03:00:00Z" }));
+    renderRow(doc("d1", "Kế hoạch Q4", { archived_at: "2026-10-16T03:00:00Z" }));
     expect(screen.getByText("Trong thùng rác")).toBeTruthy();
     expect(screen.queryByText("Đã lưu trữ")).toBeNull();
   });
