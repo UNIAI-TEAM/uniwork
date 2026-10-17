@@ -1,8 +1,11 @@
 import type { RefObject } from "react";
+import type { QueryClient } from "@tanstack/react-query";
 import type { DocumentLimits } from "@uniwork/core/api/endpoints/config";
-import type { OfficeFrameAIGrant } from "@uniwork/core/api/endpoints/office-frame";
+import type { OfficeFrameAIGrant, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
+import { documentKeys } from "@uniwork/core/documents/keys";
+import { officeFrameKeys } from "@uniwork/core/documents/office-frame-hooks";
 import { docsFrameError, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import type { DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
+import type { ApiHandlers, DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import {
   DocsProtocolError,
   PROTOCOL_NS,
@@ -20,7 +23,7 @@ import {
   type Theme,
 } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
-import type { FrameBlock } from "./frame-remote-version";
+import { frameBlockError, type FrameBlock, type FrameRemoteVersion } from "./frame-remote-version";
 import type { FrameEditLock } from "./frame-edit-lock";
 import type { FrameCommentsBinding } from "./use-frame-comments";
 
@@ -98,6 +101,12 @@ export type DocsFrameStatus = "booting" | "ready" | "failed";
 /** What the page header says about the frame's edits: driven by its dirty / saved events and the save proxy. */
 export type DocsFrameSaveState = "ready" | "dirty" | "saving" | "saved" | "error";
 
+/** What the frame session opens: a saved document, or a file from another module (UNI-1869), opened view-only. */
+export interface OfficeFrameFileRef {
+  kind: "document" | "source";
+  id: string;
+}
+
 export interface DocsFrameSizeWarning {
   bytes: number;
   maxBytes: number;
@@ -126,7 +135,8 @@ export interface DocsFrameSessionOptions {
    */
   module?: OfficeModule;
   wsId: string;
-  documentId: string;
+  /** The file the session opens; `kind: "source"` forces view-only and mints on the source route. */
+  fileRef: OfficeFrameFileRef;
   readonly: boolean;
   locale: string;
   theme: Theme;
@@ -141,8 +151,10 @@ export interface DocsFrameSessionOptions {
    * without its extension: the host adds the module's own.
    */
   downloadName?: () => string;
-  /** Non-fatal frame or proxy errors the user should hear about. */
-  onError: (error: ProtocolErrorShape) => void;
+  /** Frame or proxy errors the user should hear about (`fatal` when the frame's error event ended the session). */
+  onError: (error: ProtocolErrorShape, options: { fatal: boolean }) => void;
+  /** Called when a view-only source frame asks to save, export, upload, or download. */
+  onSourceWriteRefused?: (kind: "write" | "export") => void;
   /**
    * The page's "Open in desktop app" flow, answering the frame's `app.open`. Present = the host grants
    * `desktopOpen` (to a user who may edit); absent = the frame shows its "use the app" message alone.
@@ -217,16 +229,18 @@ export interface DocsFrameSession {
  */
 export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false): Capabilities {
   const spec = officeModuleSpec(module);
-  const grant = spec.grant;
-  const on = (key: keyof Capabilities) => grant[key] === true;
+  const { saveCopy: _saveCopy, ...grant } = spec.grant;
+  const on = (key: keyof Capabilities) => spec.grant[key] === true;
   const ai = spec.ai === true && aiGrant?.ai === true;
   // UniWork AI (G6-05) is its own grant, independent of BYOK `ai`.
   const uniworkAi = spec.ai === true && aiGrant?.uniwork_ai === true;
   // The cloud tools serve either AI, so an organization with only UniWork AI still gets the ones it is granted.
   const cloud = ai || uniworkAi;
+  const saveCopy = module === "docs" && on("saveCopy") && !readonly && download && Boolean(api.saveCopy);
   return {
     ...grant,
-    save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
+    save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents") && Boolean(api.recents), print: on("print"),
+    ...(saveCopy ? { saveCopy: true } : {}),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, uniworkAi, webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,
@@ -238,6 +252,15 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     // The host renders the size-warning chip and save-blocked dialog (SIZE-W1b).
     sizeUi: true,
   };
+}
+
+/**
+ * A file from another module (UNI-1869) opens to look at and print, nothing
+ * else: read-only grant, no token AI grant, and no recents, export or
+ * download whatever the API object carries.
+ */
+export function officeSourceCapabilities(module: OfficeModule, api: DocsFrameApi): Capabilities {
+  return { ...officeModuleCapabilities(module, true, api), recents: false, exportPdf: false, exportHtml: false };
 }
 
 export const unauthorized = () => new DocsProtocolError({ code: "unauthorized", message: "frame token unavailable" });
@@ -394,4 +417,27 @@ export function lockAwareSave<F extends (...args: never[]) => Promise<unknown>>(
       throw readOnly("api.save");
     }
   }) as F;
+}
+
+/**
+ * The frame's `api.saveCopy` (UNI-1872): a copy stays on the document it opened, so the minted
+ * token's `can_edit` answers for it. The grant's own gate is `officeModuleCapabilities` — Docs
+ * only, `readonly` false, `download` held — and the proxy still refuses `viewOnly` callers first,
+ * so a source session can never reach this (view-only, SRC-02b).
+ */
+export function saveCopyHandler(deps: {
+  remote: FrameRemoteVersion;
+  latest: RefObject<{ options: DocsFrameSessionOptions; scopeId: string }>;
+  queryClient: QueryClient;
+  run: NonNullable<ApiHandlers["api.saveCopy"]>;
+}): ApiHandlers["api.saveCopy"] {
+  return async (payload, ctx) => {
+    if (deps.remote.blocked) throw frameBlockError(deps.remote.blocked);
+    const { options: current, scopeId: doc } = deps.latest.current;
+    const minted = deps.queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
+    if (minted?.can_edit === false) throw readOnly("api.saveCopy");
+    const result = await deps.run(payload, ctx);
+    void deps.queryClient.invalidateQueries({ queryKey: documentKeys.listRoot(current.wsId) });
+    return result;
+  };
 }

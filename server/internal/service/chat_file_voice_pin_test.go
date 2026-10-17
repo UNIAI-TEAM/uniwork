@@ -39,6 +39,8 @@ func TestChatFileAndVoiceCapsPinForFileServiceMigration(t *testing.T) {
 		"image/webp":      "webp",
 		"application/pdf": "pdf",
 		"text/plain":      "txt",
+		"text/csv":        "csv",
+		"text/markdown":   "md",
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       "xlsx",
 	}

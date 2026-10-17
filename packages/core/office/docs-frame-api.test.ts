@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
-import { createDocsFrameApi, docsFrameApiBase, docsFrameSrc, docsFrameToken, type DocsFrameCall } from "./docs-frame-api";
+import { createDocsFrameApi, createOfficeFrameSourceApi, docsFrameApiBase, docsFrameSrc, docsFrameToken, type DocsFrameCall } from "./docs-frame-api";
 
 // The transport here is the frame client's fetch: injected, never the network.
 
@@ -175,11 +175,11 @@ describe("createDocsFrameApi", () => {
 
   it("lists recents, degrading a malformed answer to none", async () => {
     const ok = fakeFetch({ "GET /api/v1/office-frame/documents/doc-1/recents?limit=5": () => json({ items: [{ document_id: "doc-9", title: "Old.docx", updated_at: "2026-10-01T00:00:00Z" }] }) });
-    await expect(createDocsFrameApi({ apiUrl: API, fetch: ok.fetch }).recents({ limit: 5 }, call())).resolves.toEqual({
+    await expect(createDocsFrameApi({ apiUrl: API, fetch: ok.fetch }).recents?.({ limit: 5 }, call())).resolves.toEqual({
       files: [{ fileId: "doc-9", name: "Old.docx", modifiedAt: Date.parse("2026-10-01T00:00:00Z") }],
     });
     const drifted = fakeFetch({ "GET /api/v1/office-frame/documents/doc-1/recents": () => json({ items: "nope" }) });
-    await expect(createDocsFrameApi({ apiUrl: API, fetch: drifted.fetch }).recents({}, call())).resolves.toEqual({ files: [] });
+    await expect(createDocsFrameApi({ apiUrl: API, fetch: drifted.fetch }).recents?.({}, call())).resolves.toEqual({ files: [] });
   });
 
   it("has no image-upload handler: the frame embeds data: URIs and an asset URL on the API origin could not load under img-src 'self'", () => {
@@ -486,5 +486,159 @@ describe("createDocsFrameApi chunked upload sessions above threshold (UNI-1863)"
     const saving = createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: OVER_BYTES, etag: "7" }, { ...call(), signal: controller.signal, chunkedUploadThresholdBytes: THRESHOLD });
     await expect(saving).rejects.toMatchObject({ code: "cancelled" });
     expect(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/upload-sessions/sess-abort"))).toBe(true);
+  });
+});
+
+describe("createDocsFrameApi saveCopy (UNI-1872)", () => {
+  const COPY = {
+    id: "doc-copy-1", organization_id: "org-1", workspace_id: "ws-1", parent_id: null, kind: "file", title: "Plan (copy)",
+    visibility: "restricted", revision: "1", current_version: 1, position: 0, created_by: "u1", created_by_kind: "human",
+    updated_by: "u1", updated_by_kind: "human", created_at: "2026-10-17T10:00:00Z", updated_at: "2026-10-17T10:00:00Z",
+  };
+  const UPLOAD = { upload_id: "up-copy-1", checksum_sha256: "abc", size_bytes: 4, claim_expires_at: "2026-10-17T11:00:00Z" };
+
+  function setup(routes: Record<string, Route>) {
+    configureRuntime({ apiUrl: API });
+    setAccessToken("session-tok");
+    const fake = fakeFetch(routes);
+    vi.stubGlobal("fetch", fake.fetch);
+    return { ...fake, api: createDocsFrameApi({ apiUrl: API, fetch: fake.fetch }) };
+  }
+
+  it("stages the frame's bytes on the source document and creates the copy via /documents/{id}/copies without rebinding", async () => {
+    const { api, calls } = setup({
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),
+      "POST /api/v1/documents/doc-1/copies": () => json({ document: COPY }),
+    });
+    const result = await api.saveCopy!({ name: "Plan (copy)", data: new Uint8Array([1, 2, 3, 4]).buffer }, call());
+    expect(result).toEqual({ documentId: "doc-copy-1", title: "Plan (copy)" });
+    expect(calls).toHaveLength(2);
+    const [uploadCall, copyCall] = calls;
+    const uploadForm = uploadCall!.init.body as FormData;
+    expect((uploadForm.get("file") as File).name).toBe("Plan (copy).docx");
+    expect(header(uploadCall!.init, "Authorization")).toBe("Bearer frame-tok");
+    const uploadKey = header(uploadCall!.init, "Idempotency-Key");
+    const copyKey = new Headers(copyCall!.init.headers).get("Idempotency-Key");
+    expect(copyKey).toMatch(/^frame-savecopy-/);
+    expect(uploadKey).toBe(`${copyKey}:upload`);
+    expect(new Headers(copyCall!.init.headers).get("Authorization")).toBe("Bearer session-tok");
+    expect(JSON.parse(String(copyCall!.init.body))).toEqual({
+      consent: "copy",
+      upload_id: "up-copy-1",
+      title: "Plan (copy)",
+    });
+  });
+
+  it("keys one saveCopy by source document, name and bytes, so a retry replays the same upload and copy", async () => {
+    const keyOf = async (bytes: number[], name = "Plan (copy)", documentId = "doc-1") => {
+      const { api, calls } = setup({
+        [`POST /api/v1/office-frame/documents/${documentId}/uploads`]: () => json(UPLOAD),
+        [`POST /api/v1/documents/${documentId}/copies`]: () => json({ document: COPY }),
+      });
+      await api.saveCopy!({ name, data: new Uint8Array(bytes).buffer }, { ...call(), documentId });
+      return new Headers(calls[1]!.init.headers).get("Idempotency-Key");
+    };
+    expect(await keyOf([1, 2])).toBe(await keyOf([1, 2]));
+    expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 3]));
+    expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 2], "Other (copy)"));
+    expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 2], "Plan (copy)", "doc-9"));
+  });
+
+  it("degrades a malformed upload or copy answer to a typed internal error", async () => {
+    const badUpload = setup({ "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "" }) });
+    await expect(badUpload.api.saveCopy!({ name: "Plan (copy).docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "internal" });
+
+    const badCopy = setup({
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),
+      "POST /api/v1/documents/doc-1/copies": () => json({ document: { id: 7 } }),
+    });
+    await expect(badCopy.api.saveCopy!({ name: "Plan (copy).docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "internal" });
+  });
+
+  it("maps 403, 404, 409 and 413 (preserving max_bytes on upload or copy) to protocol error codes", async () => {
+    const uploadTooLarge = setup({
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        json({ error: { code: "file_too_large", message: "big", fields: { max_bytes: 52_428_800 } } }, 413),
+    });
+    await expect(uploadTooLarge.api.saveCopy!({ name: "Big", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({
+      code: "too_large",
+      status: 413,
+      details: { apiCode: "file_too_large", max_bytes: 52_428_800 },
+    });
+
+    const copyTooLarge = setup({
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),
+      "POST /api/v1/documents/doc-1/copies": () =>
+        json({ error: { code: "file_too_large", message: "big", fields: { max_bytes: 10_485_760 } } }, 413),
+    });
+    await expect(copyTooLarge.api.saveCopy!({ name: "Big", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({
+      code: "too_large",
+      status: 413,
+      details: { apiCode: "file_too_large", max_bytes: 10_485_760 },
+    });
+
+    for (const [status, apiCode, code] of [
+      [403, "forbidden", "forbidden"],
+      [404, "not_found", "not_found"],
+      [409, "conflict", "conflict"],
+    ] as const) {
+      const { api } = setup({
+        "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),
+        "POST /api/v1/documents/doc-1/copies": () => json({ error: { code: apiCode, message: apiCode } }, status),
+      });
+      await expect(api.saveCopy!({ name: "Copy", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code, status });
+    }
+  });
+});
+
+describe("createOfficeFrameSourceApi (UNI-1869)", () => {
+  const SRC_ID = "chat:01J8X4MSG0N1P2Q3R4S5T6U7V8";
+  const SRC = {
+    source_id: SRC_ID, principal: "source", workspace_id: "ws-1", organization_id: "org-1",
+    title: "Báo cáo.docx", revision: "0", module: "docs", can_edit: false, readonly: true,
+    parent: { kind: "chat_channel", id: "c-1", title: "Kênh chung" },
+    file: { version: 1, filename: "Báo cáo.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 48213 },
+    download_url: `/api/v1/office-frame/sources/${encodeURIComponent(SRC_ID)}/content`,
+    updated_at: "2026-10-17T08:00:00Z",
+  };
+  const sourceCall = (): DocsFrameCall => ({ workspaceId: "ws-1", documentId: SRC_ID, token: "ofs1.tok", signal: new AbortController().signal });
+
+  it("opens the source under its own base and hands the frame read-only meta and bytes", async () => {
+    const { fetch, calls } = fakeFetch({
+      [`GET /api/v1/office-frame/sources/${encodeURIComponent(SRC_ID)}`]: () => json(SRC),
+      [`GET ${SRC.download_url}`]: () => new Response(new Uint8Array([9, 8, 7])),
+    });
+    const api = createOfficeFrameSourceApi("docs", { apiUrl: API, fetch });
+    const opened = await api.open({ fileId: SRC_ID }, sourceCall());
+    expect(opened.file).toEqual({
+      fileId: SRC_ID, name: "Báo cáo.docx", sizeBytes: 48213,
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      etag: "0", writable: false, modifiedAt: Date.parse("2026-10-17T08:00:00Z"),
+    });
+    expect(opened.assets).toBeUndefined();
+    expect(opened.source.kind === "bytes" && new Uint8Array(opened.source.data)).toEqual(new Uint8Array([9, 8, 7]));
+    for (const { init } of calls) {
+      expect(header(init, "Authorization")).toBe("Bearer ofs1.tok");
+      expect(init.credentials).toBe("omit");
+    }
+  });
+
+  it("refuses a source the token is not scoped to without calling the API", async () => {
+    const { fetch } = fakeFetch({});
+    await expect(createOfficeFrameSourceApi("docs", { apiUrl: API, fetch }).open({ fileId: "chat:other" }, sourceCall())).rejects.toMatchObject({ code: "forbidden" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("has nothing but open: no save, recents, export, assets or image routes exist for a source", async () => {
+    const api = createOfficeFrameSourceApi("markdown", { apiUrl: API, fetch: fakeFetch({}).fetch });
+    await expect(api.save({ fileId: SRC_ID, data: new ArrayBuffer(1), etag: "0" }, sourceCall())).rejects.toMatchObject({ code: "unsupported" });
+    for (const key of ["saveAs", "export", "addAttachments", "uploadImage", "resolveAssets", "recents"] as const) {
+      expect(api[key]).toBeUndefined();
+    }
+  });
+
+  it("degrades a malformed open answer to a typed error", async () => {
+    const { fetch } = fakeFetch({ [`GET /api/v1/office-frame/sources/${encodeURIComponent(SRC_ID)}`]: () => json({ source_id: 42 }) });
+    await expect(createOfficeFrameSourceApi("docs", { apiUrl: API, fetch }).open({ fileId: SRC_ID }, sourceCall())).rejects.toMatchObject({ code: "internal" });
   });
 });

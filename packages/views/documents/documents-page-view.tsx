@@ -35,6 +35,8 @@ import { useDocumentsLibrary } from "./use-documents-library";
 import { useDocumentFileUpload } from "./use-document-file-upload";
 import { useDropUpload } from "./use-drop-upload";
 import { useSourcePreview } from "./source-preview-dialog";
+import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { useSourceOfficeViewer } from "./source-office-viewer";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchResults } from "./documents-search-results";
@@ -50,6 +52,8 @@ function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
     case "shared":
     case "archived":
       return { kind: rawView };
+    case "shared-by-me":
+      return { kind: "sharedByMe" };
     case "sources": {
       const rawSource = searchParams.get("source");
       const source =
@@ -77,7 +81,7 @@ function buildDocumentsViewUrl(
       ? `${base}?view=sources&source=${encodeURIComponent(next.source)}`
       : `${base}?view=sources`;
   }
-  return `${base}?view=${next.kind}`;
+  return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
 }
 
 export interface DocumentsPageViewProps {
@@ -88,6 +92,8 @@ export interface DocumentsPageViewProps {
   desktopOpen?: LibraryDesktopOpen;
   /** Host wiring of the header "Open UniWork Office" (the app, no document); absent hides it. */
   officeHome?: OfficeHomeLaunchProps;
+  /** The pinned build of a genoffice module ("" = not installed); without it Office sources download instead of opening view-only (UNI-1869). */
+  officeFrameVersion?: (module: OfficeModule) => string;
 }
 
 /**
@@ -97,8 +103,8 @@ export interface DocumentsPageViewProps {
  * collection header and the library table. Every row is a server answer;
  * create, upload and save await the server.
  */
-export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: DocumentsPageViewProps) {
-  const { t } = useTranslation();
+export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, officeFrameVersion }: DocumentsPageViewProps) {
+  const { t, i18n } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
   const limits = useDocumentLimits({ enabled });
@@ -134,6 +140,32 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
   const sourcePreview = useSourcePreview(downloadSource);
+
+  // The row-menu download (and the viewer's fallback when no module frame can
+  // host the file): one code path for both, named for the file.
+  const downloadSourceFile = (sourceId: string) => {
+    void downloadSource.mutateAsync({ sourceId }).then(
+      (blob) => {
+        const name = library.state.rows.find((row) => row.type === "source" && row.source.id === sourceId);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name?.type === "source" ? name.source.name : "";
+        document.body.append(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      (error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.row.download_failed")),
+    );
+  };
+
+  const officeViewer = useSourceOfficeViewer({
+    wsId,
+    organizationId: context?.workspace.organization_id,
+    frameVersion: officeFrameVersion ?? (() => ""),
+    onDownload: (source) => downloadSourceFile(source.id),
+  });
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
   const members = useMembers(enabled ? wsId : "");
@@ -163,7 +195,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
-  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred");
+  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "sharedByMe");
 
   const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
@@ -209,22 +241,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       if (target) push(target);
     },
     onPreviewSource: sourcePreview.open,
-    onDownloadSource: (sourceId) => {
-      void downloadSource.mutateAsync({ sourceId }).then(
-        (blob) => {
-          const name = library.state.rows.find((row) => row.type === "source" && row.source.id === sourceId);
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = name?.type === "source" ? name.source.name : "";
-          document.body.append(link);
-          link.click();
-          link.remove();
-          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-        },
-        (error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.row.download_failed")),
-      );
-    },
+    // UNI-1869: an Office source opens view-only in its module frame; no module
+    // or no installed build takes the download the click always offered.
+    onViewSource: (source) => { if (!officeViewer.open(source)) downloadSourceFile(source.id); },
+    onDownloadSource: downloadSourceFile,
     onSaveSource: rowDialogs.onSaveSource,
     onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
     onRename: rowCommands ? rowDialogs.onRename : undefined,
@@ -267,7 +287,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
             </Button>
           ) : undefined,
       }
-    : { title: t(`documents.home.empty.${view.kind}_title`), description: t(`documents.home.empty.${view.kind}_description`) };
+    : { title: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_title`), description: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_description`) };
 
   const sidebar = {
     wsId,
@@ -453,7 +473,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
+                  <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind === "sharedByMe" ? "shared_by_me" : view.kind}`)}</h2>
                   {navButton}
                 </div>
                 <LibraryToolbar variant="list" {...toolbar} />
@@ -474,6 +494,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       <DocumentUploadDialog {...fileUpload.dialogProps} />
 
       {sourcePreview.dialog}
+      {officeViewer.dialog}
 
       {trashActions.dialog}
 

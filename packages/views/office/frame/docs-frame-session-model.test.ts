@@ -35,3 +35,22 @@ describe("officeModuleCapabilities AI grant", () => {
     expect(officeModuleCapabilities("docs", true, api, all)).toMatchObject({ uniworkAi: true, save: false });
   });
 });
+
+describe("officeModuleCapabilities saveCopy grant (UNI-1872)", () => {
+  const withSaveCopy = { saveCopy: vi.fn() } as unknown as DocsFrameApi;
+
+  it("grants saveCopy: true only for docs when editable (not readonly, canEdit true) and api.saveCopy is present", () => {
+    const caps = officeModuleCapabilities("docs", false, withSaveCopy, undefined, false, true);
+    expect(caps.saveCopy).toBe(true);
+  });
+
+  it("omits saveCopy when readonly, when canEdit is false, when api.saveCopy is absent, or for any module other than docs", () => {
+    expect("saveCopy" in officeModuleCapabilities("docs", true, withSaveCopy, undefined, false, true)).toBe(false);
+    expect("saveCopy" in officeModuleCapabilities("docs", false, withSaveCopy, undefined, false, false)).toBe(false);
+    expect("saveCopy" in officeModuleCapabilities("docs", false, api, undefined, false, true)).toBe(false);
+    for (const mod of ["pdf", "markdown", "html", "slides", "sheets"] as const) {
+      expect("saveCopy" in officeModuleCapabilities(mod, false, withSaveCopy, undefined, false, true)).toBe(false);
+    }
+  });
+});
+
