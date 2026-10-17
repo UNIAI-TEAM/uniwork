@@ -26,6 +26,8 @@ export default defineConfig({
         "data/realtime/realtime-provider.*",
         "lib/use-ws-subscriptions.ts",
         "data/query-client.ts",
+        // The chat hook only wires chat-realtime.ts (tested) to the socket, AppState and NetInfo.
+        "data/realtime/use-chat-realtime.ts",
       ],
       reporter: ["text-summary"],
       thresholds: coverageThresholds({ statements: 100, branches: 100, functions: 100, lines: 100 }),

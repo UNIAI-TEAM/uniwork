@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 
 import { flattenRoomTimeline, type RoomTimeline } from "./chat-timeline";
-import { deliverPendingSend, discardPendingSend, flushQueuedSends, sendChatMessage, type ChatSendDeps } from "./chat-send";
+import { chatSendDeps, deliverPendingSend, discardPendingSend, flushQueuedSends, sendChatMessage, type ChatSendDeps } from "./chat-send";
 import { chatKeys } from "./queries/chat-keys";
 import { selectRoomSends, useChatSendStore } from "./stores/chat-send-store";
 
@@ -186,6 +186,10 @@ describe("what goes where", () => {
     expect(sendThreadMessage).toHaveBeenCalledWith("w1", "r1", "root", { body: "hi", client_msg_id: expect.any(String) });
     expect(sendFileMessage).toHaveBeenCalledWith("w1", "r1", { file, client_msg_id: expect.any(String), reply_to_message_id: "m0" });
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("the app's wiring reads TanStack's online flag", () => {
+    expect(chatSendDeps.isOnline()).toBe(true);
   });
 
   it("selects one room's sends for its timeline", () => {

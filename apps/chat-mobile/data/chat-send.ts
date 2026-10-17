@@ -5,11 +5,11 @@
 // Offline, a send waits as "queued" and goes when the network or the socket
 // comes back; a refusal for good stays "failed" until the person retries or
 // discards it.
-import type { QueryClient } from "@tanstack/react-query";
+import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import { isPermanentChatSendRefusal, runWithChatSendRetry, type PendingFile, type PendingSend } from "@/lib/send-pipeline";
 import { applyChatMessageResponse } from "./chat-cache";
-import type { ChatApi } from "./chat-api";
+import { chatApi, type ChatApi } from "./chat-api";
 import { useChatSendStore } from "./stores/chat-send-store";
 
 export interface ChatSendDeps {
@@ -17,6 +17,9 @@ export interface ChatSendDeps {
   isOnline: () => boolean;
   retry?: typeof runWithChatSendRetry;
 }
+
+/** The app's wiring: the chat API and TanStack's online flag (NetInfo, data/query-client.ts). */
+export const chatSendDeps: ChatSendDeps = { api: chatApi, isOnline: () => onlineManager.isOnline() };
 
 export interface ChatSendInput {
   workspaceId: string;
