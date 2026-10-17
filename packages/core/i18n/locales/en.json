@@ -305,9 +305,11 @@
       "accountUnknown": "Account name unavailable",
       "emailUnknown": "Email unavailable",
       "libraryWorkspace": "Document library",
-      "unichat_login_title": "Sign in to UniChat",
-      "unichat_login_hint": "Your browser will open to sign in to UniWork, then bring you back to this app.",
-      "unichat_login_button": "Open the browser to sign in",
+      "unichat_login_title": "Welcome to UniChat",
+      "unichat_login_hint": "Message and call your team, right from your desktop.",
+      "unichat_login_button": "Sign in",
+      "unichat_login_waiting": "Finish signing in with the browser that just opened.",
+      "unichat_login_reopen": "Open browser again",
       "unichat_login_failed": "Could not open the browser to sign in. Try again."
     },
     "connect": {

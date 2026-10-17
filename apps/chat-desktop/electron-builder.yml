@@ -18,6 +18,8 @@ protocols:
     schemes:
       - uniworkchat
 mac:
+  # Built by `pnpm brand:build` (packages/ui/brand/svg/unichat-icon-desktop.svg).
+  icon: resources/icon.png
   target:
     - dmg
     - zip
@@ -30,10 +32,12 @@ mac:
     NSCameraUsageDescription: UniChat dùng camera cho cuộc gọi video.
   artifactName: unichat-${version}-mac-${arch}.${ext}
 win:
+  icon: resources/icon.png
   target:
     - nsis
   artifactName: unichat-${version}-windows-${arch}.${ext}
 linux:
+  icon: resources/icon.png
   target:
     - AppImage
     - deb

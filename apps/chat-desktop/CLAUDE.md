@@ -34,7 +34,10 @@ pnpm --filter @uniwork/chat-desktop test | typecheck | lint | build
 pnpm --filter @uniwork/chat-desktop package   # electron-builder → dist/package (không ký, D2)
 ```
 
-Không có web dev server thì shell hiện `resources/offline.html` và tự thử lại.
+Shell mở `/auth/unichat` (không phải `/`, là landing): trang đó render rỗng
+rồi chuyển sang `/login`, nơi host UniChat hiện màn chào kiểu messenger khi
+chưa đăng nhập, hoặc vào thẳng chat khi đã có phiên. Không có web dev server
+thì shell hiện `resources/offline.html` và tự thử lại.
 Chạy từ terminal nhúng trong VS Code/Electron thì `unset ELECTRON_RUN_AS_NODE`
 trước, nếu không `require("electron")` trả về đường dẫn binary và main chết ở
 `app.setName`.

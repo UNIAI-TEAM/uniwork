@@ -134,3 +134,7 @@ catalog:
   electron: "^43.7.6"
   electron-vite: "^5.0.0"
   electron-builder: "^26.0.12"
+
+  # UniChat mobile app (apps/chat-mobile) — Expo SDK and the React Native it pins
+  expo: "~57.0.26"
+  react-native: "0.86.3"

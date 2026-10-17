@@ -37,6 +37,16 @@
       ]
     },
     "apps/chat-desktop": {},
+    "apps/chat-mobile": {
+      "ignoreDependencies": [
+        "@rn-primitives/avatar",
+        "@rn-primitives/switch",
+        "react-native-css-interop"
+      ],
+      "entry": [
+        "scripts/sync-i18n.mjs"
+      ]
+    },
     "packages/*": {},
     "packages/office-engine": {
       "entry": [

@@ -199,6 +199,7 @@ export function useEmailHubThread(
     retry: (failureCount, error) => failureCount < 2 && error != null,
   });
   const data = detail.data?.id === threadId ? detail.data : undefined;
+  const { refetch: refetchDetail } = detail;
   const bodyRetryRef = useRef({ threadId: "", attempts: 0 });
   const [bodyAutoRetrying, setBodyAutoRetrying] = useState(false);
   const [bodyAutoRetriesExhausted, setBodyAutoRetriesExhausted] = useState(false);
@@ -225,7 +226,7 @@ export function useEmailHubThread(
     setBodyAutoRetrying(true);
     const delayMs = bodyRetryRef.current.attempts * 350;
     const timer = window.setTimeout(() => {
-      void detail.refetch().finally(() => {
+      void refetchDetail().finally(() => {
         setBodyAutoRetrying(false);
       });
     }, delayMs);
@@ -237,7 +238,7 @@ export function useEmailHubThread(
     detail.isFetched,
     detail.isFetching,
     detail.isPending,
-    detail.refetch,
+    refetchDetail,
     threadId,
   ]);
   useEffect(() => {
@@ -292,7 +293,7 @@ export function prefetchEmailHubThread(
     .then(() => {
       const cached = qc.getQueryData<EmailHubThread | null>(key);
       if (cached && !emailHubHasReadableBody(cached)) {
-        qc.invalidateQueries({ queryKey: key, refetchType: "none" });
+        void qc.invalidateQueries({ queryKey: key, refetchType: "none" });
       }
     });
 }
