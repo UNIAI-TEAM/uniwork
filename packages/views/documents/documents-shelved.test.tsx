@@ -81,6 +81,7 @@ interface Routes {
   members?: () => unknown[];
   post?: (path: string) => unknown;
   impact?: (path: string) => unknown;
+  detail?: (id: string) => unknown;
   /** The folder tree: at home the folder cards are drawn from it. */
   tree?: () => unknown[];
 }
@@ -103,6 +104,12 @@ function route(routes: Routes) {
     if (path.startsWith(`${LIST_BASE}/recent`)) return run(() => ({ documents: [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return run(() => ({ documents: [], next_cursor: null }));
     if (method === "POST") return run(() => routes.post?.(path) ?? {});
+    if (path.startsWith("/api/v1/documents/") && method === "GET") {
+      return run(() => {
+        const doc = routes.detail?.(path.split("/")[4]?.split("?")[0] ?? "");
+        return doc ? { document: doc } : {};
+      });
+    }
     if (path.startsWith(LIST_BASE)) return run(() => ({ documents: routes.list?.(path) ?? [], next_cursor: null }));
     return Promise.resolve({});
   });
@@ -274,6 +281,33 @@ describe("shelved nav + list", () => {
     await waitFor(() => expect(screen.queryByText("Bởi người khác")).toBeNull());
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.getByText(t("documents.shelved_list.filter_loaded_only"))).toBeInTheDocument();
+  });
+
+  // RAR-14(b): each view owns its filter state; leaving Lưu trữ and returning clears shelvedBy.
+  it("resets the 'Lưu trữ bởi' filter when leaving Lưu trữ and coming back (RAR-14)", async () => {
+    route({
+      list: (path) =>
+        query(path).get("shelved") === "true"
+          ? [shelved(), shelved({ id: "d2", title: "Bởi người khác", shelved_by: "u3" })]
+          : [],
+      members: () => [member(), member({ user_id: "u3", display_name: "Đạt Đặng" })],
+    });
+    renderView();
+    await openShelved();
+    await rowOf("Bởi người khác");
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") }));
+    const option = await screen.findByRole("option", { name: "Mai Trường" });
+    fireEvent.pointerDown(option, { pointerType: "mouse" });
+    fireEvent.pointerUp(option, { pointerType: "mouse" });
+    fireEvent.click(option);
+    await waitFor(() => expect(screen.queryByText("Bởi người khác")).toBeNull());
+
+    fireEvent.click(screen.getAllByRole("button", { name: t("documents.home.sidebar.home") })[0]!);
+    await openShelved();
+
+    expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
+    expect(await screen.findByText("Bởi người khác")).toBeInTheDocument();
   });
 
   it("opens the document when a row is clicked", async () => {
@@ -581,10 +615,66 @@ describe("shelve from a live row's menu (U-4)", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
     fireEvent.keyDown(document.body, { key: "Escape" });
     const myFolder = await cardOf("Thư mục của tôi");
-    const menu = within(myFolder).queryByRole("button", { name: t("documents.home.row.menu", { title: "Thư mục của tôi" }) });
-    if (menu) {
-      fireEvent.click(menu);
+    const menu = within(myFolder).getByRole("button", { name: t("documents.home.row.menu", { title: "Thư mục của tôi" }) });
+    fireEvent.click(menu);
+    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
+  });
+
+  // RAR-14(a): the open folder's header ⋯ menu shares folderMenuItems — offers Lưu trữ to a manager,
+  // never to an editor, a viewer, on My Folder or on an already-shelved folder.
+  it("offers Lưu trữ in the open folder's header menu to a manager, never to an editor, viewer, My Folder or a shelved folder (RAR-14)", async () => {
+    const openFolder = (over: Record<string, unknown> = {}) => ({
+      ...live({ id: "f1", kind: "folder", title: "Hợp đồng", breadcrumbs: [] }),
+      ...over,
+    });
+
+    route({
+      list: () => [openFolder()],
+      detail: (id) => (id === "f1" ? openFolder() : null),
+      impact: () => ({ folders: 1, documents: 2, total: 4, max_nodes: 1000, too_large: false }),
+    });
+    const first = render(
+      wrap(
+        <NavigationProvider value={nav("folder=f1")}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider({ documents: { default: true } }))}>
+              <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            </FeatureFlagsProvider>
+          </WorkspaceProvider>
+        </NavigationProvider>,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.shelved_list.shelve") }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(t("documents.shelved_list.shelve_title"));
+    first.unmount();
+
+    for (const disallowed of [
+      { my_level: "edit" },
+      { my_level: "view" },
+      { my_level: "manage", system_kind: "my_folder" },
+      { my_level: "manage", shelved_at: "2026-10-10T03:00:00Z" },
+    ]) {
+      route({
+        list: () => [openFolder(disallowed)],
+        detail: (id) => (id === "f1" ? openFolder(disallowed) : null),
+      });
+      const view = render(
+        wrap(
+          <NavigationProvider value={nav("folder=f1")}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider({ documents: { default: true } }))}>
+                <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+              </FeatureFlagsProvider>
+            </WorkspaceProvider>
+          </NavigationProvider>,
+        ),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
+      expect(await screen.findByRole("menuitem", { name: t("documents.home.row.star") })).toBeInTheDocument();
       expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
+      view.unmount();
     }
   });
 });
