@@ -797,6 +797,8 @@ func New(d Deps) http.Handler {
 		ArchiveImpact:              h.archiveImpact,
 		RestoreDocument:            h.restoreDocument,
 		PurgeDocument:              h.purgeDocument,
+		ShelveDocument:             h.shelveDocument,
+		UnshelveDocument:           h.unshelveDocument,
 		ListDocumentShares:         h.listDocumentShares,
 		CreateDocumentShare:        h.createDocumentShare,
 		CreateDocumentShareBatch:   h.createDocumentShareBatch,
