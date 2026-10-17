@@ -77,9 +77,11 @@ Chấm theo **ràng buộc, kết quả và side effect**, không theo một chu
   `set_freeze`, …), `value` là tên sheet và các thiết lập mà ca yêu cầu, và mục chỉ đạt khi một thao tác đã áp khớp
   tên thao tác, đúng sheet và mang đủ các thiết lập đó; `clarification`, `refusal`, `not_found` chấm theo sự hiện diện
   của mục và anchor (câu chữ không so).
-- Anchor là **danh tính** với `cell`/`formula`/`table_cell`: phải khớp chính xác, không khớp kiểu chứa-chuỗi (`Doanh thu
-  Q1!G8` không khớp `Doanh thu Q1!G8:G8` hay `Doanh thu Q1!G8 extra`). Các kind còn lại (`heading`, `count`, …) chấm
-  theo chủ đề nên anchor chứa nhau vẫn khớp.
+- Anchor là **danh tính** với `cell`/`formula`: phải khớp chính xác, không khớp kiểu chứa-chuỗi (`Doanh thu
+  Q1!G8` không khớp `Doanh thu Q1!G8:G8` hay `Doanh thu Q1!G8 extra`). `heading`, `count` và `table_cell` chấm
+  theo **chủ đề và giá trị** (review-g712-16 A8, A13): anchor của `table_cell` phải mang **cả hàng lẫn cột** (chỉ bỏ
+  định danh bảng riêng tư như `table:N`), nên một ô cùng hàng, cùng giá trị nhưng khác cột không khớp; `heading` và
+  `count` cũng chấm theo chủ đề nên anchor chứa nhau vẫn khớp.
 - Định dạng ô: một anchor `cell` có thể mang hậu tố `#<probe>` để hỏi về **định dạng số** thay vì giá trị. Hiện chỉ
   có `#numberFormat`, và `value` phải thuộc `percent` | `number` | `text` | `currency` | `date`
   (ví dụ `"Doanh thu Q1!F4#numberFormat" = "percent"` nghĩa là ô F4 được định dạng phần trăm, không phải số 0,1 trần).
