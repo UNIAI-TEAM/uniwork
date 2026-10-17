@@ -1,0 +1,113 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --shard=3/6 > /tmp/un-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/un-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/un-E2E.log; grep -E "✘|\[failed\]" /tmp/un-E2E.log | head -40; echo; echo "E2E_SUITE3_EXIT=$rc"
+       9 |   if (manual) await page.locator('[data-action="toggle-presentation"]').click();
+      10 | }
+      11 |
+
+    Error Context: test-results/landing-product-email-phon-3a369-ading-actions-remain-usable/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-product-email-phon-3a369-ading-actions-remain-usable/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-product-email-phon-3a369-ading-actions-remain-usable/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) landing-product-email.spec.ts:96:1 › autoplay opens a full-width reader, stars the message and can pause 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('.product-demo-shell')
+    Expected: "email"
+    Error: strict mode violation: locator('.product-demo-shell') resolved to 2 elements:
+        1) <div data-menu-open="false" data-collapsed="false" data-demo-feature="email" class="product-demo-shell">…</div> aka locator('.product-demo-shell').first()
+        2) <div data-menu-open="false" data-collapsed="false" data-demo-feature="tasks" class="product-demo-shell">…</div> aka locator('.product-demo > div > div > .product-demo-shell')
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for locator('.product-demo-shell')
+
+
+       6 |   await landingReady(page);
+       7 |   await page.waitForLoadState("networkidle");
+    >  8 |   await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'email');
+         |                                                     ^
+       9 |   if (manual) await page.locator('[data-action="toggle-presentation"]').click();
+      10 | }
+      11 |
+
+    Error Context: test-results/landing-product-email-auto-6cf1d-s-the-message-and-can-pause/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-product-email-auto-6cf1d-s-the-message-and-can-pause/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-product-email-auto-6cf1d-s-the-message-and-can-pause/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27 failed
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light ──────────────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark ───────────────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark ────────────────────
+    landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence 
+    landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls 
+    landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it 
+    landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace ────────────────
+    landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up 
+    landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes 
+    landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable 
+    landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening ─
+    landing-motion.spec.ts:150:1 › nonessential motion stops offscreen ─────────────────────────────
+    landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact ─────
+    landing-playback.spec.ts:31:1 › reduced motion is still by default and manual exploration retains local actions 
+    landing-playback.spec.ts:51:3 › every storyboard reaches its last beat without clipping at 1440px 
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-vi ────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-en ────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-vi ─────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-en ─────────────────
+    landing-product-board.spec.ts:4:1 › the real task board is the default demo and plays its action sequence 
+    landing-product-email.spec.ts:13:3 › the current inbox fits at 1680px ──────────────────────────
+    landing-product-email.spec.ts:13:3 › the current inbox fits at 1440px ──────────────────────────
+    landing-product-email.spec.ts:13:3 › the current inbox fits at 768px ───────────────────────────
+    landing-product-email.spec.ts:13:3 › the current inbox fits at 390px ───────────────────────────
+    landing-product-email.spec.ts:31:1 › mail can be searched, filtered, starred, archived and composed locally 
+    landing-product-email.spec.ts:79:1 › phone folder navigation and reading actions remain usable ─
+    landing-product-email.spec.ts:96:1 › autoplay opens a full-width reader, stars the message and can pause 
+  3 skipped
+  34 passed (10.1m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=3/6
+  27 failed
+  3 skipped
+  34 passed (10.1m)
+  ✘  11 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light (6.5s)
+  ✘  12 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark (6.5s)
+  ✘  13 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark (6.5s)
+  ✘  14 landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence (8.7s)
+  ✘  15 landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls (1.0m)
+  ✘  16 landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it (1.0m)
+  ✘  17 landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace (6.8s)
+  ✘  18 landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up (6.7s)
+  ✘  19 landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes (7.3s)
+  ✘  20 landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable (1.0m)
+  ✘  21 landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening (6.7s)
+  ✘  24 landing-motion.spec.ts:150:1 › nonessential motion stops offscreen (1.0m)
+  ✘  25 landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact (8.3s)
+  ✘  46 landing-playback.spec.ts:31:1 › reduced motion is still by default and manual exploration retains local actions (6.1s)
+  ✘  47 landing-playback.spec.ts:51:3 › every storyboard reaches its last beat without clipping at 1440px (11.8s)
+  ✘  50 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-vi (25.5s)
+  ✘  51 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-en (25.1s)
+  ✘  52 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-vi (28.7s)
+  ✘  53 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-en (28.3s)
+  ✘  54 landing-product-board.spec.ts:4:1 › the real task board is the default demo and plays its action sequence (6.9s)
+  ✘  57 landing-product-email.spec.ts:13:3 › the current inbox fits at 1680px (1.8s)
+  ✘  58 landing-product-email.spec.ts:13:3 › the current inbox fits at 1440px (2.0s)
+  ✘  59 landing-product-email.spec.ts:13:3 › the current inbox fits at 768px (1.9s)
+  ✘  60 landing-product-email.spec.ts:13:3 › the current inbox fits at 390px (1.9s)
+  ✘  61 landing-product-email.spec.ts:31:1 › mail can be searched, filtered, starred, archived and composed locally (1.9s)
+  ✘  62 landing-product-email.spec.ts:79:1 › phone folder navigation and reading actions remain usable (1.8s)
+  ✘  63 landing-product-email.spec.ts:96:1 › autoplay opens a full-width reader, stars the message and can pause (2.1s)
+
+E2E_SUITE3_EXIT=1
