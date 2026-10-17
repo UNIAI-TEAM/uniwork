@@ -151,6 +151,9 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 	case errors.As(err, &ve):
 		respondError(w, 400, "invalid_request", ve.Msg)
 	case errors.As(err, &ce):
+		if retry, ok := uniworkRetrySeconds(ce.Fields); ok {
+			w.Header().Set("Retry-After", retry)
+		}
 		respondErrorFields(w, ce.Status, ce.Code, ce.Msg, ce.Fields)
 	case errors.As(err, &aiErr):
 		respondError(w, aiErr.Status, aiErr.Code, aiErr.Msg)
