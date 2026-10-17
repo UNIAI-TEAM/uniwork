@@ -1,0 +1,177 @@
+$ node scripts/bundle-budget.mjs --print --warn-only; rc=$?; echo; echo "CI_BUNDLE_EXIT=$rc"
+initial JS: 232.1 KB gzip
+ 1349.3 KB / 358  /[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room
+ 1212.2 KB / 196  /[orgSlug]/[workspaceSlug]/chat
+ 1211.0 KB / 150  /[orgSlug]/[workspaceSlug]/documents
+ 1149.2 KB / 150  /[orgSlug]/[workspaceSlug]/email
+ 1108.5 KB / 150  /[orgSlug]/[workspaceSlug]/people
+ 1104.7 KB / 150  /[orgSlug]/[workspaceSlug]/meetings
+ 1102.8 KB / 154  /[orgSlug]/[workspaceSlug]/settings
+ 1097.8 KB / 150  /[orgSlug]/[workspaceSlug]/documents/access-report
+ 1097.5 KB / 150  /[orgSlug]/[workspaceSlug]/people/[userId]
+ 1095.0 KB / 150  /[orgSlug]/[workspaceSlug]/inbox
+ 1090.6 KB / 150  /[orgSlug]/[workspaceSlug]/documents/[documentId]
+ 1089.7 KB / 150  /[orgSlug]/[workspaceSlug]/meetings/[meetingId]
+ 1089.0 KB / 150  /[orgSlug]/[workspaceSlug]/calendar
+ 1088.6 KB / 150  /[orgSlug]/[workspaceSlug]/projects/[projectId]
+ 1088.5 KB / 150  /[orgSlug]/[workspaceSlug]/tasks/[taskId]
+ 1088.5 KB / 150  /[orgSlug]/[workspaceSlug]/my-tasks
+ 1088.5 KB / 150  /[orgSlug]/[workspaceSlug]/tasks
+ 1088.5 KB / 150  /[orgSlug]/[workspaceSlug]/projects
+ 1088.3 KB / 150  /[orgSlug]/[workspaceSlug]
+ 1088.3 KB / 150  /[orgSlug]/[workspaceSlug]/members
+ 1073.9 KB / 150  /share/[token]
+  281.2 KB / 150  /invite/[token]
+  276.7 KB / 150  /about
+  276.7 KB / 150  /changelog
+  276.7 KB / 150  /enterprise
+  276.7 KB / 150  /features/[slug]
+  276.7 KB / 150  /features
+  276.7 KB / 150  /learn/[slug]
+  276.7 KB / 150  /learn
+  276.7 KB / 150  /office
+  276.7 KB / 150  /
+  276.7 KB / 150  /pricing
+  276.7 KB / 150  /request-demo
+  276.7 KB / 150  /security
+  276.7 KB / 150  /solutions/operations
+  276.7 KB / 150  /solutions
+  276.7 KB / 150  /solutions/product
+  276.7 KB / 150  /vi/[[...segments]]
+  276.7 KB / 150  /why-uniwork
+  234.6 KB / 150  /(auth)/reset-password
+  233.5 KB / 150  /(auth)/login
+  230.6 KB / 150  /(auth)/register
+  225.9 KB / 150  /(auth)/forgot-password
+  224.7 KB / 150  /(auth)/verify
+  220.3 KB / 150  /invite/meeting/[linkId]
+  217.7 KB / 150  /(auth)/auth/connect/authorize
+  204.9 KB / 150  /(auth)/auth/desktop/authorize
+  202.6 KB / 150  /(auth)/get-started
+  201.6 KB / 150  /(auth)/invitations
+  198.7 KB / 150  /(auth)/no-workspace
+  194.3 KB / 150  /invite/meeting/[linkId]/room
+  161.3 KB / 150  /auth/callback
+  137.2 KB / 150  /(auth)/onboarding
+  137.2 KB / 150  /(auth)/workspaces/new
+   92.6 KB / 150  /admin/invoices
+   90.6 KB / 150  /admin/quota
+   90.1 KB / 150  /admin/organizations/[id]
+   78.7 KB / 150  /admin/plans
+   74.9 KB / 150  /admin/demo-requests
+   73.4 KB / 150  /admin/organizations
+   57.4 KB / 150  /admin/trace
+   56.9 KB / 150  /admin/flags
+   53.5 KB / 150  /admin
+   53.4 KB / 150  /admin/system
+    9.7 KB / 150  /workspaces
+    0.0 KB / 150  /_global-error
+    0.0 KB / 150  /_not-found
+bundle-budget: over budget
+  /(auth)/auth/connect/authorize 217.7 KB > 150 KB
+  /(auth)/auth/desktop/authorize 204.9 KB > 150 KB
+  /(auth)/forgot-password 225.9 KB > 150 KB
+  /(auth)/get-started 202.6 KB > 150 KB
+  /(auth)/invitations 201.6 KB > 150 KB
+  /(auth)/login 233.5 KB > 150 KB
+  /(auth)/no-workspace 198.7 KB > 150 KB
+  /(auth)/register 230.6 KB > 150 KB
+  /(auth)/reset-password 234.6 KB > 150 KB
+  /(auth)/verify 224.7 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/calendar 1089.0 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/chat 1212.2 KB > 196 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/documents/[documentId] 1090.6 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/documents/access-report 1097.8 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/documents 1211.0 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/email 1149.2 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/inbox 1095.0 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/meetings/[meetingId] 1089.7 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room 1349.3 KB > 358 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/meetings 1104.7 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/members 1088.3 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/my-tasks 1088.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug] 1088.3 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/people/[userId] 1097.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/people 1108.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/projects/[projectId] 1088.6 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/projects 1088.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/settings 1102.8 KB > 154 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/tasks/[taskId] 1088.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/tasks 1088.5 KB > 150 KB
+  /about 276.7 KB > 150 KB
+  /auth/callback 161.3 KB > 150 KB
+  /changelog 276.7 KB > 150 KB
+  /enterprise 276.7 KB > 150 KB
+  /features/[slug] 276.7 KB > 150 KB
+  /features 276.7 KB > 150 KB
+  /invite/[token] 281.2 KB > 150 KB
+  /invite/meeting/[linkId] 220.3 KB > 150 KB
+  /invite/meeting/[linkId]/room 194.3 KB > 150 KB
+  /learn/[slug] 276.7 KB > 150 KB
+  /learn 276.7 KB > 150 KB
+  /office 276.7 KB > 150 KB
+  / 276.7 KB > 150 KB
+  /pricing 276.7 KB > 150 KB
+  /request-demo 276.7 KB > 150 KB
+  /security 276.7 KB > 150 KB
+  /share/[token] 1073.9 KB > 150 KB
+  /solutions/operations 276.7 KB > 150 KB
+  /solutions 276.7 KB > 150 KB
+  /solutions/product 276.7 KB > 150 KB
+  /vi/[[...segments]] 276.7 KB > 150 KB
+  /why-uniwork 276.7 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/auth/connect/authorize 217.7 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/auth/desktop/authorize 204.9 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/forgot-password 225.9 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/get-started 202.6 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/invitations 201.6 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/login 233.5 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/no-workspace 198.7 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/register 230.6 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/reset-password 234.6 KB > 150 KB
+::warning title=Bundle size budget::/(auth)/verify 224.7 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/calendar 1089.0 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/chat 1212.2 KB > 196 KB (ratchet in scripts/bundle-budget.json)
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/documents/[documentId] 1090.6 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/documents/access-report 1097.8 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/documents 1211.0 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/email 1149.2 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/inbox 1095.0 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/meetings/[meetingId] 1089.7 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room 1349.3 KB > 358 KB (ratchet in scripts/bundle-budget.json)
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/meetings 1104.7 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/members 1088.3 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/my-tasks 1088.5 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug] 1088.3 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/people/[userId] 1097.5 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/people 1108.5 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/projects/[projectId] 1088.6 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/projects 1088.5 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/settings 1102.8 KB > 154 KB (ratchet in scripts/bundle-budget.json)
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/tasks/[taskId] 1088.5 KB > 150 KB
+::warning title=Bundle size budget::/[orgSlug]/[workspaceSlug]/tasks 1088.5 KB > 150 KB
+::warning title=Bundle size budget::/about 276.7 KB > 150 KB
+::warning title=Bundle size budget::/auth/callback 161.3 KB > 150 KB
+::warning title=Bundle size budget::/changelog 276.7 KB > 150 KB
+::warning title=Bundle size budget::/enterprise 276.7 KB > 150 KB
+::warning title=Bundle size budget::/features/[slug] 276.7 KB > 150 KB
+::warning title=Bundle size budget::/features 276.7 KB > 150 KB
+::warning title=Bundle size budget::/invite/[token] 281.2 KB > 150 KB
+::warning title=Bundle size budget::/invite/meeting/[linkId] 220.3 KB > 150 KB
+::warning title=Bundle size budget::/invite/meeting/[linkId]/room 194.3 KB > 150 KB
+::warning title=Bundle size budget::/learn/[slug] 276.7 KB > 150 KB
+::warning title=Bundle size budget::/learn 276.7 KB > 150 KB
+::warning title=Bundle size budget::/office 276.7 KB > 150 KB
+::warning title=Bundle size budget::/ 276.7 KB > 150 KB
+::warning title=Bundle size budget::/pricing 276.7 KB > 150 KB
+::warning title=Bundle size budget::/request-demo 276.7 KB > 150 KB
+::warning title=Bundle size budget::/security 276.7 KB > 150 KB
+::warning title=Bundle size budget::/share/[token] 1073.9 KB > 150 KB
+::warning title=Bundle size budget::/solutions/operations 276.7 KB > 150 KB
+::warning title=Bundle size budget::/solutions 276.7 KB > 150 KB
+::warning title=Bundle size budget::/solutions/product 276.7 KB > 150 KB
+::warning title=Bundle size budget::/vi/[[...segments]] 276.7 KB > 150 KB
+::warning title=Bundle size budget::/why-uniwork 276.7 KB > 150 KB
+bundle-budget: reported, not enforced — GATE_LEVEL=fast. This fails the build at standard.
+
+CI_BUNDLE_EXIT=0
