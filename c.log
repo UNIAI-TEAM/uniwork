@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+ed138e3f4605c31c16097925ac4159afb1450ecb
+ed138e3f4 test(documents): switch focused trash row tests to TRASH-01 sidebar buttons
+8eb9bceea chore(merge): e6-server TRASH-NOTIFY a5215bb95 into TRASH-NOTIFY-01 web
+a5215bb95 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1844-trash-notify
+844aab79f chore: merge SIZE-S2 spool validation (UNI-1870, e40c9c519) into the G5-G7 root
