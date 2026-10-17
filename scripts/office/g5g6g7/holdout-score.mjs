@@ -208,9 +208,15 @@ function topicSegments(anchor) {
     .filter((seg) => seg.length > 0 && !PRIVATE_DSL_SEGMENT_RE.test(seg));
 }
 
-function topicAnchorMatches(kind, expected, actual, actualValue = '') {
+function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedValue = undefined) {
   const segs = topicSegments(expected);
-  if (segs.length === 0) return true;
+  // When an expected anchor consists solely of private case DSL (e.g. "level_1", "paragraphs", "tables"),
+  // there is no non-DSL topic segment to constrain the anchor; require that the candidate's value matches
+  // expectedValue (true on the byTopicAndValue path in takeMatch and the sameValue && atAnchor path in
+  // deriveAnswer, and false on unverified fallback calls).
+  if (segs.length === 0) {
+    return expectedValue !== undefined && valuesEqual(expectedValue, actualValue, kind);
+  }
   const b = normalizeAnchor(splitAnchor(actual).base);
   const combined = actualValue ? `${b} ${normalizeAnchor(actualValue)}` : b;
   if (kind === 'table_cell') {
@@ -220,7 +226,7 @@ function topicAnchorMatches(kind, expected, actual, actualValue = '') {
   return segs.every((seg) => combined.includes(seg));
 }
 
-export function valuesEqual(expected, actual, kind = null, actualAnchor = '') {
+export function valuesEqual(expected, actual, kind = null) {
   if (kind === 'formula') {
     const a = normalizeFormulaText(expected);
     const b = normalizeFormulaText(actual);
@@ -229,7 +235,7 @@ export function valuesEqual(expected, actual, kind = null, actualAnchor = '') {
   if (kind === 'heading') {
     const a = cleanHeadingText(expected);
     const b = cleanHeadingText(actual);
-    if (a && (a === b || (a.length > 3 && b.includes(a)) || cleanHeadingText(actualAnchor) === a)) return true;
+    if (a && (a === b || (a.length > 3 && b.includes(a)))) return true;
   }
   if (kind === 'table_cell' && /^table:\d+\//i.test(String(expected ?? '').trim())) {
     const segs = topicSegments(String(expected));
@@ -255,12 +261,12 @@ export function valuesEqual(expected, actual, kind = null, actualAnchor = '') {
  * topic, not private case DSL. For cell/formula anchors the location is an identity, so only an equal anchor matches
  * (R1-2, DS-1, DS-2): reporting the right number at "Doanh thu Q1!G8:G8" or "…G8 extra" is a wrong address.
  */
-export function anchorMatches(kind, expected, actual, actualValue = '') {
+export function anchorMatches(kind, expected, actual, actualValue = '', expectedValue = undefined) {
   const a = normalizeAnchor(splitAnchor(expected).base);
   const b = normalizeAnchor(splitAnchor(actual).base);
   if (IDENTITY_KINDS.has(kind)) return a === b;
   if (a === b || (b.length > 0 && (a.includes(b) || b.includes(a)))) return true;
-  if (TOPIC_VALUE_KINDS.has(kind)) return topicAnchorMatches(kind, expected, actual, actualValue);
+  if (TOPIC_VALUE_KINDS.has(kind)) return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
   return false;
 }
 
@@ -273,15 +279,15 @@ function takeMatch(expected, candidates, consumed) {
   const wanted = splitAnchor(expected.anchor);
   const free = candidates.filter((item) => !consumed.has(item));
   const sameProbe = (item) => splitAnchor(item.anchor).probe === wanted.probe;
-  const exact = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base) && (!VALUE_KINDS.has(expected.kind) || valuesEqual(expected.value, item.value, expected.kind, item.anchor)));
+  const exact = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base) && (!VALUE_KINDS.has(expected.kind) || valuesEqual(expected.value, item.value, expected.kind)));
   if (exact) return exact;
   if (VALUE_KINDS.has(expected.kind)) {
-    const byTopicAndValue = free.find((item) => sameProbe(item) && valuesEqual(expected.value, item.value, expected.kind, item.anchor) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value));
+    const byTopicAndValue = free.find((item) => sameProbe(item) && valuesEqual(expected.value, item.value, expected.kind) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value, expected.value));
     if (byTopicAndValue) return byTopicAndValue;
   }
   const exactAnchorOnly = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base));
   if (exactAnchorOnly) return exactAnchorOnly;
-  return free.find((item) => sameProbe(item) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value)) ?? null;
+  return free.find((item) => sameProbe(item) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value, expected.value)) ?? null;
 }
 
 /**
@@ -589,7 +595,7 @@ export function score(caseDoc, answer) {
     }
     consumed.add(match);
     if (VALUE_KINDS.has(expected.kind)) {
-      const ok = valuesEqual(expected.value, match.value, expected.kind, match.anchor);
+      const ok = valuesEqual(expected.value, match.value, expected.kind);
       add(label, ok ? 'pass' : 'fail', ok ? `value ${JSON.stringify(match.value)}` : `${JSON.stringify(match.value)} != ${JSON.stringify(expected.value)}`);
     } else if (PROSE_KINDS.has(expected.kind)) {
       // The value is a free-text explanation: presence plus the anchor topic is what can be graded.

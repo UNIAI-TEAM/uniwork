@@ -73,7 +73,7 @@ const roundTo = (value, rounding) => {
   return value;
 };
 
-const sameValue = (a, b, kind = null, actualAnchor = '') => valuesEqual(b, a, kind, actualAnchor);
+const sameValue = (a, b, kind = null) => valuesEqual(b, a, kind);
 const norm = (anchor) => normalizeAnchor(anchor ?? '');
 
 /** Matches the reported figures to the expected numeric items; returns { numeric, extras }. */
@@ -291,15 +291,15 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     if (VALUE_KINDS.has(expected.kind)) {
       const same = items.filter((it) => it.kind === expected.kind && !taken.has(it));
       const proof = editCase ? editProof(expected, applied, ask.sheetNames ?? [], sourceText) : null;
-      const atAnchor = (it) => anchorMatches(expected.kind, expected.anchor, String(it.anchor ?? ''), String(it.value ?? ''));
-      let pick = same.find((it) => sameValue(it.value, expected.value, expected.kind, String(it.anchor ?? '')) && atAnchor(it));
+      const atAnchor = (it) => anchorMatches(expected.kind, expected.anchor, String(it.anchor ?? ''), String(it.value ?? ''), expected.value);
+      let pick = same.find((it) => sameValue(it.value, expected.value, expected.kind) && atAnchor(it));
       if (!pick && expected.kind === 'cell') {
         const freeValueItems = items.filter((it) => VALUE_KINDS.has(it.kind) && !taken.has(it));
-        pick = freeValueItems.find((it) => sameValue(it.value, expected.value, 'cell', String(it.anchor ?? '')) && atAnchor(it));
+        pick = freeValueItems.find((it) => sameValue(it.value, expected.value, 'cell') && atAnchor(it));
       }
       let lenient = false;
       if (!pick && anchors === 'lenient') {
-        pick = same.find((it) => sameValue(it.value, expected.value, expected.kind, String(it.anchor ?? ''))) ?? same.find((it) => norm(it.anchor) === norm(expected.anchor));
+        pick = same.find((it) => sameValue(it.value, expected.value, expected.kind)) ?? same.find((it) => norm(it.anchor) === norm(expected.anchor));
         lenient = Boolean(pick);
       }
       if (pick && proof) {
