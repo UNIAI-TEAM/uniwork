@@ -2,14 +2,18 @@
  * Top-level navigation hardening for the shell window. Client-side routing
  * never fires `will-navigate`, so in-app paths are the web app's concern; this
  * catches a real document-level navigation away from the trusted origins
- * (`window.location = 'https://evil.example'`, a dropped file URL, javascript:).
+ * (`window.location = 'https://evil.example'`, a dropped file URL, javascript:)
+ * and a server 302 off them (`will-redirect`; an OAuth start or an open redirect).
  * New windows go through `setWindowOpenHandler` → `openExternalSafely`.
  */
 
 /** The subset of BrowserWindow this module needs — keeps it unit-testable. */
 export type NavigationGuardWindow = {
   webContents: {
-    on(event: "will-navigate", listener: (event: { preventDefault(): void }, url: string) => void): unknown;
+    on(
+      event: "will-navigate" | "will-redirect",
+      listener: (event: { preventDefault(): void }, url: string) => void,
+    ): unknown;
   };
 };
 
@@ -35,9 +39,11 @@ export function describeBlockedNavigation(url: string): string {
 
 /** Install the guard. Call before loading the window so the first load is covered. */
 export function installNavigationGuard(window: NavigationGuardWindow, trustedOrigins: readonly string[]): void {
-  window.webContents.on("will-navigate", (event, url) => {
-    if (isTrustedNavigation(url, trustedOrigins)) return;
-    event.preventDefault();
-    console.warn(`[security] blocked will-navigate to an untrusted origin: ${describeBlockedNavigation(url)}`);
-  });
+  for (const name of ["will-navigate", "will-redirect"] as const) {
+    window.webContents.on(name, (event, url) => {
+      if (isTrustedNavigation(url, trustedOrigins)) return;
+      event.preventDefault();
+      console.warn(`[security] blocked ${name} to an untrusted origin: ${describeBlockedNavigation(url)}`);
+    });
+  }
 }

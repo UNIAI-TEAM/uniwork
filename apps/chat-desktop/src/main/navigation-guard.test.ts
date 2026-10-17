@@ -50,15 +50,17 @@ describe("describeBlockedNavigation", () => {
 });
 
 describe("installNavigationGuard", () => {
-  let listener: (event: { preventDefault(): void }, url: string) => void;
+  type Listener = (event: { preventDefault(): void }, url: string) => void;
+  const listeners = new Map<string, Listener>();
   let warn: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    listeners.clear();
     warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const window: NavigationGuardWindow = {
       webContents: {
-        on: (_event, fn) => {
-          listener = fn;
+        on: (event, fn) => {
+          listeners.set(event, fn);
           return window;
         },
       },
@@ -66,11 +68,13 @@ describe("installNavigationGuard", () => {
     installNavigationGuard(window, TRUSTED);
   });
 
-  function navigate(url: string): boolean {
+  function fire(event: string, url: string): boolean {
     const preventDefault = vi.fn();
-    listener({ preventDefault }, url);
+    listeners.get(event)!({ preventDefault }, url);
     return preventDefault.mock.calls.length > 0;
   }
+  const navigate = (url: string) => fire("will-navigate", url);
+  const redirect = (url: string) => fire("will-redirect", url);
 
   it("allows a navigation inside the app or api origin", () => {
     expect(navigate(`${APP}/acme/chat`)).toBe(false);
@@ -87,5 +91,18 @@ describe("installNavigationGuard", () => {
   it("blocks javascript: and file: navigations", () => {
     expect(navigate("javascript:alert(1)")).toBe(true);
     expect(navigate("file:///Users/me/Desktop/shot.png")).toBe(true);
+  });
+
+  it("guards a server redirect the same way: trusted passes, foreign is prevented and logged by origin", () => {
+    // The spy is shared across tests: the earlier blocks already warned.
+    warn.mockClear();
+    expect(listeners.has("will-redirect")).toBe(true);
+    expect(redirect(`${APP}/login`)).toBe(false);
+    expect(redirect(`${API}/api/v1/auth/google/start`)).toBe(false);
+    expect(warn).not.toHaveBeenCalled();
+    expect(redirect("https://accounts.google.com/o/oauth2/auth?client_id=abc")).toBe(true);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("blocked will-redirect"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("https://accounts.google.com"));
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("client_id"));
   });
 });

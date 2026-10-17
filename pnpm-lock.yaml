@@ -300,14 +300,13 @@ importers:
         version: 2.9.0
 
   apps/chat-desktop:
-    dependencies:
-      '@uniwork/core':
-        specifier: workspace:*
-        version: link:../../packages/core
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
+      '@uniwork/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@uniwork/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config

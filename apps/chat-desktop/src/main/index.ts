@@ -12,8 +12,10 @@ import { createTransport } from "./auth/transport";
 import { extractDeepLinkFromArgv, MainRendererQueue, parseDeepLink } from "./deep-link";
 import { openExternalSafely } from "./external-url";
 import { registerIpc, sendDeepLink } from "./ipc/handlers";
+import { sendToApp } from "./ipc/schema";
 import { installNavigationGuard } from "./navigation-guard";
 import { installOfflineFallback } from "./offline";
+import { decidePermission } from "./permissions";
 import { createRendererWebPreferences } from "./renderer-web-preferences";
 import { resolveShellConfig } from "./runtime-config";
 import { installScreenShare } from "./screen-share";
@@ -34,7 +36,6 @@ const config = resolveShellConfig({
   UNICHAT_DEPLOYMENT_ID: process.env.UNICHAT_DEPLOYMENT_ID,
 });
 const external = { allowHttpLoopback: config.env === "dev" };
-const PERMISSIONS_ALLOWED = new Set(["media", "display-capture", "notifications"]);
 
 // Dev gets its own name and userData (hence its own single-instance lock and
 // session store), so it never mixes with an installed build. Must precede the lock.
@@ -59,8 +60,14 @@ function focusWindow(): void {
   current.focus();
 }
 
+// macOS keeps the app alive with no window: a link or sign-in needs one to land in.
+function ensureWindow(): void {
+  if (app.isReady() && !getWindow()) createWindow();
+}
+
 function openDeepLink(path: string | null): void {
   if (!path) return;
+  ensureWindow();
   sendDeepLink(deepLinkDeps, path);
   focusWindow();
 }
@@ -99,8 +106,8 @@ function createWindow(): void {
     win = null;
     queue.resetReady();
   });
-  window.on("focus", () => window.webContents.send("app:focus-changed", true));
-  window.on("blur", () => window.webContents.send("app:focus-changed", false));
+  window.on("focus", () => sendToApp(window, config.appUrl, "app:focus-changed", true));
+  window.on("blur", () => sendToApp(window, config.appUrl, "app:focus-changed", false));
   // A reload replaces the document: its listeners must re-report link:ready.
   window.webContents.on("did-start-navigation", (details) => {
     if (details.isMainFrame && !details.isSameDocument) queue.resetReady();
@@ -140,18 +147,19 @@ if (!app.requestSingleInstanceLock()) {
       credentials: createCredentialStore({ userDataDir: app.getPath("userData"), safeStorage }),
       openBrowser: (url) => openExternalSafely(url, external),
     });
-    session.onChange((token) => getWindow()?.webContents.send("session:changed", token));
+    session.onChange((token) => sendToApp(getWindow(), config.appUrl, "session:changed", token));
     registerIpc({ config, session, queue, getWindow });
     router.start((url) => {
+      ensureWindow();
       session.completeCallback(url).catch((error: unknown) => console.warn("[auth] callback failed", error));
     });
     void session.restore();
 
     const defaultSession = electronSession.defaultSession;
-    defaultSession.setPermissionRequestHandler((_webContents, permission, callback) =>
-      callback(PERMISSIONS_ALLOWED.has(permission)),
+    defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) =>
+      callback(decidePermission(permission, details.requestingUrl, details.isMainFrame, config.appUrl)),
     );
-    installScreenShare(defaultSession);
+    installScreenShare(defaultSession, config.appUrl);
 
     createWindow();
     app.on("activate", () => {

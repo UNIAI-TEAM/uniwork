@@ -5,14 +5,19 @@ vi.mock("electron", () => ({ desktopCapturer: { getSources: vi.fn() } }));
 import { desktopCapturer } from "electron";
 import { installScreenShare, supportsSystemPicker } from "./screen-share";
 
-type Handler = (request: { audioRequested: boolean }, callback: (streams: unknown) => void) => void;
+type Handler = (
+  request: { audioRequested: boolean; securityOrigin: string },
+  callback: (streams: unknown) => void,
+) => void;
+
+const APP = "https://app.uniworkos.com";
 
 function install(platform: NodeJS.Platform, release: string) {
   const session = { setDisplayMediaRequestHandler: vi.fn() };
-  installScreenShare(session, platform, release);
+  installScreenShare(session, APP, platform, release);
   const [handler, opts] = session.setDisplayMediaRequestHandler.mock.calls[0] as [Handler, { useSystemPicker: boolean }];
-  const request = (): Promise<unknown> =>
-    new Promise((resolve) => handler({ audioRequested: false }, resolve));
+  const request = (securityOrigin = `${APP}/`): Promise<unknown> =>
+    new Promise((resolve) => handler({ audioRequested: false, securityOrigin }, resolve));
   return { opts, request };
 }
 
@@ -39,6 +44,13 @@ describe("installScreenShare", () => {
     const { request } = install("win32", "10.0.0");
     await expect(request()).resolves.toEqual({ video: screen });
     expect(desktopCapturer.getSources).toHaveBeenCalledWith({ types: ["screen"] });
+  });
+
+  it("answers with no stream to a requester outside the app origin, without asking the capturer", async () => {
+    const { request } = install("win32", "10.0.0");
+    await expect(request("https://evil.example")).resolves.toEqual({});
+    await expect(request("file://")).resolves.toEqual({});
+    expect(desktopCapturer.getSources).not.toHaveBeenCalled();
   });
 
   it("answers with no stream when there is no screen or the capturer fails", async () => {

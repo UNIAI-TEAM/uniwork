@@ -2,6 +2,8 @@
   "name": "@uniwork/chat-desktop",
   "version": "0.0.0",
   "private": true,
+  "description": "UniChat desktop shell: an Electron window around the UniWork web app's chat layout",
+  "author": { "name": "UniWork", "email": "dev@uniworkos.com" },
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -11,11 +13,9 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run --passWithNoTests=false --coverage"
   },
-  "dependencies": {
-    "@uniwork/core": "workspace:*"
-  },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@uniwork/core": "workspace:*",
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",

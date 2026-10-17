@@ -5,7 +5,7 @@ import { applyBadge } from "../badge";
 import { DEEP_LINK_CHANNEL, type MainRendererQueue } from "../deep-link";
 import { downloadURLSafely, openExternalSafely } from "../external-url";
 import type { ShellConfig } from "../runtime-config";
-import { expectBoolean, expectCount, expectUrl, guard, isTrustedSender } from "./schema";
+import { expectBoolean, expectCount, expectUrl, guard, isTrustedSender, sendToApp } from "./schema";
 
 export interface IpcDeps {
   config: ShellConfig;
@@ -23,7 +23,7 @@ export function appInfo(version: string, platform: NodeJS.Platform): DesktopBrid
 /** Deep links travel as app URLs so the web's parser accepts them in every env (its scheme check is prod-only). */
 export function sendDeepLink(deps: Pick<IpcDeps, "config" | "queue" | "getWindow">, path: string): void {
   deps.queue.enqueue(DEEP_LINK_CHANNEL, `${deps.config.appUrl}${path}`, (channel, payload) =>
-    deps.getWindow()?.webContents.send(channel, payload),
+    sendToApp(deps.getWindow(), deps.config.appUrl, channel, payload),
   );
 }
 
@@ -34,7 +34,7 @@ export function registerIpc(deps: IpcDeps): void {
   const { config, session, queue, getWindow } = deps;
   const origin = config.appUrl;
   const external = { allowHttpLoopback: config.env === "dev" };
-  const send = (channel: typeof DEEP_LINK_CHANNEL, payload: unknown) => getWindow()?.webContents.send(channel, payload);
+  const send = (channel: typeof DEEP_LINK_CHANNEL, payload: unknown) => sendToApp(getWindow(), origin, channel, payload);
 
   // Sync so the renderer has appInfo before its first render; a foreign frame gets null.
   ipcMain.on("app:info", (event) => {

@@ -20,14 +20,30 @@ export class IpcRejected extends Error {
   }
 }
 
-/** True when the sending frame is still alive and its document has the app origin. */
-export function isTrustedSender(event: IpcSender, appOrigin: string): boolean {
-  if (!event.senderFrame) return false;
+/** True when `url` parses and its origin is the app's. */
+export function hasAppOrigin(url: string, appOrigin: string): boolean {
   try {
-    return new URL(event.senderFrame.url).origin === appOrigin;
+    return new URL(url).origin === appOrigin;
   } catch {
     return false;
   }
+}
+
+/** True when the sending frame is still alive and its document has the app origin. */
+export function isTrustedSender(event: IpcSender, appOrigin: string): boolean {
+  return event.senderFrame !== null && hasAppOrigin(event.senderFrame.url, appOrigin);
+}
+
+/** The slice of BrowserWindow a main→renderer push needs; a real window satisfies it structurally. */
+export interface AppWindow {
+  webContents: { mainFrame: { url: string }; send(channel: string, payload: unknown): void };
+}
+
+/** Push to the renderer only while the app document is loaded (not the offline page or a hijacked frame). */
+export function sendToApp(win: AppWindow | null, appOrigin: string, channel: string, payload: unknown): void {
+  // Dropped silently: a token or link must never reach a foreign document.
+  if (!win || !hasAppOrigin(win.webContents.mainFrame.url, appOrigin)) return;
+  win.webContents.send(channel, payload);
 }
 
 export function expectString(value: unknown, max = MAX_IPC_BYTES): string {

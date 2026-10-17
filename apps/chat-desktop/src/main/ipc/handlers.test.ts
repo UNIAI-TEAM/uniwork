@@ -18,7 +18,7 @@ type SyncListener = (event: { senderFrame: unknown; returnValue?: unknown }) => 
 const TRUSTED = { senderFrame: { url: `${shellConfig.appUrl}/chat/room` } };
 const FOREIGN = { senderFrame: { url: "https://evil.example/chat" } };
 
-function fakeWindow() {
+function fakeWindow(documentUrl = `${shellConfig.appUrl}/chat`) {
   return {
     isDestroyed: () => false,
     isFocused: vi.fn(() => true),
@@ -26,7 +26,7 @@ function fakeWindow() {
     restore: vi.fn(),
     show: vi.fn(),
     focus: vi.fn(),
-    webContents: { send: vi.fn(), downloadURL: vi.fn() },
+    webContents: { mainFrame: { url: documentUrl }, send: vi.fn(), downloadURL: vi.fn() },
   };
 }
 
@@ -149,6 +149,15 @@ describe("registerIpc", () => {
     sendDeepLink(deps, "/chat/room-3");
     expect(win!.webContents.send).toHaveBeenCalledTimes(2);
     await expect(invoke("link:ready", "yes")).rejects.toThrow("ipc rejected: not_boolean");
+  });
+
+  it("never pushes a deep link into a foreign or offline document", async () => {
+    for (const url of ["https://evil.example/chat", "file:///offline.html"]) {
+      const { deps, win, invoke } = setup(fakeWindow(url));
+      await invoke("link:ready", true);
+      sendDeepLink(deps, "/chat/room");
+      expect(win!.webContents.send).not.toHaveBeenCalled();
+    }
   });
 
   it("drops a ready deep link when the window is gone instead of throwing", async () => {

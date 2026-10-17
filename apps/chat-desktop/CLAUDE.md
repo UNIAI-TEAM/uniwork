@@ -51,6 +51,15 @@ client `uniwork-chat-desktop` và cả hai redirect.
   `shell:*`, `link:*`). Mỗi handler kiểm origin của `event.senderFrame.url`
   bằng `appUrl`, payload qua validator tay ở `src/main/ipc/schema.ts`,
   chuỗi ≤ 64 KiB. Không kênh fs/process/HTTP chung.
+- Guard điều hướng nghe cả `will-navigate` và `will-redirect` (một 302 từ server
+  ra ngoài `appUrl`/`apiUrl` bị chặn, log chỉ origin) — `navigation-guard.test.ts`.
+- Mọi push main→renderer (`session:changed`, `app:focus-changed`,
+  `link:deep-link`) đi qua `sendToApp` (`ipc/schema.ts`): bỏ qua khi
+  `webContents.mainFrame.url` không có origin `appUrl` (trang offline, frame lạ).
+- Quyền web quyết định bằng `decidePermission` (`permissions.ts`): chỉ main
+  frame origin `appUrl` và quyền trong allowlist (media, display-capture,
+  notifications, clipboard-sanitized-write, fullscreen); `screen-share.ts`
+  trả `{}` khi `request.securityOrigin` không phải `appUrl`.
 - Preload không expose `ipcRenderer` thô, không `@electron-toolkit/*`; đối
   tượng expose khai báo `satisfies DesktopBridge`.
 - Renderer chỉ nhận access token; không hàm nào trả refresh token.

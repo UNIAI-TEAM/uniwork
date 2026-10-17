@@ -8,6 +8,7 @@ import {
   IpcRejected,
   isTrustedSender,
   MAX_IPC_BYTES,
+  sendToApp,
   type IpcSender,
 } from "./schema";
 
@@ -25,6 +26,24 @@ describe("isTrustedSender", () => {
 
   it("rejects a destroyed frame", () => {
     expect(isTrustedSender({ senderFrame: null }, APP)).toBe(false);
+  });
+});
+
+describe("sendToApp", () => {
+  const window = (url: string) => ({ webContents: { mainFrame: { url }, send: vi.fn() } });
+
+  it("delivers the payload to the app document", () => {
+    const win = window(`${APP}/acme/chat`);
+    sendToApp(win, APP, "session:changed", "access-1");
+    expect(win.webContents.send).toHaveBeenCalledWith("session:changed", "access-1");
+  });
+
+  it("drops it when the main frame is a foreign or file document, or there is no window", () => {
+    for (const win of [window("https://evil.example/"), window("file:///offline.html"), window("")]) {
+      sendToApp(win, APP, "session:changed", "access-1");
+      expect(win.webContents.send).not.toHaveBeenCalled();
+    }
+    expect(() => sendToApp(null, APP, "session:changed", "access-1")).not.toThrow();
   });
 });
 
