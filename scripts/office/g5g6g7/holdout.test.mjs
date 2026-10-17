@@ -913,11 +913,11 @@ test('loadCases reads the directory and refuses a foreign document', () => {
 
 test('DS-1: sheet-quoted cell/formula anchors and leading-= formula values match while range/other-cell identities still fail', () => {
   const syntheticCase = {
-    id: 'HO-SYN-DS1',
+    id: 'HO-XLSX-901',
     format: 'xlsx',
     category: 'structure',
     query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
-    fixtures: [{ id: 'fx-xlsx- synthetic', sha256: 'a'.repeat(64), version: 'v1' }],
+    fixtures: [{ id: 'fx-xlsx-synthetic', sha256: 'a'.repeat(64), version: 'v1' }],
     host: ['web'],
     role: 'viewer',
     sourceAnchors: ['Sheet One!A6'],
@@ -959,4 +959,59 @@ test('DS-1: sheet-quoted cell/formula anchors and leading-= formula values match
     assert.equal(score(syntheticCase, bad).status, 'fail', `cell identity must reject ${wrongAnchor}`);
   }
 });
+
+test('DS-2: heading, count and table_cell match by topic and value rather than private anchor DSL while wrong values or conflicting topics fail', () => {
+  const syntheticCase = {
+    id: 'HO-DOCX-902',
+    format: 'docx',
+    category: 'structure',
+    query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
+    fixtures: [{ id: 'fx-docx-synthetic', sha256: 'b'.repeat(64), version: 'v1' }],
+    host: ['web'],
+    role: 'viewer',
+    sourceAnchors: ['Section 1'],
+    tools: { allowed: ['read_document', 'read_table'], required: ['read_document'] },
+    expected: {
+      numeric: [],
+      structural: [
+        { kind: 'count', anchor: 'heading_level_1', value: 2 },
+        { kind: 'heading', anchor: 'level_1', value: '1. Overview' },
+        { kind: 'heading', anchor: 'level_1', value: '2. Regional Breakdown' },
+        { kind: 'table_cell', anchor: 'table:1/South/Q1 Revenue', value: '7.200.000' },
+      ],
+      writes: 0,
+      mustNotContain: [],
+    },
+    oracle: { type: 'deterministic', source: 'synthetic' },
+    referenceAnswer: {
+      numeric: {},
+      structural: [
+        { kind: 'count', anchor: 'heading_level_1', value: 2 },
+        { kind: 'heading', anchor: 'level_1', value: '1. Overview' },
+        { kind: 'heading', anchor: 'level_1', value: '2. Regional Breakdown' },
+        { kind: 'table_cell', anchor: 'table:1/South/Q1 Revenue', value: '7.200.000' },
+      ],
+      writes: 0,
+      text: '2 top-level headings (1. Overview, 2. Regional Breakdown) and South Q1 Revenue is 7.200.000.',
+    },
+  };
+  const naturalAnswer = {
+    numeric: {},
+    structural: [
+      { kind: 'count', anchor: 'Document, Heading 1 sections', value: '2' },
+      { kind: 'heading', anchor: 'Heading 1, block 1', value: '## 1. Overview' },
+      { kind: 'heading', anchor: 'Heading 1, block 3', value: '2. Regional Breakdown' },
+      { kind: 'table_cell', anchor: '2. Regional Breakdown — row South, column Q1 Revenue', value: '7.200.000' },
+    ],
+    writes: 0,
+    tools: { used: ['read_document', 'read_table'] },
+    text: '2 top-level headings (1. Overview, 2. Regional Breakdown) and South Q1 Revenue is 7.200.000.',
+  };
+  assert.equal(score(syntheticCase, naturalAnswer).status, 'pass');
+
+  const wrongRow = structuredClone(naturalAnswer);
+  wrongRow.structural[3].anchor = '2. Regional Breakdown — row North, column Q1 Revenue';
+  assert.equal(score(syntheticCase, wrongRow).status, 'fail', 'table_cell naming a different row than expected must fail');
+});
+
 
