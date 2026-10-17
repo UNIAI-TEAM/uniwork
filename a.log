@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+452b611abe069d9cd0dd0845c8954ab668fed4df
+06f65e141cf57af6d6d47de56ac60e8cd68e06e6
+452b611ab fix(documents): refuse edit-lock writes on a shelved document (ARCHIVE-01, UNI-1845)
+a14f082ec Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
+06f65e141 chore: merge UNI-1645 phase 2 edit lock (cards a+b, edb3c7ec6) into the G5-G7 root
+faa239205 test(documents): list document_shelved in the error class table
+edb3c7ec6 test(documents): drop the archived prop RESTORE-01 removed from LibraryRowView
+88b77c0d4 test(documents): pin shelved on the feed row's field sets
+f36625148 feat(documents): frame tokens carry can_edit=false on a shelved document (ARCHIVE-01, UNI-1845)
+1312cbe61 feat(documents): shelved documents refuse every write path (ARCHIVE-01, UNI-1845)
