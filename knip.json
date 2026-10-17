@@ -45,6 +45,7 @@
       "ignoreDependencies": [
         "@rn-primitives/avatar",
         "@rn-primitives/switch",
+        "expo-updates",
         "react-native-css-interop"
       ],
       "entry": [

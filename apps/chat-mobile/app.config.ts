@@ -2,9 +2,11 @@
 // build environment, with per-variant bundle id overrides and appleTeamId.
 //
 // There is no .env (the pre-commit hook refuses one). The only build-time knobs
-// are UNICHAT_ENV (dev | staging | production), UNICHAT_API_URL and
-// UNICHAT_APP_URL; the app reads the result from `extra` via expo-constants
-// and calls configureRuntime() at boot. Defaults are the dev values.
+// are UNICHAT_ENV (dev | staging | production), UNICHAT_API_URL,
+// UNICHAT_APP_URL and UNICHAT_EAS_PROJECT_ID; the app reads the result from
+// `extra` via expo-constants and calls configureRuntime() at boot. Defaults are
+// the dev values; staging and production have none (eas.json, runbook
+// docs/runbooks/unichat-mobile-release.md).
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 type AppEnv = "dev" | "staging" | "production";
@@ -16,6 +18,14 @@ const APP_LINK_HOST = "app.uniworkos.com";
 function appEnv(): AppEnv {
   const value = process.env.UNICHAT_ENV;
   return value === "staging" || value === "production" ? value : "dev";
+}
+
+/** A release variant pointing at localhost is a broken store build: fail the build, not the phone. */
+function serverUrl(name: "UNICHAT_API_URL" | "UNICHAT_APP_URL", env: AppEnv, devDefault: string): string {
+  const value = process.env[name];
+  if (value) return value;
+  if (env === "dev") return devDefault;
+  throw new Error(`${name} is required when UNICHAT_ENV=${env}`);
 }
 
 export default ({ config }: ConfigContext): ExpoConfig => {
@@ -30,6 +40,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     : isStaging
       ? (process.env.EXPO_BUNDLE_IDENTIFIER_STAGING ?? "com.uniworkos.chat.staging")
       : (process.env.EXPO_BUNDLE_IDENTIFIER_DEV ?? "com.uniworkos.chat.dev");
+  // Not a secret; empty until the EAS project exists (UNI-1838). Without it there
+  // is no update server and no push token, and the app runs on its embedded bundle.
+  const easProjectId = process.env.UNICHAT_EAS_PROJECT_ID || undefined;
 
   return {
     ...config,
@@ -44,8 +57,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     scheme: env === "dev" ? "uniworkchat-dev" : "uniworkchat",
     // Built by `pnpm brand:build` from packages/ui/brand/svg/unichat-icon*.svg.
     icon: "./assets/icon.png",
-    // No expo-updates until EAS/OTA lands in M4 (ADR 0011 §6).
-    updates: { enabled: false },
+    // An update only reaches binaries of the same `version`: a native change
+    // bumps it, so an older OTA can never land on a newer native build.
+    runtimeVersion: { policy: "appVersion" },
+    // Downloaded in the background at launch, applied on the next cold start.
+    // knip.json ignores expo-updates: knip loads the dev config, where updates are off.
+    updates: easProjectId ? { url: `https://u.expo.dev/${easProjectId}` } : { enabled: false },
     ios: {
       supportsTablet: false,
       // Pins DEVELOPMENT_TEAM on every prebuild; unset, `expo run:ios` picks the
@@ -86,12 +103,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ],
     extra: {
       APP_ENV: env,
-      apiUrl: process.env.UNICHAT_API_URL ?? "http://localhost:8080",
-      appUrl: process.env.UNICHAT_APP_URL ?? "http://localhost:3000",
+      apiUrl: serverUrl("UNICHAT_API_URL", env, "http://localhost:8080"),
+      appUrl: serverUrl("UNICHAT_APP_URL", env, "http://localhost:3000"),
       authClientId: "uniwork-chat-mobile",
       deploymentId: "default",
-      // `eas.projectId` arrives with the EAS account (M4); without it data/push.ts
-      // skips registration, so the key is deliberately absent for now.
+      // Absent without an EAS project: data/push.ts then skips registration.
+      ...(easProjectId ? { eas: { projectId: easProjectId } } : {}),
     },
   };
 };

@@ -6,6 +6,13 @@ import createConfig from "./app.config";
 
 const build = () => createConfig({ config: {} } as ConfigContext);
 
+// A release variant refuses to build without its servers, so every case that
+// is not about that names them.
+const stubServers = () => {
+  vi.stubEnv("UNICHAT_API_URL", "https://api.example");
+  vi.stubEnv("UNICHAT_APP_URL", "https://app.example");
+};
+
 afterEach(() => vi.unstubAllEnvs());
 
 describe("app.config per UNICHAT_ENV", () => {
@@ -20,11 +27,16 @@ describe("app.config per UNICHAT_ENV", () => {
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_DEV", undefined);
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_STAGING", undefined);
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_PROD", undefined);
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", undefined);
+    stubServers();
 
     const config = build();
     expect(config.name).toBe(name);
     expect(config.slug).toBe("uniwork-chat");
+    // no EAS project: no update server to ask, the embedded bundle is the app
     expect(config.updates).toEqual({ enabled: false });
+    // an update reaches only binaries of the same app version (OTA never crosses a native change)
+    expect(config.runtimeVersion).toEqual({ policy: "appVersion" });
     // knip's expo plugin and NativeWind both read it; "automatic" follows the OS.
     expect(config.userInterfaceStyle).toBe("automatic");
     // no EAS account yet: push registration is skipped until the id exists
@@ -84,6 +96,7 @@ describe("app.config per UNICHAT_ENV", () => {
     ["production", "com.example.chat"],
   ])("preserves the signing override for %s on both platforms", (env, appId) => {
     vi.stubEnv("UNICHAT_ENV", env);
+    stubServers();
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_DEV", "com.example.chat.dev");
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_STAGING", "com.example.chat.staging");
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_PROD", "com.example.chat");
@@ -92,5 +105,37 @@ describe("app.config per UNICHAT_ENV", () => {
     const config = build();
     expect(config.ios).toMatchObject({ bundleIdentifier: appId, appleTeamId: "ABCDE12345" });
     expect(config.android?.package).toBe(appId);
+  });
+});
+
+describe("EAS project and release servers", () => {
+  it.each(["dev", "staging", "production"])("%s: the EAS project id turns on updates and push", (env) => {
+    vi.stubEnv("UNICHAT_ENV", env);
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+    stubServers();
+
+    const config = build();
+    expect(config.updates).toEqual({ url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
+    expect(config.runtimeVersion).toEqual({ policy: "appVersion" });
+    expect(config.extra?.eas).toEqual({ projectId: "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
+  });
+
+  it("an empty project id counts as none", () => {
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "");
+    const config = build();
+    expect(config.updates).toEqual({ enabled: false });
+    expect(config.extra?.eas).toBeUndefined();
+  });
+
+  it.each([
+    ["staging", "UNICHAT_API_URL"],
+    ["staging", "UNICHAT_APP_URL"],
+    ["production", "UNICHAT_API_URL"],
+    ["production", "UNICHAT_APP_URL"],
+  ])("%s refuses to build without %s instead of shipping localhost", (env, missing) => {
+    vi.stubEnv("UNICHAT_ENV", env);
+    stubServers();
+    vi.stubEnv(missing, undefined);
+    expect(build).toThrow(missing);
   });
 });
