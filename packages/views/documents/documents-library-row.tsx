@@ -23,6 +23,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
+import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { libraryCell, type LibraryLadder } from "./library-columns";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
@@ -252,6 +253,13 @@ export function LibraryRowView({
           ) : null}
           {trashed ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
+          ) : null}
+          {doc?.edit_lock && !doc.edit_lock.held_by_me ? (
+            <EditLockHolderChip
+              name={doc.edit_lock.holder_name}
+              avatarUrl={doc.edit_lock.holder_avatar_url}
+              offlineHoldUntil={doc.edit_lock.offline_hold_until}
+            />
           ) : null}
         </span>
         {/* The editor rides on this line until its column joins (40rem), the date · size pair until theirs do (28rem); the level and the restricted mark until Truy cập does (53rem, library-columns.ts). Only the meta parts truncate: the mark keeps its width inside the Name cell. */}

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocumentsLibraryList } from "./documents-library-list";
+import { formatLockTime } from "./edit-lock-copy";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
 import { libraryLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
@@ -230,5 +231,60 @@ describe("starred view rows (SV-1)", () => {
       </table>,
     );
     expect(screen.getByText("Bạn: Chủ sở hữu")).toBeInTheDocument();
+  });
+});
+
+// UNI-1645 (addendum §11.4): a row whose document someone is editing shows the holder's avatar.
+
+const HOLD = (() => {
+  const d = new Date();
+  d.setHours(22, 30, 0, 0);
+  return d.toISOString();
+})();
+
+function lockItem(over: Partial<DocumentSummaryRow> = {}): DocumentSummaryRow {
+  return doc("d1", "Kế hoạch Q4", { kind: "page", updated_by: "", size_bytes: undefined, ...over });
+}
+
+describe("library row edit-lock holder", () => {
+  it("shows who is editing: avatar, the word, and the full name for screen readers", () => {
+    renderRow(lockItem({ edit_lock: { holder_id: "u2", holder_name: "Bình Trần", holder_avatar_url: null, since: "2026-10-15T03:12:00Z", held_by_me: false } }));
+    const holder = screen.getByRole("img", { name: t("documents.editLock.rowEditingLabel", { name: "Bình Trần" }) });
+    expect(holder).toHaveAttribute("title", "Bình Trần đang sửa");
+    expect(within(holder).getByText("đang sửa")).toBeTruthy();
+    expect(within(holder).getByText("BT")).toBeTruthy();
+  });
+
+  it("shows 'đang sửa · offline đến HH:mm' and includes the offline end time in the accessible name when offline_hold_until is set (V3-8, R6-2)", () => {
+    renderRow(
+      lockItem({
+        edit_lock: {
+          holder_id: "u2",
+          holder_name: "Hưng Nguyễn",
+          holder_avatar_url: null,
+          since: "2026-10-15T03:12:00Z",
+          offline_hold_until: HOLD,
+          held_by_me: false,
+        },
+      }),
+    );
+    const time = formatLockTime(HOLD, "vi");
+    const expectedLabel = t("documents.editLock.bannerOfflineHold", { name: "Hưng Nguyễn", time });
+    const holder = screen.getByLabelText(expectedLabel);
+    expect(holder).toBe(screen.getByRole("img", { name: expectedLabel }));
+    expect(holder).toHaveAttribute("title", expectedLabel);
+    expect(within(holder).getByText(`đang sửa · offline đến ${time}`)).toBeTruthy();
+  });
+
+  it("omits the holder chip when the lock is held by the current user (V3-7)", () => {
+    renderRow(lockItem({ edit_lock: { holder_id: "me", holder_name: "Bạn", holder_avatar_url: null, since: "2026-10-15T03:12:00Z", held_by_me: true } }));
+    expect(screen.queryByTestId("edit-lock-holder")).toBeNull();
+  });
+
+  it("shows nothing when no one is editing", () => {
+    renderRow(lockItem({ edit_lock: null }));
+    expect(screen.queryByTestId("edit-lock-holder")).toBeNull();
+    renderRow(lockItem({ id: "d2" }));
+    expect(screen.queryByTestId("edit-lock-holder")).toBeNull();
   });
 });

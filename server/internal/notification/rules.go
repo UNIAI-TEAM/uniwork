@@ -102,6 +102,11 @@ var rules = map[string]rule{
 	// table (contract-collab section 8.3, G8-05).
 	"document.comment_updated":  ruleDocumentCommentUpdated,
 	"document.comment_resolved": ruleDocumentCommentResolved,
+	// The edit lock (UNI-1645): the holder, the requester and the previous
+	// holder each get one notification, addressed by payload.user_id.
+	"document.edit_requested":        ruleDocumentEditRequested,
+	"document.edit_request_answered": ruleDocumentEditRequestAnswered,
+	"document.lock_taken_over":       ruleDocumentEditTakenOver,
 	// DOC-05 (UNI-1628): an admin opened emergency view access to a
 	// restricted document; the owner must hear about it.
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
