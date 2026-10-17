@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+5a4eac31aa2ed9e5f933459aa40bb8ca0433fd8f
+bf693b001da6512bbf33d867c35250179106a63b
+5a4eac31a chore: merge SH-W3 document_shared inbox renderer (UNI-1786, a027f9162) into the sharing lane
+9899354af chore: merge SH-S3 share_scope + document_shared (UNI-1782, d03408670) into the sharing lane
+148d0c417 fix(documents): align share-candidates wire and HTTP tests with SH-S2 contract (UNI-1781)
+7160ccf73 fix(documents): align access sources and home_workspace with SH-S2 contract (UNI-1781)
+9b0675246 fix(documents): align PUT /documents/{id}/access wire with SH-S2 contract (UNI-1781)
+a027f9162 feat(views): render document_shared level in Inbox and add renderer tests (UNI-1786)
+4f49d52e4 feat(documents): enforce Q-S1 on org POST /shares and add SH-S2 isolation matrix coverage (UNI-1781)
+99f341d28 feat(notifications): include share level in document_shared title templates (UNI-1786)
