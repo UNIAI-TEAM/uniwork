@@ -358,13 +358,14 @@ const maxFilterReadableDocuments = 100
 // by the number of distinct documents on the page (roughly 100 × a few
 // queries), and only for rows whose resource_type is document.
 //
-// A document that is missing or hard-deleted is gone; an archived one is
-// trashable while the recipient administers it (the archive-root manage
-// gate) and gone otherwise, so a revoked recipient's row still gets gone
-// before any level work. One the recipient may no longer read is
-// access_lost; anything else is readable. Ids past the batch cap are
-// refused rather than silently half-answered. Callers that never link into
-// the trash treat trashable as gone.
+// A document that is missing or hard-deleted is gone. The organization gate
+// runs before the branch: a non-member is gone on an archived row (including
+// a former member whose manage share survived their leave, BE-TN-8) and
+// access_lost on a live one. An archived row the recipient still administers
+// through the gate is trashable; one they may no longer read is access_lost;
+// anything else is readable. Ids past the batch cap are refused rather than
+// silently half-answered. Callers that never link into the trash treat
+// trashable as gone.
 func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID string, documentIDs []string) (map[string]DocumentReadState, error) {
 	out := make(map[string]DocumentReadState, len(documentIDs))
 	if userID == "" {
@@ -402,11 +403,24 @@ func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID st
 			out[id] = DocumentGone
 			continue
 		}
+		// The organization gate runs first on both branches. The trash level
+		// treats a workspace-gate refusal as "shares may still apply"
+		// (resolveLevelInTenant), and a share row outlives a leave, so a
+		// former member with a retained manage share would otherwise keep a
+		// title the trash list itself refuses them (BE-TN-8).
+		member, err := s.orgReadable(ctx, row.OrganizationID, userID, orgOK)
+		if err != nil {
+			return nil, err
+		}
 		if row.ArchivedAt.Valid {
 			// The trash gate answer (decideArchiveRootAccess): a person who
 			// administers the row still sees it in the trash, everyone else
 			// is told the resource is gone - including a non-member, who
 			// must not learn the row merely changed state.
+			if !member {
+				out[id] = DocumentGone
+				continue
+			}
 			trashable, err := s.documentTrashLevel(ctx, userID, id)
 			if err != nil {
 				return nil, err
@@ -418,11 +432,7 @@ func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID st
 			}
 			continue
 		}
-		ok, err = s.orgReadable(ctx, row.OrganizationID, userID, orgOK)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
+		if !member {
 			out[id] = DocumentAccessLost
 			continue
 		}
@@ -518,9 +528,12 @@ func (s *DocumentService) documentReadLevel(ctx context.Context, userID, documen
 // documentTrashLevel is documentReadLevel's sibling for a document already
 // in the trash: the answer is whether the recipient may administer the row
 // (decideArchiveRootAccess's manage -> visible), not whether they may read
-// it - nobody reads a trashed document. The caller ran the organization gate
-// already (FilterReadableDocuments memoizes it per organization); a refusal
-// is not trashable, and a row that vanished between the existence read and
+// it - nobody reads a trashed document. The caller must have run the
+// organization gate already (FilterReadableDocuments memoizes it per
+// organization and runs it on the archived branch too, BE-TN-8), because
+// resolveLevelInTenant reads a workspace-gate refusal as "shares may still
+// apply" and a share row outlives a leave. A gate refusal reaching here is
+// still not trashable, and a row that vanished between the existence read and
 // here is not either.
 func (s *DocumentService) documentTrashLevel(ctx context.Context, userID, documentID string) (bool, error) {
 	doc, err := s.q.GetDocumentByID(ctx, documentID)

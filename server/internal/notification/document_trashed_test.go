@@ -434,6 +434,48 @@ func TestDocumentTrashedInboxRow(t *testing.T) {
 			t.Fatalf("access-lost trash notice kept its title: %s", it.Params)
 		}
 	})
+
+	// BE-TN-8 (review r2): the archived branch must run the organization gate
+	// before it resolves the trash level. A live manage share outlives the
+	// membership rows a leave deletes, so a former member still answers
+	// canAdminister through the share - and would keep the title the org gate
+	// exists to withhold.
+	t.Run("left the organization with a retained share: gone, no title", func(t *testing.T) {
+		f := newDocumentFixture(t)
+		f.makeAdmin(t, f.member.ID)
+		svc := NewService(f.q, PushConfig{})
+		svc.SetDocumentReaders(f.docs)
+		d := f.addMember(t, "tn1-d@example.com", "Chủ D")
+		docID := f.page(t, "Của D", d.ID, nil)
+		// The retained manage share: a user-principal row applies by user id
+		// alone (shareAppliesTo never reads membership).
+		if _, err := f.pool.Exec(f.ctx,
+			`INSERT INTO document_shares (id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind)
+			 VALUES ($1,$2,$3,$4,'user',$5,'manage',$6,'human')`,
+			util.NewID(), f.orgID, f.wsID, docID, d.ID, f.member.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		f.archive(t, f.member.ID, docID)
+		f.handleTopic(t, "document.archived")
+		// D leaves: the organization and workspace rows go, the share stays.
+		if _, err := f.pool.Exec(f.ctx,
+			`DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, f.orgID, d.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(f.ctx,
+			`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, f.wsID, d.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		it := f.trashedItem(t, svc, d.ID)
+		if !it.ResourceDeleted {
+			t.Fatalf("former member's trash notice not flagged deleted: %+v", it)
+		}
+		if contains(it.Params, "Của D") {
+			t.Fatalf("former member's trash notice kept its title: %s", it.Params)
+		}
+	})
 }
 
 // BE-TN-3 (review r1): the (archive_batch_id, recipient) idempotency survives
