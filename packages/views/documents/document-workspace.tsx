@@ -107,7 +107,10 @@ export function DocumentWorkspace({
   // content stays, nothing more is sent, and the document is read again. The save machine lives in the
   // edit lock, which needs canEdit first, so the refusal reaches canEdit through this mirror.
   const [writeRefusedShelved, setWriteRefusedShelved] = useState(false);
-  const shelved = isShelved(doc) || writeRefusedShelved;
+  // Set when the refetch after that refusal reads the document live again (RAR-07): the page leaves
+  // read-only so the edit lock is held again, and the held draft is then sent once more.
+  const [liveAgain, setLiveAgain] = useState(false);
+  const shelved = isShelved(doc) || (writeRefusedShelved && !liveAgain);
   const canEdit = !shelved && (doc.my_level === "edit" || doc.my_level === "manage");
   const shelvedRef = useRef(shelved);
   shelvedRef.current = shelved;
@@ -123,7 +126,14 @@ export function DocumentWorkspace({
   const { save, editable } = editLock;
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
-  const refusedShelved = useShelvedWriteGuard(wsId, doc.id, state.errorCode);
+  // One live-again retry per refusal run, so a server that keeps refusing never loops.
+  const liveRetryRef = useRef(false);
+  if (state.phase === "saved") liveRetryRef.current = false;
+  const refusedShelved = useShelvedWriteGuard(wsId, doc.id, state.errorCode, () => {
+    if (liveRetryRef.current || stateRef.current.errorCode !== "document_shelved") return;
+    liveRetryRef.current = true;
+    setLiveAgain(true);
+  });
   if (refusedShelved !== writeRefusedShelved) setWriteRefusedShelved(refusedShelved);
   const metadataRef = useRef<DocumentPageMetadataHandle>(null);
   const [metadataStatus, setMetadataStatus] = useState<DocumentPageMetadataStatus>({ dirty: false, pending: false, failed: false });
@@ -169,6 +179,16 @@ export function DocumentWorkspace({
     [],
   );
   unsavedRef.current = hasUnsavedWork;
+
+  // Live again after a refusal: once the edit lock is held, send the held draft on its key (the key is
+  // only kept while the lock id is the same, UNI-1645). Any new send clears errorCode, which ends this.
+  useEffect(() => {
+    if (!liveAgain) return;
+    if (state.errorCode !== "document_shelved") setLiveAgain(false);
+    else if (editable) save.retry();
+    // `save` is rebuilt on every state change and is read fresh here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveAgain, editable, state.errorCode]);
 
   // Unarchived while this page still holds a draft the server refused: send it again on the same key.
   useEffect(() => {

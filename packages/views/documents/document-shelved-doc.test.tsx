@@ -193,11 +193,15 @@ describe("UI-AR7 document_shelved from a write turns the page read-only", () => 
 
   it("stops autosave, says it once, invalidates the document and keeps the unsaved text", async () => {
     const patches: string[] = [];
-    const served = serve(pageDocument({ my_level: "edit" }), {
+    let current = pageDocument({ my_level: "edit" });
+    const served = serve(current, {
       "PATCH /api/v1/documents/d1": () => {
         patches.push("patch");
+        // From the refusal on, the server reads the document as shelved.
+        current = shelvedPage({ my_level: "edit" });
         return shelvedError();
       },
+      "GET /api/v1/documents/d1": () => ({ document: current }),
     });
     const toastError = vi.spyOn(toast, "error");
     renderView();
@@ -241,4 +245,36 @@ describe("UI-AR7 document_shelved from a write turns the page read-only", () => 
     await waitFor(() => expect(screen.getByText(t("documents.shelved_doc.banner"))).toBeInTheDocument(), { timeout: 8_000 });
     expect(screen.getByRole("textbox", { name: t("documents.editor.aria_label") })).toHaveAttribute("contenteditable", "false");
   }, 20_000);
+  // RAR-07: the document was unshelved again before the refetch landed. The held draft is sent once more on
+  // the same key, and the page leaves read-only when that save goes through.
+  it("retries the held save once on the same key when the refetched document is no longer shelved", async () => {
+    const keys: (string | undefined)[] = [];
+    const bodies: unknown[] = [];
+    serve(pageDocument({ my_level: "edit" }), {
+      "PATCH /api/v1/documents/d1": (init) => {
+        keys.push((init as { headers?: Record<string, string> } | undefined)?.headers?.["Idempotency-Key"]);
+        bodies.push(init?.body);
+        if (keys.length === 1) return shelvedError();
+        return { document: pageDocument({ my_level: "edit", revision: "4", content_text: "Nội dung A Thêm" }) };
+      },
+    });
+    renderView();
+    const surface = await findEditor();
+    fireEvent.paste(surface, {
+      clipboardData: { files: [], getData: (type: string) => (type === "text/plain" ? "Thêm" : "") },
+    });
+    await waitFor(() => expect(keys).toHaveLength(2), { timeout: 10_000 });
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[0]).toBeTruthy();
+    // The retry waits for the edit lock again: it carries the held lock id like the first send.
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(bodies[1]).toMatchObject({ edit_lock_id: expect.any(String) });
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: t("documents.editor.aria_label") })).toHaveAttribute("contenteditable", "true"),
+    );
+    expect(screen.queryByText(t("documents.shelved_doc.banner"))).toBeNull();
+    // Once, not a loop: nothing more is sent.
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    expect(keys).toHaveLength(2);
+  }, 25_000);
 });

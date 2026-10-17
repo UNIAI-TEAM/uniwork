@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { isDocumentShelvedError } from "@uniwork/core/documents/errors";
 import { documentKeys } from "@uniwork/core/documents/keys";
+import { isShelved, type Document } from "@uniwork/core/types/document";
 
 /** One toast id, so a refusal heard twice (autosave and a rename) reads as one message. */
 const SHELVED_TOAST_ID = "document-shelved-write";
@@ -21,11 +22,20 @@ export function notifyDocumentShelved(t: (key: string) => string) {
  * machine (its `errorCode`) — reads the document again, so the page turns
  * read-only for someone who was editing while another person shelved it. The
  * autosave refusal is also announced here and returned, so the caller stops
- * writing and keeps the unsaved editor content.
+ * writing and keeps the unsaved editor content. When the document read again
+ * after that refusal is not shelved (unshelved in between), `onLiveAgain`
+ * lets the caller send its held draft again.
  */
-export function useShelvedWriteGuard(wsId: string, documentId: string, saveErrorCode: string | null): boolean {
+export function useShelvedWriteGuard(
+  wsId: string,
+  documentId: string,
+  saveErrorCode: string | null,
+  onLiveAgain?: () => void,
+): boolean {
   const qc = useQueryClient();
   const { t } = useTranslation();
+  const onLiveAgainRef = useRef(onLiveAgain);
+  onLiveAgainRef.current = onLiveAgain;
   useEffect(
     () =>
       qc.getMutationCache().subscribe((event) => {
@@ -39,7 +49,11 @@ export function useShelvedWriteGuard(wsId: string, documentId: string, saveError
   useEffect(() => {
     if (!refused) return;
     notifyDocumentShelved(t);
-    void qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) });
+    const key = documentKeys.detail(wsId, documentId);
+    void qc.invalidateQueries({ queryKey: key }).then(() => {
+      const fresh = qc.getQueryData<Document | null>(key);
+      if (fresh && !isShelved(fresh)) onLiveAgainRef.current?.();
+    });
   }, [refused, qc, t, wsId, documentId]);
   return refused;
 }
