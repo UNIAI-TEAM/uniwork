@@ -5,6 +5,7 @@ import {
   DocumentEnvelopeSchema,
   DocumentUploadSchema,
   type Document,
+  type DocumentAccessLevel,
   type DocumentAsset,
   type DocumentDownload,
   type DocumentUpload,
@@ -57,6 +58,7 @@ export type CreateDocumentBody = {
   icon?: string;
   content?: unknown;
   visibility?: DocumentVisibility;
+  workspace_level?: DocumentAccessLevel;
 } & CreateDocumentPlacementWire;
 
 export interface PatchDocumentBody {
@@ -77,6 +79,8 @@ export interface PatchDocumentBody {
 export type CreateDocumentFileMeta = {
   /** Display title; defaults to the file name server-side. */
   title?: string;
+  visibility?: DocumentVisibility;
+  workspace_level?: DocumentAccessLevel;
 } & (
   | { parent_id?: string; parentId?: string; destination?: never }
   | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never }
@@ -190,6 +194,8 @@ export async function createDocumentFile(
       parent_id: meta?.parent_id ?? meta?.parentId,
       destination: meta?.destination,
       title: meta?.title,
+      visibility: meta?.visibility,
+      workspace_level: meta?.workspace_level,
     }),
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,

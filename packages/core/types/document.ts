@@ -349,6 +349,17 @@ export const DocumentSummarySchema = z.object({
   my_level: z.string().nullable().optional().catch(undefined),
   via: z.string().nullable().optional(),
   admin_scope: z.boolean().optional().catch(undefined),
+  share_scope: z
+    .object({
+      home_workspace: z.boolean(),
+      users: z.number().int().nonnegative(),
+      workspaces: z.number().int().nonnegative(),
+      organization: z.boolean(),
+      public_link: z.boolean(),
+    })
+    .nullable()
+    .optional()
+    .catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
@@ -380,6 +391,21 @@ export const DocumentSummarySchema = z.object({
 });
 /** Uploaded bytes, or something UniWork made (page, folder, blank file, converted copy). */
 export type DocumentOrigin = "upload" | "created";
+
+/**
+ * Compact share-scope counts attached to list and summary rows (SH-S3 §2.1,
+ * addendum §6.4 / §7): lets every row show who can see the document without a
+ * per-row shares fetch. A malformed or partial block degrades to `undefined`
+ * so the row still renders and falls back to `visibility`.
+ */
+export const DocumentShareScopeSchema = z.object({
+  home_workspace: z.boolean(),
+  users: z.number().int().nonnegative(),
+  workspaces: z.number().int().nonnegative(),
+  organization: z.boolean(),
+  public_link: z.boolean(),
+});
+export type DocumentShareScope = z.infer<typeof DocumentShareScopeSchema>;
 
 // The parser always fills `path` ([] when absent); the type keeps it optional
 // so a row a view builds by hand (a favorite, a fixture) need not carry one.
@@ -466,6 +492,8 @@ export interface DocumentTreeNode {
   icon?: string | null;
   kind: DocumentKind;
   system_kind?: DocumentSystemKind | null;
+  visibility?: DocumentVisibility;
+  share_scope?: DocumentShareScope | null;
   position: number;
   children: DocumentTreeNode[];
 }
@@ -478,6 +506,8 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
     icon: z.string().nullable().optional(),
     kind: z.string(),
     system_kind: z.string().nullable().optional().catch(undefined),
+    visibility: z.string().optional().catch(undefined),
+    share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
     position: z.number().optional().default(0),
     children: z.array(DocumentTreeNodeSchema).optional().default([]),
   }),
