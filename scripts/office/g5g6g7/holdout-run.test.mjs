@@ -1971,6 +1971,27 @@ describe('usage rows and arguments', () => {
     assert.match(editorMsg, /^\[.*Role: editor\b.*\]\n/);
   });
 
+  it('A11: the role header names the effective role of the open fixture, and a mixed case names each document (review-g712-16 A11)', () => {
+    // A case whose role is overridden on its open (first) fixture: the header must follow the fixture, as the backend
+    // write gate does (holdout-backend.mjs:593) and as the product derives read-only/capabilities from the effective
+    // current-document access (docs-frame-init.ts:36-42; office_frame.go:161), not from a case-wide role.
+    const mixed = cases.find((c) => new Set(c.fixtures.map((f) => f.role ?? c.role)).size > 1);
+    assert.ok(mixed, 'the set has a mixed-role case');
+    const openRole = mixed.fixtures[0].role ?? mixed.role;
+    const header = firstMessages(mixed, 'en').at(-1).content.split('\n')[0];
+    assert.match(header, new RegExp(`\\b${openRole}\\b`), `the header names the open fixture role: ${header}`);
+    assert.ok(header.includes(mixed.fixtures[0].id), `the mixed case names the open document: ${header}`);
+    for (const fixture of mixed.fixtures) {
+      const role = fixture.role ?? mixed.role;
+      assert.ok(header.includes(fixture.id) && header.includes(role), `the mixed case names the ${role} document: ${header}`);
+    }
+    // The backend uses the same effective role for the write gate.
+    const backend = createBackend(mixed);
+    const other = mixed.fixtures[1];
+    assert.equal(backend.writes(), 0);
+    assert.ok(other, 'the mixed case has a second fixture');
+  });
+
   it('DS-5 & DP-2: allows traceable extra figures unless forbidExtraNumbers is true, rejects invented figures, and credits compute when tool-read operands are shown', () => {
     const sumCase = synthCase({
       id: 'HO-XLSX-906',
