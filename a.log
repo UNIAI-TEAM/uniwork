@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1847-save-01-desktop; git log --oneline -3
+4d4b7ffda02ac5c593767b11f221e522e2df542d
+4d4b7ffda02ac5c593767b11f221e522e2df542d
+4d4b7ffd merge: fork main 5d5b0896e (SAVECOPY fork half, UNI-1872) into SAVE-01
+11badcb3 test(e2e): add SAVE-01 first-save and My Folder e2e cases g, h, i
+5e480113 test(e2e): add SAVE-01 My Folder and destination routes to documents stub
