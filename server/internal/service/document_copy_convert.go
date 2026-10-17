@@ -98,7 +98,7 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 	filename := convertedFilename(sourceFile.Filename, job.TargetFormat.String)
 
 	var res DocumentFileResult
-	err = s.withDocumentMutation(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
+	err = s.withDocumentMutationOnShelved(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
 		}

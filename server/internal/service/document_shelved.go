@@ -56,6 +56,21 @@ func requireNotShelved(doc db.Document) error {
 	return nil
 }
 
+// shelveGate is the §3 read-only stance a mutation takes on a shelved
+// document, carried through withDocumentGateLocked.
+type shelveGate int8
+
+const (
+	// shelveWriteRefused is the default: every write on a shelved document
+	// answers ErrDocumentShelved (409 document_shelved) after the access
+	// gate, whoever the caller is.
+	shelveWriteRefused shelveGate = iota
+	// shelveWriteAllowed is for the commands §3 names allowed on a shelved
+	// document: favourites, the copy's source lock, and the share/link/
+	// break-glass revokes (Q-AR2 = a).
+	shelveWriteAllowed
+)
+
 func errShelveFolderTooLarge() error {
 	return coded(http.StatusBadRequest, "folder_too_large",
 		"thư mục có quá nhiều mục để lưu trữ một lần (tối đa 1000): hãy lưu trữ từng phần")

@@ -272,7 +272,7 @@ func TestApplyDocumentShareMergesHomeWorkspaceInAList(t *testing.T) {
 	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 
 	var got []db.DocumentShare
-	err := f.svc.withDocumentViewOrAdministerMutationLocked(f.ctx, Human(tn.aclOwner.ID), doc.ID, "",
+	err := f.svc.withDocumentViewOrAdministerMutationLocked(f.ctx, Human(tn.aclOwner.ID), doc.ID, "", shelveWriteRefused,
 		func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 			for _, in := range []DocumentShareInput{
 				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
