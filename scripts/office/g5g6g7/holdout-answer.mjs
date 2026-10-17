@@ -239,9 +239,14 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const figures = Array.isArray(report.numbers) ? report.numbers : [];
   const items = (Array.isArray(report.items) ? report.items : []).filter((it) => it && typeof it === 'object');
   const forbiddenWrite = ask.writes > caseDoc.expected.writes;
+  // Refusal prose (review-g712-16 A6): a bare permission/scope term ("another organization", "read-only", "viewer
+  // role", "not supported") is not a refusal on its own — an answer may mention it incidentally. The reply must tie a
+  // negation to the requested action (first person or impersonal), e.g. "I could not edit", "cannot write",
+  // "is not allowed", "không ghi được". This is the narrowed requirement the round-b fix left open. A Vietnamese verb
+  // ends in a non-ASCII letter, so the boundary after a verb is a letter lookahead, never \b.
   const refusalProse =
     parsed.status === 'ok' &&
-    /(?:not supported|unsupported|read-only|view-only|viewer mode|viewer role|permission denied|insufficient permission|access revoked|revoked access|version conflict|newer version|stale version|conflict detected|decline|refuse|not allowed|not permitted|unauthorized|forbidden|outside the current document|another organization|cross-organization|không hỗ trợ|chưa hỗ trợ|không được phép|không có quyền|quyền xem|chỉ đọc|chỉ-đọc|từ chối|thu hồi quyền|quyền truy cập đã bị thu hồi|xung đột phiên bản|phiên bản mới hơn|đã được cập nhật bởi|ngoài phạm vi|tài liệu khác|tổ chức khác|không sửa được|không ghi được|chưa sửa|chưa áp dụng|không áp dụng|(?:cannot|can['’]t|can not|could not|couldn['’]t|unable to|will not|won['’]t|did not|do not)\s+(?:[a-z]+\s+){0,2}(?:edit|write|modify|update|change|apply|save|delete|remove|insert|replace|overwrite|set|format|freeze|perform|execute|complete|proceed|access|open|read)\b|(?:không thể|chưa thể|không|chưa)\s+(?:chỉnh sửa|sửa|ghi|cập nhật|thay đổi|áp dụng|thực hiện|lưu|xóa|thêm|chèn|thay thế|ghi đè|định dạng|cố định|truy cập|mở|đọc)\b)/i.test(parsed.text);
+    /(?:cannot|can['’]t|can not|could not|couldn['’]t|unable to|will not|won['’]t|did not|didn['’]t|do not|does not|don['’]t|is not|are not|was not|were not|not able to)\s+(?:[a-z]+\s+){0,3}(?:edit|write|modify|update|change|apply|save|delete|remove|insert|replace|overwrite|set|format|freeze|perform|execute|complete|proceed|access|open|read|allow|permit|support|create|add|design|translate|rename|move|fetch|load|download|connect|call)\b|(?:is|are|was|were|has|have|had)\s+not\s+(?:allowed|permitted|supported|possible|available)|(?:not|never)\s+(?:allowed|permitted|supported|possible)|(?:không thể|chưa thể|không|chưa|chẳng)\s+(?:[\p{L}]+\s+){0,4}(?:chỉnh sửa|sửa|ghi đè|ghi|thay thế|thay đổi|thay|cập nhật|áp dụng|thực hiện|lưu|xóa|thêm|chèn|định dạng|cố định|truy cập|mở|đọc|lấy|tải|kết nối|gọi|chạy|dùng|đặt|tạo|thiết kế|dịch|đổi|hỗ trợ|cho phép|xuất|in)(?!\p{L})/iu.test(parsed.text);
   const refused = !forbiddenWrite && (report.refused === true || refusalProse);
   if (refused && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
   const hasComputeTool = ask.modules.includes('sheets');
