@@ -80,6 +80,10 @@ type UploadSessionView struct {
 	ExpiresAt      time.Time
 	CompletedParts []UploadSessionCompletedPart
 	Parts          []UploadSessionPartURL
+	// Replayed is true when this view answers a create the caller already
+	// made with the same Idempotency-Key and fingerprint: the wire answers
+	// the same session with 200 instead of 201 (addendum §6.2).
+	Replayed bool
 }
 
 type CompleteUploadPartInput struct {
@@ -760,6 +764,7 @@ func (s *DocumentService) loadOpenSessionReplay(ctx context.Context, fs *FileSer
 		TotalParts: int(row.TotalParts),
 		ExpiresAt:  row.ExpiresAt.Time.UTC(),
 		Parts:      parts,
+		Replayed:   true,
 	}, nil
 }
 

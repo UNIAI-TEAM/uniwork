@@ -60,6 +60,11 @@ type DocumentLimitsSDO struct {
 	UploadMaxBytes int64                    `json:"upload_max_bytes" description:"Dung lượng tối đa cho phép khi tải lên hoặc lưu tệp tài liệu (byte)" example:"209715200"`
 	SaveWarnRatio  float64                  `json:"save_warn_ratio" description:"Tỷ lệ cảnh báo sớm so với upload_max_bytes khi lưu trong trình soạn thảo (0..1)" example:"0.9"`
 	WebOpen        DocumentWebOpenLimitsSDO `json:"web_open" description:"Ngưỡng cảnh báo mềm theo định dạng khi mở trực tiếp trên trình duyệt"`
+	// Chunked upload (BIGUP-S1, addendum §6.2): present only when the active
+	// object store supports multipart uploads and presigned URLs. The local
+	// backend has neither, so the field is absent there and the web keeps the
+	// one-request flow.
+	ChunkedUploadThresholdBytes *int64 `json:"chunked_upload_threshold_bytes,omitempty" description:"Ngưỡng để client chuyển sang phiên tải lên nhiều phần (byte); vắng mặt khi backend lưu trữ không hỗ trợ multipart + presign" example:"20971520"`
 }
 
 type DocumentWebOpenLimitsSDO struct {

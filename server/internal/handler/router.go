@@ -735,6 +735,16 @@ func New(d Deps) http.Handler {
 		CreatePreviewScope:      h.createPreviewScope,
 		GetPreviewAsset:         h.getPreviewAsset,
 
+		CreateWorkspaceUploadSession: h.createWorkspaceUploadSession,
+		CreateDocumentUploadSession:  h.createDocumentUploadSession,
+		CreateFrameUploadSession:     h.createFrameUploadSession,
+		GetUploadSession:             h.getUploadSession,
+		GetFrameUploadSession:        h.getFrameUploadSession,
+		CompleteUploadSession:        h.completeUploadSession,
+		CompleteFrameUploadSession:   h.completeFrameUploadSession,
+		AbortUploadSession:           h.abortUploadSession,
+		AbortFrameUploadSession:      h.abortFrameUploadSession,
+
 		MintOfficeFrameToken:     h.mintOfficeFrameToken,
 		OpenOfficeFrameDocument:  h.openOfficeFrameDocument,
 		GetOfficeFrameContent:    h.getOfficeFrameContent,
