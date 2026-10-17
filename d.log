@@ -1,0 +1,11 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test -race ./internal/handler -run "^(TestIsolationMatrix|TestIsolationRealtime|TestEveryBodyIDFieldHasAReferenceCase)$" -count=1 -v -timeout 60m > /tmp/iso.log 2>&1); rc=$?; echo; echo "ISO_EXIT=$rc"; grep -cE "^\s*--- PASS" /tmp/iso.log; grep -E "^\s*--- FAIL|DATA RACE|has no|panic:" /tmp/iso.log | head -30; grep -iE "edit.?lock|edit.?request" /tmp/iso.log | grep -E -- "--- (PASS|FAIL)" | head -40; echo "EDITLOCK_SUBTESTS=$(grep -iE "edit.?lock|edit.?request" /tmp/iso.log | grep -cE -- "--- PASS")"; tail -3 /tmp/iso.log
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+
+ISO_EXIT=0
+21
+    --- PASS: TestIsolationRealtime/edit_lock_topics (2.13s)
+EDITLOCK_SUBTESTS=1
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.02s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	445.497s

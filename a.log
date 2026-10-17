@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+ee644d3b3406d0604ace84483c814248eaba865f
+907fef4933177418ef994355c7f83e865fc4e898
+ee644d3b3 chore: merge root 907fef493 (RESTORE-01, size cap) into the edit-lock server lane
+907fef493 chore: merge RESTORE-01 web (UNI-1843, 1dafe7b8f) into the G5-G7 root
+313ffbb40 chore: merge RESTORE-01 server + core (UNI-1843, dd780a249) into the G5-G7 root
+dd780a249 fix(documents): flag the trash-search ACL-owner leg and drop break-glass (UNI-1843)
+1dafe7b8f test(e2e): FD-A12 restore follows the Thùng rác row button
+8bebfac4b fix(web): move the landing preview trash demo onto the trash row actions
