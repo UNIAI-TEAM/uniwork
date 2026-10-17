@@ -1,0 +1,10 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t1-smoke.mjs --target appimage; rc=$?; echo; echo "T1_APPIMAGE_EXIT=$rc"
+[g7-05/t1:appimage] Running AppImage smoke (--appimage-extract-and-run) on /home/ubuntu/work/uniwork-office/apps/shell/release/UniWork-Office-1.0.0-x86_64.AppImage (187288831 bytes, sha256=d45c8565fcaed55f9306a28a302006a72b56649f4fe22e1e663d89795bdb9a59)...
+[g7-05/t1] FAILED: Error: Timed out after 45000ms waiting for window URL containing "shell/out". Open windows: file:///tmp/appimage_extracted_e6ca4b0088ce781a7e5209fa98ecde9d/resources/app.asar/out/renderer/index.html
+    at waitForPageWithUrl (file:///home/ubuntu/work/uniwork-office/tools/g7-05/lib.mjs:551:9)
+    at async waitForShellReady (file:///home/ubuntu/work/uniwork-office/tools/g7-05/lib.mjs:557:21)
+    at async runSixFixturesSmoke (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t1-smoke.mjs:74:23)
+    at async runAppImageSmoke (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t1-smoke.mjs:244:23)
+    at async main (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t1-smoke.mjs:286:5)
+
+T1_APPIMAGE_EXIT=1

@@ -1,0 +1,12 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t2-net-zero.mjs; rc=$?; echo; echo "T2_NET_EXIT=$rc"
+[g7-05/t2] Launching /usr/bin/uniwork-office (isAppImage=false) with fresh empty userData...
+[g7-05/t2] Opening fixture fx-docx-report-vi.docx (11187B, sha256=5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c)
+[g7-05/t2] Fixture fx-docx-report-vi.docx rendered; performing local edit + Save...
+[g7-05/t2] FAILED: page.waitForFunction: Timeout 45000ms exceeded.
+    at editAndSaveFixture (/home/ubuntu/work/uniwork-office/tools/g7-05/lib.mjs:671:22)
+    at async main (/home/ubuntu/work/uniwork-office/tools/g7-05/t2-net-zero.mjs:157:18) {
+  log: [],
+  name: 'TimeoutError'
+}
+
+T2_NET_EXIT=1

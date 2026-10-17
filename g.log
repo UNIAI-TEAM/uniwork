@@ -1,0 +1,13 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t6-perf.mjs; rc=$?; echo; echo "T6_PERF_EXIT=$rc"
+[g7-05/t6] Starting T6 measurements (3 runs per fixture) using /usr/bin/uniwork-office...
+[g7-05/t6] FAILED: locator.waitFor: Timeout 45000ms exceeded.
+Call log:
+  - waiting for locator('.sheet-tab').first() to be visible
+
+    at waitForFixtureFirstPaint (/home/ubuntu/work/uniwork-office/tools/g7-05/lib.mjs:597:46)
+    at async main (/home/ubuntu/work/uniwork-office/tools/g7-05/t6-perf.mjs:260:30) {
+  log: [ "  - waiting for locator('.sheet-tab').first() to be visible" ],
+  name: 'TimeoutError'
+}
+
+T6_PERF_EXIT=1

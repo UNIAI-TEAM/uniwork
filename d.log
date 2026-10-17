@@ -1,0 +1,12 @@
+$ xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t1-smoke.mjs --target deb; rc=$?; echo; echo "T1_DEB_EXIT=$rc"
+[g7-05/t1:deb] Installing /home/ubuntu/work/uniwork-office/apps/shell/release/UniWork-Office_1.0.0_amd64.deb (152579100 bytes, sha256=e8753ac29805c263591c322226aee31b11ab7fd43bba490c493901a39d47e456)...
+[g7-05/t1:deb] Installed size of "/opt/UniWork Office": 574764888 bytes (548.14 MiB)
+[g7-05/t1] FAILED: Error: Timed out after 45000ms waiting for window URL containing "shell/out". Open windows: file:///opt/UniWork%20Office/resources/app.asar/out/renderer/index.html
+    at waitForPageWithUrl (file:///home/ubuntu/work/uniwork-office/tools/g7-05/lib.mjs:551:9)
+    at async waitForShellReady (file:///home/ubuntu/work/uniwork-office/tools/g7-05/lib.mjs:557:21)
+    at async runSixFixturesSmoke (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t1-smoke.mjs:74:23)
+    at async runDebSmoke (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t1-smoke.mjs:167:23)
+    at async main (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t1-smoke.mjs:278:5)
+xvfb-run: error: problem while cleaning up temporary directory
+
+T1_DEB_EXIT=5
