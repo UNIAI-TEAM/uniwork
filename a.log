@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; echo "HEAD_PROBE_DONE"
+935f9f2824d7b1fd9fb26bdd02e8def878ded689
+935f9f282 fix(office): allow core.xml save metadata in oracleDocxEdit and save D-E1 diff artifacts (UNI-1385)
+c0722173c fix(office): remove raw SQL overrides in G7-08 preconditions (UNI-1385)
+d1f3dcf01 fix(office): bind sheets dry-run AI credentials/model and record D-E1 save+roundtrip
+941425fa3 fix(office): wait for sheets workbook ready and only require modelChip on byok (UNI-1385)
+b1b41d44f fix(office): match PROTOCOL_NS uniwork.office.docs and kind in postMessage sniffer (UNI-1385)
+b6b89f877 fix(office): set FF_OFFICE_AI_* env and fix feature_flag_overrides SQL in preconditions.mjs (UNI-1385)
+8103bcdf6 fix(office): resolve harness pidFile, unquoted server.env, and postgres container in preconditions.mjs (UNI-1385)
+54ffc83a1 fix(office): point G7-08 server provider restart at server/bin/harness-server and /healthz (UNI-1385)
+HEAD_PROBE_DONE

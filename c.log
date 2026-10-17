@@ -1,0 +1,43 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/g7-08/*.test.mjs 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "G708_EXIT=$rc"
+ok 16 - expandMatrixRuns produces 52 automated row-runs + 2 hitl Word runs with web runs ordered first
+  ---
+  duration_ms: 2.286657
+  ...
+# Subtest: importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10)
+ok 17 - importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10)
+  ---
+  duration_ms: 10.473773
+  ...
+# node:internal/modules/esm/get_format:219
+#   throw new ERR_UNKNOWN_FILE_EXTENSION(ext, filepath);
+#         ^
+# TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".ts" for /workspace/packages/office-upstream/upstream/packages/docx-engine/src/ooxml-normalize.ts
+#     at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:219:9)
+#     at defaultGetFormat (node:internal/modules/esm/get_format:245:36)
+#     at defaultLoad (node:internal/modules/esm/load:120:22)
+#     at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:32) {
+#   code: 'ERR_UNKNOWN_FILE_EXTENSION'
+# }
+# Node.js v22.14.0
+# Subtest: scripts/office/g5g6g7/g7-08/run-g7-08.test.mjs
+not ok 5 - scripts/office/g5g6g7/g7-08/run-g7-08.test.mjs
+  ---
+  duration_ms: 82.435899
+  location: '/workspace/scripts/office/g5g6g7/g7-08/run-g7-08.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 16
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 209.459503
+
+G708_EXIT=1

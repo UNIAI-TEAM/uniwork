@@ -1,0 +1,10 @@
+$ pnpm knip 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+Duplicate exports (1)
+HARNESS_EXIT|ROW_EXIT  scripts/office/g5g6g7/g7-08/ooxml.mjs
+ ELIFECYCLE  Command failed with exit code 1.
+
+KNIP_EXIT=1

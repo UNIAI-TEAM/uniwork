@@ -1,0 +1,15 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/*.test.mjs scripts/office/g5g6g7/*.test.mjs > /tmp/office.tap 2>&1; rc=$?; grep -nE -A25 "^\s*not ok" /tmp/office.tap | head -80; tail -12 /tmp/office.tap; echo; echo "OFFICE_SCRIPTS_EXIT=$rc"
+  duration_ms: 0.303143
+  ...
+# not_run: OFFICE_ENGINE_TEST_URL is not set, the container rows were not exercised
+1..148
+# tests 329
+# suites 34
+# pass 329
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6219.391712
+
+OFFICE_SCRIPTS_EXIT=0
