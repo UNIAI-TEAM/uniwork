@@ -132,6 +132,22 @@ describe("documentErrorMessage", () => {
     );
   });
 
+  it("maps 423 document_locked to localized copy in vi and en instead of the raw server sentence (V-7)", () => {
+    const i18n = initI18n();
+    const tVi = i18n.getFixedT("vi");
+    const tEn = i18n.getFixedT("en");
+    const err = new ApiError("tài liệu đang được người khác sửa", "document_locked", 423, undefined, {
+      holder_name: "An",
+    });
+
+    expect(documentErrorMessage(err, tVi, "documents.file.commit_failed", { locale: "vi" })).toBe(
+      "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại.",
+    );
+    expect(documentErrorMessage(err, tEn, "documents.file.commit_failed", { locale: "en" })).toBe(
+      "Someone else is editing this document. Wait until they finish or take over editing, then try again.",
+    );
+  });
+
   it("maps a failed upload with an open resumable session to documents.upload.failed_resumable", () => {
     const t = fakeT();
     documentErrorMessage(new Error("network timeout"), t, "fallback", { resumable: true });

@@ -8934,7 +8934,8 @@
       "progress_status": "Uploading {{name}}",
       "drop_progress": "Uploading {{name}} · {{percent}}%",
       "paused_status": "Paused",
-      "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue."
+      "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue.",
+      "document_locked": "Someone else is editing this document. Wait until they finish or take over editing, then try again."
     },
     "file": {
       "metadata_title": "File details",

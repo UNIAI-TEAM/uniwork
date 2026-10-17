@@ -106,6 +106,9 @@ export function documentErrorMessage(
     }
     return t("documents.errors.unsupported_media_type");
   }
+  if (code === "document_locked" || (error instanceof ApiError && error.status === 423)) {
+    return t("documents.upload.document_locked");
+  }
   if (code && CODED.has(code)) return t(`documents.errors.${code}`, { max: TREE_MAX_LEVEL });
   if (opts?.resumable) return t("documents.upload.failed_resumable");
   return apiErrorMessage(error) ?? t(fallbackKey, opts?.fallbackOpts);

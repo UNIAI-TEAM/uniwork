@@ -8929,7 +8929,8 @@
       "progress_status": "Đang tải lên {{name}}",
       "drop_progress": "Đang tải lên {{name}} · {{percent}}%",
       "paused_status": "Đã tạm dừng",
-      "failed_resumable": "Chưa tải lên hết tệp. Tiến độ đã được giữ lại — bấm Tải lên để tiếp tục."
+      "failed_resumable": "Chưa tải lên hết tệp. Tiến độ đã được giữ lại — bấm Tải lên để tiếp tục.",
+      "document_locked": "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại."
     },
     "file": {
       "metadata_title": "Thông tin tệp",
