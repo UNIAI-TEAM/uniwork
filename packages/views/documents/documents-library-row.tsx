@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -33,7 +33,6 @@ import {
   isFolderRow,
   rowFormat,
   rowAccessLabelKey,
-  rowOrigin,
   rowSizeBytes,
   rowTitle,
   rowUpdatedAt,
@@ -98,19 +97,16 @@ export function LibraryRowView({
   row,
   handlers,
   ladder,
-  typeCell,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
   /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
   ladder: LibraryLadder;
-  typeCell?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
   const title = rowTitle(row) || t("documents.detail.untitled");
   const format = rowFormat(row);
-  const origin = rowOrigin(row);
   const folder = isFolderRow(row);
   const doc = row.type === "document" ? row.doc : null;
   const source = row.type === "source" ? row.source : null;
@@ -134,11 +130,16 @@ export function LibraryRowView({
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
-  const accessKey = rowAccessLabelKey(row);
+  // The board's Truy cập cell: scope on line 1 (amber lock + "Hạn chế" for
+  // restricted — never "Riêng tư"), the viewer's level on line 2, "Chủ sở hữu"
+  // when the row's via is owner. The narrow secondary line still shows the
+  // bare level word until the column joins.
+  const levelKey = rowAccessLabelKey(row);
   const visibilityKey = rowVisibilityLabelKey(row);
+  const levelLabel = doc?.via === "owner" ? t("documents.home.access.owner") : levelKey ? t(levelKey) : null;
   const restricted = doc?.visibility === "restricted";
   const starred = Boolean(doc && handlers.isStarred(doc.id));
-  const metaLine = [editor, updated, size].filter(Boolean).join(" · ");
+  const metaTail = [updated, size].filter(Boolean).join(" · ");
 
   // A row whose archive stamp survived into a live list is inert: the trash
   // view (its own rows) owns restore/purge, so here nothing runs on it.
@@ -166,14 +167,16 @@ export function LibraryRowView({
     if (desktop) {
       actions.push({ id: "open-app", label: t("documents.home.row.open_app"), icon: MonitorUp, run: () => void appRequest.current?.() });
     }
-    if (handlers.onToggleStar) {
-      actions.push({
-        id: "star",
-        label: starred ? t("documents.home.row.unstar") : t("documents.home.row.star"),
-        icon: starred ? StarOff : Star,
-        run: () => handlers.onToggleStar?.(doc.id, starred),
-      });
-    }
+  }
+  // Star / Unstar reaches folders too (SV-4): every row but a trashed folder,
+  // wherever the host passes onToggleStar (home table, folder view, Starred).
+  if (doc && !trashed && handlers.onToggleStar) {
+    actions.push({
+      id: "star",
+      label: starred ? t("documents.home.row.unstar") : t("documents.home.row.star"),
+      icon: starred ? StarOff : Star,
+      run: () => handlers.onToggleStar?.(doc.id, starred),
+    });
   }
   // Each command follows the level of THIS row (create subfolder / rename /
   // move: edit, archive: manage); a trashed row offers none of them.
@@ -253,7 +256,8 @@ export function LibraryRowView({
       <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="truncate text-body text-foreground">{title}</span>
+          {/* TV-12: the truncated name still reads in full on hover. */}
+          <span title={title} className="truncate text-body text-foreground">{title}</span>
           {starred ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}
@@ -268,15 +272,17 @@ export function LibraryRowView({
             />
           ) : null}
         </span>
-        {/* The editor · date · size part rides on this line until its columns join the table; the level and the restricted mark until My access / Visibility do (library-columns.ts). Only the meta part truncates: the mark keeps its width inside the Name cell. */}
-        {metaLine || accessKey || restricted ? (
+        {/* The editor rides on this line until its column joins (40rem), the date · size pair until theirs do (28rem); the level and the restricted mark until Truy cập does (53rem, library-columns.ts). Only the meta parts truncate: the mark keeps its width inside the Name cell. */}
+        {editor || metaTail || levelLabel || restricted ? (
           <span data-library-access-line className={cn("flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-muted-foreground", ladder.accessLineHides)}>
-            {metaLine ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{metaLine}</span> : null}
-            {metaLine && (accessKey || restricted) ? (
-              <span aria-hidden className={cn("shrink-0", ladder.metaHides)}>·</span>
+            {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
+            {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
+            {metaTail ? <span className={cn("min-w-0 truncate", ladder.metaTailHides)}>{metaTail}</span> : null}
+            {(editor || metaTail) && (levelLabel || restricted) ? (
+              <span aria-hidden className={cn("shrink-0", editor ? ladder.metaHides : ladder.metaTailHides)}>·</span>
             ) : null}
-            {accessKey ? <span className="shrink-0">{t(accessKey)}</span> : null}
-            {accessKey && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
+            {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
+            {levelLabel && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
             {restricted && visibilityKey ? (
               <span className="flex shrink-0 items-center gap-1">
                 <Lock aria-hidden className="size-3 shrink-0" />
@@ -305,14 +311,22 @@ export function LibraryRowView({
             </button>
           )}
         </td>
-        {typeCell !== undefined ? (
-          <td className={cn("truncate px-3 py-2 text-caption text-muted-foreground", libraryCell(ladder, "type"))}>{typeCell}</td>
-        ) : null}
-        <td className={cn("px-3 py-2", libraryCell(ladder, "source"))}>
-          <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
-            <span className="truncate">{t(`documents.home.origin.${origin}`)}</span>
-          </span>
+        <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "access"))}>
+          {visibilityKey ? (
+            <span className="flex items-center gap-1.5 text-foreground">
+              {restricted ? (
+                <Lock aria-hidden className="size-3.5 shrink-0 text-warning" />
+              ) : (
+                <Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+              )}
+              <span className="truncate">{t(visibilityKey)}</span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+          {levelLabel ? (
+            <span className="block truncate text-muted-foreground">{t("documents.home.access.you_prefix", { level: levelLabel })}</span>
+          ) : null}
         </td>
         <td className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
           {editor ? (
@@ -328,24 +342,6 @@ export function LibraryRowView({
         </td>
         <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>{updated || "—"}</td>
         <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>{size || "—"}</td>
-        {/* My access / Visibility exist only where the ladder has room for them; until then the secondary line carries them. */}
-        {libraryCell(ladder, "access") ? (
-          <td className={cn("px-3 py-2 text-caption text-foreground", libraryCell(ladder, "access"))}>
-            {accessKey ? <span className="block truncate">{t(accessKey)}</span> : <span className="text-muted-foreground">—</span>}
-          </td>
-        ) : null}
-        {libraryCell(ladder, "visibility") ? (
-          <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "visibility"))}>
-            {visibilityKey ? (
-              <span className="flex items-center gap-1.5 text-foreground">
-                {restricted ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
-                <span className="truncate">{t(visibilityKey)}</span>
-              </span>
-            ) : (
-              <span className="text-muted-foreground">—</span>
-            )}
-          </td>
-        ) : null}
         <td className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (

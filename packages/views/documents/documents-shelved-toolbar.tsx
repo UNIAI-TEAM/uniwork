@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
-import { ScopeTabsBar, TypeChipRow, type ScopeTab } from "./documents-library-toolbar";
+import { TypeChipRow } from "./documents-library-toolbar";
 import type { TypeChip } from "./library-rows";
 
 /** The Select value of the system row (a shelved item whose `shelved_by` is
@@ -29,9 +29,6 @@ export interface ShelvedByOption {
 }
 
 export interface ShelvedToolbarProps {
-  scope: ScopeTab | null;
-  count: { value: number; more: boolean } | null;
-  onScope: (scope: ScopeTab) => void;
   chip: TypeChip;
   onChip: (chip: TypeChip) => void;
   /** The "Lưu trữ bởi" options: members + former members seen on loaded rows + system. */
@@ -42,12 +39,12 @@ export interface ShelvedToolbarProps {
 }
 
 /**
- * The toolbar of the Lưu trữ list (Archive.dc, ARCHIVE-01 U-2): the same scope
- * tabs and Loại chips the other views carry, then the member filter — the
+ * The toolbar of the Lưu trữ list (Archive.dc, ARCHIVE-01 U-2): the Loại
+ * chips the other list views carry (the sidebar navigates), then the member filter — the
  * server has no `shelved_by` parameter, so it narrows only the loaded pages
  * and says so — and the fixed "Lưu trữ gần nhất" sort the server answers with.
  */
-export function ShelvedToolbar({ scope, count, onScope, chip, onChip, shelvedByOptions, shelvedBy, onShelvedBy }: ShelvedToolbarProps) {
+export function ShelvedToolbar({ chip, onChip, shelvedByOptions, shelvedBy, onShelvedBy }: ShelvedToolbarProps) {
   const { t } = useTranslation();
   const items = [
     { value: SHELVED_BY_ANY, label: t("documents.shelved_list.filter_by_any") },
@@ -56,7 +53,6 @@ export function ShelvedToolbar({ scope, count, onScope, chip, onChip, shelvedByO
   const selected = shelvedBy ?? SHELVED_BY_ANY;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <ScopeTabsBar scope={scope} count={count} onScope={onScope} />
       <TypeChipRow chip={chip} onChip={onChip} />
       <div className="flex min-w-0 flex-col gap-0.5">
         <div className="flex items-center gap-2">

@@ -29,7 +29,7 @@ const KIND_KEYS = [
   "documents.page.new_page",
   "documents.copy.page_not_supported",
   "documents.archive.archive_folder_description",
-  "documents.home.create.page.card",
+  "documents.home.create.page.chip",
   "documents.home.create.page.hint",
   "documents.home.create.page.menu",
   "documents.home.chips.page",

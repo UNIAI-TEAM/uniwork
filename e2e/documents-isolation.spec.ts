@@ -176,7 +176,7 @@ test("a plain member creates, types and reloads a page in the browser", async ({
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginViaUi(page, m.aMember.email);
   await page.goto(`/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents`);
-  await expect(page.getByRole("heading", { name: "Tài liệu", level: 1 })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("heading", { name: "Tài liệu của workspace", level: 1 })).toBeVisible({ timeout: 60_000 });
 
   await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
