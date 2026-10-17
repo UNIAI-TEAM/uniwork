@@ -4,7 +4,6 @@ import {
   type DocumentArchive,
   type DocumentAsset,
   type DocumentComment,
-  type DocumentFavorite,
   type DocumentLinkEnvelope,
   type DocumentSettings,
   type DocumentShareBatch,
@@ -12,6 +11,7 @@ import {
   type DocumentUpload,
   type DocumentVersionResult,
 } from "../types/document";
+import type { DocumentFavorite } from "../types/document-favorites";
 import type { CommentReaction } from "../types/task-collaboration";
 
 // Identity checks on mutation answers. An endpoint already returns null when
