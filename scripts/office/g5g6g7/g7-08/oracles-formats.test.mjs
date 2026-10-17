@@ -80,20 +80,16 @@ test('re-exports from oracles.mjs expose all OOXML and verdict helpers', () => {
 });
 
 test('oracleVersionAndSave (G6-A03 + G6-A04) PASSes faithful read/edit and FAILs/BLOCKs each violation', () => {
-  // Faithful read turn: zero new versions, revision unchanged, zero save intents
-  assert.equal(
-    oracleVersionAndSave({
-      operation: 'read',
-      versionsBefore: 1,
-      versionsAfterAiTurn: 1,
-      revisionBefore: 'rev-1',
-      revisionAfterAiTurn: 'rev-1',
-      saveIntentsDuringAiTurn: 0,
-    }).status,
-    VERDICT.PASS,
-  );
+  const validRead = {
+    operation: 'read',
+    versionsBefore: 1,
+    versionsAfterAiTurn: 1,
+    revisionBefore: 'rev-1',
+    revisionAfterAiTurn: 'rev-1',
+    saveIntentsDuringAiTurn: 0,
+  };
+  assert.equal(oracleVersionAndSave(validRead).status, VERDICT.PASS);
 
-  // Faithful edit turn + explicit Save: +0 during AI turn, +1 after explicit Save
   const validEdit = {
     operation: 'edit',
     versionsBefore: 1,
@@ -110,100 +106,76 @@ test('oracleVersionAndSave (G6-A03 + G6-A04) PASSes faithful read/edit and FAILs
   };
   assert.equal(oracleVersionAndSave(validEdit).status, VERDICT.PASS);
 
-  // BLOCKED when before/after or Save fields missing
-  assert.equal(oracleVersionAndSave(null).status, VERDICT.BLOCKED);
-  assert.equal(oracleVersionAndSave({ operation: 'read', versionsBefore: 1 }).status, VERDICT.BLOCKED);
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, versionsAfterSave: undefined }).reason,
-    'missing_save_version_or_revision_artifact',
-  );
+  // BLOCKED when required fields are omitted (R1-1)
+  assert.equal(oracleVersionAndSave(null).reason, 'missing_version_artifact');
+  assert.equal(oracleVersionAndSave({ ...validRead, operation: undefined }).reason, 'missing_operation');
+  assert.equal(oracleVersionAndSave({ ...validEdit, operation: 'unknown' }).reason, 'missing_operation');
+  assert.equal(oracleVersionAndSave({ operation: 'read', versionsBefore: 1 }).reason, 'missing_version_or_revision_before_after');
+  assert.equal(oracleVersionAndSave({ ...validRead, saveIntentsDuringAiTurn: undefined }).reason, 'missing_save_intents_during_ai_turn');
+  assert.equal(oracleVersionAndSave({ ...validEdit, versionsAfterSave: undefined }).reason, 'missing_save_version_or_revision_artifact');
+  assert.equal(oracleVersionAndSave({ ...validEdit, aiChangeVisibleBeforeSave: undefined }).reason, 'missing_ai_change_visible_before_save');
+  assert.equal(oracleVersionAndSave({ ...validEdit, aiChangeUndoableBeforeSave: undefined }).reason, 'missing_ai_change_undoable_before_save');
+  assert.equal(oracleVersionAndSave({ ...validEdit, saveUsedCurrentBaseRevision: undefined }).reason, 'missing_save_used_current_base_revision');
+  assert.equal(oracleVersionAndSave({ ...validEdit, doubleClickVersionsCreated: undefined }).reason, 'missing_double_click_versions_created');
 
-  // FAIL when AI turn increments version count (G6-A03)
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, versionsAfterAiTurn: 2 }).reason,
-    'ai_turn_changed_version_count',
-  );
+  // FAIL when AI turn increments version count, changes revision, or emits save intent (G6-A03)
+  assert.equal(oracleVersionAndSave({ ...validEdit, versionsAfterAiTurn: 2 }).reason, 'ai_turn_changed_version_count');
+  assert.equal(oracleVersionAndSave({ ...validEdit, revisionAfterAiTurn: 'rev-2' }).reason, 'ai_turn_changed_document_revision');
+  assert.equal(oracleVersionAndSave({ ...validEdit, saveIntentsDuringAiTurn: 1 }).reason, 'ai_turn_created_save_intent');
 
-  // FAIL when AI turn advances document revision before Save (G6-A03)
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, revisionAfterAiTurn: 'rev-2' }).reason,
-    'ai_turn_changed_document_revision',
-  );
-
-  // FAIL when AI turn emits a save intent (G6-A03)
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, saveIntentsDuringAiTurn: 1 }).reason,
-    'ai_turn_created_save_intent',
-  );
-
-  // FAIL when explicit Save creates 0 or 2 versions (G6-A04)
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, versionsAfterSave: 1 }).reason,
-    'explicit_save_version_delta_not_one',
-  );
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, versionsAfterSave: 3 }).reason,
-    'explicit_save_version_delta_not_one',
-  );
-
-  // FAIL when explicit Save does not advance revision
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, revisionAfterSave: 'rev-1' }).reason,
-    'explicit_save_did_not_advance_revision',
-  );
-
-  // FAIL when AI change is not visible or not undoable before Save, or double-click duplicates
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, aiChangeVisibleBeforeSave: false }).reason,
-    'ai_change_not_visible_before_save',
-  );
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, aiChangeUndoableBeforeSave: false }).reason,
-    'ai_change_not_undoable_before_save',
-  );
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, saveUsedCurrentBaseRevision: false }).reason,
-    'save_did_not_use_current_base_revision',
-  );
-  assert.equal(
-    oracleVersionAndSave({ ...validEdit, doubleClickVersionsCreated: 2 }).reason,
-    'double_click_save_created_duplicate_version',
-  );
+  // FAIL when explicit Save creates 0 or 2 versions, or fails Save invariants (G6-A04)
+  assert.equal(oracleVersionAndSave({ ...validEdit, versionsAfterSave: 1 }).reason, 'explicit_save_version_delta_not_one');
+  assert.equal(oracleVersionAndSave({ ...validEdit, versionsAfterSave: 3 }).reason, 'explicit_save_version_delta_not_one');
+  assert.equal(oracleVersionAndSave({ ...validEdit, revisionAfterSave: 'rev-1' }).reason, 'explicit_save_did_not_advance_revision');
+  assert.equal(oracleVersionAndSave({ ...validEdit, aiChangeVisibleBeforeSave: false }).reason, 'ai_change_not_visible_before_save');
+  assert.equal(oracleVersionAndSave({ ...validEdit, aiChangeUndoableBeforeSave: false }).reason, 'ai_change_not_undoable_before_save');
+  assert.equal(oracleVersionAndSave({ ...validEdit, saveUsedCurrentBaseRevision: false }).reason, 'save_did_not_use_current_base_revision');
+  assert.equal(oracleVersionAndSave({ ...validEdit, doubleClickVersionsCreated: 2 }).reason, 'double_click_save_created_duplicate_version');
 });
 
 test('oracleCapabilityAndToolSurface (G6-A06) enforces absent-not-disabled and bound-document tool exclusions', () => {
-  assert.equal(
-    oracleCapabilityAndToolSurface({
-      offeredTools: ['read_Sheet', 'write_cells'],
-      controls: [{ capability: 'write_cells', present: true, disabled: false }],
-      executedTools: ['read_Sheet'],
-      unsupportedToolsOnHost: ['insert_chart'],
-    }).status,
-    VERDICT.PASS,
-  );
+  const validSurface = {
+    operation: 'edit',
+    offeredTools: ['read_range', 'propose_operations'],
+    controls: [{ capability: 'propose_operations', present: true, disabled: false }],
+    executedTools: ['read_range'],
+    unsupportedToolsOnHost: ['insert_chart'],
+  };
+  assert.equal(oracleCapabilityAndToolSurface(validSurface).status, VERDICT.PASS);
 
-  assert.equal(oracleCapabilityAndToolSurface(null).status, VERDICT.BLOCKED);
+  // BLOCKED on missing offeredTools, missing controls, or missing executedTools on edit (R1-3)
+  assert.equal(oracleCapabilityAndToolSurface(null).reason, 'missing_capability_surface_artifact');
+  assert.equal(oracleCapabilityAndToolSurface({ ...validSurface, controls: undefined }).reason, 'missing_capability_controls_artifact');
+  assert.equal(oracleCapabilityAndToolSurface({ ...validSurface, executedTools: undefined }).reason, 'missing_executed_tools_artifact');
 
   // FAIL when bound-document forbidden tool (`create_document`) is offered
   assert.equal(
-    oracleCapabilityAndToolSurface({ offeredTools: ['read_Sheet', 'create_document'] }).reason,
+    oracleCapabilityAndToolSurface({ ...validSurface, offeredTools: ['read_range', 'create_document'] }).reason,
     'forbidden_or_unsupported_tool_offered',
   );
 
-  // FAIL when unsupported capability control is rendered disabled instead of absent (G6-A06)
+  // FAIL when unsupported capability control is rendered disabled or present (G6-A06)
   assert.equal(
     oracleCapabilityAndToolSurface({
-      offeredTools: ['extract_pdf_text'],
+      ...validSurface,
       unsupportedToolsOnHost: ['edit_text'],
       controls: [{ capability: 'edit_text', present: true, disabled: true }],
     }).reason,
     'capability_control_disabled_instead_of_absent',
   );
+  assert.equal(
+    oracleCapabilityAndToolSurface({
+      ...validSurface,
+      unsupportedToolsOnHost: ['edit_text'],
+      controls: [{ capability: 'edit_text', present: true, disabled: false }],
+    }).reason,
+    'unsupported_capability_control_present',
+  );
 
   // FAIL when unsupported tool is executed
   assert.equal(
     oracleCapabilityAndToolSurface({
-      offeredTools: ['extract_pdf_text'],
+      ...validSurface,
       unsupportedToolsOnHost: ['edit_text'],
       executedTools: ['edit_text'],
     }).reason,
@@ -219,11 +191,10 @@ test('oracleXlsxRead (X-R1, X-R2) and oracleXlsxEdit (X-E1) PASS faithful cases 
       'Tổng doanh thu Q1 (gồm cả dòng 6 ẩn Q1-005) là 22.060.000 đồng (dòng 8 SUM = 22.060.000, dòng 9 SUBTOTAL = 18.660.000). Khu vực Bắc: 9.060.000, Nam: 7.200.000, Trung: 5.800.000.',
   };
   assert.equal(oracleXlsxRead(validXr1).status, VERDICT.PASS);
-  assert.equal(oracleXlsxRead({ fixtureBytes: xlsxFixture.bytes, replyText: '' }).status, VERDICT.BLOCKED);
-  assert.equal(
-    oracleXlsxRead({ ...validXr1, replyText: 'Tổng doanh thu Q1 là 99.999.999 đồng.' }).reason,
-    'xlsx_read_numeric_mismatch',
-  );
+  assert.equal(oracleXlsxRead({ fixtureBytes: xlsxFixture.bytes, replyText: '' }).reason, 'missing_xlsx_read_artifact');
+  assert.equal(oracleXlsxRead({ ...validXr1, fixtureBytes: Buffer.from('not-xlsx') }).reason, 'xlsx_read_invalid_fixture_bytes');
+  assert.equal(oracleXlsxRead({ ...validXr1, replyText: 'Tổng doanh thu Q1 là 99.999.999 đồng.' }).reason, 'xlsx_read_numeric_mismatch');
+  assert.equal(oracleXlsxRead({ ...validXr1, replyText: 'Tổng 22.060.000, Bắc 1.000.000, Nam 7.200.000.' }).reason, 'xlsx_read_region_group_mismatch');
   assert.equal(
     oracleXlsxRead({ ...validXr1, replyText: 'Tổng 22.060.000, Bắc 9.060.000, Nam 7.200.000.' }).reason,
     'xlsx_read_missing_coverage_or_hidden_total_note',
@@ -236,10 +207,12 @@ test('oracleXlsxRead (X-R1, X-R2) and oracleXlsxEdit (X-E1) PASS faithful cases 
       'Cột Z có Q1-003/Q2-003 nhập số 10 thay vì 10% (phần trăm 0,1). Dòng 6 (Q1-005, Q2-005) đang ẩn nên SUBTOTAL dòng 9 là 18.660.000 khác SUM 22.060.000. Các ô lỗi: #DIV/0!, #N/A, #REF!.',
   };
   assert.equal(oracleXlsxRead(validXr2).status, VERDICT.PASS);
+  assert.equal(oracleXlsxRead({ ...validXr2, replyText: 'Không giải thích cột giảm giá.' }).reason, 'xlsx_read_missing_z_meaning');
   assert.equal(
-    oracleXlsxRead({ ...validXr2, replyText: validXr2.replyText.replace('#REF!', '') }).reason,
-    'xlsx_read_error_cells_mismatch',
+    oracleXlsxRead({ ...validXr2, replyText: 'Cột Z có số 10 khác 10% (phần trăm 0,1).' }).reason,
+    'xlsx_read_missing_hidden_or_total_handling',
   );
+  assert.equal(oracleXlsxRead({ ...validXr2, replyText: validXr2.replyText.replace('#REF!', '') }).reason, 'xlsx_read_error_cells_mismatch');
 
   // X-E1 edit tests
   const afterGood = buildEditedXlsxBytes(xlsxFixture.bytes);
@@ -249,40 +222,23 @@ test('oracleXlsxRead (X-R1, X-R2) and oracleXlsxEdit (X-E1) PASS faithful cases 
     panelFootprintText: 'Doanh thu Q1!AA2:AA7 (6 cells overwritten)',
   };
   assert.equal(oracleXlsxEdit(validXe1).status, VERDICT.PASS);
-  assert.equal(oracleXlsxEdit({ beforeBytes: xlsxFixture.bytes }).status, VERDICT.BLOCKED);
-
-  // Guard: wrong cached value
+  assert.equal(oracleXlsxEdit({ beforeBytes: xlsxFixture.bytes }).reason, 'missing_xlsx_edit_bytes');
+  assert.equal(oracleXlsxEdit({ ...validXe1, afterBytes: Buffer.from('not-xlsx') }).reason, 'xlsx_edit_invalid_workbook_bytes');
+  assert.equal(oracleXlsxEdit({ ...validXe1, targetRange: 'BAD_RANGE' }).reason, 'xlsx_edit_invalid_target_range');
+  assert.equal(oracleXlsxEdit({ ...validXe1, targetSheet: 'Không tồn tại' }).reason, 'xlsx_edit_missing_target_sheet');
   assert.equal(
-    oracleXlsxEdit({
-      ...validXe1,
-      afterBytes: buildEditedXlsxBytes(xlsxFixture.bytes, { wrongValue: true }),
-    }).reason,
+    oracleXlsxEdit({ ...validXe1, afterBytes: buildEditedXlsxBytes(xlsxFixture.bytes, { wrongValue: true }) }).reason,
     'xlsx_edit_target_cell_value_mismatch',
   );
-
-  // Guard: hardcoded number instead of formula
   assert.equal(
-    oracleXlsxEdit({
-      ...validXe1,
-      afterBytes: buildEditedXlsxBytes(xlsxFixture.bytes, { wrongFormula: true }),
-    }).reason,
+    oracleXlsxEdit({ ...validXe1, afterBytes: buildEditedXlsxBytes(xlsxFixture.bytes, { wrongFormula: true }) }).reason,
     'xlsx_edit_target_formula_invalid',
   );
-
-  // Guard: untouched cell A2 mutated
   assert.equal(
-    oracleXlsxEdit({
-      ...validXe1,
-      afterBytes: buildEditedXlsxBytes(xlsxFixture.bytes, { mutateCellA2: true }),
-    }).reason,
+    oracleXlsxEdit({ ...validXe1, afterBytes: buildEditedXlsxBytes(xlsxFixture.bytes, { mutateCellA2: true }) }).reason,
     'xlsx_edit_unchanged_region_mutated',
   );
-
-  // Guard: missing footprint before Save
-  assert.equal(
-    oracleXlsxEdit({ ...validXe1, panelFootprintText: '' }).reason,
-    'xlsx_edit_missing_footprint_before_save',
-  );
+  assert.equal(oracleXlsxEdit({ ...validXe1, panelFootprintText: '' }).reason, 'xlsx_edit_missing_footprint_before_save');
 });
 
 test('oraclePdfRead (F-R1) and oraclePdfEdit (F-E1) PASS faithful cases and FAIL/BLOCK every guard', () => {
@@ -292,29 +248,35 @@ test('oraclePdfRead (F-R1) and oraclePdfEdit (F-E1) PASS faithful cases and FAIL
       'Trang 1: Hóa đơn HD-2026-0001 ngày 01/10/2026 của Công ty TNHH Mẫu An Bình, tổng thanh toán 1.650.000 đồng.',
   };
   assert.equal(oraclePdfRead(validPdfRead).status, VERDICT.PASS);
-  assert.equal(oraclePdfRead({ fixtureBytes: pdfFixture.bytes, replyText: '' }).status, VERDICT.BLOCKED);
-  assert.equal(
-    oraclePdfRead({ ...validPdfRead, scannedPageWithoutOcr: true }).reason,
-    'pdf_scanned_page_faked',
-  );
+  assert.equal(oraclePdfRead({ fixtureBytes: pdfFixture.bytes, replyText: '' }).reason, 'missing_pdf_read_artifact');
+  assert.equal(oraclePdfRead({ ...validPdfRead, fixtureBytes: Buffer.from('not-pdf') }).reason, 'pdf_read_invalid_fixture_bytes');
+  assert.equal(oraclePdfRead({ ...validPdfRead, scannedPageWithoutOcr: true }).reason, 'pdf_scanned_page_faked');
   assert.equal(
     oraclePdfRead({ ...validPdfRead, replyText: 'HD-2026-0001 01/10/2026 Công ty TNHH Mẫu An Bình 1.650.000' }).reason,
     'pdf_read_missing_page_anchor',
   );
+  assert.equal(oraclePdfRead({ ...validPdfRead, replyText: 'Trang 1: thiếu mã hóa đơn' }).reason, 'pdf_read_missing_extracted_text');
+
+  // F-E1 BLOCKED when artifact or capability flag missing (R1-2)
+  assert.equal(oraclePdfEdit(null).reason, 'missing_pdf_edit_artifact');
+  const missingFlag = oraclePdfEdit({ beforeLines: ['a'], afterLines: ['b'] });
+  assert.equal(missingFlag.status, VERDICT.BLOCKED);
+  assert.equal(missingFlag.reason, 'missing_pdf_text_edit_capability_flag');
 
   // F-E1 when host lacks pdfium text edit: BLOCKED (77) if edit tools are absent, FAIL if offered/disabled
   const blockedNoPdfium = oraclePdfEdit({
     hostSupportsPdfTextEdit: false,
-    offeredTools: ['extract_pdf_text', 'get_pdf_Structure'],
+    offeredTools: ['read_pages', 'get_outline'],
     controls: [],
     executedTools: [],
   });
   assert.equal(blockedNoPdfium.status, VERDICT.BLOCKED);
   assert.equal(blockedNoPdfium.exitCode, 77);
+  assert.equal(blockedNoPdfium.reason, 'missing: ẩn công cụ sửa text khi pdfium không có (docs/office/g5g6g7/genoffice-tools.md:747)');
 
   const failLeakedEditTool = oraclePdfEdit({
     hostSupportsPdfTextEdit: false,
-    offeredTools: ['extract_pdf_text', 'edit_text'],
+    offeredTools: ['read_pages', 'edit_text'],
   });
   assert.equal(failLeakedEditTool.status, VERDICT.FAIL);
 
@@ -323,130 +285,115 @@ test('oraclePdfRead (F-R1) and oraclePdfEdit (F-E1) PASS faithful cases and FAIL
   const patchedLines = extracted.lines.map((line) =>
     line === 'Số hóa đơn: HD-2026-0001' ? 'Số hóa đơn: HD-2026-0001-AI' : line,
   );
+  const validPdfEdit = {
+    hostSupportsPdfTextEdit: true,
+    beforeLines: extracted.lines,
+    afterLines: patchedLines,
+    targetText: 'Số hóa đơn: HD-2026-0001',
+    expectedPatchText: 'Số hóa đơn: HD-2026-0001-AI',
+  };
+  assert.equal(oraclePdfEdit(validPdfEdit).status, VERDICT.PASS);
+  assert.equal(oraclePdfEdit({ hostSupportsPdfTextEdit: true }).reason, 'missing_pdf_edit_bytes_or_extraction');
+  assert.equal(oraclePdfEdit({ ...validPdfEdit, targetText: undefined }).reason, 'missing_pdf_target_or_expected_patch_text');
+  assert.equal(oraclePdfEdit({ ...validPdfEdit, afterLines: patchedLines.slice(0, -1) }).reason, 'pdf_page_or_line_count_changed');
+  assert.equal(oraclePdfEdit({ ...validPdfEdit, afterLines: extracted.lines }).reason, 'pdf_target_text_unchanged_or_wrong');
   assert.equal(
-    oraclePdfEdit({
-      hostSupportsPdfTextEdit: true,
-      beforeLines: extracted.lines,
-      afterLines: patchedLines,
-    }).status,
-    VERDICT.PASS,
-  );
-  assert.equal(
-    oraclePdfEdit({
-      hostSupportsPdfTextEdit: true,
-      beforeLines: extracted.lines,
-      afterLines: extracted.lines,
-    }).reason,
-    'pdf_target_text_unchanged_or_wrong',
-  );
-  assert.equal(
-    oraclePdfEdit({
-      hostSupportsPdfTextEdit: true,
-      beforeLines: extracted.lines,
-      afterLines: patchedLines.map((l, idx) => (idx === 0 ? 'Bị sửa nhầm' : l)),
-    }).reason,
+    oraclePdfEdit({ ...validPdfEdit, afterLines: patchedLines.map((l, idx) => (idx === 0 ? 'Bị sửa nhầm' : l)) }).reason,
     'pdf_extraction_outside_patch_modified',
+  );
+  assert.equal(
+    oraclePdfEdit({ ...validPdfEdit, beforeLines: ['Dòng khác'], afterLines: ['Dòng khác'] }).reason,
+    'pdf_target_text_not_found',
   );
 });
 
 test('oracleMarkdownRead/Edit (M-R1, M-E1), oracleHtmlRead/Edit (H-R1, H-E1), and oracleHitlWord (D-W1)', () => {
   // Markdown read & edit
-  assert.equal(
-    oracleMarkdownRead({
-      fixtureBytes: mdFixture.bytes,
-      replyText: 'Tổng doanh thu 22.060.000 đồng; việc cần làm: dùng 10% và sửa lỗi bảng quý 2.',
-    }).status,
-    VERDICT.PASS,
-  );
-  assert.equal(oracleMarkdownRead({ fixtureBytes: mdFixture.bytes, replyText: 'Thiếu số liệu' }).status, VERDICT.FAIL);
+  const validMdRead = {
+    fixtureBytes: mdFixture.bytes,
+    replyText: 'Tổng doanh thu 22.060.000 đồng; việc cần làm: dùng 10% và sửa lỗi bảng quý 2.',
+  };
+  assert.equal(oracleMarkdownRead(validMdRead).status, VERDICT.PASS);
+  assert.equal(oracleMarkdownRead(null).reason, 'missing_markdown_read_artifact');
+  assert.equal(oracleMarkdownRead({ fixtureBytes: mdFixture.bytes, replyText: 'Thiếu số liệu' }).reason, 'markdown_read_missing_cited_content');
+  assert.equal(oracleMarkdownRead({ ...validMdRead, fixtureBytes: Buffer.from('# Wrong heading', 'utf8') }).reason, 'markdown_read_invalid_fixture');
 
   const mdBefore = mdFixture.bytes.toString('utf8');
   const mdAfter = mdBefore.replace(
     'Tổng doanh thu quý 1 là 22.060.000 đồng, tính cả các dòng bị ẩn.',
     'Tổng doanh thu quý 1 đạt 22.060.000 đồng (đã gồm các dòng ẩn).',
   );
+  const validMdEdit = {
+    beforeBytes: mdFixture.bytes,
+    afterBytes: Buffer.from(mdAfter, 'utf8'),
+    targetLineIndex: 6,
+  };
+  assert.equal(oracleMarkdownEdit(validMdEdit).status, VERDICT.PASS);
+  assert.equal(oracleMarkdownEdit(null).reason, 'missing_markdown_edit_bytes');
+  assert.equal(oracleMarkdownEdit({ ...validMdEdit, targetLineIndex: undefined }).reason, 'missing_markdown_target_line');
   assert.equal(
-    oracleMarkdownEdit({
-      beforeBytes: mdFixture.bytes,
-      afterBytes: Buffer.from(mdAfter, 'utf8'),
-      targetLineIndex: 6,
-    }).status,
-    VERDICT.PASS,
-  );
-  assert.equal(
-    oracleMarkdownEdit({
-      beforeBytes: mdFixture.bytes,
-      afterBytes: Buffer.from(`---\ntitle: new\n---\n${mdAfter}`, 'utf8'),
-      targetLineIndex: 6,
-    }).reason,
+    oracleMarkdownEdit({ ...validMdEdit, afterBytes: Buffer.from(`---\ntitle: new\n---\n${mdAfter}`, 'utf8') }).reason,
     'markdown_frontmatter_modified',
   );
   assert.equal(
     oracleMarkdownEdit({
-      beforeBytes: mdFixture.bytes,
+      ...validMdEdit,
       afterBytes: Buffer.from(mdAfter.replace('dùng 10%', 'dùng [link](https://example.com)'), 'utf8'),
-      targetLineIndex: 6,
     }).reason,
     'markdown_links_or_assets_modified',
   );
   assert.equal(
-    oracleMarkdownEdit({
-      beforeBytes: mdFixture.bytes,
-      afterBytes: mdFixture.bytes,
-      targetLineIndex: 6,
-    }).reason,
-    'markdown_target_range_unchanged',
+    oracleMarkdownEdit({ ...validMdEdit, afterBytes: Buffer.from(mdAfter.replace('# Ghi chú họp', '# Đổi tiêu đề'), 'utf8') }).reason,
+    'markdown_outside_range_modified',
   );
+  assert.equal(oracleMarkdownEdit({ ...validMdEdit, afterBytes: mdFixture.bytes }).reason, 'markdown_target_range_unchanged');
 
   // HTML read & edit
-  assert.equal(
-    oracleHtmlRead({
-      fixtureBytes: htmlFixture.bytes,
-      replyText: 'Tiêu đề Bảng doanh thu quý 1 theo khu vực, tổng 22.060.000, mục Ghi chú.',
-    }).status,
-    VERDICT.PASS,
-  );
-  assert.equal(oracleHtmlRead({ fixtureBytes: htmlFixture.bytes, replyText: 'Thiếu' }).status, VERDICT.FAIL);
+  const validHtmlRead = {
+    fixtureBytes: htmlFixture.bytes,
+    replyText: 'Tiêu đề Bảng doanh thu quý 1 theo khu vực, tổng 22.060.000, mục Ghi chú.',
+  };
+  assert.equal(oracleHtmlRead(validHtmlRead).status, VERDICT.PASS);
+  assert.equal(oracleHtmlRead(null).reason, 'missing_html_read_artifact');
+  assert.equal(oracleHtmlRead({ ...validHtmlRead, fixtureBytes: Buffer.from('<div>bad</div>', 'utf8') }).reason, 'html_read_invalid_fixture');
+  assert.equal(oracleHtmlRead({ fixtureBytes: htmlFixture.bytes, replyText: 'Thiếu' }).reason, 'html_read_missing_outline_or_text');
 
   const htmlBefore = htmlFixture.bytes.toString('utf8');
   const htmlAfter = htmlBefore.replace(
     '<p>Dữ liệu mẫu để kiểm thử. Tổng đã gồm các đơn hàng bị ẩn trong bảng tính.</p>',
     '<p>Ghi chú đã được cập nhật cho kỳ rà soát quý 1.</p>',
   );
+  const validHtmlEdit = {
+    beforeBytes: htmlFixture.bytes,
+    afterBytes: Buffer.from(htmlAfter, 'utf8'),
+    frameSandbox: 'allow-scripts',
+    frameCsp: "default-src 'none'; connect-src 'none'",
+  };
+  assert.equal(oracleHtmlEdit(validHtmlEdit).status, VERDICT.PASS);
+  assert.equal(oracleHtmlEdit(null).reason, 'missing_html_edit_bytes');
+  assert.equal(oracleHtmlEdit({ ...validHtmlEdit, frameSandbox: undefined }).reason, 'missing_html_frame_sandbox');
+  assert.equal(oracleHtmlEdit({ ...validHtmlEdit, frameCsp: undefined }).reason, 'missing_html_frame_csp');
   assert.equal(
-    oracleHtmlEdit({
-      beforeBytes: htmlFixture.bytes,
-      afterBytes: Buffer.from(htmlAfter, 'utf8'),
-      frameSandbox: 'allow-scripts',
-      frameCsp: "default-src 'none'; connect-src 'none'",
-    }).status,
-    VERDICT.PASS,
-  );
-  assert.equal(
-    oracleHtmlEdit({
-      beforeBytes: htmlFixture.bytes,
-      afterBytes: Buffer.from(htmlAfter.replace('</p>', '<script>alert(1)</script></p>'), 'utf8'),
-    }).reason,
+    oracleHtmlEdit({ ...validHtmlEdit, afterBytes: Buffer.from(htmlAfter.replace('</p>', '<script>alert(1)</script></p>'), 'utf8') }).reason,
     'html_security_or_csp_violation',
   );
   assert.equal(
-    oracleHtmlEdit({
-      beforeBytes: htmlFixture.bytes,
-      afterBytes: Buffer.from(htmlAfter, 'utf8'),
-      frameSandbox: 'allow-scripts allow-same-origin',
-    }).reason,
+    oracleHtmlEdit({ ...validHtmlEdit, frameSandbox: 'allow-scripts allow-same-origin' }).reason,
     'html_security_or_csp_violation',
   );
+  assert.equal(oracleHtmlEdit({ ...validHtmlEdit, frameCsp: "default-src 'self'" }).reason, 'html_security_or_csp_violation');
   assert.equal(
-    oracleHtmlEdit({
-      beforeBytes: htmlFixture.bytes,
-      afterBytes: Buffer.from(htmlAfter.replace('<h2>Ghi chú</h2>', '<h2>Đổi</h2>'), 'utf8'),
-    }).reason,
+    oracleHtmlEdit({ ...validHtmlEdit, afterBytes: Buffer.from(htmlAfter.replace(/<p>[\s\S]*?<\/p>/, ''), 'utf8') }).reason,
+    'html_missing_target_element',
+  );
+  assert.equal(oracleHtmlEdit({ ...validHtmlEdit, afterBytes: htmlFixture.bytes }).reason, 'html_target_unchanged');
+  assert.equal(
+    oracleHtmlEdit({ ...validHtmlEdit, afterBytes: Buffer.from(htmlAfter.replace('<h2>Ghi chú</h2>', '<h2>Đổi</h2>'), 'utf8') }).reason,
     'html_outside_target_modified',
   );
 
   // D-W1 hitl Word oracle
-  assert.equal(oracleHitlWord({}).status, VERDICT.BLOCKED);
+  assert.equal(oracleHitlWord({}).reason, 'hitl_word_open_pending_user');
   assert.equal(oracleHitlWord({ openedCleanly: true }).status, VERDICT.PASS);
-  assert.equal(oracleHitlWord({ openedCleanly: false }).status, VERDICT.FAIL);
+  assert.equal(oracleHitlWord({ openedCleanly: false }).reason, 'hitl_word_open_failed');
 });

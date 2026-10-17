@@ -74,11 +74,20 @@ test('validateOoxmlPackage PASSes real DOCX and PPTX fixtures and BLOCKs/FAILs e
   const missing = validateOoxmlPackage(null);
   assert.equal(missing.status, VERDICT.BLOCKED);
   assert.equal(missing.exitCode, 77);
+  assert.equal(missing.reason, 'missing_ooxml_bytes');
 
   // Guard: non-zip bytes -> FAIL
   const badZip = validateOoxmlPackage(Buffer.from('not-a-zip'));
   assert.equal(badZip.status, VERDICT.FAIL);
   assert.equal(badZip.reason, 'ooxml_invalid_zip');
+
+  // Guard: corrupt zip entry (unsupported compression method in central directory) -> FAIL
+  const corruptZip = Buffer.from(docxFixture.bytes);
+  const cdPos = corruptZip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  corruptZip.writeUInt16LE(99, cdPos + 10);
+  const corruptRes = validateOoxmlPackage(corruptZip, { mainPart: 'word/document.xml' });
+  assert.equal(corruptRes.status, VERDICT.FAIL);
+  assert.equal(corruptRes.reason, 'ooxml_corrupt_zip_entry');
 
   // Guard: duplicate zip entry -> FAIL
   const entries = readZipEntries(docxFixture.bytes);
@@ -143,6 +152,15 @@ test('validateOoxmlPackage PASSes real DOCX and PPTX fixtures and BLOCKs/FAILs e
   const dupRelRes = validateOoxmlPackage(dupRel, { mainPart: 'word/document.xml' });
   assert.equal(dupRelRes.status, VERDICT.FAIL);
   assert.equal(dupRelRes.reason, 'ooxml_duplicate_relationship_id');
+
+  // Guard: _rels/.rels does not point to mainPart -> FAIL
+  const noMainRel = mutateZipParts(docxFixture.bytes, (parts) => {
+    const rels = parts['_rels/.rels'].toString('utf8');
+    parts['_rels/.rels'] = Buffer.from(rels.replace('word/document.xml', 'word/styles.xml'), 'utf8');
+  });
+  const noMainRelRes = validateOoxmlPackage(noMainRel, { mainPart: 'word/document.xml' });
+  assert.equal(noMainRelRes.status, VERDICT.FAIL);
+  assert.equal(noMainRelRes.reason, 'ooxml_missing_main_part_relationship');
 });
 
 test('oracleDocxRead (D-R1) PASSes faithful cited read and FAILs/BLOCKs every guard', () => {
@@ -164,7 +182,15 @@ test('oracleDocxRead (D-R1) PASSes faithful cited read and FAILs/BLOCKs every gu
   assert.equal(oracleDocxRead(faithful).status, VERDICT.PASS);
 
   // BLOCKED on missing artifact
-  assert.equal(oracleDocxRead({ fixtureBytes: docxFixture.bytes, replyText: '' }).status, VERDICT.BLOCKED);
+  const blockedRead = oracleDocxRead({ fixtureBytes: docxFixture.bytes, replyText: '' });
+  assert.equal(blockedRead.status, VERDICT.BLOCKED);
+  assert.equal(blockedRead.reason, 'missing_docx_read_artifact');
+
+  // FAIL on invalid fixture bytes
+  assert.equal(
+    oracleDocxRead({ ...faithful, fixtureBytes: Buffer.from('not-a-docx') }).reason,
+    'docx_read_invalid_fixture_bytes',
+  );
 
   // FAIL on missing anchors
   assert.equal(oracleDocxRead({ ...faithful, citedAnchors: [] }).reason, 'docx_read_missing_anchors');
@@ -205,7 +231,7 @@ test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BL
     parts['word/document.xml'] = Buffer.from(
       xml.replace(
         originalPara2,
-        'Báo cáo quý 1 ghi nhận tổng doanh thu 22.060.000 đồng, dẫn đầu là khu vực Bắc (9.560.000 đồng).',
+        'Báo cáo quý 1 ghi nhận tổng doanh thu 22.060.000 đồng, dẫn đầu là khu vực Bắc (9.060.000 đồng).',
       ),
       'utf8',
     );
@@ -216,13 +242,16 @@ test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BL
     afterBytes,
     oldVersionSha256: beforeSha,
     targetParagraphIndex: 2,
+    requiredTokens: ['22.060.000', '9.060.000'],
     roundTripHook: () => ({ normalizedOk: true, roundTripOk: true }),
   };
 
   assert.equal(oracleDocxEdit(baseObserved).status, VERDICT.PASS);
 
-  // BLOCKED on missing bytes, missing oldVersionSha256, or missing roundTrip result
-  assert.equal(oracleDocxEdit({ beforeBytes }).status, VERDICT.BLOCKED);
+  // BLOCKED on missing bytes, missing oldVersionSha256, missing roundTrip, missing target, or missing expected tokens
+  const missingBytes = oracleDocxEdit({ beforeBytes });
+  assert.equal(missingBytes.status, VERDICT.BLOCKED);
+  assert.equal(missingBytes.reason, 'missing_docx_edit_bytes');
   assert.equal(
     oracleDocxEdit({ ...baseObserved, oldVersionSha256: null }).reason,
     'missing_docx_old_version_sha256',
@@ -231,6 +260,12 @@ test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BL
     oracleDocxEdit({ ...baseObserved, roundTripHook: undefined, roundTrip: null }).reason,
     'missing_docx_round_trip_result',
   );
+  const missingTarget = oracleDocxEdit({ ...baseObserved, targetParagraphIndex: undefined });
+  assert.equal(missingTarget.status, VERDICT.BLOCKED);
+  assert.equal(missingTarget.reason, 'missing_docx_target_paragraph');
+  const missingTokens = oracleDocxEdit({ ...baseObserved, requiredTokens: undefined });
+  assert.equal(missingTokens.status, VERDICT.BLOCKED);
+  assert.equal(missingTokens.reason, 'missing_docx_expected_tokens');
 
   // FAIL on G6-A05 old-version sha256 mutated
   assert.equal(
@@ -242,6 +277,13 @@ test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BL
   assert.equal(
     oracleDocxEdit({ ...baseObserved, roundTripHook: () => ({ normalizedOk: true, roundTripOk: false }) }).reason,
     'docx_ooxml_normalize_or_round_trip_failed',
+  );
+
+  // FAIL on unparseable beforeBytes structure
+  const badBefore = Buffer.from('not-a-docx');
+  assert.equal(
+    oracleDocxEdit({ ...baseObserved, beforeBytes: badBefore, oldVersionSha256: sha256Hex(badBefore) }).reason,
+    'docx_edit_unparseable_structure',
   );
 
   // FAIL when non-document part (styles.xml) is modified
@@ -265,6 +307,18 @@ test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BL
     'docx_tables_modified',
   );
 
+  // FAIL when paragraph count changes
+  const extraPara = mutateZipParts(afterBytes, (parts) => {
+    parts['word/document.xml'] = Buffer.from(
+      parts['word/document.xml'].toString('utf8').replace('</w:body>', '<w:p><w:r><w:t>Extra</w:t></w:r></w:p></w:body>'),
+      'utf8',
+    );
+  });
+  assert.equal(
+    oracleDocxEdit({ ...baseObserved, afterBytes: extraPara }).reason,
+    'docx_paragraph_count_changed',
+  );
+
   // FAIL when untouched paragraph is modified
   const touchedOtherPara = mutateZipParts(afterBytes, (parts) => {
     parts['word/document.xml'] = Buffer.from(
@@ -282,6 +336,22 @@ test('oracleDocxEdit (D-E1 + G6-A05) PASSes faithful paragraph edit and FAILs/BL
     oracleDocxEdit({ ...baseObserved, afterBytes: beforeBytes }).reason,
     'docx_target_paragraph_unchanged',
   );
+
+  // FAIL when target paragraph rewrites with wrong figure (e.g. 9.560.000 instead of 9.060.000, R1-7)
+  const wrongFigureBytes = mutateZipParts(beforeBytes, (parts) => {
+    const xml = parts['word/document.xml'].toString('utf8');
+    parts['word/document.xml'] = Buffer.from(
+      xml.replace(
+        originalPara2,
+        'Báo cáo quý 1 ghi nhận tổng doanh thu 22.060.000 đồng, dẫn đầu là khu vực Bắc (9.560.000 đồng).',
+      ),
+      'utf8',
+    );
+  });
+  assert.equal(
+    oracleDocxEdit({ ...baseObserved, afterBytes: wrongFigureBytes }).reason,
+    'docx_target_paragraph_missing_expected_token',
+  );
 });
 
 test('oraclePptxRead (P-R1) and oraclePptxEdit (P-E1) PASS faithful cases and FAIL/BLOCK every guard', () => {
@@ -296,7 +366,13 @@ test('oraclePptxRead (P-R1) and oraclePptxEdit (P-E1) PASS faithful cases and FA
     oraclePptxRead({ fixtureBytes: pptxFixture.bytes, replyText: allText }).status,
     VERDICT.PASS,
   );
-  assert.equal(oraclePptxRead({ fixtureBytes: pptxFixture.bytes, replyText: '' }).status, VERDICT.BLOCKED);
+  const blockedPptxRead = oraclePptxRead({ fixtureBytes: pptxFixture.bytes, replyText: '' });
+  assert.equal(blockedPptxRead.status, VERDICT.BLOCKED);
+  assert.equal(blockedPptxRead.reason, 'missing_pptx_read_artifact');
+  assert.equal(
+    oraclePptxRead({ fixtureBytes: Buffer.from('not-pptx'), replyText: allText }).reason,
+    'pptx_read_invalid_fixture_bytes',
+  );
   assert.equal(
     oraclePptxRead({ fixtureBytes: pptxFixture.bytes, replyText: 'Chỉ có tiêu đề slide 1' }).reason,
     'pptx_read_missing_slide_shape_text',
@@ -319,12 +395,46 @@ test('oraclePptxRead (P-R1) and oraclePptxEdit (P-E1) PASS faithful cases and FA
     expectedText: 'Bản trình bày tổng hợp quý 1 đã cập nhật',
   };
   assert.equal(oraclePptxEdit(baseEdit).status, VERDICT.PASS);
-  assert.equal(oraclePptxEdit({ beforeBytes: pptxFixture.bytes }).status, VERDICT.BLOCKED);
+  const blockedPptxEdit = oraclePptxEdit({ beforeBytes: pptxFixture.bytes });
+  assert.equal(blockedPptxEdit.status, VERDICT.BLOCKED);
+  assert.equal(blockedPptxEdit.reason, 'missing_pptx_edit_bytes');
+
+  // Guard: missing target shape or expected text -> BLOCKED (R1-8)
+  const noShapeTarget = oraclePptxEdit({ ...baseEdit, targetSlideIndex: undefined });
+  assert.equal(noShapeTarget.status, VERDICT.BLOCKED);
+  assert.equal(noShapeTarget.reason, 'missing_pptx_target_shape');
+  const noExpectedText = oraclePptxEdit({ ...baseEdit, expectedText: undefined });
+  assert.equal(noExpectedText.status, VERDICT.BLOCKED);
+  assert.equal(noExpectedText.reason, 'missing_pptx_expected_text');
+
+  // Guard: unparseable beforeBytes structure -> FAIL
+  assert.equal(
+    oraclePptxEdit({ ...baseEdit, beforeBytes: Buffer.from('not-pptx') }).reason,
+    'pptx_edit_unparseable_structure',
+  );
+
+  // Guard: slide count / sldId list changed -> FAIL
+  const slideIdRemoved = mutateZipParts(editedPptx, (parts) => {
+    parts['ppt/presentation.xml'] = Buffer.from(
+      parts['ppt/presentation.xml'].toString('utf8').replace(/<p:sldId\b[^>]*r:id="rId3"\/>/, ''),
+      'utf8',
+    );
+  });
+  assert.equal(
+    oraclePptxEdit({ ...baseEdit, afterBytes: slideIdRemoved }).reason,
+    'pptx_slide_count_changed',
+  );
 
   // Guard: target shape unchanged
   assert.equal(
     oraclePptxEdit({ ...baseEdit, afterBytes: pptxFixture.bytes }).reason,
     'pptx_target_shape_unchanged',
+  );
+
+  // Guard: target shape modified to unexpected text
+  assert.equal(
+    oraclePptxEdit({ ...baseEdit, expectedText: 'Nội dung hoàn toàn khác' }).reason,
+    'pptx_target_shape_unexpected_text',
   );
 
   // Guard: non-target shape modified

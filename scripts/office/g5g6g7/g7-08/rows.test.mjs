@@ -132,12 +132,46 @@ test('expandMatrixRuns produces 52 automated row-runs + 2 hitl Word runs with we
 
   assert.deepEqual(
     hitl.map((r) => r.runId),
-    ['D-W1:hitl:web', 'D-W1:hitl:desktop'],
+    ['D-W1:uniwork:web:hitl', 'D-W1:byok:web:hitl'],
   );
+  assert.ok(hitl.every((r) => r.host === 'web'));
+  assert.deepEqual(
+    hitl.map((r) => r.provider),
+    ['uniwork', 'byok'],
+  );
+
+  const de1 = getRowById('D-E1');
+  assert.ok(de1.prompt.includes('9.060.000'));
+  assert.ok(!de1.prompt.includes('9.560.000'));
+  assert.deepEqual(de1.target.requiredTokens, ['22.060.000', '9.060.000']);
 
   const fe1Web = automated.find((r) => r.runId === 'F-E1:uniwork:web');
   const fe1Desktop = automated.find((r) => r.runId === 'F-E1:uniwork:desktop');
   assert.equal(fe1Web.knownMissing.length, 1);
   assert.equal(fe1Web.knownMissing[0].owner, 'G6-05/G6-03a');
   assert.equal(fe1Desktop.knownMissing.length, 0);
+});
+
+test('importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10)', async () => {
+  const fs = await import('node:fs');
+  const { syncBuiltinESMExports } = await import('node:module');
+  const origReadFileSync = fs.default.readFileSync;
+  let readCalls = 0;
+  fs.default.readFileSync = (...args) => {
+    readCalls += 1;
+    return origReadFileSync(...args);
+  };
+  syncBuiltinESMExports();
+  try {
+    const toolsMod = await import('./tools.mjs?no_io_probe=1');
+    const oraclesMod = await import('./oracles.mjs?no_io_probe=1');
+    const rowsMod = await import('./rows.mjs?no_io_probe=1');
+    assert.equal(readCalls, 0, 'module import must not call fs.readFileSync');
+    assert.equal(toolsMod.BOUND_DOCUMENT_FORBIDDEN_TOOLS.length, 9);
+    assert.equal(typeof oraclesMod.oracleVersionAndSave, 'function');
+    assert.equal(rowsMod.MATRIX_ROWS.length, 14);
+  } finally {
+    fs.default.readFileSync = origReadFileSync;
+    syncBuiltinESMExports();
+  }
 });
