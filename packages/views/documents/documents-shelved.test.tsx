@@ -81,6 +81,8 @@ interface Routes {
   members?: () => unknown[];
   post?: (path: string) => unknown;
   impact?: (path: string) => unknown;
+  /** The folder tree: at home the folder cards are drawn from it. */
+  tree?: () => unknown[];
 }
 
 function route(routes: Routes) {
@@ -96,7 +98,7 @@ function route(routes: Routes) {
     if (path === MEMBERS_URL) return run(() => ({ members: routes.members?.() ?? [] }));
     if (path.includes("/documents/favorites")) return run(() => ({ favorites: [] }));
     if (path.endsWith("/archive-impact")) return run(() => routes.impact?.(path) ?? {});
-    if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+    if (path.startsWith(`${LIST_BASE}/tree`)) return run(() => ({ documents: routes.tree?.() ?? [] }));
     if (path.startsWith(`${LIST_BASE}/sources`)) return run(() => ({ items: [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/recent`)) return run(() => ({ documents: [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return run(() => ({ documents: [], next_cursor: null }));
@@ -135,7 +137,8 @@ function renderView(adapter: NavigationAdapter = nav(), onOpen: (id: string) => 
 }
 
 async function openShelved() {
-  fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.shelved")) }));
+  // TRASH-01's sub-nav carries Lưu trữ between Được chia sẻ and Thùng rác.
+  fireEvent.click(await screen.findByRole("button", { name: t("documents.home.sidebar.shelved") }));
 }
 
 async function rowOf(title: string) {
@@ -144,6 +147,18 @@ async function rowOf(title: string) {
   if (!row) throw new Error(`no row for ${title}`);
   return row as HTMLElement;
 }
+
+/** At home a folder is a card above the table (TRASH-01), its ⋯ menu beside it. */
+async function cardOf(title: string) {
+  // The sidebar tree may name the folder first; wait for the card itself.
+  return waitFor(() => {
+    const card = screen.getAllByText(title).find((el) => el.closest("li"))?.closest("li");
+    if (!card) throw new Error(`no folder card for ${title}`);
+    return card as HTMLElement;
+  });
+}
+
+const folderNode = (id: string, title: string) => ({ id, title, kind: "folder", position: 0, children: [] });
 
 const query = (path: string) => new URLSearchParams(path.split("?")[1] ?? "");
 
@@ -527,13 +542,14 @@ describe("shelve from a live row's menu (U-4)", () => {
   it("opens the confirm dialog for a folder with the counts the server read", async () => {
     route({
       list: (path) => (query(path).get("shelved") === "true" ? [] : [live({ id: "f1", kind: "folder", title: "Hợp đồng" })]),
+      tree: () => [folderNode("f1", "Hợp đồng")],
       impact: (path) =>
         path === "/api/v1/documents/f1/archive-impact"
           ? { folders: 2, documents: 3, total: 6, max_nodes: 1000, too_large: false }
           : {},
     });
     renderView();
-    const row = await rowOf("Hợp đồng");
+    const row = await cardOf("Hợp đồng");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.shelved_list.shelve") }));
     const dialog = await screen.findByRole("alertdialog");
@@ -557,13 +573,14 @@ describe("shelve from a live row's menu (U-4)", () => {
               live({ id: "d2", title: "Chỉ sửa", my_level: "edit" }),
               live({ id: "mf", kind: "folder", title: "Thư mục của tôi", system_kind: "my_folder" }),
             ],
+      tree: () => [folderNode("mf", "Thư mục của tôi")],
     });
     renderView();
     const editRow = await rowOf("Chỉ sửa");
     fireEvent.click(within(editRow).getByRole("button", { name: t("documents.home.row.menu", { title: "Chỉ sửa" }) }));
     expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
     fireEvent.keyDown(document.body, { key: "Escape" });
-    const myFolder = await rowOf("Thư mục của tôi");
+    const myFolder = await cardOf("Thư mục của tôi");
     const menu = within(myFolder).queryByRole("button", { name: t("documents.home.row.menu", { title: "Thư mục của tôi" }) });
     if (menu) {
       fireEvent.click(menu);

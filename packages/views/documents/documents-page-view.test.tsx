@@ -1531,21 +1531,6 @@ describe("DocumentsPageView", () => {
       const chipGroup = await screen.findByRole("group", { name: t("documents.home.chips_label") });
       expect(chipGroup).toHaveClass("overflow-x-auto", "overflow-y-hidden", "no-scrollbar");
     });
-
-    // F8 (390px): in the toolbar's wrapping row the Tabs root kept its content width and the strip was
-    // clipped at the edge; centred content also hid the first tabs once the strip scrolled. The root may
-    // shrink to the row and the strip starts at its left edge, so every tab scrolls into reach.
-    it("lets the scope tab strip shrink to the row and scroll from its first tab", async () => {
-      route({ list: () => [summary({ id: "d1", title: "Kế hoạch Q4" })] });
-      renderView(vi.fn());
-      await screen.findByText("Kế hoạch Q4");
-
-      const tabList = screen.getByRole("tablist", { name: t("documents.home.scope_label") });
-      expect(tabList).toHaveClass("justify-start", "max-w-full", "overflow-x-auto");
-      expect(tabList).not.toHaveClass("justify-center");
-      expect(tabList.parentElement).toHaveClass("min-w-0", "max-w-full");
-      expect(within(tabList).getAllByRole("tab")).toHaveLength(5);
-    });
   });
 });
 
