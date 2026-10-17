@@ -1,1 +1,8 @@
 $ cd server && export TEST_DATABASE_URL='postgres://uniwork:uniwork@localhost:5432/uniwork_test_scdh?sslmode=disable' GOFLAGS=-p=1; go test -count=1 -v ./internal/service/ -run '^(TestDocumentCopy|TestDocumentCopyUpload|TestDocumentCopyUploadSizeCap|TestAuditCoverage|TestEveryAuditedCommandWritesItsRow|TestDocumentEditLock.*)$' 2>&1 | grep -E '^(--- |FAIL|ok|panic)|no test database' | tail -60; rc=${PIPESTATUS[0]}; echo; echo "GO_SERVICE_COPY_EXIT=$rc"
+--- PASS: TestEveryAuditedCommandWritesItsRow (27.27s)
+--- PASS: TestDocumentCopy (0.51s)
+--- PASS: TestDocumentCopyUpload (0.52s)
+--- PASS: TestDocumentCopyUploadSizeCap (0.19s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	28.505s
+
+GO_SERVICE_COPY_EXIT=0

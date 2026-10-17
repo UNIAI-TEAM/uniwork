@@ -1,0 +1,18 @@
+$ pnpm --filter @uniwork/views exec vitest run office/frame/ 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "VIEWS_FRAME_VITEST_EXIT=$rc"
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+
+ Test Files  11 passed (11)
+      Tests  375 passed (375)
+   Start at  13:24:46
+   Duration  10.48s (transform 2.36s, setup 2.45s, import 4.46s, tests 20.11s, environment 2.84s)
+
+
+VIEWS_FRAME_VITEST_EXIT=0
