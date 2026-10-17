@@ -74,6 +74,7 @@ type DocumentView struct {
 type CreatePageInput struct {
 	Kind           string
 	ParentID       string
+	Destination    string
 	Title          string
 	Icon           string
 	Visibility     string
@@ -177,6 +178,9 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if actor.Kind != audit.KindHuman || !validActor(actor) {
 		return DocumentView{}, ErrForbidden
 	}
+	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
+		return DocumentView{}, err
+	}
 	kind := in.Kind
 	switch kind {
 	case "":
@@ -238,6 +242,9 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		// a retry in flight across a deploy was claimed with.
 		parts = append(parts, kind)
 	}
+	if in.Destination != "" {
+		parts = append(parts, "destination:"+in.Destination)
+	}
 	opts := IdempotencyOptions{
 		Fingerprint:        IdempotencyFingerprint(parts...),
 		RequireFingerprint: true,
@@ -255,9 +262,17 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentView{}, err
 	}
+	parentID := in.ParentID
+	if in.Destination == DocumentSystemKindMyFolder {
+		mf, _, err := s.ensureMyFolderInTx(ctx, tx, q, actor, w.OrganizationID, workspaceID)
+		if err != nil {
+			return DocumentView{}, err
+		}
+		parentID = mf.ID
+	}
 	var parent *db.Document
-	if in.ParentID != "" {
-		p, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID, kind)
+	if parentID != "" {
+		p, err := s.lockPageParent(ctx, q, actor, parentID, w.OrganizationID, workspaceID, kind)
 		if err != nil {
 			return DocumentView{}, err
 		}
@@ -267,7 +282,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	// child inherits its parent's pair.
 	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
 	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
-		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(in.ParentID),
+		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
 	})
 	if err != nil {
 		return DocumentView{}, err
@@ -278,7 +293,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		// serialized with every other naming writer; the index of PR 2 is the
 		// safety net behind it.
 		if err := s.requireFreeFolderName(ctx, q, documentNameScope{
-			OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: in.ParentID, Kind: kind,
+			OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: parentID, Kind: kind,
 		}, title); err != nil {
 			return DocumentView{}, err
 		}
@@ -291,7 +306,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		ID:             docID,
 		OrganizationID: w.OrganizationID,
 		WorkspaceID:    workspaceID,
-		ParentID:       nullText(in.ParentID),
+		ParentID:       nullText(parentID),
 		Kind:           kind,
 		Title:          title,
 		Icon:           icon,
@@ -313,8 +328,8 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		return DocumentView{}, documentTitleWriteError(kind, err)
 	}
 	created := map[string]any{"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility}
-	if in.ParentID != "" {
-		created["parent_id"] = in.ParentID
+	if parentID != "" {
+		created["parent_id"] = parentID
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
@@ -642,6 +657,9 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 	// visibility; every content field still needs edit, and an admin-only
 	// caller is told the content is restricted.
 	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+		if isMyFolder(doc) {
+			return errMyFolderLocked()
+		}
 		if in.Title != nil || in.Icon != nil || in.Content != nil {
 			if access.Level == DocumentLevelNone && access.AdminScope {
 				return errDocumentRestricted()

@@ -84,6 +84,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		status: http.StatusCreated,
 		auth:   true,
 	})
+	d.Post("/workspaces/{workspaceID}/documents/my-folder", h.EnsureMyFolder, apiOp{
+		summary:     "Ensure the caller's personal My Folder",
+		description: "Tạo lười và trả về thư mục gốc cá nhân (My Folder, system_kind=my_folder, visibility=restricted) của thành viên đang gọi trong workspace (MYFOLDER-01). Tự idempotent: lần đầu tạo hàng kèm audit/outbox document.created (metadata system_kind=my_folder), các lần sau trả lại cùng hàng và không ghi audit thêm; luôn trả 200 DocumentSDO, body rỗng.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentSDO{},
+		status:      http.StatusOK,
+		auth:        true,
+	})
 	d.Post("/workspaces/{workspaceID}/documents/files", h.CreateDocumentFile, apiOp{
 		summary: "Create a file document",
 		description: "Tạo document kiểu file bằng một request multipart: phần file stream vào FileService (purpose document_file, ≤ 50 MiB, MIME allowlist + magic bytes), parent_id/title là form field tùy chọn. " +
@@ -440,16 +448,18 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	// lifecycle, sharing, access log and the org public-links switch. One
 	// contiguous block so the parallel comment/office lanes merge cleanly.
 	d.Get("/workspaces/{workspaceID}/documents", h.ListDocuments, apiOp{
-		summary:     "List documents",
-		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; kind/archived/updated_by/updated_from/updated_to là filter. Quyền được lọc trong query trước limit nên cursor ổn định; archived=1 chỉ manage.",
-		tags:        []string{"documents"},
-		sdi:         sdi.ListDocumentsSDI{},
-		sdo:         sdo.DocumentListSDO{},
-		auth:        true,
+		summary: "List documents",
+		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; shared_by_me=true = tài liệu sống người gọi làm ACL owner đang chia sẻ (dùng cùng parent_id -> 400 invalid_filter); kind/archived/updated_by/updated_from/updated_to là filter. " +
+			"format (docx, xlsx, pptx, pdf, md, html) lọc theo định dạng của phiên bản hiện tại (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề; thư mục luôn ở lại, trang không khớp) và access (manage, edit, restricted) lọc theo quyền của người gọi trên dòng, cùng cấp mà my_level báo. " +
+			"Giá trị lạ, format cùng kind=page, và access=manage/edit trên thùng rác -> 400 invalid_filter. Quyền và cả hai filter được lọc trong query trước limit nên cursor ổn định và trang luôn đầy khi còn dòng khớp; archived=1 chỉ manage.",
+		tags: []string{"documents"},
+		sdi:  sdi.ListDocumentsSDI{},
+		sdo:  sdo.DocumentListSDO{},
+		auth: true,
 	})
 	d.Get("/workspaces/{workspaceID}/documents/recent", h.ListRecentDocuments, apiOp{
 		summary:     "List recent documents",
-		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. Agent không có \"gần đây\" -> 403.",
+		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format và access nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter). Agent không có \"gần đây\" -> 403.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListRecentDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
@@ -465,7 +475,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Get("/workspaces/{workspaceID}/documents/shared-with-me", h.ListSharedWithMe, apiOp{
 		summary:     "List documents shared with me",
-		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Duyệt ứng viên bằng keyset và lọc quyền trước khi xếp trang nên ứng viên bị từ chối không chiếm suất; cursor ổn định như các list khác. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
+		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Duyệt ứng viên bằng keyset và lọc quyền trước khi xếp trang nên ứng viên bị từ chối không chiếm suất; cursor ổn định như các list khác. format và access (cấp người gọi nhận qua share) nhận như danh sách phẳng, giá trị lạ -> 400 invalid_filter. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListSharedWithMeSDI{},
 		sdo:         sdo.DocumentListSDO{},

@@ -98,7 +98,7 @@ func (q *Queries) GetDocumentFavorite(ctx context.Context, arg GetDocumentFavori
 }
 
 const listDocumentFavorites = `-- name: ListDocumentFavorites :many
-SELECT f.id AS favorite_id, f.created_at AS favorited_at, d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level
+SELECT f.id AS favorite_id, f.created_at AS favorited_at, d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind
 FROM document_favorites f
 JOIN documents d
   ON d.id = f.document_id
@@ -173,6 +173,7 @@ func (q *Queries) ListDocumentFavorites(ctx context.Context, arg ListDocumentFav
 			&i.Document.ArchiveBatchID,
 			&i.Document.ContentRevision,
 			&i.Document.WorkspaceLevel,
+			&i.Document.SystemKind,
 		); err != nil {
 			return nil, err
 		}

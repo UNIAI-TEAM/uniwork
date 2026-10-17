@@ -1,7 +1,9 @@
 # UniWork Office — Bảng công cụ agent genoffice (G6-01, làm mới sau G6-12)
 
-> **Trạng thái:** in-progress — cột cơ học (khối trích xuất tại `cb76dde5`, pin web `0.1.0-cb76dde`; sinh bằng extractor đã sửa ở F
-> `f5b75e1f` cho tới khi fork main có bản sửa; bản G6-12 ở `66169a9a` chỉ khác dòng `rev=` và ô markdown `ask_clarification`) và
+> **Trạng thái:** in-progress — cột cơ học (khối trích xuất tại `3e4e9b71f` (`3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b`), 143 dòng,
+> sha256 `235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95`; sinh bằng extractor G6-09d tại `3e4e9b71f`, nhánh
+> `feature/UNI-1825-g6-09d-extractor`, blob `4a7fbf1d67b8649265f205443439cd14e9537682` cho tới khi fork `main` có bản sửa; trước đó
+> ở `bf4ff7b0` (DOC-05 lockstep), `cb76dde5` (G7-06, extractor `f5b75e1f`) và `66169a9a` (G6-12)) và
 > cột tay đủ bảy module; hàng đã sửa ở G6-12 ghi commit + test ở §9; hàng chưa sửa ghi chủ mới hoặc "chờ Product (đợt 3)". Chờ
 > owner F + Product ký cột tay (§10).
 
@@ -11,13 +13,16 @@
   `feature/UNI-1366-g6-12-tools` của fork, đã đẩy). Đó là fork `main` `673fc563` cộng toàn bộ nhánh module G6-12 (UNI-1366).
   Bản tài liệu trước (G6-01) đọc ở `0d03b185` = pin web `0.1.0-0d03b18`
   ([office-web-modules](../office-web-modules.md)); các hàng đã sửa ở G6-12 đọc ở `66169a9a` — riêng khối §3 nay đọc ở
-  `cb76dde5` (gạch đầu dòng dưới).
-- **Khối §3 ở G7-06 (UNI-1378):** khối trích xuất nay đọc ở `cb76dde5` (`cb76dde5928f8ea9cf66af938d3f83bd1278f78c` — fork `main`
-  sau G6-12, pin web `0.1.0-cb76dde`), sinh bằng extractor **đã sửa** ở F `f5b75e1f`
-  (`f5b75e1f4f773a8a22d12574a0e33c7e45d55127`, nhánh `feature/UNI-1378-g7-06-extractor`, blob
-  `94babf94780facd66e88cb622cc5f2c8e7841e70`) vì fork `main` chưa có bản sửa. So với khối ở `66169a9a`, chỉ khác dòng `rev=` và ô
-  markdown `ask_clarification` `yes` → `no` (§3.1 nhóm C đã đóng). Số dòng `path:line` ở §2 và §4–§8 vẫn đọc ở `66169a9a` trừ
-  chỗ ghi khác (không đọc lại ở `cb76dde5`).
+  `3e4e9b71f` (gạch đầu dòng dưới).
+- **Khối §3 ở G6-09d / REPIN-1 (UNI-1825, 2026-10-16; trước đó ở G7-06 `cb76dde5` và DOC-05 `bf4ff7b0`):** khối trích xuất nay đọc ở
+  `3e4e9b71f` (`3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b`, nhánh `feature/UNI-1825-g6-09d-extractor` trong worktree fork
+  `/home/ubuntu/orca/workspaces/uniwork-office/feature-UNI-1374-g6-09-ai-edit-undo`), sinh bằng extractor **đã sửa** G6-09d tại
+  `3e4e9b71f` (blob `4a7fbf1d67b8649265f205443439cd14e9537682`) vì fork `main` chưa có bản sửa gấp mũi tên đệ quy có tham số
+  `nodeSchema(maxDepth)`. So với khối G7-06 ở `cb76dde5` (`cb76dde5928f8ea9cf66af938d3f83bd1278f78c`, pin web `0.1.0-cb76dde`, sinh bằng
+  extractor `f5b75e1f`, blob `94babf94780facd66e88cb622cc5f2c8e7841e70`, 141 dòng; khác `66169a9a` ở dòng `rev=` và ô markdown
+  `ask_clarification` `yes` → `no`, §3.1 nhóm C đã đóng), khối `3e4e9b71f` có 143 dòng (thêm hai hàng `generate_mindmap` ở `docs` và
+  `markdown` với hash schema đã phân giải `ad838ec1…`, §3.1). Số dòng `path:line` ở §2 và §4–§8 vẫn đọc ở `66169a9a` trừ chỗ ghi khác
+  (hai hàng `generate_mindmap` đọc ở `3e4e9b71f`).
 - **Số dòng `path:line` trong §2 và §4–§8.** Giữ nguyên số dòng đọc ở `0d03b185` cho mọi hàng G6-12 không chạm: giữa
   `0d03b185` và `e6862e53` không file nào dưới `apps/*/src/renderer`, `apps/*/src/main`, `packages/agent-core`,
   `packages/ai-provider`, `packages/electron-utils`, `web/modules` hay `web/docs/bridge` đổi ngoài các shard i18n (kiểm bằng
@@ -31,27 +36,33 @@
   khớp luôn là tên công cụ và tên ký hiệu, không phải số dòng.
 - **Nguồn duy nhất của tên công cụ cho G6-14:** instruction pack `office_uniwork_ai@N` chỉ được nhắc tên công cụ có
   trong cột `tool` của khối trích xuất (§3). Cột tay (§4–§9) là nhận định của người viết, không là nguồn tên.
-- **Tái tạo cột cơ học** (trong worktree fork ở nhánh `feature/UNI-1378-g7-06-extractor` — script đã sửa — không checkout,
-  không chạy code sản phẩm):
+- **Tái tạo cột cơ học** (trong worktree fork ở nhánh `feature/UNI-1825-g6-09d-extractor` tại `3e4e9b71f`, blob extractor
+  `4a7fbf1d67b8649265f205443439cd14e9537682` — hoặc đọc trực tiếp blob bằng `git -C "$FORK" show 3e4e9b71f:scripts/genoffice-tools-extract.mjs`
+  — không checkout, không chạy code sản phẩm):
 
   ```bash
-  node scripts/genoffice-tools-extract.mjs --rev cb76dde5 > /tmp/genoffice-tools.md
+  node scripts/genoffice-tools-extract.mjs --rev 3e4e9b71f > /tmp/genoffice-tools.md
   ```
 
-- **Kiểm AC-2** (khối giữa hai marker = đầu ra script, từng byte), chạy ở gốc repo D với `FORK` trỏ tới worktree fork và
-  `EXTRACTOR` trỏ tới script đã sửa ở F `f5b75e1f` (khi fork `main` chưa có bản sửa):
+- **Kiểm AC-2** (khối giữa hai marker = đầu ra script, từng byte), chạy ở gốc repo D với `FORK` trỏ tới worktree fork
+  (`/home/ubuntu/orca/workspaces/uniwork-office/feature-UNI-1374-g6-09-ai-edit-undo`) và `EXTRACTOR` là bản script G6-09d ở
+  `3e4e9b71f` (blob `4a7fbf1d67b8649265f205443439cd14e9537682`, khi fork `main` chưa có bản sửa):
 
   ```bash
-  node "$EXTRACTOR" --repo "$FORK" --rev cb76dde5 > /tmp/extract.md
+  git -C "$FORK" show 3e4e9b71f:scripts/genoffice-tools-extract.mjs > /tmp/extractor-3e4e9b71f.mjs
+  node /tmp/extractor-3e4e9b71f.mjs --repo "$FORK" --rev 3e4e9b71f > /tmp/extract.md
   sed -e '1,/^<!-- extract:begin -->$/d' -e '/^<!-- extract:end -->$/,$d' \
     docs/office/g5g6g7/genoffice-tools.md | diff - /tmp/extract.md && echo AC-2 OK
   ```
 
-  Đã chạy ngày 2026-10-12 (G7-06) với script F `f5b75e1f` ở `--rev cb76dde5`: `AC-2 OK`, `diff` thoát 0; sha256 của đầu ra
-  script (cũng là của khối giữa hai marker) `d0ef92a89cf178086768295c885448087af0ba05463748197fc9785428982fac`, 141 dòng
-  công cụ, 0 ô `unresolved`, 0 ô `undeclared`. Cùng script ở `--rev 66169a9a` chỉ khác khối cũ `3acc970f…` ở ô markdown
-  `ask_clarification` (`yes` → `no`; dòng `rev=` theo rev), và ở `--rev 0d03b185` in đúng bản G6-01 `0df68253…` như script cũ
-  của `66169a9a`.
+  Đã chạy ngày 2026-10-16 (G6-09d / REPIN-1, UNI-1825) từ worktree fork với script `3e4e9b71f` (blob
+  `4a7fbf1d67b8649265f205443439cd14e9537682`) ở `--rev 3e4e9b71f` (`3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b`): `AC-2 OK`, `diff`
+  thoát 0 (khớp từng byte với khối đã commit giữa hai marker); sha256 của đầu ra script (cũng là của khối giữa hai marker)
+  `235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95`, 143 dòng công cụ, 0 ô `unresolved`, 0 ô `undeclared`.
+  (Ghim trước đó ngày 2026-10-12 ở G7-06 với script F `f5b75e1f`, blob `94babf94…`, ở `--rev cb76dde5`: `AC-2 OK`, `diff` thoát 0,
+  sha256 `d0ef92a89cf178086768295c885448087af0ba05463748197fc9785428982fac`, 141 dòng công cụ; ở `--rev 66169a9a` chỉ khác khối cũ
+  `3acc970f…` ở ô markdown `ask_clarification` `yes` → `no` và dòng `rev=`; ở `--rev 0d03b185` in đúng bản G6-01 `0df68253…` như
+  script cũ của `66169a9a`.)
 - **Ghim lịch sử.** Script của `66169a9a` chạy ở `--rev 0d03b185` vẫn in đúng bản G6-01 từng giao: sha256 `0df68253…`
   (`0df682539473c28ffb1f978a81e62828c0d81a6116dc1c4bdf1d55703931e1c9`; chạy lại ở `66169a9a` trong WDoc và khớp dòng
   `G6_01_PIN_0D03_IDENTICAL` của vòng cloud `cloud-test-extractor-2`). Ở `--rev e6862e53` (nền của G6-12) đầu ra là
@@ -100,7 +111,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 ## 3. Cột cơ học (sinh bằng script, không sửa tay)
 
 <!-- extract:begin -->
-<!-- genoffice-tools-extract v1 rev=bf4ff7b07ee799b13375e0b63ad4798ff255ae05 -->
+<!-- genoffice-tools-extract v1 rev=3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b -->
 | module | tool | input_schema_sha256 | editor_write | source |
 | --- | --- | --- | --- | --- |
 | docs | accept_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -115,7 +126,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | docs | edit_chart | c29264bd21515db11818de1199fe3af4e8d87a1aaab711fe9ef1f176fe635a45 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | edit_note | f465830acda36342513258eff25bc94a37c3cfc7868505a0fefcceabb4bfb055 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | generate_image | f6852b9e5272085ee5e6509a3c6a37dcd28da7f5349151248118e9e4f38c1cde | yes | apps/docs/src/renderer/ai/tools.ts |
-| docs | generate_mindmap | unresolved:identifier:depth | no | apps/docs/src/renderer/ai/mind-map.ts |
+| docs | generate_mindmap | ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0 | no | apps/docs/src/renderer/ai/mind-map.ts |
 | docs | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | image_search | 874a0d101865e7910d3ba9145ce2d9a29776932ce1a689060beb89d8d04fb699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | insert_chart | 12fab920f1474bfb8d1ed16c4cc02856f27d322275d274149df02cf2e4b521a4 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -153,7 +164,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | markdown | apply_ops | e796ff6fcf174827819356e0312f2246fd573b42cb7bbb1f0b7052407c1334c3 | yes | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | ask_clarification | 7b1327afd202f0d0d47debc5f922fdcbe4541bad90d6f97efe31db002b3373f7 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | generate_image | ed7b16fa3ca50a85c50bc04b296613c9b84014231d5c3ea987819284f5561c25 | yes | apps/markdown/src/renderer/ai/tools.ts |
-| markdown | generate_mindmap | unresolved:identifier:depth | no | apps/markdown/src/renderer/ai/mind-map.ts |
+| markdown | generate_mindmap | ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0 | no | apps/markdown/src/renderer/ai/mind-map.ts |
 | markdown | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | image_search | 9c4b23b1cd0fe8dae086fe7c3c86dbceb1130a0c36d8ea7f93bbbe8bcfc9de2a | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | insert_image | f53e4d066d933c53c73e9025eb6871cbad02f6693f678290fd1f51748b55f726 | yes | apps/markdown/src/renderer/ai/tools.ts |
@@ -260,10 +271,12 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
   `set_header_footer`, `define_style`, `set_page_setup`, `set_watermark` `no` → `yes` (§9 dòng 5); sheets
   `merge_attached_workbooks` `undeclared` → `yes` (§9, mục merge); html `ask_clarification`, pdf `create_document`, pdf
   `generate_image` `undeclared` → `no`. Không còn ô `undeclared` nào trong khối.
-- **Khối ở `bf4ff7b0` (DOC-05 lockstep, 2026-10-16):** 143 dòng; so với `cb76dde5` chỉ khác dòng `rev=` và hai hàng mới `docs`
-  `generate_mindmap` và `markdown` `generate_mindmap` (hash in `unresolved:identifier:depth`, `editor_write` `no`, nguồn
-  `mind-map.ts` của từng module) — đúng đầu ra của `scripts/genoffice-tools-extract.mjs --rev bf4ff7b0` ở fork. Hai hàng đã đóng
-  ở §9.1; cột tay ở §4.2 và §4.3.
+- **Khối ở `3e4e9b71f` (G6-09d / REPIN-1, 2026-10-16; trước đó ở `bf4ff7b0`, DOC-05 lockstep):** 143 dòng; so với `cb76dde5` chỉ
+  khác dòng `rev=` và hai hàng mới `docs` `generate_mindmap` và `markdown` `generate_mindmap` (`editor_write` `no`, nguồn
+  `mind-map.ts` của từng module). Ở `bf4ff7b0` hai ô hash là `unresolved:identifier:depth`; từ `3e4e9b71f`
+  (`feature/UNI-1825-g6-09d-extractor`) extractor gấp mũi tên đệ quy có tham số `nodeSchema(maxDepth)` nên cả hai ô phân giải thành
+  `ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0` (0 ô `unresolved`, 0 ô `undeclared`) — đúng đầu ra của
+  `scripts/genoffice-tools-extract.mjs --rev 3e4e9b71f` ở fork. Hai hàng đã đóng ở §9.1; cột tay ở §4.2 và §4.3.
 - **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Ở khối `cb76dde5` còn **12**
   chỗ hai cột khác nhau, đều nhóm B (công cụ ghi file; không phải lỗi). Ở `66169a9a` là **13**: 12 chỗ nhóm B và 1 chỗ nhóm C
   (markdown `ask_clarification`, đọc của script — xem dòng C dưới bảng, đã đóng ở G7-06). Tính lại từ 20 của khối cũ: −5 (nhóm A
@@ -358,7 +371,7 @@ view-only) chỉ giữ `READ_ONLY_TOOLS` (`docs-skill.ts:38-48` (66169a9a)), cô
 | insert_picture | cả hai | `url` (http(s) hoặc `data:image`), vị trí, cỡ, float → ack | PNG/JPG/GIF | có | |
 | insert_text_box | cả hai | text, kích thước, vị trí, wrap → ack | cỡ chữ trong `MIN/MAX_FONT_SIZE_PT` | có | |
 | ask_clarification | cả hai (chỉ khi panel có thẻ hỏi) | `questions[]` (≤ 4, mỗi câu ≤ 5 lựa chọn) → câu trả lời của người dùng | `inputSchema` giống từng byte html (hash `7b1327af…`); mô tả riêng cho docs: hỏi nghĩa/phạm vi/đích trước khi sửa hoặc trả lời | không (`mutated: false` ở mọi đường trả về) | **mới ở G6-12** (§7, §9 dòng 7; `tools.ts:110` (66169a9a)). Thẻ gắn vào panel, chặn run tới khi người dùng trả lời; Bỏ qua/Dừng/Chat mới/đóng panel trả `cancelled`. Câu trả lời hiện thành biên nhận dưới tin nhắn người dùng (`clarify-receipts.ts`). View-only giữ |
-| generate_mindmap | cả hai | `root` (cây `label`, `block?`, `children[]`), `focus?` → thẻ sơ đồ tư duy trong chat | tối đa 120 nút, sâu 5, nhãn 60 ký tự, `focus` 80 ký tự; trích dẫn `block` sai bị bỏ, không lỗi (`docs/ai/mind-map.ts:12-17` (bf4ff7b0)) | không (`mutated: false`; chỉ trả `display: { kind: 'mindmap' }`, nằm trong `READ_ONLY_TOOLS`) | **mới sau `cb76dde5`** (khối §3 đọc ở `bf4ff7b0`; `docs/ai/tools.ts:1479` (bf4ff7b0)). Không ghi tài liệu, không ghi file; view-only giữ. Sản phẩm: Advisor 2026-10-16 `msg_f4b50f24445b` (mặc định của Advisor, người dùng có thể đổi) |
+| generate_mindmap | cả hai | `root` (cây `label`, `block?`, `children[]`), `focus?` → thẻ sơ đồ tư duy trong chat | tối đa 120 nút, sâu 5, nhãn 60 ký tự, `focus` 80 ký tự; trích dẫn `block` sai bị bỏ, không lỗi (`docs/ai/mind-map.ts:11-16,137-140` (3e4e9b71f)) | không (`mutated: false`; chỉ trả `display: { kind: 'mindmap' }`, nằm trong `READ_ONLY_TOOLS`, `docs/ai/docs-skill.ts:38-49` (3e4e9b71f)) | **mới sau `cb76dde5`** (khối §3 đọc ở `3e4e9b71f`; `docs/ai/tools.ts:1479` (3e4e9b71f), `docs/ai/mind-map.ts:79-104` (3e4e9b71f); trước đó ở `bf4ff7b0`). Không ghi tài liệu, không ghi file; view-only giữ. Sản phẩm: Advisor 2026-10-16 `msg_f4b50f24445b` (mặc định của Advisor, người dùng có thể đổi) |
 
 Ghi chú docs:
 - Bảo vệ Word (chỉ đọc, chỉ form, chỉ comment, khóa mật khẩu ghi) **không** được truyền vào panel: `AiPanel` chỉ nhận
@@ -398,7 +411,7 @@ chú trong prompt và từ chối nếu vẫn bị gọi; (2) `ask_clarification
 | read_frontmatter | cả hai | — → YAML thô | — | không | |
 | web_search | cả hai, web cần `webSearch` | query, maxResults → câu trả lời, link, trích | mặc định 6 | không | |
 | ask_clarification | cả hai (chỉ khi panel có thẻ hỏi) | `questions[]` (≤ 4 câu, ≤ 5 lựa chọn) → câu trả lời của người dùng | `inputSchema` giống từng byte html; mô tả riêng cho markdown | không (`mutated: false` ở mọi đường trả về; khối §3 ở `cb76dde5` cũng ghi `no` sau khi sửa script, §3.1 nhóm C đã đóng) | **mới ở G6-12** (§7, §9 dòng 7; `md/ai/tools.ts:149` (66169a9a)). Chặn run tới khi người dùng trả lời; Bỏ qua/Dừng/Chat mới/đóng panel trả `cancelled`; biên nhận dưới tin nhắn người dùng. View-only giữ. Rào vùng sửa không áp |
-| generate_mindmap | cả hai | `root` (cây `label`, `block?`, `children[]`), `focus?` → thẻ sơ đồ tư duy trong chat | tối đa 120 nút, sâu 5, nhãn 60 ký tự, `focus` 80 ký tự; trích dẫn `block` sai bị bỏ, không lỗi (`md/ai/mind-map.ts:12-17` (bf4ff7b0)) | không (`mutated: false`; chỉ trả `display: { kind: 'mindmap' }`, nằm trong `READ_ONLY_TOOLS`) | **mới sau `cb76dde5`** (khối §3 đọc ở `bf4ff7b0`; `md/ai/tools.ts:793` (bf4ff7b0)). Không ghi tài liệu, không ghi file; view-only giữ. Sản phẩm: Advisor 2026-10-16 `msg_f4b50f24445b` (mặc định của Advisor, người dùng có thể đổi) |
+| generate_mindmap | cả hai | `root` (cây `label`, `block?`, `children[]`), `focus?` → thẻ sơ đồ tư duy trong chat | tối đa 120 nút, sâu 5, nhãn 60 ký tự, `focus` 80 ký tự; trích dẫn `block` sai bị bỏ, không lỗi (`md/ai/mind-map.ts:11-16,137-140` (3e4e9b71f)) | không (`mutated: false`; chỉ trả `display: { kind: 'mindmap' }`, nằm trong `READ_ONLY_TOOLS`, `md/ai/markdown-skill.ts:78-84` (3e4e9b71f)) | **mới sau `cb76dde5`** (khối §3 đọc ở `3e4e9b71f`; `md/ai/tools.ts:806` (3e4e9b71f), `md/ai/mind-map.ts:79-104` (3e4e9b71f); ở `bf4ff7b0` là `tools.ts:793`). Không ghi tài liệu, không ghi file; view-only giữ. Sản phẩm: Advisor 2026-10-16 `msg_f4b50f24445b` (mặc định của Advisor, người dùng có thể đổi) |
 
 **Rào vùng sửa (G6-12, §9 dòng 9) — markdown.** Chỉ bật khi lượt có phạm vi: gửi từ composer/popover/ribbon khi đang có vùng chọn
 (chip "Selection (N words)" còn đó; bỏ chip bằng × thì lượt không rào) hoặc gửi hàng đợi sửa (mỗi neo là một vùng). Rào là danh
@@ -653,7 +666,7 @@ ra dịch vụ ngoài và tốn credit; chúng đi theo `office.ai_cloud` của 
 | module | thay đổi hiện ra thế nào | hoàn tác | một bước undo mỗi lượt? | kết luận §6.5 |
 | --- | --- | --- | --- | --- |
 | docs | **Theo dõi thay đổi AI tắt mặc định**: bật chỉ khi `localStorage['ai-docs-track-changes'] === '1'` (`docs/ai/AiPanel.tsx:177` (66169a9a), `AiPanel.tsx:426-428` (66169a9a)). Bật: `insert_content`, `write_document`, `replace_blocks`, `replace_selection`, `apply_ops` ghi revision tác giả AI, duyệt ở tab Review (`docs/ai/protocol.ts:1202-1357`, `docs/ai/ops.ts:1495-1509`). **Từ G6-09 (W1):** khi tắt theo dõi, highlight `ai-changed` **không còn bị chấp nhận trong cùng tick** — dấu vùng sửa giữ tới khi người dùng bấm **Accept** (nút cạnh "View changes" của lượt sửa gần nhất) hoặc **Lưu**; autosave giữ dấu, lượt sau chỉ đánh dấu phần của chính lượt đó; dấu không vào bytes đã lưu, không vào Export as HTML, chỉ trên màn hình (print/PDF không tô) (`apps/docs/tests/ai-edit-marker.test.ts`, `html-export.test.ts`). Biểu đồ, ảnh nổi, text box, chú thích, comment, header/footer, page setup, style, watermark không bao giờ được theo dõi. Thẻ edit queue (`docs/ai/edit-queue.ts`, `EditQueueCard.tsx`) là hàng đợi **chỉ dẫn trước khi gửi** (≤ 10 mục, ≤ 500 ký tự; `edit-queue.ts:14-16`), không hiển thị kết quả. **Từ G6-09 (W8):** lượt AI trên tài liệu chưa đặt tên hỏi trước khi lưu (thẻ lưu nháp dùng chung: **Lưu** = lưu lần đầu theo tên gợi ý, **Để sau** = không ghi gì) (`apps/docs/tests/ai-save-offer.test.ts`). | Nút Roll back của mỗi run: snapshot cây `editor.getJSON()` (từ G6-12 qua `captureRunSnapshot`, kèm trạng thái ngoài cây) trước công cụ `mutated` đầu tiên (`AiPanel.tsx:843` (66169a9a), `AiPanel.tsx:855-857` (66169a9a), `AiPanel.tsx:1263-1271` (66169a9a)). **Sửa ở G6-12 (§9 dòng 5):** năm công cụ khai báo `mutated: true` nên có snapshot kể cả khi run chỉ gọi chúng; `AiRunSnapshot {doc, side}` (`run-snapshot.ts`) chụp cả comment, header/footer (và biến thể, section edits), page setup/sections, style tạm, watermark và Roll back trả lại cùng cây ProseMirror (kể cả `sections` của `insert_section_break`, trước đó lệch). **Giới hạn:** người dùng lưu hoặc tải lại file giữa lượt thì rollback chỉ trả cây, phần ngoài cây giữ như file đã lưu (style đã ghi vào styles.xml không xóa được; phát lại bảng style/header/page setup chờ trước khi lưu lên file đã parse lại là sai), **Từ G6-09 (W3):** Roll back sau khi người dùng Lưu giữa lượt hiện thông báo `role="status"` nêu đúng các phần không trả lại được (comment, đầu trang/chân trang, style, page setup, watermark) — panel không còn im lặng; test `apps/docs/tests/g6-12-side-state-rollback.test.ts`, `ai-rollback-after-save.test.ts`. | **Có (từ G6-09 W2).** `createDocsRunHistoryGroup` gom mọi thay đổi của lượt vào **một** bước lịch sử ProseMirror (thay đổi đầu mang `closeHistory`, các thay đổi sau mang meta `appendedTransaction`); lượt không sửa gì không để lại bước, lượt kết thúc bằng lỗi vẫn chỉ một bước; gõ, undo và redo bị giữ trong lúc lượt mở (RFA-3; view không editable, Stop kết thúc lượt); bản nháp `write_document` vẫn ngoài lịch sử (`docs/ai/doc-writer.ts:180`). **Giới hạn:** phần ngoài cây (đầu trang/chân trang, style, page setup, watermark, comment) không nằm trong lịch sử ProseMirror — Ctrl+Z trả phần văn bản, Roll back trả cả hai khi lượt không bị Lưu giữa chừng (`apps/docs/tests/ai-run-undo.test.ts`). | **Đạt** cho hàng DOCX sửa: dấu vùng sửa giữ tới Accept hoặc Lưu; một bước undo mỗi lượt; Roll back nêu phần không trả lại được sau khi Lưu giữa lượt. Giới hạn (không blocker): Ctrl+Z chỉ phủ cây văn bản. |
-| markdown | Highlight các khoảng do giao dịch `OP_META.source === 'ai'` đổi (`apps/markdown/src/renderer/editor/aiHighlight.ts`); edit queue như docs (`md/ai/edit-queue.ts:15-17`). Không có mô tả thay đổi dạng diff. **Từ G6-09 (W4 + fix r1):** dấu `ai-changed` giữ tới khi người dùng **Lưu** (autosave giữ) hoặc lượt kế tiếp; không vào bytes đã lưu, bị gỡ trong print/PDF/ảnh (`apps/markdown/tests/g6-09-md-ai-highlight-keep.test.ts`). | Roll back theo run (snapshot thân + frontmatter, `md/ai/AiPanel.tsx:452` (66169a9a)). **Từ G6-09 (N5):** Roll back bỏ ảnh mà lượt đã ghi vào assets — chỉ tên còn `pending` của chính tài liệu; ảnh đã Lưu hoặc do người dùng chèn ở lại (`apps/markdown/tests/g6-09-ai-asset-rollback.test.ts`). | **Có (từ G6-09 W4).** `AiRunHistory` (tiptap) nhóm mọi sửa AI của lượt thành **một** bước; frontmatter đi theo bằng `AiRunStep`; undo của lượt gọi cùng `discardPictures` như Roll back; redo của lượt có ảnh đã bị bỏ **bị từ chối**; người dùng gõ giữa lượt thì lượt tách bước (lịch sử tuần tự, chữ của người dùng không mất) (`apps/markdown/tests/g6-09-md-run-undo.test.ts`). Từ G6-12 `apply_ops` của AI **nguyên tử** (§9 dòng 8): lô hỏng được hoàn tác ngoài lịch sử nên undo không bao giờ áp lại một nửa lô. | **Đạt** (blocker cũ hết): dấu vùng sửa + một bước undo mỗi lượt. Giới hạn: redo của lượt ảnh bị từ chối; undo một Roll back là bước riêng. |
+| markdown | Highlight các khoảng do giao dịch `OP_META.source === 'ai'` đổi (`apps/markdown/src/renderer/editor/aiHighlight.ts`); edit queue như docs (`md/ai/edit-queue.ts:15-17`). Không có mô tả thay đổi dạng diff. **Từ G6-09 (W4 + fix r1):** dấu `ai-changed` giữ tới khi người dùng **Lưu** (autosave giữ) hoặc lượt kế tiếp; không vào bytes đã lưu, bị gỡ trong print/PDF/ảnh (`apps/markdown/tests/g6-09-md-ai-highlight-keep.test.ts`). | Roll back theo run (snapshot thân + frontmatter, `md/ai/AiPanel.tsx:452` (66169a9a)). **Từ G6-09 (N5):** Roll back bỏ ảnh mà lượt đã ghi vào assets — chỉ tên còn `pending` của chính tài liệu; ảnh đã Lưu hoặc do người dùng chèn ở lại (`apps/markdown/tests/g6-09-ai-asset-rollback.test.ts`). | **Có (từ G6-09 W4).** `AiRunHistory` (tiptap) nhóm mọi sửa AI của lượt thành **một** bước; frontmatter đi theo bằng `AiRunStep`; undo của lượt gọi cùng `discardPictures` như Roll back (`md/ai/AiPanel.tsx:635-650` (3e4e9b71f)). **Redo của lượt có ảnh đã bị undo xóa:** đường thành công đã kiểm là `redoGuard` (`editor/aiRunHistory.ts:171-175` (3e4e9b71f)) chặn giao dịch redo trước rồi gọi `restoreRunPictures` (`md/ai/AiPanel.tsx:598-629` (3e4e9b71f)) → IPC `restorePendingAssets` (`apps/markdown/src/main/markdown-main.ts:974-989` (3e4e9b71f)) → `restoreOwnedAssetFiles` (`apps/markdown/src/main/asset-lifecycle.ts:1224-1284` (3e4e9b71f)) dưới một khóa manifest ghi lại từng ảnh vào `assets/<name>` đúng tên và đúng bytes (hoặc nhận tệp thường đang có tại đó nếu khớp sha256) và đăng ký lại vào `pending`, rồi xóa cờ từ chối và dấu `discardedRunsRef` và chỉ tự gọi lại `editor.commands.redo()` khi editor còn sống (`!editor.isDestroyed`) và cả `undoDepth` lẫn `redoDepth` vẫn bằng đúng giá trị chụp trước khi chờ khôi phục (`AiPanel.tsx:612,620-625` (3e4e9b71f); nếu người dùng sửa hoặc đổi vị trí lịch sử trong lúc chờ, ảnh đã được khôi phục nhưng lượt không tự phát lại) (hoạt động cả sau khi đổi tên tài liệu trong cùng thư mục nhờ `carryDiscardedAssetNames`, `asset-lifecycle.ts:152-158,1424-1433` (3e4e9b71f)). Trong lúc `restoreRunPictures` của lượt đang chạy (`restoringRunsRef.current.has(runId)`, `AiPanel.tsx:599,613,628` (3e4e9b71f)), các lần bấm redo lặp lại vẫn bị `redoGuard` chặn nhưng được gộp/bỏ qua sớm mà **không** bật thông báo từ chối (`setRedoRefused(true)`), tách biệt với các trường hợp từ chối kết thúc bên dưới. Redo bị **từ chối** (hiện thông báo `.ai-redo-refused` `role="status"`, markup không trỏ vào ảnh mất) khi: (1) bytes ảnh của lượt đã bị đuổi khỏi `runAssetBytesRef` sau `MAX_SNAPSHOTS = 20` lượt (`md/ai/AiPanel.tsx:125,580-592` (3e4e9b71f)); (2) thiếu bytes cho bất kỳ tên ảnh nào của lượt (`files.length === 0 \|\| files.length < names.length`, `AiPanel.tsx:601-608` (3e4e9b71f)) hoặc vượt trần `MAX_PASTED_IMAGE_BYTES` / không có `docPath` ở IPC (`markdown-main.ts:975-983` (3e4e9b71f)); (3) đã có tệp cùng tên nhưng khác bytes (khác sha256) hoặc không phải tệp thường/là symlink (`asset-lifecycle.ts:1256-1262` (3e4e9b71f)); (4) tên không thuộc quyền sở hữu của tài liệu này — không nằm trong `discardedAssetNamesFor(documentPath)` lẫn `manifest.files` (kể cả chỉ do tài liệu anh em cùng thư mục xóa), hoặc tên không an toàn/bắt đầu bằng `.` hoặc đuôi ngoài `png`/`jpg`/`gif` (`AI_RUN_IMAGE_EXTS`, `asset-lifecycle.ts:121,1232-1247` (3e4e9b71f)); (5) có Save As sang thư mục khác ở giữa (`renameOwnedAssetDocument` chỉ chuyển `discardedAssetNames` khi cùng thư mục, `asset-lifecycle.ts:1428-1432` (3e4e9b71f), còn Save As khác thư mục đổi `savePathByWc` sang đích mới không sở hữu tên đã xóa, `markdown-main.ts:878-890` (3e4e9b71f)); (6) `restoreOwnedAssetFiles` trả `errors` / khôi phục thiếu tệp hoặc IPC bị reject (`AiPanel.tsx:616-618,627` (3e4e9b71f)); (7) trên web không có `restorePendingAssets` (`web/modules/markdown/webapi.ts` không cài, và công cụ ảnh vốn ẩn qua `aiImageFetch = false`). Người dùng gõ giữa lượt thì lượt tách bước (lịch sử tuần tự, chữ của người dùng không mất) (`apps/markdown/tests/g6-09-md-run-undo.test.ts`, `apps/markdown/tests/g6-09-md-run-undo-assets.test.ts`, `apps/markdown/tests/g6-09-md-asset-restore.test.ts`, `apps/markdown/tests/g6-09-md-asset-restore-race.test.ts` (`g6-09-md-asset-restore*.test.ts`)). Từ G6-12 `apply_ops` của AI **nguyên tử** (§9 dòng 8): lô hỏng được hoàn tác ngoài lịch sử nên undo không bao giờ áp lại một nửa lô. | **Đạt** (blocker cũ hết): dấu vùng sửa + một bước undo mỗi lượt. Giới hạn: redo của lượt ảnh ghi lại đúng tên + đúng bytes rồi chỉ tự phát lại lượt khi editor còn sống và độ sâu undo/redo vẫn ở nguyên vị trí đã chụp (lần redo lặp khi đang khôi phục được gộp/bỏ qua không bật thông báo lỗi), và từ chối (kèm thông báo trạng thái) khi bytes bị đuổi sau `MAX_SNAPSHOTS = 20` lượt, thiếu bytes, trùng tên khác bytes, không thuộc sở hữu tài liệu (hoặc sau Save As sang thư mục khác), lỗi khôi phục, hoặc trên web (không có IPC restore); undo một Roll back là bước riêng. |
 | html | Highlight khoảng AI sửa trong editor mã nguồn (`apps/html/src/renderer/source/SourceEditor.tsx:129`, `SourceEditor.tsx:146`), bị xóa khi người dùng gõ; thẻ brief/clarify/partial trong panel; preview nháp khi stream trang. Không có diff, không hiện trên preview. | Roll back theo run (snapshot `{text}`); Ctrl+Z của CodeMirror (`apps/html/src/renderer/source/cm-setup.ts:83`). | **Có (từ G6-09 W5).** CodeMirror: `history({joinToEvent: aiRunEdit})` + `isolateHistory` — mọi sửa của lượt gộp **một** event, người dùng gõ giữa lượt tách lượt, di chuyển caret không tách; undo đi qua `onChange` nên preview theo (`apps/html/tests/g6-09-html-run-undo.test.ts`). `plan_page`/`write_document` thay cả tài liệu trong một bước. | **Đạt** cho undo (blocker cũ hết): một bước mỗi lượt ở mã nguồn. Giữ nguyên (chấp nhận "theo khả năng từng module"): không có dấu vùng sửa ở preview. |
 | sheets | Thay đổi áp ngay vào lưới (không bước xem trước; card preview chỉ là fallback khi apply lỗi, `App.tsx:3579-3610`, `AiChatPanel.tsx:673-680`). Panel hiện "AI đã áp dụng N thay đổi" + nút [Undo] trên tin nhắn trợ lý (`AiChatPanel.tsx:649-666`). Không tô vùng đã sửa; trước G6-09 không liệt kê range/ô bị ghi đè cho người dùng (before→after chỉ đi vào tool output cho model, `tools.ts:787-808`). **Từ G6-09 (W6):** tin nhắn đã áp hiện thêm dòng `Range: A1:B3 · Cells with data overwritten: 4` — ô có dữ liệu hoặc công thức bị ghi đè, chỉ tính lần chạm đầu; fill/copy chỉ liệt kê range nên số là "at least N"; 0 hiện rõ "No existing data overwritten" (`apps/sheets/tests/ai-apply-footprint*.test.ts`). | Nút [Undo] gọi `handleUndo(steps)` (`App.tsx:3819-3845`) và ⌘Z | **Có**: `undoSteps` cộng dồn mọi batch của cùng một tin nhắn trợ lý (`App.tsx:3597-3605,3681-3684`) → một nút hoàn tác cả lượt. Batch quá ngân sách undo → `undoSteps 0`, không có nút (`AiChatPanel.tsx:654-657`); apply lỗi giữa chừng có thể không hoàn tác được (`tools.ts:1374-1379`) | **Đạt** (blocker hàng XLSX-sửa hết): hiển thị + undo theo lượt; target range + số ô bị ghi đè hiện trên tin nhắn đã áp (G6-09 W6, đã ký (b)). Giới hạn: fill/copy chỉ là lower bound; footprint sống cùng phiên chat như nút [Undo] |
 | slides | Thay đổi áp ngay lên deck; panel có chip công cụ, card tiến độ khi sinh deck; hàng đợi chỉnh sửa theo phần tử (`EditQueueCard.tsx`, `edit-queue.ts:1-12`, ≤10 mục, ≤500 ký tự, `edit-queue.ts:35-37`) | ⌘Z (lịch sử main process) + nút rollback trên tin nhắn (`AiPanel.tsx:2338-2345`, `aiSnapshotRestore` `AiPanel.tsx:776-791`); web qua engine (`web-slides-api.ts:996-1000`) | **Có**: `beginHistoryBatch` trước mỗi lượt, `endHistoryBatch` sau (`AiPanel.tsx:1717,767-775`); hàng đợi chỉnh sửa: một batch mỗi trang (`AiPanel.tsx:1777-1781,1871-1891`). G6-09 (W9) **ghim** bằng test chạy các handler main thật: một lượt = một bước, lượt chỉ đọc 0 bước, redo trả lại cả lượt (`apps/slides/tests/ai-run-one-undo.test.ts`) | **Đạt** (không tô vùng sửa; chấp nhận theo "theo khả năng từng module"); một bước undo mỗi lượt được ghim bởi test |
@@ -666,7 +679,12 @@ trả lại được sau khi Lưu giữa lượt, của markdown bỏ ảnh củ
 (b)); slides ghim một bước undo mỗi lượt bằng test; pdf gộp undo theo lượt + nút "Undo this run" + tạm dừng sửa tay khi lượt mở;
 docs/markdown/html/pdf hỏi trước khi lưu tài liệu chưa đặt tên sau lượt (sheets không ghi ngầm nên không cần). **Giới hạn còn lại (không
 blocker):** Ctrl+Z của docs/markdown chỉ phủ cây văn bản (phần ngoài cây do Roll back khi lượt không bị Lưu giữa chừng); redo của lượt
-markdown có ảnh bị từ chối; html không có dấu vùng sửa ở preview; thao tác cấp file của pdf không hoàn tác (giữ ở §5 (c)). G6-12 vẫn
+markdown có ảnh đã bị undo xóa ghi lại ảnh đúng tên + đúng bytes rồi chỉ tự phát lại lượt khi editor còn sống và `undoDepth`/`redoDepth` vẫn
+bằng giá trị đã chụp trước khi chờ khôi phục (`AiPanel.tsx:612,620-625` (3e4e9b71f); lần bấm redo lặp lại khi đang khôi phục được gộp/bỏ qua ở
+`:599` mà không bật thông báo lỗi), và từ chối (kèm thông báo trạng thái) khi bytes ảnh bị đuổi sau
+`MAX_SNAPSHOTS = 20` lượt, thiếu bytes, đã có tệp cùng tên khác bytes, tên không thuộc sở hữu của tài liệu (hoặc sau Save As sang thư mục
+khác), `restoreOwnedAssetFiles` báo lỗi, hoặc trên web (không có IPC restore; `apps/markdown/tests/g6-09-md-run-undo-assets.test.ts`,
+`apps/markdown/tests/g6-09-md-asset-restore*.test.ts`); html không có dấu vùng sửa ở preview; thao tác cấp file của pdf không hoàn tác (giữ ở §5 (c)). G6-12 vẫn
 sở hữu phần công cụ: `apply_ops` markdown nguyên tử, rollback docs trả lại cả trạng thái ngoài cây, merge sheets có [Undo] và
 `mutated: true`, rào vùng sửa (markdown, html).
 
@@ -939,6 +957,6 @@ Cột tay (§2, §4–§9) chờ owner F + Product ký qua Advisor; chữ ký đ
 
 Trạng thái ở `66169a9a` (G6-12): khối §3 và lệnh AC-2 đã chạy lại (§1); cột tay đã làm mới cho mọi hàng G6-12 sửa (§3.1, §4, §5, §6, §7, §8, §9);
 G7-06 chạy lại AC-2 và làm mới khối §3 ở `cb76dde5` bằng extractor đã sửa (§1, §3.1 nhóm C đã đóng);
-DOC-05 lockstep (2026-10-16) làm mới khối §3 ở `bf4ff7b0` (thêm hai hàng `generate_mindmap`, đã đóng theo Advisor decision `msg_f4b50f24445b`, Advisor default, user may override);
+DOC-05 lockstep (2026-10-16) làm mới khối §3 ở `bf4ff7b0` (thêm hai hàng `generate_mindmap`, đã đóng theo Advisor decision `msg_f4b50f24445b`, Advisor default, user may override) và G6-09d / REPIN-1 làm mới khối §3 ở `3e4e9b71f` (phân giải hash `ad838ec1…` cho cả hai hàng `generate_mindmap`);
 phần chờ ký gồm các mục "chờ Product (đợt 3)" ở §9, §9.1 và các xác nhận mặc định ở §9.2. Hàng chưa ký vẫn là hàng chưa ký — G6-12
 không đóng gate G6-D4.

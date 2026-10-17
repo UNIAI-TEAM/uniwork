@@ -170,6 +170,7 @@ func (h *handlers) createDocument(w http.ResponseWriter, r *http.Request) {
 	view, err := h.Documents.CreatePage(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreatePageInput{
 		Kind:           in.Kind,
 		ParentID:       stringValue(in.ParentID),
+		Destination:    stringValue(in.Destination),
 		Title:          in.Title,
 		Icon:           stringValue(in.Icon),
 		Visibility:     in.Visibility,
@@ -181,6 +182,22 @@ func (h *handlers) createDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusCreated, sdo.DocumentSDO{Document: documentDTO(view)})
+}
+
+// ensureMyFolder is POST /workspaces/{workspaceID}/documents/my-folder
+// (MYFOLDER-01, addendum §2): lazily creates and returns the caller's personal
+// My Folder in workspaceID (200 DocumentSDO whether newly created or existing).
+func (h *handlers) ensureMyFolder(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	view, _, err := h.Documents.EnsureMyFolder(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.DocumentSDO{Document: documentDTO(view)})
 }
 
 // getDocument is GET /documents/{documentID}: the working copy for a page or
@@ -234,7 +251,7 @@ func (h *handlers) patchDocument(w http.ResponseWriter, r *http.Request) {
 
 // createDocumentFile is POST /workspaces/{workspaceID}/documents/files: one
 // multipart file document. The file part streams into FileService; parent_id,
-// title and visibility are optional form fields.
+// destination, title and visibility are optional form fields.
 func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -248,6 +265,7 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 	part := &cappedDocumentPart{r: file, max: 50 << 20}
 	res, err := h.Documents.CreateFileDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreateFileDocumentInput{
 		ParentID:       strings.TrimSpace(fields["parent_id"]),
+		Destination:    strings.TrimSpace(fields["destination"]),
 		Title:          strings.TrimSpace(fields["title"]),
 		Filename:       file.FileName(),
 		Body:           part,
@@ -846,6 +864,9 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 	}
 	if doc.ParentID.Valid {
 		out.ParentID = &doc.ParentID.String
+	}
+	if doc.SystemKind.Valid && doc.SystemKind.String != "" {
+		out.SystemKind = &doc.SystemKind.String
 	}
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		out.Icon = &doc.Icon.String

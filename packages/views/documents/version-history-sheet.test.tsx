@@ -17,7 +17,7 @@ function narrowDocument(parsed: ReturnType<typeof DocumentSchema.parse>): Docume
     visibility: parsed.visibility as Document["visibility"],
     my_level: parsed.my_level as Document["my_level"],
     via: parsed.via as Document["via"],
-    owner_kind: parsed.owner_kind as Document["owner_kind"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"],
   };
 }
 

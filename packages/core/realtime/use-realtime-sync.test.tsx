@@ -7,6 +7,7 @@ import type { ChatRoomRecord } from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
+import { documentKeys } from "../documents/keys";
 import { emailHubKeys } from "../email-hub/hooks";
 import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline";
 import { graphKeys } from "../graph/keys";
@@ -924,6 +925,30 @@ describe("useRealtimeSync", () => {
         vi.advanceTimersByTime(250);
       });
       expect(keysCalled(invalidate)).toContain(docRoot);
+    });
+
+    // SHAREDBYME-01 (UNI-1851): `documentKeys.sharedByMe(wsId)` sits under the
+    // workspace root, so share and workspace-access frames mark a cached
+    // Shared-by-me query invalidated without a separate realtime key.
+    it.each([
+      "document.shared",
+      "document.share_revoked",
+      "document.workspace_access_changed",
+    ] as const)("invalidates a cached sharedByMe query on %s", (type) => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const sharedByMeKey = documentKeys.sharedByMe("ws1");
+      const otherWsKey = documentKeys.sharedByMe("ws2");
+      qc.setQueryData(sharedByMeKey, { pages: [{ documents: [], next_cursor: null }], pageParams: [""] });
+      qc.setQueryData(otherWsKey, { pages: [{ documents: [], next_cursor: null }], pageParams: [""] });
+      client.emit({ type, payload: { document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toContain(docRoot);
+      expect(qc.getQueryState(sharedByMeKey)?.isInvalidated).toBe(true);
+      expect(qc.getQueryState(otherWsKey)?.isInvalidated).toBe(false);
+      vi.useRealTimers();
     });
 
     // FD-06 (UNI-1466): the three tree frames refresh the workspace root too,

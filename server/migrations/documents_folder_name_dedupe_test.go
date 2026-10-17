@@ -55,7 +55,7 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx`); err != nil {
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx, idx_documents_folder_name_user_uidx`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -218,7 +218,7 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx`); err != nil {
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx, idx_documents_folder_name_user_uidx`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -353,6 +353,7 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 	for _, glob := range []string{
 		"*_documents_folder_name_dedupe.up.sql",
 		"*_documents_folder_name_uidx.up.sql",
+		"*_documents_folder_name_user_uidx.up.sql",
 	} {
 		matches, err := filepath.Glob(glob)
 		if err != nil || len(matches) != 1 {
@@ -376,8 +377,14 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 	// The runbook holds a fourth copy of the key expression - the one an
 	// operator actually runs (BE-FD02P2-1). It is markdown, not SQL, so it
 	// needs its own reader: the recovery block must stay the dedupe migration's
-	// statement verbatim (whitespace aside), and every key expression in the
-	// file keeps the inside-lower() shape.
+	// statements (comments and whitespace aside), and every key expression in
+	// the file keeps the inside-lower() shape. Deliberate deltas (reviews
+	// BE-MF-1, BE-MF-R2-1): the runbook scopes both statements to the current
+	// index population with system_kind IS NULL, because the historical
+	// migration predates system_kind and would rename My Folder rows, and its
+	// normalize UPDATE adds owner_id IS NULL so owned folders stay untouched.
+	// Removing exactly those three predicates must give the migration back, and
+	// all must be present, so dropping one fails.
 	runbook := filepath.Join("..", "..", "docs", "runbooks", "documents-folder-name-index.md")
 	blocks := fencedSQLBlocks(t, runbook)
 	recovery := 0
@@ -389,8 +396,20 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 			continue
 		}
 		recovery++
-		if want, got := normalizeSQL(readMigration(t, dedupe)), normalizeSQL(block); want != got {
-			t.Errorf("%s: the recovery SQL is not %s verbatim\nwant: %s\ngot:  %s", runbook, dedupe, want, got)
+		code := normalizeSQL(stripSQLComments(block))
+		if n := strings.Count(code, "system_kind IS NULL"); n != 2 {
+			t.Errorf("%s: the recovery SQL carries system_kind IS NULL %d times, want 2 (one per statement)", runbook, n)
+		}
+		// The normalize UPDATE (the first statement) also carries owner_id IS
+		// NULL, which the historical migration lacks (BE-MF-R2-1).
+		normalizeStmt, _, _ := strings.Cut(code, ";")
+		if !strings.Contains(normalizeStmt, "SET title = normalize(title, NFC)") || strings.Count(normalizeStmt, "AND owner_id IS NULL") != 1 {
+			t.Errorf("%s: the normalize UPDATE must carry owner_id IS NULL exactly once", runbook)
+		}
+		scoped := strings.Replace(code, "AND owner_id IS NULL", "", 1) // first occurrence: the normalize UPDATE
+		scoped = strings.NewReplacer("AND system_kind IS NULL", "", "AND d.system_kind IS NULL", "").Replace(scoped)
+		if want, got := normalizeSQL(stripSQLComments(readMigration(t, dedupe))), normalizeSQL(scoped); want != got {
+			t.Errorf("%s: the recovery SQL is not %s apart from the system_kind scope\nwant: %s\ngot:  %s", runbook, dedupe, want, got)
 		}
 	}
 	if recovery != 1 {

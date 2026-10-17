@@ -108,7 +108,7 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	if err != nil {
 		return DocumentView{}, err
 	}
-	if access.Level == DocumentLevelNone {
+	if access.Level == DocumentLevelNone && !access.AdminScope {
 		// Nothing readable at all is not found - the owned refusal below
 		// must never confirm an id to a caller who cannot see it.
 		return DocumentView{}, ErrNotFound
@@ -117,6 +117,9 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 		// §13: a work-product-owned document has no tree slot; the owner
 		// service archives and removes it through the internal seam.
 		return DocumentView{}, errDocumentOwned()
+	}
+	if isMyFolder(doc) {
+		return DocumentView{}, errMyFolderLocked()
 	}
 	if err := decideDocumentAccess(doc, access, DocumentLevelEdit); err != nil {
 		return DocumentView{}, err
@@ -337,13 +340,14 @@ func positionFingerprint(p *float64) string {
 // never reveals a restricted page's place in the forest (the flat list
 // still shows the node itself when the actor may read it).
 type DocumentTreeNode struct {
-	ID       string             `json:"id"`
-	ParentID string             `json:"parent_id,omitempty"`
-	Title    string             `json:"title"`
-	Icon     string             `json:"icon,omitempty"`
-	Kind     string             `json:"kind"`
-	Position float64            `json:"position"`
-	Children []DocumentTreeNode `json:"children"`
+	ID         string             `json:"id"`
+	ParentID   string             `json:"parent_id,omitempty"`
+	Title      string             `json:"title"`
+	Icon       string             `json:"icon,omitempty"`
+	Kind       string             `json:"kind"`
+	SystemKind string             `json:"system_kind,omitempty"`
+	Position   float64            `json:"position"`
+	Children   []DocumentTreeNode `json:"children"`
 }
 
 // DocumentTree returns the visible subtree under rootID ("" = the roots) as
@@ -411,13 +415,14 @@ func buildTreeNodes(docs []db.Document, children map[string][]db.Document, depth
 	nodes := make([]DocumentTreeNode, 0, len(docs))
 	for _, d := range docs {
 		node := DocumentTreeNode{
-			ID:       d.ID,
-			ParentID: d.ParentID.String,
-			Title:    d.Title,
-			Icon:     d.Icon.String,
-			Kind:     d.Kind,
-			Position: d.Position,
-			Children: []DocumentTreeNode{},
+			ID:         d.ID,
+			ParentID:   d.ParentID.String,
+			Title:      d.Title,
+			Icon:       d.Icon.String,
+			Kind:       d.Kind,
+			SystemKind: d.SystemKind.String,
+			Position:   d.Position,
+			Children:   []DocumentTreeNode{},
 		}
 		if depth < maxDocumentDepth {
 			node.Children = buildTreeNodes(children[d.ID], children, depth+1)

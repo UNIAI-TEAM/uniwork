@@ -26,6 +26,7 @@ SELECT c.ord::int4 AS ord, c.key AS key,
       AND d.kind = sqlc.arg(kind)
       AND d.archived_at IS NULL
       AND d.owner_id IS NULL
+      AND d.system_kind IS NULL
       AND d.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
       AND d.id IS DISTINCT FROM sqlc.narg(exclude_id)::text
       AND lower(d.title COLLATE "und-x-icu") = c.key

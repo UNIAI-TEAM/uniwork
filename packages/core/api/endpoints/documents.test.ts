@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
-import { DocumentAccessSchema } from "../../types/document";
+import {
+  DOCUMENT_SYSTEM_KINDS,
+  DocumentAccessSchema,
+  isMyFolder,
+  type DocumentSystemKind,
+} from "../../types/document";
 import { ApiError } from "../http";
 import { setAccessToken } from "../session";
 import {
@@ -11,6 +16,7 @@ import {
   documentAssetPath,
   documentDownloadPath,
   downloadDocumentFile,
+  ensureMyFolder,
   getDocument,
   getDocumentAdminSummary,
   getDocumentAsset,
@@ -23,6 +29,8 @@ import {
   revokeDocumentBreakGlass,
   uploadDocumentAsset,
   uploadDocumentFile,
+  type CreateDocumentBody,
+  type CreateDocumentFileMeta,
 } from "./documents";
 import {
   commitDocumentVersion,
@@ -648,4 +656,105 @@ describe("documents endpoints", () => {
     expect(parseDocumentAccessError(null)).toBeNull();
     expect(parseDocumentAccessError("nope")).toBeNull();
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): system_kind + isMyFolder ------------------
+
+  it("getDocument parses system_kind, narrows to my_folder, and degrades unknown or malformed values", async () => {
+    expect(DOCUMENT_SYSTEM_KINDS).toEqual(["my_folder"]);
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: "my_folder" }) }),
+    );
+    const myFolder = await getDocument("d1");
+    const kind: DocumentSystemKind | null | undefined = myFolder?.system_kind;
+    expect(kind).toBe("my_folder");
+    expect(isMyFolder(myFolder)).toBe(true);
+
+    // Unknown string enum value parses through z.string() and degrades to false in isMyFolder.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: "future_system_folder" }) }),
+    );
+    const unknownKind = await getDocument("d1");
+    expect(unknownKind?.id).toBe("d1");
+    expect(isMyFolder(unknownKind)).toBe(false);
+
+    // Non-string malformed value degrades to undefined without failing the document read.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: 42 }) }),
+    );
+    const malformedKind = await getDocument("d1");
+    expect(malformedKind?.id).toBe("d1");
+    expect(malformedKind?.system_kind).toBeUndefined();
+    expect(isMyFolder(malformedKind)).toBe(false);
+
+    expect(isMyFolder(null)).toBe(false);
+    expect(isMyFolder(undefined)).toBe(false);
+    expect(isMyFolder({ system_kind: null })).toBe(false);
+  });
+
+  it("ensureMyFolder posts to /workspaces/{ws}/documents/my-folder and parses the document envelope", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: docBody({
+          id: "mf1",
+          kind: "folder",
+          system_kind: "my_folder",
+          title: "My Folder",
+          visibility: "restricted",
+        }),
+      }),
+    );
+    const out = await ensureMyFolder("w 1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/w%201/documents/my-folder");
+    expect(init?.method).toBe("POST");
+    expect(out?.id).toBe("mf1");
+    expect(out?.kind).toBe("folder");
+    expect(out?.system_kind).toBe("my_folder");
+    expect(isMyFolder(out)).toBe(true);
+  });
+
+  it.each([...malformedBodies, { document: { id: "mf1" } }])(
+    "ensureMyFolder degrades malformed response %#",
+    async (body) => {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(ensureMyFolder("w1")).resolves.toBeNull();
+    },
+  );
+
+  // ---- MYFOLDER-01 (UNI-1850): destination: "my_folder" ------------------
+
+  it("createDocument and createDocumentFile send destination: my_folder without parent_id", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ parent_id: "mf1" }) }));
+    await createDocument("w1", { title: "Trang mới", destination: "my_folder" });
+    const [, docInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(docInit?.body))).toEqual({
+      title: "Trang mới",
+      destination: "my_folder",
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "file", parent_id: "mf1" }) }),
+    );
+    await createDocumentFile(
+      "w1",
+      new File(["bytes"], "brief.docx"),
+      { destination: "my_folder", title: "Báo cáo" },
+    );
+    const [, fileInit] = vi.mocked(fetch).mock.calls[1]!;
+    const form = fileInit?.body as FormData;
+    expect(Array.from(form.keys())).toEqual(["destination", "title", "file"]);
+    expect(form.get("destination")).toBe("my_folder");
+    expect(form.get("parent_id")).toBeNull();
+
+    // Type-level union: destination and parent_id/parentId cannot both compile.
+    // @ts-expect-error destination and parent_id are mutually exclusive
+    const badDocBody: CreateDocumentBody = { title: "x", destination: "my_folder", parent_id: "p1" };
+    // @ts-expect-error destination and parentId are mutually exclusive
+    const badFileMeta: CreateDocumentFileMeta = { destination: "my_folder", parentId: "p1" };
+    expect(badDocBody).toBeDefined();
+    expect(badFileMeta).toBeDefined();
+  });
 });
+
+
+
