@@ -16,36 +16,12 @@ export const FRAME_SELECTOR_OWNER = 'F';
 const TEST_CONVERSATION_KEY_B64 = Buffer.alloc(32, 7).toString('base64');
 
 export const MODULE_AI_SELECTORS = Object.freeze({
-  sheets: Object.freeze({
-    toggle: '.copilot.collapsed .expand-copilot, .expand-copilot',
-    openPanel: '.copilot:not(.collapsed)',
-    docReady: '.copilot, .expand-copilot',
-  }),
-  docs: Object.freeze({
-    toggle: '.ai-rail',
-    openPanel: '.ai-panel',
-    docReady: '.ai-dock',
-  }),
-  slides: Object.freeze({
-    toggle: '.ai-rail',
-    openPanel: '.ai-panel',
-    docReady: '.ai-dock',
-  }),
-  pdf: Object.freeze({
-    toggle: '.copilot.collapsed .expand-copilot, .expand-copilot, .ai-rail',
-    openPanel: '.copilot:not(.collapsed), .ai-panel',
-    docReady: '.copilot, .ai-dock',
-  }),
-  markdown: Object.freeze({
-    toggle: '.copilot.collapsed .expand-copilot, .expand-copilot, .ai-rail',
-    openPanel: '.copilot:not(.collapsed), .ai-panel',
-    docReady: '.copilot, .ai-dock',
-  }),
-  html: Object.freeze({
-    toggle: '.copilot.collapsed .expand-copilot, .expand-copilot, .ai-rail',
-    openPanel: '.copilot:not(.collapsed), .ai-panel',
-    docReady: '.copilot, .ai-dock',
-  }),
+  sheets: Object.freeze({ toggle: '.copilot.collapsed .expand-copilot, .expand-copilot', openPanel: '.copilot:not(.collapsed)', docReady: '.copilot, .expand-copilot' }),
+  docs: Object.freeze({ toggle: '.ai-rail', openPanel: '.ai-panel', docReady: '.ai-dock' }),
+  slides: Object.freeze({ toggle: '.ai-rail', openPanel: '.ai-panel', docReady: '.ai-dock' }),
+  pdf: Object.freeze({ toggle: '.copilot.collapsed .expand-copilot, .expand-copilot, .ai-rail', openPanel: '.copilot:not(.collapsed), .ai-panel', docReady: '.copilot, .ai-dock' }),
+  markdown: Object.freeze({ toggle: '.copilot.collapsed .expand-copilot, .expand-copilot, .ai-rail', openPanel: '.copilot:not(.collapsed), .ai-panel', docReady: '.copilot, .ai-dock' }),
+  html: Object.freeze({ toggle: '.copilot.collapsed .expand-copilot, .expand-copilot, .ai-rail', openPanel: '.copilot:not(.collapsed), .ai-panel', docReady: '.copilot, .ai-dock' }),
 });
 
 export function moduleAiSelectors(module) {
@@ -425,11 +401,25 @@ export async function verifyHostAndFramePreconditions({
   provider = 'uniwork',
   runDir,
   serverEvidence,
-  timeoutMs = 20_000,
+  timeoutMs = 30_000,
 }) {
   const mSel = moduleAiSelectors(row.module);
   await frame.waitForSelector(mSel.docReady, { state: 'attached', timeout: timeoutMs }).catch(() => null);
-  await sleep(250);
+  if (row.module === 'sheets') {
+    await frame.waitForSelector('canvas[id^="univer-sheet-main-canvas"]', { state: 'visible', timeout: timeoutMs }).catch(() => null);
+    const wbDeadline = Date.now() + timeoutMs;
+    while (Date.now() < wbDeadline) {
+      const wbReady = await frame
+        .evaluate(() => {
+          const st = window.__sheetsWebState;
+          return Boolean(st && typeof st.workbook === 'function' && st.workbook() !== null);
+        })
+        .catch(() => false);
+      if (wbReady) break;
+      await sleep(200);
+    }
+  }
+  await sleep(300);
 
   const frameMessages = await frame.evaluate(() => window.__g708ProtocolMessages ?? []).catch(() => []);
   const hostMessages = await page.evaluate(() => window.__g708ProtocolMessages ?? []).catch(() => []);
@@ -459,6 +449,7 @@ export async function verifyHostAndFramePreconditions({
       openPanel = await frame.waitForSelector(mSel.openPanel, { state: 'visible', timeout: 5_000 }).catch(() => null);
     }
   }
+  await sleep(200);
 
   let screenshotPath = null;
   if (openPanel && runDir) {

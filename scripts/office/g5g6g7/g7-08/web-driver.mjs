@@ -353,9 +353,9 @@ export async function runWebMatrixRow(runEntry, {
       }
     }
 
-    const modelChip = await frame.$(FRAME_AI_SELECTORS.modelChip);
-    if (!modelChip) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.modelChip, { rowId: row.id }), preconditions, screenshotPath };
     if (provider === 'byok') {
+      const modelChip = await frame.$(FRAME_AI_SELECTORS.modelChip);
+      if (!modelChip) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.modelChip, { rowId: row.id }), preconditions, screenshotPath };
       await modelChip.click().catch(() => {});
       await sleep(200);
       const byokOpt = await frame.$(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`);
