@@ -114,6 +114,13 @@ type SignedURL struct {
 	ExpiresAt time.Time
 }
 
+// MultipartPart is one uploaded part as the storage reports it.
+type MultipartPart struct {
+	PartNumber int32
+	ETag       string // as S3 returns it, quotes included
+	SizeBytes  int64
+}
+
 // Capabilities is what a built adapter can do. A flow that needs a capability
 // the adapter lacks fails before upload, never halfway (spec §3.3.2).
 type Capabilities struct {
@@ -129,6 +136,11 @@ type Capabilities struct {
 	// Version, so a cleanup deletes the recorded bytes instead of planting a
 	// delete marker.
 	VersionedObjects bool
+	// Multipart: the adapter implements CreateMultipart, SignUploadPart,
+	// ListParts, CompleteMultipart and AbortMultipart for real. The local
+	// filesystem adapter does not support multipart uploads, so chunked upload
+	// flows must not run on local.
+	Multipart bool
 }
 
 // ObjectStore is the contract FileService drives. Implementations are the
@@ -171,6 +183,18 @@ type ObjectStore interface {
 	// response-disposition. An adapter without the capability returns
 	// ErrCapabilityUnsupported, never a fake URL.
 	SignWrite(ctx context.Context, loc ObjectLocator, opts SignOptions) (SignedURL, error)
+	// CreateMultipart starts a multipart upload to the locator's key and returns
+	// the storage's upload id. info.ContentType is recorded on the object.
+	CreateMultipart(ctx context.Context, loc ObjectLocator, info WriteInfo) (uploadID string, err error)
+	// SignUploadPart mints a presigned PUT URL for one part (1..10000).
+	SignUploadPart(ctx context.Context, loc ObjectLocator, uploadID string, partNumber int32, opts SignOptions) (SignedURL, error)
+	// ListParts returns every uploaded part (all pages), ordered by part number.
+	ListParts(ctx context.Context, loc ObjectLocator, uploadID string) ([]MultipartPart, error)
+	// CompleteMultipart assembles the listed parts (ordered by part number) into the object.
+	CompleteMultipart(ctx context.Context, loc ObjectLocator, uploadID string, parts []MultipartPart) (PutResult, error)
+	// AbortMultipart discards the upload and its parts. An unknown or already
+	// finished upload id is a nil result (idempotent, like Delete).
+	AbortMultipart(ctx context.Context, loc ObjectLocator, uploadID string) error
 	// Probe is the readiness dependency check: cheap, bounded by the caller's
 	// ctx, and never an upload or a delete (spec §3.3.5).
 	Probe(ctx context.Context) error
@@ -201,6 +225,12 @@ var (
 	// of the object (HTTP 416). Both adapters answer the same sentinel so a
 	// proxy can emit one status without backend branches.
 	ErrRangeNotSatisfiable = errors.New("storage_range_not_satisfiable")
+	// ErrMultipartNotFound: S3 NoSuchUpload, for ListParts, CompleteMultipart
+	// or SignUploadPart.
+	ErrMultipartNotFound = errors.New("storage_multipart_not_found")
+	// ErrMultipartPartsInvalid: S3 InvalidPart, InvalidPartOrder or
+	// EntityTooSmall on Complete.
+	ErrMultipartPartsInvalid = errors.New("storage_multipart_parts_invalid")
 )
 
 // ValidObjectKey exposes the key-shape rule the write path enforces so

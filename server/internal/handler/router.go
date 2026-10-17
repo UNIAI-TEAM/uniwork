@@ -160,10 +160,11 @@ type handlers struct {
 // rate limiter (G6-03b §5.3). The limiter runs before routing, so it cannot
 // read the frame auth's context: it verifies the token itself, the same HMAC
 // and lifetime checks OfficeFrameService.Verify applies on the route, and
-// touches no database. The name is the person plus the document: one person's
-// documents do not pool into one wallet, and a stolen token cannot spend
-// another person's budget. A token that does not verify names nobody, so the
-// request keeps its address's budget instead of a forgeable one.
+// touches no database. The name is the person plus the document (or the source
+// for an ofs1. token): one person's frames do not pool into one wallet, and a
+// stolen token cannot spend another person's budget. A token that does not
+// verify names nobody, so the request keeps its address's budget instead of a
+// forgeable one.
 func (h *handlers) frameIdentity(r *http.Request) string {
 	if h.OfficeFrame == nil {
 		return ""
@@ -174,6 +175,9 @@ func (h *handlers) frameIdentity(r *http.Request) string {
 	}
 	claims, err := h.OfficeFrame.Verify(token)
 	if err != nil {
+		if source, serr := h.OfficeFrame.VerifySource(token); serr == nil {
+			return "user:" + source.UserID + ":src:" + source.SourceID
+		}
 		return ""
 	}
 	return "user:" + claims.UserID + ":doc:" + claims.DocumentID
@@ -205,6 +209,9 @@ func New(d Deps) http.Handler {
 	if d.OfficeFrame == nil && d.Documents != nil {
 		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
 	}
+	// The source frame (UNI-1869) re-runs the source's own gate on every mint
+	// and read: wire the composed service in, whoever built the frame service.
+	d.OfficeFrame.SetSources(d.DocumentSources)
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	if d.McpAuth != nil && d.McpTools != nil {
 		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), mw.NewCounter(d.Redis, "mcp-write", 30, time.Minute), d.Log)
@@ -720,20 +727,34 @@ func New(d Deps) http.Handler {
 		ListDocumentSources:     h.listDocumentSources,
 		DownloadDocumentSource:  h.downloadDocumentSource,
 		SaveDocumentSource:      h.saveDocumentSource,
-		GetDocument:             h.getDocument,
-		PatchDocument:           h.patchDocument,
-		UploadDocumentFile:      h.uploadDocumentFile,
-		CommitDocumentVersion:   h.commitDocumentVersion,
-		LookupCommitIntent:      h.lookupCommitIntent,
-		ListDocumentVersions:    h.listDocumentVersions,
-		CreateDocumentVersion:   h.createDocumentVersion,
-		GetDocumentVersion:      h.getDocumentVersion,
-		RestoreDocumentVersion:  h.restoreDocumentVersion,
-		UploadDocumentAsset:     h.uploadDocumentAsset,
-		GetDocumentAsset:        h.getDocumentAsset,
-		DownloadDocument:        h.downloadDocument,
-		CreatePreviewScope:      h.createPreviewScope,
-		GetPreviewAsset:         h.getPreviewAsset,
+		// UNI-1869: the source Office frame.
+		MintSourceOfficeFrameToken:  h.mintSourceOfficeFrameToken,
+		OpenOfficeFrameSource:       h.openOfficeFrameSource,
+		GetOfficeFrameSourceContent: h.getOfficeFrameSourceContent,
+		GetDocument:                 h.getDocument,
+		PatchDocument:               h.patchDocument,
+		UploadDocumentFile:          h.uploadDocumentFile,
+		CommitDocumentVersion:       h.commitDocumentVersion,
+		LookupCommitIntent:          h.lookupCommitIntent,
+		ListDocumentVersions:        h.listDocumentVersions,
+		CreateDocumentVersion:       h.createDocumentVersion,
+		GetDocumentVersion:          h.getDocumentVersion,
+		RestoreDocumentVersion:      h.restoreDocumentVersion,
+		UploadDocumentAsset:         h.uploadDocumentAsset,
+		GetDocumentAsset:            h.getDocumentAsset,
+		DownloadDocument:            h.downloadDocument,
+		CreatePreviewScope:          h.createPreviewScope,
+		GetPreviewAsset:             h.getPreviewAsset,
+
+		CreateWorkspaceUploadSession: h.createWorkspaceUploadSession,
+		CreateDocumentUploadSession:  h.createDocumentUploadSession,
+		CreateFrameUploadSession:     h.createFrameUploadSession,
+		GetUploadSession:             h.getUploadSession,
+		GetFrameUploadSession:        h.getFrameUploadSession,
+		CompleteUploadSession:        h.completeUploadSession,
+		CompleteFrameUploadSession:   h.completeFrameUploadSession,
+		AbortUploadSession:           h.abortUploadSession,
+		AbortFrameUploadSession:      h.abortFrameUploadSession,
 
 		MintOfficeFrameToken:     h.mintOfficeFrameToken,
 		OpenOfficeFrameDocument:  h.openOfficeFrameDocument,

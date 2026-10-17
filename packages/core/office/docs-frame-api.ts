@@ -5,6 +5,7 @@ import {
   mintOfficeFrameToken,
   type OfficeFrameClient,
   type OfficeFrameClientOptions,
+  type OfficeFrameSource,
   type OfficeFrameDocument,
   type OfficeFrameToken,
 } from "../api/endpoints/office-frame";
@@ -64,7 +65,8 @@ export interface DocsFrameSavedAs {
 export interface DocsFrameApi {
   open(payload: ApiOpenPayload, call: DocsFrameCall): Promise<OpenPayload>;
   save(payload: ApiSavePayload, call: DocsFrameCall): Promise<SaveResult>;
-  recents(payload: ApiRecentsPayload, call: DocsFrameCall): Promise<ApiRecentsResult>;
+  /** A read-only frame (a source file, UNI-1869) has no recents; an absent method answers `unsupported`. */
+  recents?(payload: ApiRecentsPayload, call: DocsFrameCall): Promise<ApiRecentsResult>;
   /** Not implemented by `createDocsFrameApi` (see there); an absent method answers `unsupported`. */
   uploadImage?(payload: ApiImageUploadPayload, call: DocsFrameCall): Promise<ApiImageUploadResult>;
   /** Markdown/HTML: fresh URLs and the URLs of paths typed after the open (CONTRACT A1b). */
@@ -85,7 +87,7 @@ export function docsFrameApiBase(): string {
 }
 
 /** W6's minted token in protocol shape (absolute expiry in epoch ms). */
-export function docsFrameToken(token: OfficeFrameToken, now = Date.now()): TokenPayload {
+export function docsFrameToken(token: Pick<OfficeFrameToken, "token" | "expires_at" | "expires_in">, now = Date.now()): TokenPayload {
   const parsed = Date.parse(token.expires_at);
   return { token: token.token, tokenExpiresAt: Number.isFinite(parsed) ? parsed : now + token.expires_in * 1000 };
 }
@@ -121,14 +123,16 @@ function malformed(endpoint: string): DocsProtocolError {
   return new DocsProtocolError({ code: "internal", message: `${endpoint}: response did not match the contract`, retryable: true });
 }
 
-function fileMeta(doc: OfficeFrameDocument): FileMeta {
+function fileMeta(doc: OfficeFrameDocument | OfficeFrameSource): FileMeta {
   const modifiedAt = doc.updated_at ? Date.parse(doc.updated_at) : Number.NaN;
   return {
-    fileId: doc.document_id,
+    fileId: "source_id" in doc ? doc.source_id : doc.document_id,
     name: doc.file.filename,
     sizeBytes: doc.file.size_bytes,
     mimeType: doc.file.mime_type,
-    versionId: doc.file.version_id,
+    // The document revision is the concurrency token: it comes back as base_revision. A source
+    // has no stored versions, so it has no version id (revision "0" is informational only).
+    versionId: "source_id" in doc ? undefined : doc.file.version_id,
     // The document revision is the concurrency token: it comes back as base_revision.
     etag: doc.revision,
     writable: doc.can_edit,
@@ -224,7 +228,7 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       sameDocument(payload.fileId, call);
       const client = clientFor(call);
       const doc = await client.open(payload.fileId);
-      if (!doc) throw malformed("office-frame open");
+      if (!doc || "source_id" in doc) throw malformed("office-frame open");
       const bytes = await (await client.content(doc.download_url, call.signal)).arrayBuffer();
       const assets = frameAssets(doc);
       return { file: fileMeta(doc), source: { kind: "bytes", data: bytes }, ...(assets ? { assets } : {}) };
@@ -242,12 +246,12 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       const key = await operationKey("save", [payload.fileId, baseRevision], payload.data);
       // The stored file keeps its own name: the upload is named after what open answered.
       const current = await client.open(payload.fileId);
-      if (!current) throw malformed("office-frame open");
+      if (!current || "source_id" in current) throw malformed("office-frame open");
       const upload = await client.upload(payload.fileId, new Blob([payload.data], { type: mimeType }), current.file.filename, `${key}:upload`);
       if (!upload) throw malformed("office-frame upload");
       try {
         const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);
-        if (!doc) throw malformed("office-frame commit");
+        if (!doc || "source_id" in doc) throw malformed("office-frame commit");
         return { ok: true, file: fileMeta(doc), versionId: doc.file.version_id };
       } catch (error) {
         // A stale base is an answer, not a failure: the frame offers to reload.
@@ -277,7 +281,7 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       const token = await mintOfficeFrameToken(created.id, { signal: call.signal });
       if (!token) throw malformed("office frame-token");
       const opened = await createOfficeFrameClient({ ...options, getToken: () => token.token }).open(created.id);
-      if (!opened) throw malformed("office-frame open");
+      if (!opened || "source_id" in opened) throw malformed("office-frame open");
       return { save: { ok: true, file: fileMeta(opened), versionId: opened.file.version_id }, rebind: { documentId: created.id, token } };
     }),
 
@@ -343,4 +347,34 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       return { data: pdf, mimeType: "application/pdf", ...(base ? { name: `${base}.pdf` } : {}) };
     });
   }
+}
+
+/**
+ * The view-only API of a source file (chat/task/meeting/email attachment,
+ * UNI-1869): `open` answers the file's meta and bytes from the `/sources/`
+ * subtree; everything that writes, lists or renders is absent (the session's
+ * proxy answers `unsupported`, the server would refuse `ofs1.` anyway), and
+ * `save` itself answers `unsupported` so a frame asking anyway hears it in
+ * its own words.
+ */
+export function createOfficeFrameSourceApi(module: OfficeModule, options: DocsFrameApiOptions = {}): DocsFrameApi {
+  const clientFor = (call: DocsFrameCall): OfficeFrameClient => createOfficeFrameClient({ ...options, scope: "sources", getToken: () => call.token });
+  return {
+    open: async (payload, call) => {
+      try {
+        sameDocument(payload.fileId, call);
+        const client = clientFor(call);
+        const src = await client.open(payload.fileId);
+        if (!src || !("source_id" in src)) throw malformed("office-frame source open");
+        const bytes = await (await client.content(src.download_url, call.signal)).arrayBuffer();
+        // A source has no sibling assets namespace: relative paths of md/html resolve to nothing.
+        return { file: fileMeta(src), source: { kind: "bytes", data: bytes } };
+      } catch (error) {
+        throw error instanceof DocsProtocolError ? error : docsFrameError(error);
+      }
+    },
+    save: async () => {
+      throw new DocsProtocolError({ code: "unsupported", message: `${module} sources are view-only`, retryable: false });
+    },
+  };
 }

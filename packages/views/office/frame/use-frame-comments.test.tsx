@@ -91,7 +91,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
     const comments = useFrameComments({ wsId: "ws-1", ...props, documentId });
     panels.push(comments.framePanel);
     const session = useDocsFrameSession({
-      iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", documentId,
+      iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: { kind: "document", id: documentId },
       readonly, locale: "vi", theme: "light", onError, comments: comments.binding,
       api: { open: vi.fn(), save: vi.fn(), recents: vi.fn() } as unknown as DocsFrameApi,
     });

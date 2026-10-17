@@ -139,3 +139,51 @@ func TestMapEmailHubSendErrorKeepsReconnectCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestMapServiceErrorSetsRetryAfterHeader(t *testing.T) {
+	h := &handlers{Deps: Deps{Log: slog.Default()}}
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "int retry_after on 429 upload_sessions_exhausted",
+			err: service.CodedError{
+				Code:   "upload_sessions_exhausted",
+				Status: http.StatusTooManyRequests,
+				Msg:    "Too many active upload sessions",
+				Fields: map[string]any{"retry_after": 60},
+			},
+			want: "60",
+		},
+		{
+			name: "int64 retry_after on 409 upload_session_busy",
+			err: service.CodedError{
+				Code:   "upload_session_busy",
+				Status: http.StatusConflict,
+				Msg:    "Upload session is currently validating",
+				Fields: map[string]any{"retry_after": int64(5)},
+			},
+			want: "5",
+		},
+		{
+			name: "no retry_after field leaves Retry-After empty",
+			err: service.CodedError{
+				Code:   "upload_parts_invalid",
+				Status: http.StatusUnprocessableEntity,
+				Msg:    "Invalid parts",
+			},
+			want: "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			h.mapServiceError(rec, tc.err)
+			if got := rec.Header().Get("Retry-After"); got != tc.want {
+				t.Fatalf("Retry-After = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

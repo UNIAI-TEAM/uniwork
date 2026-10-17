@@ -26,6 +26,7 @@ var tenantExportExcluded = map[string]string{
 	"graph_nodes":                    "Chiếu Work Graph, dựng lại được từ nguồn.",
 	"idempotency_keys":               "Sổ kỹ thuật chống ghi trùng.",
 	"file_upload_sessions":           "Phiên tải kỹ thuật.",
+	"file_multipart_uploads":         "Phiên tải nhiều phần kỹ thuật (tệp lớn), đi cùng phiên tải; không phải nội dung.",
 	"file_jobs":                      "Job kỹ thuật của tệp.",
 	"file_backfill_items":            "Sổ công cụ chuyển tệp, không phải nội dung.",
 	"file_derivatives":               "Bản dẫn xuất kỹ thuật; byte tệp không nằm trong gói.",

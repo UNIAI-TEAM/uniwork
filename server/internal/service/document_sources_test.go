@@ -579,6 +579,77 @@ func TestDocumentSourceSaveCopiesTheBytesIntoANewDocument(t *testing.T) {
 	wantNotFound(t, err)
 }
 
+func TestDocumentSourceChatMarkdownOpens(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+	tn := env.tn
+	store := newMemStorage()
+	tasks := NewTaskService(env.f.pool, env.f.q, env.svc.ws, store)
+	chat := NewChatService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{})
+	chat.SetFiles(env.fs)
+	svc := NewDocumentSourceService(DocumentSourceDeps{Documents: env.svc, Tasks: tasks, Chat: chat})
+
+	roomID := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	s.roomMember(tn.orgID, tn.wsA, roomID, tn.owner.ID, "active")
+	s.roomMember(tn.orgID, tn.wsA, roomID, tn.member.ID, "active")
+	for _, tc := range []struct {
+		ext         string
+		filename    string
+		contentType string
+		clientMsgID string
+		body        []byte
+	}{
+		{
+			ext:         ".md",
+			filename:    "probe-md.md",
+			contentType: "text/markdown",
+			clientMsgID: "chat-md-1",
+			body:        []byte("# Probe MD\n\nBody.\n"),
+		},
+		{
+			ext:         ".csv",
+			filename:    "probe-csv.csv",
+			contentType: "text/csv",
+			clientMsgID: "chat-csv-1",
+			body:        []byte("id,name\n1,Alpha\n2,Beta\n"),
+		},
+	} {
+		t.Run(tc.ext, func(t *testing.T) {
+			msg, err := chat.SendFileMessage(s.ctx, tn.owner.ID, tn.wsA, roomID, SendFileMessageInput{
+				Filename:    tc.filename,
+				Body:        bytes.NewReader(tc.body),
+				ClientMsgID: tc.clientMsgID,
+			})
+			if err != nil {
+				t.Fatalf("SendFileMessage(%s): %v", tc.ext, err)
+			}
+			t.Cleanup(func() {
+				_, _ = env.f.pool.Exec(context.Background(), `DELETE FROM chat_messages WHERE id = $1`, msg.ID)
+			})
+			var fileID string
+			if err := env.f.pool.QueryRow(s.ctx, `SELECT file_id::text FROM chat_messages WHERE id = $1`, msg.ID).Scan(&fileID); err != nil {
+				t.Fatalf("chat file_id(%s): %v", tc.ext, err)
+			}
+			s.exec(`INSERT INTO files (id, organization_id, storage, object_key, original_filename, status, content_type, size_bytes, ready_at)
+				VALUES ($1, $2, 'local', $3, $4, 'ready', $5, $6, now())`,
+				fileID, tn.orgID, "src/"+strings.ToLower(fileID), tc.filename, tc.contentType, len(tc.body))
+
+			opened, err := svc.Open(s.ctx, human(tn.member), tn.wsA, "chat:"+msg.ID)
+			if err != nil {
+				t.Fatalf("DocumentSourceService.Open(chat:%s): %v", tc.ext, err)
+			}
+			got, err := io.ReadAll(opened.Body)
+			_ = opened.Body.Close()
+			if err != nil {
+				t.Fatalf("read opened %s body: %v", tc.ext, err)
+			}
+			if !bytes.Equal(got, tc.body) {
+				t.Fatalf("opened %s body = %q, want %q", tc.ext, got, tc.body)
+			}
+		})
+	}
+}
+
 func TestDocumentSourceCursorAndFilters(t *testing.T) {
 	at := time.Date(2026, 10, 12, 8, 0, 0, 123456000, time.UTC)
 	raw := encodeDocumentSourceCursor(at, "chat:01J8X4MSG0N1P2Q3R4S5T6U7V8")

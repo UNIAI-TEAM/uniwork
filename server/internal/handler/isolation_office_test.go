@@ -241,6 +241,21 @@ func (w *isoWorld) buildOfficeFrame(t *testing.T, tn *isoTenant) {
 	tn.ids["frameAsset"] = isoString(t, out, "asset_id")
 	out = w.call(t, "GET", base, tn.token, nil)
 	tn.ids["frameRevision"] = isoString(t, out, "revision")
+
+	// The source frame (UNI-1869): a DOCX task attachment under "Từ nơi khác",
+	// a source token minted by the owner's session for it (registered so do()
+	// sends it on /api/v1/office-frame/sources/*), and its own bytes.
+	out = w.upload(t, "/api/v1/tasks/"+tn.ids["task"]+"/attachments", tn.token, isoMultipart{
+		filename: strings.ToLower(tn.marker) + "-source.docx", contentType: isoDocxMime, content: isoFrameDocx,
+	})
+	tn.ids["sourceDocx"] = isoID(t, out, "attachment")
+	out = w.call(t, "POST",
+		"/api/v1/workspaces/"+tn.wsID+"/documents/sources/task%3A"+tn.ids["sourceDocx"]+"/office/frame-token", tn.token, nil)
+	tn.ids["sourceFrameToken"] = isoString(t, out, "token")
+	if w.frameSources == nil {
+		w.frameSources = map[string]string{}
+	}
+	w.frameSources[tn.token] = tn.ids["sourceFrameToken"]
 }
 
 // isoFrameSign asks for a signed URL of the tenant's own frame image.

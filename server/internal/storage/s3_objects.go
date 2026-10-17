@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -52,7 +53,7 @@ func (s *s3ObjectStore) Backend() Backend { return s.backend }
 // Capabilities implements ObjectStore. VersionedObjects reflects the bucket
 // mode preflight detected; the rest are fixed by the protocol.
 func (s *s3ObjectStore) Capabilities() Capabilities {
-	return Capabilities{Presign: true, Range: true, VersionedObjects: s.versioned}
+	return Capabilities{Presign: true, Range: true, VersionedObjects: s.versioned, Multipart: true}
 }
 
 // Put implements ObjectStore: streams the body with the unsigned-payload
@@ -274,6 +275,192 @@ func (s *s3ObjectStore) SignWrite(ctx context.Context, loc ObjectLocator, opts S
 	}, nil
 }
 
+// CreateMultipart implements ObjectStore: opens a multipart upload on the
+// locator's key and records the verified content type and disposition on the
+// target object.
+func (s *s3ObjectStore) CreateMultipart(ctx context.Context, loc ObjectLocator, info WriteInfo) (string, error) {
+	if err := s.checkLocator(loc); err != nil {
+		return "", err
+	}
+	input := &s3.CreateMultipartUploadInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(loc.Key),
+	}
+	if info.ContentType != "" {
+		input.ContentType = aws.String(info.ContentType)
+	}
+	if info.Filename != "" || info.ContentType != "" {
+		input.ContentDisposition = aws.String(ContentDisposition(info.ContentType, info.Filename))
+	}
+	out, err := s.client.CreateMultipartUpload(ctx, input)
+	if err != nil {
+		return "", fmt.Errorf("s3 CreateMultipartUpload: %w", mapSDKError(err))
+	}
+	if out.UploadId == nil || *out.UploadId == "" {
+		return "", fmt.Errorf("s3 CreateMultipartUpload: empty upload id")
+	}
+	return *out.UploadId, nil
+}
+
+// SignUploadPart implements ObjectStore: mints a presigned PUT URL for one
+// part (1..10000) through presignClient with the TTL clamped to SigV4's max.
+// The signed URL itself is never placed into an error.
+func (s *s3ObjectStore) SignUploadPart(ctx context.Context, loc ObjectLocator, uploadID string, partNumber int32, opts SignOptions) (SignedURL, error) {
+	if err := s.checkLocator(loc); err != nil {
+		return SignedURL{}, err
+	}
+	if uploadID == "" {
+		return SignedURL{}, fmt.Errorf("s3 SignUploadPart: %w: upload id is required", ErrLocatorInvalid)
+	}
+	if partNumber < 1 || partNumber > 10000 {
+		return SignedURL{}, fmt.Errorf("s3 SignUploadPart: %w: part number %d outside 1..10000", ErrLocatorInvalid, partNumber)
+	}
+	if opts.TTL <= 0 {
+		return SignedURL{}, fmt.Errorf("s3 SignUploadPart: %w: ttl must be positive", ErrLocatorInvalid)
+	}
+	ttl := clampPresignTTL(opts.TTL)
+	out, err := s3.NewPresignClient(s.presignClient).PresignUploadPart(ctx, &s3.UploadPartInput{
+		Bucket:     aws.String(s.bucket),
+		Key:        aws.String(loc.Key),
+		UploadId:   aws.String(uploadID),
+		PartNumber: aws.Int32(partNumber),
+	}, func(o *s3.PresignOptions) {
+		o.Expires = ttl
+	})
+	if err != nil {
+		return SignedURL{}, fmt.Errorf("s3 SignUploadPart: %w", mapSDKError(err))
+	}
+	return SignedURL{
+		URL: out.URL, Method: out.Method, Headers: signedHeaderMap(out.SignedHeader),
+		ExpiresAt: time.Now().Add(ttl),
+	}, nil
+}
+
+// ListParts implements ObjectStore: pages through S3 ListParts until complete
+// and returns the uploaded parts ordered by part number.
+func (s *s3ObjectStore) ListParts(ctx context.Context, loc ObjectLocator, uploadID string) ([]MultipartPart, error) {
+	if err := s.checkLocator(loc); err != nil {
+		return nil, err
+	}
+	if uploadID == "" {
+		return nil, fmt.Errorf("s3 ListParts: %w: upload id is required", ErrLocatorInvalid)
+	}
+	var parts []MultipartPart
+	var marker *string
+	for {
+		out, err := s.client.ListParts(ctx, &s3.ListPartsInput{
+			Bucket:           aws.String(s.bucket),
+			Key:              aws.String(loc.Key),
+			UploadId:         aws.String(uploadID),
+			PartNumberMarker: marker,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("s3 ListParts: %w", mapSDKError(err))
+		}
+		for _, p := range out.Parts {
+			parts = append(parts, MultipartPart{
+				PartNumber: aws.ToInt32(p.PartNumber),
+				ETag:       aws.ToString(p.ETag),
+				SizeBytes:  aws.ToInt64(p.Size),
+			})
+		}
+		if !aws.ToBool(out.IsTruncated) || out.NextPartNumberMarker == nil || *out.NextPartNumberMarker == "" {
+			break
+		}
+		marker = out.NextPartNumberMarker
+	}
+	slices.SortFunc(parts, func(a, b MultipartPart) int {
+		if a.PartNumber < b.PartNumber {
+			return -1
+		}
+		if a.PartNumber > b.PartNumber {
+			return 1
+		}
+		return 0
+	})
+	return parts, nil
+}
+
+// CompleteMultipart implements ObjectStore: sorts the part list by part number
+// and completes the multipart upload, capturing VersionID on a versioned
+// bucket the same way Put does.
+func (s *s3ObjectStore) CompleteMultipart(ctx context.Context, loc ObjectLocator, uploadID string, parts []MultipartPart) (PutResult, error) {
+	if err := s.checkLocator(loc); err != nil {
+		return PutResult{}, err
+	}
+	if uploadID == "" {
+		return PutResult{}, fmt.Errorf("s3 CompleteMultipartUpload: %w: upload id is required", ErrLocatorInvalid)
+	}
+	if len(parts) == 0 {
+		return PutResult{}, fmt.Errorf("s3 CompleteMultipartUpload: %w: at least one part is required", ErrMultipartPartsInvalid)
+	}
+	sorted := slices.Clone(parts)
+	slices.SortFunc(sorted, func(a, b MultipartPart) int {
+		if a.PartNumber < b.PartNumber {
+			return -1
+		}
+		if a.PartNumber > b.PartNumber {
+			return 1
+		}
+		return 0
+	})
+	completed := make([]s3types.CompletedPart, len(sorted))
+	var totalBytes int64
+	for i, p := range sorted {
+		if p.PartNumber < 1 || p.PartNumber > 10000 || p.ETag == "" {
+			return PutResult{}, fmt.Errorf("s3 CompleteMultipartUpload: %w: invalid part %d", ErrMultipartPartsInvalid, p.PartNumber)
+		}
+		completed[i] = s3types.CompletedPart{
+			PartNumber: aws.Int32(p.PartNumber),
+			ETag:       aws.String(p.ETag),
+		}
+		totalBytes += p.SizeBytes
+	}
+	out, err := s.client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+		Bucket:   aws.String(s.bucket),
+		Key:      aws.String(loc.Key),
+		UploadId: aws.String(uploadID),
+		MultipartUpload: &s3types.CompletedMultipartUpload{
+			Parts: completed,
+		},
+	})
+	if err != nil {
+		return PutResult{}, fmt.Errorf("s3 CompleteMultipartUpload: %w", mapSDKError(err))
+	}
+	res := PutResult{SizeBytes: totalBytes}
+	if out.VersionId != nil {
+		res.VersionID = *out.VersionId
+	}
+	if s.versioned && res.VersionID == "" {
+		return res, fmt.Errorf("s3 CompleteMultipartUpload: %w: versioned bucket returned no version id", ErrCapabilityUnsupported)
+	}
+	return res, nil
+}
+
+// AbortMultipart implements ObjectStore: aborts the multipart upload, mapping
+// NoSuchUpload to nil so cleanup and retries are idempotent like Delete.
+func (s *s3ObjectStore) AbortMultipart(ctx context.Context, loc ObjectLocator, uploadID string) error {
+	if err := s.checkLocator(loc); err != nil {
+		return err
+	}
+	if uploadID == "" {
+		return fmt.Errorf("s3 AbortMultipartUpload: %w: upload id is required", ErrLocatorInvalid)
+	}
+	_, err := s.client.AbortMultipartUpload(ctx, &s3.AbortMultipartUploadInput{
+		Bucket:   aws.String(s.bucket),
+		Key:      aws.String(loc.Key),
+		UploadId: aws.String(uploadID),
+	})
+	if err != nil {
+		mapped := mapSDKError(err)
+		if errors.Is(mapped, ErrMultipartNotFound) || errors.Is(mapped, ErrNotFound) {
+			return nil
+		}
+		return fmt.Errorf("s3 AbortMultipartUpload: %w", mapped)
+	}
+	return nil
+}
+
 // maxPresignTTL is the longest lifetime a presigned URL is signed for. AWS
 // SigV4 caps X-Amz-Expires at 604800s (7 days) and current S3 and MinIO reject
 // anything above it, so stay one minute below the limit.
@@ -388,11 +575,19 @@ func mapSDKError(err error) error {
 			// satisfied; the local adapter raises the same sentinel for an
 			// offset at or past the end, so a proxy sees one shape.
 			return errors.Join(ErrRangeNotSatisfiable, err)
+		case "NoSuchUpload":
+			return errors.Join(ErrMultipartNotFound, err)
+		case "InvalidPart", "InvalidPartOrder", "EntityTooSmall":
+			return errors.Join(ErrMultipartPartsInvalid, err)
 		}
 	}
 	var noKey *s3types.NoSuchKey
 	if errors.As(err, &noKey) {
 		return errors.Join(ErrNotFound, err)
+	}
+	var noUpload *s3types.NoSuchUpload
+	if errors.As(err, &noUpload) {
+		return errors.Join(ErrMultipartNotFound, err)
 	}
 	return err
 }

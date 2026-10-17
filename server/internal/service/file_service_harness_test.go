@@ -3,11 +3,15 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -48,21 +52,72 @@ func (c *fileTestClock) Advance(d time.Duration) {
 
 var errTestStorageDown = errors.New("test: storage adapter is down")
 
+type testMultipartPart struct {
+	data []byte
+	etag string
+}
+
+type testMultipartUpload struct {
+	loc       storage.ObjectLocator
+	info      storage.WriteInfo
+	parts     map[int32]testMultipartPart
+	aborted   bool
+	completed bool
+}
+
 // switchStore wraps a real T2 ObjectStore with a failure switch, counters, a
 // hook after a stored Put, and a record of every key it wrote or signed, so a
 // MinIO case can remove exactly its own objects from the shared bucket.
 type switchStore struct {
 	storage.ObjectStore
-	mu        sync.Mutex
-	down      bool
-	puts      int
-	fullReads int
-	afterPut  func(key string)
-	written   map[string]storage.ObjectLocator
+	mu                 sync.Mutex
+	down               bool
+	puts               int
+	fullReads          int
+	afterPut           func(key string)
+	written            map[string]storage.ObjectLocator
+	multipartEnabled   bool
+	createMultipartErr error
+	multipartSeq       int
+	multipartCreates   int
+	multipartAborts    int
+	abortsByKey        map[string]int
+	beforeAbort        func(key string)
+	deletedKeys        map[string]int
+	uploads            map[string]*testMultipartUpload
+	beforeListParts    func()
+	beforeComplete     func()
+	statErrOnce        error
+	multipartCompletes int
 }
 
 func newSwitchStore(inner storage.ObjectStore) *switchStore {
-	return &switchStore{ObjectStore: inner, written: map[string]storage.ObjectLocator{}}
+	return &switchStore{
+		ObjectStore: inner,
+		written:     map[string]storage.ObjectLocator{},
+		abortsByKey: map[string]int{},
+		deletedKeys: map[string]int{},
+		uploads:     map[string]*testMultipartUpload{},
+	}
+}
+
+func (s *switchStore) enableMultipart(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.multipartEnabled = enabled
+}
+
+func (s *switchStore) Capabilities() storage.Capabilities {
+	s.mu.Lock()
+	enabled := s.multipartEnabled
+	s.mu.Unlock()
+	caps := s.ObjectStore.Capabilities()
+	if enabled {
+		caps.Multipart = true
+		caps.Presign = true
+		caps.Range = true
+	}
+	return caps
 }
 
 func (s *switchStore) isDown() bool {
@@ -114,6 +169,16 @@ func (s *switchStore) Put(ctx context.Context, loc storage.ObjectLocator, body i
 	return res, nil
 }
 
+func (s *switchStore) Delete(ctx context.Context, loc storage.ObjectLocator) error {
+	if s.isDown() {
+		return errTestStorageDown
+	}
+	s.mu.Lock()
+	s.deletedKeys[loc.Key]++
+	s.mu.Unlock()
+	return s.ObjectStore.Delete(ctx, loc)
+}
+
 func (s *switchStore) Open(ctx context.Context, loc storage.ObjectLocator, opts storage.ReadOptions) (*storage.Object, error) {
 	if s.isDown() {
 		return nil, errTestStorageDown
@@ -127,6 +192,13 @@ func (s *switchStore) Open(ctx context.Context, loc storage.ObjectLocator, opts 
 }
 
 func (s *switchStore) Stat(ctx context.Context, loc storage.ObjectLocator) (storage.ObjectInfo, error) {
+	s.mu.Lock()
+	statErr := s.statErrOnce
+	s.statErrOnce = nil
+	s.mu.Unlock()
+	if statErr != nil {
+		return storage.ObjectInfo{}, statErr
+	}
 	if s.isDown() {
 		return storage.ObjectInfo{}, errTestStorageDown
 	}
@@ -146,6 +218,174 @@ func (s *switchStore) SignWrite(ctx context.Context, loc storage.ObjectLocator, 
 	}
 	s.remember(loc)
 	return s.ObjectStore.SignWrite(ctx, loc, opts)
+}
+
+func (s *switchStore) CreateMultipart(ctx context.Context, loc storage.ObjectLocator, info storage.WriteInfo) (string, error) {
+	if s.isDown() {
+		return "", errTestStorageDown
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.createMultipartErr != nil {
+		return "", s.createMultipartErr
+	}
+	if !s.multipartEnabled {
+		return s.ObjectStore.CreateMultipart(ctx, loc, info)
+	}
+	s.multipartSeq++
+	s.multipartCreates++
+	uploadID := fmt.Sprintf("mp-%d", s.multipartSeq)
+	s.uploads[uploadID] = &testMultipartUpload{
+		loc:   loc,
+		info:  info,
+		parts: map[int32]testMultipartPart{},
+	}
+	return uploadID, nil
+}
+
+func (s *switchStore) SignUploadPart(ctx context.Context, loc storage.ObjectLocator, uploadID string, partNumber int32, opts storage.SignOptions) (storage.SignedURL, error) {
+	if s.isDown() {
+		return storage.SignedURL{}, errTestStorageDown
+	}
+	s.mu.Lock()
+	enabled := s.multipartEnabled
+	up, ok := s.uploads[uploadID]
+	s.mu.Unlock()
+	if !enabled {
+		return s.ObjectStore.SignUploadPart(ctx, loc, uploadID, partNumber, opts)
+	}
+	if !ok || up.aborted || up.completed || up.loc.Key != loc.Key {
+		return storage.SignedURL{}, storage.ErrMultipartNotFound
+	}
+	return storage.SignedURL{
+		URL:       fmt.Sprintf("http://local.test/multipart/%s?uploadId=%s&partNumber=%d", loc.Key, uploadID, partNumber),
+		Method:    http.MethodPut,
+		ExpiresAt: time.Now().UTC().Add(opts.TTL),
+	}, nil
+}
+
+func (s *switchStore) PutPart(key, uploadID string, partNumber int32, data []byte) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	up, ok := s.uploads[uploadID]
+	if !ok || up.aborted || up.completed || (key != "" && up.loc.Key != key) {
+		return "", storage.ErrMultipartNotFound
+	}
+	sum := sha256.Sum256(data)
+	etag := `"` + hex.EncodeToString(sum[:16]) + `"`
+	cp := append([]byte(nil), data...)
+	up.parts[partNumber] = testMultipartPart{data: cp, etag: etag}
+	return etag, nil
+}
+
+func (s *switchStore) ListParts(ctx context.Context, loc storage.ObjectLocator, uploadID string) ([]storage.MultipartPart, error) {
+	if s.isDown() {
+		return nil, errTestStorageDown
+	}
+	s.mu.Lock()
+	enabled := s.multipartEnabled
+	hook := s.beforeListParts
+	if !enabled {
+		s.mu.Unlock()
+		return s.ObjectStore.ListParts(ctx, loc, uploadID)
+	}
+	s.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	s.mu.Lock()
+	up, ok := s.uploads[uploadID]
+	if !ok || up.aborted || up.completed || up.loc.Key != loc.Key {
+		s.mu.Unlock()
+		return nil, storage.ErrMultipartNotFound
+	}
+	out := make([]storage.MultipartPart, 0, len(up.parts))
+	for num, p := range up.parts {
+		out = append(out, storage.MultipartPart{
+			PartNumber: num,
+			ETag:       p.etag,
+			SizeBytes:  int64(len(p.data)),
+		})
+	}
+	s.mu.Unlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].PartNumber < out[j].PartNumber })
+	return out, nil
+}
+
+func (s *switchStore) CompleteMultipart(ctx context.Context, loc storage.ObjectLocator, uploadID string, parts []storage.MultipartPart) (storage.PutResult, error) {
+	if s.isDown() {
+		return storage.PutResult{}, errTestStorageDown
+	}
+	s.mu.Lock()
+	enabled := s.multipartEnabled
+	hook := s.beforeComplete
+	if !enabled {
+		s.mu.Unlock()
+		return s.ObjectStore.CompleteMultipart(ctx, loc, uploadID, parts)
+	}
+	up, ok := s.uploads[uploadID]
+	if !ok || up.aborted || up.completed || up.loc.Key != loc.Key {
+		s.mu.Unlock()
+		return storage.PutResult{}, storage.ErrMultipartNotFound
+	}
+	if len(parts) == 0 {
+		s.mu.Unlock()
+		return storage.PutResult{}, storage.ErrMultipartPartsInvalid
+	}
+	var assembled bytes.Buffer
+	var prev int32
+	for _, p := range parts {
+		if p.PartNumber <= prev {
+			s.mu.Unlock()
+			return storage.PutResult{}, storage.ErrMultipartPartsInvalid
+		}
+		prev = p.PartNumber
+		stored, exists := up.parts[p.PartNumber]
+		if !exists || strings.Trim(stored.etag, `"`) != strings.Trim(p.ETag, `"`) {
+			s.mu.Unlock()
+			return storage.PutResult{}, storage.ErrMultipartPartsInvalid
+		}
+		assembled.Write(stored.data)
+	}
+	info := up.info
+	up.completed = true
+	s.multipartCompletes++
+	s.mu.Unlock()
+
+	if hook != nil {
+		hook()
+	}
+	body := assembled.Bytes()
+	info.SizeBytes = int64(len(body))
+	s.remember(loc)
+	return s.ObjectStore.Put(ctx, loc, bytes.NewReader(body), info)
+}
+
+func (s *switchStore) AbortMultipart(ctx context.Context, loc storage.ObjectLocator, uploadID string) error {
+	if s.isDown() {
+		return errTestStorageDown
+	}
+	s.mu.Lock()
+	enabled := s.multipartEnabled
+	hook := s.beforeAbort
+	if !enabled {
+		s.mu.Unlock()
+		return s.ObjectStore.AbortMultipart(ctx, loc, uploadID)
+	}
+	s.mu.Unlock()
+
+	if hook != nil {
+		hook(loc.Key)
+	}
+
+	s.mu.Lock()
+	s.multipartAborts++
+	s.abortsByKey[loc.Key]++
+	if up, ok := s.uploads[uploadID]; ok {
+		up.aborted = true
+	}
+	s.mu.Unlock()
+	return nil
 }
 
 // localTestSigner stands in for presigning on the local adapter, which has no
