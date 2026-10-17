@@ -128,6 +128,34 @@ WHERE id = sqlc.arg(id)
   AND workspace_id = sqlc.arg(workspace_id)
 RETURNING *;
 
+-- A document being hard-deleted must not leave a dangling parent_id behind
+-- (no foreign keys, RESTORE-01 §2 P-4): its surviving direct children re-root
+-- to the workspace root first. This is the read half - children outside the
+-- delete set, both trashed and live.
+-- name: ListDocumentChildrenOutsideSet :many
+SELECT *
+FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND parent_id = sqlc.arg(parent_id)
+  AND NOT (id = ANY(sqlc.arg(exclude_ids)::text[]))
+ORDER BY id;
+
+-- The trashed half of the re-root: parent_id leaves the dying row while
+-- archived_at, archive_batch_id, purge_after, title, position and revision
+-- all stay untouched - the row is not being restored, it is staying in the
+-- trash where a later restore re-reads it. An id inside the delete set is
+-- skipped even if it still names the parent: it is deleted moments later.
+-- name: RerootArchivedChildrenOutsideSet :many
+UPDATE documents
+SET parent_id = NULL
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND parent_id = sqlc.arg(parent_id)
+  AND archived_at IS NOT NULL
+  AND NOT (id = ANY(sqlc.arg(exclude_ids)::text[]))
+RETURNING id;
+
 -- The restore's other name write: a batch member keeps its parent and only its
 -- title moves. Written while the row is still archived, for the same reason as
 -- the detach above.

@@ -45,7 +45,7 @@ Route mới `POST /api/v1/documents/{documentID}/purge` (SDI rỗng, SDO 204; `a
 mặc định, fixture `archivedFolder` trong switch `{documentID}` của `isolation_matrix_test.go`).
 
 - P-1. Chỉ cho mục ĐANG trong thùng rác; mục sống → 400 `document_not_in_trash`.
-- P-2. Cổng giống khôi phục (R-1): quản lý trên mục; người có quyền sửa/chỉ đọc → 403; không thấy → 404.
+- P-2. Cổng giống khôi phục (R-1): quản lý trên mục; quyền sửa → 403; người chỉ đọc hoặc không thấy → 404.
 - P-3. Phạm vi giống R-2: mục + hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý. Hậu duệ còn lại ở thùng rác;
   khi sau này được khôi phục mà cha đã bị xóa → gốc workspace (R-3 đã bao).
 - P-4. Dọn dữ liệu phụ thuộc: tách thân xóa của `purgeOneDocument` thành một hàm dùng chung `hardDeleteDocumentTx(ctx, q,

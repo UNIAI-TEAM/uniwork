@@ -467,13 +467,14 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 // reachable again; descendants the caller cannot manage stay in the trash with
 // their archive_batch_id and purge_after untouched.
 //
-// Restore is not bounded like archive. A batch written since the bound exists
-// holds at most documentArchiveMaxNodes nodes, so only a legacy batch (from
-// before folders) could be larger, and refusing it would strand it in the
-// trash: a restore cannot be done in parts. It stays cheap under the tree
-// lock: the batch is read, cleared and audited in one statement each, the
-// trivial manage rules are read off the rows, and only a node whose parent is
-// outside the restored set costs a parent lookup.
+// Restore is not bounded like archive: the managed-subset walk reads one
+// archive batch, and a batch written since the bound exists holds at most
+// documentArchiveMaxNodes nodes, so only a legacy batch (from before folders)
+// could be larger. The caller may legitimately restore only their managed
+// share of it, so nothing needs refusing on size. It stays cheap under the
+// tree lock: the batch is read, cleared and audited in one statement each,
+// the trivial manage rules are read off the rows, and only a node whose
+// parent is outside the restored set costs a parent lookup.
 func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
 	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if !doc.ArchivedAt.Valid {
@@ -698,16 +699,27 @@ func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root 
 }
 
 // decideArchiveRootAccess is the archive command's root decision, shared with
-// the archive-impact read so the two can never drift: a caller with nothing
-// readable is not found (never a confirmation of the id), an owned root is
-// refused with document_owned_by_work_product, and only then must manage be
-// held. The owned refusal sits between the two on purpose - an owned document
-// is not the public archive path's business whatever level the caller holds, so
-// the answer is 409 rather than the 403 a bare manage gate would give.
+// the archive-impact read and the restore/purge gates so the four can never
+// drift. A trashed row is visible only to manage and to edit holders
+// (RESTORE-01 Q-T1 c), so while the document sits in the trash the ladder is:
+// manage (or AdminScope) -> the command runs; effective edit -> forbidden;
+// anything below edit - view, comment, an agent's capped view, nothing -
+// answers not found and never confirms the id. On a live document the first
+// refusal is unchanged: a caller with nothing readable is not found, then an
+// owned root is refused with document_owned_by_work_product, and only then
+// must manage be held. The owned refusal sits between the two on purpose - an
+// owned document is not the public archive path's business whatever level the
+// caller holds, so the answer is 409 rather than the 403 a bare manage gate
+// would give.
 //
 // DOC-05: an AdminScope caller (no read level) administers the document, so
 // they pass the same way manage does (decideDocumentAdminister).
 func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
+	if doc.ArchivedAt.Valid && !access.Level.AtLeast(DocumentLevelEdit) && !access.AdminScope {
+		// Below edit a trashed item is hidden, restore/purge included: an
+		// agent or a view holder gets not found, never a confirmation.
+		return ErrNotFound
+	}
 	if access.Level == DocumentLevelNone && !access.AdminScope {
 		// Nothing readable at all is not found - the owned refusal below
 		// must never confirm an id to a caller who cannot see it.
@@ -1054,6 +1066,10 @@ func (s *DocumentService) PurgeDocument(ctx context.Context, actor Actor, docume
 		return nil, errPurgeFolderTooLarge()
 	}
 	purged := make([]string, 0, len(members))
+	deleting := make([]string, 0, len(members))
+	for _, m := range members {
+		deleting = append(deleting, m.ID)
+	}
 	for _, m := range members {
 		locked, err := q.LockDocumentByID(ctx, m.ID)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1065,7 +1081,7 @@ func (s *DocumentService) PurgeDocument(ctx context.Context, actor Actor, docume
 		if !locked.ArchivedAt.Valid {
 			continue
 		}
-		deleted, _, err := s.hardDeleteDocumentTx(ctx, q, locked, actor)
+		deleted, _, err := s.hardDeleteDocumentTx(ctx, q, locked, actor, deleting)
 		if err != nil {
 			return nil, err
 		}
@@ -1207,7 +1223,7 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 	if !doc.ArchivedAt.Valid || !doc.PurgeAfter.Valid || !doc.PurgeAfter.Time.Before(now) {
 		return false, 0, nil // restored or re-archived later while the scan was in flight
 	}
-	purged, released, err := s.hardDeleteDocumentTx(ctx, q, doc, audit.System("documents.purge"))
+	purged, released, err := s.hardDeleteDocumentTx(ctx, q, doc, audit.System("documents.purge"), []string{doc.ID})
 	if err != nil || !purged {
 		return false, 0, err
 	}
@@ -1217,17 +1233,62 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 	return true, released, nil
 }
 
-// hardDeleteDocumentTx deletes one locked archived document, every row of its
-// dependent orbit (versions, assets, shares, share links, access logs, comment
-// reactions/mentions/revisions/comments, favorites), releases its FileService
-// references, and records the document.deleted audit and outbox rows inside
-// the caller's transaction (RESTORE-01 §2 P-4/P-6).
-func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor) (bool, int, error) {
+// hardDeleteDocumentTx deletes one locked archived document, re-roots the
+// surviving direct children that are not in the delete set, removes every row
+// of its dependent orbit (versions, assets, shares, share links, access logs,
+// comment reactions/mentions/revisions/comments, favorites), releases its
+// FileService references, and records the document.deleted audit and outbox
+// rows inside the caller's transaction (RESTORE-01 §2 P-4/P-6).
+func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor, deleting []string) (bool, int, error) {
 	fileIDs, err := q.ListDocumentFileIDs(ctx, db.ListDocumentFileIDsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
 	if err != nil {
 		return false, 0, err
+	}
+	// No foreign keys: every surviving direct child must leave the dying row
+	// before it disappears, inside this transaction (RESTORE-01 §2 P-4). A
+	// trashed child keeps archived_at, its batch and purge_after untouched -
+	// only parent_id moves, and a later restore re-reads the row at the trash
+	// root. A live child lands at the workspace root like any re-rooted
+	// restore member: fresh position and a collision-free "(n)" title.
+	children, err := q.ListDocumentChildrenOutsideSet(ctx, db.ListDocumentChildrenOutsideSetParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		ParentID: pgtype.Text{String: doc.ID, Valid: true}, ExcludeIds: deleting,
+	})
+	if err != nil {
+		return false, 0, err
+	}
+	if _, err := q.RerootArchivedChildrenOutsideSet(ctx, db.RerootArchivedChildrenOutsideSetParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		ParentID: pgtype.Text{String: doc.ID, Valid: true}, ExcludeIds: deleting,
+	}); err != nil {
+		return false, 0, err
+	}
+	for _, child := range children {
+		if child.ArchivedAt.Valid {
+			continue
+		}
+		name, err := s.availableMoveTitle(ctx, q, documentNameScope{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: child.Kind, ExcludeID: child.ID,
+		}, child.Title)
+		if err != nil {
+			return false, 0, err
+		}
+		position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, ParentID: pgtype.Text{},
+		})
+		if err != nil {
+			return false, 0, err
+		}
+		if _, err := q.DetachDocumentToRoot(ctx, db.DetachDocumentToRootParams{
+			ID: child.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Position: position, Title: name.Title, SearchText: documentSearchText(name.Title, child.ContentText),
+			UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
+		}); err != nil {
+			return false, 0, err
+		}
 	}
 	// Everything the document gathered goes in the same transaction.
 	for _, del := range []func(context.Context) error{

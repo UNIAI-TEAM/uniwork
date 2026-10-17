@@ -350,6 +350,29 @@ func TestDocumentRestorePerItem(t *testing.T) {
 				afterB.ArchivedAt.Valid, afterB.ArchiveBatchID, arch.BatchID, afterB.PurgeAfter, beforeB.PurgeAfter)
 		}
 	})
+	t.Run("RS-5: a view holder gets 404 on restore of a trashed item, never a 403 that would confirm the id", func(t *testing.T) {
+		sharedView := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Chỉ đọc", archived: true,
+		})
+		f.share(t, sharedView, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+		if _, err := f.svc.RestoreDocument(f.ctx, u, sharedView.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("view holder restore = %v, want ErrNotFound", err)
+		}
+		f.liveArchived(t, sharedView.ID)
+
+		wsView := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Chỉ đọc workspace", archived: true,
+		})
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET workspace_level = 'view' WHERE id = $1`, wsView.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.svc.RestoreDocument(f.ctx, u, wsView.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("workspace view holder restore = %v, want ErrNotFound", err)
+		}
+		f.liveArchived(t, wsView.ID)
+	})
 
 	t.Run("RS-3: child restored after parent is already live returns under parent and renames on collision", func(t *testing.T) {
 		folderF := f.treeDoc(t, tn, treeDocSpec{
@@ -796,6 +819,25 @@ func TestDocumentManualPurge(t *testing.T) {
 			t.Fatalf("edit holder purge = %v, want ErrForbidden (403)", err)
 		}
 
+		// A view holder cannot act and must not learn the id exists: 404, not
+		// the 403 an edit holder gets.
+		viewShared := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, archived: true,
+		})
+		f.share(t, viewShared, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+		if _, err := f.svc.PurgeDocument(f.ctx, u, viewShared.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("view holder purge = %v, want ErrNotFound", err)
+		}
+		wsViewDoc := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, archived: true,
+		})
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET workspace_level = 'view' WHERE id = $1`, wsViewDoc.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.svc.PurgeDocument(f.ctx, u, wsViewDoc.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("workspace view holder purge = %v, want ErrNotFound", err)
+		}
+
 		// Bound check: > archiveBound returns 400 folder_too_large.
 		root := f.treeDoc(t, tn, treeDocSpec{
 			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
@@ -836,6 +878,16 @@ func TestDocumentManualPurge(t *testing.T) {
 		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
 			t.Fatalf("admin archive F: %v", err)
 		}
+		beforeChild, err := f.q.GetDocumentByID(f.ctx, unmanagedChild.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A live child under a trashed parent: unreachable through the public
+		// commands, but the helper must re-root it too (name + root position).
+		liveChild := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindPage, title: "Con sống", parent: folderF.ID,
+		})
 
 		purged, err := f.svc.PurgeDocument(f.ctx, u, folderF.ID)
 		if err != nil {
@@ -849,9 +901,64 @@ func TestDocumentManualPurge(t *testing.T) {
 				t.Fatalf("expected %s to be hard-deleted", id)
 			}
 		}
-		f.liveArchived(t, unmanagedChild.ID)
 
-		// Now aclOwner restores unmanagedChild: since folderF was purged, unmanagedChild detaches to workspace root.
+		// BE-RS-1: the retained child must not keep a dangling parent_id.
+		// parent_id is NULL the moment the purge commits and every other
+		// field (archived_at, batch, purge_after, title, revision) is what it
+		// was before the purge.
+		retained, err := f.q.GetDocumentByID(f.ctx, unmanagedChild.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if retained.ParentID.Valid {
+			t.Fatalf("retained child parent_id = %v, want NULL immediately after purge", retained.ParentID)
+		}
+		if !retained.ArchivedAt.Valid || !retained.ArchivedAt.Time.Equal(beforeChild.ArchivedAt.Time) ||
+			!retained.ArchiveBatchID.Valid ||
+			retained.ArchiveBatchID.String != beforeChild.ArchiveBatchID.String ||
+			!retained.PurgeAfter.Time.Equal(beforeChild.PurgeAfter.Time) ||
+			retained.Title != beforeChild.Title || retained.Revision != beforeChild.Revision {
+			t.Fatalf("retained child changed beyond parent_id: %+v vs %+v", retained, beforeChild)
+		}
+		// The live child re-rooted to the workspace root, still live.
+		afterLive := f.live(t, liveChild.ID)
+		if afterLive.ParentID.Valid {
+			t.Fatalf("live child parent_id = %v, want NULL (workspace root)", afterLive.ParentID)
+		}
+
+		// BE-RS-7: exactly one human document.deleted audit row and one outbox
+		// row per deleted id - and none for either retained child.
+		for _, id := range []string{folderF.ID, managedChild.ID} {
+			var auditCount int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events
+				 WHERE action = 'document.deleted' AND resource_id = $1 AND actor_id = $2 AND actor_kind = 'human'`,
+				id, tn.member.ID).Scan(&auditCount); err != nil || auditCount != 1 {
+				t.Fatalf("audit document.deleted rows for %s = %d, err = %v, want 1 human row", id, auditCount, err)
+			}
+			var outboxCount int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM outbox_events WHERE topic = 'document.deleted' AND payload::jsonb->>'document_id' = $1`,
+				id).Scan(&outboxCount); err != nil || outboxCount != 1 {
+				t.Fatalf("outbox document.deleted rows for %s = %d, err = %v, want 1", id, outboxCount, err)
+			}
+		}
+		for _, id := range []string{unmanagedChild.ID, liveChild.ID} {
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = 'document.deleted' AND resource_id = $1`,
+				id).Scan(&n); err != nil || n != 0 {
+				t.Fatalf("audit document.deleted rows for retained %s = %d, err = %v, want 0", id, n, err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM outbox_events WHERE topic = 'document.deleted' AND payload::jsonb->>'document_id' = $1`,
+				id).Scan(&n); err != nil || n != 0 {
+				t.Fatalf("outbox document.deleted rows for retained %s = %d, err = %v, want 0", id, n, err)
+			}
+		}
+
+		// Now aclOwner restores unmanagedChild: it already sits at the trash
+		// root, so it comes back at the workspace root.
 		res, err := f.svc.RestoreDocument(f.ctx, Human(tn.aclOwner.ID), unmanagedChild.ID, ArchiveDocumentInput{})
 		if err != nil {
 			t.Fatalf("aclOwner restore unmanagedChild: %v", err)
@@ -867,7 +974,13 @@ func TestDocumentManualPurge(t *testing.T) {
 		past := time.Now().Add(-time.Hour)
 		expired := f.treeDoc(t, tn, treeDocSpec{
 			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
-			archived: true, purgeAfter: past,
+			kind: DocumentKindFolder, archived: true, purgeAfter: past,
+		})
+		// A child archived in a different batch with a future purge_after is
+		// retained by the sweep; its parent_id must be re-rooted to NULL.
+		retainedChild := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			parent: expired.ID, archived: true,
 		})
 		f.version(t, expired, 1, "auto", "f-pg4-exp")
 		rep, err := f.svc.PurgeExpired(f.ctx, time.Now())
@@ -879,6 +992,14 @@ func TestDocumentManualPurge(t *testing.T) {
 		}
 		if _, err := f.q.GetDocumentByID(f.ctx, expired.ID); err == nil {
 			t.Fatal("expired document still exists after PurgeExpired")
+		}
+		afterChild, err := f.q.GetDocumentByID(f.ctx, retainedChild.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if afterChild.ParentID.Valid || !afterChild.ArchivedAt.Valid {
+			t.Fatalf("retained child after sweep: parent=%v archived=%v, want NULL parent in trash",
+				afterChild.ParentID, afterChild.ArchivedAt.Valid)
 		}
 	})
 }
@@ -1113,6 +1234,72 @@ func TestDocumentTrashEditHolders(t *testing.T) {
 			if containsID(ids, id) {
 				t.Fatalf("creator without current edit/manage access saw trashed row %s (got %v)", id, ids)
 			}
+		}
+	})
+
+	t.Run("TR-3: a content-only term names the row to a manager but never to an edit holder", func(t *testing.T) {
+		// search_text carries title + content (as documentSearchText writes it);
+		// the term lives in the content part only, so the title branch cannot
+		// match it and the row proves a content match happened.
+		contentHit := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			title: "Biên bản họp", searchText: "Biên bản họp xylophone secret body",
+		})
+		if _, err := f.svc.ArchiveDocument(f.ctx, owner, contentHit.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("archive contentHit: %v", err)
+		}
+
+		// The manager (acl owner) still gets the row on a content match.
+		managerTrash, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, Query: "xylophone", Limit: 100})
+		if err != nil {
+			t.Fatalf("manager trash search: %v", err)
+		}
+		if !containsID(listIDs(managerTrash), contentHit.ID) {
+			t.Fatalf("manager content search missing %s (got %v)", contentHit.ID, listIDs(managerTrash))
+		}
+
+		// The edit holder sees the row by title but a content-only term must
+		// not name it (BE-RS-3).
+		editorTrash, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "xylophone", Limit: 100})
+		if err != nil {
+			t.Fatalf("editor trash search: %v", err)
+		}
+		if containsID(listIDs(editorTrash), contentHit.ID) {
+			t.Fatalf("editor content search leaked %s (got %v)", contentHit.ID, listIDs(editorTrash))
+		}
+		titleHit, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Query: "Biên bản", Limit: 100})
+		if err != nil {
+			t.Fatalf("editor title search: %v", err)
+		}
+		if !containsID(listIDs(titleHit), contentHit.ID) {
+			t.Fatalf("editor title search missing %s (got %v)", contentHit.ID, listIDs(titleHit))
+		}
+
+		// A workspace admin reaches a restricted trashed row only through
+		// AdminScope: they administer it, they never read its content, so a
+		// content-only term must not name the row while the title still does
+		// (F-3b: see_all grants content matching only on non-restricted rows).
+		admin := Human(tn.wsAdmin.ID)
+		restrictedHit := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			title: "Restricted Agenda", searchText: "Restricted Agenda quasarbody-only",
+		})
+		if _, err := f.svc.ArchiveDocument(f.ctx, owner, restrictedHit.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("archive restrictedHit: %v", err)
+		}
+		adminContent, err := f.svc.ListDocuments(f.ctx, admin, tn.wsA, ListDocumentsInput{Archived: true, Query: "quasarbody", Limit: 100})
+		if err != nil {
+			t.Fatalf("admin content search: %v", err)
+		}
+		if containsID(listIDs(adminContent), restrictedHit.ID) {
+			t.Fatalf("admin content search leaked restricted row %s (got %v)", restrictedHit.ID, listIDs(adminContent))
+		}
+		adminTitle, err := f.svc.ListDocuments(f.ctx, admin, tn.wsA, ListDocumentsInput{Archived: true, Query: "Restricted Agenda", Limit: 100})
+		if err != nil {
+			t.Fatalf("admin title search: %v", err)
+		}
+		if !containsID(listIDs(adminTitle), restrictedHit.ID) {
+			t.Fatalf("admin title search missing %s (got %v)", restrictedHit.ID, listIDs(adminTitle))
 		}
 	})
 }

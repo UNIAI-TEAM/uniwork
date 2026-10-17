@@ -243,17 +243,13 @@ describe("documents-collections endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/restore");
   });
 
-  it("purgeDocument posts to /purge with the idempotency header and resolves on 204", async () => {
+  it("purgeDocument posts to /purge and sends no Idempotency-Key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
-    await expect(purgeDocument("d/1", { idempotencyKey: "pg-1" })).resolves.toBeUndefined();
+    await expect(purgeDocument("d/1", { signal: undefined })).resolves.toBeUndefined();
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/purge");
     expect(init?.method).toBe("POST");
-    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("pg-1");
-
-    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
-    await expect(purgeDocument("d1")).resolves.toBeUndefined();
-    expect(new Headers(vi.mocked(fetch).mock.calls[1]![1]?.headers).get("Idempotency-Key")).toBeNull();
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBeNull();
   });
 
   // ---- malformed responses: one per endpoint -----------------------------
@@ -652,6 +648,11 @@ describe("documents-collections endpoints", () => {
     expect(canManageTrashed(undefined)).toBe(false);
     expect(canManageTrashed({ my_level: null })).toBe(false);
     expect(canManageTrashed({ my_level: 123 as unknown as string })).toBe(false);
+    // DOC-05: a workspace admin on a restricted trashed row arrives with no
+    // my_level and admin_scope instead - the controls stay enabled (BE-RS-6).
+    expect(canManageTrashed({ admin_scope: true })).toBe(true);
+    expect(canManageTrashed({ my_level: "edit", admin_scope: true })).toBe(true);
+    expect(canManageTrashed({ my_level: "edit", admin_scope: false })).toBe(false);
   });
 });
 
