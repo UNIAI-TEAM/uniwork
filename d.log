@@ -1,0 +1,6 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test -race -count=3 -run "TestFileGCBarrier" ./internal/service 2>&1 | tail -20; exit ${PIPESTATUS[0]}); rc=$?; echo; echo "GC_RERUN_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	2.928s
+
+GC_RERUN_EXIT=0
