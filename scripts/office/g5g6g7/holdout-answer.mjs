@@ -152,9 +152,15 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   for (const call of ask.calls) {
     const ops = opsOfTool(ask.modules, call.name);
     if (!ops) { used.add(call.name); continue; }
+    const callDenied =
+      Boolean(call.denied) ||
+      (((ask.denied ?? []).some((d) => d.name === call.name) ||
+        (ask.writeLog ?? []).some((w) => w.name === call.name && w.applied === false)) &&
+        !(ask.writeLog ?? []).some((w) => w.name === call.name && w.applied));
     // A tool that serves several operations counts under those the case allows; outside all of them it counts as is.
     const inside = ops.filter((op) => caseDoc.tools.allowed.includes(op));
     for (const op of inside.length > 0 ? inside : ops) {
+      if (WRITE_OPERATIONS.has(op) && callDenied) continue;
       // Any call counts for the allowlist; a required write operation counts as used only through an applied edit.
       const unproven = editCase && writeOps.includes(op) && !editWrites.some((w) => w.name === call.name);
       if (!unproven || !caseDoc.tools.allowed.includes(op)) used.add(op);
@@ -162,7 +168,16 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   }
   for (const name of ask.dropped ?? []) used.add(name);
   const figures = Array.isArray(report.numbers) ? report.numbers : [];
-  if (report.refused === true && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
+  const forbiddenWrite = (ask.writes ?? 0) > caseDoc.expected.writes;
+  const backendDenied =
+    ask.calls.some((c) => Boolean(c.denied)) ||
+    (ask.denied ?? []).length > 0 ||
+    (ask.writeLog ?? []).some((w) => w.applied === false);
+  const refusalProse =
+    parsed.status === 'ok' &&
+    /(?:not supported|cannot|can't|can not|unable to|read-only|view-only|permission denied|access revoked|version conflict|decline|refuse|not allowed|outside the current document|another organization|không hỗ trợ|không thể|chưa thể|không được phép|không có quyền|chỉ đọc|chỉ-đọc|từ chối|thu hồi quyền|xung đột phiên bản|phiên bản mới hơn|ngoài phạm vi|tổ chức khác|không sửa được|không ghi được|chưa sửa)/i.test(parsed.text);
+  const refused = !forbiddenWrite && (report.refused === true || (parsed.status === 'ok' && (backendDenied || refusalProse)));
+  if (refused && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
   const hasComputeTool = ask.modules.includes('sheets');
   if (computeByReply && !hasComputeTool && figures.length > 0 && caseDoc.tools.allowed.includes('compute')) used.add('compute');
   const { numeric, extras } = matchNumbers(caseDoc.expected.numeric, figures);
@@ -216,7 +231,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       structural.push({ kind: expected.kind, anchor: expected.anchor, value: pick.value });
     } else if (
       (expected.kind === 'clarification' && asked) ||
-      (expected.kind === 'refusal' && report.refused === true) ||
+      (expected.kind === 'refusal' && refused) ||
       (expected.kind === 'not_found' && report.not_found === true) ||
       (expected.kind === 'caveat' && caveats)
     ) {
