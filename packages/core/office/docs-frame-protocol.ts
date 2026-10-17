@@ -1,8 +1,7 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at bf4ff7b07ee799b13375e0b63ad4798ff255ae05
-// (fork lockstep branch feature/UNI-1413-doc05-lockstep-fork at bf4ff7b07: the G8-08 comments protocol with the OQ-C2 anchor rules
-// on X-02 r2b, G5-03w doc.blocked, and G8-18 / DOC-05: comment level, comments.shareView, canActOnComment root author,
-// mentions without access).
+// web/docs/protocol/types.ts at 07605ced5e14733de4fa28d57c1bec967b605973
+// (fork SIZE-F1 integration branch feature/UNI-1861-size-f1 at 07605ced5: document size limits, size_warning,
+// save_blocked, doc.download, lag_detected, open_refused; additive over bf4ff7b07; re-vendor from fork main once SIZE-F1 lands there).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
@@ -300,6 +299,12 @@ export type Capability =
    * the server sets `can_share: true`.
    */
   | 'commentsShareView'
+  /**
+   * additive (SIZE-F1): the host renders its own size warning banner and save-blocked modal from
+   * `size_warning` / `save_blocked` events and triggers downloads via `doc.download`. When false or
+   * absent, the frame renders its own fallback warning chip and save-blocked dialog.
+   */
+  | 'sizeUi'
 
 export type Capabilities = Partial<Record<Capability, boolean>>
 
@@ -322,6 +327,7 @@ export const CAPABILITY_KEYS: readonly Capability[] = [
   'uniworkAi',
   'comments',
   'commentsShareView',
+  'sizeUi',
 ]
 
 /**
@@ -431,7 +437,63 @@ export interface InitPayload extends TokenPayload {
    * missing and the missing-field rules of `commentsAccess` apply.
    */
   commentsLevel?: CommentsLevel
+  /**
+   * additive (SIZE-F1): document size limits for this session. Invalid or missing fields fall back
+   * independently to DEFAULT_DOCUMENT_LIMITS via resolveDocumentSizeLimits and never fail init.
+   */
+  limits?: DocumentSizeLimits
 }
+
+/**
+ * Document size limits (additive, SIZE-F1, UNI-1861).
+ */
+export interface DocumentSizeLimits {
+  /** Hard ceiling on serialized document bytes for open and save. Must be an integer >= 1. */
+  max_bytes: number
+  /** Warning threshold as a fraction of max_bytes. Must satisfy 0 < warn_ratio < 1. */
+  warn_ratio: number
+}
+
+export const DEFAULT_DOCUMENT_MAX_BYTES = 200 * 1024 * 1024 // 209_715_200
+export const DEFAULT_DOCUMENT_WARN_RATIO = 0.9
+
+export const DEFAULT_DOCUMENT_LIMITS: DocumentSizeLimits = {
+  max_bytes: DEFAULT_DOCUMENT_MAX_BYTES,
+  warn_ratio: DEFAULT_DOCUMENT_WARN_RATIO,
+}
+
+/**
+ * Lenient field-by-field resolution of DocumentSizeLimits (SIZE-F1).
+ * Invalid or missing fields fall back independently to `fallback` (default: DEFAULT_DOCUMENT_LIMITS)
+ * and never reject `init` or `open`.
+ */
+export function resolveDocumentSizeLimits(
+  raw?: unknown,
+  fallback: DocumentSizeLimits = DEFAULT_DOCUMENT_LIMITS,
+): DocumentSizeLimits {
+  const rec =
+    typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : undefined
+  const maxBytes =
+    rec &&
+    typeof rec.max_bytes === 'number' &&
+    Number.isSafeInteger(rec.max_bytes) &&
+    rec.max_bytes >= 1
+      ? rec.max_bytes
+      : fallback.max_bytes
+  const warnRatio =
+    rec &&
+    typeof rec.warn_ratio === 'number' &&
+    Number.isFinite(rec.warn_ratio) &&
+    rec.warn_ratio > 0 &&
+    rec.warn_ratio < 1
+      ? rec.warn_ratio
+      : fallback.warn_ratio
+  return { max_bytes: maxBytes, warn_ratio: warnRatio }
+}
+
+export const resolveDocumentLimits = resolveDocumentSizeLimits
 
 /**
  * The host's draft-recovery grant: the frame encrypts its local IndexedDB draft copies
@@ -476,6 +538,11 @@ export interface OpenPayload {
    * `FileSource {kind:'url'}`: same-origin with the frame (CSP), fetched with credentials: 'omit'.
    */
   assets?: Record<string, string>
+  /**
+   * additive (SIZE-F1): per-open override of DocumentSizeLimits. Precedence:
+   * open.limits ?? init.limits ?? DEFAULT_DOCUMENT_LIMITS.
+   */
+  limits?: DocumentSizeLimits
 }
 
 export interface OpenResult {
@@ -1085,14 +1152,19 @@ export function commentsErrorFromHttp(status: number, body?: unknown): DocsProto
   // §9 names `payload_too_large` for 413 (handler/json.go) even when the limiter answered without
   // the JSON code; every other row is keyed on the server's own code, so none is invented there
   const serverCode = errorBodyCode(body) ?? (status === 413 ? 'payload_too_large' : undefined)
-  const withCode = (code: ProtocolErrorCode): DocsProtocolError =>
-    new DocsProtocolError({
+  const maxBytes = status === 413 ? errorBodyMaxBytes(body) : undefined
+  const withCode = (code: ProtocolErrorCode): DocsProtocolError => {
+    const details: Record<string, unknown> = {}
+    if (serverCode) details.code = serverCode
+    if (maxBytes !== undefined) details.max_bytes = maxBytes
+    return new DocsProtocolError({
       code,
       message: `comments: HTTP ${status}${serverCode ? ` ${serverCode}` : ''}`,
       status,
       retryable: false,
-      ...(serverCode ? { details: { code: serverCode } } : {}),
+      ...(Object.keys(details).length > 0 ? { details } : {}),
     })
+  }
   const plain = (code: ProtocolErrorCode, retryable: boolean): DocsProtocolError =>
     new DocsProtocolError({ code, message: `comments: HTTP ${status}`, status, retryable })
   if (status === 400) return withCode('malformed')
@@ -1110,6 +1182,15 @@ function errorBodyCode(body: unknown): string | undefined {
   if (!isObj(body)) return undefined
   const inner = isObj(body.error) ? body.error : body
   return isNonEmptyStr(inner.code) && inner.code.length <= MAX_TYPE_LENGTH ? inner.code : undefined
+}
+
+function errorBodyMaxBytes(body: unknown): number | undefined {
+  if (!isObj(body)) return undefined
+  const inner = isObj(body.error) ? body.error : body
+  const fields = isObj(inner.fields) ? inner.fields : isObj(body.fields) ? body.fields : undefined
+  if (fields && isPositiveSafeInt(fields.max_bytes)) return fields.max_bytes
+  if (isPositiveSafeInt(inner.max_bytes)) return inner.max_bytes
+  return undefined
 }
 
 /**
@@ -1196,6 +1277,28 @@ export function canActOnComment(
 
 // ---------------------------------------------------------------- direction maps
 
+/**
+ * additive (SIZE-F1): serialized document size reached warn threshold on save.
+ */
+export interface SizeWarningPayload {
+  /** Serialized document size in bytes that triggered the warning. */
+  bytes: number
+  /** Active max_bytes limit at the time of evaluation. */
+  max_bytes: number
+  /** Active warn_ratio at the time of evaluation. */
+  warn_ratio: number
+}
+
+/**
+ * additive (SIZE-F1): save blocked because serialized document size exceeded max_bytes.
+ */
+export interface SaveBlockedPayload {
+  /** Serialized document size in bytes that exceeded max_bytes. */
+  bytes: number
+  /** Active max_bytes limit that was exceeded. */
+  max_bytes: number
+}
+
 interface Rpc<P, R> {
   payload: P
   result: R
@@ -1215,6 +1318,11 @@ export interface HostRequests {
    * `stale` anchor: open the thread only). Send only after an InitAck with `comments`.
    */
   'comments.reveal': Rpc<CommentsRevealPayload, CommentsRevealResult>
+  /**
+   * additive (SIZE-F1): host asks the frame to download its current (or last-blocked) document
+   * bytes via `api.download`.
+   */
+  'doc.download': Rpc<Record<string, never>, ApiDownloadResult>
 }
 
 /** Events the host sends to the frame. */
@@ -1274,6 +1382,15 @@ export interface FrameRequests {
   'mentions.search': Rpc<MentionsSearchPayload, MentionsSearchResult>
 }
 
+/** additive (UNI-1865, §4.1): main-thread lag detected on a large document */
+export interface LagDetectedPayload {
+  reason: 'interactions' | 'longtask'
+  worst_ms: number
+  count: number
+  window_ms: number
+  bytes?: number
+}
+
 /** Events the frame sends to the host. */
 export interface FrameEvents {
   /** handshake: the frame booted and listens; the host answers with `init` */
@@ -1289,6 +1406,14 @@ export interface FrameEvents {
   cancel: CancelPayload
   /** additive (X-02): an AI turn started / ended; hosts before X-02 have no listener */
   aiRun: AiRunPayload
+  /** additive (SIZE-F1): serialized document size reached warn threshold on save */
+  size_warning: SizeWarningPayload
+  /** additive (SIZE-F1): save blocked because serialized document size exceeded max_bytes */
+  save_blocked: SaveBlockedPayload
+  /** additive (UNI-1865, §4.1): passive main-thread lag detector tripped (at most once per documentId) */
+  lag_detected: LagDetectedPayload
+  /** additive (SIZE-F1, contract-size-frame §3.1a): the frame refused to open the document */
+  open_refused: OpenRefusedPayload
 }
 
 export type HostRequestType = keyof HostRequests
@@ -1319,6 +1444,7 @@ const HOST_REQUESTS: Record<HostRequestType, true> = {
   print: true,
   'doc.closeCheck': true,
   'comments.reveal': true,
+  'doc.download': true,
 }
 const HOST_EVENTS: Record<HostEventType, true> = {
   'token.update': true,
@@ -1366,6 +1492,10 @@ const FRAME_EVENTS: Record<FrameEventType, true> = {
   error: true,
   cancel: true,
   aiRun: true,
+  size_warning: true,
+  save_blocked: true,
+  lag_detected: true,
+  open_refused: true,
 }
 export const HOST_REQUEST_TYPES = Object.keys(HOST_REQUESTS) as readonly HostRequestType[]
 export const HOST_EVENT_TYPES = Object.keys(HOST_EVENTS) as readonly HostEventType[]
@@ -1393,6 +1523,12 @@ function isFiniteNum(x: unknown): x is number {
 }
 function isPositiveSafeInt(x: unknown): x is number {
   return typeof x === 'number' && Number.isSafeInteger(x) && x > 0
+}
+function isNonNegSafeInt(x: unknown): x is number {
+  return typeof x === 'number' && Number.isSafeInteger(x) && x >= 0
+}
+function isWarnRatio(x: unknown): x is number {
+  return typeof x === 'number' && Number.isFinite(x) && x > 0 && x < 1
 }
 function isBool(x: unknown): x is boolean {
   return typeof x === 'boolean'
@@ -1650,6 +1786,7 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     isObj(x) && (x.mode === undefined || x.mode === 'dialog' || x.mode === 'pdf'),
   'request:doc.closeCheck': (x) => isObj(x),
   'request:comments.reveal': isCommentIdPayload,
+  'request:doc.download': (x) => isObj(x),
   // host -> frame events
   'event:file.renamed': (x) => isObj(x) && isFileMeta(x.file),
   'event:token.update': isTokenPayload,
@@ -1748,6 +1885,21 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'event:error': (x) => isObj(x) && isProtocolErrorShape(x.error) && isBool(x.fatal),
   'event:aiRun': (x) =>
     isObj(x) && (x.state === 'running' || x.state === 'idle') && isOpt(x.run_id, isNonEmptyStr),
+  'event:size_warning': (x) =>
+    isObj(x) &&
+    isNonNegSafeInt(x.bytes) &&
+    isPositiveSafeInt(x.max_bytes) &&
+    isWarnRatio(x.warn_ratio),
+  'event:save_blocked': (x) =>
+    isObj(x) && isNonNegSafeInt(x.bytes) && isPositiveSafeInt(x.max_bytes),
+  'event:open_refused': isOpenRefusedPayload,
+  'event:lag_detected': (x) =>
+    isObj(x) &&
+    (x.reason === 'interactions' || x.reason === 'longtask') &&
+    isNonNegSafeInt(x.worst_ms) &&
+    isPositiveSafeInt(x.count) &&
+    (x.window_ms === 0 || x.window_ms === 120_000) &&
+    isOpt(x.bytes, isNonNegSafeInt),
   // successful responses
   'response:init': isInitAck,
   'response:open': (x) => isObj(x) && x.opened === true && isOpt(x.title, isStr),
@@ -1810,6 +1962,7 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'response:comments.shareView': (x) => isObj(x) && x.ok === true,
   'response:mentions.search': (x) => isObj(x) && isArrayOf(x.candidates, isMentionCandidate),
   'response:comments.reveal': (x) => isObj(x) && isBool(x.revealed),
+  'response:doc.download': (x) => isObj(x) && x.delivered === true,
 }
 
 /** Outcome of `parseEnvelope`. */
@@ -1879,4 +2032,61 @@ export function isResponse(m: Envelope): m is ResponseEnvelope {
 }
 export function isEvent(m: Envelope): m is EventEnvelope {
   return m.kind === 'event'
+}
+
+// ---------------------------------------------------------------- open_refused (additive, SIZE-F1 §3.1a)
+
+export type OpenRefusedReason = 'engine_out_of_memory' | 'too_large_to_open' | 'too_complex'
+
+export const OPEN_REFUSED_REASONS: readonly OpenRefusedReason[] = [
+  'engine_out_of_memory',
+  'too_large_to_open',
+  'too_complex',
+]
+
+export const OPEN_REFUSED_MEASURE_KINDS = [
+  'worksheet_xml_bytes',
+  'paragraphs',
+  'characters',
+  'zip_parts',
+  'cells',
+] as const
+
+export type OpenRefusedMeasureKind = (typeof OPEN_REFUSED_MEASURE_KINDS)[number]
+
+/** Module-specific measure that tripped, when known (worksheet XML bytes, paragraph count, zip part count). */
+export interface OpenRefusedMeasure {
+  kind: OpenRefusedMeasureKind
+  value: number
+  limit?: number
+}
+
+/** The frame cannot show the document; sent at most once per documentId per session. */
+export interface OpenRefusedPayload {
+  reason: OpenRefusedReason
+  /** Stored size of the document in bytes, when known (file.size / bytes.byteLength). */
+  bytes?: number
+  measure?: OpenRefusedMeasure
+}
+
+const isOpenRefusedReason = isOneOf(OPEN_REFUSED_REASONS)
+const isOpenRefusedMeasureKind = isOneOf(OPEN_REFUSED_MEASURE_KINDS)
+
+export function isOpenRefusedMeasure(x: unknown): x is OpenRefusedMeasure {
+  return (
+    isObj(x) &&
+    isOpenRefusedMeasureKind(x.kind) &&
+    isFiniteNum(x.value) &&
+    x.value >= 0 &&
+    isOpt(x.limit, (y): y is number => isFiniteNum(y) && y > 0)
+  )
+}
+
+export function isOpenRefusedPayload(x: unknown): x is OpenRefusedPayload {
+  return (
+    isObj(x) &&
+    isOpenRefusedReason(x.reason) &&
+    isOpt(x.bytes, (y): y is number => isFiniteNum(y) && y >= 0) &&
+    isOpt(x.measure, isOpenRefusedMeasure)
+  )
 }
