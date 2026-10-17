@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+b1efe44f58bc99b0cbce386b0d39915eefca5627
+b1efe44f5 fix(chat): accept text/csv chat files on read and keep both allowlists equal (UNI-1869)
+06909f566 fix(documents): refuse save and export from a view-only source frame (UNI-1869)
+dce749790 fix(documents): one toast when a source file cannot be viewed (UNI-1869)
+487132cc1 fix(chat): accept text/markdown chat files on read (UNI-1869)
+73ccfc7b6 chore: merge root bf693b001 into SRC-02b
+bf693b001 chore: merge TRASH-01 documents layout (UNI-1841, c49fc5aad) into the G5-G7 root
+d6ccbb4b0 chore: merge root 157cfdfd7 into SRC-02b
+c49fc5aad fix(documents): name the chat source Trò chuyện like the rest of the app

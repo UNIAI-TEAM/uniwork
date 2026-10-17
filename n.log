@@ -1,0 +1,140 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/handler/ -run "TestOfficeFrame|TestDocumentSource|TestDocumentsFlagOrganizationOverride|TestSwaggerSpecFollowsChiRoutesAndSDI|SourceFileIDParam|EditLock" 2>&1 | grep -E "^(=== RUN|--- (PASS|FAIL|SKIP)|PASS|FAIL|ok|panic|WARNING: DATA RACE)" | tail -n 400; rc=${PIPESTATUS[0]}; echo; echo "GO_HANDLER_EXIT=$rc"
+=== RUN   TestDocumentEditLockOpenAPI
+--- PASS: TestDocumentEditLockOpenAPI (4.30s)
+=== RUN   TestDocumentListAndTreeRowsCarryEditLock
+--- PASS: TestDocumentListAndTreeRowsCarryEditLock (0.31s)
+=== RUN   TestDocumentFavoriteRowsHaveNoEditLock
+--- PASS: TestDocumentFavoriteRowsHaveNoEditLock (0.30s)
+=== RUN   TestEditLockWritesRefusedWith423Handler
+--- PASS: TestEditLockWritesRefusedWith423Handler (0.35s)
+=== RUN   TestEditLockRefusesCommitRoutesHandler
+--- PASS: TestEditLockRefusesCommitRoutesHandler (0.40s)
+=== RUN   TestEditLockRouteStatusesClientCancel
+--- PASS: TestEditLockRouteStatusesClientCancel (0.29s)
+=== RUN   TestEditLockRouteStatuses
+--- PASS: TestEditLockRouteStatuses (0.36s)
+=== RUN   TestDocumentSourceDTOMessageIDOnTheWire
+=== RUN   TestDocumentSourceDTOMessageIDOnTheWire/chat_file
+=== RUN   TestDocumentSourceDTOMessageIDOnTheWire/task_file
+--- PASS: TestDocumentSourceDTOMessageIDOnTheWire (0.00s)
+=== RUN   TestDocumentSourceEscapedFileID
+--- PASS: TestDocumentSourceEscapedFileID (0.39s)
+=== RUN   TestSourceFileIDParamBadEscapeIsNotFound
+--- PASS: TestSourceFileIDParamBadEscapeIsNotFound (0.00s)
+=== RUN   TestDocumentsFlagOrganizationOverride
+--- PASS: TestDocumentsFlagOrganizationOverride (0.36s)
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWrite
+--- PASS: TestOfficeFrameViewOnlyTokenCannotWrite (0.29s)
+=== RUN   TestOfficeFrameTokenStopsWhenAccessIsRevoked
+--- PASS: TestOfficeFrameTokenStopsWhenAccessIsRevoked (0.31s)
+=== RUN   TestOfficeFrameCommitReplaysOnTheSameIdempotencyKey
+--- PASS: TestOfficeFrameCommitReplaysOnTheSameIdempotencyKey (0.29s)
+=== RUN   TestOfficeFrameRecentsJudgeTheFileNotTheTitle
+--- PASS: TestOfficeFrameRecentsJudgeTheFileNotTheTitle (0.31s)
+=== RUN   TestOfficeFrameAIHappyPath
+--- PASS: TestOfficeFrameAIHappyPath (0.34s)
+=== RUN   TestOfficeFrameAIRefusesEverythingButThisDocumentsToken
+--- PASS: TestOfficeFrameAIRefusesEverythingButThisDocumentsToken (0.42s)
+=== RUN   TestOfficeFrameAIRechecksViewAccessPerRequest
+--- PASS: TestOfficeFrameAIRechecksViewAccessPerRequest (0.28s)
+=== RUN   TestOfficeFrameAIEntitlementRequired
+--- PASS: TestOfficeFrameAIEntitlementRequired (0.30s)
+=== RUN   TestOfficeFrameAIFollowsTheModuleFlag
+--- PASS: TestOfficeFrameAIFollowsTheModuleFlag (0.28s)
+=== RUN   TestOfficeFrameTokenCarriesTheAIGrant
+--- PASS: TestOfficeFrameTokenCarriesTheAIGrant (0.29s)
+=== RUN   TestOfficeFrameGrantsUniworkAIWithoutBYOK
+--- PASS: TestOfficeFrameGrantsUniworkAIWithoutBYOK (0.28s)
+=== RUN   TestOfficeFrameUniworkAIFollowsTheFormatFlags
+--- PASS: TestOfficeFrameUniworkAIFollowsTheFormatFlags (0.31s)
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway/no_provider
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway/provider_without_a_model
+--- PASS: TestOfficeFrameUniworkAINeedsAConfiguredGateway (0.58s)
+=== RUN   TestOfficeFrameCloudStatusCarriesTheUniworkModel
+--- PASS: TestOfficeFrameCloudStatusCarriesTheUniworkModel (0.25s)
+=== RUN   TestOfficeFrameUniworkAIOnlyForMembersWithAccess
+--- PASS: TestOfficeFrameUniworkAIOnlyForMembersWithAccess (0.35s)
+=== RUN   TestOfficeFrameSaveRoutesOnArchivedDocument
+=== RUN   TestOfficeFrameSaveRoutesOnArchivedDocument/owner_gets_document_archived_on_both_save_routes
+=== RUN   TestOfficeFrameSaveRoutesOnArchivedDocument/edit_peer_gets_document_archived_on_both_save_routes
+=== RUN   TestOfficeFrameSaveRoutesOnArchivedDocument/below_edit_the_save_routes_stay_not_found
+=== RUN   TestOfficeFrameSaveRoutesOnArchivedDocument/another_document's_token_never_reaches_the_archived_one
+=== RUN   TestOfficeFrameSaveRoutesOnArchivedDocument/a_read_route_on_the_archived_document_stays_not_found
+--- PASS: TestOfficeFrameSaveRoutesOnArchivedDocument (0.44s)
+=== RUN   TestOfficeFrameOpenResolvesRelativeReferences
+--- PASS: TestOfficeFrameOpenResolvesRelativeReferences (0.35s)
+=== RUN   TestOfficeFrameOpenHasNoAssetsOutsideTextModules
+--- PASS: TestOfficeFrameOpenHasNoAssetsOutsideTextModules (0.32s)
+=== RUN   TestOfficeFrameSiblingNeedsItsOwnViewAccess
+--- PASS: TestOfficeFrameSiblingNeedsItsOwnViewAccess (0.28s)
+=== RUN   TestOfficeFrameExportPDFRoute
+--- PASS: TestOfficeFrameExportPDFRoute (0.32s)
+=== RUN   TestOfficeFrameExportWithoutExportEngine
+--- PASS: TestOfficeFrameExportWithoutExportEngine (0.27s)
+=== RUN   TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization
+--- PASS: TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization (0.28s)
+=== RUN   TestOfficeFrameSheetsMintAllowsWorkbooksAboveTenMiB
+--- PASS: TestOfficeFrameSheetsMintAllowsWorkbooksAboveTenMiB (0.58s)
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/docs
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/pdf
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/markdown
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/html
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/slides
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/sheets
+--- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule (0.51s)
+=== RUN   TestOfficeFrameSignedAssetKeepsTheModule
+--- PASS: TestOfficeFrameSignedAssetKeepsTheModule (0.30s)
+=== RUN   TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap
+--- PASS: TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap (0.58s)
+=== RUN   TestOfficeFrameLinkedTakesNoFrameToken
+--- PASS: TestOfficeFrameLinkedTakesNoFrameToken (0.31s)
+=== RUN   TestOfficeFrameResolveTypedPaths
+--- PASS: TestOfficeFrameResolveTypedPaths (0.37s)
+=== RUN   TestOfficeFrameResolveRefreshesURLsPastTheirLifetime
+--- PASS: TestOfficeFrameResolveRefreshesURLsPastTheirLifetime (0.31s)
+=== RUN   TestOfficeFrameSignedURLsFollowTheLiveACL
+--- PASS: TestOfficeFrameSignedURLsFollowTheLiveACL (0.31s)
+=== RUN   TestOfficeFrameWalkStopsAtATrashedAncestor
+--- PASS: TestOfficeFrameWalkStopsAtATrashedAncestor (0.28s)
+=== RUN   TestOfficeFrameOpenBoundsTheACLChecks
+--- PASS: TestOfficeFrameOpenBoundsTheACLChecks (0.86s)
+=== RUN   TestOfficeFrameSourceMintAndOpen
+--- PASS: TestOfficeFrameSourceMintAndOpen (0.38s)
+=== RUN   TestOfficeFrameSourceChatMarkdownOpensAndDownloads
+--- PASS: TestOfficeFrameSourceChatMarkdownOpensAndDownloads (0.38s)
+=== RUN   TestOfficeFrameSourceEmailHeadPromisesNoLength
+--- PASS: TestOfficeFrameSourceEmailHeadPromisesNoLength (0.39s)
+=== RUN   TestOfficeFrameSourceEscapedIDs
+--- PASS: TestOfficeFrameSourceEscapedIDs (0.38s)
+=== RUN   TestOfficeFrameSourceMintRefusals
+--- PASS: TestOfficeFrameSourceMintRefusals (0.39s)
+=== RUN   TestOfficeFrameSourceTokenCannotWriteDocuments
+--- PASS: TestOfficeFrameSourceTokenCannotWriteDocuments (0.42s)
+=== RUN   TestOfficeFrameSourceTokenCannotTouchTheEditLock
+--- PASS: TestOfficeFrameSourceTokenCannotTouchTheEditLock (0.37s)
+=== RUN   TestOfficeFrameSourceModuleFlagGatesTheFrame
+--- PASS: TestOfficeFrameSourceModuleFlagGatesTheFrame (0.38s)
+=== RUN   TestOfficeFrameSourceTokenExpiry
+--- PASS: TestOfficeFrameSourceTokenExpiry (0.35s)
+=== RUN   TestOfficeFrameSourceNeedsTheDocumentsFlag
+--- PASS: TestOfficeFrameSourceNeedsTheDocumentsFlag (0.33s)
+=== RUN   TestOfficeFrameSourceNeedsSources
+--- PASS: TestOfficeFrameSourceNeedsSources (0.00s)
+=== RUN   TestOfficeFrameTokenNeedsTheFlag
+--- PASS: TestOfficeFrameTokenNeedsTheFlag (0.26s)
+=== RUN   TestOfficeFrameOpenSaveConflictReopen
+--- PASS: TestOfficeFrameOpenSaveConflictReopen (0.35s)
+=== RUN   TestOfficeFrameTokenOpensOnlyItsDocument
+--- PASS: TestOfficeFrameTokenOpensOnlyItsDocument (0.28s)
+=== RUN   TestOfficeFrameImagesAreSignedPerAsset
+--- PASS: TestOfficeFrameImagesAreSignedPerAsset (0.31s)
+=== RUN   TestOfficeFrameFlagIsEvaluatedPerOrganization
+--- PASS: TestOfficeFrameFlagIsEvaluatedPerOrganization (0.33s)
+=== RUN   TestSwaggerSpecFollowsChiRoutesAndSDI
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (4.28s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	29.326s
+
+GO_HANDLER_EXIT=0
