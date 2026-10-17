@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -153,5 +154,157 @@ func TestMinIOBackendIntegration(t *testing.T) {
 	var apiErr smithy.APIError
 	if !errors.As(headErr, &apiErr) || apiErr.ErrorCode() != "NotFound" && apiErr.ErrorCode() != "404" {
 		t.Fatalf("HeadObject after delete: error = %v, want a not-found answer", headErr)
+	}
+}
+
+// TestMinIOMultipartIntegration exercises CreateMultipart, presigned
+// UploadPart, ListParts, CompleteMultipart, Stat, Open and AbortMultipart
+// against a real MinIO service.
+func TestMinIOMultipartIntegration(t *testing.T) {
+	required := []string{
+		"MINIO_ENDPOINT",
+		"MINIO_BUCKET",
+		"MINIO_ACCESS_KEY_ID",
+		"MINIO_SECRET_ACCESS_KEY",
+		"MINIO_REGION",
+	}
+	for _, key := range required {
+		if strings.TrimSpace(os.Getenv(key)) == "" {
+			t.Skipf("skipping MinIO multipart integration test: %s is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`", key)
+		}
+	}
+
+	t.Setenv("LOCAL_UPLOAD_DIR", "")
+	t.Setenv("S3_BUCKET", "")
+	env := func(key string) (string, bool) {
+		if key == "STORAGE_BACKEND" {
+			return "", false
+		}
+		return os.LookupEnv(key)
+	}
+	cfg, err := LoadConfig(registryFor(t, BackendMinIO), env)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	store, err := (minioFactory{}).New(ctx, cfg)
+	if err != nil {
+		t.Fatalf("minio factory: %v", err)
+	}
+	if !store.Capabilities().Multipart {
+		t.Fatal("minio store Capabilities().Multipart = false, want true")
+	}
+
+	stamp := fmt.Sprintf("multipart/%d-%s", os.Getpid(), time.Now().UTC().Format("20060102T150405.000000000"))
+	loc := ObjectLocator{Storage: BackendMinIO, Bucket: cfg.MinIO.Bucket, Key: stamp + "/assembled.bin"}
+	abortLoc := ObjectLocator{Storage: BackendMinIO, Bucket: cfg.MinIO.Bucket, Key: stamp + "/aborted.bin"}
+
+	uploadID, err := store.CreateMultipart(ctx, loc, WriteInfo{
+		ContentType: "application/octet-stream",
+		Filename:    "assembled.bin",
+	})
+	if err != nil {
+		t.Fatalf("CreateMultipart: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		_ = store.AbortMultipart(cleanupCtx, loc, uploadID)
+		_ = store.Delete(cleanupCtx, loc)
+	})
+
+	// First part 5 MiB (S3 minimum non-final part size), second part smaller.
+	part1 := bytes.Repeat([]byte("A1B2C3D4"), (5*1024*1024)/8)
+	part2 := []byte("trailing second part payload")
+	full := append(append([]byte(nil), part1...), part2...)
+
+	putPart := func(partNum int32, payload []byte) string {
+		t.Helper()
+		signed, err := store.SignUploadPart(ctx, loc, uploadID, partNum, SignOptions{TTL: 15 * time.Minute})
+		if err != nil {
+			t.Fatalf("SignUploadPart(%d): %v", partNum, err)
+		}
+		req, err := http.NewRequestWithContext(ctx, signed.Method, signed.URL, bytes.NewReader(payload))
+		if err != nil {
+			t.Fatalf("NewRequest part %d: %v", partNum, err)
+		}
+		req.ContentLength = int64(len(payload))
+		for k, v := range signed.Headers {
+			req.Header.Set(k, v)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("PUT part %d: %v", partNum, err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("PUT part %d status = %d, want 200", partNum, resp.StatusCode)
+		}
+		etag := resp.Header.Get("ETag")
+		if etag == "" {
+			t.Fatalf("PUT part %d returned empty ETag", partNum)
+		}
+		return etag
+	}
+
+	etag1 := putPart(1, part1)
+	etag2 := putPart(2, part2)
+
+	parts, err := store.ListParts(ctx, loc, uploadID)
+	if err != nil {
+		t.Fatalf("ListParts: %v", err)
+	}
+	if len(parts) != 2 {
+		t.Fatalf("ListParts len = %d, want 2 (%+v)", len(parts), parts)
+	}
+	if parts[0].PartNumber != 1 || parts[0].ETag != etag1 || parts[0].SizeBytes != int64(len(part1)) {
+		t.Fatalf("part[0] = %+v, want PartNumber=1 ETag=%s SizeBytes=%d", parts[0], etag1, len(part1))
+	}
+	if parts[1].PartNumber != 2 || parts[1].ETag != etag2 || parts[1].SizeBytes != int64(len(part2)) {
+		t.Fatalf("part[1] = %+v, want PartNumber=2 ETag=%s SizeBytes=%d", parts[1], etag2, len(part2))
+	}
+
+	if _, err := store.CompleteMultipart(ctx, loc, uploadID, parts); err != nil {
+		t.Fatalf("CompleteMultipart: %v", err)
+	}
+
+	info, err := store.Stat(ctx, loc)
+	if err != nil {
+		t.Fatalf("Stat assembled object: %v", err)
+	}
+	if info.SizeBytes != int64(len(full)) {
+		t.Fatalf("Stat SizeBytes = %d, want %d", info.SizeBytes, len(full))
+	}
+
+	obj, err := store.Open(ctx, loc, ReadOptions{})
+	if err != nil {
+		t.Fatalf("Open assembled object: %v", err)
+	}
+	got, readErr := io.ReadAll(obj.Body)
+	_ = obj.Body.Close()
+	if readErr != nil {
+		t.Fatalf("read assembled object: %v", readErr)
+	}
+	if !bytes.Equal(got, full) {
+		t.Fatalf("assembled object bytes mismatch (got %d bytes, want %d)", len(got), len(full))
+	}
+
+	// Second upload: Abort, then ListParts gives ErrMultipartNotFound, and a
+	// second Abort gives nil.
+	abortID, err := store.CreateMultipart(ctx, abortLoc, WriteInfo{ContentType: "application/octet-stream"})
+	if err != nil {
+		t.Fatalf("CreateMultipart abort upload: %v", err)
+	}
+	if err := store.AbortMultipart(ctx, abortLoc, abortID); err != nil {
+		t.Fatalf("first AbortMultipart: %v", err)
+	}
+	if _, err := store.ListParts(ctx, abortLoc, abortID); !errors.Is(err, ErrMultipartNotFound) {
+		t.Fatalf("ListParts after AbortMultipart = %v, want ErrMultipartNotFound", err)
+	}
+	if err := store.AbortMultipart(ctx, abortLoc, abortID); err != nil {
+		t.Fatalf("second AbortMultipart = %v, want nil", err)
 	}
 }
