@@ -7,6 +7,7 @@ import {
   DocsProtocolError,
   PROTOCOL_NS,
   PROTOCOL_VERSION,
+  parseEnvelope,
   type AppOpenResult,
   type Capabilities,
   type FrameEvents,
@@ -262,14 +263,51 @@ export function onSizeEvents(
   subscribe("save_blocked", handlers.onSaveBlocked);
 }
 
+export const DOC_DOWNLOAD_TIMEOUT_MS = 10_000;
+
 let downloadSeq = 0;
-export function postDocDownload(target: Window | null, origin: string): void {
-  if (!target || !origin) return;
+export function postDocDownload(target: Window | null, origin: string, timeoutMs = DOC_DOWNLOAD_TIMEOUT_MS): Promise<void> {
+  if (!target || !origin) {
+    return Promise.reject(new DocsProtocolError({ code: "not_ready", message: "frame window not available" }));
+  }
   downloadSeq += 1;
-  target.postMessage(
-    { ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: `h-dl-${downloadSeq}`, kind: "request", type: "doc.download", payload: {} },
-    origin,
-  );
+  const id = `h-dl-${downloadSeq}`;
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new DocsProtocolError({ code: "timeout", message: `doc.download timed out after ${timeoutMs} ms`, retryable: true }));
+    }, timeoutMs);
+    const onMessage = (ev: MessageEvent) => {
+      if (ev.origin !== origin || ev.source !== target) return;
+      const parsed = parseEnvelope(ev.data);
+      if (!parsed.ok) {
+        if (parsed.reason === "malformed" && parsed.partial?.id === id && parsed.partial.kind === "response") {
+          cleanup();
+          reject(new DocsProtocolError({ code: "malformed", message: parsed.detail }));
+        }
+        return;
+      }
+      const msg = parsed.message;
+      if (msg.kind !== "response" || msg.id !== id) return;
+      cleanup();
+      if (msg.error) reject(new DocsProtocolError(msg.error));
+      else resolve();
+    };
+    window.addEventListener("message", onMessage);
+    try {
+      target.postMessage(
+        { ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind: "request", type: "doc.download", payload: {} },
+        origin,
+      );
+    } catch (error) {
+      cleanup();
+      reject(docsFrameError(error));
+    }
+  });
 }
 
 export function attachFrameBundleProbe(options: {

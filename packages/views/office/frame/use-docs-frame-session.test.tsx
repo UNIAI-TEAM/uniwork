@@ -57,6 +57,8 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
     iframe, hook, onError, received, sent, client,
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     respond: (to: Envelope, payload: unknown) => post(envelope("response", to.type, payload, to.id)),
+    respondError: (to: Envelope, error: Envelope["error"]) =>
+      post({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: to.id, kind: "response", type: to.type, error }),
     request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
     answerTo: (id: string) => received.find((m) => m.kind === "response" && m.id === id),
     async boot(instanceId = "i-1") {
@@ -541,5 +543,39 @@ describe("useDocsFrameSession: api.download", () => {
       file: FILE,
       limits: { max_bytes: 100 * 1024 * 1024, warn_ratio: 0.9 },
     });
+  });
+
+  it("calls onError when the frame replies with an error to doc.download (R1-3)", async () => {
+    const frame = setup();
+    await frame.boot();
+    act(() => { frame.hook.result.current.downloadCopy(); });
+    expect(frame.sent("doc.download")).toHaveLength(1);
+    const req = frame.sent("doc.download")[0]!;
+    await frame.respondError(req, { code: "unknown_type", message: "no handler for doc.download" });
+    await waitFor(() => expect(frame.onError).toHaveBeenCalledTimes(1));
+    expect(frame.onError.mock.calls[0]![0]).toMatchObject({ code: "unknown_type", message: "no handler for doc.download" });
+  });
+
+  it("ignores a second downloadCopy click while pending and times out to onError when the frame does not reply (R1-3)", async () => {
+    const frame = setup();
+    await frame.boot();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    act(() => {
+      frame.hook.result.current.downloadCopy();
+      frame.hook.result.current.downloadCopy();
+    });
+    expect(frame.sent("doc.download")).toHaveLength(1);
+    await advance(9_999);
+    expect(frame.onError).not.toHaveBeenCalled();
+    await advance(1);
+    expect(frame.onError).toHaveBeenCalledTimes(1);
+    expect(frame.onError.mock.calls[0]![0]).toMatchObject({ code: "timeout", retryable: true });
+
+    // Once settled, a subsequent click sends a new request.
+    act(() => { frame.hook.result.current.downloadCopy(); });
+    expect(frame.sent("doc.download")).toHaveLength(2);
+    await frame.respond(frame.sent("doc.download")[1]!, { delivered: true });
+    await settle();
+    expect(frame.onError).toHaveBeenCalledTimes(1);
   });
 });

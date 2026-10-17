@@ -90,6 +90,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const savedOnce = useRef(false);
   const sizeWarnedDoc = useRef<string | null>(null);
   const saveBlockedOpen = useRef(false);
+  const downloadPending = useRef(false);
   const initDownloadMaxBytes = useRef<number>(frameDownloadMaxBytes(documentLimits.upload_max_bytes));
 
   useEffect(() => {
@@ -105,6 +106,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       setSizeWarning(null);
     }
     saveBlockedOpen.current = false;
+    downloadPending.current = false;
     setSaveBlocked(null);
     initDownloadMaxBytes.current = frameDownloadMaxBytes(latest.current.documentLimits.upload_max_bytes);
     modalOpen.current = false;
@@ -553,8 +555,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   }, []);
 
   const downloadCopy = useCallback(() => {
-    if (frameLife.current.state !== "live") return;
-    postDocDownload(iframeRef.current?.contentWindow ?? null, frameOrigin);
+    const life = frameLife.current;
+    if (life.state !== "live" || downloadPending.current) return;
+    downloadPending.current = true;
+    void postDocDownload(iframeRef.current?.contentWindow ?? null, frameOrigin)
+      .catch((error: unknown) => {
+        if (life.state === "live") latest.current.options.onError(shapeOf(error));
+      })
+      .finally(() => {
+        downloadPending.current = false;
+      });
   }, [frameOrigin, iframeRef]);
 
   const tokenFailure = !token && (tokenQuery.isError || (tokenQuery.isSuccess && tokenQuery.data === null))

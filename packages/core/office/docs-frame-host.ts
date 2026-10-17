@@ -1,7 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 07605ced5e14733de4fa28d57c1bec967b605973
-// (fork SIZE-F1 integration branch feature/UNI-1861-size-f1 at 07605ced5: document size limits, size_warning,
-// save_blocked, doc.download, lag_detected, open_refused; additive over bf4ff7b07; re-vendor from fork main once SIZE-F1 lands there).
+// web/docs/protocol/host.ts at cc35602c8ccb65f4f7834dfd5bad01c6e94051f0
+// (fork main at cc35602c8: SIZE-F1 + LAG-F1 merged - document size limits, size_warning, save_blocked, doc.download, lag_detected, open_refused.)
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
