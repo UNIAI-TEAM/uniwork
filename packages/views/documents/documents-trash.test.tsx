@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -6,8 +6,8 @@ import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwo
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { NavigationProvider, type NavigationAdapter } from "../navigation";
-import { requestMock, wrap } from "../test/api-mock";
+import { type NavigationAdapter } from "../navigation";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
 
 // RESTORE-01 (UNI-1843) trash view: per-item restore, permanent delete behind
@@ -120,14 +120,13 @@ function nav(search = ""): NavigationAdapter {
 function renderView(adapter: NavigationAdapter = nav(), onOpen: (id: string) => void = vi.fn()) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   render(
-    wrap(
-      <NavigationProvider value={adapter}>
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <FeatureFlagsProvider service={service}>
-            <DocumentsPageView wsId={WS} onOpen={onOpen} />
-          </FeatureFlagsProvider>
-        </WorkspaceProvider>
-      </NavigationProvider>,
+    wrapWithNav(
+      <WorkspaceProvider workspace={workspace} user={user}>
+        <FeatureFlagsProvider service={service}>
+          <DocumentsPageView wsId={WS} onOpen={onOpen} />
+        </FeatureFlagsProvider>
+      </WorkspaceProvider>,
+      adapter,
     ),
   );
   return adapter;
@@ -749,5 +748,73 @@ describe("focused trash row", () => {
     expect(again).toHaveAttribute("data-focused", "true");
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect(within(again).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).not.toHaveFocus();
+  });
+
+  it("focuses Khôi phục when a new focus id arrives after Load more, while keeping focus on Load more for the paged id", async () => {
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1", title: "Biên bản" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? "c3" : "c2"),
+    });
+    const adapter = renderView(fakeNav("/acme/doi/documents?view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    const pagedRow = await rowOf("Hợp đồng");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    expect(pagedRow).toHaveAttribute("data-focused", "true");
+    expect(more).toHaveFocus();
+
+    act(() => adapter.push("/acme/doi/documents?view=archived&focus=d1"));
+    const firstRow = await rowOf("Biên bản");
+    const restore = within(firstRow).getByRole("button", { name: t("documents.trash.restore_item", { title: "Biên bản" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    expect(firstRow).toHaveAttribute("data-focused", "true");
+    expect(pagedRow).not.toHaveAttribute("data-focused");
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
+  it("moves focus to the revealed row's Khôi phục inside the trash list when Load more reveals the last page", async () => {
+    route({
+      list: (path) =>
+        path.includes("cursor=c2")
+          ? [trashed({ id: "d8", title: "Báo cáo" }), trashed({ id: "d9", title: "Hợp đồng" })]
+          : [trashed({ id: "d1", title: "Biên bản" })],
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    const row = await rowOf("Hợp đồng");
+    await waitFor(() => expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull());
+    const list = screen.getByRole("table", { name: t("documents.trash.title") });
+    const restore = within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Hợp đồng" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    expect(list.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("moves focus inside the trash list instead of body when Load more reveals the last page without a focus target on it", async () => {
+    route({
+      list: (path) =>
+        path.includes("cursor=c2")
+          ? [trashed({ id: "d8", title: "Báo cáo" }), trashed({ id: "d9", title: "Hợp đồng" })]
+          : [trashed({ id: "d1", title: "Biên bản" })],
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived"));
+    await rowOf("Biên bản");
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    const firstNew = await rowOf("Báo cáo");
+    await waitFor(() => expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull());
+    const list = screen.getByRole("table", { name: t("documents.trash.title") });
+    const restore = within(firstNew).getByRole("button", { name: t("documents.trash.restore_item", { title: "Báo cáo" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    expect(list.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
   });
 });

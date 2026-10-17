@@ -110,7 +110,9 @@ describe("NotificationsTab", () => {
     mockApi(false);
     render(wrap(<NotificationsTab />));
     // "mentioned" has email off, so the channel is on for some kinds: mixed, not off.
-    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "mixed");
+    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại phù hợp" })).toHaveAttribute("aria-checked", "mixed");
+    expect(screen.getByRole("checkbox", { name: "Hộp việc cho mọi loại" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Email cho mọi loại" })).toBeNull();
 
     const puts = () => (requestMock.mock.calls as RequestCall[]).filter(([, init]) => init?.method === "PUT");
     const sentOf = (call: RequestCall | undefined) => call?.[1]?.body?.preferences ?? [];
@@ -118,21 +120,21 @@ describe("NotificationsTab", () => {
     // Mixed turns everything on: only the kinds that were off are written, all of
     // them switched on. The omitted trash kind defaults email off (Q-R2) but can
     // never hold it, so the bulk control does not claim it (BE-TN-11).
-    fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại phù hợp" }));
     await waitFor(() => expect(puts()).toHaveLength(1));
     expect(sentOf(puts()[0]).map((p) => p.kind)).toEqual(["mentioned"]);
     expect(sentOf(puts()[0]).every((p) => p.email)).toBe(true);
-    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "true");
+    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại phù hợp" })).toHaveAttribute("aria-checked", "true");
 
     // Every eligible kind is on now, so the same click switches them all off -
     // and still leaves the ineligible trash kind out of the write.
-    fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại phù hợp" }));
     await waitFor(() => expect(puts()).toHaveLength(2));
     const off = sentOf(puts()[1]);
     expect(off).toHaveLength(NOTIFICATION_KINDS.length - 1);
     expect(off.every((p) => !p.email)).toBe(true);
     expect(off.map((p) => p.kind)).not.toContain("document_trashed_by_other");
-    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "false");
+    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại phù hợp" })).toHaveAttribute("aria-checked", "false");
   });
 
   it("shows the push column and the browser switch when push is available", async () => {
