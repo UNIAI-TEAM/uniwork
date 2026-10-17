@@ -537,10 +537,11 @@ describe('answer adapter', () => {
     }
   });
 
-  describe('edit scoring of the 11 real edit cases (G712-16)', () => {
+  describe('edit scoring of the 12 real edit cases (G712-16)', () => {
     const edits = cases.filter((c) => c.expected.writes > 0);
     // Per case: the items an applied write must back (introduced), those the document already held (preserved) and the counts.
     const SPLIT = {
+      'HO-CROSS-013': { backed: 2, preserved: 0, counts: 0 },
       'HO-CROSS-020': { backed: 0, preserved: 1, counts: 2 },
       'HO-DOCX-012': { backed: 0, preserved: 1, counts: 3 },
       'HO-DOCX-013': { backed: 0, preserved: 0, counts: 3 },
@@ -560,8 +561,10 @@ describe('answer adapter', () => {
       const names = toolsToCall(c, offeredTools(c));
       const writeTool = names.find((n) => opsOfTool(modulesOfCase(c), n).some((op) => op === 'write_range' || op === 'edit_paragraph'));
       assert.ok(writeTool, `${c.id}: a write tool is offered`);
-      for (const name of names) backend.execute(name, name === writeTool ? (args === null ? '{}' : JSON.stringify(args)) : '{}');
-      const input = { reply: `${c.referenceAnswer.text}\n${referenceLine(c)}`, calls: names.map((name) => ({ name })), writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: modulesOfCase(c), sheetNames: backend.sheetNames(), sourceText: backend.sourceText() };
+      // Mirror the runner: the tool results of the turn are part of what the adapter reads (holdout-run.mjs:455), so a
+      // figure the reference prose repeats from a tool result stays traceable here too (review-g712-16 A1).
+      const toolResultsText = names.map((name) => JSON.stringify(backend.execute(name, name === writeTool ? (args === null ? '{}' : JSON.stringify(args)) : '{}'))).join('\n');
+      const input = { reply: `${c.referenceAnswer.text}\n${referenceLine(c)}`, calls: names.map((name) => ({ name })), writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: modulesOfCase(c), sheetNames: backend.sheetNames(), sourceText: backend.sourceText(), toolResultsText };
       const out = deriveAnswer(c, input);
       const result = score(c, out.answer);
       return { backend, writeTool, adapter: out.adapter, result, check: (id) => result.checks.find((x) => x.id === id)?.status };
@@ -569,7 +572,7 @@ describe('answer adapter', () => {
     const writeOp = (c) => c.tools.required.find((op) => op === 'write_range' || op === 'edit_paragraph');
     const correct = (c) => JSON.parse(argumentsFor(c, toolsToCall(c, offeredTools(c)).find((n) => opsOfTool(modulesOfCase(c), n).some((op) => op === writeOp(c)))));
 
-    it('covers the 11 real edit cases', () => {
+    it('covers the 12 real edit cases', () => {
       assert.deepEqual(edits.map((c) => c.id).sort(), Object.keys(SPLIT).sort());
     });
 
@@ -628,7 +631,7 @@ describe('answer adapter', () => {
 
     it('fails an introduced value that no applied write carries, while the edit itself is applied', () => {
       const introducing = edits.filter((c) => SPLIT[c.id].backed > 0);
-      assert.equal(introducing.length, 5);
+      assert.equal(introducing.length, 6);
       for (const c of introducing) {
         const r = ask(c, { text: 'new words that are not the edit values', edits: [{ anchor: 'Doanh thu Q1!ZZ900', value: 'elsewhere' }] });
         assert.equal(r.check(`tool_required:${writeOp(c)}`), 'pass', `${c.id}: the write is applied and contentful`);
@@ -749,7 +752,10 @@ describe('runner against a stub façade', () => {
 describe('runner faults and failures', () => {
   const pick = (pred) => cases.find(pred);
   const readOnlyNumeric = pick((c) => c.format === 'xlsx' && c.expected.numeric.length === 1 && c.expected.writes === 0 && c.oracle.type === 'deterministic' && c.expected.structural.length === 0 && c.expected.mustNotContain.length === 0 && !c.setup);
-  const oneWrite = pick((c) => c.expected.writes === 1 && c.tools.required.some((op) => op === 'write_range') && c.oracle.type === 'deterministic' && Object.keys(c.setup ?? {}).every((k) => k === 'selection'));
+  // The write case every fault test drives must prove a cell from the write arguments (G712-5), so it is chosen by that
+  // property, not by being the first write case: a configuration-only edit (A2) carries no cell value to prove.
+  const provableCell = (c) => c.expected.structural.some((s) => s.kind === 'cell' && String(s.value).trim() && !s.anchor.includes('#'));
+  const oneWrite = pick((c) => c.expected.writes === 1 && c.tools.required.some((op) => op === 'write_range') && c.oracle.type === 'deterministic' && Object.keys(c.setup ?? {}).every((k) => k === 'selection') && provableCell(c));
   const only = (c) => ({ onlyIds: [c.id], subset: cases });
   const mutate = (fn) => { const base = scriptedModel(cases); return (ctx) => fn(base(ctx), ctx); };
   const verdicts = (doc) => doc.asks.map((a) => a.status);
