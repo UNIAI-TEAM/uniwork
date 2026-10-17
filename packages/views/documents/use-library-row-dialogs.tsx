@@ -11,7 +11,7 @@ import { createSafeId } from "@uniwork/core/utils";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
-import { isParentWorkspaceShared } from "./documents-create";
+import { isParentWorkspaceShared, type CreateShareOptions } from "./documents-create";
 import { findTreeNode, loadMoveRevision } from "./document-tree-model";
 import { FolderNameDialog } from "./folder-name-dialog";
 import { FolderPickerDialog } from "./folder-picker-dialog";
@@ -20,12 +20,13 @@ import type { DocumentSummaryRow } from "./library-rows";
 type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
 type NameDialogState =
-  | { mode: "create"; parentId: string | null; parentTitle?: string; parentShared?: boolean }
+  | { mode: "create"; parentId: string | null; parentTitle?: string; parentShared?: boolean; shareWithWorkspace?: boolean }
   | { mode: "rename"; doc: DocumentSummaryRow };
 
 export interface LibraryRowDialogs {
   onSaveSource: (row: SourceRow) => void;
-  onCreateFolder: () => void;
+  /** `options.shareWithWorkspace` opens the dialog with its share toggle already on. */
+  onCreateFolder: (options?: CreateShareOptions) => void;
   onNewSubfolder: (doc: DocumentSummaryRow) => void;
   onRename: (doc: DocumentSummaryRow) => void;
   onMove: (doc: DocumentSummaryRow) => void;
@@ -109,6 +110,7 @@ export function useLibraryRowDialogs({
         parentId={naming?.mode === "create" ? naming.parentId : null}
         parentTitle={naming?.mode === "create" ? naming.parentTitle : undefined}
         parentShared={naming?.mode === "create" ? naming.parentShared : undefined}
+        initialShareWithWorkspace={naming?.mode === "create" ? Boolean(naming.shareWithWorkspace) : false}
         folderId={naming?.mode === "rename" ? naming.doc.id : ""}
         initialName={naming?.mode === "rename" ? naming.doc.title : ""}
         kind={naming?.mode === "rename" ? naming.doc.kind : "folder"}
@@ -190,7 +192,14 @@ export function useLibraryRowDialogs({
       setError(null);
       setSaving(row);
     },
-    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle, parentShared }),
+    onCreateFolder: (options) =>
+      setNaming({
+        mode: "create",
+        parentId: folderId,
+        parentTitle: folderTitle,
+        parentShared,
+        shareWithWorkspace: Boolean(options?.shareWithWorkspace),
+      }),
     onNewSubfolder: (doc) =>
       setNaming({
         mode: "create",

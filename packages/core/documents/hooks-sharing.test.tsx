@@ -430,3 +430,50 @@ describe("documents sharing hooks (G1-05b)", () => {
   });
 });
 
+
+describe("useDocumentShareCandidates paging (F-W1-03)", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  const candidate = (id: string, type = "user") => ({
+    principal_type: type,
+    principal_id: id,
+    name: id,
+    secondary: "",
+    direct_level: null,
+    is_home_workspace: false,
+  });
+
+  it("follows next_cursor so the workspace and organization pages behind the people are reachable", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ items: [candidate("u1"), candidate("u2")], next_cursor: "c2" }))
+      .mockResolvedValueOnce(json({ items: [candidate("w1", "workspace"), candidate("o1", "organization")], next_cursor: null }));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentShareCandidates("w1", "d1", { q: "", limit: 2 }), { wrapper });
+
+    await waitFor(() => expect(result.current.items.map((c) => c.principal_id)).toEqual(["u1", "u2"]));
+    expect(result.current.hasNextPage).toBe(true);
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/documents/d1/share-candidates?limit=2",
+    );
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/documents/d1/share-candidates?cursor=c2&limit=2",
+    );
+    await waitFor(() =>
+      expect(result.current.items.map((c) => c.principal_id)).toEqual(["u1", "u2", "w1", "o1"]),
+    );
+    expect(result.current.hasNextPage).toBe(false);
+  });
+});

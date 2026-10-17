@@ -5,7 +5,7 @@ import type { User, Workspace } from "@uniwork/core/types";
 import type { DocumentShareScope, DocumentSummary, DocumentTreeNode } from "@uniwork/core/types/document";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrap } from "../test/api-mock";
-import { DocumentShareScopeBadge, resolveDocumentShareScope } from "./document-share-scope-badge";
+import { DocumentShareScopeBadge } from "./document-share-scope-badge";
 import { DocumentTree } from "./document-tree";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { type LibraryRowHandlers } from "./documents-library-row";
@@ -63,9 +63,9 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     expect(badge.querySelector('[data-scope-icon="private"]')).toBeTruthy();
     expect(badge.querySelector('[data-scope-icon="public-link"]')).toBeNull();
 
-    const descId = badge.getAttribute("aria-describedby");
-    expect(descId).toBeTruthy();
-    expect(document.getElementById(descId!)?.textContent).toBe("Riêng tư");
+    // The tooltip says what the label says: nothing to describe, so no
+    // aria-describedby that would read the label twice (F-W2-06).
+    expect(badge).not.toHaveAttribute("aria-describedby");
   });
 
   it("renders '{{count}} người' with a users icon when shared with people only", () => {
@@ -75,8 +75,7 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     expect(within(badge).getByText("3 người")).toBeInTheDocument();
     expect(badge.querySelector('[data-scope-icon="people"]')).toBeTruthy();
 
-    const descId = badge.getAttribute("aria-describedby")!;
-    expect(document.getElementById(descId)?.textContent).toBe("3 người");
+    expect(badge).not.toHaveAttribute("aria-describedby");
   });
 
   it("renders 'Workspace' with a workspace icon when shared with the home workspace only", () => {
@@ -112,8 +111,7 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     expect(within(badge).getByText("Tổ chức")).toBeInTheDocument();
     expect(badge.querySelector('[data-scope-icon="organization"]')).toBeTruthy();
 
-    const descId = badge.getAttribute("aria-describedby")!;
-    expect(document.getElementById(descId)?.textContent).toBe("Tổ chức");
+    expect(badge).not.toHaveAttribute("aria-describedby");
   });
 
   it("renders 'Nhiều phạm vi' with a share-nodes icon and full tooltip/aria-describedby when two or more scopes combine", () => {
@@ -136,7 +134,8 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     expect(badge.querySelector('[data-scope-icon="public-link"]')).toBeTruthy();
 
     const expectedTooltip = "Workspace Sản phẩm · 1 workspace khác · 5 người · Liên kết công khai";
-    expect(badge).toHaveAttribute("title", expectedTooltip);
+    // One tooltip only: no native title beside the portalled one (F-W2-06).
+    expect(badge).not.toHaveAttribute("title");
     const descId = badge.getAttribute("aria-describedby")!;
     expect(document.getElementById(descId)?.textContent).toBe(expectedTooltip);
 
@@ -144,31 +143,68 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(expectedTooltip);
   });
 
-  it("appends the public link icon mark and 'Liên kết công khai' to any single state when public_link is true", () => {
+  it("appends the public link mark to a state that has a person or group (F-W2-04)", () => {
+    render(<DocumentShareScopeBadge shareScope={scope({ users: 2, public_link: true })} />);
+
+    const badge = screen.getByTestId("document-share-scope-badge");
+    expect(within(badge).getByText("2 người")).toBeInTheDocument();
+    expect(badge.querySelector('[data-scope-icon="people"]')).toBeTruthy();
+    expect(badge.querySelector('[data-scope-icon="public-link"]')).toBeTruthy();
+    expect(document.getElementById(badge.getAttribute("aria-describedby")!)?.textContent).toBe("2 người · Liên kết công khai");
+  });
+
+  it("shows only the link state, never 'Riêng tư', when a live link is the only share (F-W2-04)", () => {
     render(<DocumentShareScopeBadge shareScope={scope({ public_link: true })} />);
 
     const badge = screen.getByTestId("document-share-scope-badge");
-    expect(within(badge).getByText("Riêng tư")).toBeInTheDocument();
-    expect(badge.querySelector('[data-scope-icon="private"]')).toBeTruthy();
-    expect(badge.querySelector('[data-scope-icon="public-link"]')).toBeTruthy();
-
-    const descId = badge.getAttribute("aria-describedby")!;
-    expect(document.getElementById(descId)?.textContent).toBe("Riêng tư · Liên kết công khai");
+    expect(within(badge).getByText("Liên kết công khai")).toBeInTheDocument();
+    expect(within(badge).queryByText("Riêng tư")).toBeNull();
+    expect(badge).toHaveAttribute("data-scope-kind", "link");
+    expect(badge.querySelector('[data-scope-icon="link"]')).toBeTruthy();
+    expect(badge.querySelector('[data-scope-icon="private"]')).toBeNull();
+    // The state is the link itself: no second link mark beside it.
+    expect(badge.querySelector('[data-scope-icon="public-link"]')).toBeNull();
+    expect(screen.queryByText(/Riêng tư/)).toBeNull();
   });
 
-  it("falls back to visibility when share_scope is absent and renders nothing when both are unknown", () => {
-    expect(resolveDocumentShareScope(null, "restricted")).toEqual(scope());
-    expect(resolveDocumentShareScope(undefined, "workspace")).toEqual(scope({ home_workspace: true }));
-    expect(resolveDocumentShareScope(undefined, undefined)).toBeNull();
-
-    const { rerender, container } = render(<DocumentShareScopeBadge visibility="restricted" />);
-    expect(screen.getByText("Riêng tư")).toBeInTheDocument();
-
-    rerender(<DocumentShareScopeBadge visibility="workspace" />);
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
-
-    rerender(<DocumentShareScopeBadge />);
+  it("renders nothing when share_scope is absent, whatever else the row carries (F-W2-05)", () => {
+    const { container, rerender } = render(<DocumentShareScopeBadge />);
     expect(container.firstChild).toBeNull();
+    rerender(<DocumentShareScopeBadge shareScope={null} />);
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByText("Riêng tư")).toBeNull();
+  });
+
+  it("takes keyboard focus to open its tooltip, unless it already sits inside a button (F-W2-06)", () => {
+    const { rerender } = render(<DocumentShareScopeBadge shareScope={scope({ users: 2, home_workspace: true })} />);
+    const badge = screen.getByTestId("document-share-scope-badge");
+    expect(badge).toHaveAttribute("tabindex", "0");
+    expect(badge).not.toHaveAttribute("title");
+    fireEvent.focus(badge);
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+
+    rerender(<DocumentShareScopeBadge shareScope={scope({ users: 2, home_workspace: true })} focusable={false} />);
+    expect(screen.getByTestId("document-share-scope-badge")).not.toHaveAttribute("tabindex");
+  });
+
+  it("names the document's own workspace in the tooltip, never the viewer's current one (F-W2-07)", () => {
+    const onBadge = (props: { workspaceId?: string; workspaceName?: string }) => (
+      <WorkspaceProvider workspace={workspace} user={user}>
+        <DocumentShareScopeBadge shareScope={scope({ home_workspace: true, users: 1 })} {...props} />
+      </WorkspaceProvider>
+    );
+    const described = () =>
+      document.getElementById(screen.getByTestId("document-share-scope-badge").getAttribute("aria-describedby")!)?.textContent;
+
+    const { rerender } = render(onBadge({ workspaceId: "ws1" }));
+    expect(described()).toBe("Workspace Sản phẩm · 1 người");
+
+    // A row from another workspace (search, shared with me): no borrowed name.
+    rerender(onBadge({ workspaceId: "ws9" }));
+    expect(described()).toBe("Workspace · 1 người");
+
+    rerender(onBadge({ workspaceId: "ws9", workspaceName: "Kinh doanh" }));
+    expect(described()).toBe("Workspace Kinh doanh · 1 người");
   });
 
   it("mounts in library rows, tree rows, and search results", async () => {

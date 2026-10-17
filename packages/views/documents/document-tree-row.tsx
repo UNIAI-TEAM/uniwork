@@ -145,8 +145,8 @@ export function TreeRowItem({
       ) : null}
       <DocumentShareScopeBadge
         shareScope={shareScope ?? row.node.share_scope}
-        visibility={row.node.visibility}
         compact
+        focusable={false}
         className="ml-1"
       />
       <DocumentTreeRowMenu

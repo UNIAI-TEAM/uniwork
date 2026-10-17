@@ -75,9 +75,9 @@ describe("Create workspace share toggle (§4, F-01)", () => {
       ),
     ).toBeNull();
 
-    // Create while off -> 1-arg call without shareWithWorkspace.
+    // Create while off -> options are still passed, with shareWithWorkspace false.
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.page.chip") }));
-    expect(onCreate).toHaveBeenLastCalledWith("page");
+    expect(onCreate).toHaveBeenLastCalledWith("page", { shareWithWorkspace: false });
 
     // Turn on -> shows hint linked via aria-describedby.
     fireEvent.click(toggle);
@@ -168,7 +168,7 @@ describe("Create workspace share toggle (§4, F-01)", () => {
     expect(lockedItem).toHaveAttribute("aria-checked", "true");
 
     fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(t("documents.home.create.xlsx.menu")) }));
-    expect(onCreateShared).toHaveBeenLastCalledWith("xlsx");
+    expect(onCreateShared).toHaveBeenLastCalledWith("xlsx", { shareWithWorkspace: false });
   });
 
   it("DocumentUploadDialog: resets toggle on open, forwards shareWithWorkspace when turned on, locks under shared parent, and hides when showShareToggle=false", async () => {
@@ -254,7 +254,7 @@ describe("Create workspace share toggle (§4, F-01)", () => {
     ).toBeNull();
   });
 
-  it("FolderNameDialog: sends visibility=workspace & workspace_level=view when toggled on in create mode, locks under shared parent, and hides in rename mode", async () => {
+  it("FolderNameDialog: sends visibility=workspace (and no workspace_level) when toggled on in create mode, locks under shared parent, and hides in rename mode", async () => {
     const posts: unknown[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
       if (path === LIST_BASE && opts?.method === "POST") {
@@ -311,7 +311,6 @@ describe("Create workspace share toggle (§4, F-01)", () => {
         title: "Tài liệu chung",
         parent_id: "fo-priv",
         visibility: "workspace",
-        workspace_level: "view",
       }),
     );
     unmount();
@@ -372,7 +371,7 @@ describe("Create workspace share toggle (§4, F-01)", () => {
     ).toBeNull();
   });
 
-  it("DocumentsPageView: sends visibility=workspace & workspace_level=view when creating at root or inside a private folder with the toggle on, and fires no restricted toast", async () => {
+  it("DocumentsPageView: sends visibility=workspace (and no workspace_level) when creating at root or inside a private folder with the toggle on, and fires no restricted toast", async () => {
     const posts: Array<{ path: string; body: unknown }> = [];
     const tree: DocumentTreeNode[] = [
       {
@@ -459,7 +458,7 @@ describe("Create workspace share toggle (§4, F-01)", () => {
 
     await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
 
-    // Inside private folder fo-priv: CreateMenu toggle starts off, can be turned on -> sends visibility & workspace_level.
+    // Inside private folder fo-priv: CreateMenu toggle starts off, can be turned on -> sends visibility only.
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
     const menuToggle = await screen.findByRole("menuitemcheckbox", {
       name: t("documents.home.create.share_workspace_toggle"),
@@ -479,7 +478,6 @@ describe("Create workspace share toggle (§4, F-01)", () => {
         title: t("documents.home.default_names.docx"),
         parent_id: "fo-priv",
         visibility: "workspace",
-        workspace_level: "view",
       },
     });
     expect(toast.success).not.toHaveBeenCalled();

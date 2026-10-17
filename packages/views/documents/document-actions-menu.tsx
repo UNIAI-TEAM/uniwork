@@ -73,9 +73,9 @@ export function DocumentActionsMenu({
   const userId = useOptionalWorkspace()?.user.id ?? sessionUserId;
   const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
   const canManage = doc.my_level === "manage";
-  // Share opens for DOC-05 admin_scope too (a break-glass admin holds view):
-  // the dialog's access list and owner transfer are canAdminister() surfaces
-  // (access addendum §2.5). Every other entry keeps its own gate.
+  // The deep link and the dialog's manage surfaces stay canAdminister() gated
+  // (DOC-05 admin_scope included, access addendum §2.5); every other entry keeps
+  // its own gate.
   const canAdminister = canAdministerDocument(doc, { userId, orgRole: null, wsRole: null }).allowed;
   const owned = !!doc.owner_kind;
   const archived = !!doc.archived_at;
@@ -98,7 +98,9 @@ export function DocumentActionsMenu({
 
   const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
-  if (canAdminister && !owned && !archived) {
+  // Every reader opens Share: a manager manages access there, anyone else sees
+  // their own level and sources read-only (access addendum §5.2, U-SH4).
+  if (!owned && !archived) {
     items.push({ id: "share", label: t("documents.actions.share"), icon: Share2 });
   }
   if (canManage && !owned && !archived) {
@@ -159,7 +161,7 @@ export function DocumentActionsMenu({
         wsId={wsId}
         doc={doc}
       />
-      {!owned && canAdminister ? (
+      {!owned ? (
         <ShareDialog
           open={panel === "share"}
           onOpenChange={(next) => {

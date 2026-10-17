@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, render, screen } from "@testing-library/react";
+import { CircleCheck, Share2 } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
@@ -61,10 +64,13 @@ afterEach(async () => {
 });
 
 describe("SH-W3 document_shared notification kind", () => {
-  it("registers document_shared with the documents tone, CircleCheck glyph and updates category", () => {
+  it("registers document_shared with the documents tone, its own share glyph and updates category", () => {
     expect(NOTIFICATION_KINDS).toContain("document_shared");
     expect(kindTone("document_shared")).toBe(moduleTone("documents"));
-    expect(kindIcon("document_shared")).toBe(kindIcon("document_access_approved"));
+    // F-W3-01: CircleCheck means a resolved outcome in this file; a share is not one.
+    expect(kindIcon("document_shared")).toBe(Share2);
+    expect(kindIcon("document_shared")).not.toBe(CircleCheck);
+    expect(kindIcon("document_shared")).not.toBe(kindIcon("document_access_approved"));
     expect(kindIcon("document_shared")).not.toBe(kindIcon("kind_from_a_newer_server"));
     expect(inboxCategory("document_shared")).toBe("updates");
   });
@@ -88,19 +94,43 @@ describe("SH-W3 document_shared notification kind", () => {
     expect(sentence(n)).toBe(`An shared “Hợp đồng” with you (${enLevel}).`);
   });
 
-  it("falls back gracefully on an unknown or missing level without throwing or leaking a raw key", async () => {
+  it("reads level-less, never the raw value, when the level is unknown (F-W3-03)", async () => {
     const unknown = notification({ actor: "An", document: "Hợp đồng", document_id: "d1", level: "super_edit" });
+    expect(notificationTitleKey(unknown)).toBe("notifications.kind.document_shared_nolevel");
+
     await setLocale("vi");
-    expect(sentence(unknown)).toBe("An đã chia sẻ tài liệu “Hợp đồng” với bạn. Quyền: super_edit.");
-    expect(sentence(unknown)).not.toMatch(/documents\.share\.level_|notifications\.kind|\{\{/);
+    expect(sentence(unknown)).toBe("An đã chia sẻ tài liệu “Hợp đồng” với bạn.");
+    expect(sentence(unknown)).not.toMatch(/super_edit|documents\.share\.level_|notifications\.kind|\{\{/);
 
     await setLocale("en");
-    expect(sentence(unknown)).toBe("An shared “Hợp đồng” with you (super_edit).");
-    expect(sentence(unknown)).not.toMatch(/documents\.share\.level_|notifications\.kind|\{\{/);
+    expect(sentence(unknown)).toBe("An shared “Hợp đồng” with you.");
+    expect(sentence(unknown)).not.toMatch(/super_edit|documents\.share\.level_|notifications\.kind|\{\{/);
+  });
 
-    const missingLevel = notification({ actor: "An", document: "Hợp đồng", document_id: "d1" });
-    expect(() => sentence(missingLevel)).not.toThrow();
-    expect(sentence(missingLevel)).not.toMatch(/documents\.share\.level_|notifications\.kind|\{\{/);
+  it("reads level-less, with no dangling clause, when the level is missing or empty (F-W3-02)", async () => {
+    const withoutLevel: Record<string, string>[] = [
+      { actor: "An", document: "Hợp đồng", document_id: "d1" },
+      { actor: "An", document: "Hợp đồng", document_id: "d1", level: "" },
+    ];
+    for (const params of withoutLevel) {
+      const n = notification(params);
+      expect(notificationTitleKey(n)).toBe("notifications.kind.document_shared_nolevel");
+      await setLocale("vi");
+      expect(sentence(n)).toBe("An đã chia sẻ tài liệu “Hợp đồng” với bạn.");
+      expect(sentence(n)).not.toMatch(/Quyền: ?\.|\(\)/);
+      await setLocale("en");
+      expect(sentence(n)).toBe("An shared “Hợp đồng” with you.");
+      expect(sentence(n)).not.toMatch(/\(\)|\(\s*\)/);
+    }
+  });
+
+  it("combines the title-less and level-less variants", async () => {
+    const n = notification({ actor: "An", document: "  ", level: "nope" });
+    expect(notificationTitleKey(n)).toBe("notifications.kind.document_shared_untitled_nolevel");
+    await setLocale("vi");
+    expect(sentence(n)).toBe("An đã chia sẻ một tài liệu với bạn.");
+    await setLocale("en");
+    expect(sentence(n)).toBe("An shared a document with you.");
   });
 
   it("uses the _untitled sentence when the document name is missing or blank in both locales", async () => {
@@ -148,11 +178,34 @@ describe("SH-W3 document_shared notification kind", () => {
         </WorkspaceProvider>,
       ),
     );
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/acme/team/documents/d1");
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", "/acme/team/documents/d1");
     expect(screen.getByText(t("notifications.merged_other", { count: 2 }))).toBeInTheDocument();
+    // F-W3-04: the grouped row carries the share sentence and the share glyph, not the "access approved" one.
+    expect(link).toHaveTextContent(`An đã chia sẻ tài liệu “Kế hoạch” với bạn. Quyền: ${t("documents.share.level_edit")}.`);
+    expect(link.querySelector("svg.lucide-share-2")).not.toBeNull();
+    expect(link.querySelector("svg.lucide-circle-check")).toBeNull();
 
     const groups = groupInbox([n], new Date("2026-10-17T12:00:00Z"));
     expect(groups).toEqual([{ key: "unread", rows: [n] }]);
+  });
+
+  // F-W3-04: the server renders the same words on push and digest (titles.go
+  // documentLevelLabels); the client's level labels must not drift from them.
+  it("words every share level like server/internal/notification/titles.go in vi and en", async () => {
+    const go = readFileSync(resolve(process.cwd(), "../../server/internal/notification/titles.go"), "utf8");
+    const block = go.slice(go.indexOf("var documentLevelLabels"), go.indexOf("var kindTitles"));
+    const serverLabels = (locale: "vi" | "en") => {
+      const start = block.indexOf(`"${locale}": {`);
+      const body = block.slice(start, block.indexOf("},", start));
+      return Object.fromEntries([...body.matchAll(/"(view|comment|edit|manage)":\s*"([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
+    };
+    for (const locale of ["vi", "en"] as const) {
+      await setLocale(locale);
+      const server = serverLabels(locale);
+      expect(Object.keys(server).sort()).toEqual([...LEVELS].sort());
+      for (const level of LEVELS) expect(t(`documents.share.level_${level}`)).toBe(server[level]);
+    }
   });
 
   it("renders document_shared in notification settings with its vi and en labels", async () => {

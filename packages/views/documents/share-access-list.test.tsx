@@ -175,7 +175,10 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
       items: [{ principal_type: "user", principal_id: "u2", level: null }],
       dry_run: false,
     });
-    expect(toast.success).toHaveBeenCalledWith("Đã thu hồi quyền của Nguyễn An (an@acme.vn)");
+    // E2E-2: the toast is the confirm sentence in the past tense (spec §5.2, FR-09).
+    expect(toast.success).toHaveBeenCalledWith(
+      "Đã thu hồi quyền chia sẻ trực tiếp của Nguyễn An (an@acme.vn). Nguyễn An (an@acme.vn) vẫn có quyền Chỉ xem qua Workspace Kinh doanh.",
+    );
   });
 
   it("U-SH4: non-manager view shows only caller's own access and my_sources without other people's rows", () => {

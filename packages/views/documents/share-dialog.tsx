@@ -80,8 +80,10 @@ export function ShareDialog({
   }).allowed;
   const adminOnly = hasAdminScope(doc) && doc.my_level !== "manage";
 
-  const access = useDocumentShares(wsId, doc.id, { enabled: open && canAdminister && !owned });
-  const members = useShareMembers(workspace.organization_slug, open);
+  // Every reader gets the overview: a manager reads grants and links from it, anyone
+  // else reads their own level and sources (U-SH4, contract §1.3 `my_sources`).
+  const access = useDocumentShares(wsId, doc.id, { enabled: open && !owned });
+  const members = useShareMembers(workspace.organization_slug, open && canAdminister);
   const orgWorkspaces = useOrgWorkspaces(doc.organization_id);
   const docSettings = useDocumentSettings(doc.organization_id, {
     enabled: open && canAdminister && !owned && !!doc.organization_id,
@@ -146,7 +148,12 @@ export function ShareDialog({
           ) : null}
         </DialogHeader>
 
-        {!canAdminister ? (
+        {!canAdminister && access.isLoading ? (
+          <div className="flex items-center gap-2 py-4 text-body text-muted-foreground">
+            <Spinner />
+            {t("documents.share.loading")}
+          </div>
+        ) : !canAdminister ? (
           <ShareAccessList
             wsId={wsId}
             docId={doc.id}
@@ -185,14 +192,6 @@ export function ShareDialog({
               />
             ) : null}
 
-            <ShareDialogBreakGlassSection
-              wsId={wsId}
-              docId={doc.id}
-              grants={access.data.break_glass}
-              initialOpen={initialSection === "break_glass"}
-              resolveName={memberName}
-            />
-
             <ShareAddSection
               wsId={wsId}
               doc={doc}
@@ -217,6 +216,14 @@ export function ShareDialog({
               workspaceName={workspaceName}
               organization={organization}
               orgMembers={members.rows}
+            />
+
+            <ShareDialogBreakGlassSection
+              wsId={wsId}
+              docId={doc.id}
+              grants={access.data.break_glass}
+              initialOpen={initialSection === "break_glass"}
+              resolveName={memberName}
             />
 
             {!doc.archived_at ? (

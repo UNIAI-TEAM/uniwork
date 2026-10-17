@@ -47,11 +47,17 @@ export type DocumentAccessResultStatus =
   | "kept"
   | "unchanged";
 
+// Response enums stay z.string() (CLAUDE.md API Compatibility): a value a newer
+// server adds must not fail the parse of a write that already committed. The
+// exported types narrow them; every switch over one carries a default.
 export const DocumentAccessResultItemSchema = z.object({
   index: z.number().int().min(0),
-  status: z.enum(["granted", "updated", "revoked", "kept", "unchanged"]),
+  status: z.string(),
 });
-export type DocumentAccessResultItem = z.infer<typeof DocumentAccessResultItemSchema>;
+export type DocumentAccessResultItem = {
+  index: number;
+  status: DocumentAccessResultStatus;
+};
 
 export const DocumentAccessPreviewLevelSchema = z.object({
   level: z
@@ -82,20 +88,26 @@ export type DocumentAccessPreviewUser = {
 };
 
 export const DocumentAccessPreviewGroupSchema = z.object({
-  principal_type: z.enum(["workspace", "organization"]),
+  principal_type: z.string(),
   principal_id: z.string().min(1),
   member_count: z.number().int().min(0),
   losing_count: z.number().int().min(0),
 });
-export type DocumentAccessPreviewGroup = z.infer<typeof DocumentAccessPreviewGroupSchema>;
+export type DocumentAccessPreviewGroup = {
+  principal_type: "workspace" | "organization";
+  principal_id: string;
+  member_count: number;
+  losing_count: number;
+};
 
 export type DocumentAccessWarningCode = "wide_scope" | "direct_below_group" | "downgrade";
 
 export const DocumentAccessWarningSchema = z.object({
-  code: z.enum(["wide_scope", "direct_below_group", "downgrade"]),
+  code: z.string(),
   index: z.number().int().min(0),
 });
-export type DocumentAccessWarning = z.infer<typeof DocumentAccessWarningSchema>;
+/** `code` is narrowed for readers; an unknown code still arrives, so branch with a default. */
+export type DocumentAccessWarning = { code: DocumentAccessWarningCode; index: number };
 
 export const DocumentAccessPreviewSchema = z.object({
   users: z.array(DocumentAccessPreviewUserSchema).optional().default([]),
@@ -118,7 +130,10 @@ export const DocumentAccessUpdateSchema = z.object({
     warnings: [],
   }),
 });
-export type DocumentAccessUpdate = Omit<z.infer<typeof DocumentAccessUpdateSchema>, "preview"> & {
+export type DocumentAccessUpdate = {
+  batch_id: string;
+  dry_run: boolean;
+  results: DocumentAccessResultItem[];
   preview: DocumentAccessPreview;
 };
 
@@ -130,16 +145,16 @@ export type DocumentAccessRejectedCode =
 
 const DocumentAccessRejectedItemSchema = z.object({
   index: z.number().int().min(0),
-  principal_type: z.enum(["user", "workspace", "organization"]),
+  principal_type: z.string(),
   principal_id: z.string().min(1),
-  code: z.enum([
-    "principal_not_in_organization",
-    "level_not_allowed",
-    "duplicate_principal",
-    "break_glass_required",
-  ]),
+  code: z.string(),
 });
-export type DocumentAccessRejectedItem = z.infer<typeof DocumentAccessRejectedItemSchema>;
+export type DocumentAccessRejectedItem = {
+  index: number;
+  principal_type: DocumentPrincipalType;
+  principal_id: string;
+  code: DocumentAccessRejectedCode;
+};
 
 export interface DocumentAccessRejectedError {
   code: "document_access_rejected";
@@ -155,7 +170,7 @@ export function parseDocumentAccessRejected(err: unknown): DocumentAccessRejecte
   if (Array.isArray(rawList)) {
     for (const entry of rawList) {
       const parsed = DocumentAccessRejectedItemSchema.safeParse(entry);
-      if (parsed.success) rejected.push(parsed.data);
+      if (parsed.success) rejected.push(parsed.data as DocumentAccessRejectedItem);
     }
   }
   return {
@@ -167,21 +182,34 @@ export function parseDocumentAccessRejected(err: unknown): DocumentAccessRejecte
 }
 
 export const DocumentShareCandidateSchema = z.object({
-  principal_type: z.enum(["user", "workspace", "organization"]),
+  principal_type: z.string(),
   principal_id: z.string().min(1),
   name: z.string(),
   secondary: z.string().optional().default(""),
-  direct_level: z.enum(["view", "comment", "edit", "manage"]).nullable().optional().default(null),
+  direct_level: z.string().nullable().optional().default(null),
   is_home_workspace: z.boolean().optional().default(false),
 });
-export type DocumentShareCandidate = z.infer<typeof DocumentShareCandidateSchema>;
+export type DocumentShareCandidate = {
+  principal_type: DocumentPrincipalType;
+  principal_id: string;
+  name: string;
+  secondary: string;
+  direct_level: DocumentAccessLevel | null;
+  is_home_workspace: boolean;
+};
+
+const SHARE_PRINCIPAL_TYPES: readonly string[] = ["user", "workspace", "organization"];
 
 export const DocumentShareCandidatesSchema = z.object({
-  items: z.array( z.unknown() ).transform((raw): DocumentShareCandidate[] => {
+  // A row this client cannot share with (a principal type a newer server adds)
+  // is dropped on its own; one unknown value never costs the rest of the page.
+  items: z.array(z.unknown()).transform((raw): DocumentShareCandidate[] => {
     const out: DocumentShareCandidate[] = [];
     for (const item of raw) {
       const parsed = DocumentShareCandidateSchema.safeParse(item);
-      if (parsed.success) out.push(parsed.data);
+      if (parsed.success && SHARE_PRINCIPAL_TYPES.includes(parsed.data.principal_type)) {
+        out.push(parsed.data as DocumentShareCandidate);
+      }
     }
     return out;
   }),
@@ -191,7 +219,7 @@ export const DocumentShareCandidatesSchema = z.object({
     .optional()
     .transform((v) => v ?? ""),
 });
-export type DocumentShareCandidates = z.infer<typeof DocumentShareCandidatesSchema>;
+export type DocumentShareCandidates = { items: DocumentShareCandidate[]; next_cursor: string };
 
 /** PUT /api/v1/documents/{documentID}/access — batch grant/update/revoke with
  *  optional dry_run impact preview (SH-S2/SH-W1). */

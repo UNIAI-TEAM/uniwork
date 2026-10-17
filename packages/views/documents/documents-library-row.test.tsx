@@ -22,6 +22,10 @@ afterAll(async () => {
   await setLocale("en");
 });
 
+// A row's scope comes from `share_scope` only; it is never guessed from `visibility`.
+const SCOPE_PRIVATE = { users: 0, home_workspace: false, workspaces: 0, organization: false, public_link: false };
+const SCOPE_HOME = { ...SCOPE_PRIVATE, home_workspace: true };
+
 function doc(id: string, title: string, over: Partial<DocumentSummaryRow> = {}): DocumentSummaryRow {
   return {
     id,
@@ -119,8 +123,8 @@ describe("board columns", () => {
 describe("access column", () => {
   it("shows the visibility on line 1 and 'Bạn: <level>' on line 2", () => {
     renderList([
-      doc("a", "A.docx", { my_level: "manage", visibility: "restricted" }),
-      doc("b", "B.docx", { my_level: "view", visibility: "workspace" }),
+      doc("a", "A.docx", { my_level: "manage", visibility: "restricted", share_scope: SCOPE_PRIVATE }),
+      doc("b", "B.docx", { my_level: "view", visibility: "workspace", share_scope: SCOPE_HOME }),
     ]);
     const accessA = cellsOf("a")[1]!;
     expect(within(accessA).getByText("Riêng tư")).toBeTruthy();
@@ -140,7 +144,7 @@ describe("access column", () => {
   });
 
   it("labels unshared restricted rows as 'Riêng tư'", () => {
-    renderList([doc("a", "A.docx", { visibility: "restricted", via: "owner" as DocumentSummaryRow["via"] })]);
+    renderList([doc("a", "A.docx", { visibility: "restricted", share_scope: SCOPE_PRIVATE, via: "owner" as DocumentSummaryRow["via"] })]);
     expect(screen.getAllByText("Riêng tư").length).toBeGreaterThanOrEqual(1);
   });
 

@@ -40,12 +40,12 @@ const DOCUMENT_KINDS = [
 describe("notificationTitleKey", () => {
   it.each(DOCUMENT_KINDS)("keeps the titled sentence of %s while the document name is there", (kind) => {
     const key = `notifications.kind.${kind}`;
-    expect(notificationTitleKey(notification({ kind, title_key: key, params: { document: "Kế hoạch" } }))).toBe(key);
+    expect(notificationTitleKey(notification({ kind, title_key: key, params: { document: "Kế hoạch", level: "view" } }))).toBe(key);
   });
 
   it.each(DOCUMENT_KINDS)("uses the title-less variant of %s when the name is missing, empty or blank", (kind) => {
     const key = `notifications.kind.${kind}`;
-    const cases: Record<string, string>[] = [{}, { document: "" }, { document: "   " }];
+    const cases: Record<string, string>[] = [{ level: "view" }, { document: "", level: "view" }, { document: "   ", level: "view" }];
     for (const params of cases) {
       expect(notificationTitleKey(notification({ kind, title_key: key, params }))).toBe(`${key}_untitled`);
     }
@@ -53,7 +53,7 @@ describe("notificationTitleKey", () => {
 
   // A key the locale lacks would render the raw key in the Inbox, so each title-less variant must resolve.
   it.each(DOCUMENT_KINDS)("has a written sentence for the title-less variant of %s", (kind) => {
-    const key = notificationTitleKey(notification({ kind, title_key: `notifications.kind.${kind}`, params: {} }));
+    const key = notificationTitleKey(notification({ kind, title_key: `notifications.kind.${kind}`, params: { level: "view" } }));
     expect(t(key, { defaultValue: "" })).not.toBe("");
     expect(t(key, { defaultValue: "" })).not.toMatch(/\{\{document\}\}/);
   });

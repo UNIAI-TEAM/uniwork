@@ -58,7 +58,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
 
   const create = async (type: CreateType, parentId: string | null, options?: CreateShareOptions) => {
     const shareFields = options?.shareWithWorkspace
-      ? ({ visibility: "workspace", workspace_level: "view" } as const)
+      ? ({ visibility: "workspace" } as const)
       : {};
     try {
       if (type === "page") {
@@ -105,7 +105,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
     ) {
       folderKeyRef.current = { title, parentId, shared, key: createSafeId() };
     }
-    const shareFields = shared ? ({ visibility: "workspace", workspace_level: "view" } as const) : {};
+    const shareFields = shared ? ({ visibility: "workspace" } as const) : {};
     try {
       const folder = await createFolder.mutateAsync({
         title,

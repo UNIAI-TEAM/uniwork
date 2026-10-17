@@ -15,38 +15,8 @@ export type ShareScopeBadgeKind =
   | "workspace"
   | "workspaces"
   | "organization"
-  | "multiple";
-
-/**
- * Resolves a row's share scope from `share_scope`, falling back to `visibility`
- * when an older response or fixture omits `share_scope`. Returns null when
- * neither carries a known scope.
- */
-export function resolveDocumentShareScope(
-  shareScope?: DocumentShareScope | null,
-  visibility?: string | null,
-): DocumentShareScope | null {
-  if (shareScope) return shareScope;
-  if (visibility === "workspace") {
-    return {
-      users: 0,
-      home_workspace: true,
-      workspaces: 0,
-      organization: false,
-      public_link: false,
-    };
-  }
-  if (visibility === "restricted") {
-    return {
-      users: 0,
-      home_workspace: false,
-      workspaces: 0,
-      organization: false,
-      public_link: false,
-    };
-  }
-  return null;
-}
+  | "multiple"
+  | "link";
 
 /**
  * True when the scope is solely the document's home workspace with no other
@@ -65,27 +35,40 @@ export function isPlainHomeWorkspaceScope(scope: DocumentShareScope | null): boo
 }
 
 export interface DocumentShareScopeBadgeProps {
+  /** A row without `share_scope` renders nothing: the scope is never guessed from `visibility`. */
   shareScope?: DocumentShareScope | null;
-  visibility?: string | null;
+  /** The document's home workspace, for the tooltip. Beats `workspaceId`. */
   workspaceName?: string | null;
+  /** The document's own workspace id: only the viewer's current workspace is named from context. */
+  workspaceId?: string | null;
   compact?: boolean;
+  /**
+   * Whether the badge takes keyboard focus to open its tooltip. Off where the
+   * badge already sits inside a button or link (a focusable inside it would
+   * nest interactive controls); the label text then reads with its parent.
+   */
+  focusable?: boolean;
   className?: string;
 }
 
 export function DocumentShareScopeBadge({
   shareScope,
-  visibility,
   workspaceName,
+  workspaceId,
   compact = false,
+  focusable = true,
   className,
 }: DocumentShareScopeBadgeProps) {
   const { t } = useTranslation();
-  const contextWorkspaceName = useOptionalWorkspace()?.workspace.name;
-  const resolvedWorkspaceName = (workspaceName ?? contextWorkspaceName ?? "").trim();
+  const currentWorkspace = useOptionalWorkspace()?.workspace;
+  // A document from another workspace (search, shared with me) must not borrow
+  // the viewer's current workspace name: without a known name the tooltip says "Workspace".
+  const contextName = !workspaceId || workspaceId === currentWorkspace?.id ? currentWorkspace?.name : undefined;
+  const resolvedWorkspaceName = (workspaceName ?? contextName ?? "").trim();
   const descriptionId = useId();
   const [open, setOpen] = useState(false);
 
-  const scope = resolveDocumentShareScope(shareScope, visibility);
+  const scope = shareScope ?? null;
   if (!scope) return null;
 
   const hasUsers = scope.users > 0;
@@ -98,7 +81,13 @@ export function DocumentShareScopeBadge({
   let label: string;
   let Icon: LucideIcon;
 
-  if (activeCount === 0) {
+  if (activeCount === 0 && scope.public_link) {
+    // Private means no person, no group and no live link: a live link alone is
+    // not private, and its own state is what the badge shows.
+    kind = "link";
+    label = t("documents.scope.public_link");
+    Icon = Link2;
+  } else if (activeCount === 0) {
     kind = "private";
     label = t("documents.scope.private");
     Icon = Lock;
@@ -141,11 +130,11 @@ export function DocumentShareScopeBadge({
   if (hasUsers) {
     tooltipParts.push(t("documents.scope.people", { count: scope.users }));
   }
-  if (tooltipParts.length === 0) {
-    tooltipParts.push(t("documents.scope.private"));
-  }
   if (scope.public_link) {
     tooltipParts.push(t("documents.scope.public_link"));
+  }
+  if (tooltipParts.length === 0) {
+    tooltipParts.push(t("documents.scope.private"));
   }
   const tooltipText = tooltipParts.join(" · ");
   const iconSize = compact ? "size-3" : "size-3.5";
@@ -159,8 +148,8 @@ export function DocumentShareScopeBadge({
             <span
               data-testid="document-share-scope-badge"
               data-scope-kind={kind}
-              title={tooltipText}
-              aria-describedby={descriptionId}
+              {...(focusable ? { tabIndex: 0 } : {})}
+              aria-describedby={tooltipText === label ? undefined : descriptionId}
               className={cn(
                 "inline-flex min-w-0 shrink-0 items-center gap-1 text-caption",
                 compact ? "text-muted-foreground" : "text-foreground",
@@ -178,13 +167,8 @@ export function DocumentShareScopeBadge({
               kind === "private" ? "text-warning" : "text-muted-foreground",
             )}
           />
-          <span
-            id={!open && tooltipText === label ? descriptionId : undefined}
-            className="truncate"
-          >
-            {label}
-          </span>
-          {scope.public_link ? (
+          <span className="truncate">{label}</span>
+          {scope.public_link && kind !== "link" ? (
             <Link2
               aria-hidden
               data-scope-icon="public-link"
@@ -192,7 +176,7 @@ export function DocumentShareScopeBadge({
             />
           ) : null}
         </TooltipTrigger>
-        <TooltipContent id={open ? descriptionId : undefined} role="tooltip">
+        <TooltipContent id={open && tooltipText !== label ? descriptionId : undefined} role="tooltip">
           {tooltipText}
         </TooltipContent>
       </Tooltip>
