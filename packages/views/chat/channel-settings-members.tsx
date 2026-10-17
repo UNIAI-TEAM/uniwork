@@ -17,6 +17,7 @@ import {
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
+import { chatPersonFaceClass } from "./chat-person-card";
 import { initialOf } from "./chat-initials";
 
 export function ChannelSettingsMembers({
@@ -73,11 +74,13 @@ export function ChannelSettingsMembers({
                     name={label}
                     initials={initialOf(label)}
                     avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.user_id)}
-                    size="lg"
+                    size="xl"
+                    className={chatPersonFaceClass(member.user_id)}
                   />
                 }
                 name={label}
                 detail={member.role === "admin" ? t("chat.room_role_admin") : member.email}
+                detailTone={member.role === "admin" ? "admin" : undefined}
                 profile={{
                   userId: member.user_id,
                   email: member.email,

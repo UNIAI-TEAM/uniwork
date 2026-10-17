@@ -7,6 +7,7 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 
 /** Mirrors chatRoomNameMaxRunes on the server (UpdateChatRoomSettings). */
@@ -56,10 +57,10 @@ export function ChatRoomRenameDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
         <FormDialogHeader title={t("chat.room_rename_title")} description={t("chat.room_rename_description")} />
         <FormDialogBody className="space-y-2">
-          <Label htmlFor="chat-room-rename">{t("chat.room_rename_label")}</Label>
+          <Label htmlFor="chat-room-rename" className="text-label font-semibold">{t("chat.room_rename_label")}</Label>
           <Input
             id="chat-room-rename"
             value={name}

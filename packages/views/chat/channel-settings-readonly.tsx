@@ -2,6 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
+import { ChatSettingsNote, ChatSettingsSection } from "./chat-settings-ui";
 
 /**
  * What a channel member who is not its admin sees instead of the edit form:
@@ -40,18 +41,20 @@ export function ChannelSettingsReadonly({
   ];
 
   return (
-    <section className="space-y-3 border-b border-border px-4 py-4">
-      <dl className="space-y-3">
+    <ChatSettingsSection className="px-5 pt-2 pb-5">
+      <dl className="divide-y divide-border">
         {rows.map((row) => (
-          <div key={row.key} className="space-y-0.5">
+          <div key={row.key} className="space-y-0.5 py-3">
             <dt className="text-caption text-muted-foreground">{row.label}</dt>
-            <dd className={row.muted ? "text-body text-muted-foreground" : "text-body text-foreground text-pretty"}>
+            <dd
+              className={row.muted ? "text-body-lg text-muted-foreground" : "text-body-lg text-pretty text-foreground"}
+            >
               {row.value}
             </dd>
           </div>
         ))}
       </dl>
-      <p className="text-caption text-muted-foreground">{t("chat.channel.settings_admin_only")}</p>
-    </section>
+      <ChatSettingsNote className="mt-2">{t("chat.channel.settings_admin_only")}</ChatSettingsNote>
+    </ChatSettingsSection>
   );
 }

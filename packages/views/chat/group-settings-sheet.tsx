@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, Pin, Search, Settings, StickyNote, Tag, UserPlus } from "lucide-react";
+import { Bell, BellOff, Pin, Search, Settings, StickyNote, Tag, UserPlus, Users } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
@@ -19,18 +19,24 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
+import { identityTint } from "../people/identity-tint";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
+  chatSettingsIconButtonClass,
   ChatMemberListError,
   ChatMemberListSkeleton,
   ChatMemberRow,
   ChatSettingsCollapsibleSection,
+  ChatSettingsHeader,
+  ChatSettingsHero,
   ChatSettingsMenuRow,
   ChatSettingsQuickAction,
   ChatSettingsQuickActions,
-  ChatSettingsTitleRow,
+  ChatSettingsRoomMark,
+  ChatSettingsSection,
 } from "./chat-settings-ui";
+import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
@@ -45,6 +51,7 @@ import {
 } from "./chat-room-moderation-utils";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
+import { chatPersonFaceClass } from "./chat-person-card";
 import { initialOf } from "./chat-initials";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 
@@ -165,15 +172,21 @@ export function GroupSettingsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className={CHAT_SHEET_CLASS}>
         <SheetHeader className="sr-only">
           <SheetTitle>{displayName}</SheetTitle>
           <SheetDescription>{t("chat.group_settings_description")}</SheetDescription>
         </SheetHeader>
 
+        <ChatSettingsHeader title={t("chat.group_settings")} />
+
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <ChatSettingsTitleRow
-            title={displayName}
+          <ChatSettingsHero
+            mark={<ChatSettingsRoomMark icon={Users} tint={identityTint(group.id)} />}
+            name={displayName}
+            subtitle={
+              membersPending || membersError ? undefined : t("chat.group_member_count", { count: members.length })
+            }
             editAriaLabel={t("chat.settings_edit_name")}
             onEdit={roomPermissions.canChangeProfile ? () => setRenameOpen(true) : undefined}
           />
@@ -241,7 +254,8 @@ export function GroupSettingsSheet({
                         name={member.label}
                         initials={initialOf(member.label)}
                         avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.key)}
-                        size="lg"
+                        size="xl"
+                        className={chatPersonFaceClass(member.key)}
                       />
                     }
                     name={member.label}
@@ -253,6 +267,15 @@ export function GroupSettingsSheet({
                           : member.chat.send_restricted
                             ? t("chat.room_role_muted")
                             : member.email
+                    }
+                    detailTone={
+                      member.label !== member.legalLabel
+                        ? undefined
+                        : member.chat.role === "admin"
+                          ? "admin"
+                          : member.chat.send_restricted
+                            ? "restricted"
+                            : undefined
                     }
                     profile={{
                       userId: member.key,
@@ -273,13 +296,13 @@ export function GroupSettingsSheet({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-foreground"
+                          size="icon"
+                          className={chatSettingsIconButtonClass}
                           aria-label={t("chat.nickname_action_for", { name: member.label })}
                           title={t("chat.nickname_action")}
                           onClick={() => setNicknameTarget({ userId: member.key, label: member.legalLabel })}
                         >
-                          <Tag aria-hidden />
+                          <Tag className="size-5" aria-hidden />
                         </Button>
                         {!member.isSelf && isModerator ? (
                           <ChatRoomMemberActions
@@ -317,7 +340,7 @@ export function GroupSettingsSheet({
             )}
           </ChatSettingsCollapsibleSection>
 
-          <section className="border-b border-border py-1">
+          <ChatSettingsSection className="py-1">
             <ChatSettingsMenuRow
               icon={StickyNote}
               label={t("chat.settings_notes_pins_polls")}
@@ -333,16 +356,16 @@ export function GroupSettingsSheet({
                 }}
               />
             ) : null}
-          </section>
+          </ChatSettingsSection>
 
-          <div className="px-4 py-4">
+          <ChatSettingsSection className="mt-auto px-5 pt-4 pb-5">
             <LeaveConversationSection
               variant="group"
               disabled={leaveDisabled}
               leaving={leaving}
               onLeave={onLeave}
             />
-          </div>
+          </ChatSettingsSection>
         </div>
 
         {renameOpen ? (

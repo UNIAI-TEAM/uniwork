@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { chatSettingsIconButtonClass } from "./chat-settings-ui";
 
 /**
  * What a moderator can do to one member, behind a single "more" button so a
@@ -64,14 +65,14 @@ export function ChatRoomMemberActions({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            size="icon"
+            className={chatSettingsIconButtonClass}
             aria-label={t("chat.member_actions_aria", { name: label })}
             aria-busy={busy || undefined}
           />
         }
       >
-        <Ellipsis aria-hidden />
+        <Ellipsis className="size-5" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
         {canPromote ? (

@@ -34,8 +34,8 @@ export function BlockConversationSection({
 
   return (
     <>
-      <div className="space-y-2 border-t border-border pt-4">
-        <p className="text-caption text-muted-foreground">
+      <div className="space-y-2.5">
+        <p className="text-caption text-pretty text-muted-foreground">
           {blockedByMe
             ? t("chat.block_active_hint")
             : blockedMe
@@ -46,7 +46,7 @@ export function BlockConversationSection({
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-start gap-2"
+            className="h-10 w-full gap-2 rounded-full font-semibold"
             disabled={disabled || unblocking}
             onClick={() => void onUnblock()}
           >
@@ -57,7 +57,7 @@ export function BlockConversationSection({
           <Button
             type="button"
             variant="destructive"
-            className="w-full justify-start gap-2"
+            className="h-10 w-full gap-2 rounded-full font-semibold"
             disabled={disabled || blocking || blockedMe}
             onClick={() => setConfirmOpen(true)}
           >

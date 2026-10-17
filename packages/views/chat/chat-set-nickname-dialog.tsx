@@ -9,6 +9,7 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 
 const MAX_NICKNAME_LENGTH = 64;
@@ -69,14 +70,14 @@ export function ChatSetNicknameDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
         <FormDialogHeader
           title={t("chat.nickname_title")}
           description={t("chat.nickname_description", { name: targetLabel })}
         />
         <FormDialogBody className="space-y-2">
           <div className="flex items-baseline justify-between gap-3">
-            <Label htmlFor="chat-nickname">{t("chat.nickname_label")}</Label>
+            <Label htmlFor="chat-nickname" className="text-label font-semibold">{t("chat.nickname_label")}</Label>
             <span id="chat-nickname-count" className="text-caption tabular-nums text-muted-foreground">
               {nickname.length}/{MAX_NICKNAME_LENGTH}
             </span>
@@ -116,7 +117,7 @@ export function ChatSetNicknameDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="-ml-2 text-muted-foreground"
+                className="-ml-2.5 text-muted-foreground"
                 disabled={setNickname.isPending}
                 onClick={() => {
                   setNicknameValue("");

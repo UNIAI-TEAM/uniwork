@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomMemberRecord } from "@uniwork/core/api/endpoints/chat";
@@ -11,6 +11,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { memberAvatarUrl } from "./chat-member-avatar";
+import { chatPersonFaceClass } from "./chat-person-card";
 import { initialOf } from "./chat-initials";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
@@ -21,7 +22,7 @@ import {
 } from "./chat-room-moderation-utils";
 import { foldedIncludes } from "./chat-search-fold";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
-import { ChatMemberRow } from "./chat-settings-ui";
+import { ChatMemberRow, type ChatMemberDetailTone } from "./chat-settings-ui";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 
 /** Rows rendered per step: a 1,000-person workspace never mounts 1,000 menus at once. */
@@ -87,18 +88,18 @@ export function WorkspaceRoomMemberList({
   return (
     <>
       {members.length >= SEARCH_FROM ? (
-        <div className="px-4 pb-2">
+        <div className="px-5 pb-2">
           <div className="relative">
             <Search
               aria-hidden
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               type="search"
               value={query}
               aria-label={t("chat.workspace_members_search")}
               placeholder={t("chat.workspace_members_search")}
-              className="pl-8"
+              className="h-11 bg-muted pl-10"
               onChange={(event) => {
                 setQuery(event.target.value);
                 setVisible(WORKSPACE_MEMBER_PAGE);
@@ -108,19 +109,27 @@ export function WorkspaceRoomMemberList({
         </div>
       ) : null}
       {matches.length === 0 ? (
-        <p role="status" className="px-4 py-3 text-caption text-muted-foreground">
+        <p role="status" className="px-5 py-3 text-caption text-muted-foreground">
           {t("chat.workspace_members_no_match", { query: query.trim() })}
         </p>
       ) : (
         <ul>
           {shown.map(({ member, isSelf, label }) => {
             const wsMember = wsMemberByUserId.get(member.user_id);
-            const detail =
+            const detailTone: ChatMemberDetailTone | undefined =
               member.role === "admin"
-                ? t("chat.room_role_admin")
+                ? "admin"
                 : member.send_restricted
-                  ? t("chat.room_role_muted")
+                  ? "restricted"
                   : wsMember?.role === "owner"
+                    ? "owner"
+                    : undefined;
+            const detail =
+              detailTone === "admin"
+                ? t("chat.room_role_admin")
+                : detailTone === "restricted"
+                  ? t("chat.room_role_muted")
+                  : detailTone === "owner"
                     ? t("chat.workspace_role_owner")
                     : member.email;
             return (
@@ -131,11 +140,13 @@ export function WorkspaceRoomMemberList({
                     name={label}
                     initials={initialOf(label)}
                     avatarUrl={memberAvatarUrl(wsMember?.avatar_url)}
-                    size="lg"
+                    size="xl"
+                    className={chatPersonFaceClass(member.user_id)}
                   />
                 }
                 name={label}
                 detail={detail}
+                detailTone={detailTone}
                 profile={{
                   userId: member.user_id,
                   email: member.email,
@@ -189,9 +200,10 @@ export function WorkspaceRoomMemberList({
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            className="h-10 rounded-full px-3.5 font-semibold text-brand hover:text-brand"
             onClick={() => setVisible((count) => count + WORKSPACE_MEMBER_PAGE)}
           >
+            <ChevronDown aria-hidden />
             {t("chat.workspace_members_show_more", { count: Math.min(remaining, WORKSPACE_MEMBER_PAGE), remaining })}
           </Button>
         </div>

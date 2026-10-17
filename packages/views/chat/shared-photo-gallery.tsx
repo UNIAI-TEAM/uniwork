@@ -34,9 +34,9 @@ export function SharedPhotoGallery({
       {groups.map((group) => (
         <section key={group.key}>
           {group.label ? (
-            <h3 className="px-3 py-2 text-body font-semibold capitalize text-foreground">{group.label}</h3>
+            <h3 className="px-4 pt-3 pb-2.5 text-body-lg font-semibold capitalize text-foreground">{group.label}</h3>
           ) : null}
-          <div className="grid grid-cols-3 gap-px">
+          <div className="grid grid-cols-3 gap-0.5">
             {group.items.map((item) => (
               <SharedPhotoCell
                 key={item.id}
@@ -92,7 +92,7 @@ function SharedPhotoCell({
   return (
     <button
       type="button"
-      className="flex aspect-square cursor-pointer items-center justify-center overflow-hidden bg-muted"
+      className="flex aspect-square cursor-zoom-in items-center justify-center overflow-hidden bg-muted"
       aria-label={item.title}
       onClick={() => src && onOpen({ url: src, alt: item.title })}
     >
