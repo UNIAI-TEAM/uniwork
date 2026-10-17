@@ -38,6 +38,10 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   unauthorized: "session",
   invalid_token: "session",
   invalid_code: "session",
+  // 423: someone else holds the edit lock (UNI-1645). The server carries no
+  // class for it, so this entry is the only path to "locked" - without it a
+  // 423 classifies unknown and the save machine keeps retrying.
+  document_locked: "locked",
   // Client-only fallbacks for plausible codes the server table omits.
   document_version_unchanged: "conflict",
   file_too_large: "quota",

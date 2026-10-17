@@ -42,6 +42,10 @@ const (
 	documentOutcomeError       = "error"
 )
 
+// documentOutcomeLocked is a save refused by the edit lock (423
+// document_locked, UNI-1645): not a lost base race, never a conflict.
+const documentOutcomeLocked = "locked"
+
 // documentConflictCodes are the two answers that mean "another save moved the
 // base first" (C-01 §7 matrix "hai save cùng base"). Other conflict-class
 // refusals (upload_already_committed, engine_incompatible, ...) are still
@@ -65,6 +69,11 @@ type DocumentMetrics interface {
 	IncDocumentQuotaRejected(kind string)
 	ObserveDocumentWorkerSweep(worker, result string, seconds float64)
 	AddDocumentWorkerRowsFailed(worker string, n int)
+	// The edit lock (UNI-1645): op, route and request outcome are closed
+	// label sets, never ids.
+	IncDocumentEditLockOp(op string)
+	IncDocumentEditLockRefused(route string)
+	IncDocumentEditRequest(op string)
 }
 
 type nopDocumentMetrics struct{}
@@ -76,6 +85,9 @@ func (nopDocumentMetrics) IncDocumentConflict(string, string)                 {}
 func (nopDocumentMetrics) IncDocumentQuotaRejected(string)                    {}
 func (nopDocumentMetrics) ObserveDocumentWorkerSweep(string, string, float64) {}
 func (nopDocumentMetrics) AddDocumentWorkerRowsFailed(string, int)            {}
+func (nopDocumentMetrics) IncDocumentEditLockOp(string)                       {}
+func (nopDocumentMetrics) IncDocumentEditLockRefused(string)                  {}
+func (nopDocumentMetrics) IncDocumentEditRequest(string)                      {}
 
 // SetMetrics wires the operational counters. Unwired, every call is a nop.
 func (s *DocumentService) SetMetrics(m DocumentMetrics) {
@@ -103,6 +115,8 @@ func documentSaveResult(err error) (outcome, conflictCode string) {
 			return documentOutcomeGone, ""
 		case "storage_unavailable":
 			return documentOutcomeUnavailable, ""
+		case "document_locked":
+			return documentOutcomeLocked, ""
 		}
 	}
 	var ve ValidationError

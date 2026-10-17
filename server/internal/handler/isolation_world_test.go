@@ -182,6 +182,11 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
 	docs.SetFiles(docFiles)
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
+	// The edit lock (UNI-1645 §6 step 1.4): a 1h TTL so a long run never lets
+	// the seeded tenures lapse and a write-control heartbeat never pulls one
+	// back to 2 minutes. No DocumentEditLockSweeper runs here, as no
+	// dispatcher does.
+	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
 	d.Documents = docs
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
 	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
@@ -331,7 +336,10 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
-	if device, ok := w.deviceTokens[token]; ok && strings.Contains(path, "/office/offline-lease") {
+	// The owner's edit lock routes run on the desktop session the seeded
+	// tenure names, so R6 (a live device session) serves the owner too
+	// (UNI-1645 §6 step 2); the edit requests keep the web token.
+	if device, ok := w.deviceTokens[token]; ok && (strings.Contains(path, "/office/offline-lease") || strings.Contains(path, "/edit-lock")) {
 		token = device
 	}
 	if frame, ok := w.frameTokens[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/") {
@@ -494,6 +502,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildMcp(t, tn)
 	w.buildOfficeFrame(t, tn)
 	w.buildSeeded(t, tn)
+	w.buildEditLocks(t, tn)
 	w.buildActivity(t, tn)
 	w.buildWorkspaceAliases(t, tn)
 	// The isolation world runs no outbox dispatcher; project the tenant's graph
@@ -1043,5 +1052,55 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_attendees (organization_id, meeting_id, user_id) VALUES ($1, $2, $3)`,
 		tn.orgID, tn.ids["meeting"], tn.peerID); err != nil {
 		t.Fatalf("meeting attendee: %v", err)
+	}
+}
+
+// buildEditLocks seeds the document edit lock (UNI-1645 §6 step 1): two pages
+// of their own - a live tenure on "document" would change what the restore,
+// comment and share rows see - the owner's tenure on lockDocument from the
+// desktop session buildOffice set, the peer's on peerLockDocument, and the
+// peer's pending request to the owner. Raw SQL, like buildSeeded, so the
+// fixture depends neither on the TTL nor on a minted desktop token.
+func (w *isoWorld) buildEditLocks(t *testing.T, tn *isoTenant) {
+	t.Helper()
+	ctx := context.Background()
+	m := tn.marker
+	out := w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{"title": m + " Locked page", "kind": "page", "visibility": "workspace"})
+	tn.ids["lockDocument"] = isoID(t, out, "document")
+	// The matrix's controls run as the tenant's other members: the third
+	// member's POST /edit-requests gates at edit, and a created
+	// workspace-visible row opens at view (Q-S3). The share grant on the
+	// document's own workspace raises the home row to edit (SH-S1's merge),
+	// so the revision it bumps to is read back for the lock row's base.
+	w.call(t, "POST", "/api/v1/documents/"+tn.ids["lockDocument"]+"/shares", tn.token,
+		map[string]any{"principal_type": "workspace", "principal_id": tn.wsID, "level": "edit"})
+	out = w.call(t, "GET", "/api/v1/documents/"+tn.ids["lockDocument"], tn.token, nil)
+	tn.ids["lockDocumentRevision"] = isoString(t, out, "document", "revision")
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{"title": m + " Peer-locked page", "kind": "page", "visibility": "workspace"})
+	tn.ids["peerLockDocument"] = isoID(t, out, "document")
+	tn.ids["docEditor"] = util.NewID()
+
+	tn.ids["docEditLock"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_edit_locks
+		(id, organization_id, document_id, user_id, session_id, editor_id, client, base_revision, granted_via, acquired_at, heartbeat_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'desktop', $7, 'acquire', now(), now(), now() + interval '1 hour')`,
+		tn.ids["docEditLock"], tn.orgID, tn.ids["lockDocument"], tn.userID, tn.get(t, "deviceSession"), tn.ids["docEditor"],
+		tn.get(t, "lockDocumentRevision")); err != nil {
+		t.Fatalf("edit lock: %v", err)
+	}
+	tn.ids["peerEditLock"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_edit_locks
+		(id, organization_id, document_id, user_id, session_id, editor_id, client, base_revision, granted_via, acquired_at, heartbeat_at, expires_at)
+		SELECT $1, $2, $3, $4, 'iso-peer-session', $5, 'web_page', revision, 'acquire', now(), now(), now() + interval '1 hour'
+		FROM documents WHERE id = $3`,
+		tn.ids["peerEditLock"], tn.orgID, tn.ids["peerLockDocument"], tn.peerID, util.NewID()); err != nil {
+		t.Fatalf("peer edit lock: %v", err)
+	}
+	tn.ids["docEditRequest"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_edit_requests
+		(id, organization_id, document_id, lock_id, requester_id, holder_id, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'pending', now() + interval '1 hour')`,
+		tn.ids["docEditRequest"], tn.orgID, tn.ids["lockDocument"], tn.ids["docEditLock"], tn.peerID, tn.userID); err != nil {
+		t.Fatalf("edit request: %v", err)
 	}
 }

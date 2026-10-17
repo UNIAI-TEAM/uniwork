@@ -485,6 +485,9 @@ var isoTenantParams = map[string]bool{
 	// A launch receipt names a document of one organization; revoke answers
 	// 404 to every account but its creator.
 	"{launchSessionID}": true,
+	// An edit lock tenure and an edit request are rows of one organization
+	// (UNI-1645 §6 step 3).
+	"{lockID}": true, "{requestID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -634,12 +637,24 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}
+		// The edit lock (UNI-1645 §6 step 3): the owner holds lockDocument and
+		// the peer peerLockDocument, which the owner's take-over targets.
+		if under("/edit-lock/take-over") {
+			return tn.get(t, "peerLockDocument")
+		}
+		if under("/edit-lock") || under("/edit-requests") {
+			return tn.get(t, "lockDocument")
+		}
 		// The break-glass routes act on a restricted page the tenant's owner
 		// administers without owning (DOC-05).
 		if under("/break-glass") {
 			return tn.get(t, "restrictedDocument")
 		}
 		return tn.get(t, "document")
+	case "{lockID}":
+		return tn.get(t, "docEditLock")
+	case "{requestID}":
+		return tn.get(t, "docEditRequest")
 	case "{assetID}":
 		if under("/office-frame/") {
 			return tn.get(t, "frameAsset")

@@ -4,6 +4,8 @@ import { useRef, useState, type ReactNode } from "react";
 import { Download, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
+import { heldEditLockId } from "@uniwork/core/documents/edit-lock-registry";
 import { useDocumentDownload, useDocumentLimits, useUploadDocumentFile } from "@uniwork/core/documents/hooks";
 import { useCommitDocumentVersion } from "@uniwork/core/documents/hooks-versions";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
@@ -12,6 +14,7 @@ import { createSafeId } from "@uniwork/core/utils";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { DocumentUploadDialog } from "./document-upload-dialog";
+import { reportWriteRefused } from "./edit-lock-refusal";
 
 export interface DocumentFileActions {
   /** Downloads the live bytes, or one version's bytes when given. */
@@ -41,6 +44,8 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
   // One key per user intent: a retry of the same pick must replay the same
   // write, not mint a second version of one upload.
   const idempotencyKey = useRef<string | null>(null);
+  // The commit body carries edit_lock_id, so a key is only valid for the lock id it was minted under.
+  const keyLockId = useRef<string | undefined>(undefined);
   const pending = upload.isPending || commit.isPending;
 
   const download = async (version?: number) => {
@@ -71,6 +76,9 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       return;
     }
     setError(null);
+    const lockId = heldEditLockId(doc.id);
+    if (idempotencyKey.current && keyLockId.current !== lockId) idempotencyKey.current = null;
+    if (!idempotencyKey.current) keyLockId.current = lockId;
     idempotencyKey.current ??= createSafeId();
     let staged = false;
     try {
@@ -82,11 +90,18 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       await commit.mutateAsync({
         upload_id: upload0.upload_id,
         base_revision: doc.revision,
+        // The mounted Office editor holds the lock; a new version replaces content (UNI-1645).
+        ...(lockId ? { edit_lock_id: lockId } : {}),
         idempotencyKey: idempotencyKey.current,
       });
       idempotencyKey.current = null;
       setDialogOpen(false);
     } catch (err) {
+      if (err instanceof ApiError && err.code === "document_locked") {
+        // The page ends its hold when this was the lock it holds; a new lock id is a new write.
+        reportWriteRefused(doc.id, err.fields, lockId);
+        idempotencyKey.current = null;
+      }
       setError(
         documentErrorMessage(
           err,

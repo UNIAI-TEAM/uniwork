@@ -40,6 +40,10 @@ export interface DocsFrameCall {
   documentId: string;
   token: string;
   signal: AbortSignal;
+  /** The host's live edit lock on this document (UNI-1645), acquired with the
+   *  session through R2 — never through the frame token. A save commits with
+   *  it; absent means the host holds no lock. */
+  editLockId?: string;
 }
 
 /**
@@ -237,12 +241,21 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       const upload = await client.upload(payload.fileId, new Blob([payload.data], { type: mimeType }), current.file.filename, `${key}:upload`);
       if (!upload) throw malformed("office-frame upload");
       try {
-        const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision }, `${key}:commit`);
+        const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);
         if (!doc) throw malformed("office-frame commit");
         return { ok: true, file: fileMeta(doc), versionId: doc.file.version_id };
       } catch (error) {
         // A stale base is an answer, not a failure: the frame offers to reload.
         if (error instanceof ApiError && error.status === 409) return { ok: false, error: docsFrameError(error).toShape() };
+        // 423 document_locked (UNI-1645, addendum §11.1) is never {ok:false}: the frame would read
+        // it as a stale base and offer "Overwrite". It is a read-only refusal the host turns into
+        // its lost-lock state; the holder the server named rides in details.fields.
+        if (error instanceof ApiError && error.status === 423) {
+          throw new DocsProtocolError({
+            code: "forbidden", message: `${error.code || "document_locked"} (HTTP 423)`, status: 423,
+            details: { apiCode: error.code, ...(error.fields ? { fields: error.fields } : {}) },
+          });
+        }
         throw error;
       }
     }),
