@@ -11,6 +11,111 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDocumentAccessPreviewGroup = `-- name: CountDocumentAccessPreviewGroup :one
+SELECT
+  count(*)::bigint AS member_count,
+  count(*) FILTER (
+    WHERE $1::int > 0
+      AND $2::int < $1::int
+      AND NOT $3::boolean
+      AND ($4::text IS NULL OR om.user_id <> $4::text)
+      AND NOT (
+        $5::int > 0
+        AND (om.role IN ('owner', 'admin')
+          OR EXISTS (
+            SELECT 1 FROM workspace_members hwm
+            WHERE hwm.organization_id = om.organization_id
+              AND hwm.workspace_id = $6::text
+              AND hwm.user_id = om.user_id
+              AND hwm.role IN ('owner', 'admin')))
+      )
+      AND NOT (
+        $5::int >= $1::int
+        AND (om.role IN ('owner', 'admin')
+          OR EXISTS (
+            SELECT 1 FROM workspace_members hwm
+            WHERE hwm.organization_id = om.organization_id
+              AND hwm.workspace_id = $6::text
+              AND hwm.user_id = om.user_id))
+      )
+      AND NOT (om.user_id = ANY($7::text[]))
+      AND NOT EXISTS (
+        SELECT 1 FROM workspace_members swm
+        WHERE swm.organization_id = om.organization_id
+          AND swm.user_id = om.user_id
+          AND swm.workspace_id = ANY($8::text[])
+      )
+      AND NOT (
+        $1::int <= 1
+        AND EXISTS (
+          SELECT 1 FROM document_break_glass_grants bg
+          WHERE bg.organization_id = om.organization_id
+            AND bg.workspace_id = $6::text
+            AND bg.document_id = $9::text
+            AND bg.actor_id = om.user_id
+            AND bg.actor_kind = 'human'
+            AND bg.revoked_at IS NULL
+            AND bg.expires_at > now()
+        )
+      )
+  )::bigint AS losing_count
+FROM organization_members om
+WHERE om.organization_id = $10::text
+  AND om.deactivated_at IS NULL
+  AND (
+    $11::text = 'organization'
+    OR EXISTS (
+      SELECT 1 FROM workspace_members wm
+      WHERE wm.organization_id = om.organization_id
+        AND wm.workspace_id = $12::text
+        AND wm.user_id = om.user_id
+    )
+  )
+`
+
+type CountDocumentAccessPreviewGroupParams struct {
+	PrevGroupRank    int32       `json:"prev_group_rank"`
+	AfterGroupRank   int32       `json:"after_group_rank"`
+	OrgPreserves     bool        `json:"org_preserves"`
+	AclOwnerID       pgtype.Text `json:"acl_owner_id"`
+	HomeAfterRank    int32       `json:"home_after_rank"`
+	HomeWorkspaceID  string      `json:"home_workspace_id"`
+	PreservedUserIds []string    `json:"preserved_user_ids"`
+	PreservedWsIds   []string    `json:"preserved_ws_ids"`
+	DocumentID       string      `json:"document_id"`
+	OrganizationID   string      `json:"organization_id"`
+	PrincipalType    string      `json:"principal_type"`
+	PrincipalID      string      `json:"principal_id"`
+}
+
+type CountDocumentAccessPreviewGroupRow struct {
+	MemberCount int64 `json:"member_count"`
+	LosingCount int64 `json:"losing_count"`
+}
+
+// Group preview counts for PUT /documents/{documentID}/access (SH-S2, UNI-1781,
+// D5): member_count and losing_count of one workspace or organization group
+// item in one SQL query without loading member names.
+func (q *Queries) CountDocumentAccessPreviewGroup(ctx context.Context, arg CountDocumentAccessPreviewGroupParams) (CountDocumentAccessPreviewGroupRow, error) {
+	row := q.db.QueryRow(ctx, countDocumentAccessPreviewGroup,
+		arg.PrevGroupRank,
+		arg.AfterGroupRank,
+		arg.OrgPreserves,
+		arg.AclOwnerID,
+		arg.HomeAfterRank,
+		arg.HomeWorkspaceID,
+		arg.PreservedUserIds,
+		arg.PreservedWsIds,
+		arg.DocumentID,
+		arg.OrganizationID,
+		arg.PrincipalType,
+		arg.PrincipalID,
+	)
+	var i CountDocumentAccessPreviewGroupRow
+	err := row.Scan(&i.MemberCount, &i.LosingCount)
+	return i, err
+}
+
 const getDocumentShare = `-- name: GetDocumentShare :one
 SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
 FROM document_shares

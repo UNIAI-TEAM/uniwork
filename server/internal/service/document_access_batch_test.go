@@ -437,3 +437,185 @@ func TestDocumentAccessBatch(t *testing.T) {
 		}
 	})
 }
+
+// TestDocumentAccessBatchDryRunAndPreview covers SH-S2 (UNI-1781) Item 2:
+// dry_run=true writes zero rows while returning results + preview; dry_run=false
+// returns the same preview (D2); AC07 user revoke with home-row fallback;
+// direct_below_group warning; and preview.groups member_count + losing_count (D5, AC08).
+//
+// D5 losing_count method: computed by one SQL count per group item
+// (CountDocumentAccessPreviewGroup) over active organization_members belonging
+// to the group (all active org members for organization, or active org members
+// with a workspace_members row in the target workspace). When the group's grant
+// is lowered or revoked (prev_group_rank > after_group_rank), a group member is
+// counted in losing_count iff their highest post-batch rank across all sources
+// (ACL owner, home-workspace admin/member when workspace-visible, post-batch
+// org share, post-batch workspace shares, post-batch direct user share, live
+// break-glass grant) is strictly below prev_group_rank. Group members are never
+// enumerated in preview.users.
+func TestDocumentAccessBatchDryRunAndPreview(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "shs2p")
+	H := Human
+	mgr := H(tn.aclOwner.ID)
+
+	t.Run("dry_run writes zero rows and D2 preview matches on dry_run false", func(t *testing.T) {
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		in := UpdateDocumentAccessInput{
+			DryRun: true,
+			Items: []DocumentAccessBatchItem{
+				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: docLevelPtr(DocumentLevelView)},
+				{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsB, Level: docLevelPtr(DocumentLevelEdit)},
+			},
+		}
+		dry, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, in)
+		if err != nil {
+			t.Fatalf("dry_run=true: %v", err)
+		}
+		if !dry.DryRun || dry.BatchID == "" || len(dry.Results) != 2 {
+			t.Fatalf("dry_run response = %+v", dry)
+		}
+		if dry.Results[0].ShareID != "" || dry.Results[1].ShareID != "" {
+			t.Fatalf("dry_run new grants must not emit share_id: %+v", dry.Results)
+		}
+		var shares int
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_shares WHERE document_id = $1`, doc.ID).Scan(&shares); err != nil {
+			t.Fatal(err)
+		}
+		if shares != 0 {
+			t.Fatalf("dry_run wrote %d document_shares rows, want 0", shares)
+		}
+		if n := countAudit(t, f, audit.ActionDocumentShared, doc.ID); n != 0 {
+			t.Fatalf("dry_run wrote %d audit rows, want 0", n)
+		}
+		if n := countOutbox(t, f, "document.shared", doc.ID); n != 0 {
+			t.Fatalf("dry_run wrote %d outbox rows, want 0", n)
+		}
+		if len(dry.Preview.Users) != 1 || dry.Preview.Users[0].UserID != tn.outsider.ID ||
+			dry.Preview.Users[0].DisplayName != tn.outsider.DisplayName ||
+			dry.Preview.Users[0].Before != nil ||
+			dry.Preview.Users[0].After == nil ||
+			dry.Preview.Users[0].After.Level != DocumentLevelView ||
+			dry.Preview.Users[0].After.Via != string(DocumentViaShare) {
+			t.Fatalf("dry_run preview.users = %+v", dry.Preview.Users)
+		}
+		if len(dry.Preview.Groups) != 1 || dry.Preview.Groups[0].PrincipalType != DocumentPrincipalWorkspace ||
+			dry.Preview.Groups[0].PrincipalID != tn.wsB || dry.Preview.Groups[0].Name != "B shs2p" ||
+			dry.Preview.Groups[0].MemberCount != 2 || dry.Preview.Groups[0].LosingCount != 0 {
+			t.Fatalf("dry_run preview.groups = %+v", dry.Preview.Groups)
+		}
+
+		// D2: running with dry_run=false returns the same preview.
+		in.DryRun = false
+		live, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, in)
+		if err != nil {
+			t.Fatalf("dry_run=false: %v", err)
+		}
+		if len(live.Preview.Users) != 1 || live.Preview.Users[0].After == nil || live.Preview.Users[0].After.Level != DocumentLevelView {
+			t.Fatalf("D2 live preview.users = %+v", live.Preview.Users)
+		}
+		if len(live.Preview.Groups) != 1 || live.Preview.Groups[0].MemberCount != 2 || live.Preview.Groups[0].LosingCount != 0 {
+			t.Fatalf("D2 live preview.groups = %+v", live.Preview.Groups)
+		}
+	})
+
+	t.Run("AC07 revoke user direct edit while home row gives view", func(t *testing.T) {
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		doc = setWorkspaceLevel(t, f, doc, "view")
+		f.share(t, doc, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
+
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
+			DryRun: true,
+			Items: []DocumentAccessBatchItem{
+				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.member.ID, Level: nil},
+			},
+		})
+		if err != nil {
+			t.Fatalf("AC07 dry_run: %v", err)
+		}
+		if len(res.Preview.Users) != 1 {
+			t.Fatalf("AC07 preview.users = %+v, want 1 entry", res.Preview.Users)
+		}
+		u := res.Preview.Users[0]
+		if u.Before == nil || u.Before.Level != DocumentLevelEdit || u.Before.Via != string(DocumentViaShare) {
+			t.Fatalf("AC07 before = %+v, want edit via share", u.Before)
+		}
+		if u.After == nil || u.After.Level != DocumentLevelView || u.After.Via != string(DocumentViaMember) {
+			t.Fatalf("AC07 after = %+v, want view via member", u.After)
+		}
+		if len(res.Preview.Warnings) != 1 || res.Preview.Warnings[0] != DocumentAccessWarningDowngrade {
+			t.Fatalf("AC07 warnings = %v, want [downgrade]", res.Preview.Warnings)
+		}
+	})
+
+	t.Run("direct_below_group warning when user item is below organization share", func(t *testing.T) {
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelEdit, tn.aclOwner.ID)
+
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
+			DryRun: true,
+			Items: []DocumentAccessBatchItem{
+				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: docLevelPtr(DocumentLevelView)},
+			},
+		})
+		if err != nil {
+			t.Fatalf("direct_below_group preview: %v", err)
+		}
+		if len(res.Preview.Users) != 1 || res.Preview.Users[0].After == nil || res.Preview.Users[0].After.Level != DocumentLevelEdit {
+			t.Fatalf("direct_below_group preview.users = %+v", res.Preview.Users)
+		}
+		hasDirectBelow := false
+		for _, w := range res.Preview.Warnings {
+			if w == DocumentAccessWarningDirectBelowGroup {
+				hasDirectBelow = true
+			}
+		}
+		if !hasDirectBelow {
+			t.Fatalf("direct_below_group warnings = %v, want direct_below_group", res.Preview.Warnings)
+		}
+	})
+
+	t.Run("AC08 and D5 preview.groups losing_count excludes members with equal or higher remaining access", func(t *testing.T) {
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		// wsB has 2 active members in workspace_members: tn.owner and tn.bMember.
+		// Share doc with wsB at edit, and also give tn.bMember a direct edit share.
+		f.share(t, doc, DocumentPrincipalWorkspace, tn.wsB, DocumentLevelEdit, tn.aclOwner.ID)
+		f.share(t, doc, DocumentPrincipalUser, tn.bMember.ID, DocumentLevelEdit, tn.aclOwner.ID)
+
+		// Revoking wsB: tn.owner loses edit (drops to none), while tn.bMember keeps edit via direct share -> losing_count = 1.
+		rev, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
+			DryRun: true,
+			Items: []DocumentAccessBatchItem{
+				{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsB, Level: nil},
+			},
+		})
+		if err != nil {
+			t.Fatalf("AC08 revoke wsB preview: %v", err)
+		}
+		if len(rev.Preview.Users) != 0 {
+			t.Fatalf("D5 group members must not be enumerated in preview.users: %+v", rev.Preview.Users)
+		}
+		if len(rev.Preview.Groups) != 1 {
+			t.Fatalf("AC08 preview.groups = %+v", rev.Preview.Groups)
+		}
+		g := rev.Preview.Groups[0]
+		if g.PrincipalType != DocumentPrincipalWorkspace || g.PrincipalID != tn.wsB || g.Level != nil || g.MemberCount != 2 || g.LosingCount != 1 {
+			t.Fatalf("AC08 group preview = %+v, want member_count=2 losing_count=1", g)
+		}
+
+		// Lowering bMember's direct share to view AND revoking wsB in the same batch: both tn.owner and tn.bMember drop below edit -> losing_count = 2.
+		revBoth, err := f.svc.UpdateDocumentAccess(f.ctx, mgr, doc.ID, UpdateDocumentAccessInput{
+			DryRun: true,
+			Items: []DocumentAccessBatchItem{
+				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.bMember.ID, Level: docLevelPtr(DocumentLevelView)},
+				{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsB, Level: nil},
+			},
+		})
+		if err != nil {
+			t.Fatalf("AC08 lower + revoke preview: %v", err)
+		}
+		if len(revBoth.Preview.Groups) != 1 || revBoth.Preview.Groups[0].LosingCount != 2 {
+			t.Fatalf("AC08 lower + revoke group preview = %+v, want losing_count=2", revBoth.Preview.Groups)
+		}
+	})
+}
