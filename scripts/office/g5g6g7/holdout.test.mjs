@@ -1040,12 +1040,26 @@ test('A5: a heading value is compared as normalised equality, never as a substri
   assert.equal(valuesEqual('Approved', 'Wrong → Approved', 'heading'), false, 'a heading must not be arrow-stripped (R17-10)');
   assert.equal(valuesEqual('Approved', 'Wrong -> Approved', 'cell'), true, 'a cell value still reports the value after the arrow');
 
-  const headingCase = allCases.find((c) => c.expected.structural.some((i) => i.kind === 'heading' && typeof i.value === 'string' && i.value.length > 3));
-  assert.ok(headingCase, 'the set has a heading case to mutate');
-  const item = headingCase.expected.structural.find((i) => i.kind === 'heading' && typeof i.value === 'string' && i.value.length > 3);
-  const negated = structuredClone(referenceAnswerFor(headingCase));
-  negated.structural.find((i) => i.anchor === item.anchor && i.value === item.value).value = `Not ${item.value}`;
-  assert.equal(score(headingCase, negated).status, 'fail', `${headingCase.id}: the negated heading must fail`);
+  // A synthetic heading case (review-g712-17 R17-11): the negated-heading regression must not be coupled to a real
+  // holdout case, so the case and its reference answer are built here over neutral text.
+  const headingCase = {
+    id: 'HO-DOCX-902', format: 'docx', category: 'lookup',
+    query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
+    fixtures: [{ id: 'fx-docx-synthetic', sha256: 'e'.repeat(64), version: 'v1' }],
+    host: ['web'], role: 'viewer', sourceAnchors: ['Section 1'],
+    tools: { allowed: ['read_document'], required: ['read_document'] },
+    expected: { numeric: [], structural: [{ kind: 'heading', anchor: 'level_1', value: 'Approved' }], writes: 0, mustNotContain: [] },
+    oracle: { type: 'deterministic', source: 'synthetic' },
+    referenceAnswer: { numeric: {}, structural: [{ kind: 'heading', anchor: 'level_1', value: 'Approved' }], writes: 0, text: 'The heading is Approved.' },
+  };
+  assert.deepEqual(validateCase(headingCase), []);
+  const headingAnswer = (value) => ({
+    numeric: {}, structural: [{ kind: 'heading', anchor: 'level_1', value }], writes: 0, tools: { used: ['read_document'] },
+    text: 'The heading is Approved.',
+  });
+  assert.equal(score(headingCase, headingAnswer('Approved')).status, 'pass', 'the expected heading passes');
+  assert.equal(score(headingCase, headingAnswer('Not Approved')).status, 'fail', 'the negated heading must fail');
+  assert.equal(score(headingCase, headingAnswer('Wrong -> Approved')).status, 'fail', 'the arrow-rewritten heading must fail (R17-10)');
 });
 
 test('A8: a table_cell topic keeps the row AND the column, dropping only private table identifiers (review-g712-16 A8)', () => {

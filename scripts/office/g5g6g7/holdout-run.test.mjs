@@ -2106,24 +2106,35 @@ describe('usage rows and arguments', () => {
   });
 
   it('A11: the role header names the effective role of the open fixture, and a mixed case names each document (review-g712-16 A11)', () => {
-    // A case whose role is overridden on its open (first) fixture: the header must follow the fixture, as the backend
-    // write gate does (holdout-backend.mjs:593) and as the product derives read-only/capabilities from the effective
-    // current-document access (docs-frame-init.ts:36-42; office_frame.go:161), not from a case-wide role.
-    const mixed = cases.find((c) => new Set(c.fixtures.map((f) => f.role ?? c.role)).size > 1);
-    assert.ok(mixed, 'the set has a mixed-role case');
-    const openRole = mixed.fixtures[0].role ?? mixed.role;
+    // A synthetic mixed-role case over in-memory views (review-g712-17 R17-11): the role header must follow the open
+    // (first) fixture, as the backend write gate does (holdout-backend.mjs:593) and as the product derives
+    // read-only/capabilities from the effective current-document access (docs-frame-init.ts:36-42;
+    // office_frame.go:161), not from a case-wide role.
+    const mixed = synthCase({
+      format: 'cross',
+      fixtures: [
+        { id: 'fx-xlsx-first', sha256: fixtureSha, version: 'v1', role: 'viewer' },
+        { id: 'fx-docx-second', sha256: fixtureSha, version: 'v1', role: 'editor' },
+      ],
+      role: 'editor',
+    });
+    const views = [
+      { format: 'xlsx', workbook: { sheets: { SheetZ: { cells: { A1: { v: 1, t: 'n' } }, hiddenRows: new Set() } }, formatKinds: {} } },
+      { format: 'docx', blocks: [{ text: 'synthetic paragraph' }] },
+    ];
+    const openRole = mixed.fixtures[0].role;
     const header = firstMessages(mixed, 'en').at(-1).content.split('\n')[0];
     assert.match(header, new RegExp(`\\b${openRole}\\b`), `the header names the open fixture role: ${header}`);
     assert.ok(header.includes(mixed.fixtures[0].id), `the mixed case names the open document: ${header}`);
     for (const fixture of mixed.fixtures) {
-      const role = fixture.role ?? mixed.role;
-      assert.ok(header.includes(fixture.id) && header.includes(role), `the mixed case names the ${role} document: ${header}`);
+      assert.ok(header.includes(fixture.id) && header.includes(fixture.role), `the mixed case names the ${fixture.role} document: ${header}`);
     }
-    // The backend uses the same effective role for the write gate.
-    const backend = createBackend(mixed);
-    const other = mixed.fixtures[1];
+    // The backend uses the same effective role for the write gate: the open document is view-only, so the write is denied.
+    const backend = createBackend(mixed, { views });
     assert.equal(backend.writes(), 0);
-    assert.ok(other, 'the mixed case has a second fixture');
+    const denied = backend.execute('propose_operations', JSON.stringify({ operations: [{ sheet: 'SheetZ', address: 'A1', value: 2 }] }));
+    assert.equal(denied.error, 'permission_denied', 'the view-only open document refuses the write');
+    assert.equal(backend.writes(), 0, 'a refused write is not counted');
   });
 
   it('DS-5 & DP-2: allows traceable extra figures unless forbidExtraNumbers is true, rejects invented figures, and credits compute when tool-read operands are shown', () => {
