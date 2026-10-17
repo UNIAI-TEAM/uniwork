@@ -77,6 +77,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "expo-notifications",
       // SDK 57's scene runtime is required for Xcode 27 builds.
       ["expo-build-properties", { ios: { enableSceneSupport: true } }],
+      // Chat attachments (M2a) pick from the library only. The microphone is left
+      // at the plugin default, not blocked: voice recording lands in M3.
+      [
+        "expo-image-picker",
+        { photosPermission: "UniChat mở thư viện ảnh để bạn gửi ảnh vào cuộc trò chuyện.", cameraPermission: false },
+      ],
     ],
     extra: {
       APP_ENV: env,

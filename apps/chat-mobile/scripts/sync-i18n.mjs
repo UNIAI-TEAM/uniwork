@@ -20,7 +20,8 @@ const PATHS = [
   "nav",
   "settings.preferences",
   "workspace.pickTitle",
-  "chat.no_conversation_hint",
+  // The whole web chat copy: the mobile chat tab speaks with the web's words.
+  "chat",
 ];
 
 // M2b (UNI-1833): the calls, contacts and settings tabs say what the web says.
@@ -37,6 +38,23 @@ const TABS_PATHS = [
   "settings.security.sessions.revokeFailed",
   "settings.notifications.push_section",
 ];
+
+// Chat strings only the phone needs (M2a), nested under chat.mobile so they
+// cannot collide with a web key; keep vi and en aligned.
+const CHAT_MOBILE_ONLY = {
+  vi: {
+    open_on_web: "Mở trên web",
+    unsupported_message: "Tin nhắn loại này chưa xem được trên điện thoại.",
+    send_queued: "Chờ có mạng để gửi",
+    send_sending: "Đang gửi…",
+  },
+  en: {
+    open_on_web: "Open on the web",
+    unsupported_message: "This kind of message can't be shown on the phone yet.",
+    send_queued: "Waiting for a connection to send",
+    send_sending: "Sending…",
+  },
+};
 
 // Strings no web screen has; keep vi and en aligned.
 const MOBILE_ONLY = {
@@ -129,6 +147,7 @@ function build(locale) {
     if (value === undefined) throw new Error(`${locale}.json has no ${dotted}`);
     set(out, dotted, value);
   }
+  set(out, "chat.mobile", CHAT_MOBILE_ONLY[locale]);
   return { ...out, ...MOBILE_ONLY[locale] };
 }
 

@@ -22,11 +22,14 @@ const FETCH_TIMEOUT_MS = 30_000;
 export class ApiError extends Error {
   readonly status: number;
   readonly body?: unknown;
-  constructor(message: string, status: number, body?: unknown) {
+  /** A numeric Retry-After, so a send retry waits out the window instead of guessing. */
+  readonly retryAfterSeconds?: number;
+  constructor(message: string, status: number, body?: unknown, retryAfterSeconds?: number) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -67,7 +70,8 @@ export function createApiClient(deps: ApiClientDeps) {
 
   async function send(path: string, init: RequestInit, token: string | null): Promise<Response> {
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      // A FormData body (chat attachments) must let fetch write the multipart boundary.
+      ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Accept: "application/json",
       "X-Client-Platform": "mobile",
       "X-Request-ID": createRequestId(),
@@ -118,7 +122,8 @@ export function createApiClient(deps: ApiClientDeps) {
       } catch {
         body = undefined;
       }
-      throw new ApiError(messageOf(body, res), res.status, body);
+      const retryAfter = Number(res.headers.get("Retry-After"));
+      throw new ApiError(messageOf(body, res), res.status, body, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined);
     }
     unauthorizedReported = false;
     if (res.status === 204) return undefined;

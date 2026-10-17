@@ -56,6 +56,8 @@ describe("app.config per UNICHAT_ENV", () => {
         "expo-secure-store",
         "expo-notifications",
         ["expo-build-properties", { ios: { enableSceneSupport: true } }],
+        // Chat attachments read the photo library; the camera is not used.
+        ["expo-image-picker", expect.objectContaining({ photosPermission: expect.any(String), cameraPermission: false })],
       ]),
     );
   });

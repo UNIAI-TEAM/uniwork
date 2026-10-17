@@ -126,6 +126,26 @@ describe("api client", () => {
     expect(sessionMock.refresh).not.toHaveBeenCalled();
   });
 
+  it("sends a FormData body as multipart: no JSON content type, so fetch writes the boundary", async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { message: { id: "m1" } }));
+    const form = new FormData();
+    form.set("client_msg_id", "c1");
+    await api.request("/api/v1/workspaces/w1/chat/rooms/r1/messages/file", { method: "POST", body: form });
+    const { init } = calls()[0] as Call;
+    expect(init.body).toBe(form);
+    expect(header(init, "Content-Type")).toBeNull();
+    expect(header(init, "Accept")).toBe("application/json");
+  });
+
+  it("carries a numeric Retry-After on the ApiError, so a send retry can wait it out", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: "slow down" } }), { status: 429, headers: { "Retry-After": "3" } }),
+    );
+    await expect(api.listWorkspaces()).rejects.toMatchObject({ status: 429, retryAfterSeconds: 3 });
+    fetchMock.mockResolvedValueOnce(new Response("{}", { status: 429, headers: { "Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT" } }));
+    await expect(api.listWorkspaces()).rejects.toMatchObject({ status: 429, retryAfterSeconds: undefined });
+  });
+
   describe("401", () => {
     it("refreshes once and retries with the new token", async () => {
       fetchMock.mockResolvedValueOnce(json(401, { error: { code: "unauthorized" } }));
