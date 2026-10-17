@@ -6,8 +6,8 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentLimits } from "@uniwork/core/documents/limits";
-import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
-import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
+import { officeFrameKeys, useOfficeFrameSourceToken, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
+import type { OfficeFrameSourceToken, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameApiBase, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import { DocsProtocolError, type FrameRequests, type InitPayload, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
@@ -18,6 +18,7 @@ import {
   SLOW_AFTER_MS,
   armWatchdog,
   officeModuleCapabilities,
+  officeSourceCapabilities,
   readOnly,
   shapeOf,
   unauthorized,
@@ -41,8 +42,12 @@ import { useFrameRemote } from "./use-frame-remote-source";
  * `api.*` proxy, and the dirty / title / theme / language / resize wiring.
  */
 export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrameSession {
-  const { iframeRef, frameOrigin, wsId, documentId, locale, theme } = options;
+  const { iframeRef, frameOrigin, wsId, fileRef, locale, theme } = options;
   const module = options.module ?? "docs";
+  // A file from another module (UNI-1869) mints on the workspace source route
+  // and is view-only by construction: no write route accepts `ofs1.`.
+  const isSource = fileRef.kind === "source";
+  const fileId = fileRef.id;
   // Display data for the editors (comment and note authors), never an identity the frame authorises with.
   const displayName = useAuthStore((s) => s.user?.display_name ?? "");
   const userId = useAuthStore((s) => s.user?.id ?? "");
@@ -50,12 +55,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const queryClient = useQueryClient();
   // The document the frame edits: the page's, until a save-as moves it to the copy.
   const [savedAs, setSavedAs] = useState<{ from: string; to: string } | null>(null);
-  const scopeId = savedAs?.from === documentId ? savedAs.to : documentId;
-  const tokenQuery = useOfficeFrameToken(wsId, scopeId);
+  const scopeId = savedAs?.from === fileId ? savedAs.to : fileId;
+  const docTokenQuery = useOfficeFrameToken(wsId, scopeId, { enabled: !isSource });
+  const sourceTokenQuery = useOfficeFrameSourceToken(wsId, scopeId, { enabled: isSource });
+  const tokenQuery = isSource ? sourceTokenQuery : docTokenQuery;
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
   // A module other than Docs also honours the minted token's can_edit, so a view-only user is
   // treated as readonly even when the page did not say so (Docs keeps the page's readonly).
-  const viewOnly = options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false);
+  const viewOnly = isSource || options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false);
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [slow, setSlow] = useState(false);
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
@@ -69,8 +76,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const uploadMaxBytes = useDocumentLimits().upload_max_bytes;
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, uploadMaxBytes });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, uploadMaxBytes };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, uploadMaxBytes, isSource });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, uploadMaxBytes, isSource };
   // New-version bookkeeping of the current endpoint (frame-remote-version.ts); a block outlives a retry.
   const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, scopeId, syncFeed);
   const sentToken = useRef<string | null>(null);
@@ -97,7 +104,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     frameLife.current = life;
     // `endpoint` is assigned below, before any frame can open anything to announce.
     const remote = createFrameRemoteVersion({
-      documentId: latest.current.scopeId, enabled: () => latest.current.syncFeed,
+      // A source is not a documents row: there is no remote feed for it.
+      documentId: latest.current.scopeId, enabled: () => latest.current.syncFeed && !latest.current.isSource,
       notify: (payload) => { if (life.state === "live") endpoint.notifyRemoteVersion(payload); },
       notifyBlocked: (payload) => { if (life.state === "live") endpoint.notifyBlocked(payload); },
     });
@@ -131,9 +139,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
 
     const currentToken = async (): Promise<TokenPayload> => {
-      const { options: { wsId: ws }, scopeId: doc } = latest.current;
+      const { options: { wsId: ws }, scopeId: doc, isSource: source } = latest.current;
       // The cache may hold a token this render has not seen yet.
-      const cached = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(ws, doc));
+      const cached = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+        source ? officeFrameKeys.sourceToken(ws, doc) : officeFrameKeys.token(ws, doc),
+      );
       if (cached) return docsFrameToken(cached);
       // The first mint may still be in flight: join it rather than mint twice.
       const { data } = await latest.current.refetch({ cancelRefetch: false });
@@ -221,8 +231,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
-        const { options: current, scopeId: doc, displayName: name, userId: uid } = latest.current;
-        const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
+        const { options: current, scopeId: doc, displayName: name, userId: uid, isSource: source } = latest.current;
+        const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+          source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
+        );
         // The server derives the module from the stored file; a frame mounted for another
         // module would edit bytes of a format it does not own (older servers send none).
         if (minted?.module && minted.module !== module) {
@@ -232,13 +244,15 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           });
         }
         // Same rule as the hook's viewOnly, read from the token this init carries.
-        const viewOnly = current.readonly || (module !== "docs" && minted?.can_edit === false);
+        const viewOnly = source || current.readonly || (module !== "docs" && minted?.can_edit === false);
         // Draft recovery (CONTRACT C18): the session's key, again on every init so a reloaded
         // frame reads the drafts it wrote. A viewer has nothing unsaved to recover.
         const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
           ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
           : null;
-        const capabilities = officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true);
+        const capabilities = source
+          ? officeSourceCapabilities(module, current.api)
+          : officeModuleCapabilities(module, viewOnly, current.api, minted && "ai" in minted ? minted.ai : undefined, Boolean(current.onAppOpen), minted?.can_edit === true);
         const downloadMaxBytes = frameDownloadMaxBytes(latest.current.uploadMaxBytes);
         const init: Omit<InitPayload, "protocolVersion"> = {
           ...frameToken,
@@ -249,7 +263,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           // The cap api.download enforces, told up front so the conflict dialog can disable its
           // download choice before a 413; only with the capability (the frame ignores it otherwise).
           ...(capabilities.download ? { downloadMaxBytes } : {}),
-          ...(name ? { user: { displayName: name } } : {}),
+          ...(name && !source ? { user: { displayName: name } } : {}),
           ...(recovery ? { recovery } : {}),
         };
         return current.comments ? current.comments.augmentInit(init, { canEdit: minted?.can_edit, readonly: viewOnly }) : init;
@@ -291,7 +305,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           latest.current.scopeId = rebind.documentId;
           remote.rebind(rebind.documentId);
           if (saved.ok) remote.committed(saved.file, saved.versionId);
-          setSavedAs({ from: current.documentId, to: rebind.documentId });
+          setSavedAs({ from: current.fileRef.id, to: rebind.documentId });
           const frameToken = docsFrameToken(rebind.token);
           sentToken.current = frameToken.token;
           endpoint.pushToken(frameToken);
@@ -310,8 +324,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.assets.resolve": proxy("api.assets.resolve", false, (api) => api.resolveAssets),
         // The conflict dialog's "download my version": bytes only; name, type and size are the host's.
         "api.download": async (payload) => {
-          const { options: current, scopeId: doc, viewOnly: refused, uploadMaxBytes: uploadMax } = latest.current;
-          const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
+          const { options: current, scopeId: doc, viewOnly: refused, uploadMaxBytes: uploadMax, isSource: source } = latest.current;
+          const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+            source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
+          );
           if (refused || minted?.can_edit !== true) throw readOnly("api.download");
           const ceiling = frameDownloadMaxBytes(uploadMax);
           return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc, ceiling);
@@ -436,7 +452,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (remoteRef.current === remote) remoteRef.current = null;
       setHost(null);
     };
-  }, [applyBlock, attempt, documentId, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, wsId]);
+  }, [applyBlock, attempt, fileId, isSource, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, wsId]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.
   const tokenValue = token?.token;

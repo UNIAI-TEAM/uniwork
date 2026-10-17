@@ -45,6 +45,56 @@ export const officeFrameTokenSchema = z.object({
   ai: officeFrameAIGrantSchema.optional().catch(undefined),
 });
 
+// A source file (chat/task/meeting/email attachment, UNI-1869) opens view-only
+// on its own token family (`ofs1.`): minted on the workspace route with the
+// session, accepted by nothing that writes. `can_edit`/`readonly` are
+// constants in the contract: a token that drifts them is refused, not opened.
+export const officeFrameSourceTokenSchema = z.object({
+  token: z.string().min(1),
+  token_type: z.string(),
+  expires_at: rfc3339,
+  expires_in: z.number().int().nonnegative(),
+  source_id: id,
+  parent_kind: z.string().min(1),
+  parent_id: z.string().min(1),
+  workspace_id: id,
+  organization_id: id,
+  can_edit: z.literal(false),
+  module: z.string().optional(),
+  readonly: z.literal(true),
+});
+
+const officeFrameSourceFileSchema = z.object({
+  version: z.number().int(),
+  filename: z.string(),
+  mime_type: z.string(),
+  size_bytes: z.number(),
+});
+
+/** Where the file was attached; informational, the open never authorizes with it. */
+const officeFrameSourceParentSchema = z.object({
+  kind: z.string().min(1),
+  id: z.string().min(1),
+  title: z.string(),
+  message_id: z.string().optional(),
+});
+
+export const officeFrameSourceSchema = z.object({
+  source_id: id,
+  principal: z.literal("source"),
+  workspace_id: id,
+  organization_id: id,
+  title: z.string(),
+  revision: z.string().min(1),
+  can_edit: z.literal(false),
+  readonly: z.literal(true),
+  module: z.string().optional(),
+  parent: officeFrameSourceParentSchema.optional(),
+  file: officeFrameSourceFileSchema,
+  download_url: z.string().min(1),
+  updated_at: z.string().optional(),
+});
+
 const officeFrameFileSchema = z.object({
   file_id: z.string(),
   version_id: z.string(),
@@ -112,6 +162,8 @@ export const officeFrameResolvedPathsSchema = z.object({
 });
 
 export type OfficeFrameToken = z.infer<typeof officeFrameTokenSchema>;
+export type OfficeFrameSourceToken = z.infer<typeof officeFrameSourceTokenSchema>;
+export type OfficeFrameSource = z.infer<typeof officeFrameSourceSchema>;
 export type OfficeFrameDocument = z.infer<typeof officeFrameDocumentSchema>;
 export type OfficeFrameUpload = z.infer<typeof officeFrameUploadSchema>;
 export type OfficeFrameRecents = z.infer<typeof officeFrameRecentsSchema>;
@@ -139,6 +191,27 @@ export async function mintOfficeFrameToken(
   });
 }
 
+/** POST /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/office/frame-token — host session only.
+ *  The view-only token (`ofs1.`) of one file from another module (UNI-1869).
+ *  Null when the answer does not match the contract. Rejects with ApiError
+ *  403 `feature_disabled` (the module's office flag is off for the
+ *  organization) or 404 `not_found` (missing, foreign or unreadable source, a
+ *  format no web module opens); 413 `too_large` for a file over the module cap. */
+export async function mintDocumentSourceFrameToken(
+  wsId: string,
+  sourceFileId: string,
+  opts?: Pick<RequestOpts, "signal" | "correlationId">,
+): Promise<OfficeFrameSourceToken | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/sources/${enc(sourceFileId)}/office/frame-token`, {
+    method: "POST",
+    signal: opts?.signal,
+    correlationId: opts?.correlationId,
+  });
+  return parseWithFallback<OfficeFrameSourceToken | null>(raw, officeFrameSourceTokenSchema, null, {
+    endpoint: "POST /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/office/frame-token",
+  });
+}
+
 export interface OfficeFrameClientOptions {
   /** The current frame token; read on every call so a re-mint takes effect. */
   getToken: () => string;
@@ -146,10 +219,17 @@ export interface OfficeFrameClientOptions {
   apiUrl?: string;
   /** Injected for tests and non-DOM runtimes. */
   fetch?: typeof fetch;
+  /**
+   * Which frame subtree the id addresses: `documents/{id}` (default) or
+   * `sources/{id}` (UNI-1869, view-only; every write route belongs to
+   * documents only and an `ofs1.` token never reaches them anyway).
+   */
+  scope?: "documents" | "sources";
 }
 
 export interface OfficeFrameClient {
-  open(documentId: string): Promise<OfficeFrameDocument | null>;
+  /** The stored document (scope `documents`) or source file (scope `sources`; `source_id`, never `document_id`). */
+  open(id: string): Promise<OfficeFrameDocument | OfficeFrameSource | null>;
   /** Bytes of `download_url` (an /api/v1/office-frame path). */
   content(downloadUrl: string, signal?: AbortSignal): Promise<Blob>;
   upload(documentId: string, file: Blob, filename: string, idempotencyKey?: string): Promise<OfficeFrameUpload | null>;
@@ -218,7 +298,7 @@ export function createOfficeFrameClient(options: OfficeFrameClientOptions): Offi
     }
   }
 
-  const docPath = (documentId: string) => `/api/v1/office-frame/documents/${enc(documentId)}`;
+  const docPath = (id: string) => `/api/v1/office-frame/${options.scope === "sources" ? "sources" : "documents"}/${enc(id)}`;
   const form = (file: Blob, filename: string) => {
     const body = new FormData();
     body.append("file", file, filename);
@@ -226,11 +306,17 @@ export function createOfficeFrameClient(options: OfficeFrameClientOptions): Offi
   };
 
   return {
-    async open(documentId) {
-      return parseWithFallback<OfficeFrameDocument | null>(await json(docPath(documentId)), officeFrameDocumentSchema, null, { endpoint: "GET /api/v1/office-frame/documents/{documentID}" });
+    async open(id) {
+      if (options.scope === "sources") {
+        return parseWithFallback<OfficeFrameSource | null>(await json(docPath(id)), officeFrameSourceSchema, null, { endpoint: "GET /api/v1/office-frame/sources/{sourceFileID}" });
+      }
+      return parseWithFallback<OfficeFrameDocument | null>(await json(docPath(id)), officeFrameDocumentSchema, null, { endpoint: "GET /api/v1/office-frame/documents/{documentID}" });
     },
     async content(downloadUrl, signal) {
-      if (!downloadUrl.startsWith("/api/v1/office-frame/documents/")) {
+      // Any route of the frame API (documents/{id} or sources/{id}): the Bearer
+      // token already scopes what it opens, so the check only keeps a URL that
+      // is not a frame route out.
+      if (!downloadUrl.startsWith("/api/v1/office-frame/")) {
         throw new ApiError("download_url is not a frame route", "invalid_request", 400);
       }
       return (await send(downloadUrl, { signal })).blob();

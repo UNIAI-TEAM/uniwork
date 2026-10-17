@@ -88,6 +88,12 @@ export type DocsFrameStatus = "booting" | "ready" | "failed";
 /** What the page header says about the frame's edits: driven by its dirty / saved events and the save proxy. */
 export type DocsFrameSaveState = "ready" | "dirty" | "saving" | "saved" | "error";
 
+/** What the frame session opens: a saved document, or a file from another module (UNI-1869), opened view-only. */
+export interface OfficeFrameFileRef {
+  kind: "document" | "source";
+  id: string;
+}
+
 export interface DocsFrameSessionOptions {
   iframeRef: RefObject<HTMLIFrameElement | null>;
   /** Exact origin of the frame document. */
@@ -106,7 +112,8 @@ export interface DocsFrameSessionOptions {
    */
   module?: OfficeModule;
   wsId: string;
-  documentId: string;
+  /** The file the session opens; `kind: "source"` forces view-only and mints on the source route. */
+  fileRef: OfficeFrameFileRef;
   readonly: boolean;
   locale: string;
   theme: Theme;
@@ -193,7 +200,7 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
   const cloud = ai || uniworkAi;
   return {
     ...grant,
-    save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
+    save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents") && Boolean(api.recents), print: on("print"),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, uniworkAi, webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,
@@ -205,7 +212,16 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
   };
 }
 
-export const unauthorized = () => new DocsProtocolError({ code: "unauthorized", message: "frame token unavailable" });
+/**
+ * A file from another module (UNI-1869) opens to look at and print, nothing
+ * else: read-only grant, no token AI grant, and no recents, export or
+ * download whatever the API object carries.
+ */
+export function officeSourceCapabilities(module: OfficeModule, api: DocsFrameApi): Capabilities {
+  return { ...officeModuleCapabilities(module, true, api), recents: false, exportPdf: false, exportHtml: false };
+}
+
+export const unauthorized =() => new DocsProtocolError({ code: "unauthorized", message: "frame token unavailable" });
 export const readOnly = (type: string) => new DocsProtocolError({ code: "forbidden", message: `${type} is not allowed for a read-only viewer`, status: 403 });
 
 export const shapeOf = (error: unknown): ProtocolErrorShape => docsFrameError(error).toShape();

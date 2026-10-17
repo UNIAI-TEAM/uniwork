@@ -9633,6 +9633,7 @@
         "preview_loading": "Loading image…",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
+        "view_only": "View only",
         "download": "Download",
         "save_to_folder": "Save to folder",
         "menu": "Actions for {{title}}",

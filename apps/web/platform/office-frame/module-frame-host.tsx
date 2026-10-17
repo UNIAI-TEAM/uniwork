@@ -33,7 +33,7 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
     <OfficeModuleFrame
       module={module}
       wsId={wsId}
-      documentId={document.id}
+      fileRef={{ kind: "document", id: document.id }}
       title={document.title}
       frameVersion={frameVersion}
       readonly={readonly}

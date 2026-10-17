@@ -35,6 +35,8 @@ import { useDocumentsLibrary } from "./use-documents-library";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { useDropUpload } from "./use-drop-upload";
 import { useSourcePreview } from "./source-preview-dialog";
+import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { useSourceOfficeViewer } from "./source-office-viewer";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchBox } from "./documents-search-box";
@@ -91,6 +93,8 @@ export interface DocumentsPageViewProps {
   desktopOpen?: LibraryDesktopOpen;
   /** Host wiring of the header "Open UniWork Office" (the app, no document); absent hides it. */
   officeHome?: OfficeHomeLaunchProps;
+  /** The pinned build of a genoffice module ("" = not installed); without it Office sources download instead of opening view-only (UNI-1869). */
+  officeFrameVersion?: (module: OfficeModule) => string;
 }
 
 /**
@@ -99,7 +103,7 @@ export interface DocumentsPageViewProps {
  * from other modules) and one library table with type chips and grouping.
  * Every row is a server answer; create, upload and save await the server.
  */
-export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: DocumentsPageViewProps) {
+export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, officeFrameVersion }: DocumentsPageViewProps) {
   const { t, i18n } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
@@ -139,6 +143,32 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
   const sourcePreview = useSourcePreview(downloadSource);
+
+  // The row-menu download (and the viewer's fallback when no module frame can
+  // host the file): one code path for both, named for the file.
+  const downloadSourceFile = (sourceId: string) => {
+    void downloadSource.mutateAsync({ sourceId }).then(
+      (blob) => {
+        const name = library.state.rows.find((row) => row.type === "source" && row.source.id === sourceId);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name?.type === "source" ? name.source.name : "";
+        document.body.append(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      (error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.row.download_failed")),
+    );
+  };
+
+  const officeViewer = useSourceOfficeViewer({
+    wsId,
+    organizationId: context?.workspace.organization_id,
+    frameVersion: officeFrameVersion ?? (() => ""),
+    onDownload: (source) => downloadSourceFile(source.id),
+  });
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
   const members = useMembers(enabled ? wsId : "");
@@ -223,22 +253,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       if (target) push(target);
     },
     onPreviewSource: sourcePreview.open,
-    onDownloadSource: (sourceId) => {
-      void downloadSource.mutateAsync({ sourceId }).then(
-        (blob) => {
-          const name = library.state.rows.find((row) => row.type === "source" && row.source.id === sourceId);
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = name?.type === "source" ? name.source.name : "";
-          document.body.append(link);
-          link.click();
-          link.remove();
-          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-        },
-        (error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.row.download_failed")),
-      );
-    },
+    // UNI-1869: an Office source opens view-only in its module frame; no module
+    // or no installed build takes the download the click always offered.
+    onViewSource: (source) => { if (!officeViewer.open(source)) downloadSourceFile(source.id); },
+    onDownloadSource: downloadSourceFile,
     onSaveSource: rowDialogs.onSaveSource,
     onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
     onRename: rowCommands ? rowDialogs.onRename : undefined,
@@ -472,6 +490,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       />
 
       {sourcePreview.dialog}
+      {officeViewer.dialog}
 
       {trashActions.dialog}
 

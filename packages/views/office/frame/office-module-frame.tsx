@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { createOfficeFrameApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { createOfficeFrameApi, createOfficeFrameSourceApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import type { OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
 import { officeFrameSrc, officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
@@ -23,6 +23,7 @@ import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
 import { useDocsFrameSession } from "./use-docs-frame-session";
+import type { OfficeFrameFileRef } from "./docs-frame-session-model";
 import { useFrameComments } from "./use-frame-comments";
 
 export interface OfficeModuleFrameControls {
@@ -34,7 +35,8 @@ export interface OfficeModuleFrameProps {
   /** The genoffice web module; must be the module the server derives for the document. */
   module: OfficeModule;
   wsId: string;
-  documentId: string;
+  /** The file the frame opens; `kind: "source"` is a file from another module, always read-only (UNI-1869). */
+  fileRef: OfficeFrameFileRef;
   /** Document title, for the frame's accessible name until the editor reports its own. */
   title: string;
   /** Pinned frame build (the web app's sync pin); the frame is served same-origin. */
@@ -63,16 +65,20 @@ export interface OfficeModuleFrameProps {
   revealCommentId?: string | null;
   /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
   onFrameCommentsChange?: (framePanel: boolean) => void;
+  /** The session failed for good (mint refused, bundle missing, handshake timeout): the host may close the frame's host surface. */
+  onSessionFailure?: (failure: ProtocolErrorShape) => void;
   className?: string;
 }
 
 // One stateless API per module, shared by every frame of it.
 const defaultApis = new Map<OfficeModule, DocsFrameApi>();
-function defaultFrameApi(module: OfficeModule): DocsFrameApi {
-  let api = defaultApis.get(module);
+const defaultSourceApis = new Map<OfficeModule, DocsFrameApi>();
+function defaultFrameApi(module: OfficeModule, isSource: boolean): DocsFrameApi {
+  const map = isSource ? defaultSourceApis : defaultApis;
+  let api = map.get(module);
   if (!api) {
-    api = createOfficeFrameApi(module);
-    defaultApis.set(module, api);
+    api = isSource ? createOfficeFrameSourceApi(module) : createOfficeFrameApi(module);
+    map.set(module, api);
   }
   return api;
 }
@@ -97,10 +103,11 @@ function useFrameTheme(): Theme {
  * travels back over postMessage and is made here.
  */
 export function OfficeModuleFrame({
-  module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, onFrameCommentsChange, className,
+  module, wsId, fileRef, title, frameVersion, api, readonly = false, fitContent = false,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, onFrameCommentsChange, onSessionFailure, className,
 }: OfficeModuleFrameProps) {
-  const frameApi = api ?? defaultFrameApi(module);
+  const isSource = fileRef.kind === "source";
+  const frameApi = api ?? defaultFrameApi(module, isSource);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const { t: tRoot } = useTranslation();
   const headerSlot = useHeaderActionsSlotAvailable();
@@ -118,13 +125,16 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
-  const frameComments = useFrameComments({ wsId, documentId, myLevel, revealCommentId });
+  const frameComments = useFrameComments({ wsId, documentId: fileRef.id, myLevel, revealCommentId });
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
-    comments: frameComments.binding,
+    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, fileRef,
+    // A source is read-only by construction; its `ofs1.` token writes nowhere.
+    readonly: readonly || isSource,
+    // Only a stored document has the comments the binding serves.
+    comments: isSource ? undefined : frameComments.binding,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -149,6 +159,17 @@ export function OfficeModuleFrame({
       toast.error(tRef.current(`errors.${key}`));
     },
   });
+  // A session that failed for good (mint refused, bundle missing, timeout) still renders its own
+  // failure view; the host embedding it (the source-file viewer) may close its surface instead.
+  const onSessionFailureRef = useRef(onSessionFailure);
+  onSessionFailureRef.current = onSessionFailure;
+  // Once per failure: the session's failure object is rebuilt on every render, so only the edge fires.
+  const sessionFailed = session.status === "failed";
+  const failureRef = useRef(session.failure);
+  failureRef.current = session.failure;
+  useEffect(() => {
+    if (sessionFailed && failureRef.current) onSessionFailureRef.current?.(failureRef.current);
+  }, [sessionFailed]);
   const { dirty, saveState, print } = session;
   // The page's own panel is hidden only while a frame serves comments. A re-key keeps the claim
   // (use-frame-comments holds it until the next ack); a failed frame no longer serves anything, and
@@ -319,7 +340,7 @@ export function OfficeModuleFrame({
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
       {desktopOpen && !booting && !session.viewOnly ? (
-        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={save} requestRef={appOpenRef} />
+        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={fileRef.id} dirty={dirty} save={save} requestRef={appOpenRef} />
       ) : null}
       <iframe
         key={session.attempt}

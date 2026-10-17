@@ -87,6 +87,8 @@ function route(routes: Routes) {
         return Promise.reject(error);
       }
     };
+    // The module switch reads the organization's office flags (UNI-1869 viewer).
+    if (path.startsWith("/api/v1/config")) return Promise.resolve({ flags: { office_engine: true } });
     if (path.includes("/documents/favorites")) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
     if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
@@ -218,8 +220,10 @@ describe("file from another module", () => {
     nameButton.focus();
     fireEvent.click(nameButton);
     const dialog = await screen.findByRole("dialog", { name: /Kế hoạch\.docx/ });
-    expect(within(dialog).getByTestId("office-docs-frame-iframe").getAttribute("src")).toBe("/office-frame/docs/9.9.9-test/index.html");
+    expect((await within(dialog).findByTestId("office-docs-frame-iframe")).getAttribute("src")).toBe("/office-frame/docs/9.9.9-test/index.html");
     expect(within(dialog).getByText(t("documents.home.row.view_only"))).toBeInTheDocument();
+    // One close control, in the header (no second default × over the frame).
+    expect(within(dialog).getAllByRole("button", { name: t("documents.home.row.preview_close") })).toHaveLength(1);
     expect(downloadBlob).not.toHaveBeenCalled();
     expect(adapter.push).not.toHaveBeenCalled();
     expect(calls("POST").some(([path]) => String(path).endsWith("/sources/chat%3Ad9/office/frame-token"))).toBe(true);
@@ -264,6 +268,8 @@ describe("file from another module", () => {
     fireEvent.click(sourceNameButton(row));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed"));
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 

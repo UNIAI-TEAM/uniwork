@@ -9627,6 +9627,7 @@
         "preview_loading": "Đang tải ảnh…",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
+        "view_only": "Chỉ xem",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",
         "menu": "Thao tác cho {{title}}",

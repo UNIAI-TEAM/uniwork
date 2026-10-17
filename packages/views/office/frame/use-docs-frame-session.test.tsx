@@ -563,13 +563,12 @@ describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
     document.body.append(iframe);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-    const hook = renderHook(
-      () => useDocsFrameSession({
-        iframeRef: { current: iframe }, frameOrigin: window.location.origin, module: "docs", wsId: "ws-1", fileRef: sourceRef,
-        readonly: false, locale: "vi", theme: "light", onError: vi.fn(), api: {} as DocsFrameApi,
-      }),
-      { wrapper },
-    );
+    // Built once: a fresh iframeRef per render would restart the session every render.
+    const options: DocsFrameSessionOptions = {
+      iframeRef: { current: iframe }, frameOrigin: window.location.origin, module: "docs", wsId: "ws-1", fileRef: sourceRef,
+      readonly: false, locale: "vi", theme: "light", onError: vi.fn(), api: {} as DocsFrameApi,
+    };
+    const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
     await waitFor(() => expect(hook.result.current.status).toBe("failed"));
     expect(hook.result.current.failure?.code).toBe("not_found");
   });
