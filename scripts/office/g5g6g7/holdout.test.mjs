@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { containsToken, loadCases, OPERATIONS, referenceAnswerFor, score, splitAnchor, toNumber, validateCase } from './holdout-score.mjs';
+import { anchorMatches, containsToken, loadCases, OPERATIONS, referenceAnswerFor, score, splitAnchor, toNumber, validateCase, valuesEqual } from './holdout-score.mjs';
 import { computeTruth } from './holdout-xlsx-truth.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -1012,6 +1012,17 @@ test('DS-2: heading, count and table_cell match by topic and value rather than p
   const wrongRow = structuredClone(naturalAnswer);
   wrongRow.structural[3].anchor = '2. Regional Breakdown — row North, column Q1 Revenue';
   assert.equal(score(syntheticCase, wrongRow).status, 'fail', 'table_cell naming a different row than expected must fail');
+
+  // Item 7: an anchor naming the heading must not pass a wrong heading value.
+  assert.equal(valuesEqual('1. Overview', 'Wrong Heading Value', 'heading', '1. Overview'), false, 'heading valuesEqual must not pass via actualAnchor when value is wrong');
+  const headingInAnchorWrongValue = structuredClone(naturalAnswer);
+  headingInAnchorWrongValue.structural[1] = { kind: 'heading', anchor: '1. Overview', value: 'Wrong Heading Value' };
+  assert.equal(score(syntheticCase, headingInAnchorWrongValue).status, 'fail', 'heading item with heading text only in anchor and wrong value must fail');
+
+  // Item 7: an all-DSL anchor (segs.length === 0) in topicAnchorMatches / anchorMatches requires matching expectedValue.
+  assert.equal(anchorMatches('heading', 'level_1', 'Heading 1, block 1', 'Wrong Value', '1. Overview'), false, 'all-DSL anchor must not match when value does not match expectedValue');
+  assert.equal(anchorMatches('heading', 'level_1', 'Heading 1, block 1', '1. Overview'), false, 'all-DSL anchor without expectedValue must not match');
+  assert.equal(anchorMatches('heading', 'level_1', 'Heading 1, block 1', '## 1. Overview', '1. Overview'), true, 'all-DSL anchor matches when value matches expectedValue');
 });
 
 
