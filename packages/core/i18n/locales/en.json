@@ -581,7 +581,8 @@
         "chat_thread_replied": "Replies in threads you follow",
         "document_access_requested": "Document access requests",
         "document_access_approved": "Document access granted",
-        "document_access_declined": "Document access request declined"
+        "document_access_declined": "Document access request declined",
+        "document_trashed_by_other": "Your document moved to the trash"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
