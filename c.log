@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+568dac5bcf641f4f29825d95d907e0fa18451b7f
+568dac5bc fix(documents): wrap owner row and prevent transfer button clipping at 390px (F9)
+a23e2be40 test(documents): cover My Folder card menu, open folder shelve menu, and shelvedBy reset (RAR-13, RAR-14)
+ae06e36e7 chore(merge): e6-server ARCHIVE cf415d0d8 into ARCHIVE-01 web
+11d83cf5a test(documents): reach Lưu trữ from the sub-nav and shelve folders from their card
