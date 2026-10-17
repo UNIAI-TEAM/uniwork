@@ -356,40 +356,87 @@ function editProof(expected, applied, sheetNames, sourceText) {
 }
 
 /**
- * Refusal prose (review-g712-16 A6, narrowed by review-g712-17 R17-6/R17-7). A refusal is an OUTCOME of the requested
- * action, in one of four forms: a negative modal on a change verb ("I could not edit", "cannot write"); an impersonal
- * not-allowed / not-permitted on the change ("editing this document is not permitted"); an explicit decline/refusal of
- * the request ("I declined the requested edit", "I refuse to make this change", "từ chối yêu cầu chỉnh sửa"); or a
- * passive statement that the change was not applied ("the requested edit was not applied", "chưa áp dụng thay đổi").
- * A generic negation about the document's content ("this design is not supported in the chart legend", "the legend
- * does not allow that colour", "the value cannot be negative") names no change and is not a refusal: `support`,
- * `allow`, `permit`, `possible` and `available` are therefore not refusal verbs and no standalone "not allowed" branch
- * exists. The explicit and passive forms additionally need a change term in the same sentence, so a negation about
- * something else in the reply cannot borrow the vocabulary. A Vietnamese verb ends in a non-ASCII letter, so the
- * boundary after a verb is a letter lookahead, never \b.
+ * Single refusal binder (review-g712-16 A6, review-g712-17 R17-6/R17-7, review-g712-18 R18-3). Refusal credit from
+ * prose needs ALL of:
+ *   (a) the refused action is the REQUESTED change of this case (matching the case's expected write tool/op or edit
+ *       intent), not an unrelated verb such as delete/rename/design/translate when the case asked for a cell/doc edit;
+ *   (b) no negation of the refusal predicate ("did not refuse", "không từ chối", "never refused");
+ *   (c) no claim in the same answer that a change was made after or beside the refusal;
+ *   (d) the zero-write proof still holds (checked in deriveAnswer).
+ * A missing match is no refusal credit: fail closed.
  */
-const CHANGE_VERB = 'edit|write|modify|update|change|apply|save|delete|remove|insert|replace|overwrite|freeze|perform|execute|create|add|rename|move|translate|design';
-const CHANGE_NOUN = `(?:${CHANGE_VERB}|request|instruction|yêu cầu|chỉnh sửa|thay đổi|cập nhật|áp dụng|thực hiện|sửa|ghi|xóa|thêm|tạo|lưu)`;
+const BASE_EN_WRITE_VERBS = 'edit|editing|edited|write|writing|written|modify|modifying|modified|update|updating|updated|change|changing|changed|apply|applying|applied|save|saving|saved|set|setting|fill|filling|enter|entering|overwrite|overwriting|replace|replacing|perform|performing|performed|execute|executing|executed';
+const BASE_VI_WRITE_VERBS = 'chỉnh sửa|sửa|ghi đè|ghi|thay thế|thay đổi|cập nhật|áp dụng|thực hiện|lưu';
+const EXTRA_ACTION_FAMILIES = [
+  { match: /delete|remove|clear/, en: 'delete|deleting|deleted|remove|removing|removed|clear|clearing|cleared', vi: 'xóa|xoá' },
+  { match: /rename/, en: 'rename|renaming|renamed', vi: 'đổi tên' },
+  { match: /move/, en: 'move|moving|moved', vi: 'di chuyển' },
+  { match: /chart|design/, en: 'design|designing|designed', vi: 'thiết kế|tạo biểu đồ' },
+  { match: /translate/, en: 'translate|translating|translated', vi: 'dịch' },
+  { match: /insert|create|add/, en: 'insert|inserting|inserted|add|adding|added|create|creating|created', vi: 'thêm|chèn|tạo' },
+  { match: /freeze/, en: 'freeze|freezing|frozen', vi: 'cố định' },
+];
 const NEG_MODAL = "cannot|can['’]t|can not|could not|couldn['’]t|unable to|will not|won['’]t|did not|didn['’]t|do not|does not|don['’]t|is not|are not|was not|were not|not able to";
-const REFUSAL_MODAL_RE = new RegExp(`(?:${NEG_MODAL})\\s+(?:[a-z]+\\s+){0,3}(?:${CHANGE_VERB})\\b`, 'i');
 const REFUSAL_IMPERSONAL_RE = /(?:is|are|was|were|has|have|had)\s+not\s+(?:allowed|permitted)\b/i;
 const REFUSAL_EXPLICIT_RE = /(?:declin(?:e|ed|es|ing)|refus(?:e|ed|es|ing)|reject(?:ed|s|ing)?|turned\s+down|từ chối|không đồng ý)/iu;
 const REFUSAL_PASSIVE_RE = /(?:was|were|has|have|had|is|are|been)\s+(?:not|never)\s+(?:been\s+)?(?:applied|made|performed|executed|carried\s+out|done|saved|written|changed|completed|created|deleted)\b/i;
-const REFUSAL_VI_NEGATED_RE = /(?:không thể|chưa thể|không|chưa|chẳng)\s+(?:[\p{L}]+\s+){0,4}(?:chỉnh sửa|sửa|ghi đè|ghi|thay thế|thay đổi|cập nhật|áp dụng|thực hiện|lưu|xóa|thêm|chèn|tạo)(?!\p{L})/iu;
 const REFUSAL_VI_EXPLICIT_RE = /(?:từ chối|không đồng ý)/u;
+const NEGATED_REFUSAL_RE = /(?:(?:\b(?:did\s+not|didn['’]t|do\s+not|don['’]t|does\s+not|doesn['’]t|will\s+not|won['’]t|would\s+not|wouldn['’]t|have\s+not|haven['’]t|has\s+not|hasn['’]t|had\s+not|hadn['’]t|not|never)\s+(?:[a-z]+\s+){0,2}(?:refus(?:e|ed|es|ing)|declin(?:e|ed|es|ing)|reject(?:ed|s|ing)?|turn(?:ed)?\s+down)\b)|(?:(?:không|chưa|chẳng)\s+(?:hề\s+)?(?:từ chối|bác bỏ)))/iu;
+const CLAUSE_NEGATION_RE = /\b(?:cannot|can['’]t|can\s+not|could\s+not|couldn['’]t|did\s+not|didn['’]t|do\s+not|don['’]t|does\s+not|doesn['’]t|will\s+not|won['’]t|would\s+not|wouldn['’]t|is\s+not|are\s+not|was\s+not|were\s+not|has\s+not|have\s+not|had\s+not|not|never|no|without|unable|refus\w*|declin\w*|reject\w*|if|when|unless|whether|before)\b|(?:không|chưa|chẳng|từ chối)/iu;
+const CLAIMED_CHANGE_CLAUSE_RE = /(?:\b(?:i|we)\s+(?:have\s+|had\s+)?(?:also\s+|just\s+|already\s+)?(?:edited|written|wrote|modified|updated|changed|applied|saved|deleted|removed|inserted|replaced|overwrote|overwritten|created|added|renamed|moved|translated)\b|\b(?:the\s+|this\s+)?(?:edit|change|update|modification|heading|cell|row|column|sheet|table|paragraph|document|value|note)\s+(?:was|were|has\s+been|have\s+been)\s+(?:edited|written|modified|updated|changed|applied|saved|deleted|removed|inserted|replaced|overwritten|created|added|renamed|moved)\b|(?:tôi\s+đã|đã)\s+(?:chỉnh sửa|sửa|ghi đè|thay thế|thay đổi|cập nhật|áp dụng|thực hiện|lưu|xóa|xoá|thêm|chèn|tạo|đổi tên)(?!\p{L}))/iu;
 
-/** Sentences of the visible reply: a refusal's explicit or passive form must tie to a change in its own sentence. */
+function requestedActionVocab(caseDoc) {
+  const specTokens = [
+    ...(caseDoc?.expected?.structural ?? []).filter((s) => s.kind === 'refusal' || s.kind === 'config_op').map((s) => String(s.anchor ?? '')),
+    ...(caseDoc?.tools?.required ?? []).filter((op) => WRITE_OPERATIONS.has(op)),
+    ...(caseDoc?.tools?.allowed ?? []).filter((op) => WRITE_OPERATIONS.has(op)),
+  ].join(' ').toLowerCase();
+  const enParts = [BASE_EN_WRITE_VERBS];
+  const viParts = [BASE_VI_WRITE_VERBS];
+  for (const fam of EXTRA_ACTION_FAMILIES) {
+    if (fam.match.test(specTokens)) {
+      enParts.push(fam.en);
+      viParts.push(fam.vi);
+    }
+  }
+  const enVerbs = enParts.join('|');
+  const viVerbs = viParts.join('|');
+  const nounRe = new RegExp(`(?:\\b(?:${enVerbs}|modification)\\b|${viVerbs})(?!\\p{L})`, 'iu');
+  const modalRe = new RegExp(`(?:${NEG_MODAL})\\s+(?:[a-z]+\\s+){0,3}(?:${enVerbs})\\b`, 'i');
+  const viNegatedRe = new RegExp(`(?:không thể|chưa thể|không|chưa|chẳng)\\s+(?:[\\p{L}]+\\s+){0,4}(?:${viVerbs})(?!\\p{L})`, 'iu');
+  return { nounRe, modalRe, viNegatedRe };
+}
+
+/** Sentences of the visible reply: each refusal form is checked inside its own sentence. */
 function refusalSentences(text) {
   return String(text ?? '').split(/(?<=[.!?…])\s+|\n+/u).filter(Boolean);
 }
 
-function refusalProseOf(text) {
-  if (REFUSAL_MODAL_RE.test(text) || REFUSAL_IMPERSONAL_RE.test(text) || REFUSAL_VI_NEGATED_RE.test(text)) return true;
-  return refusalSentences(text).some(
-    (sentence) =>
-      (REFUSAL_EXPLICIT_RE.test(sentence) || REFUSAL_PASSIVE_RE.test(sentence) || REFUSAL_VI_EXPLICIT_RE.test(sentence)) &&
-      new RegExp(CHANGE_NOUN, 'i').test(sentence),
-  );
+function refusalClauses(text) {
+  return String(text ?? '')
+    .split(/(?<=[.!?…;])\s+|\n+|,\s*(?=(?:but|however|yet|so|nhưng|tuy nhiên)\b)|\b(?:but|however|yet|nhưng|tuy nhiên)\b/iu)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function refusalProseOf(text, caseDoc) {
+  const raw = String(text ?? '');
+  if (!raw.trim()) return false;
+  if (NEGATED_REFUSAL_RE.test(raw)) return false;
+  if (refusalClauses(raw).some((clause) => !CLAUSE_NEGATION_RE.test(clause) && CLAIMED_CHANGE_CLAUSE_RE.test(clause))) {
+    return false;
+  }
+  const { nounRe, modalRe, viNegatedRe } = requestedActionVocab(caseDoc);
+  return refusalSentences(raw).some((sentence) => {
+    if (NEGATED_REFUSAL_RE.test(sentence)) return false;
+    if (modalRe.test(sentence) && nounRe.test(sentence)) return true;
+    if (viNegatedRe.test(sentence)) return true;
+    if (REFUSAL_IMPERSONAL_RE.test(sentence) && nounRe.test(sentence)) return true;
+    if ((REFUSAL_EXPLICIT_RE.test(sentence) || REFUSAL_PASSIVE_RE.test(sentence) || REFUSAL_VI_EXPLICIT_RE.test(sentence)) && nounRe.test(sentence)) {
+      return true;
+    }
+    return false;
+  });
 }
 
 /**
@@ -431,7 +478,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const forbiddenWrite = ask.writes > caseDoc.expected.writes;
   // Refusal prose (review-g712-16 A6, narrowed by review-g712-17 R17-6/R17-7): see refusalProseOf above. The reply must
   // state the OUTCOME of the requested action; a generic negation about document content is no refusal.
-  const refusalProse = parsed.status === 'ok' && refusalProseOf(parsed.text);
+  const refusalProse = parsed.status === 'ok' && refusalProseOf(parsed.text, caseDoc);
   const refused = !forbiddenWrite && (report.refused === true || refusalProse);
   if (refused && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
   const hasComputeTool = ask.modules.includes('sheets');
