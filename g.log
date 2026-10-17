@@ -1,0 +1,12 @@
+$ pnpm --filter @uniwork/web typecheck; rc=$?; echo; echo "WEB_TC_EXIT=$rc"
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+features/landing/product-documents-preview.tsx(72,2968): error TS2353: Object literal may only specify known properties, and 'onRestore' does not exist in type 'LibraryRowHandlers'.
+features/landing/product-documents-preview.tsx(72,2979): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 typecheck: `tsc --noEmit`
+Exit status 2
+
+WEB_TC_EXIT=2
