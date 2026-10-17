@@ -364,6 +364,7 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   let lastContent = '';
   let usageTokens = { input: 0, output: 0, source: 'none' };
   const models = new Set();
+  const toolResultChunks = [];
   for (let step = 0; step < MAX_STEPS; step += 1) {
     const headers = {};
     if (conversation) headers['X-UniWork-AI-Conversation'] = conversation;
@@ -430,9 +431,11 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
       record.toolCalls.push({
         name, write: backend.writes() > writesBefore, denied: backend.denied().length > deniedBefore ? backend.denied().at(-1).reason : null,
       });
-      results.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(name === 'ask_clarification'
+      const resultContent = JSON.stringify(name === 'ask_clarification'
         ? { ...result, note: 'The user will answer later. Reply to the user now with what you need to know, then finish with the reporting line.' }
-        : result) });
+        : result);
+      toolResultChunks.push(resultContent);
+      results.push({ role: 'tool', tool_call_id: tc.id, content: resultContent });
     }
     messages = results;
   }
@@ -449,7 +452,7 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   }
   const { answer, adapter } = deriveAnswer(
     caseDoc,
-    { reply, calls: record.toolCalls, writes: backend.writes(), writeLog: record.writeLog, dropped: record.dropped, modules: modulesOfCase(caseDoc), sheetNames: backend.sheetNames(), sourceText: backend.sourceText() },
+    { reply, calls: record.toolCalls, writes: backend.writes(), writeLog: record.writeLog, dropped: record.dropped, modules: modulesOfCase(caseDoc), sheetNames: backend.sheetNames(), sourceText: backend.sourceText(), toolResultsText: toolResultChunks.join('\n') },
     { numbers: opts.numbers, computeByReply: opts.computeByReply, anchors: opts.anchors },
   );
   record.adapter = adapter;

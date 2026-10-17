@@ -93,38 +93,69 @@ function matchNumbers(expected, figures) {
 
 const NUMBER_TOKEN_RE = /\d[\d.,]*\d|\d/g;
 
+function tokenToNumber(tok) {
+  if (/^[-+]?0\.\d+$/.test(String(tok).trim())) return Number(tok);
+  return toNumber(tok);
+}
+
+function shownDecimalPlaces(value, n) {
+  const raw = typeof value === 'string' ? value.trim().replace(/%$/, '') : String(n);
+  const dot = raw.indexOf('.');
+  if (dot < 0 || /[eE]/.test(raw)) return 0;
+  return Math.min(10, Math.max(0, raw.length - dot - 1));
+}
+
+function matchesExactOrShownRounding(n, dp, target) {
+  if (!Number.isFinite(target)) return false;
+  const relTol = 1e-9 * Math.max(1, Math.abs(target));
+  if (Math.abs(n - target) <= relTol) return true;
+  if (dp === 0 && Number.isInteger(target)) return false;
+  const factor = 10 ** dp;
+  const rounded = Math.round(target * factor) / factor;
+  const fixed = Number(target.toFixed(dp));
+  return Math.abs(n - rounded) <= relTol || Math.abs(n - fixed) <= relTol;
+}
+
 /**
  * Checks whether an extra reported figure is traceable to the open document or tool results of the turn (DS-5):
- *   1. Direct, scaled (percent/thousand) or rounded match to a number in the document / tool output / oracle pool;
- *   2. A small integer structural count of the open document (0..50);
- *   3. Sum of the matched expected figures, or pairwise arithmetic (+, -, *, /, % share) over numbers in the pool.
- * An invented number outside the pool and its arithmetic combinations returns false and fails numeric_unexpected.
+ *   1. Exact equality (1e-9 relative), percent scaling (x100 / /100), or rounding to the precision the answer shows
+ *      against a number in the turn's tool-result payloads or document text;
+ *   2. Pairwise arithmetic (sum, difference, ratio, percent - no product) over two pool numbers that both appear
+ *      in the answer text or items ("operands shown"), within exact-or-shown-rounding tolerance.
+ * An invented number outside the pool and its shown-operand derivations returns false and fails numeric_unexpected.
  */
-export function isTraceableFigure(value, pool, matchedValues = []) {
+export function isTraceableFigure(value, pool, shownNumbers = []) {
   const n = toNumber(value);
   if (n === null) return false;
-  if (Number.isInteger(n) && n >= 0 && n <= 50) return true;
+  const dp = shownDecimalPlaces(value, n);
   for (const p of pool) {
-    if (Math.abs(n - p) <= Math.max(1e-6, 1e-6 * Math.abs(p))) return true;
-    if (Math.abs(Math.round(p) - n) <= 1 || Math.abs(Math.round(p * 100) / 100 - n) <= 0.05) return true;
-    if (Math.abs(n - p * 100) <= 0.05 || Math.abs(n * 100 - p) <= 0.05) return true;
-    if (Math.abs(n * 1000 - p) <= 1 || Math.abs(n - p * 1000) <= 1) return true;
+    if (!Number.isFinite(p)) continue;
+    if (
+      matchesExactOrShownRounding(n, dp, p) ||
+      matchesExactOrShownRounding(n, dp, p * 100) ||
+      matchesExactOrShownRounding(n, dp, p / 100)
+    ) {
+      return true;
+    }
   }
-  if (matchedValues.length >= 2) {
-    const sumMatched = matchedValues.reduce((a, b) => a + b, 0);
-    if (Math.abs(n - sumMatched) <= 1 || Math.abs(n - Math.round(sumMatched)) <= 1) return true;
-  }
-  const unique = [...new Set(pool.filter((x) => Number.isFinite(x) && x !== 0))].slice(0, 80);
-  const tol = Math.max(0.05, 1e-4 * Math.abs(n));
-  for (let i = 0; i < unique.length; i += 1) {
-    const a = unique[i];
-    for (let j = i; j < unique.length; j += 1) {
-      const b = unique[j];
-      if (Math.abs((a + b) - n) <= tol) return true;
-      if (Math.abs(Math.abs(a - b) - Math.abs(n)) <= tol) return true;
-      if (Math.abs((a * b) - n) <= tol) return true;
-      if (b !== 0 && (Math.abs((a / b) - n) <= tol || Math.abs((a / b) * 100 - n) <= 0.1)) return true;
-      if (a !== 0 && (Math.abs((b / a) - n) <= tol || Math.abs((b / a) * 100 - n) <= 0.1)) return true;
+  const isShownInAnswer = (p) =>
+    shownNumbers.some((s) => {
+      const sdp = shownDecimalPlaces(s, s);
+      return (
+        matchesExactOrShownRounding(s, sdp, p) ||
+        matchesExactOrShownRounding(s, sdp, p * 100) ||
+        matchesExactOrShownRounding(s, sdp, p / 100)
+      );
+    });
+  const shownPool = [...new Set(pool.filter((p) => Number.isFinite(p) && isShownInAnswer(p)))];
+  for (let i = 0; i < shownPool.length; i += 1) {
+    const a = shownPool[i];
+    for (let j = i + 1; j < shownPool.length; j += 1) {
+      const b = shownPool[j];
+      const candidates = [a + b, a - b, b - a];
+      if (b !== 0) candidates.push(a / b, (a / b) * 100);
+      if (a !== 0) candidates.push(b / a, (b / a) * 100);
+      if (candidates.some((target) => matchesExactOrShownRounding(n, dp, target))) return true;
     }
   }
   return false;
@@ -241,20 +272,20 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     const actual = toNumber(numeric[item.name]);
     return actual !== null && Math.abs(roundTo(actual, item.rounding) - item.value) <= item.tolerance + 1e-9;
   });
-  const hasTurnContext = Boolean(sourceText.trim() || String(ask.toolResultsText ?? '').trim() || ask.calls.length > 0);
+  const hasTurnContext = Boolean(sourceText.trim() || String(ask.toolResultsText ?? '').trim());
   const pool = hasTurnContext
     ? [
-        ...(sourceText.match(NUMBER_TOKEN_RE) ?? []).map(toNumber),
-        ...(String(ask.toolResultsText ?? '').match(NUMBER_TOKEN_RE) ?? []).map(toNumber),
-        ...caseDoc.expected.numeric.map((x) => x.value),
-        ...caseDoc.expected.structural.map((s) => toNumber(s.value)),
-        ...Object.values(numeric).map(toNumber),
+        ...(sourceText.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
+        ...(String(ask.toolResultsText ?? '').match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
       ].filter((x) => x !== null)
     : [];
-  const matchedValues = Object.values(numeric).map(toNumber).filter((x) => x !== null);
+  const shownNumbers = [
+    ...(parsed.text.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
+    ...items.flatMap((it) => (String(it.value ?? '').match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber)),
+  ].filter((x) => x !== null);
   const strictExtras =
     numbers === 'strict'
-      ? extras.filter((value) => caseDoc.expected.forbidExtraNumbers === true || !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, matchedValues))
+      ? extras.filter((value) => caseDoc.expected.forbidExtraNumbers === true || !hasTurnContext || !allExpectedNumericMatched || !isTraceableFigure(value, pool, shownNumbers))
       : [];
   strictExtras.forEach((value, i) => { numeric[`extra_figure_${i + 1}`] = value; });
   const applied = normalizedWriteLog.filter((w) => w.applied);
