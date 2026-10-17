@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   DocumentArchiveImpactSchema,
   DocumentArchiveSchema,
@@ -18,6 +19,8 @@ import { parseWithFallback } from "../schema";
 import { ensureMyFolder, type DocumentRequestOpts } from "./documents";
 
 export { ensureMyFolder };
+
+const DocumentPurgeResponseSchema = z.undefined();
 
 // Document collection endpoints (C-01 §5.1; UNI-679, G1-05b): the flat list
 // with filters/search/cursor, recent, shared-with-me and the sidebar tree,
@@ -233,8 +236,9 @@ export async function archiveDocument(
   });
 }
 
-/** POST /api/v1/documents/{documentID}/restore — recovers exactly the nodes
- *  one archive batch moved. Null means the restore cannot be proven. */
+/** POST /api/v1/documents/{documentID}/restore — recovers the target trashed
+ *  item and the trashed descendants in its batch that the caller manages. Null
+ *  means the restore cannot be proven. */
 export async function restoreDocument(
   documentId: string,
   opts?: DocumentRequestOpts,
@@ -246,6 +250,24 @@ export async function restoreDocument(
   });
   return parseWithFallback<DocumentArchive | null>(raw, DocumentArchiveSchema, null, {
     endpoint: "POST /api/v1/documents/{id}/restore",
+  });
+}
+
+/** POST /api/v1/documents/{documentID}/purge — permanently delete a trashed
+ *  item and the trashed descendants in its batch that the caller manages
+ *  (RESTORE-01). The server answers 204 and keeps no purge ledger, so no
+ *  Idempotency-Key is sent; a drifted 2xx JSON body degrades to undefined via
+ *  parseWithFallback. */
+export async function purgeDocument(
+  documentId: string,
+  opts?: Pick<DocumentRequestOpts, "signal">,
+): Promise<void> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/purge`, {
+    method: "POST",
+    signal: opts?.signal,
+  });
+  return parseWithFallback<undefined>(raw, DocumentPurgeResponseSchema, undefined, {
+    endpoint: "POST /api/v1/documents/{id}/purge",
   });
 }
 
