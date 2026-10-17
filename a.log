@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+98f36067a92ecde3d08e1412ea40d078ae0066e6
+98f36067a fix(documents): classify the multipart upload table in the file and export guards (UNI-1862)
+2b833bac4 chore(merge): G5-G7 root bf693b001 into the BIGUP-S1 lane
+1b18e6e1f fix(documents): describe large upload session completion and abort in OpenAPI (UNI-1862)
+cff7dceae docs(documents): runbook and env checklist for large upload sessions (UNI-1862)
+bf693b001 chore: merge TRASH-01 documents layout (UNI-1841, c49fc5aad) into the G5-G7 root
+4dd23bec8 test(documents): cover the large upload session HTTP surface and isolation (UNI-1862)
+41c5bd41b feat(documents): serve the large upload session surface (UNI-1862)
+c49fc5aad fix(documents): name the chat source Trò chuyện like the rest of the app
