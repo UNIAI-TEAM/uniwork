@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+c49fc5aade1145343017bcf44210fa46a9e3212d
+c49fc5aad fix(documents): name the chat source Trò chuyện like the rest of the app
+7398d969c test(i18n): pin the UniNote create chip key TRASH-01 still uses
+06e165a6e chore: merge root 157cfdfd7 into TRASH-01
+157cfdfd7 chore: merge root e2e fixes (fix/UNI-923-root-e2e-reds, eb95ff143) into the G5-G7 root
+9911c292b chore: merge UN-01 web (UNI-1812, 2e91628cd) into the G5-G7 root
+eb95ff143 test(e2e): scope the chat demo toggle to the landing preview
+1c20aa10e chore: merge size-cap SIZE-W1b (UNI-1860) + LAG-W1 (UNI-1866) (56c7ffcb4) into the G5-G7 root
+1eb3fb70f test(e2e): follow the landing demo to its current screens
