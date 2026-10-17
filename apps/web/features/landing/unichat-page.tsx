@@ -1,10 +1,11 @@
 "use client";
-import { ArrowRight, BellRing, Download, FolderKanban, Phone, Smartphone, SquareCheckBig } from "lucide-react";
+import { ArrowRight, BellRing, Download, Phone, Smartphone } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
+import { MODULE_ICONS } from "@uniwork/views/layout/module-icons";
 import { MarketingAnchor, MarketingLink as Link } from "../../platform/marketing-link";
 import { AppDownloadColumns, useAppInstallers } from "./app-downloads";
 import { Faq } from "./faq";
@@ -13,7 +14,7 @@ import "./marketing-chapters.css";
 import "./office.css";
 import "./unichat.css";
 
-const POINTS = [{ key: "task", icon: SquareCheckBig }, { key: "project", icon: FolderKanban }, { key: "followUp", icon: BellRing }, { key: "call", icon: Phone }] as const;
+const POINTS = [{ key: "task", icon: MODULE_ICONS.tasks }, { key: "project", icon: MODULE_ICONS.projects }, { key: "followUp", icon: BellRing }, { key: "call", icon: Phone }] as const;
 
 type PhoneOS = "ios" | "android";
 // The public store page wins; the pilot link is offered only while there is none.
