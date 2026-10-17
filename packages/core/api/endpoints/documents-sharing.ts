@@ -54,8 +54,16 @@ export const DocumentAccessResultItemSchema = z.object({
 export type DocumentAccessResultItem = z.infer<typeof DocumentAccessResultItemSchema>;
 
 export const DocumentAccessPreviewLevelSchema = z.object({
-  level: z.string(),
-  via: z.string().optional().default(""),
+  level: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? ""),
+  via: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? ""),
 });
 export type DocumentAccessPreviewLevel = {
   level: DocumentAccessLevel | "";

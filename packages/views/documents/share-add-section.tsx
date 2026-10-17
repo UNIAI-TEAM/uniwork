@@ -378,7 +378,11 @@ export function ShareAddSection({
             >
               <SelectTrigger id={levelId}><SelectValue>{levelLabel(commonLevel)}</SelectValue></SelectTrigger>
               <SelectContent>
-                {DOCUMENT_ACCESS_LEVELS.map((lvl) => (
+                {(selected.length > 0 &&
+                selected.every((s) => s.candidate.principal_type === "organization" || s.candidate.is_home_workspace)
+                  ? (["view", "comment", "edit"] as const)
+                  : DOCUMENT_ACCESS_LEVELS
+                ).map((lvl) => (
                   <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
                 ))}
               </SelectContent>

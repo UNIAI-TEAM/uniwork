@@ -1,48 +1,50 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@uniwork/core/auth";
-import {
-  useDocumentSettings,
-  useDocumentShares,
-} from "@uniwork/core/documents/hooks-sharing";
-import {
-  useOrgMembership,
-  useOrgWorkspaces,
-  useOrganizations,
-} from "@uniwork/core/organizations";
+import { useDocumentSettings, useDocumentShares } from "@uniwork/core/documents/hooks-sharing";
+import { useOrgWorkspaces } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
-import { useWorkspace } from "@uniwork/core/workspaces";
+import { canAdministerDocument } from "@uniwork/core/permissions";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { AccessRequestsSection } from "./access-requests-section";
 import { ShareAccessList } from "./share-access-list";
 import { ShareAddSection } from "./share-add-section";
 import {
-  resolveDocumentWorkspaceName,
-  type ShareDialogDocument,
-} from "./share-dialog-target";
+  hasAdminScope,
+  ShareDialogBreakGlassSection,
+  useShareWorkspace,
+} from "./share-dialog-break-glass";
+import type { ShareDialogTarget } from "./share-dialog-target";
 import { ShareLinksSection } from "./share-links-section";
-import { TransferOwnerDialog } from "./transfer-owner-dialog";
+import { ShareMembersErrorLine } from "./share-members-error";
 import { useShareMembers } from "./use-share-members";
 
-export type { ShareDialogDocument };
+export type { ShareDialogTarget };
 
 export interface ShareDialogProps {
-  wsId: string;
-  doc: ShareDialogDocument | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  wsId: string;
+  doc: ShareDialogTarget;
+  /** Opened from the inbox link (`?access=requests`): the requests heading takes focus. */
+  focusRequests?: boolean;
+  /**
+   * When opened from the break-glass banner's "Quyền truy cập" action, the
+   * dialog opens with the break-glass section revealed so the admin can see
+   * and revoke active emergency grants directly.
+   */
+  initialSection?: "break_glass";
 }
 
 /**
@@ -53,198 +55,192 @@ export interface ShareDialogProps {
  *   organization, and break-glass rows (or caller-only access summary for non-managers).
  * - Area 3 (`ShareLinksSection`): public links + organization policy line.
  */
-export function ShareDialog({ wsId, doc, open, onOpenChange }: ShareDialogProps) {
+export function ShareDialog({
+  open,
+  onOpenChange,
+  wsId,
+  doc,
+  focusRequests = false,
+  initialSection,
+}: ShareDialogProps) {
   const { t, i18n } = useTranslation();
-  const navigation = useNavigation();
-  const currentUserId = useAuthStore((s) => s.user?.id ?? "");
-  const [transferOpen, setTransferOpen] = useState(false);
+  const { push } = useNavigation();
+  const descriptionId = useId();
+  const adminNoteId = useId();
+  const workspace = useShareWorkspace(doc, wsId);
+  const user = useOptionalWorkspace()?.user ?? null;
 
-  const docId = doc?.id ?? "";
-  const sharesQuery = useDocumentShares(wsId, docId, { enabled: open && !!doc });
-  const workspaceQuery = useWorkspace(wsId);
-  const workspace = workspaceQuery.data;
-  const orgWorkspacesQuery = useOrgWorkspaces(doc?.organization_id ?? "");
-  const orgWorkspaces = useMemo(
-    () => orgWorkspacesQuery.data ?? [],
-    [orgWorkspacesQuery.data],
-  );
-  const orgsQuery = useOrganizations();
-  const organization = useMemo(
-    () => (orgsQuery.data ?? []).find((o) => o.id === doc?.organization_id) ?? null,
-    [orgsQuery.data, doc?.organization_id],
-  );
-  const orgSlug = workspace?.organization_slug || organization?.slug || "";
-  const orgMemberQuery = useOrgMembership(orgSlug);
-  const docSettingsQuery = useDocumentSettings(doc?.organization_id ?? "", {
-    enabled: open && !!doc?.organization_id,
+  // Owned documents inherit access from their parent task or meeting; they
+  // have no share dialog (C-01 §5.4).
+  const owned = !!doc.owner_kind;
+  const canAdminister = canAdministerDocument(doc, {
+    userId: user?.id ?? null,
+    orgRole: null,
+    wsRole: null,
+  }).allowed;
+  const adminOnly = hasAdminScope(doc) && doc.my_level !== "manage";
+
+  const access = useDocumentShares(wsId, doc.id, { enabled: open && canAdminister && !owned });
+  const members = useShareMembers(workspace.organization_slug, open);
+  const orgWorkspaces = useOrgWorkspaces(doc.organization_id);
+  const docSettings = useDocumentSettings(doc.organization_id, {
+    enabled: open && canAdminister && !owned && !!doc.organization_id,
   });
 
-  useEffect(() => {
-    setTransferOpen(false);
-  }, [doc?.id, open]);
+  if (owned) return null;
 
-  const myLevel = sharesQuery.data?.my_level ?? "";
-  const canManage = myLevel === "manage";
-  const adminScope = sharesQuery.data?.admin_scope === true && !canManage;
+  // While any page of the member walk is still in flight, an unresolved user_id
+  // could simply sit on a page that has not arrived yet; returning null lets
+  // the row hold a skeleton instead of flashing "Thành viên không xác định".
+  const memberName = (userId: string): string | null =>
+    members.nameOf(userId) ??
+    (members.namesPending ? null : t("documents.share.person_unknown"));
 
-  const members = useShareMembers(wsId, open && !!doc && (canManage || adminScope));
-  const memberLabels = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const m of members.rows) {
-      const name = m.display_name?.trim() ?? "";
-      const email = m.email?.trim() ?? "";
-      const label = name && email ? `${name} (${email})` : name || email || m.user_id;
-      if (m.user_id) map.set(m.user_id, label);
-    }
-    return map;
-  }, [members.rows]);
+  const workspaceName = (id: string) =>
+    (access.data?.home_workspace?.workspace_id === id &&
+      access.data.home_workspace.workspace_name) ||
+    orgWorkspaces.data?.find((w) => w.id === id)?.name ||
+    (workspace.id === id && workspace.name ? workspace.name : "") ||
+    t("documents.share.workspace_unknown");
 
-  const workspaceNames = useMemo(() => {
-    const map = new Map<string, string>();
-    if (workspace?.id && workspace.name) map.set(workspace.id, workspace.name);
-    for (const w of orgWorkspaces) {
-      if (w.id && w.name) map.set(w.id, w.name);
-    }
-    const hw = sharesQuery.data?.home_workspace;
-    if (hw?.workspace_id && hw.workspace_name) {
-      map.set(hw.workspace_id, hw.workspace_name);
-    }
-    return map;
-  }, [workspace?.id, workspace?.name, orgWorkspaces, sharesQuery.data?.home_workspace]);
+  const storedWorkspace =
+    access.data?.home_workspace?.workspace_name?.trim() ||
+    orgWorkspaces.data?.find((w) => w.id === doc.workspace_id)?.name ||
+    (workspace.id === doc.workspace_id && workspace.name ? workspace.name : "");
 
-  if (!doc) return null;
+  const docTitle = doc.title?.trim() ?? "";
+  const describedBy =
+    [storedWorkspace ? descriptionId : "", adminOnly ? adminNoteId : ""]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
-  const aclOwner = sharesQuery.data?.acl_owner ?? null;
-  const isOwner = Boolean(currentUserId && aclOwner?.user_id === currentUserId);
-  const isAdmin = workspace?.role === "owner" || workspace?.role === "admin";
-  const canTransfer = Boolean(aclOwner && (isOwner || isAdmin || adminScope));
-  const ownedByWorkProduct = doc.owner_kind === "work_product";
-
-  const canManageOrgSettings = orgMemberQuery.data?.role
-    ? orgMemberQuery.data.role === "owner" || orgMemberQuery.data.role === "admin"
-    : isAdmin;
-
-  const homeWorkspaceName =
-    sharesQuery.data?.home_workspace?.workspace_name?.trim() ||
-    resolveDocumentWorkspaceName(doc.workspace_id, workspace?.id, workspace?.name, orgWorkspaces);
-
-  const openOrgDocumentSettings = () => {
-    onOpenChange(false);
-    if (orgSlug) {
-      navigation.push(paths.orgSettings(orgSlug));
-    }
-  };
+  const organization = workspace.organization_name
+    ? { id: doc.organization_id, name: workspace.organization_name }
+    : null;
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>
-              {doc.title
-                ? t("documents.share.title_named", { title: doc.title })
-                : t("documents.share.title")}
-            </DialogTitle>
-            {homeWorkspaceName ? (
-              <p className="text-caption text-muted-foreground">
-                {t("documents.share.stored_in", { workspace: homeWorkspaceName })}
-              </p>
-            ) : null}
-            <DialogDescription>{t("documents.share.description")}</DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        aria-describedby={describedBy}
+        closeLabel={t("common.close")}
+        className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+      >
+        <DialogHeader>
+          <DialogTitle>
+            {docTitle
+              ? t("documents.share.title_named", { title: docTitle })
+              : t("documents.share.title")}
+          </DialogTitle>
+          {storedWorkspace ? (
+            <DialogDescription id={descriptionId}>
+              {t("documents.share.stored_in", { workspace: storedWorkspace })}
+            </DialogDescription>
+          ) : null}
+          {adminOnly ? (
+            <p
+              id={adminNoteId}
+              className="rounded-md bg-muted px-2.5 py-1.5 text-caption text-muted-foreground"
+            >
+              {t("documents.share.admin_scope_note")}
+            </p>
+          ) : null}
+        </DialogHeader>
 
-          {sharesQuery.isLoading ? (
-            <div className="flex items-center gap-2 py-4 text-body text-muted-foreground">
-              <Spinner aria-hidden role="presentation" />
-              {t("documents.share.loading")}
-            </div>
-          ) : sharesQuery.isError ? (
-            <div className="flex items-center justify-between gap-2 py-2">
-              <p role="alert" className="text-body text-destructive">
-                {t("documents.share.error")}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void sharesQuery.refetch()}
-              >
-                {t("documents.share.retry")}
-              </Button>
-            </div>
-          ) : (
-            <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-              {adminScope ? (
-                <p
-                  role="note"
-                  className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground"
-                >
-                  {t("documents.share.admin_scope_note")}
-                </p>
-              ) : null}
-
-              {canManage ? <AccessRequestsSection wsId={wsId} docId={doc.id} /> : null}
-
-              {canManage ? (
-                <ShareAddSection
-                  wsId={wsId}
-                  doc={doc}
-                  open={open}
-                  shares={sharesQuery.data?.shares ?? []}
-                  homeWorkspace={sharesQuery.data?.home_workspace}
-                  members={members}
-                  orgWorkspaces={orgWorkspaces}
-                  organization={organization}
-                />
-              ) : null}
-
-              <ShareAccessList
-                wsId={wsId}
-                docId={doc.id}
-                docWorkspaceId={doc.workspace_id}
-                access={sharesQuery.data}
-                canManage={canManage}
-                adminScope={adminScope}
-                canTransfer={canTransfer}
-                ownedByWorkProduct={ownedByWorkProduct}
-                onOpenTransfer={() => setTransferOpen(true)}
-                memberLabels={memberLabels}
-                workspaceNames={workspaceNames}
-                organization={organization}
-                locale={i18n.language}
+        {!canAdminister ? (
+          <ShareAccessList
+            wsId={wsId}
+            docId={doc.id}
+            docWorkspaceId={doc.workspace_id}
+            doc={doc}
+            access={access.data}
+            canManage={false}
+            adminScope={false}
+            memberName={memberName}
+            workspaceName={workspaceName}
+          />
+        ) : access.isLoading ? (
+          <div className="flex items-center gap-2 py-4 text-body text-muted-foreground">
+            <Spinner />
+            {t("documents.share.loading")}
+          </div>
+        ) : access.isError || !access.data ? (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+            <p className="text-body text-destructive">{t("documents.share.error")}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void access.refetch()}
+            >
+              {t("documents.share.retry")}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {members.error ? (
+              <ShareMembersErrorLine
+                error={members.error}
+                retrying={members.retrying}
+                onRetry={members.retry}
               />
+            ) : null}
 
-              {canManage ? (
-                <ShareLinksSection
-                  wsId={wsId}
-                  doc={doc}
-                  onOpenSettings={openOrgDocumentSettings}
-                  locale={i18n.language}
-                  publicLinksEnabled={docSettingsQuery.data?.public_links_enabled}
-                  canManageOrgSettings={canManageOrgSettings}
-                />
-              ) : null}
-            </div>
-          )}
+            <ShareDialogBreakGlassSection
+              wsId={wsId}
+              docId={doc.id}
+              grants={access.data.break_glass}
+              initialOpen={initialSection === "break_glass"}
+              resolveName={memberName}
+            />
 
-          <DialogFooter showCloseButton />
-        </DialogContent>
-      </Dialog>
+            <ShareAddSection
+              wsId={wsId}
+              doc={doc}
+              open={open}
+              shares={access.data.shares ?? []}
+              homeWorkspace={access.data.home_workspace}
+              alreadySharedUserIds={[access.data.acl_owner?.user_id, user?.id]}
+              members={members}
+              orgWorkspaces={orgWorkspaces.data ?? []}
+              organization={organization}
+            />
 
-      {canTransfer ? (
-        <TransferOwnerDialog
-          wsId={wsId}
-          doc={{
-            id: doc.id,
-            title: doc.title,
-            revision: doc.revision,
-            owner_kind: doc.owner_kind,
-          }}
-          currentOwnerUserId={aclOwner?.user_id ?? null}
-          open={transferOpen}
-          onOpenChange={setTransferOpen}
-        />
-      ) : null}
-    </>
+            <ShareAccessList
+              wsId={wsId}
+              docId={doc.id}
+              docWorkspaceId={doc.workspace_id}
+              doc={doc}
+              access={access.data}
+              canManage={canAdminister}
+              adminScope={adminOnly}
+              memberName={memberName}
+              workspaceName={workspaceName}
+              organization={organization}
+              orgMembers={members.rows}
+            />
+
+            {!doc.archived_at ? (
+              <AccessRequestsSection
+                wsId={wsId}
+                documentId={doc.id}
+                focusOnOpen={focusRequests}
+              />
+            ) : null}
+
+            <ShareLinksSection
+              wsId={wsId}
+              doc={doc}
+              onOpenSettings={() =>
+                push(
+                  `${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=documents`,
+                )
+              }
+              locale={i18n.language}
+              publicLinksEnabled={docSettings.data?.public_links_enabled}
+            />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
