@@ -55,7 +55,7 @@ function renderList(rows: LibraryRow[]) {
       groups={[{ key: "unfiled", title: "", rows }]}
       loading={false}
       failure={null}
-      filtered={false}
+      filteredBy={null}
       hasMore={false}
       loadingMore={false}
       onLoadMore={vi.fn()}

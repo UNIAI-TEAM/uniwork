@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
-import { isMyFolder, type DocumentSystemKind } from "../../types/document";
+import { canManageTrashed, isMyFolder, type DocumentSystemKind } from "../../types/document";
 import { setAccessToken } from "../session";
 import {
   archiveDocument,
@@ -12,6 +12,7 @@ import {
   listSharedByMe,
   listSharedWithMe,
   moveDocument,
+  purgeDocument,
   restoreDocument,
 } from "./documents-collections";
 
@@ -268,6 +269,15 @@ describe("documents-collections endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/restore");
   });
 
+  it("purgeDocument posts to /purge and sends no Idempotency-Key", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(purgeDocument("d/1", { signal: undefined })).resolves.toBeUndefined();
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/purge");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBeNull();
+  });
+
   // ---- malformed responses: one per endpoint -----------------------------
   // A list that cannot degrade safely throws so its query lands in the error
   // state; a mutation that cannot prove the write resolves null.
@@ -347,6 +357,11 @@ describe("documents-collections endpoints", () => {
   it.each(malformedBodies)("restoreDocument degrades %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(restoreDocument("d1")).resolves.toBeNull();
+  });
+
+  it.each(malformedBodies)("purgeDocument degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(purgeDocument("d1")).resolves.toBeUndefined();
   });
 
   it("a document without revision is not a verifiable move", async () => {
@@ -584,6 +599,86 @@ describe("documents-collections endpoints", () => {
   it.each(malformedBodies)("listSharedByMe throws rather than fake-empty %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(listSharedByMe("w1")).rejects.toThrow("document_list_invalid");
+  });
+
+  // ---- RESTORE-01 (UNI-1843): trash list item schema + canManageTrashed ----
+
+  it("parses trash list rows with lenient archived_by, purge_after, and my_level and computes canManageTrashed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({
+              id: "t-manage",
+              archived_at: "2026-10-16T00:00:00Z",
+              archived_by: "u1",
+              purge_after: "2026-11-15T00:00:00Z",
+              my_level: "manage",
+            }),
+            summary({
+              id: "t-edit",
+              archived_at: "2026-10-16T00:00:00Z",
+              archived_by: null,
+              purge_after: null,
+              my_level: "edit",
+            }),
+            summary({
+              id: "t-view",
+              archived_at: "2026-10-16T00:00:00Z",
+              my_level: "view",
+            }),
+            summary({
+              id: "t-malformed",
+              archived_at: "2026-10-16T00:00:00Z",
+              archived_by: 42,
+              purge_after: { invalid: true },
+              my_level: ["not-a-string"],
+            }),
+            summary({
+              id: "t-unknown-level",
+              archived_at: "2026-10-16T00:00:00Z",
+              my_level: "super_admin",
+            }),
+          ],
+        }),
+      ),
+    );
+
+    const out = await listDocuments("w1", { archived: true });
+    expect(out.documents).toHaveLength(5);
+
+    const [manageRow, editRow, viewRow, malformedRow, unknownLevelRow] = out.documents;
+    expect(manageRow?.archived_by).toBe("u1");
+    expect(manageRow?.purge_after).toBe("2026-11-15T00:00:00Z");
+    expect(manageRow?.my_level).toBe("manage");
+
+    expect(editRow?.archived_by).toBeNull();
+    expect(editRow?.purge_after).toBeNull();
+    expect(editRow?.my_level).toBe("edit");
+
+    expect(viewRow?.archived_by).toBeUndefined();
+    expect(viewRow?.purge_after).toBeUndefined();
+    expect(viewRow?.my_level).toBe("view");
+
+    // Malformed values degrade to undefined rather than failing the trash list.
+    expect(malformedRow?.archived_by).toBeUndefined();
+    expect(malformedRow?.purge_after).toBeUndefined();
+    expect(malformedRow?.my_level).toBeUndefined();
+
+    expect(canManageTrashed(manageRow)).toBe(true);
+    expect(canManageTrashed(editRow)).toBe(false);
+    expect(canManageTrashed(viewRow)).toBe(false);
+    expect(canManageTrashed(malformedRow)).toBe(false);
+    expect(canManageTrashed(unknownLevelRow)).toBe(false);
+    expect(canManageTrashed(null)).toBe(false);
+    expect(canManageTrashed(undefined)).toBe(false);
+    expect(canManageTrashed({ my_level: null })).toBe(false);
+    expect(canManageTrashed({ my_level: 123 as unknown as string })).toBe(false);
+    // DOC-05: a workspace admin on a restricted trashed row arrives with no
+    // my_level and admin_scope instead - the controls stay enabled (BE-RS-6).
+    expect(canManageTrashed({ admin_scope: true })).toBe(true);
+    expect(canManageTrashed({ my_level: "edit", admin_scope: true })).toBe(true);
+    expect(canManageTrashed({ my_level: "edit", admin_scope: false })).toBe(false);
   });
 });
 

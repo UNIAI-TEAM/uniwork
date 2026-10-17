@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
-import { OFFICE_FRAME_DOWNLOAD_MAX_BYTES } from "./frame-download";
+import { frameDownloadMaxBytes } from "./frame-download";
 import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
 import type { FrameEditLock } from "./frame-edit-lock";
 import { useDocsFrameSession } from "./use-docs-frame-session";
@@ -18,8 +18,14 @@ const minted = (canEdit = true) => ({
 });
 
 /** A frame on the other side of the wire: records what the host posts, posts back as the iframe's window. */
-function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock = undefined as FrameEditLock | undefined } = {}) {
-  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? Promise.resolve({ ...minted(canEdit), module }) : Promise.reject(new Error(`unexpected ${path}`))));
+function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number } = {}) {
+  requestMock.mockImplementation((path: string) => {
+    if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
+    if (String(path).startsWith("/api/v1/config")) {
+      return Promise.resolve(uploadMaxBytes !== undefined ? { flags: {}, documents: { limits: { upload_max_bytes: uploadMaxBytes } } } : { flags: {} });
+    }
+    return Promise.reject(new Error(`unexpected ${path}`));
+  });
   const iframe = document.createElement("iframe");
   document.body.append(iframe);
   const win = iframe.contentWindow!;
@@ -48,7 +54,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   return {
-    iframe, hook, onError, received, sent, options,
+    iframe, hook, onError, received, sent, options, client,
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     respond: (to: Envelope, payload: unknown) => post(envelope("response", to.type, payload, to.id)),
     request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
@@ -418,12 +424,17 @@ describe("useDocsFrameSession: api.download", () => {
     expect(viewer.sent("init")[0]?.payload).toMatchObject({ capabilities: { download: false } });
   });
 
-  it("sends the download cap in init exactly when download is advertised, the same constant api.download enforces", async () => {
-    const editor = setup();
+  it("sends the download cap max(upload_max_bytes + 64 MiB, 256 MiB) in init when download is advertised", async () => {
+    expect(frameDownloadMaxBytes(50 * 1024 * 1024)).toBe(256 * 1024 * 1024);
+    expect(frameDownloadMaxBytes(200 * 1024 * 1024)).toBe(264 * 1024 * 1024);
+
+    const editor = setup({ uploadMaxBytes: 50 * 1024 * 1024 });
+    // The ceiling comes from useDocumentLimits, so the config must have landed before init goes out.
+    await waitFor(() => expect(editor.client.getQueryData(["public-config"])).toBeDefined());
     await editor.boot();
     const editorInit = editor.sent("init")[0]?.payload as { capabilities: { download: boolean }; downloadMaxBytes?: number };
     expect(editorInit.capabilities.download).toBe(true);
-    expect(editorInit.downloadMaxBytes).toBe(OFFICE_FRAME_DOWNLOAD_MAX_BYTES);
+    expect(editorInit.downloadMaxBytes).toBe(256 * 1024 * 1024);
     editor.hook.unmount();
     document.body.innerHTML = "";
     const viewer = setup({ readonly: true });
@@ -466,9 +477,13 @@ describe("useDocsFrameSession: api.download", () => {
   });
 
   it("refuses bytes over the download ceiling", async () => {
+    const ceiling = frameDownloadMaxBytes(200 * 1024 * 1024);
     const { frame, clicks } = await ready();
-    const id = frame.request("api.download", { data: new ArrayBuffer(OFFICE_FRAME_DOWNLOAD_MAX_BYTES + 1) });
+    const fakeOversize = { byteLength: ceiling + 1 };
+    Object.setPrototypeOf(fakeOversize, ArrayBuffer.prototype);
+    const id = frame.request("api.download", { data: fakeOversize });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("too_large"));
+    expect(frame.answerTo(id)?.error?.details).toEqual({ maxBytes: ceiling });
     expect(clicks).toHaveLength(0);
   });
 

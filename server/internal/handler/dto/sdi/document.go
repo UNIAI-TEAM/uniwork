@@ -25,7 +25,8 @@ type CreateDocumentSDI struct {
 // CreateDocumentFileSDI documents POST
 // /api/v1/workspaces/{workspaceID}/documents/files (multipart +
 // Idempotency-Key header, C-01 §14.2): one file document whose bytes stream
-// into FileService (purpose document_file, ≤ 50 MiB, MIME allowlist).
+// into FileService (purpose document_file, ≤ DOCUMENT_MAX_BYTES (default
+// 200 MiB), MIME allowlist).
 // The handler reads the file part directly; the type describes the form for
 // OpenAPI. Text fields must precede the file part in the multipart body (the
 // stream is consumed part-by-part); a title that trails the file falls back
@@ -57,7 +58,7 @@ type PatchDocumentSDI struct {
 // (multipart, C-01 §14.4): stages the bytes of a candidate file version into
 // FileService without creating a version. Committing is a separate call.
 type UploadDocumentFileSDI struct {
-	File []byte `formData:"file" description:"Byte phiên bản mới; purpose document_file, ≤ 50 MiB, checksum bắt buộc"`
+	File []byte `formData:"file" description:"Byte phiên bản mới; purpose document_file, ≤ DOCUMENT_MAX_BYTES (mặc định 200 MiB), checksum bắt buộc"`
 }
 
 // CommitDocumentVersionSDI is POST

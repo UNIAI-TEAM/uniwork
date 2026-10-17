@@ -315,8 +315,10 @@ WHERE d.organization_id = sqlc.arg(organization_id)
 ORDER BY d.position, d.id
 LIMIT sqlc.arg(page_limit);
 
--- The trash view: manage-only (workspace admin, the ACL owner, or a manage
--- share), ordered by archive time descending.
+-- The trash view: manage or edit (workspace admin, the ACL owner, a
+-- workspace-visible document with workspace_level = 'edit' for a human
+-- workspace member, or a manage/edit share), ordered by archive time
+-- descending.
 -- name: ListArchivedDocumentsPage :many
 SELECT d.*
 FROM documents d
@@ -332,13 +334,16 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND ((sqlc.arg(see_all)
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+       OR (sqlc.arg(member_visible) AND NOT sqlc.arg(agent)::boolean
+           AND d.visibility = 'workspace'
+           AND d.workspace_level = 'edit')
        OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = 'manage'
+              AND s.level IN ('manage', 'edit')
               AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
@@ -359,53 +364,49 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   -- above is manage-only), so the service refuses access=manage/edit here and
   -- 'restricted' - the row's visibility - is the one access filter it takes.
   AND (sqlc.narg(access)::text IS NULL OR d.visibility = 'restricted')
+  -- A term can match on title for every row this view returns; it may match
+  -- on content (search_text) only for a row the caller can act on AND read:
+  -- managed by the caller's own access (flagged ACL owner - an effective
+  -- member the resolver grants manage to - or a live manage share), or admin
+  -- scope (see_all) on a non-restricted row. A break-glass grant is capped at
+  -- view, so it never qualifies here and its holder falls to the title
+  -- branch. A restricted trashed row reached only through AdminScope matches
+  -- on title alone - admins administer it but never read its content, and an
+  -- edit holder's trash is read-only metadata either way (RESTORE-01 §3).
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
-           AND (NOT sqlc.arg(see_all)::boolean
-                 OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
-                 OR EXISTS (
-                      SELECT 1 FROM document_shares rs
-                      WHERE rs.organization_id = d.organization_id
-                        AND rs.workspace_id = d.workspace_id
-                        AND rs.document_id = d.id
-                        AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
-                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
-                             OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
-                 OR EXISTS (
-                      SELECT 1 FROM document_break_glass_grants g
-                      WHERE g.organization_id = d.organization_id
-                        AND g.workspace_id = d.workspace_id
-                        AND g.document_id = d.id
-                        AND g.actor_id = sqlc.arg(actor_id)
-                        AND g.actor_kind = 'human'
-                        AND g.revoked_at IS NULL
-                        AND g.expires_at > now()))
+           AND ((sqlc.arg(see_all)
+                 AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
+                 AND d.visibility <> 'restricted')
+                OR (sqlc.arg(acl_owner)::boolean AND d.acl_owner_id = sqlc.arg(actor_id))
+                OR (sqlc.arg(allow_shares) AND EXISTS (
+                     SELECT 1 FROM document_shares rs
+                     WHERE rs.organization_id = d.organization_id
+                       AND rs.workspace_id = d.workspace_id
+                       AND rs.document_id = d.id
+                       AND rs.revoked_at IS NULL
+                       AND rs.level = 'manage'
+                       AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                            OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                            OR (rs.principal_type = 'workspace'
+                                AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
            AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
-       OR ((sqlc.arg(match_title)::boolean OR NOT (NOT sqlc.arg(see_all)::boolean
-                 OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
-                 OR EXISTS (
-                      SELECT 1 FROM document_shares rs
-                      WHERE rs.organization_id = d.organization_id
-                        AND rs.workspace_id = d.workspace_id
-                        AND rs.document_id = d.id
-                        AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
-                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
-                             OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
-                 OR EXISTS (
-                      SELECT 1 FROM document_break_glass_grants g
-                      WHERE g.organization_id = d.organization_id
-                        AND g.workspace_id = d.workspace_id
-                        AND g.document_id = d.id
-                        AND g.actor_id = sqlc.arg(actor_id)
-                        AND g.actor_kind = 'human'
-                        AND g.revoked_at IS NULL
-                        AND g.expires_at > now())))
+       OR ((sqlc.arg(match_title)::boolean
+            OR NOT ((sqlc.arg(see_all)
+                     AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
+                     AND d.visibility <> 'restricted')
+                    OR (sqlc.arg(acl_owner)::boolean AND d.acl_owner_id = sqlc.arg(actor_id))
+                    OR (sqlc.arg(allow_shares) AND EXISTS (
+                         SELECT 1 FROM document_shares rs
+                         WHERE rs.organization_id = d.organization_id
+                           AND rs.workspace_id = d.workspace_id
+                           AND rs.document_id = d.id
+                           AND rs.revoked_at IS NULL
+                           AND rs.level = 'manage'
+                           AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                                OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                                OR (rs.principal_type = 'workspace'
+                                    AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[])))))))
            AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.archived_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))

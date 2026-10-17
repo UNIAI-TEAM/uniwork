@@ -137,3 +137,21 @@ export function shareLevelNotAllowedMax(err: unknown): DocumentAccessLevel | nul
   if (typeof max !== "string") return null;
   return DOCUMENT_ACCESS_LEVELS.find((level) => level === max) ?? null;
 }
+
+/**
+ * True when a purge or restore request targeted a document that is not in the
+ * trash (`400 document_not_in_trash`, RESTORE-01 §2 P-1). Deliberately
+ * unclassified so it does not trigger save-conflict, quota or gone recovery.
+ */
+export function isDocumentNotInTrashError(err: unknown): boolean {
+  return errorCode(err) === "document_not_in_trash";
+}
+
+/**
+ * True when an archive or purge subtree exceeded the per-command node bound
+ * (`400`/`422 folder_too_large`, FD-06 / RESTORE-01 §2 P-7). Deliberately
+ * unclassified so it does not trigger billing quota or save-conflict recovery.
+ */
+export function isFolderTooLargeError(err: unknown): boolean {
+  return errorCode(err) === "folder_too_large";
+}

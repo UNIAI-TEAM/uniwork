@@ -175,7 +175,8 @@ export async function patchDocument(
 /**
  * POST /api/v1/workspaces/{workspaceID}/documents/files — one multipart call
  * that creates a file document whose bytes stream into FileService
- * (purpose document_file, ≤ 50 MiB, MIME allowlist, magic-byte check).
+ * (purpose document_file, ≤ the configured DOCUMENT_MAX_BYTES cap — see
+ * documents.limits in GET /api/v1/config — MIME allowlist, magic-byte check).
  */
 export async function createDocumentFile(
   wsId: string,

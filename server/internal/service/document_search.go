@@ -393,15 +393,16 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		return out, nil
 
 	case in.Archived:
-		// The trash answers to manage-level eyes only (decideDocumentAccess
-		// does the same on a single row).
+		// The trash answers to manage and edit holders (RESTORE-01 §3):
+		// attachListAccess below populates the caller's real level on each row.
 		var cursorAt pgtype.Timestamptz
 		if cursor.At != nil {
 			cursorAt = pgtype.Timestamptz{Time: *cursor.At, Valid: true}
 		}
 		rows, err := s.q.ListArchivedDocumentsPage(ctx, db.ListArchivedDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-			SeeAll: scope.seeAll, AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
+			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
+			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
 			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),

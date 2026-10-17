@@ -3,12 +3,14 @@
 import type { ReactNode } from "react";
 import { FolderOpen, Search, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { Member } from "@uniwork/core/types/workspace";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryGroupSpans, libraryLadder, type LibraryColumnId } from "./library-columns";
+import { TrashRowView, type TrashRowActions } from "./documents-trash-row";
+import { libraryGroupSpans, libraryLadder, trashLadder, type LibraryColumnId } from "./library-columns";
 import { rowTypeKey, type RowGroup } from "./library-rows";
 
 const COLUMN_LABEL: Record<LibraryColumnId, string> = {
@@ -21,6 +23,17 @@ const COLUMN_LABEL: Record<LibraryColumnId, string> = {
   access: "documents.home.columns.my_access",
   visibility: "documents.home.columns.visibility",
   actions: "documents.home.columns.actions",
+  deleted_by: "documents.trash.columns.deleted_by",
+  deleted_at: "documents.trash.columns.deleted_at",
+  purge_in: "documents.trash.columns.purge_in",
+};
+
+// The trash table reads its own header keys (documents.trash.columns.*) for
+// every column; it shares the shell, the group spanners and the states only.
+const TRASH_COLUMN_LABEL: Record<LibraryColumnId, string> = {
+  ...COLUMN_LABEL,
+  name: "documents.trash.columns.name",
+  actions: "documents.trash.columns.actions",
 };
 
 export interface DocumentsLibraryListProps {
@@ -29,16 +42,27 @@ export interface DocumentsLibraryListProps {
   loading: boolean;
   /** The query failed and no rows are cached; `permission` is a 403 tab. */
   failure: "error" | "permission" | null;
-  /** The rows are empty because a filter is on, not because the library is. */
-  filtered: boolean;
+  /** The rows are empty because a filter is on, not because the library is.
+   *  "server" (default when set): the server already filtered the list, so
+   *  the empty line says simply "no matches". "client": the filter ran over
+   *  only what has loaded (merged source rows, starred, the sources view), so
+   *  while the server has more the copy says so and offers the next page. */
+  filteredBy?: "server" | "client" | null;
   /** The access filter (not only the type chip) is on, so the empty line names access, not file type. */
   accessFiltered?: boolean;
   /** The type chip is on too: with both on, the empty line names the filters, not one of them. */
   typeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
-  /** Show the archive badge on every row (the archive tab). */
-  archived?: boolean;
+  /** The Thùng rác layout (RESTORE-01): the trash ladder and TrashRowView
+   *  with its own columns and per-row commands instead of the library cells. */
+  trash?: {
+    actions: TrashRowActions;
+    /** The workspace member list by user id, feeding the Xóa bởi column. */
+    members: ReadonlyMap<string, Member>;
+    /** True once the members query has answered; until then an unknown id is "still loading", not "former member". */
+    membersReady: boolean;
+  };
   /** Show the Type column (`documents.home.columns.type`) when an open folder is displayed. */
   showType?: boolean;
   hasMore: boolean;
@@ -61,11 +85,11 @@ export function DocumentsLibraryList({
   groups,
   loading,
   failure,
-  filtered,
+  filteredBy = null,
   accessFiltered = false,
   typeFiltered = false,
   cardsShown = false,
-  archived = false,
+  trash,
   showType = false,
   hasMore,
   loadingMore,
@@ -107,23 +131,25 @@ export function DocumentsLibraryList({
 
   const total = groups.reduce((sum, group) => sum + group.rows.length, 0);
   if (total === 0) {
-    if (filtered) {
-      // The type filter runs on the pages already loaded; while the server has
-      // more, "no matches" is not an answer yet, so offer the next page.
+    if (filteredBy) {
+      // "no matches" copy (UNI-1868): the server filtered the list already, so
+      // the plain line stands. Only a client-filtered view may honestly say
+      // "no matches in what is loaded" while more pages wait.
+      const clientFiltered = filteredBy === "client";
       return (
         <CollectionPageState
           icon={Search}
           title={t("documents.library.no_matches_title")}
           description={t(
             accessFiltered && typeFiltered
-              ? hasMore
+              ? clientFiltered && hasMore
                 ? "documents.home.no_matches_filters_more_description"
                 : "documents.home.no_matches_filters_description"
               : accessFiltered
-                ? hasMore
+                ? clientFiltered && hasMore
                   ? "documents.home.no_matches_access_more_description"
                   : "documents.home.no_matches_access_description"
-                : hasMore
+                : clientFiltered && hasMore
                   ? "documents.home.no_matches_more_description"
                   : cardsShown
                     ? "documents.home.no_matches_description"
@@ -158,8 +184,14 @@ export function DocumentsLibraryList({
     return "";
   };
 
-  const ladder = libraryLadder(showType);
+  const ladder = trash ? trashLadder() : libraryLadder(showType);
   const groupSpans = libraryGroupSpans(ladder);
+  const columnLabel = trash ? TRASH_COLUMN_LABEL : COLUMN_LABEL;
+  // A trash row names its parent folder when the parent is itself a listed
+  // trash row; the row titles by id are enough for that lookup.
+  const trashTitles = trash
+    ? new Map(groups.flatMap((group) => group.rows.flatMap((row) => (row.type === "document" ? [[row.id, row.doc.title] as const] : []))))
+    : null;
 
   return (
     <div className="@container/library flex flex-col">
@@ -183,7 +215,7 @@ export function DocumentsLibraryList({
             <tr className="border-b border-border text-caption text-muted-foreground">
               {ladder.columns.map((column) => (
                 <th key={column.id} scope="col" className={cn("px-3 py-2 font-medium", column.cell)}>
-                  {column.id === "actions" ? <span className="sr-only">{t(COLUMN_LABEL[column.id])}</span> : t(COLUMN_LABEL[column.id])}
+                  {column.id === "actions" ? <span className="sr-only">{t(columnLabel[column.id])}</span> : t(columnLabel[column.id])}
                 </th>
               ))}
             </tr>
@@ -201,16 +233,28 @@ export function DocumentsLibraryList({
                   ))}
                 </tr>
               ) : null}
-              {group.rows.map((row) => (
-                <LibraryRowView
-                  key={row.id}
-                  row={row}
-                  handlers={handlers}
-                  archived={archived}
-                  ladder={ladder}
-                  typeCell={showType ? t(rowTypeKey(row)) : undefined}
-                />
-              ))}
+              {group.rows.map((row) =>
+                trash ? (
+                  <TrashRowView
+                    key={row.id}
+                    row={row}
+                    members={trash.members}
+                    membersReady={trash.membersReady}
+                    parentTitle={row.type === "document" && row.doc.parent_id ? (trashTitles?.get(row.doc.parent_id) ?? null) : null}
+                    ladder={ladder}
+                    trash={trash.actions}
+                    onOpen={handlers.onOpen}
+                  />
+                ) : (
+                  <LibraryRowView
+                    key={row.id}
+                    row={row}
+                    handlers={handlers}
+                    ladder={ladder}
+                    typeCell={showType ? t(rowTypeKey(row)) : undefined}
+                  />
+                ),
+              )}
             </tbody>
           ))}
         </table>

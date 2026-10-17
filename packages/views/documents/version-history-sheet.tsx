@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { Download, Eye, RotateCcwClock, RotateCcw, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import {
 } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
+import { useMembers } from "@uniwork/core/workspaces";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -38,6 +39,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { formatFileSize, formatWhen } from "./document-format";
 import { reportWriteRefused } from "./edit-lock-refusal";
+import { VersionAuthor } from "./version-author";
 
 // The editor chunk only arrives when a page version is actually previewed, so
 // opening the sheet never drags TipTap into the route's first load.
@@ -85,6 +87,9 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
   const create = useCreateDocumentVersion(wsId, doc.id);
   const restore = useRestoreDocumentVersion(wsId, doc.id);
   const download = useDocumentDownload(wsId, doc.id);
+  // One member lookup for the whole list; its cache is shared with the library.
+  const members = useMembers(open ? wsId : "");
+  const memberById = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
 
   const [label, setLabel] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -279,6 +284,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
                         {version.size_bytes > 0 ? ` · ${formatFileSize(version.size_bytes, i18n.language)}` : ""}
                         {version.created_at ? ` · ${formatWhen(version.created_at, i18n.language)}` : ""}
                       </p>
+                      <VersionAuthor version={version} members={memberById} ready={members.data !== undefined} />
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5">
                       {doc.kind === "page" ? (

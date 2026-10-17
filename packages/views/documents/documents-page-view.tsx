@@ -6,9 +6,10 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore } from "@uniwork/core/auth";
-import { useCreateDocumentFile, useDocument, useUpdateDocument } from "@uniwork/core/documents/hooks";
+import { useCreateDocumentFile, useDocument, useDocumentLimits, useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
 import { useDownloadDocumentSource } from "@uniwork/core/documents/hooks-library";
+import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { paths } from "@uniwork/core/paths";
 import { canEditDocument } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -28,10 +29,10 @@ import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library
 import { FolderBreadcrumb, LibraryToolbar, type ScopeTab } from "./documents-library-toolbar";
 import { DocumentsSidebar, DocumentsSidebarSheet, SOURCE_KINDS, type LibraryView } from "./documents-sidebar";
 import { DocumentUploadDialog } from "./document-upload-dialog";
-import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
+import { groupRows, type AccessFilter, type GroupBy, type TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
-import { documentErrorMessage } from "./document-error-message";
+import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { useDropUpload } from "./use-drop-upload";
 import { useSourcePreview } from "./source-preview-dialog";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
@@ -39,6 +40,9 @@ import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchBox } from "./documents-search-box";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
+import { useTrashActions } from "./use-trash-actions";
+/** The access options the trash's server filter accepts (UNI-1868): manage/edit are refused there. */
+const ARCHIVED_ACCESS_OPTIONS: readonly AccessFilter[] = ["all", "restricted"];
 
 function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
   if (searchParams.get("folder")) return { kind: "home" };
@@ -96,9 +100,10 @@ export interface DocumentsPageViewProps {
  * Every row is a server answer; create, upload and save await the server.
  */
 export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: DocumentsPageViewProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
+  const limits = useDocumentLimits({ enabled });
   const context = useOptionalWorkspace();
   const orgId = context?.workspace.organization_id ?? "";
   const { push, searchParams } = useNavigation();
@@ -159,13 +164,16 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const parentForCreate = view.kind === "home" ? folderId : null;
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title });
+  const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred");
 
+  const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
   const drop = useDropUpload({
     enabled: enabled && canCreate && !folderInvalid,
+    maxBytes: limits.upload_max_bytes,
     upload: async (file) => {
       await createFile.mutateAsync({ file, meta: parentForCreate ? { parent_id: parentForCreate } : undefined });
     },
@@ -186,13 +194,15 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   };
 
   const uploadFile = async (file: File) => {
+    const invalid = documentUploadValidationMessage(file, limits.upload_max_bytes, t, i18n.language);
+    if (invalid) return setUploadError(invalid);
     setUploadError(null);
     try {
       const doc = await createFile.mutateAsync({ file, meta: parentForCreate ? { parent_id: parentForCreate } : undefined });
       setUploadOpen(false);
       onOpen(doc.id);
     } catch (error) {
-      setUploadError(documentErrorMessage(error, t, "documents.page.upload_failed"));
+      setUploadError(documentErrorMessage(error, t, "documents.page.upload_failed", { locale: i18n.language, file, maxBytes: limits.upload_max_bytes }));
     }
   };
 
@@ -234,7 +244,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
-    onRestore: view.kind === "archived" ? rowDialogs.onRestore : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {
           const op = starred ? unfavorite : favorite;
@@ -249,7 +258,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const groups = groupRows(library.state.rows, view.kind === "home" && folderId ? "none" : groupBy, library.folderIndex);
   const scope: ScopeTab | null = view.kind === "home" || view.kind === "recent" || view.kind === "shared" || view.kind === "archived" ? view.kind : null;
   const accessFiltered = library.access !== "all";
-  const filtered = (chip !== "all" || accessFiltered) && library.unfilteredCount > 0;
+  const filteredBy = chip !== "all" || accessFiltered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   const listLoading = state.loading || (Boolean(folderId) && folder.isPending);
   // The header and the active tab count the same thing: the rows this list
@@ -369,7 +378,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   {view.kind === "home" ? (
                     <DocumentsGreeting name={context?.user.display_name ?? null} folderTitle={folderDoc?.title ?? null} readOnly={!canCreate} />
                   ) : (
-                    <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
+                      {view.kind === "archived" ? <p className="text-caption text-muted-foreground">{t("documents.trash.intro")}</p> : null}
+                    </div>
                   )}
                   <Button type="button" variant="outline" size="sm" className="shrink-0 xl:hidden" onClick={() => setNavOpen(true)}>
                     <FolderTree aria-hidden className="size-3.5" />
@@ -399,6 +411,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   onChip={setChip}
                   access={library.access}
                   onAccess={library.setAccess}
+                  accessOptions={view.kind === "archived" ? ARCHIVED_ACCESS_OPTIONS : undefined}
                   groupBy={groupBy}
                   onGroupBy={setGroupBy}
                   sort={view.kind === "home" && folderId ? library.sort : null}
@@ -408,11 +421,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   groups={groups}
                   loading={listLoading}
                   failure={state.failure}
-                  filtered={filtered}
+                  filteredBy={filteredBy}
                   accessFiltered={accessFiltered}
                   typeFiltered={chip !== "all"}
                   cardsShown={canCreate && view.kind === "home"}
-                  archived={view.kind === "archived"}
+                  trash={view.kind === "archived" ? { actions: trashActions, members: memberIndex, membersReady: Boolean(members.data) } : undefined}
                   showType={view.kind === "home" && Boolean(folderId)}
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}
@@ -425,6 +438,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   handlers={handlers}
                   empty={emptyCopy}
                 />
+                {view.kind === "archived" && !listLoading && state.rows.length > 0 ? (
+                  <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-caption text-muted-foreground">{t("documents.trash.note")}</p>
+                ) : null}
                 {canCreate && view.kind === "home" && !listLoading && state.rows.length > 0 ? (
                   <p className="text-caption text-muted-foreground">{t("documents.home.drop_hint")}</p>
                 ) : null}
@@ -449,13 +465,15 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         }}
         title={t("documents.upload.title")}
         description={t("documents.upload.description")}
-        hint={t("documents.upload.size_hint")}
+        hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
         pending={createFile.isPending}
         error={uploadError}
         onSubmit={(file) => void uploadFile(file)}
       />
 
       {sourcePreview.dialog}
+
+      {trashActions.dialog}
 
       {rowDialogs.dialogs}
     </div>

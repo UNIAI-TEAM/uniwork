@@ -6,11 +6,13 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { heldEditLockId } from "@uniwork/core/documents/edit-lock-registry";
-import { useDocumentDownload, useUploadDocumentFile } from "@uniwork/core/documents/hooks";
+import { useDocumentDownload, useDocumentLimits, useUploadDocumentFile } from "@uniwork/core/documents/hooks";
 import { useCommitDocumentVersion } from "@uniwork/core/documents/hooks-versions";
+import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import type { Document } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
+import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { reportWriteRefused } from "./edit-lock-refusal";
 
@@ -31,11 +33,12 @@ export interface DocumentFileActions {
  * the Office editor replaces that view, so both run the same writes.
  */
 export function useDocumentFileActions(wsId: string, doc: Document): DocumentFileActions {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const downloadFile = useDocumentDownload(wsId, doc.id);
   const upload = useUploadDocumentFile(wsId, doc.id);
   const commit = useCommitDocumentVersion(wsId, doc.id);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const limits = useDocumentLimits({ enabled: dialogOpen });
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   // One key per user intent: a retry of the same pick must replay the same
@@ -67,6 +70,11 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
   };
 
   const stageNewVersion = async (picked: File) => {
+    const invalid = documentUploadValidationMessage(picked, limits.upload_max_bytes, t, i18n.language);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     setError(null);
     const lockId = heldEditLockId(doc.id);
     if (idempotencyKey.current && keyLockId.current !== lockId) idempotencyKey.current = null;
@@ -95,8 +103,12 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
         idempotencyKey.current = null;
       }
       setError(
-        apiErrorMessage(err) ??
-          t(staged ? "documents.file.commit_failed" : "documents.file.upload_failed"),
+        documentErrorMessage(
+          err,
+          t,
+          staged ? "documents.file.commit_failed" : "documents.file.upload_failed",
+          { locale: i18n.language, file: picked, maxBytes: limits.upload_max_bytes },
+        ),
       );
     }
   };
@@ -113,7 +125,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       }}
       title={t("documents.upload.version_title")}
       description={t("documents.upload.version_description")}
-      hint={t("documents.upload.size_hint")}
+      hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
       pending={pending}
       error={error}
       onSubmit={(picked) => void stageNewVersion(picked)}

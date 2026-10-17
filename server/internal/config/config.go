@@ -9,6 +9,16 @@ import (
 	"time"
 )
 
+const (
+	// DefaultDocumentMaxBytes is the default per-file byte ceiling for Documents
+	// and Office uploads/saves (200 MiB; SIZE-S1 / UNI-1859).
+	DefaultDocumentMaxBytes int64 = 200 << 20
+	// MinDocumentMaxBytes and MaxDocumentMaxBytes bound DOCUMENT_MAX_BYTES to
+	// [1 MiB, 2 GiB].
+	MinDocumentMaxBytes int64 = 1 << 20
+	MaxDocumentMaxBytes int64 = 2 << 30
+)
+
 type Config struct {
 	Port            string
 	DatabaseURL     string
@@ -35,7 +45,10 @@ type Config struct {
 	DocumentCommitIntentClaimTTL  time.Duration
 	DocumentCommitIntentRetention time.Duration
 	DocumentCommitIntentSweepTick time.Duration
-	FrontendOrigin                string
+	// DocumentMaxBytes (DOCUMENT_MAX_BYTES) is the single byte ceiling for
+	// document file creates, version uploads, Office saves and exports.
+	DocumentMaxBytes int64
+	FrontendOrigin   string
 	// PreviewOrigin is the separate, cookie-less origin used by isolated
 	// Markdown/HTML frames. It must never be the frontend origin.
 	PreviewOrigin string
@@ -252,6 +265,15 @@ func (c Config) EmailHubRedirectURL(provider string) string {
 	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/email-hub-connections/" + provider + "/callback"
 }
 
+// EffectiveDocumentMaxBytes returns DocumentMaxBytes, or DefaultDocumentMaxBytes
+// when Config was constructed directly in a unit test with a zero value.
+func (c Config) EffectiveDocumentMaxBytes() int64 {
+	if c.DocumentMaxBytes > 0 {
+		return c.DocumentMaxBytes
+	}
+	return DefaultDocumentMaxBytes
+}
+
 func Load() (Config, error) {
 	// OFFICE_CHANGE_SNAPSHOT_TTL is parsed before the struct literal because a
 	// set value must fail the load when malformed instead of silently keeping
@@ -301,6 +323,10 @@ func Load() (Config, error) {
 	if editHoldMax > editHoldChainMax {
 		return Config{}, fmt.Errorf("DOCUMENT_EDIT_HOLD_MAX must not exceed DOCUMENT_EDIT_HOLD_CHAIN_MAX")
 	}
+	documentMaxBytes, err := parseDocumentMaxBytes(os.Getenv("DOCUMENT_MAX_BYTES"))
+	if err != nil {
+		return Config{}, err
+	}
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
 		DatabaseURL:                   os.Getenv("DATABASE_URL"),
@@ -316,6 +342,7 @@ func Load() (Config, error) {
 		DocumentCommitIntentClaimTTL:  parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_CLAIM_TTL"), 2*time.Minute),
 		DocumentCommitIntentRetention: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_RETENTION"), 7*24*time.Hour),
 		DocumentCommitIntentSweepTick: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK"), 10*time.Minute),
+		DocumentMaxBytes:              documentMaxBytes,
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),
 		PreviewCapabilitySecret:       os.Getenv("PREVIEW_CAPABILITY_SECRET"),
@@ -510,6 +537,18 @@ func parseRequiredInt64(raw string) int64 {
 		return 0
 	}
 	return n
+}
+
+func parseDocumentMaxBytes(raw string) (int64, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return DefaultDocumentMaxBytes, nil
+	}
+	n, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil || n < MinDocumentMaxBytes || n > MaxDocumentMaxBytes {
+		return 0, fmt.Errorf("DOCUMENT_MAX_BYTES must be an integer between %d (1 MiB) and %d (2 GiB), got %q", MinDocumentMaxBytes, MaxDocumentMaxBytes, raw)
+	}
+	return n, nil
 }
 
 func parseRatio(raw string, fallback float64) float64 {

@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { documentKeys } from "@uniwork/core/documents/keys";
+import { useDocumentLimits } from "@uniwork/core/documents/limits";
 import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
 import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameApiBase, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
@@ -29,7 +30,7 @@ import {
   type FrameLife,
   type HostSaveWatch,
 } from "./docs-frame-session-model";
-import { OFFICE_FRAME_DOWNLOAD_MAX_BYTES, deliverFrameDownload } from "./frame-download";
+import { deliverFrameDownload, frameDownloadMaxBytes } from "./frame-download";
 import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave } from "./frame-remote-version";
 import { useFrameRemote } from "./use-frame-remote-source";
 
@@ -68,10 +69,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [host, setHost] = useState<DocsFrameHost | null>(null);
   const [aiRunning, setAiRunning] = useState(false);
   const syncFeed = useFlag("office_sync_feed", false);
+  const uploadMaxBytes = useDocumentLimits().upload_max_bytes;
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLockId });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLockId };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLockId, uploadMaxBytes });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLockId, uploadMaxBytes };
   // The current frame was initialised read-only because the lock was not held: holding it later
   // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
   const initLockedOut = useRef(false);
@@ -260,6 +262,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
           : null;
         const capabilities = officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true);
+        const downloadMaxBytes = frameDownloadMaxBytes(latest.current.uploadMaxBytes);
         const init: Omit<InitPayload, "protocolVersion"> = {
           ...frameToken,
           documentId: doc, workspaceId: current.wsId,
@@ -268,7 +271,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           capabilities,
           // The cap api.download enforces, told up front so the conflict dialog can disable its
           // download choice before a 413; only with the capability (the frame ignores it otherwise).
-          ...(capabilities.download ? { downloadMaxBytes: OFFICE_FRAME_DOWNLOAD_MAX_BYTES } : {}),
+          ...(capabilities.download ? { downloadMaxBytes } : {}),
           ...(name ? { user: { displayName: name } } : {}),
           ...(recovery ? { recovery } : {}),
         };
@@ -330,10 +333,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.assets.resolve": proxy("api.assets.resolve", false, (api) => api.resolveAssets),
         // The conflict dialog's "download my version": bytes only; name, type and size are the host's.
         "api.download": async (payload) => {
-          const { options: current, scopeId: doc, viewOnly: refused } = latest.current;
+          const { options: current, scopeId: doc, viewOnly: refused, uploadMaxBytes: uploadMax } = latest.current;
           const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
           if (refused || minted?.can_edit !== true) throw readOnly("api.download");
-          return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc);
+          const ceiling = frameDownloadMaxBytes(uploadMax);
+          return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc, ceiling);
         },
         "app.open": async () => {
           const { options: current, viewOnly: refused } = latest.current;

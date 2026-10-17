@@ -420,6 +420,33 @@ describe("DocumentFileView", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("stale");
   });
 
+  it("refuses a new version over upload_max_bytes before making any upload request", async () => {
+    const calls: string[] = [];
+    requestMock.mockImplementation((path: string) => {
+      calls.push(path);
+      if (path.startsWith("/api/v1/documents/d1/versions")) {
+        return Promise.resolve({ versions, next_cursor: null });
+      }
+      return Promise.resolve({});
+    });
+
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    expect(await screen.findByText("Tối đa 200 MB mỗi tệp.")).toBeInTheDocument();
+    const huge = new File(["new"], "báo-cáo.pdf", { type: "application/pdf" });
+    Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });
+    fireEvent.change(await screen.findByLabelText(t("documents.upload.pick")), {
+      target: { files: [huge] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.upload.too_large_named", { name: "báo-cáo.pdf", size: "200,1 MB", max: "200 MB" }),
+    );
+    expect(calls.some((p) => p.includes("/uploads"))).toBe(false);
+  });
+
+
   it("downloads the bytes through the authenticated proxy route", async () => {
     mockApi();
     const fetchMock = vi.fn((_input: RequestInfo | URL) =>

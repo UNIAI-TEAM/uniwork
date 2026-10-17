@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -66,8 +66,6 @@ export interface LibraryRowHandlers {
   onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
-  /** Restore a trashed folder from the Archive scope (manage); absent hides it. */
-  onRestore?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
@@ -94,13 +92,11 @@ function initial(name: string): string {
 export function LibraryRowView({
   row,
   handlers,
-  archived,
   ladder,
   typeCell,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
-  archived: boolean;
   /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
   ladder: LibraryLadder;
   typeCell?: ReactNode;
@@ -129,7 +125,7 @@ export function LibraryRowView({
   // A starred row whose document is not in any loaded list has no version or
   // organisation yet: no app action until the document is known.
   const desktop =
-    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !archived
+    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !doc.archived_at
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
@@ -139,15 +135,12 @@ export function LibraryRowView({
   const starred = Boolean(doc && handlers.isStarred(doc.id));
   const metaLine = [editor, updated, size].filter(Boolean).join(" · ");
 
-  // A trashed folder is not browsable: its primary action is Restore when the
-  // viewer may restore it, and without that the name is plain text, not a link.
-  const trashedFolder = Boolean(doc) && folder && archived;
-  const canRestore = Boolean(handlers.onRestore) && canArchiveRow(level);
+  // A row whose archive stamp survived into a live list is inert: the trash
+  // view (its own rows) owns restore/purge, so here nothing runs on it.
+  const trashed = Boolean(doc?.archived_at);
 
   const primary = () => {
-    if (doc && trashedFolder) {
-      if (canRestore) handlers.onRestore?.(doc);
-    } else if (doc && folder) handlers.onFolder(doc.id);
+    if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") {
       // U-SRC1: the primary click opens the file view-only where the row can
@@ -159,11 +152,8 @@ export function LibraryRowView({
   };
 
   const actions: RowAction[] = [];
-  // A trashed folder is not browsable: its menu offers Restore instead of Open.
-  if (doc && trashedFolder) {
-    if (canRestore) {
-      actions.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore, run: () => handlers.onRestore?.(doc) });
-    }
+  if (doc && trashed) {
+    // No live-list command applies to a trashed row; the badge says why.
   } else if (doc && folder) {
     actions.push({ id: "open-folder", label: t("documents.home.row.open_folder"), icon: FolderOpen, run: primary });
   } else if (doc) {
@@ -181,8 +171,8 @@ export function LibraryRowView({
     }
   }
   // Each command follows the level of THIS row (create subfolder / rename /
-  // move: edit, archive: manage); the archive tab offers none of them.
-  if (doc && !archived) {
+  // move: edit, archive: manage); a trashed row offers none of them.
+  if (doc && !trashed) {
     if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
       actions.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
     }
@@ -257,7 +247,7 @@ export function LibraryRowView({
           {starred ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}
-          {archived || doc?.archived_at ? (
+          {trashed ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
           {doc?.edit_lock && !doc.edit_lock.held_by_me ? (
@@ -297,7 +287,7 @@ export function LibraryRowView({
         className="group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40"
       >
         <td className="px-3 py-2">
-          {trashedFolder && !canRestore ? (
+          {trashed ? (
             <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
           ) : (
             <button type="button" onClick={primary} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">

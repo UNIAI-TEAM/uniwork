@@ -67,6 +67,8 @@ type Options struct {
 	// NewID is the id source, for a test that wants readable ids. Default: a
 	// fresh ULID.
 	NewID func() string
+	// DocumentMaxBytes overrides the document_file policy cap when positive.
+	DocumentMaxBytes int64
 }
 
 // Fake is an in-memory files.Service. It is safe for concurrent use, so a
@@ -135,7 +137,7 @@ func New(opts Options) *Fake {
 		newID = func() string { return ulid.Make().String() }
 	}
 
-	specs := files.DefaultSpecs()
+	specs := files.SpecsWithDocumentMaxBytes(opts.DocumentMaxBytes)
 	for i := range specs {
 		specs[i].Disabled = false
 	}

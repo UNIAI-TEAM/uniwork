@@ -36,6 +36,8 @@ type DocumentDTO struct {
 	OwnerKind           *string                 `json:"owner_kind,omitempty" description:"work_product khi tài liệu thuộc sở hữu" example:"work_product"`
 	OwnerID             *string                 `json:"owner_id,omitempty" description:"ULID của owner; đọc cùng owner_kind" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
 	ArchivedAt          *string                 `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	ArchivedBy          *string                 `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	PurgeAfter          *string                 `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
 	CreatedBy           string                  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedByKind       string                  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
 	UpdatedBy           string                  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
@@ -202,6 +204,8 @@ type DocumentSummaryDTO struct {
 	OwnerKind     *string                     `json:"owner_kind,omitempty" example:"work_product"`
 	OwnerID       *string                     `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
 	ArchivedAt    *string                     `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	ArchivedBy    *string                     `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	PurgeAfter    *string                     `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
 	CreatedBy     string                      `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedByKind string                      `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
 	UpdatedBy     string                      `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`

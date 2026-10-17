@@ -106,7 +106,7 @@ func TestDocumentSourceSaveRefusesWhatTheUploadWouldRefuse(t *testing.T) {
 	taskA := s.task(tn, tn.wsA)
 	pdf := s.attachmentWith(tn, tn.wsA, taskA, "ok.pdf", "application/pdf", 12, "")
 	video := s.attachmentWith(tn, tn.wsA, taskA, "demo.mp4", "video/mp4", 12, "")
-	big := s.attachmentWith(tn, tn.wsA, taskA, "big.pdf", "application/pdf", 50<<20+1, "")
+	big := s.attachmentWith(tn, tn.wsA, taskA, "big.pdf", "application/pdf", 200<<20+1, "")
 	csv := s.attachmentWith(tn, tn.wsA, taskA, "data.csv", "text/csv", 12, "")
 	store.objects["workspaces/"+tn.wsA+"/attachments/"+pdf+"/ok.pdf"] = pdfBody("can-save")
 

@@ -32,11 +32,20 @@ import (
 // envelope overhead — a request the service would accept is never cut here.
 const (
 	maxDocumentJSONBody       = 8<<20 + 64<<10
-	documentFileMultipartCap  = 50<<20 + 256<<10
-	documentAssetMultipartCap = 10<<20 + 256<<10
+	documentMultipartEnvelope = 256 << 10
+	documentAssetMaxBytes     = 10 << 20
+	documentAssetMultipartCap = documentAssetMaxBytes + documentMultipartEnvelope
 )
 
 var errDocumentUploadTooLarge = errors.New("documents: upload exceeds the request cap")
+
+func (h *handlers) documentMaxBytes() int64 {
+	return h.Cfg.EffectiveDocumentMaxBytes()
+}
+
+func (h *handlers) documentFileMultipartCap() int64 {
+	return h.documentMaxBytes() + documentMultipartEnvelope
+}
 
 // documentFlagOrganization feeds mw.FlagOrganization on the authenticated
 // document routes: DocumentService names the organization of the path's
@@ -49,8 +58,8 @@ func (h *handlers) documentFlagOrganization(r *http.Request) string {
 		chi.URLParam(r, "orgID"), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "documentID"))
 }
 
-func documentTooLarge(w http.ResponseWriter) {
-	respondError(w, http.StatusRequestEntityTooLarge, "file_too_large", "tệp vượt quá dung lượng cho phép")
+func documentTooLarge(w http.ResponseWriter, maxBytes int64) {
+	respondErrorFields(w, http.StatusRequestEntityTooLarge, "file_too_large", "tệp vượt quá dung lượng cho phép", map[string]any{"max_bytes": maxBytes})
 }
 
 // cappedDocumentPart counts part bytes while they stream into a service call
@@ -82,9 +91,9 @@ const documentUploadFieldCap = 4 << 10
 // still bounds a chunked one. Text fields are honoured only while they
 // precede the file part (the wire contract orders them first); anything after
 // is dropped when the body drains. The caller owns the returned part's Close.
-func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*multipart.Part, map[string]string, bool) {
+func documentUploadForm(w http.ResponseWriter, r *http.Request, cap, maxFileBytes int64) (*multipart.Part, map[string]string, bool) {
 	if r.ContentLength > cap {
-		documentTooLarge(w)
+		documentTooLarge(w, maxFileBytes)
 		return nil, nil, false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, cap)
@@ -102,7 +111,7 @@ func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*mul
 		if err != nil {
 			var tooBig *http.MaxBytesError
 			if errors.As(err, &tooBig) {
-				documentTooLarge(w)
+				documentTooLarge(w, maxFileBytes)
 			} else {
 				respondError(w, http.StatusBadRequest, "invalid_request", "malformed multipart body")
 			}
@@ -113,7 +122,7 @@ func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*mul
 			_ = p.Close()
 			var tooBig *http.MaxBytesError
 			if errors.As(err, &tooBig) {
-				documentTooLarge(w)
+				documentTooLarge(w, maxFileBytes)
 				return nil, nil, false
 			}
 			if err != nil || len(b) > documentUploadFieldCap {
@@ -140,7 +149,7 @@ func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*mul
 func (h *handlers) mapDocumentUploadError(w http.ResponseWriter, part *cappedDocumentPart, err error) {
 	var tooBig *http.MaxBytesError
 	if part.n > part.max || errors.Is(err, errDocumentUploadTooLarge) || errors.As(err, &tooBig) {
-		documentTooLarge(w)
+		documentTooLarge(w, part.max)
 		return
 	}
 	h.mapServiceError(w, err)
@@ -258,12 +267,12 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, fields, ok := documentUploadForm(w, r, documentFileMultipartCap)
+	file, fields, ok := documentUploadForm(w, r, h.documentFileMultipartCap(), h.documentMaxBytes())
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 50 << 20}
+	part := &cappedDocumentPart{r: file, max: h.documentMaxBytes()}
 	res, err := h.Documents.CreateFileDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreateFileDocumentInput{
 		ParentID:       strings.TrimSpace(fields["parent_id"]),
 		Destination:    strings.TrimSpace(fields["destination"]),
@@ -294,12 +303,12 @@ func (h *handlers) uploadDocumentFile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, _, ok := documentUploadForm(w, r, documentFileMultipartCap)
+	file, _, ok := documentUploadForm(w, r, h.documentFileMultipartCap(), h.documentMaxBytes())
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 50 << 20}
+	part := &cappedDocumentPart{r: file, max: h.documentMaxBytes()}
 	up, err := h.Documents.UploadDocumentFile(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.DocumentUploadInput{
 		Filename:       file.FileName(),
 		Body:           part,
@@ -506,12 +515,12 @@ func (h *handlers) uploadDocumentAsset(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap)
+	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap, documentAssetMaxBytes)
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 10 << 20}
+	part := &cappedDocumentPart{r: file, max: documentAssetMaxBytes}
 	asset, err := h.Documents.UploadDocumentAsset(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.DocumentUploadInput{
 		Filename:       file.FileName(),
 		Body:           part,
@@ -912,6 +921,14 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 	if doc.ArchivedAt.Valid {
 		at := doc.ArchivedAt.Time.UTC().Format(time.RFC3339)
 		out.ArchivedAt = &at
+	}
+	if doc.ArchivedBy.Valid && doc.ArchivedBy.String != "" {
+		by := doc.ArchivedBy.String
+		out.ArchivedBy = &by
+	}
+	if doc.PurgeAfter.Valid {
+		after := doc.PurgeAfter.Time.UTC().Format(time.RFC3339)
+		out.PurgeAfter = &after
 	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)

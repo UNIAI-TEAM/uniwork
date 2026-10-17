@@ -2,7 +2,6 @@ package service
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 )
@@ -18,14 +17,22 @@ import (
 
 const errCodeSourceNotSaveable = "source_not_saveable"
 
-var documentFilePolicy = sync.OnceValue(func() files.Policy {
-	for _, spec := range files.DefaultSpecs() {
-		if spec.Purpose == files.DocumentFile {
+// documentFilePolicyFor reads the DocumentFile policy of f's registry when f
+// exposes one, or of files.DefaultRegistry() otherwise: the live policy the
+// same FileService enforces at upload, never a process-cached default
+// (UNI-1859, R1-2).
+func documentFilePolicyFor(f files.Service) files.Policy {
+	if r, ok := f.(interface{ Registry() files.Registry }); ok && r != nil {
+		if spec, err := r.Registry().Lookup(files.DocumentFile); err == nil && spec.Policy.MaxBytes > 0 {
 			return spec.Policy
 		}
 	}
-	return files.Policy{}
-})
+	spec, err := files.DefaultRegistry().Lookup(files.DocumentFile)
+	if err != nil {
+		return files.Policy{MaxBytes: files.DefaultDocumentMaxBytes}
+	}
+	return spec.Policy
+}
 
 // documentSourceExtTypes names the type of a part a mail client left generic
 // (application/octet-stream or none), by its extension - what FileService
@@ -54,8 +61,7 @@ var documentSourceExtTypes = map[string]string{
 // TestDocumentSourceSaveableAgreesWithTheUpload fails when a change to
 // detect.go, the document_file policy or a source purpose's canonical types
 // makes the two disagree. Edit this function together with it.
-func documentSourceSaveable(ext, mimeType string, sizeBytes int64) bool {
-	p := documentFilePolicy()
+func documentSourceSaveable(p files.Policy, ext, mimeType string, sizeBytes int64) bool {
 	if p.MaxBytes <= 0 || sizeBytes <= 0 || sizeBytes > p.MaxBytes {
 		return false
 	}
