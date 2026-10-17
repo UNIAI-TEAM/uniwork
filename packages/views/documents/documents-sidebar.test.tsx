@@ -51,7 +51,7 @@ describe("DocumentsSidebar sub-nav", () => {
     expect(screen.getByText(t("documents.home.sidebar.folders"))).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree")).toBeInTheDocument();
     expect(screen.getByText(t("documents.home.sidebar.elsewhere"))).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Chat" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.home.origin.chat") })).toBeInTheDocument();
   });
 
   it("opens the trash view from the Thùng rác entry", () => {
