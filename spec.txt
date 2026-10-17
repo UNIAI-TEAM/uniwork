@@ -1,0 +1,11 @@
+git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "INSTALL_EXIT=$rc"
+pnpm generate:reserved-slugs && git diff --exit-code -- packages/core/paths/reserved-slugs.ts; rc=$?; echo; echo "CI_RESERVED_SLUGS_EXIT=$rc"
+node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/lucide-aliases.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/landing-artwork.test.mjs scripts/landing-marks.test.mjs scripts/landing-mascot.test.mjs scripts/landing-motion.test.mjs scripts/landing-studio.test.mjs scripts/i18n-landing-keys.test.mjs scripts/office/installer-urls.test.mjs scripts/office/frame-protocol-vendor.test.mjs scripts/office-modules.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/g5g6g7/make-fixtures.test.mjs scripts/office/g5g6g7/harness/lib.test.mjs scripts/office/g5g6g7/harness/api-contract.test.mjs scripts/office/g5g6g7/holdout.test.mjs scripts/office/g5g6g7/genoffice-tool-schemas.test.mjs scripts/office/g5g6g7/g7-06/job.test.mjs; rc=$?; echo; echo "CI_CONTRACTS_EXIT=$rc"
+bash scripts/turbo-cache-check.sh; rc=$?; echo; echo "CI_TURBO_CACHE_EXIT=$rc"
+pnpm exec turbo build typecheck; rc=$?; echo; echo "CI_BUILD_TC_EXIT=$rc"
+pnpm lint; rc=$?; echo; echo "CI_LINT_EXIT=$rc"
+node scripts/bundle-budget.mjs --print --warn-only; rc=$?; echo; echo "CI_BUNDLE_EXIT=$rc"
+pnpm audit --audit-level high; rc=$?; echo; echo "CI_AUDIT_EXIT=$rc"
+node scripts/office/build-upstream.mjs; rc=$?; echo; echo "CI_XLSX_GATEWAY_EXIT=$rc"
+REQUIRE_XLSX_GATEWAY=1 pnpm test; rc=$?; echo; echo "CI_UNIT_EXIT=$rc"
