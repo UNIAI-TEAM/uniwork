@@ -430,7 +430,10 @@ export async function putUploadSessionPart(
   const headers: Record<string, string> = {};
   if (opts?.headers) {
     for (const [k, v] of Object.entries(opts.headers)) {
-      if (k.toLowerCase() !== "authorization") {
+      // Host is a forbidden request header: the AWS presigner signs it, but a
+      // browser sets it itself and xhr.setRequestHeader logs a refusal per part.
+      const lower = k.toLowerCase();
+      if (lower !== "authorization" && lower !== "host") {
         headers[k] = v;
       }
     }

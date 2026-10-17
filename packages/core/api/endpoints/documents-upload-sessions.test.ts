@@ -73,6 +73,47 @@ const uploadBody = {
 
 const malformedBodies = [{ nope: true }, null, [], "malformed", { session_id: "" }, { session_id: "s1", part_size: "bad" }];
 
+
+type XhrListener = (event?: { loaded: number }) => void;
+
+/** Minimal XMLHttpRequest fake: records headers, lets a test drive the events. */
+class FakeXhr {
+  static last: FakeXhr | null = null;
+  status = 0;
+  statusText = "";
+  responseText = "";
+  rawHeaders = "";
+  withCredentials = false;
+  sent = false;
+  aborted = false;
+  setHeaders: Record<string, string> = {};
+  listeners: Record<string, XhrListener[]> = {};
+  upload = { addEventListener: vi.fn() };
+  constructor() {
+    FakeXhr.last = this;
+  }
+  open = vi.fn();
+  setRequestHeader(k: string, v: string) {
+    this.setHeaders[k] = v;
+  }
+  addEventListener(name: string, fn: XhrListener) {
+    (this.listeners[name] ??= []).push(fn);
+  }
+  getAllResponseHeaders() {
+    return this.rawHeaders;
+  }
+  send() {
+    this.sent = true;
+  }
+  abort() {
+    this.aborted = true;
+    this.fire("abort");
+  }
+  fire(name: string) {
+    for (const fn of this.listeners[name] ?? []) fn();
+  }
+}
+
 describe("documents upload sessions endpoints", () => {
   beforeEach(() => {
     setAccessToken("session-jwt");
@@ -261,6 +302,20 @@ describe("documents upload sessions endpoints", () => {
     const headers = new Headers(init?.headers);
     expect(headers.get("Authorization")).toBeNull();
     expect(headers.get("x-amz-checksum-sha256")).toBe("abc");
+  });
+
+  it("does not set the signed Host header on the XHR part PUT", async () => {
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+    const p = putUploadSessionPart("https://s3.example.test/part", new Blob(["x"]), {
+      onProgress: () => {},
+      headers: { Host: "s3.example.test", Authorization: "Bearer x", "x-amz-checksum-sha256": "abc" },
+    });
+    const xhr = FakeXhr.last!;
+    xhr.status = 200;
+    xhr.rawHeaders = 'ETag: "e1"';
+    xhr.fire("load");
+    await expect(p).resolves.toBe('"e1"');
+    expect(xhr.setHeaders).toEqual({ "x-amz-checksum-sha256": "abc" });
   });
 
   it("surfaces Retry-After and fields on failed responses as ApiError", async () => {
