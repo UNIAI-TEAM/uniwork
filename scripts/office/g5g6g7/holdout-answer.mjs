@@ -26,7 +26,7 @@
 // A reply without the line (or with an invalid one) reports nothing, so the scorer fails it closed; `reportStatus`
 // keeps that protocol failure apart from a wrong answer.
 
-import { UNIT_TOKENS, anchorMatches, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
+import { UNIT_TOKENS, anchorMatches, countTopicKey, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
@@ -563,7 +563,11 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
         // conflicting value for that count — a count the reply states with a different value is never replaced by the
         // oracle's, and an edit-category case with a zero-write ceiling is not a preserved invariant either. The
         // pre-existing structure exclusion stays: there the count IS the requested answer, not a preserved invariant.
-        const conflictingCount = same.some((it) => atAnchor(it));
+        // A9 (review-g712-16) + R17-9 (review-g712-17): a count the reply states with a different value is never
+        // replaced by the oracle's. The conflict is found by TOPIC, not by value equality: "changed paragraphs" and
+        // "changed_paragraphs" name the same count, so a wrong value under either is a conflict and no synthetic
+        // oracle count may appear beside it.
+        const conflictingCount = same.some((it) => atAnchor(it) || (countTopicKey(it.anchor) === countTopicKey(expected.anchor) && !sameValue(it.value, expected.value, expected.kind)));
         if (
           !editCase &&
           (ask.writes ?? 0) === 0 &&

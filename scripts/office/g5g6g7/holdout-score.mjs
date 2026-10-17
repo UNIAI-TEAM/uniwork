@@ -210,6 +210,14 @@ function topicSegments(anchor) {
     .filter((seg) => seg.length > 0 && !PRIVATE_DSL_SEGMENT_RE.test(seg));
 }
 
+/**
+ * The topic of a count anchor, independent of how it is written (review-g712-17 R17-9): "changed_paragraphs" and
+ * "changed paragraphs" name the same count, so conflict detection must compare topics, not raw anchor text.
+ */
+export function countTopicKey(anchor) {
+  return normalizeAnchor(splitAnchor(anchor).base).replace(/[\s_]+/g, '');
+}
+
 function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedValue = undefined) {
   const segs = topicSegments(expected);
   // When an expected anchor consists solely of private case DSL (e.g. "level_1", "paragraphs", "tables"),
