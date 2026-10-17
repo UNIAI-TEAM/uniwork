@@ -84,7 +84,20 @@ function historyMessages(caseDoc) {
 
 export function firstMessages(caseDoc, lang) {
   const context = [];
-  if (caseDoc.role) context.push(`Role: ${caseDoc.role} (${caseDoc.role === 'viewer' ? 'read-only; cannot edit' : 'can edit'})`);
+  // The role is the effective role of the OPEN (first) fixture, which is what the frame derives read-only and
+  // capabilities from (docs-frame-init.ts:36-42; office_frame.go:161) and what the backend write gate uses
+  // (holdout-backend.mjs:593), not a case-wide role (review-g712-16 A11). When the case's documents differ, each
+  // document's role is named, so the assistant is not told it can edit the one that denies it.
+  const roleOf = (fixture) => fixture.role ?? caseDoc.role;
+  const describe = (role) => `${role} (${role === 'viewer' ? 'read-only; cannot edit' : 'can edit'})`;
+  const roles = (caseDoc.fixtures ?? []).map(roleOf);
+  const distinct = [...new Set(roles)];
+  if (caseDoc.fixtures?.length > 0) {
+    if (distinct.length === 1) context.push(`Role: ${describe(roles[0])}`);
+    else context.push(`Roles: ${roles.map((role, i) => `${caseDoc.fixtures[i].id} is ${describe(role)}`).join('; ')}`);
+  } else if (caseDoc.role) {
+    context.push(`Role: ${describe(caseDoc.role)}`);
+  }
   if (caseDoc.setup?.activeSheet) context.push(`Active sheet: "${caseDoc.setup.activeSheet}"`);
   if (caseDoc.setup?.selection) context.push(`Selection: ${caseDoc.setup.selection}`);
   const prefix = context.length > 0 ? `[${context.join('; ')}]\n` : '';
