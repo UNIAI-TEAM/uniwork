@@ -97,16 +97,21 @@ describe("documents-sharing lenient response enums (F-W1-05)", () => {
     ]);
   });
 
-  it("getDocumentShares keeps the overview and narrows an unknown home workspace level to null", async () => {
+  it("getDocumentShares keeps the overview and narrows unknown share and home workspace levels to null", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
         my_level: "manage",
         via: "member",
         home_workspace: { workspace_id: "w1", workspace_name: "Kinh doanh", level: "super_edit" },
+        shares: [
+          { id: "s1", principal_type: "user", principal_id: "u2", level: "super_edit" },
+          { id: "s2", principal_type: "workspace", principal_id: "w2", level: "edit" },
+        ],
       }),
     );
     const out = await getDocumentShares("d1");
     expect(out?.home_workspace?.workspace_id).toBe("w1");
     expect(out?.home_workspace?.level).toBeNull();
+    expect(out?.shares?.map((s) => s.level)).toEqual([null, "edit"]);
   });
 });

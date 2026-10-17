@@ -251,6 +251,27 @@ describe("candidate list (F-W1-03, F-W1-04, F-W1-13)", () => {
     expect(await screen.findByRole("option", { name: /Bình/ })).toBeInTheDocument();
   });
 
+  it("shows an inline error with retry when the first candidates page fails non-404, never the empty state (R3-01)", async () => {
+    let failed = true;
+    serve((path) => {
+      if (!path.startsWith(CANDIDATES)) return undefined;
+      if (failed) return Promise.reject(new ApiError("server error", "internal_error", 500));
+      return Promise.resolve({ items: [person("u2", "Bình")], next_cursor: "" });
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    expect(await screen.findByText(t("documents.share.candidates_error"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.share.retry") })).toBeInTheDocument();
+    const input = combobox();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.queryByText(t("documents.share.principal_empty"))).toBeNull();
+
+    failed = false;
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.retry") }));
+    expect(await screen.findByRole("option", { name: /Bình/ })).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.share.candidates_error"))).toBeNull();
+  });
   it("keeps the loaded first page and offers retry when the second page fails, without swapping to the local list (N-01)", async () => {
     let failNext = true;
     serve((path) => {

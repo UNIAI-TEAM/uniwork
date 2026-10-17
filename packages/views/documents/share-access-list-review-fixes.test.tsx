@@ -184,4 +184,32 @@ describe("ShareAccessList review fixes", () => {
       expect(toast.success).toHaveBeenCalledWith("Đã thu hồi quyền của Nguyễn An. Nguyễn An không còn mở được tài liệu này."),
     );
   });
+
+  it("a share row whose level the client does not know shows a neutral read-only badge, never 'Chỉ xem' (R3-02)", async () => {
+    render(tree(access([row({ id: "s9", principal_id: "u2", level: null })])));
+
+    const li = screen.getByText("Nguyễn An").closest("li")!;
+    expect(within(li).getAllByText(t("documents.share.level_other")).length).toBeGreaterThanOrEqual(1);
+    expect(within(li).queryByRole("combobox", { name: `${t("documents.share.level_label")} Nguyễn An` })).toBeNull();
+    expect(within(li).queryByText(t("documents.share.level_view"))).toBeNull();
+    // Revoking still works: a level the client cannot name can still be removed.
+    expect(within(li).getByRole("button", { name: `${t("documents.share.revoke")} Nguyễn An` })).toBeInTheDocument();
+  });
+
+  it("a home row whose share level narrowed to null shows the neutral badge too, not a select (R3-02)", async () => {
+    // The home row's level arrives through its own share row when the
+    // overview's home_workspace.level itself narrowed to null.
+    render(
+      tree(
+        access([row({ id: "s9", principal_type: "workspace", principal_id: "w1", level: null })], {
+          home_workspace: { workspace_id: "w1", workspace_name: "Kinh doanh", level: null },
+        }),
+      ),
+    );
+
+    const li = screen.getByText("Workspace Kinh doanh").closest("li")!;
+    expect(within(li).getByText(t("documents.share.level_other"))).toBeInTheDocument();
+    expect(within(li).queryByRole("combobox")).toBeNull();
+    expect(within(li).queryByText(t("documents.share.level_view"))).toBeNull();
+  });
 });

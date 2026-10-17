@@ -162,6 +162,10 @@ export function ShareAddSection({
     !candidatesQuery.data &&
     candidatesQuery.error instanceof ApiError &&
     candidatesQuery.error.status === 404;
+  // A first page that failed any other way has no candidates and no answer
+  // worth keeping: the picker shows the error with a retry, not "no result".
+  const candidatesLoadError =
+    !endpointUnavailable && candidatesQuery.isError && !candidatesQuery.data;
   const serverItems = candidatesQuery.items;
   const candidates = useMemo(
     () =>
@@ -361,6 +365,8 @@ export function ShareAddSection({
         hasMore={!endpointUnavailable && Boolean(candidatesQuery.hasNextPage)}
         loadingMore={candidatesQuery.isFetchingNextPage}
         loadMoreError={!endpointUnavailable && candidatesQuery.isFetchNextPageError}
+        loadError={candidatesLoadError}
+        onRetry={() => void candidatesQuery.refetch()}
         onLoadMore={() => void candidatesQuery.fetchNextPage()}
         alreadySharedUserIds={alreadySharedUserIds}
         isLoading={candidatesQuery.isLoading || Boolean(members.loading || members.isLoading)}

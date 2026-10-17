@@ -75,11 +75,14 @@ export function ShareAccessList({
   const homeWsId = homeWorkspace?.workspace_id || docWorkspaceId || "";
   const rawShares = useMemo(() => access?.shares ?? [], [access?.shares]);
 
-  const levelLabel = (lvl: DocumentAccessLevel | string) =>
+  // A level the server knows and the client does not narrows to null (or stays
+  // an unknown string): it is "Mức khác", never "Chỉ xem" (R3-02).
+  const levelLabel = (lvl: DocumentAccessLevel | string | null | undefined) =>
     lvl === "manage" ? t("documents.share.level_manage")
     : lvl === "edit" ? t("documents.share.level_edit")
     : lvl === "comment" ? t("documents.share.level_comment")
-    : t("documents.share.level_view");
+    : lvl === "view" ? t("documents.share.level_view")
+    : t("documents.share.level_other");
 
   const viaLabel = (via: DocumentAccessVia | string) =>
     via === "break_glass" ? t("documents.breakGlass.viaBreakGlass")
@@ -189,7 +192,7 @@ export function ShareAccessList({
   const sentenceDeps = { t, levelLabel, sourceLabel: (via: string) => formatSourceOrigin({ via: via as DocumentAccessVia }) };
 
   const buildConfirmSentence = (
-    item: DocumentAccessUpdateItemInput, name: string, beforeLevel: DocumentAccessLevel, preview: DocumentAccessPreview,
+    item: DocumentAccessUpdateItemInput, name: string, beforeLevel: DocumentAccessLevel | null, preview: DocumentAccessPreview,
   ): PreviewSentence | null => {
     const user = preview.users.find((x) => x.user_id === item.principal_id);
     const group = preview.groups.find((x) => x.principal_type === item.principal_type && x.principal_id === item.principal_id);
@@ -197,7 +200,7 @@ export function ShareAccessList({
     const w = preview.warnings[0];
     if (!w) return null;
     return warningSentence(sentenceDeps, {
-      code: w.code, name, principalType: item.principal_type, targetLevel: item.level, beforeLevel, user, group,
+      code: w.code, name, principalType: item.principal_type, targetLevel: item.level, beforeLevel: beforeLevel ?? undefined, user, group,
     });
   };
 
@@ -218,7 +221,7 @@ export function ShareAccessList({
 
   const requestRowChange = async (
     rowKey: string, principalType: DocumentPrincipalType, principalId: string,
-    name: string, beforeLevel: DocumentAccessLevel, nextLevel: DocumentAccessLevel | null,
+    name: string, beforeLevel: DocumentAccessLevel | null, nextLevel: DocumentAccessLevel | null,
   ) => {
     if (updateAccess.isPending || inFlight.current) return;
     inFlight.current = true;
@@ -323,24 +326,28 @@ export function ShareAccessList({
               </span>
               {canManage ? (
                 <div className="flex items-center gap-1.5">
-                  <div className="w-32">
-                    <Select
-                      value={homeRow.level}
-                      items={allowedLevelsForPrincipal("workspace", true).map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
-                      onValueChange={(v) =>
-                        void requestRowChange(`home:${homeRow.workspace_id}`, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, v as DocumentAccessLevel)
-                      }
-                    >
-                      <SelectTrigger aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}`}>
-                        <SelectValue>{`${t("documents.share.level_label")}: ${levelLabel(homeRow.level)}`}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allowedLevelsForPrincipal("workspace", true).map((lvl) => (
-                          <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {homeRow.level !== null ? (
+                    <div className="w-32">
+                      <Select
+                        value={homeRow.level}
+                        items={allowedLevelsForPrincipal("workspace", true).map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
+                        onValueChange={(v) =>
+                          void requestRowChange(`home:${homeRow.workspace_id}`, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, v as DocumentAccessLevel)
+                        }
+                      >
+                        <SelectTrigger aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}`}>
+                          <SelectValue>{`${t("documents.share.level_label")}: ${levelLabel(homeRow.level)}`}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allowedLevelsForPrincipal("workspace", true).map((lvl) => (
+                            <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <Badge variant="outline">{levelLabel(homeRow.level)}</Badge>
+                  )}
                   <Button
                     type="button" variant="ghost" size="sm" disabled={updateAccess.isPending}
                     aria-label={`${t("documents.share.revoke")} ${homeDisplayLabel}`}
@@ -401,25 +408,29 @@ export function ShareAccessList({
 
                 {canManage ? (
                   <span className="flex shrink-0 items-center gap-1.5">
-                    <div className="w-32">
-                      <Select
-                        value={share.level}
-                        disabled={!share.active}
-                        items={allowedLevels.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
-                        onValueChange={(v) =>
-                          void requestRowChange(rowKey, share.principal_type as DocumentPrincipalType, share.principal_id, displayLabel, share.level, v as DocumentAccessLevel)
-                        }
-                      >
-                        <SelectTrigger aria-label={`${t("documents.share.level_label")} ${displayLabel}`}>
-                          <SelectValue>{`${t("documents.share.level_label")}: ${levelLabel(share.level)}`}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allowedLevels.map((lvl) => (
-                            <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {share.level !== null ? (
+                      <div className="w-32">
+                        <Select
+                          value={share.level}
+                          disabled={!share.active}
+                          items={allowedLevels.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
+                          onValueChange={(v) =>
+                            void requestRowChange(rowKey, share.principal_type as DocumentPrincipalType, share.principal_id, displayLabel, share.level, v as DocumentAccessLevel)
+                          }
+                        >
+                          <SelectTrigger aria-label={`${t("documents.share.level_label")} ${displayLabel}`}>
+                            <SelectValue>{`${t("documents.share.level_label")}: ${levelLabel(share.level)}`}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allowedLevels.map((lvl) => (
+                              <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <Badge variant="outline">{levelLabel(share.level)}</Badge>
+                    )}
                     <Button
                       type="button" variant="ghost" size="sm" disabled={updateAccess.isPending}
                       aria-label={`${t("documents.share.revoke")} ${label ?? ""}`.trim()}
