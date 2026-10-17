@@ -297,6 +297,27 @@ describe("OfficeModuleFrame lag banner & open_refused notice (LAG-W1)", () => {
     expect(document.activeElement).toBe(frame.iframe);
   });
 
+  it("F2: refocuses the frame only after the banner has unmounted, so the focused button's removal cannot drop focus to the body", async () => {
+    const frame = mountLagFrame("docs", {
+      desktopOpen: desktopWiring(),
+      hasLagObserver: () => true,
+      lagStorage: memoryStorage(),
+    });
+    await frame.ready();
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await frame.event("lag_detected", { reason: "longtask", worst_ms: 300, count: 3, window_ms: 0 });
+    const continueBtn = await screen.findByRole("button", { name: "Tiếp tục trên web" });
+    continueBtn.focus();
+    const bannerWhenFocused: boolean[] = [];
+    vi.spyOn(frame.iframe, "focus").mockImplementation(() => {
+      bannerWhenFocused.push(screen.queryByTestId("office-lag-banner") !== null);
+    });
+
+    fireEvent.click(continueBtn);
+    await waitFor(() => expect(bannerWhenFocused.length).toBeGreaterThan(0));
+    expect(bannerWhenFocused).not.toContain(true);
+  });
+
   it("shows the lag banner only once the frame is ready so 'Mở bằng app' is never a no-op", async () => {
     const launch = vi.fn(async () => "launched" as const);
     const frame = mountLagFrame("docs", {

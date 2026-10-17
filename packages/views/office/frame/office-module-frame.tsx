@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { OfficeFileActions, OfficeTooLargeNotice } from "../too-large-notice";
 import { FrameLagBanner, useFrameLagBanner } from "./frame-lag-banner";
 import type { StorageAdapter } from "@uniwork/core/types/storage";
 import { DocsFrameFailure } from "./docs-frame-failure";
+import { useFrameFocus } from "./frame-focus";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
@@ -244,27 +245,26 @@ export function OfficeModuleFrame({
     return () => { unregister(); window.removeEventListener("beforeunload", onBeforeUnload); };
   }, [dirty, failed]);
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
-  // Closing the leave dialog (Stay, Escape, the close button) hands keyboard focus back to the
-  // editor in the frame, so Ctrl+S works without a click. Returning false keeps Base UI from
-  // putting it on the page element that had it before; the frame document keeps its own
-  // active element, so focusing its window lands in the editor.
-  const unmounting = useRef(false);
-  // A layout cleanup runs before the dialog's own on unmount: a leave that navigates away has no frame to refocus.
-  useLayoutEffect(() => () => { unmounting.current = true; }, []);
-  const focusFrame = () => {
-    const iframe = iframeRef.current;
-    if (unmounting.current || !iframe?.isConnected) return true;
-    iframe.focus();
-    try { iframe.contentWindow?.focus(); } catch { /* a frame that is not same-origin keeps the iframe focus */ }
-    return false;
-  };
+  // Closing a page dialog (leave, save blocked) hands keyboard focus back to the editor in the
+  // frame, so Ctrl+S works without a click, not to the page element that had it before.
+  const { focusFrame, finalFocus } = useFrameFocus(iframeRef);
+
+  // "Continue on web" removes the button that has focus: the frame takes focus only once the
+  // banner is gone, or the browser drops focus to the body when it unmounts the button.
+  const lagOpen = lag.shouldShow(session.status === "ready");
+  const refocusAfterLag = useRef(false);
+  useEffect(() => {
+    if (lagOpen || !refocusAfterLag.current) return;
+    refocusAfterLag.current = false;
+    focusFrame();
+  }, [lagOpen, focusFrame]);
 
   // When the frame's dialog closes, the keyboard goes back into the frame, not to the page's body.
   const wasModal = useRef(false);
   useEffect(() => {
     if (wasModal.current && !session.modal) focusFrame();
     wasModal.current = session.modal;
-  }, [session.modal]);
+  }, [session.modal, focusFrame]);
 
   // Save stays reachable in the page header at every width (an icon on a phone, labelled from `sm`).
   // It is quiet while nothing is unsaved and stays in the tab order when it is.
@@ -340,9 +340,9 @@ export function OfficeModuleFrame({
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
       <FrameLagBanner
-        open={lag.shouldShow(!booting)}
+        open={lagOpen}
         onOpenApp={desktopOpen && !session.viewOnly ? () => { void appOpenRef.current?.(); } : undefined}
-        onContinue={() => { lag.dismiss(); focusFrame(); }}
+        onContinue={() => { refocusAfterLag.current = true; lag.dismiss(); }}
       />
       {desktopOpen && !booting && !session.viewOnly ? (
         <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={save} requestRef={appOpenRef} />
@@ -388,7 +388,7 @@ export function OfficeModuleFrame({
         saveBlocked={session.saveBlocked}
         onDownload={session.downloadCopy}
         onDismiss={session.dismissSaveBlocked}
-        finalFocus={focusFrame}
+        finalFocus={finalFocus}
       />
       {/*
         A Save from here may meet a newer version: the frame then shows its own conflict dialog,
@@ -411,7 +411,7 @@ export function OfficeModuleFrame({
         }}
         onDiscard={async () => true}
         onChoice={(choice) => { if (choice !== "stay") finishLeave(true); }}
-        finalFocus={focusFrame}
+        finalFocus={finalFocus}
       />
     </div>
   );
