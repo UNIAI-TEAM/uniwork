@@ -78,6 +78,37 @@ describe("useDropUpload", () => {
     expect(over.dataTransfer.dropEffect).toBe("copy");
   });
 
+  it("serializes overlapping drops so the second upload starts only after the first settles", async () => {
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const upload = vi.fn(async (file: File) => {
+      order.push(`start:${file.name}`);
+      if (file.name === "a.pdf") await firstGate;
+      order.push(`end:${file.name}`);
+    });
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [pdf("a.pdf")]).event));
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [pdf("b.pdf")]).event));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // B is queued, not started: the chunked hook keeps ONE active upload, so a
+    // second start would overwrite it and the first toast's Cancel would act
+    // on the wrong upload (R2-3).
+    expect(order).toEqual(["start:a.pdf"]);
+
+    releaseFirst();
+    await waitFor(() =>
+      expect(order).toEqual(["start:a.pdf", "end:a.pdf", "start:b.pdf", "end:b.pdf"]),
+    );
+    expect(upload).toHaveBeenCalledTimes(2);
+  });
+
   it("uploads dropped files one after another and reports the count", async () => {
     const order: string[] = [];
     const upload = vi.fn(async (file: File) => {
