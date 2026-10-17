@@ -43,6 +43,8 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	// A browser too: it rings in-app through realtime, so the call push is the phone's only.
+	f.subscribe(t, f.member.ID, "https://push.example/member-browser")
 	now := time.Now()
 	spy := &spySender{}
 	pc := NewPushConsumer(f.q, spy, "http://app.test")
@@ -79,8 +81,11 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 		Tag:   "chat_call:" + dm.ID,
 		TTL:   60,
 	}
-	if len(spy.sent) != 1 || spy.sent[0] != want {
-		t.Fatalf("sent = %+v, want %+v", spy.sent, want)
+	if len(spy.sent) != 1 || spy.sent[0] != want || spy.endpoints[0] != "ExponentPushToken[member]" {
+		t.Fatalf("sent = %+v to %v, want %+v to the phone only", spy.sent, spy.endpoints, want)
+	}
+	if n := f.notificationOf(t, f.lastEvent(t, TopicPush)); !n.PushedAt.Valid {
+		t.Fatalf("a call push the browser did not get left the row pending: %+v", n)
 	}
 
 	// Answered on another device before the notify lane ran: nothing more.
@@ -178,6 +183,29 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-5"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Only a call skips the browser: a chat message still reaches every subscription.
+func TestChatMessagePushStillReachesBrowserAndPhone(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	f.subscribe(t, f.member.ID, "https://push.example/member-browser")
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "chào"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	spy := &spySender{}
+	if err := NewPushConsumer(f.q, spy, "http://app.test").Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.endpoints) != 2 {
+		t.Fatalf("DM push went to %v, want the phone and the browser", spy.endpoints)
 	}
 }
 
