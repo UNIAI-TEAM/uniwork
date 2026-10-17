@@ -20,14 +20,14 @@ Cột **Chế độ**:
 - `blocked` — S3, S11 (desktop): BLOCKED tới khi G5-05u merge (G5-D1 đã ký 2026-10-13, G5-05u HOLD vì UNI-1645);
   phần macOS VoiceOver/Safari: BLOCKED(G7-D2).
 
-Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pin lúc viết: `0.1.0-05fd209`; từ REPIN-1 (UNI-1825) pin hiện tại là `0.1.0-5a72c13` (fork main `5a72c1313`, thay các bản trước `0.1.0-fa22cd9` và candidate `0.1.0-0d77962`). Spec đọc pin từ
+Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pin lúc viết: `0.1.0-05fd209`; REPIN-1 (UNI-1825) nâng lên `0.1.0-5a72c13` (fork main `5a72c1313`, thay các bản trước `0.1.0-fa22cd9` và candidate `0.1.0-0d77962`), và pin hiện tại là `0.1.0-cc35602` (fork main `cc35602c8`, UNI-1860). Spec đọc pin từ
 `apps/web/platform/office-frame/docs.pin.json`, không ghi cứng pin trong logic/selector (marker S5 nhận cả `data-docs-web` và
-`data-office-web`, hàng UniWork AI tìm theo nhóm), nên REPIN-1 chạy lại đúng file này.
+`data-office-web`, hàng UniWork AI tìm theo nhóm), nên mỗi lần re-pin chạy lại đúng file này.
 
 **Nhóm S7/S8/S9 (UniWork AI) — hết blocked từ pin `0.1.0-5a72c13` (REPIN-1, UNI-1825, lane g6-fork_ui).** Ở pin cũ
 `0.1.0-05fd209` picker không vẽ hàng UniWork AI (`packages/ui/src/ai-model-picker-options.ts:47` bỏ provider không có model và
 `UNIWORK_PROVIDER_META.models = []`), nên `openPicker` từng `test.skip` lúc chạy (annotation `blocked`). Fork 7888df06c (có trong
-fork main và trong pin `0.1.0-5a72c13`) liệt kê provider có danh sách model rỗng, nên `openPicker` giờ không còn skip: thiếu hàng
+fork main và trong pin từ `0.1.0-fa22cd9` / `0.1.0-5a72c13`) liệt kê provider có danh sách model rỗng, nên `openPicker` giờ không còn skip: thiếu hàng
 UniWork AI là fail thật, và số annotation `blocked` của `office-ux-floor.spec.ts` là 0. Phía server không đổi: `beforeAll` của nhóm bật
 `office_ai_uniwork` + `office_ai_uniwork_docx` rồi mint frame token và đòi `ai.uniwork_ai = true` (Starter có `office.ai_cloud`,
 `AI_PROVIDER=fake` có model cho `office_uniwork_ai`). Các dòng G-01 (phần S7/S9), F-02, FC-03, S7-01, S8-01, S9-02 chạy lại trên
@@ -39,7 +39,7 @@ Annotation `contrast` ghi số nút đo và **tỉ lệ nhỏ nhất** (tỉ l�
 
 | id | S# | Host | Floor | Kiểm | Chế độ |
 | --- | --- | --- | --- | --- | --- |
-| G-01 | S5 S6 S7 S9 | W | Floor › Chung; DESIGN › Colors | Chữ ≥ 4.5:1 (lớn ≥ 3:1) đo trên trang render, light + dark, vi + en | auto: `S6 clean + dirty bars and every reachable S5 step — {mode} {locale}`, `S7 picker with UniWork AI and the S9 result line — {mode} {locale}` (phần S7/S9 chạy trên pin `0.1.0-5a72c13`, chờ cloud e2e) |
+| G-01 | S5 S6 S7 S9 | W | Floor › Chung; DESIGN › Colors | Chữ ≥ 4.5:1 (lớn ≥ 3:1) đo trên trang render, light + dark, vi + en | auto: `S6 clean + dirty bars and every reachable S5 step — {mode} {locale}`, `S7 picker with UniWork AI and the S9 result line — {mode} {locale}` (phần S7/S9 chạy trên pin `0.1.0-cc35602`, chờ cloud e2e) |
 | G-02 | S1 S2 S3 S4 S10 S11 | D | Floor › Chung; DESIGN › Colors | Như G-01 trên bề mặt desktop | fork e2e (proposed): spec Playwright-Electron của shell mở từng bề mặt qua fixture store, chạy cùng phép đo `auditText` trên `webContents` light/dark |
 | G-03 | mọi | W + D | Floor › Chung | Trạng thái không chỉ bằng màu (badge/pill luôn có chữ) | manual: ảnh light/dark + forced colors từng trạng thái |
 | G-04 | S5 | W | Floor › Chung | Điều khiển không chạy được: `aria-disabled` + `aria-describedby` lý do, giữ trong thứ tự Tab | auto: `aria-disabled choices (web offline) stay in the Tab loop with a reason` |
@@ -118,10 +118,10 @@ Annotation `contrast` ghi số nút đo và **tỉ lệ nhỏ nhất** (tỉ l�
 | P-04 | mọi | W + D | Floor › Chung | vi + en | W S5/S6/S7/S9: auto (vòng `{locale}`); còn lại manual: ảnh vi/en |
 | P-05 | mọi | W + D | Floor › Chung | light + dark | W S5/S6/S7/S9: auto (vòng `{mode}`, kiểm nền thẻ đúng chế độ); D: fork e2e (proposed) |
 
-## Findings chặn đã biết (frame `0.1.0-5a72c13`)
+## Findings chặn đã biết (frame `0.1.0-cc35602`)
 
 Chi tiết (vị trí, giá trị đo, quy tắc) ở báo cáo lane `reports/ux-accept_local/worker-r1.md`; lead chuyển Advisor. Pin hiện tại
-của D: `0.1.0-5a72c13` (prerelease `web-0.1.0-5a72c13` từ fork main `5a72c1313`, thay các bản trước `0.1.0-fa22cd9` và candidate `0.1.0-0d77962` của REPIN-1). UXF-FIX (UNI-1824, fork main `005e54632`) đã vào pin nên các finding UXF-03, 04, 05, 06, 07, 10 đã gỡ expected-fail và chờ cloud e2e xác nhận; chỉ còn UXF-02 giữ expected-fail (cần đường host trên D web cho `ConflictIo.saveCopy`).
+của D: `0.1.0-cc35602` (prerelease `web-0.1.0-cc35602` từ fork main `cc35602c8`, UNI-1860, thay `0.1.0-5a72c13`, `0.1.0-fa22cd9` và candidate `0.1.0-0d77962` của REPIN-1). UXF-FIX (UNI-1824, fork main `005e54632`, vào từ `0.1.0-5a72c13`) đã vào pin nên các finding UXF-03, 04, 05, 06, 07, 10 đã gỡ expected-fail và chờ cloud e2e xác nhận; chỉ còn UXF-02 giữ expected-fail (cần đường host trên D web cho `ConflictIo.saveCopy`).
 
 | Mã | Hàng | Tóm tắt | Owner / trạng thái |
 | --- | --- | --- | --- |
