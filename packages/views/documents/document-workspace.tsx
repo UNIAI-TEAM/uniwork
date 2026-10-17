@@ -129,11 +129,12 @@ export function DocumentWorkspace({
   // One live-again retry per refusal run, so a server that keeps refusing never loops.
   const liveRetryRef = useRef(false);
   if (state.phase === "saved") liveRetryRef.current = false;
-  const refusedShelved = useShelvedWriteGuard(wsId, doc.id, state.errorCode, () => {
+  const goLiveAgain = () => {
     if (liveRetryRef.current || stateRef.current.errorCode !== "document_shelved") return;
     liveRetryRef.current = true;
     setLiveAgain(true);
-  });
+  };
+  const refusedShelved = useShelvedWriteGuard(wsId, doc.id, state.errorCode, goLiveAgain);
   if (refusedShelved !== writeRefusedShelved) setWriteRefusedShelved(refusedShelved);
   const metadataRef = useRef<DocumentPageMetadataHandle>(null);
   const [metadataStatus, setMetadataStatus] = useState<DocumentPageMetadataStatus>({ dirty: false, pending: false, failed: false });
@@ -189,13 +190,14 @@ export function DocumentWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveAgain, editable, state.errorCode]);
 
-  // Unarchived while this page still holds a draft the server refused: send it again on the same key.
+  // Unarchived while this page still holds a draft the server refused: the same live-again gate as above
+  // (a send before the edit lock is held again would go without edit_lock_id), then the same key.
   useEffect(() => {
     if (isShelved(doc)) {
       wasShelvedRef.current = true;
     } else if (wasShelvedRef.current) {
       wasShelvedRef.current = false;
-      if (stateRef.current.errorCode === "document_shelved") save.retry();
+      goLiveAgain();
     }
     // Only the shelved marker matters; `save` is rebuilt on every state change and is read fresh here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
