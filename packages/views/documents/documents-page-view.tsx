@@ -425,7 +425,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   accessFiltered={accessFiltered}
                   typeFiltered={chip !== "all"}
                   cardsShown={canCreate && view.kind === "home"}
-                  trash={view.kind === "archived" ? { actions: trashActions, members: memberIndex, membersReady: Boolean(members.data) } : undefined}
+                  trash={
+                    view.kind === "archived"
+                      ? { actions: trashActions, members: memberIndex, membersReady: Boolean(members.data), focusId: searchParams.get("focus") }
+                      : undefined
+                  }
                   showType={view.kind === "home" && Boolean(folderId)}
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}

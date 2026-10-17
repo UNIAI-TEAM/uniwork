@@ -104,13 +104,13 @@ function route(routes: Routes) {
   });
 }
 
-function nav(): NavigationAdapter {
+function nav(search = ""): NavigationAdapter {
   return {
     push: vi.fn(),
     replace: vi.fn(),
     back: vi.fn(),
     pathname: "/acme/doi/documents",
-    searchParams: new URLSearchParams(),
+    searchParams: new URLSearchParams(search),
     getShareableUrl: (p) => p,
   };
 }
@@ -594,5 +594,56 @@ describe("permanent delete", () => {
     expect(trigger.isConnected).toBe(false);
     expect(document.activeElement).not.toBe(trigger);
     expect(document.activeElement && document.body.contains(document.activeElement)).toBe(true);
+  });
+});
+
+// TRASH-NOTIFY-01 (UNI-1844, N-4): the trashed-by-other notification opens
+// `?view=archived&focus=<id>`; the list scrolls to that row, highlights it and
+// puts the keyboard on its Khôi phục. An id that is not in the list is ignored.
+describe("focused trash row", () => {
+  const scrollIntoView = vi.fn();
+  beforeEach(() => {
+    scrollIntoView.mockReset();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
+  it("opens straight on the trash and highlights, scrolls to and focuses the Khôi phục of the focused row", async () => {
+    route({ list: () => [trashed({ id: "d0", title: "Biên bản" }), trashed({ id: "d1" }), trashed({ id: "d2", title: "Hợp đồng" })] });
+    renderView(nav("view=archived&focus=d1"));
+    const row = await rowOf("Kế hoạch Q4");
+    const restore = within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    expect(row).toHaveAttribute("data-focused", "true");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView.mock.contexts[0]).toBe(row);
+    for (const title of ["Biên bản", "Hợp đồng"]) {
+      expect(await rowOf(title)).not.toHaveAttribute("data-focused");
+    }
+  });
+
+  it("highlights a focused row the viewer cannot manage without moving focus into a missing button", async () => {
+    route({ list: () => [trashed({ id: "d1", my_level: "edit" })] });
+    renderView(nav("view=archived&focus=d1"));
+    const row = await rowOf("Kế hoạch Q4");
+    await waitFor(() => expect(row).toHaveAttribute("data-focused", "true"));
+    expect(within(row).queryByRole("button")).toBeNull();
+  });
+
+  it("shows the plain trash list for an id that is gone, without an error or a highlight", async () => {
+    route({ list: () => [trashed({ id: "d2", title: "Hợp đồng" })] });
+    renderView(nav("view=archived&focus=already-restored"));
+    const row = await rowOf("Hợp đồng");
+    expect(row).not.toHaveAttribute("data-focused");
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("ignores focus outside the trash", async () => {
+    route({ list: () => [trashed()] });
+    renderView(nav("focus=d1"));
+    await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-focused]")).toBeNull();
   });
 });

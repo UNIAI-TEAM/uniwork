@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { ArchiveRestore, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Member } from "@uniwork/core/types/workspace";
@@ -46,6 +47,7 @@ export function TrashRowView({
   parentTitle,
   ladder,
   trash,
+  focused = false,
   onOpen,
 }: {
   row: LibraryRow;
@@ -57,9 +59,17 @@ export function TrashRowView({
   parentTitle: string | null;
   ladder: LibraryLadder;
   trash: TrashRowActions;
+  /** The row a notification pointed at: highlighted, scrolled into view, its Khôi phục focused. */
+  focused?: boolean;
   onOpen: (documentId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const rowRef = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    if (!focused) return;
+    rowRef.current?.scrollIntoView?.({ block: "center" });
+    rowRef.current?.querySelector<HTMLElement>("[data-trash-restore]")?.focus();
+  }, [focused]);
   if (row.type !== "document") return null;
   const doc = row.doc;
   const manage = canManageTrashed(doc);
@@ -117,7 +127,12 @@ export function TrashRowView({
   );
 
   return (
-    <tr data-library-row={row.id} className="border-b border-border transition-colors last:border-b-0 hover:bg-accent/40">
+    <tr
+      ref={rowRef}
+      data-library-row={row.id}
+      data-focused={focused || undefined}
+      className={cn("border-b border-border transition-colors last:border-b-0 hover:bg-accent/40", focused && "bg-accent/60")}
+    >
       <td className="px-3 py-2">
         {manage && !folder ? (
           <button
@@ -160,6 +175,7 @@ export function TrashRowView({
               size="sm"
               className="pointer-coarse:min-h-11 @max-[46rem]/library:w-8 @max-[46rem]/library:px-0 pointer-coarse:@max-[46rem]/library:w-11"
               aria-label={t("documents.trash.restore_item", { title })}
+              data-trash-restore
               disabled={trash.isRestoring(doc.id)}
               aria-busy={trash.isRestoring(doc.id) || undefined}
               onClick={() => trash.onRestore(doc)}

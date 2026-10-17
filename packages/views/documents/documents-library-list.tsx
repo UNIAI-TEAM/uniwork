@@ -62,6 +62,8 @@ export interface DocumentsLibraryListProps {
     members: ReadonlyMap<string, Member>;
     /** True once the members query has answered; until then an unknown id is "still loading", not "former member". */
     membersReady: boolean;
+    /** The trashed document a notification pointed at (`?focus=`); its row is highlighted and scrolled to. */
+    focusId?: string | null;
   };
   /** Show the Type column (`documents.home.columns.type`) when an open folder is displayed. */
   showType?: boolean;
@@ -243,6 +245,7 @@ export function DocumentsLibraryList({
                     parentTitle={row.type === "document" && row.doc.parent_id ? (trashTitles?.get(row.doc.parent_id) ?? null) : null}
                     ladder={ladder}
                     trash={trash.actions}
+                    focused={trash.focusId === row.id}
                     onOpen={handlers.onOpen}
                   />
                 ) : (
