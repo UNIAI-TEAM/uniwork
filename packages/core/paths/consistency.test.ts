@@ -48,6 +48,7 @@ function builderTemplates(): string[] {
     paths.authCallback(),
     paths.desktopAuthorize(),
     paths.connectAuthorize(),
+    paths.unichatStart(),
     paths.forgotPassword(),
     paths.resetPassword(),
     paths.onboarding(),

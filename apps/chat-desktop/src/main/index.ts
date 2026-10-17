@@ -122,9 +122,11 @@ function createWindow(): void {
     void openExternalSafely(url, external);
     return { action: "deny" };
   });
-  installOfflineFallback(window, { appUrl: config.appUrl, offlinePath: join(__dirname, "../../resources/offline.html") });
+  // The web app's shell start page (paths.unichatStart): the site root is the marketing landing.
+  const startUrl = `${config.appUrl}/auth/unichat`;
+  installOfflineFallback(window, { appUrl: startUrl, offlinePath: join(__dirname, "../../resources/offline.html") });
   // did-fail-load handles the failure; the promise rejects with the same thing.
-  window.loadURL(config.appUrl).catch(() => undefined);
+  window.loadURL(startUrl).catch(() => undefined);
 }
 
 if (!app.requestSingleInstanceLock()) {

@@ -305,9 +305,11 @@
       "accountUnknown": "Tài khoản UniWork",
       "emailUnknown": "Chưa có email",
       "libraryWorkspace": "Thư viện tài liệu",
-      "unichat_login_title": "Đăng nhập UniChat",
-      "unichat_login_hint": "Trình duyệt sẽ mở để bạn đăng nhập UniWork, rồi đưa bạn trở lại ứng dụng này.",
-      "unichat_login_button": "Mở trình duyệt để đăng nhập",
+      "unichat_login_title": "Chào mừng đến với UniChat",
+      "unichat_login_hint": "Nhắn tin và gọi cho cả đội ngay trên máy tính.",
+      "unichat_login_button": "Đăng nhập",
+      "unichat_login_waiting": "Hoàn tất đăng nhập trong trình duyệt vừa mở.",
+      "unichat_login_reopen": "Mở lại trình duyệt",
       "unichat_login_failed": "Không mở được trình duyệt để đăng nhập. Thử lại."
     },
     "connect": {
