@@ -459,3 +459,51 @@ func (s *OfficeFrameService) UploadAsset(ctx context.Context, claims OfficeFrame
 		return doc.Kind == DocumentKindFile && doc.WorkspaceID == claims.WorkspaceID
 	})
 }
+
+// OpenUploadSession opens a chunked multipart upload session (> 20 MiB) for the
+// frame token's document after AuthorizeSave.
+func (s *OfficeFrameService) OpenUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID string, in OpenUploadSessionInput) (UploadSessionView, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionView{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionView{}, err
+	}
+	return s.documents.OpenFrameUploadSession(ctx, claims, documentID, in)
+}
+
+// GetUploadSession returns the status, completed parts, and missing presigned
+// URLs of a frame upload session.
+func (s *OfficeFrameService) GetUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string) (UploadSessionView, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionView{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionView{}, err
+	}
+	return s.documents.GetFrameUploadSession(ctx, claims, documentID, sessionID)
+}
+
+// CompleteUploadSession assembles, validates, and stages a frame upload
+// session.
+func (s *OfficeFrameService) CompleteUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string, in CompleteUploadSessionInput) (UploadSessionCompleteResult, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionCompleteResult{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
+	return s.documents.CompleteFrameUploadSession(ctx, claims, documentID, sessionID, in)
+}
+
+// AbortUploadSession aborts an open frame upload session and releases its
+// reserved storage quota.
+func (s *OfficeFrameService) AbortUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string) error {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return err
+	}
+	return s.documents.AbortFrameUploadSession(ctx, claims, documentID, sessionID)
+}
