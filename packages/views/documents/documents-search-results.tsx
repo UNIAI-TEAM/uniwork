@@ -4,7 +4,7 @@ import { useRef, type KeyboardEvent } from "react";
 import { CircleAlert, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { isMyFolder } from "@uniwork/core/types/document";
+import { isMyFolder, type DocumentSummary } from "@uniwork/core/types/document";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
@@ -112,7 +112,17 @@ export function DocumentsSearchResults({
   };
 
   const rootLabel = t("documents.home.search.path_root");
-
+  const myFolderLabel = t("documents.home.my_folder.label");
+  const trimmedQuery = search.committedQuery.trim();
+  const matchesMyFolder =
+    Boolean(myFolderId) &&
+    search.filter !== "document" &&
+    trimmedQuery.length > 0 &&
+    myFolderLabel.toLocaleLowerCase().includes(trimmedQuery.toLocaleLowerCase());
+  const visibleItems: Pick<DocumentSummary, "id" | "kind" | "title" | "system_kind" | "path">[] =
+    matchesMyFolder && !search.items.some((item) => item.id === myFolderId || isMyFolder(item))
+      ? [{ id: myFolderId!, kind: "folder", title: myFolderLabel, system_kind: "my_folder" }, ...search.items]
+      : search.items;
   return (
     <div className="flex flex-col gap-4">
       <div
@@ -170,7 +180,7 @@ export function DocumentsSearchResults({
             </Button>
           }
         />
-      ) : search.items.length === 0 ? (
+      ) : visibleItems.length === 0 ? (
         <CollectionPageState
           icon={Search}
           role="status"
@@ -181,7 +191,7 @@ export function DocumentsSearchResults({
         <div className="flex flex-col">
           <div className="overflow-hidden rounded-lg border border-border">
             <ul className="divide-y divide-border" aria-label={t("documents.home.search.label")}>
-              {search.items.map((item) => {
+              {visibleItems.map((item) => {
                 const isFolder = item.kind === "folder";
                 const title = (isMyFolder(item) ? t("documents.home.my_folder.label") : item.title) || t("documents.detail.untitled");
                 const format = documentIconFormat(item.kind, title);

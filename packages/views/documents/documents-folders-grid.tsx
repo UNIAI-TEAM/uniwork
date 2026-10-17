@@ -15,7 +15,7 @@ import {
 import type { LibraryRowHandlers } from "./documents-library-row";
 import { isFolderRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 import { canArchiveRow, canMoveRow, rowLevel } from "./row-level";
-
+import { myFolderFirst } from "./document-tree-model";
 /**
  * The folder card grid of the TRASH-A3 boards (Main.dc "Thư mục" section,
  * Folder.dc "Thư mục con"): one card per folder, counts read from the live
@@ -210,7 +210,7 @@ export function nonFolderRows(rows: LibraryRow[]): LibraryRow[] {
 
 /** The children folders of a folder node, or the tree's roots at the home root. */
 export function subfoldersOf(tree: DocumentTreeNode[], folderId: string | null): DocumentTreeNode[] {
-  const nodes = folderId ? (findNode(tree, folderId)?.children ?? []) : tree;
+  const nodes = folderId ? (findNode(tree, folderId)?.children ?? []) : myFolderFirst(tree);
   return nodes.filter((node) => node.kind === "folder");
 }
 

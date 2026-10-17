@@ -22,7 +22,7 @@ import { TreeRowItem } from "./document-tree-row";
 import { useTreeRowMenuDialogs } from "./document-tree-row-menu";
 import {
   findTreeNode, flattenTree, foldersOnly, loadMoveRevision, moveRefused, moveTooDeep,
-  siblingMovePosition, siblingsOf, subtreeIds, type TreeRow,
+  myFolderFirst, siblingMovePosition, siblingsOf, subtreeIds, type TreeRow,
 } from "./document-tree-model";
 import { useTreeReveal } from "./use-tree-reveal";
 
@@ -85,8 +85,9 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
   );
   const nodes = useMemo(() => {
     const forest = query.data?.documents ?? [];
-    return folders ? foldersOnly(forest) : forest;
-  }, [query.data, folders]);
+    const ordered = rootId ? forest : myFolderFirst(forest);
+    return folders ? foldersOnly(ordered) : ordered;
+  }, [query.data, folders, rootId]);
   const rows = useMemo(() => flattenTree(nodes, expanded), [nodes, expanded]);
   useTreeReveal({ wsId, currentId, enabled, visible, rows, rowRefs, setExpanded });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));

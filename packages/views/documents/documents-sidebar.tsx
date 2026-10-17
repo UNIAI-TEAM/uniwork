@@ -157,7 +157,7 @@ export function DocumentsSidebar({
       <NavItem icon={DOCUMENTS_NAV_ICONS.home} label={t("documents.home.sidebar.home")} current={isView("home")} onClick={() => onView({ kind: "home" })} />
       <NavItem
         icon={DOCUMENTS_NAV_ICONS.myFolders}
-        label={t("documents.home.sidebar.my_folder")}
+        label={t("documents.home.my_folder.label")}
         current={view.kind === "home" && Boolean(myFolderId) && folderId === myFolderId}
         disabled={myFolderPending}
         onClick={() => (myFolderId ? onFolder(myFolderId) : onMyFolder?.())}

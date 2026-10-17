@@ -221,7 +221,7 @@ describe("My Folder sub-nav row", () => {
     fireEvent.click(await screen.findByRole("button", { name: label() }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(posts(MY_FOLDER_URL)).toHaveLength(1);
-    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(t("documents.home.my_folder.open_failed"));
     expect(nav.searchParams.get("folder")).toBeNull();
   });
 });
@@ -247,8 +247,9 @@ describe("creates from Documents Home", () => {
   it("uploads and drops into My Folder with no parent_id", async () => {
     route({ list: () => [], upload: () => ({ document: file("d2", "note.txt") }) });
     renderView(vi.fn());
-
+    expect(await screen.findByText(t("documents.home.quick_create.hint_root"))).toHaveTextContent(/Thư mục của tôi/);
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
+    expect(await screen.findByText(t("documents.upload.description"))).toHaveTextContent(/Thư mục của tôi/);
     const input = await screen.findByLabelText(t("documents.upload.pick"));
     fireEvent.change(input, { target: { files: [new File(["hello"], "note.txt", { type: "text/plain" })] } });
     fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
@@ -286,6 +287,10 @@ describe("creates from Documents Home", () => {
       parent_id: "fo1",
     });
 
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.upload.button") }));
+    expect(await screen.findByText("Tệp trở thành một tài liệu mới trong workspace.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.cancel") }));
+
     const zone = screen.getByRole("region", { name: t("documents.page.title") });
     fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [new File(["x"], "drop.txt", { type: "text/plain" })] } });
     await waitFor(() => expect(posts(`${LIST_BASE}/files`)).toHaveLength(1));
@@ -301,15 +306,23 @@ describe("guards on the My Folder row", () => {
     fireEvent.click(await within(section).findByRole("button", { name: t("documents.home.row.menu", { title }) }));
   };
 
-  it("offers no Rename, Move or Delete on its folder card, and keeps them on an ordinary folder", async () => {
+  it("orders My Folder first in the tree root and Home folder cards, offers no Rename, Move or Delete on its card, and keeps them on an ordinary folder", async () => {
     route({
       tree: () => [
-        treeNode({ id: "mf1", title: "My Folder", kind: "folder", system_kind: "my_folder" }),
-        treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder", position: 1 }),
+        treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder", position: 0 }),
+        treeNode({ id: "mf1", title: "My Folder", kind: "folder", system_kind: "my_folder", position: 1 }),
       ],
-      list: () => [myFolderDoc(), summary({ id: "fo1", kind: "folder", title: "Dự án CCB" })],
+      list: () => [summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }), myFolderDoc()],
     });
     renderView();
+
+    const treeItems = await screen.findAllByRole("treeitem");
+    expect(treeItems[0]).toHaveTextContent(label());
+    expect(treeItems[1]).toHaveTextContent("Dự án CCB");
+    const foldersSection = await screen.findByRole("region", { name: /^Thư mục [0-9]+$/ });
+    const cardItems = within(foldersSection).getAllByRole("listitem");
+    expect(cardItems[0]).toHaveTextContent(label());
+    expect(cardItems[1]).toHaveTextContent("Dự án CCB");
 
     await cardMenu(label());
     expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeInTheDocument();
@@ -485,5 +498,48 @@ describe("guards on the My Folder row", () => {
     fireEvent.click(await pill("page"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(toast.error).toHaveBeenCalledWith(t("documents.errors.my_folder_locked"));
+  });
+
+  it("finds a known My Folder by its localized label in vi and en without calling ensure or duplicating server hits", async () => {
+    const i18n = initI18n();
+    route({
+      tree: () => [treeNode({ id: "mf1", title: "My Folder", kind: "folder", system_kind: "my_folder" })],
+      list: (path) => (path.includes("q=") ? [] : []),
+      detail: () => myFolderDoc(),
+    });
+    const nav = renderView();
+    await screen.findByRole("treeitem", { name: new RegExp(label()) });
+
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    fireEvent.change(searchInput, { target: { value: "  thư mục của " } });
+    const list = await screen.findByRole("list", { name: t("documents.home.search.label") });
+    const viButtons = within(list).getAllByRole("button");
+    expect(viButtons).toHaveLength(1);
+    expect(viButtons[0]).toHaveTextContent("Thư mục của tôi");
+    expect(posts(MY_FOLDER_URL)).toHaveLength(0);
+
+    fireEvent.click(viButtons[0]!);
+    await waitFor(() => expect(nav.searchParams.get("folder")).toBe("mf1"));
+
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    try {
+      route({
+        tree: () => [treeNode({ id: "mf1", title: "My Folder", kind: "folder", system_kind: "my_folder" })],
+        list: (path) => (path.includes("q=") ? [myFolderDoc()] : []),
+      });
+      const searchInputEn = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+      fireEvent.change(searchInputEn, { target: { value: "my fold" } });
+      const listEn = await screen.findByRole("list", { name: t("documents.home.search.label") });
+      const enButtons = within(listEn).getAllByRole("button");
+      expect(enButtons).toHaveLength(1);
+      expect(enButtons[0]).toHaveTextContent("My Folder");
+      expect(posts(MY_FOLDER_URL)).toHaveLength(0);
+    } finally {
+      await act(async () => {
+        await i18n.changeLanguage("vi");
+      });
+    }
   });
 });

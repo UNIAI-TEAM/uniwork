@@ -247,7 +247,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     if (ensureMyFolder.isPending) return;
     void ensureMyFolder.mutateAsync().then(
       (doc) => goHome({ kind: "home" }, doc.id),
-      (error: unknown) => toast.error(documentErrorMessage(error, t, "documents.home.my_folder.open_failed")),
+      () => toast.error(t("documents.home.my_folder.open_failed")),
     );
   };
   const handlers: LibraryRowHandlers = {
@@ -520,7 +520,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
           setUploadOpen(next);
         }}
         title={t("documents.upload.title")}
-        description={t("documents.upload.description")}
+        description={t(parentForCreate && !isMyFolder(folderDoc) ? "documents.upload.description_folder" : "documents.upload.description")}
         hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
         pending={createFile.isPending}
         error={uploadError}

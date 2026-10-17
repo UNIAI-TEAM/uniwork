@@ -8910,7 +8910,8 @@
     },
     "upload": {
       "title": "Tải tệp lên",
-      "description": "Tệp trở thành một tài liệu mới trong workspace.",
+      "description": "Tệp trở thành tài liệu mới trong Thư mục của tôi (chỉ bạn thấy).",
+      "description_folder": "Tệp trở thành một tài liệu mới trong workspace.",
       "version_title": "Tải phiên bản mới",
       "version_description": "Tệp mới trở thành bản làm việc; phiên bản đang mở vẫn nằm trong lịch sử.",
       "pick": "Chọn tệp",
@@ -9512,7 +9513,7 @@
         "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
       "quick_create": {
-        "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
+        "hint_root": "Tạo mới và tải lên ở trang này vào Thư mục của tôi (chỉ bạn thấy) và mở ngay trong trình soạn thảo.",
         "label": "Tạo nhanh"
       },
       "create": {
@@ -9593,7 +9594,6 @@
       "sidebar": {
         "label": "Điều hướng tài liệu",
         "home": "Tài liệu của workspace",
-        "my_folder": "Thư mục của tôi",
         "recent": "Gần đây",
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",

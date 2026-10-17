@@ -138,8 +138,8 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
 
 /**
  * Under the home header, for people who may create here: the Tạo nhanh strip
- * and the root-create hint at the workspace root (the "only you see it" note
- * waits on MYFOLDER-01), the info line naming the open folder inside one.
+ * and the My Folder root-create hint at the workspace root, or the info line
+ * naming the open folder inside one.
  */
 export function DocumentsHomeNote({ folderTitle, create }: { folderTitle: string | null; create: CreateChoicesProps | null }) {
   const { t } = useTranslation();
