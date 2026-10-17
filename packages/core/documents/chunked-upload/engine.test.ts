@@ -843,4 +843,280 @@ describe("chunked upload engine", () => {
       expect(findResumableUpload(storage, uploadFileKey(file), target)).not.toBeNull();
     }
   });
+
+  it("caps default part upload concurrency at 4 when concurrency option is omitted", async () => {
+    const file = makeFile(80);
+    let inFlightPuts = 0;
+    let maxInFlightPuts = 0;
+    const gates: (() => void)[] = [];
+    let batchReadyResolve!: () => void;
+    const firstBatchReady = new Promise<void>((r) => {
+      batchReadyResolve = r;
+    });
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(makeSessionBody("sess-conc-4", 8), 201);
+      }
+      if (method === "PUT" && url.includes("https://s3.test/upload/part-")) {
+        inFlightPuts += 1;
+        maxInFlightPuts = Math.max(maxInFlightPuts, inFlightPuts);
+        if (gates.length === 3) {
+          queueMicrotask(() => batchReadyResolve());
+        }
+        await new Promise<void>((r) => {
+          gates.push(r);
+        });
+        inFlightPuts -= 1;
+        return new Response(null, { status: 200, headers: { ETag: '"etag-c"' } });
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        return json({ document: createdDoc });
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target: { kind: "workspace", workspaceId: "ws-1" },
+      idempotencyKey: "idem-conc-4",
+      fetch: fakeFetch,
+    });
+
+    await firstBatchReady;
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(inFlightPuts).toBe(4);
+    expect(maxInFlightPuts).toBe(4);
+
+    while (gates.length > 0) {
+      const release = gates.shift()!;
+      release();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+
+    const res = await upload.result;
+    expect(res.kind).toBe("document");
+    expect(maxInFlightPuts).toBe(4);
+  });
+
+  it("refreshes part URLs via GET before PUT when expires_at is in the past", async () => {
+    const file = makeFile(10);
+    let getCalls = 0;
+    const putUrls: string[] = [];
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(
+          {
+            ...makeSessionBody("sess-exp-url", 1),
+            parts: [
+              {
+                part_number: 1,
+                method: "PUT",
+                url: "https://s3.test/upload/part-1?expired=1",
+                expires_at: "2020-01-01T00:00:00Z",
+              },
+            ],
+          },
+          201,
+        );
+      }
+      if (method === "GET" && url.endsWith("/api/v1/upload-sessions/sess-exp-url")) {
+        getCalls += 1;
+        return json({
+          ...makeSessionBody("sess-exp-url", 1),
+          status: "open",
+          parts: [
+            {
+              part_number: 1,
+              method: "PUT",
+              url: "https://s3.test/upload/part-1?fresh=1",
+              expires_at: "2099-01-01T00:00:00Z",
+            },
+          ],
+        });
+      }
+      if (method === "PUT" && url.startsWith("https://s3.test/upload/part-1")) {
+        putUrls.push(url);
+        return new Response(null, { status: 200, headers: { ETag: '"etag-fresh"' } });
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        return json({ document: createdDoc });
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target: { kind: "workspace", workspaceId: "ws-1" },
+      idempotencyKey: "idem-exp-url",
+      fetch: fakeFetch,
+    });
+
+    await upload.result;
+    expect(getCalls).toBe(1);
+    expect(putUrls).toEqual(["https://s3.test/upload/part-1?fresh=1"]);
+  });
+
+  it("clears the resume record when resume GET returns 404/410 (falling back to create) or when part PUT returns 410", async () => {
+    const file = makeFile(10);
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    let putStatus = 200;
+
+    // Seed a stale resume record that will 404 on initial GET.
+    storage.setItem(
+      `uniwork:upload-session:v1:${uploadFileKey(file)}:workspace:ws-1:root`,
+      JSON.stringify({
+        session_id: "sess-stale-404",
+        expires_at: "2099-01-01T00:00:00Z",
+        idempotency_key: "idem-stale",
+      }),
+    );
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.endsWith("/api/v1/upload-sessions/sess-stale-404")) {
+        return json(
+          { error: { code: "upload_session_not_found", message: "not found" } },
+          404,
+        );
+      }
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(makeSessionBody("sess-fresh-after-404", 1), 201);
+      }
+      if (method === "PUT" && url.includes("part-1")) {
+        if (putStatus === 410) {
+          return json(
+            { error: { code: "upload_session_expired", message: "expired" } },
+            410,
+          );
+        }
+        return new Response(null, { status: 200, headers: { ETag: '"etag-1"' } });
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    putStatus = 410;
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-404-410",
+      storage,
+      fetch: fakeFetch,
+    });
+
+    await expect(upload.result).rejects.toMatchObject({
+      status: 410,
+      code: "upload_session_expired",
+    });
+    expect(findResumableUpload(storage, uploadFileKey(file), target)).toBeNull();
+  });
+
+  it("runs the full frame-target lifecycle through createFrameUploadSession, getFrameUploadSession, and completeFrameUploadSession with Bearer frameToken", async () => {
+    const file = makeFile(10);
+    const storage = createFakeStorage();
+    const target = {
+      kind: "frame" as const,
+      documentId: "doc-frame-1",
+      frameToken: "ftok-99",
+    };
+    const authHeaders: { method: string; url: string; auth: string | null }[] = [];
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const headers = new Headers(init?.headers);
+      authHeaders.push({ method, url, auth: headers.get("Authorization") });
+
+      if (
+        method === "POST" &&
+        url.endsWith("/api/v1/office-frame/documents/doc-frame-1/upload-sessions")
+      ) {
+        return json(
+          {
+            ...makeSessionBody("sess-frame-1", 1),
+            parts: [
+              {
+                part_number: 1,
+                method: "PUT",
+                url: "https://s3.test/upload/part-1?expired=1",
+                expires_at: "2020-01-01T00:00:00Z",
+              },
+            ],
+          },
+          201,
+        );
+      }
+      if (
+        method === "GET" &&
+        url.endsWith("/api/v1/office-frame/documents/doc-frame-1/upload-sessions/sess-frame-1")
+      ) {
+        return json({
+          ...makeSessionBody("sess-frame-1", 1),
+          status: "open",
+          parts: [
+            {
+              part_number: 1,
+              method: "PUT",
+              url: "https://s3.test/upload/part-1?fresh=1",
+              expires_at: "2099-01-01T00:00:00Z",
+            },
+          ],
+        });
+      }
+      if (method === "PUT" && url === "https://s3.test/upload/part-1?fresh=1") {
+        return new Response(null, { status: 200, headers: { ETag: '"etag-frame-1"' } });
+      }
+      if (
+        method === "POST" &&
+        url.endsWith(
+          "/api/v1/office-frame/documents/doc-frame-1/upload-sessions/sess-frame-1/complete",
+        )
+      ) {
+        return json({
+          upload_id: "up-frame-1",
+          checksum_sha256: "a".repeat(64),
+          size_bytes: file.size,
+          claim_expires_at: "2099-01-02T00:00:00Z",
+        });
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-frame-1",
+      storage,
+      fetch: fakeFetch,
+    });
+
+    const res = await upload.result;
+    expect(res.kind).toBe("upload");
+    if (res.kind === "upload") {
+      expect(res.upload.upload_id).toBe("up-frame-1");
+    }
+    const apiCalls = authHeaders.filter((h) => h.url.includes("/api/v1/office-frame/"));
+    expect(apiCalls.map((c) => c.method)).toEqual(["POST", "GET", "POST"]);
+    expect(apiCalls.every((c) => c.auth === "Bearer ftok-99")).toBe(true);
+    expect(findResumableUpload(storage, uploadFileKey(file), target)).toBeNull();
+  });
 });
+
+
