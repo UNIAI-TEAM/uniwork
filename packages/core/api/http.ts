@@ -214,7 +214,12 @@ function parseRetryAfter(value: string | null): number | undefined {
 
 export async function throwFromFailedResponse(res: Response): Promise<never> {
   let code = "internal";
-  let message = res.statusText || `HTTP ${res.status}`;
+  // No `HTTP ${res.status}` fallback: a body-less failure (a proxy 502 with an
+  // HTML body, an empty statusText over HTTP/2) must leave the message empty so
+  // `apiErrorMessage` answers undefined and the caller renders its own
+  // localized sentence instead of a raw English "HTTP 502". Callers that need
+  // the status read `err.status` / `err.code`, never the message.
+  let message = res.statusText;
   let fields: Record<string, unknown> | undefined;
   let errorClass: ApiErrorClass | undefined;
   try {
