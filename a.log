@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+88b77c0d4f52b2c251f27fdecddcc03a637d9893
+907fef4933177418ef994355c7f83e865fc4e898
+88b77c0d4 test(documents): pin shelved on the feed row's field sets
+f36625148 feat(documents): frame tokens carry can_edit=false on a shelved document (ARCHIVE-01, UNI-1845)
+1312cbe61 feat(documents): shelved documents refuse every write path (ARCHIVE-01, UNI-1845)
+7a198c4a5 feat(documents): shelved flag on the change feed and shelve/unshelve actions
+80f21bbfa feat(documents): the archive shelf list behind ?shelved=true
+f5f48b501 feat(documents): hide shelved rows from the normal lists, keep them in search
+e122620c3 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
+b3bb50d01 test(documents): SH-1/SH-3/SH-4 coverage and audit rows for shelve/unshelve (ARCHIVE-01, UNI-1845)
