@@ -97,6 +97,11 @@ describe("labels", () => {
     expect(pollResults(secret).hideCounts).toBe(true);
     expect(pollResults({ ...secret, viewer_option_ids: ["o2"] })).toMatchObject({ hideCounts: false, options: [{ mine: false }, { mine: true }] });
     expect(pollResults({ ...poll, options: [{ id: "o1", label: "x", votes: 0 }] }).options[0]?.percent).toBe(0);
+    // Past its deadline a poll takes no vote (chat-poll-message-row.tsx › isPollExpired).
+    const now = Date.parse("2026-10-17T10:00:00Z");
+    expect(pollResults({ ...poll, settings: { ...poll.settings, deadline_at: "2026-10-17T09:00:00Z" } }, now).closed).toBe(true);
+    expect(pollResults({ ...poll, settings: { ...poll.settings, deadline_at: "2026-10-17T11:00:00Z" } }, now).closed).toBe(false);
+    expect(pollResults(poll, now).closed).toBe(false);
   });
 
   it("treats a signed URL as dead a minute before it expires", () => {

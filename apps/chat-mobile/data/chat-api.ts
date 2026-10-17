@@ -1,12 +1,14 @@
 // The chat endpoints the mobile chat tab calls, copied from
 // packages/core/api/endpoints/{chat-rooms,chat-messages,chat-threads,
-// chat-channels,chat-users,chat-presence,chat-voice}.ts and workspaces.ts
+// chat-channels,chat-users,chat-presence,chat-voice,chat-media,
+// chat-follow-ups,chat-links}.ts, tasks.ts (getTask) and workspaces.ts
 // (ADR 0011: those reach the web transport). Same paths, same lenient schemas
 // (imported from the allowlisted chat-schemas), same fallbacks; only the
 // transport is the app's own. chat-api.test.ts holds a malformed-response
 // case for every one of them.
 import { parseWithFallback } from "@uniwork/core/api/schema";
 import {
+  ChatGifListSchema,
   ChatMessageEnvelopeSchema,
   ChatMessagesListSchema,
   ChatNicknameMapSchema,
@@ -16,6 +18,7 @@ import {
   ChatVoiceTokenSchema,
   PendingChatVoiceInvitesSchema,
   enc,
+  type ChatGifRecord,
   type ChatMessageRecord,
   type ChatVoiceToken,
   type PendingChatVoiceInvite,
@@ -63,6 +66,31 @@ const PresenceBeatSchema = z.object({ online_user_ids: z.array(z.string()).optio
 
 const ThreadReadSchema = z.object({ previous_read_at: z.string().optional().catch(undefined) });
 
+// The fields the phone reads of a follow-up, a message link and a task; the
+// web's schemas live outside the mobile allowlist (chat-follow-ups.ts,
+// chat-links.ts, types/task.ts), so these are their lenient subsets.
+const FollowUpSchema = z.object({
+  id: z.string(),
+  message_id: z.string(),
+  note: z.string().catch(""),
+  due_at: z.string().nullish().catch(null),
+  completed_at: z.string().nullish().catch(null),
+});
+export type ChatFollowUp = z.infer<typeof FollowUpSchema>;
+const FollowUpEnvelopeSchema = z.object({ follow_up: FollowUpSchema.optional() });
+const FollowUpListSchema = z.object({ follow_ups: z.array(FollowUpSchema).optional().default([]) });
+
+const MessageLinkSchema = z.object({ id: z.string(), message_id: z.string(), target_type: z.string(), target_id: z.string() });
+type ChatMessageLink = z.infer<typeof MessageLinkSchema>;
+const LinkListSchema = z.object({ links: z.array(MessageLinkSchema).optional().default([]) });
+
+const TaskSchema = z.object({ id: z.string(), title: z.string().catch(""), identifier: z.string().catch(""), status: z.string().catch("") });
+export type ChatTask = z.infer<typeof TaskSchema>;
+const TaskEnvelopeSchema = z.object({ task: TaskSchema.optional() });
+
+/** The follow-up and link deletes answer `{ok}` or `{status}` (chat-follow-ups.ts › isOk). */
+const OkSchema = z.object({ ok: z.boolean().optional(), status: z.string().optional() });
+
 function query(params: Record<string, string | number | undefined>): string {
   const p = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -90,6 +118,12 @@ export function createChatApi(request: Request) {
   }
   async function ok(raw: Promise<unknown>, endpoint: string): Promise<boolean> {
     return parseWithFallback(await raw, StatusSchema, { status: "" }, { endpoint }).status === "ok";
+  }
+  async function task(raw: Promise<unknown>, endpoint: string): Promise<ChatTask | null> {
+    return parseWithFallback<z.infer<typeof TaskEnvelopeSchema>>(await raw, TaskEnvelopeSchema, {}, { endpoint }).task ?? null;
+  }
+  async function followUp(raw: Promise<unknown>, endpoint: string): Promise<ChatFollowUp | null> {
+    return parseWithFallback<z.infer<typeof FollowUpEnvelopeSchema>>(await raw, FollowUpEnvelopeSchema, {}, { endpoint }).follow_up ?? null;
   }
 
   return {
@@ -148,7 +182,12 @@ export function createChatApi(request: Request) {
         "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/search",
       );
     },
-    sendMessage(wsId: string, roomId: string, input: { body: string; client_msg_id: string; reply_to_message_id?: string }) {
+    /** Text, or a reminder (M3: `reminder` and no body, as chat-create-reminder-dialog.tsx sends it). */
+    sendMessage(
+      wsId: string,
+      roomId: string,
+      input: { body?: string; client_msg_id: string; reply_to_message_id?: string; reminder?: { body: string; remind_at: string; repeat?: string } },
+    ) {
       return message(request(`${room(wsId, roomId)}/messages`, json("POST", input)), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages");
     },
     sendFileMessage(wsId: string, roomId: string, input: { file: PendingFile; client_msg_id: string; reply_to_message_id?: string }) {
@@ -248,6 +287,63 @@ export function createChatApi(request: Request) {
     signalVoiceHangup(wsId: string, roomId: string, callId: string, durationSeconds?: number) {
       const body = durationSeconds != null && durationSeconds > 0 ? { call_id: callId, duration_seconds: durationSeconds } : { call_id: callId };
       return ok(request(`${room(wsId, roomId)}/voice/hangup`, json("POST", body)), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/voice/hangup");
+    },
+    // Rich kinds (M3).
+    votePoll(wsId: string, roomId: string, messageId: string, optionId: string) {
+      return message(
+        request(`${room(wsId, roomId)}/messages/${enc(messageId)}/poll/vote`, json("POST", { option_id: optionId })),
+        "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/vote",
+      );
+    },
+    /** A recorded clip from disk: expo-audio writes AAC in MPEG-4, which the server takes as audio/mp4. */
+    sendVoiceMessage(wsId: string, roomId: string, input: { uri: string; duration_ms: number; client_msg_id: string; reply_to_message_id?: string }) {
+      const form = new FormData();
+      form.append("file", { uri: input.uri, name: "voice.m4a", type: "audio/mp4" } as unknown as Blob);
+      form.append("duration_ms", String(input.duration_ms));
+      form.append("client_msg_id", input.client_msg_id);
+      if (input.reply_to_message_id) form.append("reply_to_message_id", input.reply_to_message_id);
+      return message(request(`${room(wsId, roomId)}/messages/voice`, { method: "POST", body: form }), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/voice");
+    },
+    /** Stickers or GIFs: trending, or a search when there is a query (the four chat-media.ts endpoints). */
+    async listExpressions(wsId: string, kind: "stickers" | "gifs", q: string, limit = 48): Promise<ChatGifRecord[]> {
+      const mode = q.trim() ? "search" : "trending";
+      const raw = await request(`${ws(wsId)}/chat/${kind}/${mode}${query({ q: q.trim(), limit })}`);
+      return parseWithFallback<z.infer<typeof ChatGifListSchema>>(raw, ChatGifListSchema, { items: [] }, { endpoint: `GET /api/v1/workspaces/{ws}/chat/${kind}/${mode}` }).items.map((item) => ({
+        id: item.id,
+        label: item.label,
+        url: item.url,
+        previewUrl: item.preview_url?.trim() || item.url,
+      }));
+    },
+    async listFollowUps(wsId: string, includeCompleted = false): Promise<ChatFollowUp[]> {
+      const raw = await request(`${ws(wsId)}/chat/follow-ups${query({ include_completed: includeCompleted ? "true" : undefined })}`);
+      return parseWithFallback(raw, FollowUpListSchema, { follow_ups: [] }, { endpoint: "GET .../chat/follow-ups" }).follow_ups;
+    },
+    createFollowUp(wsId: string, messageId: string, input: { note?: string; due_at?: string | null } = {}) {
+      return followUp(request(`${ws(wsId)}/chat/messages/${enc(messageId)}/follow-ups`, json("POST", input)), "POST .../chat/messages/{id}/follow-ups");
+    },
+    patchFollowUp(wsId: string, followUpId: string, input: { note?: string; due_at?: string | null; completed?: boolean }) {
+      return followUp(request(`${ws(wsId)}/chat/follow-ups/${enc(followUpId)}`, json("PATCH", input)), "PATCH .../chat/follow-ups/{id}");
+    },
+    async deleteFollowUp(wsId: string, followUpId: string): Promise<boolean> {
+      const raw = await request(`${ws(wsId)}/chat/follow-ups/${enc(followUpId)}`, { method: "DELETE" });
+      const parsed = parseWithFallback<z.infer<typeof OkSchema>>(raw, OkSchema, {}, { endpoint: "DELETE .../chat/follow-ups/{id}" });
+      return parsed.ok === true || parsed.status === "ok";
+    },
+    convertFollowUpToTask(wsId: string, followUpId: string) {
+      return task(request(`${ws(wsId)}/chat/follow-ups/${enc(followUpId)}/task`, json("POST")), "POST .../chat/follow-ups/{id}/task");
+    },
+    createTaskFromMessage(wsId: string, messageId: string, input: { title?: string } = {}) {
+      return task(request(`${ws(wsId)}/chat/messages/${enc(messageId)}/tasks`, json("POST", input)), "POST .../chat/messages/{id}/tasks");
+    },
+    /** The links of the messages a timeline shows, in one request. */
+    async listRoomMessageLinks(wsId: string, roomId: string, messageIds: string[]): Promise<ChatMessageLink[]> {
+      if (messageIds.length === 0) return [];
+      const raw = await request(`${room(wsId, roomId)}/message-links${query({ message_ids: messageIds.join(",") })}`);
+      return parseWithFallback(raw, LinkListSchema, { links: [] }, { endpoint: "GET .../chat/rooms/{roomID}/message-links" }).links;
+    },
+    getTask(taskId: string) {
+      return task(request(`/api/v1/tasks/${enc(taskId)}`), "GET /api/v1/tasks/{id}");
     },
   };
 }

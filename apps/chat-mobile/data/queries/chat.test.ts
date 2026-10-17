@@ -8,6 +8,10 @@ import { chatApi } from "../chat-api";
 import { CHAT_HISTORY_PAGE_SIZE } from "../chat-timeline";
 import {
   discoverableChannelsOptions,
+  expressionsOptions,
+  followUpsOptions,
+  roomLinksOptions,
+  taskOptions,
   nicknamesOptions,
   roomAroundOptions,
   roomMembersOptions,
@@ -93,5 +97,24 @@ describe("chat query options", () => {
     expect(roomSearchOptions("w1", "r1", " a ").enabled).toBe(false);
     expect(roomSearchOptions("w1", "r1", "kế").queryKey).toEqual(chatKeys.roomSearch("w1", "r1", "kế"));
     expect(chatApi.listMessagesAround).toHaveBeenCalledWith("w1", "r1", "m1");
+  });
+
+  it("asks the rich-kind endpoints the web asks (M3)", async () => {
+    const qc = new QueryClient();
+    const followUps = vi.spyOn(chatApi, "listFollowUps").mockResolvedValue([]);
+    const links = vi.spyOn(chatApi, "listRoomMessageLinks").mockResolvedValue([]);
+    const task = vi.spyOn(chatApi, "getTask").mockResolvedValue(null);
+    const expressions = vi.spyOn(chatApi, "listExpressions").mockResolvedValue([]);
+    await qc.fetchQuery(followUpsOptions("w1"));
+    await qc.fetchQuery(roomLinksOptions("w1", "r1", ["m1", "m2"]));
+    await qc.fetchQuery(taskOptions("w1", "t1"));
+    await qc.fetchQuery(expressionsOptions("w1", "gifs", " mèo "));
+    expect(followUps).toHaveBeenCalledWith("w1", true);
+    expect(links).toHaveBeenCalledWith("w1", "r1", ["m1", "m2"]);
+    expect(task).toHaveBeenCalledWith("t1");
+    expect(expressions).toHaveBeenCalledWith("w1", "gifs", " mèo ");
+    expect(expressionsOptions("w1", "gifs", " mèo ").queryKey).toEqual(chatKeys.expressions("w1", "gifs", "mèo"));
+    expect(roomLinksOptions("w1", "r1", []).enabled).toBe(false);
+    expect(roomLinksOptions("w1", "r1", ["m1"]).queryKey.slice(0, 4)).toEqual(chatKeys.roomLinksRoot("w1", "r1"));
   });
 });

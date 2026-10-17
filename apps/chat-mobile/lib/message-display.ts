@@ -2,9 +2,10 @@
 // few labels the cards print.
 //   voiceCallLogLabel       ← packages/views/chat/voice-call-log-row.tsx
 //   formatVoiceCallDuration ← packages/views/chat/voice-call-duration.ts
-//   pollResults             ← packages/views/chat/chat-poll-message-row.tsx (hide_results_until_vote)
+//   pollResults             ← packages/views/chat/chat-poll-message-row.tsx (hide_results_until_vote, closed)
 // message-display.test.ts covers every kind in chat-schemas plus an unknown one.
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
+import { isPollExpired } from "@uniwork/core/chat/poll-utils";
 import { isChatImageContentType, resolveChatFileContentType } from "./file-accept";
 import { parseChatMediaMessageBody } from "./media-body";
 import { formatChatSidebarPreviewText } from "./rooms-display";
@@ -92,14 +93,18 @@ export function formatFileSize(bytes: number): string {
 
 type Poll = NonNullable<ChatMessageRecord["poll"]>;
 
-/** A poll's results as the reader may see them: counts stay hidden until they voted when the poll says so. */
-export function pollResults(poll: Poll) {
+/**
+ * A poll's results as the reader may see them: counts stay hidden until they
+ * voted when the poll says so, and a poll past its deadline takes no vote.
+ */
+export function pollResults(poll: Poll, now = Date.now()) {
   const voted = new Set(poll.viewer_option_ids);
   const hideCounts = poll.settings.hide_results_until_vote && voted.size === 0;
   const total = poll.options.reduce((sum, option) => sum + option.votes, 0);
   return {
     hideCounts,
     total,
+    closed: isPollExpired(poll.settings.deadline_at, now),
     options: poll.options.map((option) => ({
       id: option.id,
       label: option.label,

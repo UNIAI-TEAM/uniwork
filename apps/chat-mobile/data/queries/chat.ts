@@ -70,6 +70,26 @@ export const roomMembersOptions = (wsId: string, roomId: string) =>
 export const nicknamesOptions = (wsId: string) =>
   queryOptions({ queryKey: chatKeys.nicknames(wsId), queryFn: () => chatApi.listNicknames(wsId), staleTime: 5 * 60_000 });
 
+/** M3: the follow-ups a message's sheet looks itself up in (the web's follow-ups sheet lists the same). */
+export const followUpsOptions = (wsId: string) =>
+  queryOptions({ queryKey: chatKeys.followUps(wsId), queryFn: () => chatApi.listFollowUps(wsId, true), staleTime: 30_000 });
+
+/** M3: which of the messages on screen carry a task, one request per window (chat-message-links-context). */
+export const roomLinksOptions = (wsId: string, roomId: string, messageIds: readonly string[]) =>
+  queryOptions({
+    queryKey: chatKeys.roomLinks(wsId, roomId, messageIds),
+    queryFn: () => chatApi.listRoomMessageLinks(wsId, roomId, [...messageIds]),
+    enabled: messageIds.length > 0,
+    staleTime: 30_000,
+  });
+
+export const taskOptions = (wsId: string, taskId: string) =>
+  queryOptions({ queryKey: chatKeys.task(wsId, taskId), queryFn: () => chatApi.getTask(taskId), staleTime: 60_000 });
+
+/** Stickers or GIFs for the picker: trending, or a search once the query has text. */
+export const expressionsOptions = (wsId: string, kind: "stickers" | "gifs", q: string) =>
+  queryOptions({ queryKey: chatKeys.expressions(wsId, kind, q.trim()), queryFn: () => chatApi.listExpressions(wsId, kind, q), staleTime: 5 * 60_000 });
+
 export const workspaceMembersOptions = (wsId: string) =>
   queryOptions({ queryKey: chatKeys.members(wsId), queryFn: () => chatApi.listWorkspaceMembers(wsId), staleTime: 5 * 60_000 });
 

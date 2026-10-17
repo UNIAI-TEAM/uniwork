@@ -1,8 +1,11 @@
 // The body of a conversation, shared by a room and a thread: the message list
-// with day separators, quotes, "Đã xem" on a DM and the typing line; the
-// composer; and the long-press sheet with what each action does to the
-// server and the cache (send queue, reactions, edit, delete, copy, thread).
-import { useQueryClient } from "@tanstack/react-query";
+// with day separators, quotes, "Đã xem" on a DM, the typing line and the task
+// cards under messages; the composer with its voice, sticker/GIF and reminder
+// sends; and the long-press sheet with what each action does to the server
+// and the cache (send queue, reactions, edit, delete, copy, thread, poll vote,
+// follow-up, task).
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { titleFromMessageBody } from "@uniwork/core/chat/message-links";
 import { latestSeenOwnMessageIndex } from "@uniwork/core/chat/read-receipt-utils";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
@@ -10,20 +13,32 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, View } from "react-native";
 import { Text } from "@/components/ui/text";
-import { deleteMessage, editMessage, toggleReaction } from "@/data/chat-actions";
+import {
+  createTaskFromMessage,
+  deleteMessage,
+  editMessage,
+  followUpCommand,
+  sendReminder,
+  sendVoiceMessage,
+  toggleReaction,
+  votePoll,
+} from "@/data/chat-actions";
 import { chatApi } from "@/data/chat-api";
 import { chatSendDeps, deliverPendingSend, discardPendingSend, sendChatMessage } from "@/data/chat-send";
+import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText } from "@/lib/message-display";
 import type { PendingFile } from "@/lib/send-pipeline";
 import { buildTimelineRows, type TimelineMessage, type TimelineRow } from "@/lib/timeline-display";
 import { Composer, type ComposerEdit, type ComposerReply } from "./composer";
+import { ExpressionSheet } from "./expression-sheet";
 import { ImageViewer } from "./image-viewer";
 import { MessageActionsSheet } from "./message-actions";
 import type { MessageCardContext } from "./message-cards";
 import { MessageList } from "./message-list";
 import { MessageRow } from "./message-row";
+import { ReminderSheet } from "./reminder-sheet";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import type { useRoomContext } from "./use-room-context";
 
@@ -54,6 +69,7 @@ export function Conversation(props: Props) {
   const [reply, setReply] = useState<ComposerReply | null>(null);
   const [edit, setEdit] = useState<ComposerEdit | null>(null);
   const [image, setImage] = useState<{ url: string; name: string } | null>(null);
+  const [sheet, setSheet] = useState<"expressions" | "reminder" | null>(null);
   const { wsId, userId } = chat;
 
   const rows = useMemo(() => buildTimelineRows(messages), [messages]);
@@ -65,12 +81,31 @@ export function Conversation(props: Props) {
     return index >= 0 ? (messages[index]?.id ?? null) : null;
   }, [messages, room.room, userId]);
 
+  const failed = useCallback(() => Alert.alert(t("common.error")), [t]);
+
   const ctx: MessageCardContext = useMemo(
-    () => ({ wsId, orgSlug: chat.orgSlug, wsSlug: chat.wsSlug, roomId, userId, onOpenImage: (url, name) => setImage({ url, name }) }),
-    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId],
+    () => ({
+      wsId,
+      orgSlug: chat.orgSlug,
+      wsSlug: chat.wsSlug,
+      roomId,
+      userId,
+      onOpenImage: (url, name) => setImage({ url, name }),
+      onVotePoll: (messageId, optionId) => void votePoll(qc, wsId, roomId, messageId, optionId).catch(() => Alert.alert(t("chat.message_list.poll_vote_failed"))),
+    }),
+    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, qc, t],
   );
 
-  const failed = useCallback(() => Alert.alert(t("common.error")), [t]);
+  // The tasks made from the messages on screen, one request per window (the web's chat-message-links-context).
+  const serverIds = useMemo(() => messages.flatMap((m) => (m.record ? [m.id] : [])), [messages]);
+  const links = useQuery(roomLinksOptions(wsId, roomId, serverIds)).data;
+  const taskIdsByMessage = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const link of links ?? []) if (link.target_type === "task") map.set(link.message_id, [...(map.get(link.message_id) ?? []), link.target_id]);
+    return map;
+  }, [links]);
+  const followUps = useQuery(followUpsOptions(wsId)).data;
+  const openFollowUp = (messageId: string) => followUps?.find((f) => f.message_id === messageId && !f.completed_at) ?? null;
   // The quote goes with this message only: cleared now, not when a slow delivery ends.
   const takeReply = () => {
     const replyToMessageId = reply?.id;
@@ -101,6 +136,7 @@ export function Conversation(props: Props) {
         highlighted={message.id === props.jumpTo?.id}
         showThread={!threadRootId}
         ctx={ctx}
+        taskIds={taskIdsByMessage.get(message.id)}
         onLongPress={setActionMessage}
         onPressQuote={props.onQuoteJump}
         onPressThread={(m) => router.push(chatRoutes.thread(chat, roomId, m.id))}
@@ -146,11 +182,23 @@ export function Conversation(props: Props) {
           void editMessage(qc, wsId, roomId, messageId, body).catch(() => Alert.alert(t("chat.message_list.edit_failed")));
         }}
         onTyping={() => void chatApi.signalTyping(wsId, roomId).catch(() => undefined)}
+        onSendVoice={(clip) =>
+          void sendVoiceMessage(qc, wsId, roomId, { ...clip, replyToMessageId: takeReply() }).catch(() => Alert.alert(t("chat.voice_record_failed")))
+        }
+        onOpenExpressions={() => setSheet("expressions")}
+        onOpenReminder={() => setSheet("reminder")}
+      />
+      <ExpressionSheet wsId={wsId} visible={sheet === "expressions"} onClose={() => setSheet(null)} onPick={send} />
+      <ReminderSheet
+        visible={sheet === "reminder"}
+        onClose={() => setSheet(null)}
+        onCreate={(input) => void sendReminder(qc, wsId, roomId, input).catch(() => Alert.alert(t("chat.reminder_create_failed")))}
       />
       <MessageActionsSheet
         message={actionMessage}
         own={actionMessage?.sender === userId}
         inThread={Boolean(threadRootId)}
+        followUp={actionMessage ? openFollowUp(actionMessage.id) : null}
         onClose={() => setActionMessage(null)}
         onReact={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => Alert.alert(t("chat.message_list.react_failed")))}
         onReply={(m) => {
@@ -172,6 +220,23 @@ export function Conversation(props: Props) {
               onPress: () => void deleteMessage(qc, wsId, roomId, m.id).catch(() => Alert.alert(t("chat.message_list.delete_failed"))),
             },
           ])
+        }
+        onFollowUp={(m, command) => {
+          const followUp = openFollowUp(m.id);
+          const run =
+            command === "create"
+              ? followUpCommand(qc, wsId, "create", m.id)
+              : !followUp
+                ? Promise.resolve()
+                : command === "convert"
+                  ? createTaskFromMessage(qc, wsId, roomId, { followUpId: followUp.id })
+                  : followUpCommand(qc, wsId, command, followUp.id);
+          void run.catch(() => Alert.alert(t(command === "convert" ? "chat.follow_up.convert_failed" : "chat.follow_up.update_failed")));
+        }}
+        onCreateTask={(m) =>
+          void createTaskFromMessage(qc, wsId, roomId, { messageId: m.id, title: titleFromMessageBody(deserializeMessageBodyToComposerDraft(m.body)) }).catch(() =>
+            Alert.alert(t("chat.link.create_error")),
+          )
         }
         onRetry={(m) => m.pending && void deliverPendingSend(qc, m.pending, chatSendDeps)}
         onDiscard={(m) => m.pending && discardPendingSend(m.pending.clientMsgId)}

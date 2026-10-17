@@ -1,5 +1,6 @@
-// Copied from packages/views/chat/chat-expression-utils.ts (the reading half;
-// sending stickers and GIFs is M3); keep in parity (media-body.test.ts).
+// Copied from packages/views/chat/chat-expression-utils.ts (reading, and from
+// M3 writing the body a sticker or GIF is sent as); keep in parity
+// (media-body.test.ts).
 
 const MEDIA_MESSAGE_PATTERN = /^!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)$/;
 
@@ -15,6 +16,12 @@ function isAllowedMediaUrl(raw: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** The body a picked sticker or GIF is sent as (chat-expression-picker.tsx: alt "sticker:<label>" or "gif:<label>"). */
+export function formatChatMediaMessageBody(url: string, alt: string): string {
+  const safeAlt = alt.replace(/[[\]]/g, "").trim() || "media";
+  return `![${safeAlt}](${url})`;
 }
 
 export function parseChatMediaMessageBody(body: string): { url: string; alt: string } | null {

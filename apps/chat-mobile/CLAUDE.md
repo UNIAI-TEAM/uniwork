@@ -86,6 +86,11 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   render `assets/sounds/ring-*.wav` (test so byte; sinh lại bằng
   `UPDATE_RINGTONES=1`). Push "X đang gọi" mang `?call=`; tab Chat gọi
   `callEngine.joinFromPush`. Cần dev client (EAS), không chạy Expo Go.
+  Kind giàu (M3): endpoint trong `data/chat-api.ts`, lệnh và cache trong
+  `data/chat-actions.ts` (bỏ phiếu, tin thoại, nhắc, follow-up, tạo việc);
+  composer ghi âm (`components/chat/use-voice-recorder.ts`), mở
+  `expression-sheet.tsx` và `reminder-sheet.tsx`; follow-up và "Tạo việc" ở
+  sheet nhấn giữ; thẻ việc `task-card.tsx` dưới tin.
 - `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
   bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
   sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.

@@ -33,6 +33,17 @@
 | Dep native | `@livekit/react-native` 3.0.0, `@livekit/react-native-webrtc` 144.2.0, `@livekit/react-native-expo-plugin` 1.0.3, `@config-plugins/react-native-webrtc` 15.0.2, `livekit-client` ^2.21.0 (cùng dải với `packages/views`) | Bản mới nhất của ba gói LiveKit phát hành đúng hôm nay (2026-10-17) — dùng bản trước; Expo không có bản khuyến nghị nên thêm tay rồi `pnpm install`; `expo export --platform ios` gói được JS với layout pnpm |
 | Thứ tự kind giàu | poll bỏ phiếu → tin thoại → sticker/GIF → nhắc → follow-up → tạo/liên kết task | Từ nhỏ đến lớn; mỗi bước giao được riêng |
 
+### Kind giàu — cách làm trên điện thoại
+
+| Kind | Chọn | Bỏ lại (ghi rõ) |
+|---|---|---|
+| Bỏ phiếu | Mỗi lựa chọn của thẻ poll là nút bỏ phiếu; poll quá hạn (`isPollExpired` của core) chỉ hiện kết quả | Xem danh sách người bỏ phiếu, tạo poll — ở web |
+| Tin thoại | Nháp trống thì nút gửi thành nút mic: chạm để ghi (`expo-audio` HIGH_QUALITY, m4a), thùng rác hủy, gửi; đủ 2 phút thì tự gửi; gửi thẳng (`client_msg_id`), không qua hàng đợi | Dạng sóng (web cũng không vẽ), nghe thử trước khi gửi, tin thoại trong thread (endpoint không nhận thread) |
+| Sticker/GIF | Sheet hai tab, trending hoặc tìm (chờ 350 ms sau khi gõ), gửi `![sticker:…](url)` / `![gif:…](url)` qua hàng đợi văn bản như web | Bộ sticker emoji offline của web (twemoji) — chỉ nguồn server; không có `TENOR_API_KEY` thì dòng trống |
+| Nhắc | Sheet: nội dung, ba preset của web, lặp lại; `POST …/messages` với `reminder` (đúng `chat-create-reminder-dialog.tsx`) | Chọn giờ tùy ý (chưa có date picker native) |
+| Follow-up | Trong sheet nhấn giữ của tin: "Theo dõi sau", hoặc khi đã có: Xong / Chuyển thành việc / Bỏ khỏi danh sách; realtime `chat.follow_up.*` làm mới danh sách | Danh sách follow-up riêng, ghi chú, hạn |
+| Task | "Tạo việc" trong sheet nhấn giữ, tiêu đề `titleFromMessageBody` của core; thẻ việc dưới tin (`message-links` một request/cửa sổ, `GET /api/v1/tasks/{id}`) mở trang việc trên web | Gắn việc đã có, sửa tiêu đề/project/người nhận trước khi tạo, gỡ gắn |
+
 ## Task 1 — Server: push cuộc gọi đến
 
 - `internal/service/chat_signal.go`: `SignalVoiceInvite` ghi `chat.voice.invite_received` cho mỗi người được mời (DM: peer; nhóm/kênh: thành viên đang hoạt động trừ người gọi) và đóng hàng `chat_call:<room>` cũ của họ, cùng một transaction; `SignalVoiceAccept` đóng hàng của người nhấc; `finalizeVoiceCall` đóng hàng của mọi người được mời. `ChatService.VoiceCallRinging(roomID, callID, userID)`.

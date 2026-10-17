@@ -1057,8 +1057,18 @@
       "unmute_notifications": "Turn notifications on",
       "unpin_conversation": "Unpin conversation",
       "room_info": "Conversation details",
-      "call_speaker": "Speaker"
+      "call_speaker": "Speaker",
+      "follow_up_remove": "Remove from follow-ups"
     }
+  },
+  "tasks": {
+    "status_backlog": "Backlog",
+    "status_todo": "To do",
+    "status_in_progress": "In progress",
+    "status_in_review": "In review",
+    "status_done": "Done",
+    "status_blocked": "Blocked",
+    "status_cancelled": "Cancelled"
   },
   "mobile": {
     "tab_calls": "Calls",

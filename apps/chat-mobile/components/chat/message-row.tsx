@@ -1,7 +1,8 @@
 // One message in a conversation (spec §2.2): the bubble (mine on the right),
 // the sender's name over the first bubble of a run in a group, the quoted
 // message it answers, its content by kind, time / "Đã sửa" / "Đã xem", the
-// send state of a local message, reaction chips and the thread link.
+// send state of a local message, reaction chips, the tasks made from it (M3)
+// and the thread link.
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
@@ -11,6 +12,7 @@ import { messagePreviewText, messageView } from "@/lib/message-display";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
 import { cn } from "@/lib/utils";
 import { INTERACTIVE_VIEWS, MessageContent, type MessageCardContext } from "./message-cards";
+import { TaskCards } from "./task-card";
 
 export interface MessageRowProps {
   message: TimelineMessage;
@@ -26,6 +28,8 @@ export interface MessageRowProps {
   /** Thread replies are off in a thread itself. */
   showThread: boolean;
   ctx: MessageCardContext;
+  /** The tasks this message was turned into (its task links). */
+  taskIds?: readonly string[];
   onLongPress: (message: TimelineMessage) => void;
   onPressQuote: (messageId: string) => void;
   onPressThread: (message: TimelineMessage) => void;
@@ -121,6 +125,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           ))}
         </View>
       ) : null}
+      {props.taskIds?.length ? <TaskCards ctx={ctx} taskIds={props.taskIds} own={own} /> : null}
       {showThread && record && record.reply_count > 0 ? (
         <Pressable accessibilityRole="button" onPress={() => props.onPressThread(message)} className="min-h-11 justify-center px-2">
           <Text className="text-sm font-semibold text-primary">

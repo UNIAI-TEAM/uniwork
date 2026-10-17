@@ -21,4 +21,13 @@ export const chatKeys = {
   discoverableChannels: (wsId: string) => ["chat", wsId, "channels", "discoverable"] as const,
   nicknames: (wsId: string) => ["chat", wsId, "nicknames"] as const,
   members: (wsId: string) => ["chat", wsId, "members"] as const,
+  // M3 rich kinds.
+  /** This person's follow-ups in the workspace, done ones included. */
+  followUps: (wsId: string) => ["chat", wsId, "follow-ups"] as const,
+  /** The task links of the messages one room shows. */
+  roomLinks: (wsId: string, roomId: string, messageIds: readonly string[]) => ["chat", wsId, "message-links", roomId, messageIds.join(",")] as const,
+  /** Prefix: every link list of one room. */
+  roomLinksRoot: (wsId: string, roomId: string) => ["chat", wsId, "message-links", roomId] as const,
+  task: (wsId: string, taskId: string) => ["chat", wsId, "task", taskId] as const,
+  expressions: (wsId: string, kind: "stickers" | "gifs", q: string) => ["chat", wsId, "expressions", kind, q] as const,
 };
