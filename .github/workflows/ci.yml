@@ -28,6 +28,9 @@ env:
   # rest shard). GO-2026-6612 / 6613 are fixed in net/http from go1.27.2.
   GOVULN_GO_VERSION: "1.27.2"
   PNPM_VERSION: "10.28.2"
+  # apps/chat-desktop: CI only typechecks, lints, tests (node env) and
+  # electron-vite-builds the shell; nothing runs the Electron binary.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
 jobs:
   changes:
