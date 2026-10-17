@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { ChunkedUploadProgress } from "@uniwork/core/documents/chunked-upload";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@uniwork/core/documents/limits";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { Progress, ProgressLabel } from "@uniwork/ui/components/ui/progress";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 
 export interface DocumentUploadDialogProps {
@@ -29,6 +31,13 @@ export interface DocumentUploadDialogProps {
   /** A failed attempt, shown in place so the picked file is not lost. */
   error?: string | null;
   onSubmit: (file: File) => void;
+  /** Progress state when a large file uses the chunked upload engine. */
+  chunkedProgress?: ChunkedUploadProgress | null;
+  onPause?: () => void;
+  onResume?: () => void;
+  onCancelUpload?: (file: File | null) => void;
+  hasResumable?: (file: File) => boolean;
+  onPickFile?: (file: File | null) => void;
 }
 
 /**
@@ -46,10 +55,30 @@ export function DocumentUploadDialog({
   pending = false,
   error,
   onSubmit,
+  chunkedProgress = null,
+  onPause,
+  onResume,
+  onCancelUpload,
+  hasResumable,
+  onPickFile,
 }: DocumentUploadDialogProps) {
   const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [inputKey, setInputKey] = useState(0);
+
+  const phase = chunkedProgress?.phase ?? null;
+  const isUploading = phase === "probing" || phase === "opening" || phase === "uploading";
+  const isPaused = phase === "paused";
+  const isVerifying = phase === "verifying";
+  const isChunkedActive = isUploading || isPaused || isVerifying;
+  const isBusy = pending || isChunkedActive;
+  const percentage =
+    chunkedProgress !== null
+      ? chunkedProgress.totalBytes > 0
+        ? Math.min(100, Math.floor((chunkedProgress.sentBytes / chunkedProgress.totalBytes) * 100))
+        : 0
+      : 0;
+  const showResumeHint = Boolean(file && !isChunkedActive && hasResumable?.(file));
 
   useEffect(() => {
     if (!open) {
@@ -60,8 +89,24 @@ export function DocumentUploadDialog({
   }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (pending ? undefined : onOpenChange(next))}>
-      <DialogContent className="sm:max-w-md" showCloseButton={!pending} closeLabel={t("common.close")}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          if (isUploading && onPause) {
+            onPause();
+            return;
+          }
+          if (pending || isVerifying) return;
+        }
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-md"
+        showCloseButton={!pending && !isUploading && !isVerifying}
+        closeLabel={t("common.close")}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -70,7 +115,7 @@ export function DocumentUploadDialog({
           className="flex flex-col gap-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!file || pending) return;
+            if (!file || isBusy) return;
             onSubmit(file);
           }}
         >
@@ -81,10 +126,11 @@ export function DocumentUploadDialog({
               id="document-upload-file"
               type="file"
               accept={accept}
-              disabled={pending}
+              disabled={isBusy}
               onChange={(event) => {
                 const picked = event.target.files?.[0] ?? null;
                 setFile(picked);
+                onPickFile?.(picked);
               }}
             />
             {file ? (
@@ -94,7 +140,28 @@ export function DocumentUploadDialog({
             ) : hint ? (
               <p className="text-caption text-muted-foreground">{hint}</p>
             ) : null}
+            {showResumeHint ? (
+              <p className="text-caption text-muted-foreground" data-testid="document-upload-resume-hint">
+                {t("documents.upload.resume_hint")}
+              </p>
+            ) : null}
           </div>
+          {isChunkedActive ? (
+            <div className="flex flex-col gap-1.5" data-testid="document-upload-progress">
+              <Progress
+                value={percentage}
+                aria-label={t("documents.upload.progress_status", { name: file?.name ?? "" })}
+              >
+                <ProgressLabel className="truncate text-caption">{file?.name}</ProgressLabel>
+                <span className="ml-auto text-caption text-muted-foreground tabular-nums">
+                  {`${percentage}%`}
+                </span>
+              </Progress>
+              {isPaused ? (
+                <p className="text-caption text-muted-foreground">{t("documents.upload.paused_status")}</p>
+              ) : null}
+            </div>
+          ) : null}
           {error ? (
             <p role="alert" className="text-caption text-destructive">
               {error}
@@ -104,24 +171,45 @@ export function DocumentUploadDialog({
             <Button
               type="button"
               variant="outline"
-              disabled={pending}
-              onClick={() => onOpenChange(false)}
+              disabled={pending || isVerifying}
+              onClick={() => {
+                if (isChunkedActive && onCancelUpload) {
+                  onCancelUpload(file);
+                  return;
+                }
+                onOpenChange(false);
+              }}
             >
               {t("documents.upload.cancel")}
             </Button>
-            <Button type="submit" disabled={!file || pending} aria-busy={pending || undefined}>
-              {pending ? (
-                <>
-                  <Spinner aria-hidden role="presentation" />
-                  {t("documents.upload.submitting")}
-                </>
-              ) : (
-                <>
-                  <Paperclip aria-hidden className="size-3.5" />
-                  {t("documents.upload.submit")}
-                </>
-              )}
-            </Button>
+            {isUploading ? (
+              <Button type="button" variant="secondary" onClick={onPause}>
+                {t("documents.upload.pause")}
+              </Button>
+            ) : isPaused ? (
+              <Button type="button" onClick={onResume}>
+                {t("documents.upload.resume")}
+              </Button>
+            ) : isVerifying ? (
+              <Button type="button" disabled aria-busy>
+                <Spinner aria-hidden role="presentation" />
+                {t("documents.upload.checking")}
+              </Button>
+            ) : (
+              <Button type="submit" disabled={!file || pending} aria-busy={pending || undefined}>
+                {pending ? (
+                  <>
+                    <Spinner aria-hidden role="presentation" />
+                    {t("documents.upload.submitting")}
+                  </>
+                ) : (
+                  <>
+                    <Paperclip aria-hidden className="size-3.5" />
+                    {t("documents.upload.submit")}
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

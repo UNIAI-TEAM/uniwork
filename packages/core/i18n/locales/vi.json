@@ -8920,7 +8920,14 @@
       "unsupported_format": "Định dạng của {{name}} chưa được hỗ trợ.",
       "submit": "Tải lên",
       "submitting": "Đang tải lên…",
-      "cancel": "Hủy"
+      "cancel": "Hủy",
+      "pause": "Tạm dừng",
+      "resume": "Tiếp tục",
+      "checking": "Đang kiểm tra tệp…",
+      "resume_hint": "Tiếp tục tải lên từ lần trước.",
+      "progress_status": "Đang tải lên {{name}}",
+      "paused_status": "Đã tạm dừng",
+      "failed_resumable": "Chưa tải lên hết tệp. Tiến độ đã được giữ lại — bấm Tải lên để tiếp tục."
     },
     "file": {
       "metadata_title": "Thông tin tệp",
@@ -9799,7 +9806,14 @@
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
       "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
-      "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại."
+      "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
+      "unsupported_media_type": "Định dạng tệp này chưa được hỗ trợ.",
+      "upload_sessions_exhausted": "Bạn đang có quá nhiều phiên tải lên cùng lúc. Hãy hoàn tất hoặc hủy bớt rồi thử lại.",
+      "upload_session_expired": "Phiên tải lên đã hết hạn. Hãy chọn lại tệp để tải lên từ đầu.",
+      "upload_parts_invalid": "Dữ liệu tải lên chưa đầy đủ hoặc không khớp. Hãy thử tải lên lại.",
+      "upload_size_mismatch": "Kích thước tệp đã thay đổi trong lúc tải lên. Hãy chọn lại tệp và thử lại.",
+      "upload_probe_mismatch": "Nội dung tệp không khớp với định dạng đã chọn. Hãy kiểm tra lại tệp.",
+      "quota_exceeded": "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói."
     }
   },
   "squads": {

@@ -8925,7 +8925,14 @@
       "unsupported_format": "The format of {{name}} is not supported.",
       "submit": "Upload",
       "submitting": "Uploading…",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "pause": "Pause",
+      "resume": "Resume",
+      "checking": "Checking file…",
+      "resume_hint": "Continuing upload from last time.",
+      "progress_status": "Uploading {{name}}",
+      "paused_status": "Paused",
+      "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue."
     },
     "file": {
       "metadata_title": "File details",
@@ -9806,7 +9813,14 @@
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
-      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again."
+      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "unsupported_media_type": "This file format is not supported.",
+      "upload_sessions_exhausted": "You have too many uploads open at once. Finish or cancel one, then try again.",
+      "upload_session_expired": "The upload session expired. Choose the file again to start a new upload.",
+      "upload_parts_invalid": "The uploaded parts were incomplete or did not match. Try uploading again.",
+      "upload_size_mismatch": "The file size changed while uploading. Choose the file again and retry.",
+      "upload_probe_mismatch": "The file content does not match the selected format. Check the file and try again.",
+      "quota_exceeded": "Your organization is out of storage space. Free up space or upgrade your plan."
     }
   },
   "squads": {
