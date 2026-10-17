@@ -417,4 +417,23 @@ describe("ADR 0011 — apps/chat-mobile", () => {
     assert.ok(exists(".github/workflows/mobile-verify.yml"), "mobile-verify workflow is missing");
     assert.match(read(".github/workflows/ci.yml"), /!@uniwork\/chat-mobile/, "ci.yml must filter out @uniwork/chat-mobile");
   });
+
+  test("the nightly keeps its test account out of public artifacts and setup steps", { skip: !exists(app) && "apps/chat-mobile does not exist yet" }, () => {
+    // The repository is public: anyone can download a workflow artifact, and
+    // GitHub masks secrets in logs only. Maestro's command log records what
+    // each inputText typed (the test password); screenshots are all a failure
+    // needs. The account reaches only the steps that run Maestro, not the
+    // install, prebuild and installer script before them (UNI-1838).
+    const wf = read(".github/workflows/chat-mobile-verify.yml");
+    for (const [, upload] of wf.matchAll(/^\s+path: (.+)$/gm)) {
+      if (upload.includes(".maestro")) assert.match(upload, /\*\.png$/, `uploads ${upload}: only Maestro screenshots may leave the runner`);
+    }
+    for (const job of wf.split(/^ {2}(?=[a-z]+:$)/m).filter((j) => /^(ios|android):/.test(j))) {
+      const [head, ...steps] = job.split(/^ {6}- /m);
+      assert.doesNotMatch(head, /MAESTRO_TEST_/, `${job.split(":")[0]}: the test account belongs on the Maestro steps, not the job env`);
+      for (const step of steps.filter((s) => s.includes("MAESTRO_TEST_"))) {
+        assert.match(step, /maestro (--device \S+ )?test /, `a step that does not run Maestro gets the test account:\n${step}`);
+      }
+    }
+  });
 });

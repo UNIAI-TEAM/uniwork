@@ -55,9 +55,8 @@ function AuthInitializer({ children }: { children: ReactNode }) {
       if (signingOut.current) return;
       signingOut.current = true;
       void (async () => {
-        // logout() clears the workspace store too.
+        // logout() clears the workspace store, the query cache and the send queue too.
         await useAuthStore.getState().logout();
-        queryClient.clear();
         router.replace("/login");
         signingOut.current = false;
       })();

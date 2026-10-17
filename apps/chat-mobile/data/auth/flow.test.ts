@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("expo-crypto", async () => (await import("./expo-crypto-mock")).expoCryptoMock());
 vi.mock("expo-secure-store", () => ({
-  AFTER_FIRST_UNLOCK: "afterFirstUnlock",
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: "afterFirstUnlockThisDeviceOnly",
   getItemAsync: vi.fn(),
   setItemAsync: vi.fn(),
   deleteItemAsync: vi.fn(),

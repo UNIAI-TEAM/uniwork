@@ -140,6 +140,13 @@ describe("EAS project and release servers", () => {
     expect(config.extra?.eas).toEqual({ projectId: "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
   });
 
+  it("hands the Firebase file of the EAS environment to Android, which needs it for an Expo push token", () => {
+    vi.stubEnv("GOOGLE_SERVICES_JSON", "/eas/tmp/google-services.json");
+    expect(build().android?.googleServicesFile).toBe("/eas/tmp/google-services.json");
+    vi.stubEnv("GOOGLE_SERVICES_JSON", undefined);
+    expect(build().android).not.toHaveProperty("googleServicesFile");
+  });
+
   it("an empty override turns EAS off", () => {
     vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "");
     const config = build();

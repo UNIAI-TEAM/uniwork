@@ -1,6 +1,6 @@
 # UniChat D2 — Đóng gói và phát hành desktop — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — nhánh `feature/UNI-1835-unichat-d2-dong-goi-va-phat-hanh-desktop`, issue UNI-1835; Task 1–6 xong trên nhánh, còn chạy thật tag `chat-desktop-v0.1.0-dev.1` → release và smoke cài/cập nhật trên máy sạch (sau merge).
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #339 (squash 0c72b9b15); issue UNI-1835. Chạy thật tag `chat-desktop-v0.1.0-dev.1` → release và smoke cài/cập nhật trên máy sạch chuyển sang Q1 (UNI-1838).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

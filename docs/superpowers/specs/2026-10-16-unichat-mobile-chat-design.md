@@ -1,6 +1,6 @@
 # UniChat — Tab Chat: danh sách hội thoại hợp nhất và hội thoại lõi (lát M2a)
 
-> **Trạng thái:** in-progress — đang triển khai trên nhánh `feature/UNI-1832-unichat-m2a-tab-chat-danh-sach-hoi-thoai`; plan `../plans/2026-10-17-unichat-mobile-chat.md`. Lát M2a của epic UNI-1826; issue UNI-1832.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #342 (squash bd3216771); plan `../plans/2026-10-17-unichat-mobile-chat.md`; chạy trên máy/simulator thật còn lại cho Q1 (UNI-1838). Lát M2a của epic UNI-1826; issue UNI-1832.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §6 M2, §8 · **Mẫu UI:** Telegram iOS/Android (hàng hội thoại, hội thoại, luồng) · **Nguồn web phải mirror:** `packages/views/chat/{chat-sidebar-unified.ts, chat-sidebar-preview.ts, chat-sidebar-typing.ts, typing-indicator.ts, chat-mention-utils.ts, chat-file-accept.ts, chat-message-time.ts, native-chat-message-grouping.ts, native-chat-message-timeline.ts}`, `packages/core/chat/{realtime-cache.ts, merge-optimistic-chat-messages.ts, send-outbox-store.ts, room-timeline.ts, use-mark-chat-room-read-at-latest.ts, use-chat-typing-sync.ts, use-chat-presence-heartbeat.ts}` (copy thiết kế), `read-receipt-utils.ts`, `lazy-chat-scopes.ts`, `client-msg-id.ts` (import thuần)
 

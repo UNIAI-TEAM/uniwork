@@ -1,6 +1,6 @@
 # UniChat — Shell Electron `apps/chat-desktop` (lát D1)
 
-> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #336 (squash 4b50d7047); smoke tay shell còn lại trước pilot (Q1)../plans/2026-10-17-unichat-desktop-shell.md`. Lát D1 của epic UNI-1826; issue UNI-1830.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #336 (squash 4b50d7047); plan `../plans/2026-10-17-unichat-desktop-shell.md`; smoke tay shell còn lại cho nghiệm thu Q1 (UNI-1838). Lát D1 của epic UNI-1826; issue UNI-1830.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.2, §3.5, §6 D1 · **Nguồn mirror (đã khảo sát 2026-10-17):** `usf/apps/desktop/src/main/{navigation-guard,external-url,window-state,updater,updater-preferences,notification-gate,renderer-web-preferences,runtime-config-loader}.ts` (+ test), `usf/apps/desktop/src/shared/main-renderer-messages.ts` (+ test), `usf/apps/desktop/eslint.config.mjs` (rule `no-restricted-syntax` cấm gọi thẳng `shell.openExternal` / `webContents.downloadURL` ngoài một tệp `external-url.ts`), `uniwork-office/apps/shell/src/main/uniwork-auth/{pkce,callback,transport,session-core,manager}.ts`. **Không copy** từ usf: renderer riêng và tab coordinator, `webSecurity: false` + xóa header Origin, token trong `localStorage` + PAT của daemon, deep link mang token, `window.electron.ipcRenderer` chung · **Luật:** ADR 0026
 

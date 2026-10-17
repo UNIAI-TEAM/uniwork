@@ -1,6 +1,6 @@
 # UniChat — Nền `apps/chat-mobile`: Expo iOS + Android, ranh giới import, CI, auth PKCE, realtime, push, deep link (lát M1)
 
-> **Trạng thái:** in-progress — đang triển khai trên nhánh `feature/UNI-1831-unichat-m1-apps-chat-mobile-nen-expo-ios`; plan `../plans/2026-10-17-unichat-mobile-foundation.md`. Lát M1 của epic UNI-1826; issue UNI-1831.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #337 (squash f24ce4874); plan `../plans/2026-10-17-unichat-mobile-foundation.md`; chạy trên máy/simulator thật còn lại cho Q1 (UNI-1838). Lát M1 của epic UNI-1826; issue UNI-1831.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.3, §6 M1 · **Luật:** ADR 0011 (§1 nới cho UniChat: iOS và Android cùng lúc) · **Nguồn mirror:** `usf/apps/mobile/{CLAUDE.md, data/realtime/ws-client.ts, data/realtime/realtime-provider.tsx, data/api.ts, data/query-client.ts, data/secure-storage.ts, data/auth-store.ts, data/workspace-store.ts, scripts/ios-run.sh}`, `usf/.github/workflows/mobile-verify.yml`
 

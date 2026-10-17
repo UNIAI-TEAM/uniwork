@@ -11,7 +11,7 @@ const keychain = vi.hoisted(() => ({
 }));
 
 vi.mock("expo-secure-store", () => ({
-  AFTER_FIRST_UNLOCK: "afterFirstUnlock",
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: "afterFirstUnlockThisDeviceOnly",
   getItemAsync: vi.fn(async () => keychain.value),
   setItemAsync: vi.fn(async (_key: string, value: string) => {
     keychain.log.push(`set:${JSON.parse(value).refresh_token}`);
@@ -32,7 +32,8 @@ import * as SecureStore from "expo-secure-store";
 import { secureSessionStorage, type StoredSession } from "./secure-storage";
 import { currentSessionEpoch, invalidateSessionEpoch } from "./session-epoch";
 
-const afterFirstUnlock = { keychainAccessible: "afterFirstUnlock" };
+// Readable while locked (background refresh), never restored from a backup onto another phone.
+const afterFirstUnlock = { keychainAccessible: "afterFirstUnlockThisDeviceOnly" };
 
 const session = (refresh_token: string): StoredSession => ({
   access_token: `at_${refresh_token}`,

@@ -1,6 +1,6 @@
 # UniChat M3 — Gọi LiveKit React Native và các kind giàu — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — issue UNI-1834, nhánh `feature/UNI-1834-unichat-m3-goi-livekit-react-native-va-c`.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #345 (squash 6e7c2a7d1); issue UNI-1834. Foreground service Android: UNI-1880.
 
 **Spec:** `docs/superpowers/specs/2026-10-16-unichat-mobile-calls-design.md` (spec cha §3.5, §6 M3, §8). **Mẫu:** plan M2a `2026-10-17-unichat-mobile-chat.md`.
 

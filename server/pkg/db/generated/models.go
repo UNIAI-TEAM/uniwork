@@ -1918,6 +1918,7 @@ type PushSubscription struct {
 	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	SessionID  pgtype.Text        `json:"session_id"`
 }
 
 type RefreshToken struct {

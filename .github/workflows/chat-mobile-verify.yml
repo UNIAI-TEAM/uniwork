@@ -79,8 +79,6 @@ jobs:
       MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
       MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
       MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
-      MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
-      MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -129,9 +127,17 @@ jobs:
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
       - name: Sign in
         working-directory: apps/chat-mobile/maestro
+        env:
+          # The test account reaches the Maestro runs only, not install or build.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
         run: maestro --device "$UDID" test flows/login.yaml
       - name: Push opens the room
         working-directory: apps/chat-mobile/maestro
+        env:
+          # The test account reaches the Maestro runs only, not install or build.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
         run: |
           set -euo pipefail
           # Background the app: a push to the foreground app is not presented.
@@ -146,7 +152,8 @@ jobs:
         if: always()
         with:
           name: maestro-ios
-          path: ~/.maestro/tests
+          # Screenshots only: Maestro's command log records the typed test password.
+          path: ~/.maestro/tests/**/*.png
           if-no-files-found: ignore
           retention-days: 14
 
@@ -159,8 +166,6 @@ jobs:
       MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
       MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
       MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
-      MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
-      MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -195,6 +200,10 @@ jobs:
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
       - name: Run the flows on an emulator
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # The test account reaches the Maestro runs only, not install or build.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
         with:
           api-level: 35
           # google_apis carries Chrome, which hosts the sign-in Custom Tab.
@@ -210,6 +219,7 @@ jobs:
         if: always()
         with:
           name: maestro-android
-          path: ~/.maestro/tests
+          # Screenshots only: Maestro's command log records the typed test password.
+          path: ~/.maestro/tests/**/*.png
           if-no-files-found: ignore
           retention-days: 14

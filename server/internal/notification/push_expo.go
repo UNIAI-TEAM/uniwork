@@ -45,7 +45,6 @@ type expoMessage struct {
 type expoResponse struct {
 	Data []struct {
 		Status  string `json:"status"`
-		Message string `json:"message"`
 		Details struct {
 			Error string `json:"error"`
 		} `json:"details"`
@@ -121,7 +120,8 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 	case t.Details.Error == "DeviceNotRegistered":
 		return ErrSubscriptionGone
 	default:
-		return fmt.Errorf("expo push: %s: %s", t.Details.Error, t.Message)
+		// The code only: Expo's message quotes the device token.
+		return fmt.Errorf("expo push: ticket %s", t.Details.Error)
 	}
 }
 

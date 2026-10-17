@@ -1,6 +1,6 @@
 # UniChat — Trang tải trên landing `/unichat` như `/office` (lát L1)
 
-> **Trạng thái:** in-progress — đã duyệt (chủ sở hữu, 2026-10-17); đang làm trên nhánh `feature/UNI-1837-unichat-l1-trang-tai-tren-landing-unicha`, kế hoạch `docs/superpowers/plans/2026-10-17-unichat-landing-download.md`. Lát L1 của epic UNI-1826; issue UNI-1837.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #341 (squash b997165a9); plan `../plans/2026-10-17-unichat-landing-download.md`. Lát L1 của epic UNI-1826; issue UNI-1837.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.1, §6 D6 · **Tiền lệ:** `apps/web/app/office/page.tsx` (`publicPage`, `seoMetadata`), `apps/web/platform/marketing-dictionary.ts` (danh sách trang lean), `apps/web/platform/seo.ts` (`SoftwareApplication` cho `/office`), `apps/web/features/landing/office-downloads.tsx` (`useOfficeInstallers`, `groupOfficeInstallers`, `readBrowserPlatformGuess`), `packages/views/office/{installer-instructions,os-glyphs}.tsx`, `packages/core/office/desktop-platform.ts`, `GET /api/v1/config` (`office_installers`), `OFFICE_INSTALLER_{DEV,BETA,STABLE}_URLS`
 

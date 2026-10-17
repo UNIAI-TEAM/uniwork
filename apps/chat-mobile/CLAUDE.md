@@ -28,7 +28,9 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   (pre-commit từ chối). Biến build: `UNICHAT_ENV` (`dev`|`staging`|`production`),
   `UNICHAT_API_URL`, `UNICHAT_APP_URL` (bắt buộc với staging/production: thiếu
   thì config ném lỗi thay vì ship bản trỏ `localhost`), `UNICHAT_EAS_PROJECT_ID`
-  (ghi đè hằng `EAS_PROJECT_ID`); kết quả nằm ở `extra` (`apiUrl`,
+  (ghi đè hằng `EAS_PROJECT_ID`), `GOOGLE_SERVICES_JSON` (biến EAS kiểu file →
+  `android.googleServicesFile`; thiếu thì Android không lấy được push token);
+  kết quả nằm ở `extra` (`apiUrl`,
   `appUrl`, `authClientId=uniwork-chat-mobile`, `deploymentId`, `eas.projectId`
   khi có dự án EAS) và app gọi `configureRuntime()` lúc boot. Bundle id
   `com.uniworkos.chat{.dev,.staging}`, scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh

@@ -1,6 +1,6 @@
 # UniChat — Ứng dụng native cho Chat của UniWork (desktop Electron, mobile Expo)
 
-> **Trạng thái:** in-progress — Khảo sát 2026-10-16; mười câu hỏi mở đã chốt cùng chủ sở hữu sản phẩm ngày 2026-10-16 (§12). Chờ duyệt toàn văn để viết plan.
+> **Trạng thái:** in-progress — duyệt 2026-10-16 (§12); đã vào develop: N1–N3 (PR #333, #334), D1 (#336), M1 (#337), D2 (#339), M2b (#340), L1 (#341), M2a (#342), M4 phase 1 (#343), M3 (#345); còn M4 phase 2 (UNI-1836), foreground service Android khi gọi (UNI-1880) và nghiệm thu Q1 (UNI-1838, plan `../plans/2026-10-17-unichat-maturity-pilot.md`).
 
 **Ngày:** 2026-10-16
 **Issue:** epic **UNI-1826** (Roadmap ID C-19) với 12 sub-issue theo stage: N1 UNI-1827 · N2 UNI-1828 · N3 UNI-1829 · D1 UNI-1830 · M1 UNI-1831 · M2a UNI-1832 · M2b UNI-1833 · M3 UNI-1834 · D2 UNI-1835 · M4 UNI-1836 · L1 UNI-1837 · Q1 UNI-1838 — mỗi lát có spec riêng `2026-10-16-unichat-*-design.md` trong thư mục này (C-08 mobile vẫn là dòng khác, không thay)

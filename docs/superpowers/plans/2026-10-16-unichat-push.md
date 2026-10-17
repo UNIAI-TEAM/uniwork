@@ -1,6 +1,6 @@
 # UniChat N2 — Push qua Expo, preview nội dung, bỏ push khi đang hoạt động — Kế hoạch triển khai
 
-> **Trạng thái:** shipped — issue UNI-1828, nhánh `feature/UNI-1828-unichat-n2-push-expopushsender-dang-ky-t`.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #333 (squash d4d5aaa31, gộp N1–N3 giai đoạn 1); sửa sau khảo sát usf qua PR #334 (df17638c0); issue UNI-1828.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

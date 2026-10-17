@@ -30,7 +30,11 @@ nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset �
 4. Google: Play Console, tạo app `com.uniworkos.chat.staging`. Bản AAB đầu tiên phải tải tay (API của Google không tạo
    được bản đầu): `eas build -p android --profile internal`, tải `.aab` lên Internal testing. Service account Google
    Cloud có quyền phát hành trên app → khoá JSON tải lên EAS (`eas credentials -p android`, mục khoá cho submit). Khoá
-   FCM V1 cho push cũng tải lên EAS ở cùng màn đó (khoá khác).
+   FCM V1 cho push cũng tải lên EAS ở cùng màn đó (khoá khác). Push Android còn cần `google-services.json` của dự án
+   Firebase (app `com.uniworkos.chat`, `.staging`, `.dev`) làm biến EAS kiểu file:
+   `eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment <env>` cho
+   `development`, `preview`, `production` — `app.config.ts` chuyển nó vào `android.googleServicesFile`. Danh sách đầy
+   đủ tài khoản và tên khoá: `docs/evidence/unichat/release-accounts.md`.
 5. GitHub → Settings → Environments → `chat-mobile-release`: giới hạn tag `chat-mobile-v*`, thêm secret `EXPO_TOKEN`
    (robot token của tài khoản Expo tổ chức). Không thêm khoá Apple/Google vào GitHub.
 6. Server staging và production: `DESKTOP_AUTH_CLIENTS` có
@@ -76,8 +80,9 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
    `eas channel:view internal` cho biết kênh trỏ nhánh nào.
 4. Cấu hình một biến thể: `UNICHAT_ENV=staging UNICHAT_API_URL=… UNICHAT_APP_URL=… pnpm --filter
    @uniwork/chat-mobile exec expo config --type public` (tên, bundle id, scheme, `updates`, `extra`).
-5. Nightly: artifact `maestro-ios` / `maestro-android` của run có ảnh chụp màn hình và log từng bước; bước đầu đỏ là
-   nguyên nhân, các bước sau thường là hệ quả.
+5. Nightly: artifact `maestro-ios` / `maestro-android` của run chỉ có ảnh chụp màn hình (log lệnh của Maestro ghi mật
+   khẩu đã gõ và repo công khai, nên không tải lên); log từng bước nằm trong log của job. Bước đầu đỏ là nguyên nhân,
+   các bước sau thường là hệ quả.
 
 ## Khắc phục
 

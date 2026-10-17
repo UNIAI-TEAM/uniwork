@@ -93,6 +93,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: appId,
       // The WebRTC plugin asks to draw over other apps; a call never does, and Play reviews it.
       blockedPermissions: ["android.permission.SYSTEM_ALERT_WINDOW"],
+      // An EAS file variable (docs/evidence/unichat/release-accounts.md): without
+      // Firebase, getExpoPushTokenAsync throws on Android and push never registers.
+      ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundImage: "./assets/adaptive-icon-background.png",
