@@ -184,7 +184,7 @@ export function ChatMessageHoverActions({
             {QUICK_REACTIONS.map((emoji) => (
               <MessageActionButton
                 key={emoji}
-                label={t("chat.reaction_toggle_aria", { emoji, count: message.reactions[emoji] ?? 0 })}
+                label={t("chat.action_react_emoji", { emoji })}
                 onClick={() => onToggleReaction(message, emoji)}
                 pressed={mine.has(emoji)}
               >

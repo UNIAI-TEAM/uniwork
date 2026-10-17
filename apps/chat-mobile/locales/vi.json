@@ -579,6 +579,7 @@
     "presence_online": "Đang hoạt động",
     "presence_offline": "Ngoại tuyến",
     "action_react": "Thả 👍",
+    "action_react_emoji": "Thả {{emoji}}",
     "action_reply": "Trả lời",
     "action_thread": "Trả lời theo chủ đề",
     "action_edit": "Sửa",
@@ -603,6 +604,7 @@
     "thread_replies": "{{count}} trả lời",
     "thread_replies_unread": "{{count}} trả lời · chưa đọc",
     "replying_to": "Trả lời: {{preview}}",
+    "replying_to_name": "Trả lời {{name}}",
     "cancel_reply": "Hủy",
     "follow_up": {
       "list_capped": "Đang hiện {{limit}} mục đầu, hạn gần nhất trước.",
@@ -858,6 +860,7 @@
     "bulletin_create": "Thêm",
     "bulletin_tab_all": "Tất cả",
     "bulletin_tab_pinned": "Tin ghim",
+    "pinned_bar_position": "Tin ghim {{current}}/{{total}}",
     "bulletin_tab_notes": "Ghi chú",
     "bulletin_tab_posts": "Bài đăng",
     "bulletin_tab_polls": "Bình chọn",

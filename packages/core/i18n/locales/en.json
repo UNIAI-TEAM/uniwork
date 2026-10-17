@@ -4162,6 +4162,7 @@
     "presence_online": "Active now",
     "presence_offline": "Offline",
     "action_react": "React 👍",
+    "action_react_emoji": "React with {{emoji}}",
     "action_reply": "Reply",
     "action_thread": "Reply in thread",
     "action_edit": "Edit",
@@ -4186,6 +4187,7 @@
     "thread_replies": "{{count}} replies",
     "thread_replies_unread": "{{count}} replies · unread",
     "replying_to": "Replying to: {{preview}}",
+    "replying_to_name": "Replying to {{name}}",
     "cancel_reply": "Cancel",
     "follow_up": {
       "list_capped": "Showing the first {{limit}}, soonest due first.",
@@ -4441,6 +4443,7 @@
     "bulletin_create": "Add",
     "bulletin_tab_all": "All",
     "bulletin_tab_pinned": "Pinned",
+    "pinned_bar_position": "Pinned {{current}}/{{total}}",
     "bulletin_tab_notes": "Notes",
     "bulletin_tab_posts": "Posts",
     "bulletin_tab_polls": "Polls",

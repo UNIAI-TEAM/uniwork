@@ -74,12 +74,12 @@ describe("ChatMessageHoverActions", () => {
       ),
     );
     for (const emoji of ["👍", "❤️", "😂", "😮", "😢", "🙏"]) {
-      expect(screen.getByRole("button", { name: new RegExp(`^${emoji} `) })).toBeInTheDocument();
+      // One button per emoji: the quick 👍 replaces the old single "Thả 👍" action.
+      expect(screen.getAllByRole("button", { name: `Thả ${emoji}` })).toHaveLength(1);
     }
-    expect(screen.queryByRole("button", { name: "Thả 👍" })).not.toBeInTheDocument();
-    const heart = screen.getByRole("button", { name: /^❤️ 2 / });
+    const heart = screen.getByRole("button", { name: "Thả ❤️" });
     expect(heart).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: /^😢 0 / }));
+    await user.click(screen.getByRole("button", { name: "Thả 😢" }));
     expect(onToggleReaction).toHaveBeenCalledWith(row, "😢");
   });
 });

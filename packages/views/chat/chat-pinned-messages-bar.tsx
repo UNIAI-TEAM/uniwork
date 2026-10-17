@@ -218,7 +218,14 @@ export function ChatPinnedMessagesBar({
         >
           {kindTile(item)}
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-label font-semibold text-brand">{t("chat.bulletin_tab_pinned")}</span>
+            <span className="text-label font-semibold text-brand">
+              {pinned.length > 1
+                ? t("chat.pinned_bar_position", {
+                    current: pinned.findIndex((pin) => pin.id === item.id) + 1,
+                    total: pinned.length,
+                  })
+                : t("chat.bulletin_tab_pinned")}
+            </span>
             <span className="truncate text-body text-foreground">{item.preview}</span>
           </span>
         </button>

@@ -88,11 +88,17 @@ export function ChatReplyQuote({
         ) : null}
         <span className="flex min-w-0 flex-col">
           {senderLabel ? (
-            <span className="truncate text-label font-semibold text-brand">{senderLabel}</span>
-          ) : null}
-          <span className="truncate text-label text-muted-foreground">
-            {t("chat.replying_to", { preview: label })}
-          </span>
+            <>
+              <span className="truncate text-label font-semibold text-brand">
+                {t("chat.replying_to_name", { name: senderLabel })}
+              </span>
+              <span className="truncate text-label text-muted-foreground">{label}</span>
+            </>
+          ) : (
+            <span className="truncate text-label text-muted-foreground">
+              {t("chat.replying_to", { preview: label })}
+            </span>
+          )}
         </span>
       </span>
     );
