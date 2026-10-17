@@ -2498,18 +2498,14 @@ test("FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and docu
   const trashed = await getDocument(page, ws.owner.token, root.id);
   expect(trashed.data?.archived_at).toBeTruthy();
 
-  // Restore from the Trash view: the row's own Khôi phục button (the dedicated
-  // table has no row menu, TRASH-A3).
+  // Restore from the Trash view: the trashed folder's row carries its own
+  // Khôi phục button (named after the item) and restores at once — no dialog
+  // (RESTORE-01), and the dedicated table has no row menu (TRASH-A3).
   await page.getByRole("button", { name: "Thùng rác", exact: true }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: "Thùng rác" })).toBeVisible();
   const trashRow = page.locator("tr[data-trash-row]").filter({ has: page.getByText("Xóa Thử", { exact: true }) });
   await expect(trashRow).toBeVisible();
-  await trashRow.getByRole("button", { name: "Khôi phục", exact: true }).click();
-  const restoreDialog = page.getByRole("alertdialog", {
-    name: "Khôi phục tài liệu",
-  });
-  await restoreDialog
-    .getByRole("button", { name: "Khôi phục", exact: true })
+  await trashRow.getByRole("button", { name: "Khôi phục Xóa Thử", exact: true })
     .click();
   await expect(page.getByText("Đã khôi phục Xóa Thử")).toBeVisible();
   const restored = await getDocument(page, ws.owner.token, root.id);

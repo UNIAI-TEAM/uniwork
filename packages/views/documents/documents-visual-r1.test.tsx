@@ -59,7 +59,7 @@ function renderList(rows: LibraryRow[] = [documentRow(file("f1", "Báo giá thá
       groups={[{ key: "unfiled", title: "", rows }]}
       loading={false}
       failure={null}
-      filtered={false}
+      filteredBy={null}
       hasMore={false}
       loadingMore={false}
       onLoadMore={vi.fn()}
@@ -76,7 +76,7 @@ describe("phone row layout (finding 1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(file("f1", "Báo giá tháng 10.docx"))} handlers={handlers} archived={false} ladder={libraryLadder()} />
+          <LibraryRowView row={documentRow(file("f1", "Báo giá tháng 10.docx"))} handlers={handlers} ladder={libraryLadder()} />
         </tbody>
       </table>,
     );

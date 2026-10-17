@@ -8860,7 +8860,9 @@
       "version_description": "The new file becomes the working copy; the open version stays in history.",
       "pick": "Choose a file",
       "selected": "Selected {{name}}",
-      "size_hint": "Up to 50 MiB per file.",
+      "size_hint": "Up to {{max}} per file.",
+      "too_large_named": "{{name}} is {{size}}, which is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "unsupported_format": "The format of {{name}} is not supported.",
       "submit": "Upload",
       "submitting": "Uploading…",
       "cancel": "Cancel"
@@ -8943,6 +8945,7 @@
       "empty": "No versions yet. Create the first checkpoint from the working copy.",
       "load_more": "Load more",
       "row_version": "Version {{no}}",
+      "author_system": "System",
       "current_badge": "Current",
       "view": "View content",
       "preview_title": "Content of version {{no}}",
@@ -9201,7 +9204,7 @@
       "archive_toast": "Moved to trash",
       "archive_forbidden": "A child you cannot manage blocks the whole group from the trash.",
       "restore_title": "Restore document",
-      "restore_description": "Only the documents moved to the trash in the same batch come back together. A child whose parent stays in the trash returns to the workspace root.",
+      "restore_description": "Restores this item and the items inside it that you manage. It lands back in its old folder if the folder is still there, otherwise at the workspace root.",
       "restore_confirm": "Restore",
       "restore_submitting": "Restoring…",
       "restore_failed": "Could not restore. Nothing changed.",
@@ -9224,18 +9227,43 @@
     "trash": {
       "title": "Trash",
       "subtitle": "Deleted items are kept for 30 days before permanent deletion. You can restore items you manage; items you can only edit are shown as read-only.",
+      "note": "Per-item restore: documents return to their previous folder if it still exists, otherwise to the workspace root. Restoring a folder only brings back child items you manage. Document owners are notified when someone else moves their document to the trash.",
       "columns": {
+        "name": "Name",
         "deleted_by": "Deleted by",
-        "deleted_at": "Deleted",
-        "purge_after": "Deleted forever in"
+        "deleted_at": "Deleted at",
+        "purge_in": "Deleted forever in",
+        "actions": "Actions"
       },
-      "days_left_one": "{{count}} day",
-      "days_left_other": "{{count}} days",
-      "read_only_hint": "View only · manager can restore",
-      "footer_note": "Per-item restore: documents return to their previous folder if it still exists, otherwise to the workspace root. Restoring a folder only brings back child items you manage. Document owners are notified when someone else moves their document to the trash.",
-      "pending_deleted_by": "Not available yet",
+      "in_trashed_folder": "In folder “{{folder}}”",
+      "deleted_by_unknown": "Former member",
+      "read_only": "View only · a manager restores",
+      "restore": "Restore",
+      "purge": "Delete forever",
+      "restore_item": "Restore {{title}}",
+      "purge_item": "Delete {{title}} forever",
+      "purge_title": "Delete {{title}} forever?",
+      "purge_description": "This item will be permanently deleted and cannot be undone.",
+      "purge_folder_description": "This folder will be permanently deleted and cannot be undone. Items inside it that you do not manage stay in the trash.",
+      "purging": "Deleting forever…",
+      "purged": "{{title}} deleted forever",
+      "purge_failed": "Could not delete. Nothing changed.",
+      "purge_days_one": "{{count}} day left",
+      "purge_days_other": "{{count}} days left",
+      "purge_today": "Deleted today",
+      "purge_expired": "Past due",
+      "restore_failed": "Could not restore. Nothing changed.",
+      "not_in_trash": "This item is no longer in the trash.",
+      "too_large": "The folder holds too many items to delete in one go. Delete what's inside in parts first.",
+      "no_permission": "You do not manage this item.",
       "row_in_folder": "In folder “{{folder}}”",
-      "row_from_root": "From Workspace documents"
+      "row_from_root": "From Workspace documents",
+      "toast": {
+        "restored": "Restored {{title}}",
+        "restored_root": "Restored {{title}} to the workspace root",
+        "restored_folder": "Restored {{title}} to {{folder}}",
+        "left_in_trash": "Some children stay in the trash."
+      }
     },
     "public": {
       "loading": "Loading the document…",
@@ -9538,6 +9566,7 @@
         "meeting": "Meetings",
         "email": "Email"
       },
+
       "chips_label": "Filter by type",
       "chips": {
         "all": "All",
@@ -9637,8 +9666,8 @@
         "starred_description": "Star a document from a row's ⋯ menu to find it again quickly.",
         "shared_title": "Nothing has been shared with you yet",
         "shared_description": "Documents others share with you show up here.",
-        "archived_title": "Trash is empty",
-        "archived_description": "Documents in the trash show up here and can be restored.",
+        "archived_title": "The trash is empty",
+        "archived_description": "Deleted documents sit here for 30 days.",
         "sources_title": "No files yet",
         "sources_description": "Files from chat, tasks, meetings and email that you can read show up here."
       },
@@ -9717,7 +9746,8 @@
       "folder_too_large": "The folder holds more than 1,000 items, so it can't move to the trash in one go. Move what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
-      "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level."
+      "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
+      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again."
     }
   },
   "squads": {

@@ -332,15 +332,12 @@ describe("trash view (Trash.dc)", () => {
     expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
     await screen.findByText("Cũ");
     expect(screen.getByRole("columnheader", { name: t("documents.trash.columns.deleted_by") })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: t("documents.trash.columns.purge_after") })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: t("documents.actions.restore") })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: t("documents.trash.columns.purge_in") })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
     // The old scope tabs / chips / group-by never appear here.
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
     expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.archived") })).toBeNull();
     expect(screen.queryByRole("heading", { level: 1, name: t("documents.home.sidebar.home") })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: t("documents.actions.restore") }));
-    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
   });
 });

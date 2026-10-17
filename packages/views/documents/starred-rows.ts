@@ -59,6 +59,7 @@ export function favoriteRow(fav: FavoriteLike, known?: Known): DocumentSummaryRo
     updated_at: known?.updated_at ?? "",
     size_bytes: known?.size_bytes,
     origin: known?.origin,
+    format: known?.format,
     my_level: known?.my_level,
     // Pass through, never invented: a trashed favourite keeps its badge in the
     // Starred view, and an owned one keeps "Bạn: Chủ sở hữu" (SV-1).

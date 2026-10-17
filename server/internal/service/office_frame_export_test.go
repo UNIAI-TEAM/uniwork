@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -150,6 +152,39 @@ func TestOfficeFrameExportPDF(t *testing.T) {
 		}
 	})
 
+	t.Run("the configured file cap bounds supplied bytes", func(t *testing.T) {
+		f, _ := exportFixture(t)
+		eng := exportEngine(t, "")
+		svc := f.service(eng)
+		// A non-default cap: the wrapper reports the registry the production
+		// FileService would have been built with while the bridge fake still
+		// stores every byte (the seeded base file, the export output).
+		const cap = 1 << 20
+		specs := files.SpecsWithDocumentMaxBytes(cap)
+		reg, err := files.NewRegistry(specs...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		svc.files = &cappedFiles{Service: f.files, registry: reg}
+
+		ok := append([]byte("PK\x03\x04"), bytes.Repeat([]byte{0}, cap-4)...)
+		out, err := svc.ExportFramePDF(ctx, f.actor, f.doc, OfficeExportPDFInput{Bytes: ok})
+		if err != nil {
+			t.Fatalf("input at the configured cap: %v", err)
+		}
+		readExport(t, out)
+
+		over := append([]byte("PK\x03\x04"), bytes.Repeat([]byte{0}, cap-3)...)
+		_, err = svc.ExportFramePDF(ctx, f.actor, f.doc, OfficeExportPDFInput{Bytes: over})
+		if office.ErrorCode(err) != "upload_bounds" {
+			t.Fatalf("input over the configured cap: %v", err)
+		}
+		var ee *office.EngineError
+		if !errors.As(err, &ee) || ee.Reason != "input_too_large" {
+			t.Fatalf("reason = %v, want input_too_large", err)
+		}
+	})
+
 	t.Run("bytes that cannot be a DOCX are refused before a job exists", func(t *testing.T) {
 		f, _ := exportFixture(t)
 		eng := exportEngine(t, "")
@@ -257,10 +292,10 @@ func TestOfficeFrameExportPDF(t *testing.T) {
 }
 
 func TestOfficeExportInputAndOutcome(t *testing.T) {
-	if _, err := officeExportInput([]byte("PK")); !errors.Is(err, ErrOfficeExportInput) {
+	if _, err := officeExportInputWithCap([]byte("PK"), 0); !errors.Is(err, ErrOfficeExportInput) {
 		t.Fatalf("short input: %v", err)
 	}
-	if in, err := officeExportInput([]byte("PK\x03\x04rest")); err != nil || in.checksum != sha([]byte("PK\x03\x04rest")) {
+	if in, err := officeExportInputWithCap([]byte("PK\x03\x04rest"), 0); err != nil || in.checksum != sha([]byte("PK\x03\x04rest")) {
 		t.Fatalf("docx input: %+v %v", in, err)
 	}
 	cases := map[string]db.OfficeJob{
@@ -277,3 +312,12 @@ func TestOfficeExportInputAndOutcome(t *testing.T) {
 		t.Fatalf("completed without output: %s", got)
 	}
 }
+
+// cappedFiles reports a different purpose registry than the service it wraps,
+// the way a FileService built with DocumentMaxBytes does.
+type cappedFiles struct {
+	files.Service
+	registry files.Registry
+}
+
+func (c *cappedFiles) Registry() files.Registry { return c.registry }

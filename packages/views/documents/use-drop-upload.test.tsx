@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { DragEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { useDropUpload } from "./use-drop-upload";
 
@@ -127,4 +128,56 @@ describe("useDropUpload", () => {
     expect(upload).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
   });
+
+  it("rejects an oversize file before calling upload while continuing with valid files", async () => {
+    const upload = vi.fn(async () => {});
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+    const huge = pdf("huge.pdf");
+    Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });
+    const ok = pdf("ok.pdf");
+
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [huge, ok]).event));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.home.drop_done", { count: 1 })));
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(upload).toHaveBeenCalledWith(ok);
+    expect(toast.error).toHaveBeenCalledWith(
+      t("documents.upload.too_large_named", { name: "huge.pdf", size: "200,1 MB", max: "200 MB" }),
+    );
+  });
+
+  it("rejects an unsupported file extension before calling upload while continuing with valid files", async () => {
+    const upload = vi.fn(async () => {});
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+    const bad = new File(["x"], "installer.exe", { type: "application/octet-stream" });
+    const ok = pdf("ok.pdf");
+
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [bad, ok]).event));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.home.drop_done", { count: 1 })));
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(upload).toHaveBeenCalledWith(ok);
+    expect(toast.error).toHaveBeenCalledWith(
+      t("documents.upload.unsupported_format", { name: "installer.exe" }),
+    );
+  });
+
+  it("reads error.fields.max_bytes when a server upload rejects with 413 file_too_large", async () => {
+    const upload = vi.fn().mockRejectedValue(
+      new ApiError("too large", "file_too_large", 413, undefined, { max_bytes: 50 * 1024 * 1024 }),
+    );
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+    const big = pdf("big.pdf");
+    Object.defineProperty(big, "size", { value: 60 * 1024 * 1024 });
+
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [big]).event));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        t("documents.upload.too_large_named", { name: "big.pdf", size: "60 MB", max: "50 MB" }),
+      ),
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+  });
 });
+

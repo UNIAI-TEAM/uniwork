@@ -3,35 +3,35 @@
 import { useMemo } from "react";
 import { ArchiveRestore, ShieldAlert, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import { canManageTrashed, type DocumentTreeNode } from "@uniwork/core/types/document";
+import type { Member } from "@uniwork/core/types/workspace";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
+import { CommentActorAvatar } from "../comments/comment-actor-avatar";
+import { formatShortWhen } from "./document-format";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { isFolderRow, rowFormat, documentRow, type DocumentSummaryRow } from "./library-rows";
-import { canArchiveRow, rowLevel } from "./row-level";
+import type { TrashRowActions } from "./use-trash-actions";
 
-/** Trashed items are purged 30 days after they were trashed (server GC; purge_after is not sent yet). */
-const RETENTION_DAYS = 30;
 /** At or under this many days left the countdown turns red. */
 const URGENT_DAYS = 7;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface DocumentsTrashViewProps {
-  /** The workspace the rows belong to; kept so RESTORE-01 can wire the hard delete without a new prop. */
-  wsId: string;
   /** The archived list the page already fetches. */
   rows: DocumentSummaryRow[];
   loading: boolean;
   failure: "error" | "permission" | null;
   onRetry: () => void;
-  /** The page's restore handler (rowDialogs.onRestore); only offered at manage level. */
-  onRestore: (doc: DocumentSummaryRow) => void;
+  /** The row commands RESTORE-01 wires: restore (direct) and purge (dialog the page renders). */
+  actions: TrashRowActions;
+  /** The workspace member list by user id, feeding the Xóa bởi column. */
+  members: ReadonlyMap<string, Member>;
+  /** True once the members query has answered; until then an unknown id is "still loading", not "former member". */
+  membersReady: boolean;
   /** Opens a trashed document read-only; a trashed folder is never opened. */
   onOpen?: (doc: DocumentSummaryRow) => void;
-  /** Slot for the hard delete: renders nothing when absent. */
-  onDeleteForever?: (doc: DocumentSummaryRow) => void;
   /** The folder tree, to name the folder a row sat in. */
   tree?: DocumentTreeNode[];
 }
@@ -44,29 +44,26 @@ function folderTitles(nodes: DocumentTreeNode[], into: Map<string, string> = new
   return into;
 }
 
-function formatDate(iso: string, locale: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(locale || undefined, { dateStyle: "short" }).format(date);
-}
-
-/** Whole days left before the purge, or null when the row has no trashed-at time. */
-function daysLeft(archivedAt: string | null | undefined, now: number): number | null {
-  const at = archivedAt ? new Date(archivedAt).getTime() : NaN;
-  if (Number.isNaN(at)) return null;
-  return Math.max(0, Math.ceil((at + RETENTION_DAYS * DAY_MS - now) / DAY_MS));
+/** Calendar days until the purge deadline, floored at local midnight on each
+ *  side so "today" and "expired" mean the reader's day, not a 24-hour span
+ *  (RESTORE-01). */
+function purgeDaysLeft(purgeAfter: string | null | undefined, now: Date = new Date()): number | null {
+  if (!purgeAfter) return null;
+  const then = new Date(purgeAfter);
+  if (Number.isNaN(then.getTime())) return null;
+  const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.round((dayStart(then) - dayStart(now)) / 86_400_000);
 }
 
 /**
  * The Trash screen (Trash.dc.html): header, a dedicated five-column table and
- * the restore note. Presentational: the page owns the query and the restore
- * dialog. It shows only what the row carries, so Deleted-by is a dash until
- * the server sends archived_by (RESTORE-01).
+ * the restore note. Presentational: the page owns the queries, the restore
+ * mutation and the purge dialog (use-trash-actions). Rows offer Restore and
+ * Delete forever at manage level (`canManageTrashed`, RESTORE-01).
  */
-export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore, onOpen, onDeleteForever, tree }: DocumentsTrashViewProps) {
+export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, members, membersReady, onOpen, tree }: DocumentsTrashViewProps) {
   const { t, i18n } = useTranslation();
   const titles = useMemo(() => folderTitles(tree ?? []), [tree]);
-  const now = Date.now();
 
   const header = (
     <div className="flex flex-col gap-1">
@@ -126,8 +123,8 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
   const subtitle = (doc: DocumentSummaryRow): string => {
     if (doc.kind === "folder") return t("documents.file_types.folder");
     if (!doc.parent_id) return t("documents.trash.row_from_root");
-    // The parent may be in the trash too: name it from the rows, and say
-    // nothing when it is in neither list rather than guess the root.
+    // The parent may be in the trash too: name it from the tree or the rows,
+    // and say nothing when it is in neither list rather than guess the root.
     const parent = titles.get(doc.parent_id) ?? rows.find((other) => other.id === doc.parent_id)?.title;
     return parent ? t("documents.trash.row_in_folder", { folder: parent }) : "";
   };
@@ -139,8 +136,8 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
         {/* Same rule as the library table: the secondary columns hide by this
             wrapper's own width, so Khôi phục and the purge header are never
             pushed off-screen (TV-2). Rungs: Xóa lúc + Xóa vĩnh viễn sau at
-            40rem (date 120 + purge 150 + actions 160 + a readable name),
-            Xóa bởi last at 54rem — it is a dash until RESTORE-01. */}
+            40rem, Xóa bởi last at 54rem — it needs the widest room for a
+            member name. */}
         <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.trash.title")}>
           <colgroup>
             <col />
@@ -151,12 +148,12 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
           </colgroup>
           <thead>
             <tr className="border-b border-border text-caption text-muted-foreground">
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.name")}</th>
+              <th scope="col" className="px-3 py-2 font-medium">{t("documents.trash.columns.name")}</th>
               <th scope="col" className="hidden px-3 py-2 font-medium @min-[54rem]/trash:table-cell">{t("documents.trash.columns.deleted_by")}</th>
               <th scope="col" className="hidden px-3 py-2 font-medium @min-[40rem]/trash:table-cell">{t("documents.trash.columns.deleted_at")}</th>
-              <th scope="col" className="hidden px-3 py-2 font-medium @min-[40rem]/trash:table-cell">{t("documents.trash.columns.purge_after")}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium @min-[40rem]/trash:table-cell">{t("documents.trash.columns.purge_in")}</th>
               <th scope="col" className="px-3 py-2 font-medium">
-                <span className="sr-only">{t("documents.home.columns.actions")}</span>
+                <span className="sr-only">{t("documents.trash.columns.actions")}</span>
               </th>
             </tr>
           </thead>
@@ -164,10 +161,27 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
             {rows.map((doc) => {
               const folder = isFolderRow(documentRow(doc));
               const title = doc.title || t("documents.detail.untitled");
-              const left = daysLeft(doc.archived_at, now);
-              const deletedAt = doc.archived_at ? formatDate(doc.archived_at, i18n.language) : "";
-              const canRestore = canArchiveRow(rowLevel(doc));
+              const deletedAt = formatShortWhen(doc.archived_at, i18n.language);
+              const left = purgeDaysLeft(doc.purge_after);
+              const purgeText =
+                left === null
+                  ? null
+                  : left < 0
+                    ? t("documents.trash.purge_expired")
+                    : left === 0
+                      ? t("documents.trash.purge_today")
+                      : t("documents.trash.purge_days", { count: left });
+              const purgeUrgent = left !== null && left <= URGENT_DAYS;
+              // RESTORE-01: restore/purge belong to people who manage the row
+              // (a workspace admin arrives with admin_scope, no my_level).
+              const manage = canManageTrashed(doc);
               const origin = subtitle(doc);
+              const deleterMember = doc.archived_by && membersReady ? members.get(doc.archived_by) : undefined;
+              const deleter = doc.archived_by
+                ? membersReady
+                  ? (deleterMember?.display_name ?? t("documents.trash.deleted_by_unknown"))
+                  : null
+                : null;
               const nameCell = (
                 <>
                   <DocumentTypeIcon format={folder ? "folder" : rowFormat(documentRow(doc))} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
@@ -180,7 +194,7 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
               return (
                 <tr key={doc.id} data-trash-row={doc.id} className="border-b border-border last:border-b-0">
                   <td className="px-3 py-3">
-                    {onOpen && !folder ? (
+                    {onOpen && manage && !folder ? (
                       <button type="button" onClick={() => onOpen(doc)} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">
                         {nameCell}
                       </button>
@@ -189,32 +203,50 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
                     )}
                   </td>
                   <td className="hidden px-3 py-3 @min-[54rem]/trash:table-cell">
-                    {/* archived_by is not in the list data yet (RESTORE-01): a dash that says so, never a guessed name. */}
-                    <span aria-label={t("documents.trash.pending_deleted_by")} title={t("documents.trash.pending_deleted_by")} className="text-muted-foreground">
-                      —
-                    </span>
+                    {deleter ? (
+                      <span className="flex items-center gap-2 text-body text-foreground">
+                        <CommentActorAvatar name={deleter} avatarUrl={typeof deleterMember?.avatar_url === "string" ? deleterMember.avatar_url : undefined} size="xs" />
+                        <span className="min-w-0 truncate">{deleter}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="hidden px-3 py-3 text-caption tabular-nums text-muted-foreground @min-[40rem]/trash:table-cell">{deletedAt || "—"}</td>
-                  <td className={cn("hidden px-3 py-3 text-caption tabular-nums @min-[40rem]/trash:table-cell", left !== null && left <= URGENT_DAYS ? "text-destructive" : "text-muted-foreground")}>
-                    {left === null ? "—" : t("documents.trash.days_left", { count: left })}
+                  <td className={cn("hidden px-3 py-3 text-caption tabular-nums @min-[40rem]/trash:table-cell", purgeUrgent ? "text-destructive" : "text-muted-foreground")}>
+                    {purgeText ?? "—"}
                   </td>
                   <td className="px-3 py-3">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {canRestore ? (
-                        <Button type="button" variant="outline" size="sm" onClick={() => onRestore(doc)}>
+                    {manage ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-label={t("documents.trash.restore_item", { title })}
+                          disabled={actions.isRestoring(doc.id)}
+                          aria-busy={actions.isRestoring(doc.id) || undefined}
+                          onClick={() => actions.onRestore(doc)}
+                        >
                           <ArchiveRestore aria-hidden />
-                          {t("documents.actions.restore")}
+                          {t("documents.trash.restore")}
                         </Button>
-                      ) : (
-                        <span className="text-right text-caption text-muted-foreground">{t("documents.trash.read_only_hint")}</span>
-                      )}
-                      {/* Pending RESTORE-01 wires the hard delete: the slot renders nothing until a host passes the handler. */}
-                      {canRestore && onDeleteForever ? (
-                        <Button type="button" variant="ghost" size="icon-sm" className="text-destructive" aria-label={t("common.delete")} onClick={() => onDeleteForever(doc)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-destructive pointer-coarse:size-11"
+                          aria-label={t("documents.trash.purge_item", { title })}
+                          onClick={() => actions.onPurge(doc)}
+                        >
                           <Trash2 aria-hidden />
                         </Button>
-                      ) : null}
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end">
+                        <span className="text-right text-caption text-muted-foreground">{t("documents.trash.read_only")}</span>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -222,7 +254,7 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, onRestore,
           </tbody>
         </table>
       </div>
-      <p className="rounded-lg bg-muted px-3 py-2.5 text-caption text-muted-foreground">{t("documents.trash.footer_note")}</p>
+      <p className="rounded-lg bg-muted px-3 py-2.5 text-caption text-muted-foreground">{t("documents.trash.note")}</p>
     </div>
   );
 }

@@ -18,6 +18,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -560,17 +562,84 @@ func TestDocumentJSONCaps(t *testing.T) {
 }
 
 func TestDocumentMultipartCap(t *testing.T) {
-	w := newDocsWorld(t)
-	_, id := createPage(t, w, "cap", nil)
+	const testCap int64 = 1 << 20
+	w := newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) }, func(d *Deps, pool *pgxpool.Pool) {
+		d.Cfg.DocumentMaxBytes = testCap
+		fake := filesfake.New(filesfake.Options{DocumentMaxBytes: testCap})
+		d.Documents.SetFiles(fake)
+	})
+	enableOfficeDocsWeb(t, w.q)
 
-	// > 50 MiB of multipart body hits the document_file request cap -> 413.
-	over := bytes.Repeat([]byte{7}, 50<<20+600<<10)
-	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/documents/"+id+"/uploads", w.token, nil, "big.pdf", over, nil)
-	if res.StatusCode != 413 {
-		t.Fatalf("multipart over cap: %d %s", res.StatusCode, raw[:min(len(raw), 200)])
+	// Exactly cap bytes is accepted across file create, version upload, and office-frame upload.
+	atCap := append([]byte("# Tiêu đề\n"), bytes.Repeat([]byte("a"), int(testCap)-len("# Tiêu đề\n"))...)
+	if int64(len(atCap)) != testCap {
+		t.Fatalf("atCap len = %d, want %d", len(atCap), testCap)
 	}
-	// Asset cap is 10 MiB.
-	res, _ = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+id+"/assets", w.token, nil, "big.png", bytes.Repeat([]byte{7}, 10<<20+600<<10), nil)
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"visibility": "workspace"}, "cap.md", atCap, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("create at cap (%d bytes): %d %s", len(atCap), res.StatusCode, raw)
+	}
+	var created struct {
+		Document struct {
+			ID string `json:"id"`
+		} `json:"document"`
+	}
+	if err := json.Unmarshal(raw, &created); err != nil {
+		t.Fatal(err)
+	}
+	docID := created.Document.ID
+
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/uploads", w.token, nil, "cap.md", atCap, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("upload at cap: %d %s", res.StatusCode, raw)
+	}
+
+	frameTok := w.mintFrameToken(t, docID)["token"].(string)
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/office-frame/documents/"+docID+"/uploads", frameTok, nil, "cap.md", atCap, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("office-frame upload at cap: %d %s", res.StatusCode, raw)
+	}
+
+	docxID := w.createDocx(t, "cap.docx", frameDocx(t, "cap"))
+	docsFrameTok := w.mintFrameToken(t, docxID)["token"].(string)
+
+	// cap + 1 bytes is rejected with 413 file_too_large and fields.max_bytes == testCap across upload and export routes,
+	// as well as when the multipart envelope itself exceeds the cap.
+	overByOne := append(append([]byte{}, atCap...), 'b')
+	overEnvelope := bytes.Repeat([]byte("a"), int(testCap)+(300<<10))
+	for _, tc := range []struct {
+		name  string
+		path  string
+		token string
+		body  []byte
+	}{
+		{"create cap+1", "/api/v1/workspaces/" + w.wsID + "/documents/files", w.token, overByOne},
+		{"upload cap+1", "/api/v1/documents/" + docID + "/uploads", w.token, overByOne},
+		{"office-frame upload cap+1", "/api/v1/office-frame/documents/" + docID + "/uploads", frameTok, overByOne},
+		{"office-frame export cap+1", "/api/v1/office-frame/documents/" + docxID + "/export/pdf", docsFrameTok, overByOne},
+		{"upload multipart envelope over cap", "/api/v1/documents/" + docID + "/uploads", w.token, overEnvelope},
+	} {
+		res, raw := doMultipart(t, w.srv, "POST", tc.path, tc.token, nil, "big.md", tc.body, nil)
+		if res.StatusCode != 413 {
+			t.Fatalf("%s: status = %d, want 413 (%s)", tc.name, res.StatusCode, raw[:min(len(raw), 200)])
+		}
+		var out map[string]any
+		if err := json.Unmarshal(raw, &out); err != nil {
+			t.Fatalf("%s: unmarshal 413: %v (%s)", tc.name, err, raw)
+		}
+		errObj, _ := out["error"].(map[string]any)
+		fields, _ := errObj["fields"].(map[string]any)
+		if errObj["code"] != "file_too_large" {
+			t.Fatalf("%s: error = %v, want code=file_too_large", tc.name, errObj)
+		}
+		if got, ok := fields["max_bytes"].(float64); !ok || int64(got) != testCap {
+			t.Fatalf("%s: fields.max_bytes = %v, want %d", tc.name, fields["max_bytes"], testCap)
+		}
+	}
+
+	// Asset cap remains 10 MiB.
+	res, _ = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/assets", w.token, nil, "big.png", bytes.Repeat([]byte{7}, 10<<20+600<<10), nil)
 	if res.StatusCode != 413 {
 		t.Fatalf("asset over cap: %d, want 413", res.StatusCode)
 	}

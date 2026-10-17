@@ -606,13 +606,13 @@ describe("library views", () => {
     expect(screen.queryByText(t("documents.library.error_title"))).toBeNull();
   });
 
-  it("lists trashed documents in the Trash table with Restore and no row menu", async () => {
-    route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? [summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z" })] : []) });
+  it("lists archived documents with the trash actions and no live row menu", async () => {
+    route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? [summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z", archived_by: "u2", purge_after: "2026-10-01T00:00:00Z" })] : []) });
     renderView();
     fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) }));
     const row = await rowOf("Cũ");
-    expect(screen.queryByRole("tablist")).toBeNull();
-    expect(within(row).getByRole("button", { name: t("documents.actions.restore") })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Cũ" }) })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) })).toBeNull();
   });
 
@@ -695,46 +695,46 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
 
   /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
   const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
-  const restoreOf = (row: HTMLElement) => within(row).queryByRole("button", { name: t("documents.actions.restore") });
+  const restoreOf = (row: HTMLElement) => within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Dự án CCB" }) });
 
-  it("offers Restore, not Open folder or a row menu, on a trashed folder in the Trash view", async () => {
+  it("offers Restore and Xóa vĩnh viễn, not Open folder or a row menu, on a trashed folder in the Trash view", async () => {
     route({ list: archivedList([archivedFolder()]) });
     renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
     expect(restoreOf(row)).not.toBeNull();
+    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án CCB" }) })).not.toBeNull();
     expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeNull();
   });
 
-  it("shows the read-only hint instead of Restore for a viewer who cannot manage the trashed folder", async () => {
+  it("shows the read-only label instead of actions for a viewer who cannot manage the trashed folder", async () => {
     route({ list: archivedList([archivedFolder({ my_level: "edit" })]) });
     renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
     expect(restoreOf(row)).toBeNull();
-    expect(within(row).getByText(t("documents.trash.read_only_hint"))).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án CCB" }) })).toBeNull();
+    expect(within(row).getByText(t("documents.trash.read_only"))).toBeInTheDocument();
   });
 
-  it("opens the restore dialog from the Restore button, and does not navigate, on a trashed folder row", async () => {
-    route({ list: archivedList([archivedFolder()]) });
+  it("restores a trashed folder with one POST, toasts and drops the row — no navigation", async () => {
+    let restored = false;
+    route({
+      list: (path) => (restored ? [] : archivedList([archivedFolder()])(path)),
+      post: (path) => {
+        if (path !== "/api/v1/documents/f1/restore") return {};
+        restored = true;
+        return { document: archivedFolder({ title: "Dự án CCB (2)", archived_at: null, parent_id: null, breadcrumbs: [] }), batch_id: "b1", affected: ["f1"] };
+      },
+    });
     const adapter = renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
     fireEvent.click(restoreOf(row)!);
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
-    expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
-  });
-
-  it("opens the restore dialog on Enter over the Restore button of a trashed folder row", async () => {
-    route({ list: archivedList([archivedFolder()]) });
-    const adapter = renderView();
-    await openArchiveScope();
-    const row = await rowOf("Dự án CCB");
-    restoreOf(row)!.focus();
-    await userEvent.keyboard("{Enter}");
-    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.trash.toast.restored_root", { title: "Dự án CCB (2)" })));
+    expect(calls("POST").map(([path]) => path)).toContain("/api/v1/documents/f1/restore");
+    await waitFor(() => expect(screen.queryByText("Dự án CCB")).toBeNull());
     expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
   });
 
@@ -755,31 +755,9 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     renderView(nav(), onOpen);
     await openArchiveScope();
     const row = await rowOf("Cũ");
-    expect(restoreOf(row)).not.toBeNull();
+    expect(within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).not.toBeNull();
     fireEvent.click(primaryOf(row)!);
     expect(onOpen).toHaveBeenCalledWith("a1");
-  });
-
-  it("restores through the dialog, toasts the returned title and drops the row from the Trash list", async () => {
-    let restored = false;
-    route({
-      list: (path) => (restored ? [] : archivedList([archivedFolder()])(path)),
-      post: (path) => {
-        if (path !== "/api/v1/documents/f1/restore") return {};
-        restored = true;
-        return { document: archivedFolder({ title: "Dự án CCB (2)", archived_at: null }), batch_id: "b1", affected: ["f1"] };
-      },
-    });
-    renderView();
-    await openArchiveScope();
-    const row = await rowOf("Dự án CCB");
-    fireEvent.click(restoreOf(row)!);
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.archive.restore_confirm") }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.home.folders.toast.restored", { title: "Dự án CCB (2)" })));
-    expect(calls("POST").map(([path]) => path)).toContain("/api/v1/documents/f1/restore");
-    await waitFor(() => expect(screen.queryByText("Dự án CCB")).toBeNull());
   });
 
   it("names the same actions the same way on a folder card menu and in the tree menu", async () => {

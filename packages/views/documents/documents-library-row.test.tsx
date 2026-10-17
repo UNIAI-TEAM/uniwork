@@ -73,11 +73,11 @@ function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers
   );
 }
 
-function renderRow(row: DocumentSummaryRow, over: Partial<LibraryRowHandlers> = {}, archived = false) {
+function renderRow(row: DocumentSummaryRow, over: Partial<LibraryRowHandlers> = {}) {
   return render(
     <table>
       <tbody>
-        <LibraryRowView row={documentRow(row)} handlers={{ ...handlers, ...over }} archived={archived} ladder={libraryLadder()} />
+        <LibraryRowView row={documentRow(row)} handlers={{ ...handlers, ...over }} ladder={libraryLadder()} />
       </tbody>
     </table>,
   );
@@ -190,10 +190,10 @@ describe("folder star menu (SV-4)", () => {
   });
 
   it("offers no star item on a trashed folder", async () => {
-    renderRow(doc("fo1", "Hợp đồng", { kind: "folder", my_level: "manage", archived_at: "2026-10-01T00:00:00Z" }), { onRestore: vi.fn() }, true);
+    renderRow(doc("fo1", "Hợp đồng", { kind: "folder", my_level: "manage", archived_at: "2026-10-01T00:00:00Z" }), { onToggleStar: vi.fn() });
     const row = document.querySelector('[data-library-row="fo1"]') as HTMLElement;
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
-    await screen.findByRole("menuitem", { name: t("documents.actions.restore") });
+    // A trashed row is inert in a live list: no ⋯ menu, and neither star item exists.
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.star") })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.unstar") })).toBeNull();
   });
@@ -209,7 +209,6 @@ describe("starred view rows (SV-1)", () => {
           <LibraryRowView
             row={documentRow(favoriteRow(fav, { id: "f1", archived_at: "2026-10-01T00:00:00Z" }))}
             handlers={{ ...handlers, isStarred: () => true }}
-            archived={false}
             ladder={libraryLadder()}
           />
         </tbody>
@@ -225,7 +224,6 @@ describe("starred view rows (SV-1)", () => {
           <LibraryRowView
             row={documentRow(favoriteRow(fav, { id: "f1", my_level: "manage", via: "owner" as DocumentSummaryRow["via"] }))}
             handlers={{ ...handlers, isStarred: () => true }}
-            archived={false}
             ladder={libraryLadder()}
           />
         </tbody>

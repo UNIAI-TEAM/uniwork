@@ -2,12 +2,14 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import type { Member } from "@uniwork/core/types/workspace";
 import { DocumentsTrashView, type DocumentsTrashViewProps } from "./documents-trash-view";
+import type { TrashRowActions } from "./use-trash-actions";
 import type { DocumentSummaryRow } from "./library-rows";
 
 // The Trash.dc.html layout (TRASH-01 Area 4): a dedicated 5-column table, no
-// toolbar. archived_by and purge_after are not in the data, so "Xóa bởi" is a
-// dash and the days left are computed from archived_at + 30 days.
+// toolbar, with RESTORE-01's per-row commands — the action handlers are stubbed
+// here; the mutations and the purge dialog are covered in documents-trash.test.tsx.
 
 const NOW = new Date("2026-10-16T05:00:00Z");
 
@@ -30,6 +32,8 @@ function row(id: string, over: Partial<DocumentSummaryRow> = {}): DocumentSummar
     created_at: "",
     updated_at: "2026-10-01T03:00:00Z",
     archived_at: "2026-10-16T01:00:00Z",
+    archived_by: "u2",
+    purge_after: "2026-10-31T00:00:00Z",
     ...over,
   };
 }
@@ -38,14 +42,26 @@ function node(id: string, title: string, children: DocumentTreeNode[] = []): Doc
   return { id, title, kind: "folder", position: 0, children };
 }
 
-function renderView(over: Partial<DocumentsTrashViewProps> = {}) {
+function member(over: Partial<Member> = {}): Member {
+  return {
+    workspace_id: "ws1",
+    user_id: "u2",
+    role: "member",
+    email: "truong@example.com",
+    display_name: "Mai Trường",
+    ...over,
+  } as Member;
+}
+
+function renderView(over: Partial<DocumentsTrashViewProps> = {}, actions: Partial<TrashRowActions> = {}) {
   const props: DocumentsTrashViewProps = {
-    wsId: "ws1",
     rows: [row("a")],
     loading: false,
     failure: null,
     onRetry: vi.fn(),
-    onRestore: vi.fn(),
+    actions: { onRestore: vi.fn(), onPurge: vi.fn(), isRestoring: () => false, dialog: null, ...actions },
+    members: new Map([["u2", member()]]),
+    membersReady: true,
     ...over,
   };
   return { props, ...render(<DocumentsTrashView {...props} />) };
@@ -97,13 +113,13 @@ describe("DocumentsTrashView", () => {
     expect(within(rows[5]!).queryByText(/Từ |Trong /)).not.toBeInTheDocument();
   });
 
-  it("shows a muted dash in Xóa bởi that names the missing data, never an invented person", () => {
-    renderView({ rows: [row("a", { updated_by: "someone-else" })] });
-    const cell = screen.getAllByRole("cell")[1]!;
-    const dash = within(cell).getByLabelText("Chưa có dữ liệu");
-    expect(dash).toHaveTextContent("—");
-    expect(dash).toHaveClass("text-muted-foreground");
-    expect(cell).not.toHaveTextContent("someone-else");
+  it("names the member who deleted the row in Xóa bởi, and falls back for a former member", () => {
+    renderView({ rows: [row("a"), row("b", { archived_by: "u9" }), row("c", { archived_by: null })] });
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(within(rows[0]!).getAllByRole("cell")[1]).toHaveTextContent("Mai Trường");
+    expect(within(rows[1]!).getAllByRole("cell")[1]).toHaveTextContent("Thành viên cũ");
+    // No archived_by at all stays a dash; a members list that has not answered yet does not guess "former".
+    expect(within(rows[2]!).getAllByRole("cell")[1]).toHaveTextContent("—");
   });
 
   it("keeps the table inside its container: no minimum width and no horizontal scroll wrapper", () => {
@@ -139,79 +155,108 @@ describe("DocumentsTrashView", () => {
     expect(rung(cells[3]!).length).toBeGreaterThan(0);
   });
 
-  it("pluralizes the days left in English (1 day, not 1 days)", async () => {
+  it("counts the purge deadline down in days from purge_after, names today, and marks an expired row", () => {
+    renderView({
+      rows: [
+        row("n12", { purge_after: "2026-10-28T00:00:00Z" }),
+        row("n0", { purge_after: "2026-10-16T09:00:00Z" }),
+        row("nx", { purge_after: "2026-10-13T00:00:00Z" }),
+        // A row the server never stamped stays a dash, never NaN or a guessed date.
+        row("nostamp", { purge_after: null }),
+      ],
+    });
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(within(rows[0]!).getAllByRole("cell")[3]).toHaveTextContent("Còn 12 ngày");
+    expect(within(rows[1]!).getAllByRole("cell")[3]).toHaveTextContent("Xóa hôm nay");
+    expect(within(rows[2]!).getAllByRole("cell")[3]).toHaveTextContent("Đã quá hạn");
+    expect(within(rows[3]!).getAllByRole("cell")[3]).toHaveTextContent("—");
+  });
+
+  it("pluralizes the countdown in English and marks the last week in red", async () => {
     await setLocale("en");
     renderView({
       rows: [
-        // archived_at + 30 days lands 23h after NOW: 1 day left.
-        row("one", { archived_at: "2026-09-17T04:00:00Z" }),
-        row("many", { archived_at: "2026-10-01T00:00:00Z" }),
+        row("one", { purge_after: "2026-10-17T12:00:00Z" }),
+        row("seven", { purge_after: "2026-10-23T12:00:00Z" }),
+        row("eight", { purge_after: "2026-10-24T12:00:00Z" }),
       ],
     });
-    const [one, many] = screen.getAllByRole("row").slice(1);
+    const [one, seven, eight] = screen.getAllByRole("row").slice(1);
     try {
-      expect(within(one!).getAllByRole("cell")[3]).toHaveTextContent(/^1 day$/);
-      expect(within(many!).getAllByRole("cell")[3]).toHaveTextContent(/^15 days$/);
+      expect(within(one!).getAllByRole("cell")[3]).toHaveTextContent(/^1 day left$/);
+      expect(within(seven!).getAllByRole("cell")[3]).toHaveTextContent(/^7 days left$/);
+      expect(within(seven!).getAllByRole("cell")[3]).toHaveClass("text-destructive");
+      expect(within(eight!).getAllByRole("cell")[3]).toHaveTextContent(/^8 days left$/);
+      expect(within(eight!).getAllByRole("cell")[3]).not.toHaveClass("text-destructive");
     } finally {
       await setLocale("vi");
     }
   });
 
-  it("formats Xóa lúc from archived_at and counts the days left from archived_at + 30 days", () => {
-    renderView({ rows: [row("a", { archived_at: "2026-10-16T01:00:00Z" })] });
-    const cells = screen.getAllByRole("cell");
-    expect(cells[2]!.textContent).toMatch(/16\/10\/2026|16\/10\/26/);
-    expect(cells[3]).toHaveTextContent("30 ngày");
-    expect(cells[3]).not.toHaveClass("text-destructive");
-  });
-
-  it("turns the days left red at 7 days or fewer, and only then", () => {
+  it("formats Xóa lúc as one short stamp: the clock for today, a short day-month for another day", () => {
     renderView({
       rows: [
-        row("seven", { archived_at: "2026-09-23T05:00:00Z" }),
-        row("eight", { archived_at: "2026-09-24T05:00:00Z" }),
+        row("today", { archived_at: "2026-10-16T01:00:00Z" }),
+        row("earlier", { archived_at: "2026-10-10T03:00:00Z" }),
       ],
     });
-    const [seven, eight] = screen.getAllByRole("row").slice(1);
-    const sevenLeft = within(seven!).getAllByRole("cell")[3]!;
-    const eightLeft = within(eight!).getAllByRole("cell")[3]!;
-    expect(sevenLeft).toHaveTextContent("7 ngày");
-    expect(sevenLeft).toHaveClass("text-destructive");
-    expect(eightLeft).toHaveTextContent("8 ngày");
-    expect(eightLeft).not.toHaveClass("text-destructive");
+    const rows = screen.getAllByRole("row").slice(1);
+    // No long date-time (dd/mm/yyyy hh:mm) in the cell.
+    expect(within(rows[0]!).getAllByRole("cell")[2]!.textContent).not.toMatch(/\d{4}/);
+    expect(within(rows[0]!).getAllByRole("cell")[2]!.textContent).not.toBe("");
+    expect(within(rows[1]!).getAllByRole("cell")[2]).toHaveTextContent(/10\/10/);
   });
 
-  it("offers Khôi phục for a row the viewer manages and calls onRestore with it", () => {
+  it("offers Khôi phục and Xóa vĩnh viễn on a row the viewer manages, and calls the actions with it", () => {
     const manage = row("m", { my_level: "manage" });
-    const { props } = renderView({ rows: [manage] });
-    fireEvent.click(screen.getByRole("button", { name: "Khôi phục" }));
-    expect(props.onRestore).toHaveBeenCalledWith(manage);
+    const onRestore = vi.fn();
+    const onPurge = vi.fn();
+    renderView({ rows: [manage] }, { onRestore, onPurge });
+    fireEvent.click(screen.getByRole("button", { name: "Khôi phục m.docx" }));
+    expect(onRestore).toHaveBeenCalledWith(manage);
+    fireEvent.click(screen.getByRole("button", { name: "Xóa vĩnh viễn m.docx" }));
+    expect(onPurge).toHaveBeenCalledWith(manage);
     expect(screen.queryByText("Chỉ xem · người quản lý khôi phục")).not.toBeInTheDocument();
   });
 
-  it("says view-only instead of offering restore below manage", () => {
+  it("keeps the actions on a restricted row a workspace admin sees (admin_scope, no my_level)", () => {
+    renderView({ rows: [row("a", { my_level: undefined, admin_scope: true })] });
+    expect(screen.getByRole("button", { name: "Khôi phục a.docx" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Xóa vĩnh viễn a.docx" })).toBeInTheDocument();
+  });
+
+  it("says view-only instead of offering actions below manage", () => {
     renderView({ rows: [row("e", { my_level: "edit" }), row("v", { my_level: "view" }), row("n", { my_level: undefined })] });
-    expect(screen.queryByRole("button", { name: "Khôi phục" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Khôi phục/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Xóa vĩnh viễn/ })).not.toBeInTheDocument();
     expect(screen.getAllByText("Chỉ xem · người quản lý khôi phục")).toHaveLength(3);
   });
 
-  it("renders no delete-forever control without the prop, and one wired to it with the prop", () => {
-    const manage = row("m");
-    const { rerender, props } = renderView({ rows: [manage] });
-    expect(screen.queryByRole("button", { name: "Xóa" })).not.toBeInTheDocument();
-    const onDeleteForever = vi.fn();
-    rerender(<DocumentsTrashView {...props} onDeleteForever={onDeleteForever} />);
-    fireEvent.click(screen.getByRole("button", { name: "Xóa" }));
-    expect(onDeleteForever).toHaveBeenCalledWith(manage);
+  it("disables the row's restore while it runs, so a second click sends nothing", () => {
+    const onRestore = vi.fn();
+    renderView({ rows: [row("a")] }, { onRestore, isRestoring: (id) => id === "a" });
+    const button = screen.getByRole("button", { name: "Khôi phục a.docx" });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onRestore).not.toHaveBeenCalled();
   });
 
-  it("opens a document from its title when onOpen is given, but not a trashed folder", () => {
+  it("opens a document from its title when onOpen is given, but not a folder or an edit-only row", () => {
     const onOpen = vi.fn();
     const doc = row("d", { title: "Báo cáo.docx" });
-    renderView({ onOpen, rows: [doc, row("dir", { kind: "folder", title: "Thư mục cũ" })] });
-    fireEvent.click(screen.getByRole("button", { name: /Báo cáo\.docx/ }));
+    renderView({
+      onOpen,
+      rows: [doc, row("dir", { kind: "folder", title: "Thư mục cũ" }), row("ro", { title: "Chỉ xem.docx", my_level: "edit" })],
+    });
+    // The row's name button carries title + origin; filter on text content so
+    // the restore/purge aria-labels (which name the title too) cannot collide.
+    const nameButton = screen.getAllByRole("button").find((el) => el.textContent?.includes("Báo cáo.docx") && !el.getAttribute("aria-label"));
+    expect(nameButton).toBeTruthy();
+    fireEvent.click(nameButton!);
     expect(onOpen).toHaveBeenCalledWith(doc);
-    expect(screen.queryByRole("button", { name: /Thư mục cũ/ })).not.toBeInTheDocument();
+    // A trashed folder never browses, and an edit-only row opens nothing (T-3).
+    expect(screen.queryByRole("button", { name: /^Thư mục cũ/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Chỉ xem\.docx/ })).not.toBeInTheDocument();
   });
 
   it("ends with the footer note on how restore works", () => {

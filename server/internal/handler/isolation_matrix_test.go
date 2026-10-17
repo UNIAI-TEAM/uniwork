@@ -438,6 +438,8 @@ func isoWritePhase(r isoRoute) int {
 		return 2
 	}
 	switch r.pattern[strings.LastIndex(r.pattern, "/")+1:] {
+	case "purge":
+		return 2
 	case "leave", "archive", "cancel", "end", "reject", "approve", "deactivate", "finalize", "close", "stop", "hangup", "host-transfer":
 		return 1
 	}
@@ -611,11 +613,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{followUpID}":
 		return tn.get(t, "followUp")
 	case "{documentID}":
-		// The restore route acts on a folder in the trash (E6 FD-02): the
-		// folder kind is what the matrix varies on it, so the name it has to
-		// place back among live siblings is part of every pass. The page kind
-		// is held by the repo's own lifecycle tests.
-		if pattern == "/api/v1/documents/{documentID}/restore" {
+		// The restore and purge routes act on a folder in the trash (E6 FD-02,
+		// RESTORE-01 §2): the folder kind is what the matrix varies on it, so
+		// the name it has to place back among live siblings is part of every
+		// pass. The page kind is held by the repo's own lifecycle tests.
+		if pattern == "/api/v1/documents/{documentID}/restore" || pattern == "/api/v1/documents/{documentID}/purge" {
 			return tn.get(t, "archivedFolder")
 		}
 		if under("/office-frame/") && (under("/linked/") || under("/assets/resolve")) {

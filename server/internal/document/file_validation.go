@@ -75,15 +75,15 @@ type FileLimits struct {
 	TextScanBytes        int64 // how much of a text file is checked
 }
 
-// DefaultFileLimits fit the 50 MiB document_file cap: a real DOCX/XLSX/PPTX
-// has a few hundred parts and compresses XML at most ~100:1.
+// DefaultFileLimits fit the default 200 MiB document_file cap: a real
+// DOCX/XLSX/PPTX has a few hundred parts and compresses XML at most ~100:1.
 var DefaultFileLimits = FileLimits{
 	MaxEntries:           10000,
 	MaxUncompressedBytes: 512 << 20,
 	MaxEntryRatio:        200,
 	MaxEntryName:         1024,
 	MaxImagePixels:       100_000_000,
-	TextScanBytes:        50 << 20,
+	TextScanBytes:        200 << 20,
 }
 
 // Content types this layer knows how to check (the document_file and
@@ -324,9 +324,9 @@ func validateOLE(r io.ReaderAt, size int64, contentType string) (FileFacts, erro
 	return FileFacts{Format: format}, nil
 }
 
-// validateText reads the whole file (up to TextScanBytes, which covers the
-// 50 MiB cap) in chunks and refuses invalid UTF-8 or NUL bytes: FileService
-// only checks the first 64 KiB (FS-C1 §9.1 known limit).
+// validateText reads the whole file (up to TextScanBytes, which follows the
+// configured document_file cap) in chunks and refuses invalid UTF-8 or NUL
+// bytes: FileService only checks the first 64 KiB (FS-C1 §9.1 known limit).
 func validateText(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, error) {
 	limit := min64(size, limits.TextScanBytes)
 	const chunk = 64 << 10

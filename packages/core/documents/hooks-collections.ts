@@ -9,17 +9,18 @@ import {
   listSharedByMe,
   listSharedWithMe,
   moveDocument,
+  purgeDocument,
   restoreDocument,
   type ListDocumentsBaseOpts,
   type ListDocumentsOpts,
   type MoveDocumentBody,
 } from "../api/endpoints/documents-collections";
-import { DocumentNotVerifiableError } from "../types/document";
+import { canManageTrashed, DocumentNotVerifiableError } from "../types/document";
 import { useEnsureMyFolder } from "./hooks";
 import { documentKeys } from "./keys";
 import { requireVerifiableArchive, requireVerifiableDocument } from "./verify";
 
-export { useEnsureMyFolder };
+export { canManageTrashed, useEnsureMyFolder };
 
 // Documents collection hooks (C-01 §5.1; UNI-679, G1-05b). Keys come from the
 // documentKeys factory and every key hangs off the workspace root, so one
@@ -207,17 +208,36 @@ export function useArchiveDocument(wsId: string) {
   });
 }
 
-/** Restore exactly the nodes one archive batch moved (manage). */
+/** Restore the target trashed item and the trashed descendants in its batch
+ *  that the caller manages (RESTORE-01). Partial restore may leave unmanaged
+ *  descendants in trash and detach the restored root (`parent_id: null`);
+ *  invalidating the workspace root refreshes the trash list, the old parent's
+ *  list, the workspace root list, and the tree. */
 export function useRestoreDocument(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { documentId: string; idempotencyKey?: string }) =>
-      requireVerifiableArchive(
-        await restoreDocument(input.documentId, { idempotencyKey: input.idempotencyKey }),
-      ),
+    mutationFn: async (input: string | { documentId: string; idempotencyKey?: string }) => {
+      const { documentId, idempotencyKey } =
+        typeof input === "string" ? { documentId: input, idempotencyKey: undefined } : input;
+      return requireVerifiableArchive(await restoreDocument(documentId, { idempotencyKey }));
+    },
     onSuccess: (res) => {
       qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
       return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
     },
+  });
+}
+
+/** Permanently delete a trashed item and the trashed descendants in its batch
+ *  that the caller manages (RESTORE-01). Awaits the server (no optimistic
+ *  update) and invalidates the workspace document root (trash list, folder
+ *  lists, tree and details). */
+export function usePurgeDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      await purgeDocument(documentId);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) }),
   });
 }

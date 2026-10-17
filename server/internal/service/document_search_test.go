@@ -166,6 +166,9 @@ func TestDocumentSearch(t *testing.T) {
 
 	t.Run("archived docs leave the live list and enter the trash view", func(t *testing.T) {
 		dead := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, archived: true})
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET workspace_level = 'view' WHERE id = $1`, dead.ID); err != nil {
+			t.Fatal(err)
+		}
 		live, err := f.svc.ListDocuments(f.ctx, Human(tn.owner.ID), tn.wsA, ListDocumentsInput{Limit: 100})
 		if err != nil {
 			t.Fatal(err)
@@ -180,13 +183,13 @@ func TestDocumentSearch(t *testing.T) {
 		if !containsID(listIDs(trash), dead.ID) {
 			t.Fatal("archived doc missing from the trash view")
 		}
-		// The trash is manage-only: a plain member's manage-less set is empty for it.
+		// The trash admits manage and edit only: a view-only member does not see it.
 		asMember, err := f.svc.ListDocuments(f.ctx, Human(tn.member.ID), tn.wsA, ListDocumentsInput{Archived: true, Limit: 100})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if containsID(listIDs(asMember), dead.ID) {
-			t.Fatal("member read the trash view")
+			t.Fatal("view-only member read the trash view")
 		}
 	})
 

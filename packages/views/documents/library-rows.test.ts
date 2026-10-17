@@ -16,6 +16,7 @@ import {
   mergeNewestFirst,
   readFolderSort,
   rowAccessLabelKey,
+  rowFormat,
   rowOrigin,
   rowSizeBytes,
   rowTypeKey,
@@ -211,6 +212,21 @@ describe("library rows", () => {
     expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Báo giá.docx" })))).toBe("documents.file_types.docx");
     expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Số liệu.xlsx" })))).toBe("documents.file_types.xlsx");
     expect(rowTypeKey(documentRow(doc({ kind: "file", title: "archive.zip" })))).toBe("documents.file_types.file");
+  });
+
+  it("reads the server's format over the title's extension, and an unknown one as a generic file (UNI-1868)", () => {
+    // kind stays the authority for pages and folders; only files read `format`.
+    expect(rowFormat(documentRow(doc({ kind: "file", title: "Báo giá.docx", format: "xlsx" })))).toBe("xlsx");
+    expect(rowFormat(documentRow(doc({ kind: "file", title: "Số liệu.xlsx" })))).toBe("xlsx");
+    // An unknown server value is not trusted: the extension, then the generic file.
+    const odd = (title: string) => documentRow(doc({ kind: "file", title, format: "odd" as DocumentSummaryRow["format"] }));
+    expect(rowFormat(odd("Ghi chú.docx"))).toBe("docx");
+    expect(rowFormat(odd("Ghi chú"))).toBe("file");
+    expect(rowFormat(documentRow(doc({ kind: "page", title: "Trang.md", format: "md" as DocumentSummaryRow["format"] })))).toBe("page");
+    expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Báo giá.docx", format: "xlsx" })))).toBe("documents.file_types.xlsx");
+    expect(rowTypeKey(odd("Ghi chú"))).toBe("documents.file_types.file");
+    // ...and it groups under the generic file, not under a group of its own.
+    expect(groupRows([odd("Ghi chú")], "type", new Map()).map((g) => g.key)).toEqual(["type:file"]);
   });
 
   it("persists folder sort per viewer under uniwork_documents_folder_sort:<userId> and neither reads nor writes without a user", () => {

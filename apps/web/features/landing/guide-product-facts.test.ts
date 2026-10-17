@@ -7,7 +7,8 @@ describe("public product claims", () => {
   for (const locale of ["en", "vi"] as const) it(`keeps ${locale} format limits aligned with the web host`, () => {
     const table = officeFormatsTable(locale);
     expect(table.rows.map(row => row[1])).toEqual([".docx", ".xlsx", ".pptx", ".pdf", ".html", ".md"]);
-    expect(table.rows.find(row => row[0] === "Sheets")?.[2]).toContain(`${officeModuleSpec("sheets").maxBytes! / 1024 / 1024} MiB`);
+    expect(officeModuleSpec("sheets").maxBytes).toBeUndefined();
+    expect(table.rows.find(row => row[0] === "Sheets")?.[2]).not.toContain("MiB");
     expect(table.rows.filter(row => row[2].includes(locale === "vi" ? "xuất PDF" : "export PDF")).map(row => row[0])).toEqual(["Docs"]);
     expect(guideContent("office-files-and-ai", locale).sections.find(section => section.table)?.table).toEqual(table);
   });

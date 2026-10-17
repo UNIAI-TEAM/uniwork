@@ -26,16 +26,18 @@ export interface DocumentsLibraryListProps {
   loading: boolean;
   /** The query failed and no rows are cached; `permission` is a 403 tab. */
   failure: "error" | "permission" | null;
-  /** The rows are empty because a filter is on, not because the library is. */
-  filtered: boolean;
+  /** The rows are empty because a filter is on, not because the library is.
+   *  "server" (default when set): the server already filtered the list, so
+   *  the empty line says simply "no matches". "client": the filter ran over
+   *  only what has loaded (merged source rows, starred, the sources view), so
+   *  while the server has more the copy says so and offers the next page. */
+  filteredBy?: "server" | "client" | null;
   /** The access filter (not only the type chip) is on, so the empty line names access, not file type. */
   accessFiltered?: boolean;
   /** The type chip is on too: with both on, the empty line names the filters, not one of them. */
   typeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
-  /** Show the archive badge on every row (the archive tab). */
-  archived?: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -56,11 +58,10 @@ export function DocumentsLibraryList({
   groups,
   loading,
   failure,
-  filtered,
+  filteredBy = null,
   accessFiltered = false,
   typeFiltered = false,
   cardsShown = false,
-  archived = false,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -101,23 +102,25 @@ export function DocumentsLibraryList({
 
   const total = groups.reduce((sum, group) => sum + group.rows.length, 0);
   if (total === 0) {
-    if (filtered) {
-      // The type filter runs on the pages already loaded; while the server has
-      // more, "no matches" is not an answer yet, so offer the next page.
+    if (filteredBy) {
+      // "no matches" copy (UNI-1868): the server filtered the list already, so
+      // the plain line stands. Only a client-filtered view may honestly say
+      // "no matches in what is loaded" while more pages wait.
+      const clientFiltered = filteredBy === "client";
       return (
         <CollectionPageState
           icon={Search}
           title={t("documents.library.no_matches_title")}
           description={t(
             accessFiltered && typeFiltered
-              ? hasMore
+              ? clientFiltered && hasMore
                 ? "documents.home.no_matches_filters_more_description"
                 : "documents.home.no_matches_filters_description"
               : accessFiltered
-                ? hasMore
+                ? clientFiltered && hasMore
                   ? "documents.home.no_matches_access_more_description"
                   : "documents.home.no_matches_access_description"
-                : hasMore
+                : clientFiltered && hasMore
                   ? "documents.home.no_matches_more_description"
                   : cardsShown
                     ? "documents.home.no_matches_description"
@@ -196,7 +199,7 @@ export function DocumentsLibraryList({
                 </tr>
               ) : null}
               {group.rows.map((row) => (
-                <LibraryRowView key={row.id} row={row} handlers={handlers} archived={archived} ladder={ladder} />
+                <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} />
               ))}
             </tbody>
           ))}
