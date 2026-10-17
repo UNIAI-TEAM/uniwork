@@ -164,6 +164,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		access := row.Access
 		dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
 		dto.EditLock = documentRowEditLockSDO(row.EditLock)
+		dto.ShareScope = documentRowShareScopeSDO(row.ShareScope)
 		out.Documents = append(out.Documents, dto)
 	}
 	if page.NextID != "" {
@@ -310,6 +311,7 @@ func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 		}
 		dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
 		dto.EditLock = documentRowEditLockSDO(item.EditLock)
+		dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
 		if len(item.Path) > 0 {
 			dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
 			for i, p := range item.Path {
@@ -322,6 +324,19 @@ func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 		out.NextCursor = &page.NextCursor
 	}
 	return out
+}
+
+func documentRowShareScopeSDO(scope *service.DocumentShareScope) *sdo.DocumentShareScopeSDO {
+	if scope == nil {
+		return nil
+	}
+	return &sdo.DocumentShareScopeSDO{
+		HomeWorkspace: scope.HomeWorkspace,
+		Users:         scope.Users,
+		Workspaces:    scope.Workspaces,
+		Organization:  scope.Organization,
+		PublicLink:    scope.PublicLink,
+	}
 }
 
 // documentSummaryDTO renders one list row: document metadata, its size and

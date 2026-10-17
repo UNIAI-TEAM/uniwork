@@ -453,6 +453,9 @@ type SharedDocument struct {
 	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
 	// carries the tenure id.
 	EditLock *DocumentEditLockSummary
+	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
+	// addendum §6.4, §7); nil for agent actors.
+	ShareScope *DocumentShareScope
 }
 
 // SharedWithMeQuery is one page request of the recipient's shared list.
@@ -513,7 +516,10 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	for i := range page.Items {
 		page.Items[i].Facts = facts[i]
 	}
-	return page, s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items)
+	if err := s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
+	return page, s.attachSharedShareScopes(ctx, Human(userID), organizationID, page.Items)
 }
 
 func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, organizationID string, in SharedWithMeQuery) (SharedWithMePage, error) {
