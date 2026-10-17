@@ -259,6 +259,40 @@ describe('fixture backend: arguments, write log and number formats', () => {
     assert.equal(fmtBackend.execute('read_cells', { addresses: ['A1'] }).cells.A1, '12 [formula =B1+C1]', 'a format-only write keeps the formula');
   });
 
+  it('A2: a configuration edit is proven from the applied propose_operations arguments, not from text or a self-reported count (review-g712-16 A2)', () => {
+    const c = synthCase({
+      id: 'HO-TEST-902', format: 'xlsx', category: 'edit',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: {
+        numeric: [],
+        structural: [{ kind: 'config_op', anchor: 'set_page_setup', value: 'SheetZ|printArea=A1:G7' }],
+        writes: 1, mustNotContain: [],
+      },
+      referenceAnswer: {
+        numeric: {},
+        structural: [{ kind: 'config_op', anchor: 'set_page_setup', value: 'SheetZ|printArea=A1:G7' }],
+        writes: 1, text: 'Dat vung in xong.',
+      },
+    });
+    const ask = (operations, writes) => ({
+      reply: `Da dat.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+      calls: [{ name: 'propose_operations' }], writes,
+      writeLog: writes > 0 ? [{ name: 'propose_operations', applied: true, args: { operations } }] : [],
+      dropped: [], modules: ['sheets'], sheetNames: ['SheetZ'], sourceText: '',
+    });
+    const status = (operations, writes) => score(c, deriveAnswer(c, ask(operations, writes)).answer).status;
+    // The right operation on the right sheet with the right settings is the edit.
+    assert.equal(status([{ op: 'set_page_setup', sheetId: 'SheetZ', printArea: 'A1:G7' }], 1), 'pass');
+    // The right operation on the wrong sheet, or with the wrong settings, is not.
+    assert.equal(status([{ op: 'set_page_setup', sheetId: 'Other', printArea: 'A1:G7' }], 1), 'fail');
+    assert.equal(status([{ op: 'set_page_setup', sheetId: 'SheetZ', printArea: 'A1:H9' }], 1), 'fail');
+    // An unrelated cell write with novel text is no configuration edit.
+    assert.equal(status([{ sheetId: 'SheetZ', address: 'B2', value: 'brand new words' }], 1), 'fail');
+    // A refusal with zero writes is not either.
+    assert.equal(status([], 0), 'fail');
+  });
+
   it('reads the number format of a cell from the workbook, as the #numberFormat probe of the cases needs (G712-13)', () => {
     const probe = cases.find((c) => c.expected.structural.some((i) => i.anchor.includes('#numberFormat')));
     assert.ok(probe, 'the set has a #numberFormat case');
