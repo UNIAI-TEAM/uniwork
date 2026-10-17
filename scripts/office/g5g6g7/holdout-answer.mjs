@@ -388,7 +388,8 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
         // on a zero-write case, preserved count invariants hold by fact; when writes happened, keep today's proof rules.
         // A9: the fact credit applies only when the case is not an edit, no write happened, and the answer reports no
         // conflicting value for that count — a count the reply states with a different value is never replaced by the
-        // oracle's, and an edit-category case with a zero-write ceiling is not a preserved invariant either.
+        // oracle's, and an edit-category case with a zero-write ceiling is not a preserved invariant either. The
+        // pre-existing structure exclusion stays: there the count IS the requested answer, not a preserved invariant.
         const conflictingCount = same.some((it) => atAnchor(it));
         if (
           !editCase &&
@@ -396,6 +397,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
           parsed.status === 'ok' &&
           expected.kind === 'count' &&
           caseDoc.category !== 'edit' &&
+          caseDoc.category !== 'structure' &&
           !conflictingCount &&
           /^(?:tables|paragraphs|slides|code_blocks|task_items|changed_paragraphs|changed_text_shapes|changed_text_runs|changedcells|overwrittencells)$/i.test(norm(expected.anchor))
         ) {
