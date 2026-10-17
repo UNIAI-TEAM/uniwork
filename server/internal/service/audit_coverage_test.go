@@ -1509,11 +1509,9 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionDocumentUploadSessionOpened: func(t *testing.T, f *auditFixture) {
 			svc, _, _ := auditMultipartDocService(t, f)
 			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-open")
-			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{
-				Filename:  "audit-open.pdf",
+			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-open.pdf",
 				SizeBytes: UploadSessionThresholdBytes + 1024,
-				Probe:     probe,
-			}); err != nil {
+				Probe:     probe}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1521,11 +1519,9 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			svc, store, _ := auditMultipartDocService(t, f)
 			const size = UploadSessionThresholdBytes + 1024
 			body, probe := buildLargePDF(size, "audit-complete")
-			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{
-				Filename:  "audit-complete.pdf",
+			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-complete.pdf",
 				SizeBytes: size,
-				Probe:     probe,
-			})
+				Probe:     probe})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1552,11 +1548,9 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionDocumentUploadSessionAborted: func(t *testing.T, f *auditFixture) {
 			svc, _, _ := auditMultipartDocService(t, f)
 			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-abort")
-			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{
-				Filename:  "audit-abort.pdf",
+			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-abort.pdf",
 				SizeBytes: UploadSessionThresholdBytes + 1024,
-				Probe:     probe,
-			})
+				Probe:     probe})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1567,11 +1561,9 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionDocumentUploadSessionExpired: func(t *testing.T, f *auditFixture) {
 			svc, _, clock := auditMultipartDocService(t, f)
 			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-expire")
-			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{
-				Filename:  "audit-expire.pdf",
+			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-expire.pdf",
 				SizeBytes: UploadSessionThresholdBytes + 1024,
-				Probe:     probe,
-			}); err != nil {
+				Probe:     probe}); err != nil {
 				t.Fatal(err)
 			}
 			clock.Advance(25 * time.Hour)

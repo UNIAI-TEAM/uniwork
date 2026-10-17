@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"sort"
@@ -195,8 +196,7 @@ func (s *FileService) prepareMultipartUpload(
 	}
 	if quota != nil && scope.OrganizationID != "" {
 		if err := quota.ReserveFileBytes(ctx, scope.OrganizationID, files.FileID(file.ID), sizeBytes); err != nil {
-			s.cancelMultipartFileSession(ctx, file.ID, sess.ID, false)
-			return preparedMultipartUpload{}, err
+			return preparedMultipartUpload{}, errors.Join(err, s.cancelMultipartFileSession(ctx, file.ID, sess.ID, false))
 		}
 	}
 
@@ -207,8 +207,7 @@ func (s *FileService) prepareMultipartUpload(
 		Filename:    file.OriginalFilename,
 	})
 	if err != nil {
-		s.cancelMultipartFileSession(ctx, file.ID, sess.ID, false)
-		return preparedMultipartUpload{}, files.StorageUnavailable(err)
+		return preparedMultipartUpload{}, errors.Join(files.StorageUnavailable(err), s.cancelMultipartFileSession(ctx, file.ID, sess.ID, false))
 	}
 
 	return preparedMultipartUpload{
@@ -219,29 +218,57 @@ func (s *FileService) prepareMultipartUpload(
 	}, nil
 }
 
-func (s *FileService) cancelMultipartFileSession(ctx context.Context, fileID, fileSessionID string, enqueueCleanup bool) {
+// cancelMultipartFileSession releases the reservation behind a multipart
+// upload: the FileService session leaves receiving/staged, the file row fails
+// and any queued reconcile is voided; enqueueCleanup also queues the durable
+// cleanup job that removes the object and row. Its error is returned, never
+// discarded: a caller that ignores it strands the reservation.
+func (s *FileService) cancelMultipartFileSession(ctx context.Context, fileID, fileSessionID string, enqueueCleanup bool) error {
 	ctx = context.WithoutCancel(ctx)
-	_ = s.inTx(ctx, func(q *db.Queries) error {
-		now := s.now()
-		file, err := q.GetFileByID(ctx, fileID)
-		if err != nil {
-			return err
-		}
-		_, _ = q.CancelUploadSession(ctx, db.CancelUploadSessionParams{
-			ID:       fileSessionID,
-			ClosedAt: fileTime(now),
-		})
-		_, _ = q.MarkFileFailed(ctx, fileID)
-		_, _ = q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{
-			FileID:     fileID,
-			Operation:  fileJobReconcile,
-			FinishedAt: fileTime(now),
-		})
-		if enqueueCleanup {
-			return s.enqueueJob(ctx, q, file, fileJobCleanup, now)
-		}
-		return nil
+	return s.inTx(ctx, func(q *db.Queries) error {
+		return s.cancelMultipartFileSessionInTx(ctx, q, fileID, fileSessionID, enqueueCleanup)
 	})
+}
+
+// cancelMultipartFileSessionInTx is cancelMultipartFileSession inside the
+// caller's transaction, so the row that terminal-marks the multipart upload
+// commits together with the cancellation it depends on. A missing file row
+// (GC already removed it) still releases the reservation: the session cancel
+// and the pending-job void are what quota reads.
+func (s *FileService) cancelMultipartFileSessionInTx(ctx context.Context, q *db.Queries, fileID, fileSessionID string, enqueueCleanup bool) error {
+	if s.failNextMultipartCancel != nil {
+		err := s.failNextMultipartCancel
+		s.failNextMultipartCancel = nil
+		return err
+	}
+	now := s.now()
+	file, err := q.GetFileByID(ctx, fileID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("files: cancel multipart session: %w", err)
+	}
+	missingFile := errors.Is(err, pgx.ErrNoRows)
+	if _, err := q.CancelUploadSession(ctx, db.CancelUploadSessionParams{
+		ID:       fileSessionID,
+		ClosedAt: fileTime(now),
+	}); err != nil {
+		return fmt.Errorf("files: cancel multipart session: %w", err)
+	}
+	if !missingFile {
+		if _, err := q.MarkFileFailed(ctx, fileID); err != nil {
+			return fmt.Errorf("files: cancel multipart session: %w", err)
+		}
+	}
+	if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{
+		FileID:     fileID,
+		Operation:  fileJobReconcile,
+		FinishedAt: fileTime(now),
+	}); err != nil {
+		return fmt.Errorf("files: cancel multipart session: %w", err)
+	}
+	if enqueueCleanup && !missingFile {
+		return s.enqueueJob(ctx, q, file, fileJobCleanup, now)
+	}
+	return nil
 }
 
 func (s *FileService) signMultipartParts(ctx context.Context, objectKey, storageUploadID string, partNumbers []int) ([]UploadSessionPartURL, error) {
@@ -272,52 +299,59 @@ func (s *FileService) signMultipartParts(ctx context.Context, objectKey, storage
 	return out, nil
 }
 
-func (s *FileService) stageMultipartUpload(
+// multipartStageInput is what the assembled-and-validated object contributes
+// to the staged FileService upload.
+type multipartStageInput struct {
+	contentType string
+	sizeBytes   int64
+	checksum    string
+	versionID   string
+}
+
+// stageMultipartUploadInTx is publishUpload's staged half inside the caller's
+// transaction (the one that also terminal-marks the multipart row, fenced by
+// the validation lease): the upload session goes receiving -> staged with its
+// 24h claim deadline and the file row records the verified content fields.
+func (s *FileService) stageMultipartUploadInTx(
 	ctx context.Context,
-	fileID, fileSessionID, contentType string,
-	sizeBytes int64,
-	checksum, version string,
+	q *db.Queries,
+	fileID, fileSessionID string,
+	in multipartStageInput,
 ) (files.Upload, error) {
-	var result files.Upload
-	ctx = context.WithoutCancel(ctx)
-	err := s.inTx(ctx, func(q *db.Queries) error {
-		now := s.now()
-		claimExpires := now.Add(files.ClaimTTL)
-		if _, err := q.LockFilesInIDOrder(ctx, []string{fileID}); err != nil {
-			return err
-		}
-		if _, err := q.GetUploadSessionByIDForUpdate(ctx, fileSessionID); err != nil {
-			return err
-		}
-		if _, err := q.MarkUploadSessionStaged(ctx, db.MarkUploadSessionStagedParams{
-			ID:             fileSessionID,
-			ClaimExpiresAt: fileTime(claimExpires),
-		}); err != nil {
-			return err
-		}
-		if _, err := q.MarkFileReady(ctx, db.MarkFileReadyParams{
-			ID:             fileID,
-			ContentType:    fileText(contentType),
-			SizeBytes:      pgtype.Int8{Int64: sizeBytes, Valid: true},
-			ChecksumSha256: fileText(checksum),
-			Metadata:       []byte("{}"),
-			ObjectVersion:  fileText(version),
-			ReadyAt:        fileTime(now),
-		}); err != nil {
-			return err
-		}
-		file, err := q.GetFileByID(ctx, fileID)
-		if err != nil {
-			return err
-		}
-		result = files.Upload{
-			File:            fileView(file),
-			UploadSessionID: fileSessionID,
-			ClaimExpiresAt:  claimExpires,
-		}
-		return nil
-	})
-	return result, err
+	now := s.now()
+	claimExpires := now.Add(files.ClaimTTL)
+	if _, err := q.LockFilesInIDOrder(ctx, []string{fileID}); err != nil {
+		return files.Upload{}, err
+	}
+	if _, err := q.GetUploadSessionByIDForUpdate(ctx, fileSessionID); err != nil {
+		return files.Upload{}, err
+	}
+	if _, err := q.MarkUploadSessionStaged(ctx, db.MarkUploadSessionStagedParams{
+		ID:             fileSessionID,
+		ClaimExpiresAt: fileTime(claimExpires),
+	}); err != nil {
+		return files.Upload{}, err
+	}
+	if _, err := q.MarkFileReady(ctx, db.MarkFileReadyParams{
+		ID:             fileID,
+		ContentType:    fileText(in.contentType),
+		SizeBytes:      pgtype.Int8{Int64: in.sizeBytes, Valid: true},
+		ChecksumSha256: fileText(in.checksum),
+		Metadata:       []byte("{}"),
+		ObjectVersion:  fileText(in.versionID),
+		ReadyAt:        fileTime(now),
+	}); err != nil {
+		return files.Upload{}, err
+	}
+	file, err := q.GetFileByID(ctx, fileID)
+	if err != nil {
+		return files.Upload{}, err
+	}
+	return files.Upload{
+		File:            fileView(file),
+		UploadSessionID: fileSessionID,
+		ClaimExpiresAt:  claimExpires,
+	}, nil
 }
 
 // OpenWorkspaceUploadSession opens a multipart upload session for creating a
@@ -429,6 +463,14 @@ type openSessionTarget struct {
 }
 
 func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tgt openSessionTarget, in OpenUploadSessionInput) (UploadSessionView, error) {
+	// Contract D7: the three create routes take a mandatory Idempotency-Key.
+	// A blank key must be refused before any probe, quota or storage work
+	// creates something retries cannot find (mapped as 400 invalid_request,
+	// same as the required key on the versions/commit intent route).
+	if strings.TrimSpace(in.IdempotencyKey) == "" {
+		return UploadSessionView{}, Invalid("Idempotency-Key bắt buộc")
+	}
+
 	// Step 2: size bounds (<= 20 MiB -> 422 upload_session_too_small; > cap -> 413 file_too_large).
 	if in.SizeBytes <= UploadSessionThresholdBytes {
 		return UploadSessionView{}, CodedError{
@@ -459,10 +501,20 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 		}
 	}
 
-	// Step 4: decode and validate probe (head_b64 + central_dir_b64).
+	// Step 4: decode and validate probe (head_b64 + central_dir_b64). The head
+	// must be exactly min(size_bytes, 64 KiB): Complete re-reads and hashes
+	// exactly that span, so a shorter head can never match (415, reason
+	// probe_head_too_short).
 	head, err := decodeBase64Probe(in.Probe.HeadB64)
-	if err != nil || len(head) > UploadSessionMaxProbeHeadBytes || int64(len(head)) > in.SizeBytes {
+	if err != nil {
 		return UploadSessionView{}, Invalid("probe.head_b64 không hợp lệ hoặc vượt quá 64 KiB")
+	}
+	wantHead := min(in.SizeBytes, int64(UploadSessionMaxProbeHeadBytes))
+	if int64(len(head)) != wantHead {
+		return UploadSessionView{}, documentValidationError(&document.FileError{
+			Reason: document.ReasonProbeHeadShort,
+			Msg:    fmt.Sprintf("the probe head must be exactly %d bytes", wantHead),
+		})
 	}
 	var centralDir []byte
 	if strings.TrimSpace(in.Probe.CentralDirB64) != "" {
@@ -491,7 +543,7 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 		tgt.parentID, tgt.title, tgt.visibility,
 		probeHeadSHA, probeTailSHA, in.Probe.CDOffset, in.Probe.CDSize,
 	)
-	if strings.TrimSpace(in.IdempotencyKey) != "" {
+	{
 		replayView, found, err := s.checkOpenSessionIdempotency(ctx, fs, tgt.orgID, tgt.workspaceID, actor.ID, in.IdempotencyKey, fp)
 		if err != nil {
 			return UploadSessionView{}, err
@@ -517,10 +569,10 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 		return UploadSessionView{}, documentFileError(err)
 	}
 
-	abortPrepared := func() {
+	abortPrepared := func() error {
 		loc := locator(prep.file)
-		_ = fs.store.AbortMultipart(context.Background(), loc, prep.storageUploadID)
-		fs.cancelMultipartFileSession(context.Background(), prep.file.ID, prep.fileSession.ID, false)
+		abortErr := fs.store.AbortMultipart(context.Background(), loc, prep.storageUploadID)
+		return errors.Join(abortErr, fs.cancelMultipartFileSession(context.Background(), prep.file.ID, prep.fileSession.ID, false))
 	}
 
 	// Step 6 (locked in tx), Step 9 (insert file_multipart_uploads), Step 10 (audit).
@@ -531,8 +583,7 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		abortPrepared()
-		return UploadSessionView{}, err
+		return UploadSessionView{}, errors.Join(err, abortPrepared())
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
@@ -543,26 +594,25 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 		IdempotencyOptions{Fingerprint: fp, RequireFingerprint: true},
 	)
 	if err != nil {
-		abortPrepared()
-		return UploadSessionView{}, NormalizeIdempotencyError(err)
+		return UploadSessionView{}, errors.Join(NormalizeIdempotencyError(err), abortPrepared())
 	}
 	if replay != nil {
-		abortPrepared()
-		return s.loadOpenSessionReplay(ctx, fs, string(replay.Body))
+		replayView, lerr := s.loadOpenSessionReplay(ctx, fs, string(replay.Body))
+		if cerr := abortPrepared(); cerr != nil {
+			return UploadSessionView{}, errors.Join(lerr, cerr)
+		}
+		return replayView, lerr
 	}
 
 	if err := q.LockUserMembership(ctx, actor.ID); err != nil {
-		abortPrepared()
-		return UploadSessionView{}, err
+		return UploadSessionView{}, errors.Join(err, abortPrepared())
 	}
 	lockedCount, err := q.CountOpenFileMultipartUploadsByActor(ctx, actor.ID)
 	if err != nil {
-		abortPrepared()
-		return UploadSessionView{}, err
+		return UploadSessionView{}, errors.Join(err, abortPrepared())
 	}
 	if lockedCount >= UploadSessionMaxOpenPerActor {
-		abortPrepared()
-		return UploadSessionView{}, errUploadSessionsExhausted()
+		return UploadSessionView{}, errors.Join(errUploadSessionsExhausted(), abortPrepared())
 	}
 
 	var cdOffsetPg, cdSizePg pgtype.Int8
@@ -598,8 +648,7 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 		CreatedAt:           pgtype.Timestamptz{Time: now, Valid: true},
 	})
 	if err != nil {
-		abortPrepared()
-		return UploadSessionView{}, err
+		return UploadSessionView{}, errors.Join(err, abortPrepared())
 	}
 
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -620,22 +669,19 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 			"size_bytes": row.SizeBytes,
 		},
 	}); err != nil {
-		abortPrepared()
-		return UploadSessionView{}, err
+		return UploadSessionView{}, errors.Join(err, abortPrepared())
 	}
 
 	if err := commitIdem(http.StatusCreated, []byte(row.ID)); err != nil {
-		abortPrepared()
-		return UploadSessionView{}, err
+		return UploadSessionView{}, errors.Join(err, abortPrepared())
 	}
 	if err := tx.Commit(ctx); err != nil {
-		abortPrepared()
-		return UploadSessionView{}, err
+		return UploadSessionView{}, errors.Join(err, abortPrepared())
 	}
 
 	// Step 11: sign all part URLs (TTL 1h).
 	partNums := make([]int, totalParts)
-	for i := 0; i < totalParts; i++ {
+	for i := range totalParts {
 		partNums[i] = i + 1
 	}
 	parts, err := fs.signMultipartParts(ctx, row.ObjectKey, row.StorageUploadID, partNums)
@@ -851,34 +897,15 @@ func (s *DocumentService) completeUploadSession(ctx context.Context, actor Actor
 
 	loc := storage.ObjectLocator{Storage: fs.backend, Bucket: fs.bucket, Key: leased.ObjectKey}
 
-	// Step 5: ListParts and compare 1..total_parts + ETag against client input.
-	uploadedParts, err := fs.store.ListParts(ctx, loc, leased.StorageUploadID)
+	// Steps 5-6: assemble the object from the uploaded parts, or - when the
+	// upload id is already consumed - resume on the assembled object so a
+	// retried complete that died after CompleteMultipart never strands.
+	assembledSize, objectVersion, err := s.assembleMultipartObject(ctx, fs, leased, loc, in)
 	if err != nil {
-		if errors.Is(err, storage.ErrMultipartNotFound) {
-			return UploadSessionCompleteResult{}, releaseLease(errUploadPartsInvalid())
-		}
-		return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
+		return UploadSessionCompleteResult{}, releaseLease(err)
 	}
-	completeParts, valid := matchMultipartParts(int(leased.TotalParts), in.Parts, uploadedParts)
-	if !valid {
-		return UploadSessionCompleteResult{}, releaseLease(errUploadPartsInvalid())
-	}
-
-	// Step 6: CompleteMultipart + Stat size check.
-	putRes, err := fs.store.CompleteMultipart(ctx, loc, leased.StorageUploadID, completeParts)
-	if err != nil {
-		if errors.Is(err, storage.ErrMultipartPartsInvalid) || errors.Is(err, storage.ErrMultipartNotFound) {
-			return UploadSessionCompleteResult{}, releaseLease(errUploadPartsInvalid())
-		}
-		return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
-	}
-
-	statInfo, err := fs.store.Stat(ctx, loc)
-	if err != nil {
-		return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
-	}
-	if statInfo.SizeBytes != leased.SizeBytes {
-		return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, "upload_size_mismatch", errUploadSizeMismatch())
+	if assembledSize != leased.SizeBytes {
+		return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, objectVersion, "upload_size_mismatch", errUploadSizeMismatch())
 	}
 
 	// Step 7: Range re-read head and (if zip/present) central_dir, compare sha256.
@@ -888,22 +915,20 @@ func (s *DocumentService) completeUploadSession(ctx context.Context, actor Actor
 		return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
 	}
 	if headSHA != leased.ProbeHeadSha256 {
-		return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, "upload_probe_mismatch", errUploadProbeMismatch())
+		return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, objectVersion, "upload_probe_mismatch", errUploadProbeMismatch())
 	}
 	expectedMIME, _ := document.ExpectedMIMEForExtension(leased.Filename)
-	isZip := expectedMIME == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-		expectedMIME == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-		expectedMIME == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	isZip := document.RequiresZipCentralDirectory(expectedMIME)
 	if isZip || leased.ProbeTailSha256 != "" || leased.CdOffset.Valid || leased.CdSize.Valid {
 		if !leased.CdOffset.Valid || !leased.CdSize.Valid || leased.CdSize.Int64 <= 0 || leased.ProbeTailSha256 == "" {
-			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, "upload_probe_mismatch", errUploadProbeMismatch())
+			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, objectVersion, "upload_probe_mismatch", errUploadProbeMismatch())
 		}
 		tailSHA, err := readObjectRangeSHA256(ctx, fs.store, loc, leased.CdOffset.Int64, leased.CdSize.Int64)
 		if err != nil {
 			return UploadSessionCompleteResult{}, releaseLease(documentFileError(files.StorageUnavailable(err)))
 		}
 		if tailSHA != leased.ProbeTailSha256 {
-			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, "upload_probe_mismatch", errUploadProbeMismatch())
+			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, objectVersion, "upload_probe_mismatch", errUploadProbeMismatch())
 		}
 	}
 
@@ -914,25 +939,96 @@ func (s *DocumentService) completeUploadSession(ctx context.Context, actor Actor
 		var ce CodedError
 		switch {
 		case errors.As(valErr, &fe):
-			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, document.ErrCodeUnsupportedMedia+":"+fe.Reason, documentValidationError(valErr))
+			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, objectVersion, document.ErrCodeUnsupportedMedia+":"+fe.Reason, documentValidationError(valErr))
 		case errors.As(valErr, &ce) && ce.Status == http.StatusUnsupportedMediaType:
 			reason, _ := ce.Fields["reason"].(string)
-			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, putRes.VersionID, document.ErrCodeUnsupportedMedia+":"+reason, ce)
+			return UploadSessionCompleteResult{}, s.failMultipartSession(ctx, fs, leased, leaseOwner, objectVersion, document.ErrCodeUnsupportedMedia+":"+reason, ce)
 		default:
 			return UploadSessionCompleteResult{}, releaseLease(valErr)
 		}
 	}
 
-	// Step 9: Stage the FileService upload and finalize the session.
-	stagedUp, err := fs.stageMultipartUpload(ctx, leased.FileID, leased.FileUploadSessionID, contentType, leased.SizeBytes, checksumSHA256, putRes.VersionID)
+	// Step 9: stage the FileService upload and mark the row completed inside
+	// one transaction fenced by the lease, so a stale owner neither stages nor
+	// commits and every side effect commits or rolls back together.
+	stage := multipartStageInput{
+		contentType: contentType,
+		sizeBytes:   leased.SizeBytes,
+		checksum:    checksumSHA256,
+		versionID:   objectVersion,
+	}
+	var res UploadSessionCompleteResult
+	if leased.OpenedVia == "workspace" {
+		res, err = s.completeWorkspaceUploadSessionInTx(ctx, fs, actor, leased, leaseOwner, stage)
+	} else {
+		res, err = s.completeVersionOrFrameUploadSessionInTx(ctx, fs, actor, leased, leaseOwner, stage)
+	}
 	if err != nil {
-		return UploadSessionCompleteResult{}, releaseLease(documentFileError(err))
+		return UploadSessionCompleteResult{}, releaseLease(err)
+	}
+	return res, nil
+}
+
+// assembleMultipartObject runs steps 5-6 of complete: the parts the client
+// names must match the upload's ListParts exactly, then CompleteMultipart
+// assembles the object and Stat answers its real size and version. When the
+// upload id is already consumed (a retried complete whose first call died
+// after assembly, or S3's own cleanup) the object itself is the checkpoint:
+// Stat sees it and the caller resumes at the size check; a missing object
+// means the upload is truly gone, which is upload_parts_invalid.
+func (s *DocumentService) assembleMultipartObject(
+	ctx context.Context,
+	fs *FileService,
+	leased db.FileMultipartUpload,
+	loc storage.ObjectLocator,
+	in CompleteUploadSessionInput,
+) (int64, string, error) {
+	var statInfo storage.ObjectInfo
+	resumed := false
+	uploadedParts, err := fs.store.ListParts(ctx, loc, leased.StorageUploadID)
+	switch {
+	case err == nil:
+	case errors.Is(err, storage.ErrMultipartNotFound):
+		resumed = true
+	default:
+		return 0, "", documentFileError(files.StorageUnavailable(err))
 	}
 
-	if leased.OpenedVia == "workspace" {
-		return s.completeWorkspaceUploadSessionInTx(ctx, fs, actor, leased, leaseOwner, stagedUp)
+	if !resumed {
+		completeParts, valid := matchMultipartParts(int(leased.TotalParts), in.Parts, uploadedParts)
+		if !valid {
+			return 0, "", errUploadPartsInvalid()
+		}
+		putRes, err := fs.store.CompleteMultipart(ctx, loc, leased.StorageUploadID, completeParts)
+		switch {
+		case err == nil:
+			statInfo, err = fs.store.Stat(ctx, loc)
+			if err != nil {
+				return 0, "", documentFileError(files.StorageUnavailable(err))
+			}
+			if putRes.VersionID != "" {
+				return statInfo.SizeBytes, putRes.VersionID, nil
+			}
+			return statInfo.SizeBytes, statInfo.VersionID, nil
+		case errors.Is(err, storage.ErrMultipartNotFound):
+			resumed = true
+		case errors.Is(err, storage.ErrMultipartPartsInvalid):
+			return 0, "", errUploadPartsInvalid()
+		default:
+			return 0, "", documentFileError(files.StorageUnavailable(err))
+		}
 	}
-	return s.completeVersionOrFrameUploadSessionInTx(ctx, actor, leased, leaseOwner, stagedUp)
+
+	// Resume: the multipart upload is gone, so the only evidence an earlier
+	// complete already assembled this object is the object itself.
+	statInfo, err = fs.store.Stat(ctx, loc)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return 0, "", errUploadPartsInvalid()
+		}
+		return 0, "", documentFileError(files.StorageUnavailable(err))
+	}
+	return statInfo.SizeBytes, statInfo.VersionID, nil
 }
 
 // CreateFileDocumentFromUploadInput is the variant of CreateFileDocumentInput
@@ -1098,13 +1194,18 @@ func (s *DocumentService) createFileDocumentFromStagedUploadInTx(
 	}, file, nil
 }
 
+// completeWorkspaceUploadSessionInTx is step 9 for the workspace route: the
+// lease fence is re-proved (FOR UPDATE by lease owner), the FileService
+// upload is staged, the document is created from the staged upload, and the
+// row is marked completed - all in one transaction, so a caller that lost
+// the lease leaves no staged side effects and nothing half-commits.
 func (s *DocumentService) completeWorkspaceUploadSessionInTx(
 	ctx context.Context,
 	fs *FileService,
 	actor Actor,
 	sess db.FileMultipartUpload,
 	leaseOwner string,
-	stagedUp files.Upload,
+	stage multipartStageInput,
 ) (UploadSessionCompleteResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1112,6 +1213,21 @@ func (s *DocumentService) completeWorkspaceUploadSessionInTx(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+
+	if _, err := q.LockFileMultipartUploadForLeaseOwner(ctx, db.LockFileMultipartUploadForLeaseOwnerParams{
+		ID:         sess.ID,
+		LeaseOwner: leaseOwner,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return UploadSessionCompleteResult{}, errUploadSessionBusy()
+		}
+		return UploadSessionCompleteResult{}, err
+	}
+
+	stagedUp, err := fs.stageMultipartUploadInTx(ctx, q, sess.FileID, sess.FileUploadSessionID, stage)
+	if err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
 
 	docRes, file, err := s.createFileDocumentFromStagedUploadInTx(
 		ctx, q, fs, actor, sess.OrganizationID, sess.WorkspaceID,
@@ -1167,12 +1283,17 @@ func (s *DocumentService) completeWorkspaceUploadSessionInTx(
 	}, nil
 }
 
+// completeVersionOrFrameUploadSessionInTx is step 9 for the document and
+// frame routes: fence by lease owner, stage the FileService upload, mark the
+// row completed and audit - one transaction, so a stale lease owner neither
+// stages nor commits.
 func (s *DocumentService) completeVersionOrFrameUploadSessionInTx(
 	ctx context.Context,
+	fs *FileService,
 	actor Actor,
 	sess db.FileMultipartUpload,
 	leaseOwner string,
-	stagedUp files.Upload,
+	stage multipartStageInput,
 ) (UploadSessionCompleteResult, error) {
 	now := s.now().UTC().Truncate(time.Microsecond)
 	tx, err := s.pool.Begin(ctx)
@@ -1181,6 +1302,21 @@ func (s *DocumentService) completeVersionOrFrameUploadSessionInTx(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+
+	if _, err := q.LockFileMultipartUploadForLeaseOwner(ctx, db.LockFileMultipartUploadForLeaseOwnerParams{
+		ID:         sess.ID,
+		LeaseOwner: leaseOwner,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return UploadSessionCompleteResult{}, errUploadSessionBusy()
+		}
+		return UploadSessionCompleteResult{}, err
+	}
+
+	stagedUp, err := fs.stageMultipartUploadInTx(ctx, q, sess.FileID, sess.FileUploadSessionID, stage)
+	if err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
 
 	if _, err := q.CompleteFileMultipartUpload(ctx, db.CompleteFileMultipartUploadParams{
 		ID:                    sess.ID,
@@ -1322,6 +1458,12 @@ func (s *DocumentService) loadCompletedUploadSessionResult(
 	}, nil
 }
 
+// failMultipartSession is step 8's failure path: the assembled object is a
+// refusal, so the FileService cancellation (which releases the reservation)
+// and the failed row commit together, fenced by the validation lease - a
+// stale owner that lost its lease changes nothing a newer owner could see,
+// and a cleanup failure leaves the row validating so the next complete or
+// the GC retries the release instead of leaking the reservation.
 func (s *DocumentService) failMultipartSession(
 	ctx context.Context,
 	fs *FileService,
@@ -1333,18 +1475,49 @@ func (s *DocumentService) failMultipartSession(
 ) error {
 	ctx = context.WithoutCancel(ctx)
 	now := s.now().UTC().Truncate(time.Microsecond)
-	n, err := s.q.FailFileMultipartUpload(ctx, db.FailFileMultipartUploadParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return errors.Join(failErr, err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	q := s.q.WithTx(tx)
+
+	if _, err := q.LockFileMultipartUploadForLeaseOwner(ctx, db.LockFileMultipartUploadForLeaseOwnerParams{
+		ID:         row.ID,
+		LeaseOwner: leaseOwner,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errUploadSessionBusy()
+		}
+		return errors.Join(failErr, err)
+	}
+	if err := fs.cancelMultipartFileSessionInTx(ctx, q, row.FileID, row.FileUploadSessionID, true); err != nil {
+		// Roll back first: the lock our transaction holds would otherwise
+		// block the release forever. Then release our own lease so a retry
+		// does not wait out the TTL.
+		_ = tx.Rollback(context.Background())
+		relNow := s.now().UTC().Truncate(time.Microsecond)
+		_, _ = s.q.ReleaseFileMultipartUploadLease(context.Background(), db.ReleaseFileMultipartUploadLeaseParams{
+			ID:         row.ID,
+			LeaseOwner: leaseOwner,
+			Now:        pgtype.Timestamptz{Time: relNow, Valid: true},
+		})
+		return errors.Join(failErr, fmt.Errorf("cancel upload session: %w", err))
+	}
+	if _, err := q.FailFileMultipartUpload(ctx, db.FailFileMultipartUploadParams{
 		ID:          row.ID,
 		LeaseOwner:  leaseOwner,
 		FailureCode: failureCode,
 		ClosedAt:    pgtype.Timestamptz{Time: now, Valid: true},
-	})
-	if err != nil {
-		return err
+	}); err != nil {
+		return errors.Join(failErr, err)
 	}
-	if n == 0 {
-		return errUploadSessionBusy()
+	if err := tx.Commit(ctx); err != nil {
+		return errors.Join(failErr, err)
 	}
+
+	// Best-effort object delete; the durable cleanup job queued in the same
+	// transaction removes it (and its version) when this call fails.
 	loc := storage.ObjectLocator{
 		Storage: fs.backend,
 		Bucket:  fs.bucket,
@@ -1352,7 +1525,6 @@ func (s *DocumentService) failMultipartSession(
 		Version: objectVersion,
 	}
 	_ = fs.store.Delete(ctx, loc)
-	fs.cancelMultipartFileSession(ctx, row.FileID, row.FileUploadSessionID, true)
 	return failErr
 }
 
@@ -1498,11 +1670,18 @@ func (s *DocumentService) abortUploadSession(ctx context.Context, actor Actor, r
 		return err
 	}
 
+	// The abort claim above wins the row before any side effect runs; a
+	// concurrent complete holding a live lease can never reach it. Storage and
+	// the FileService cancellation run inside the same transaction, so a
+	// failure leaves the row open/validating and retryable instead of a
+	// terminal row with a live reservation.
 	loc := storage.ObjectLocator{Storage: fs.backend, Bucket: fs.bucket, Key: row.ObjectKey}
 	if err := fs.store.AbortMultipart(ctx, loc, row.StorageUploadID); err != nil && !errors.Is(err, storage.ErrMultipartNotFound) {
 		return documentFileError(files.StorageUnavailable(err))
 	}
-	fs.cancelMultipartFileSession(ctx, row.FileID, row.FileUploadSessionID, true)
+	if err := fs.cancelMultipartFileSessionInTx(ctx, q, row.FileID, row.FileUploadSessionID, true); err != nil {
+		return fmt.Errorf("cancel upload session: %w", err)
+	}
 
 	return tx.Commit(ctx)
 }
@@ -1537,6 +1716,13 @@ func (s *DocumentService) ExpireMultipartUploads(ctx context.Context, now time.T
 
 	sys := audit.System("documents.upload_session_gc")
 	for _, row := range rows {
+		// The reservation release commits with the expired mark: a cancel
+		// failure rolls the whole claim back so the next sweep retries it.
+		if fs != nil {
+			if err := fs.cancelMultipartFileSessionInTx(ctx, q, row.FileID, row.FileUploadSessionID, true); err != nil {
+				return 0, fmt.Errorf("files: gc cancel multipart session %s: %w", row.ID, err)
+			}
+		}
 		if err := auditRecorder.Record(ctx, q, audit.Entry{
 			OrganizationID: row.OrganizationID,
 			WorkspaceID:    row.WorkspaceID,
@@ -1561,10 +1747,14 @@ func (s *DocumentService) ExpireMultipartUploads(ctx context.Context, now time.T
 	}
 
 	for _, row := range rows {
-		if fs != nil && fs.store != nil {
-			loc := storage.ObjectLocator{Storage: fs.backend, Bucket: fs.bucket, Key: row.ObjectKey}
-			_ = fs.store.AbortMultipart(ctx, loc, row.StorageUploadID)
-			fs.cancelMultipartFileSession(ctx, row.FileID, row.FileUploadSessionID, true)
+		if fs == nil || fs.store == nil {
+			continue
+		}
+		loc := storage.ObjectLocator{Storage: fs.backend, Bucket: fs.bucket, Key: row.ObjectKey}
+		// A failed abort leaves the parts for the bucket lifecycle rule
+		// (S1-d ops); ErrMultipartNotFound means S3 already forgot the upload.
+		if err := fs.store.AbortMultipart(ctx, loc, row.StorageUploadID); err != nil && !errors.Is(err, storage.ErrMultipartNotFound) {
+			slog.Warn("documents: multipart GC abort failed", "session_id", row.ID, "upload_id", row.StorageUploadID, "err", err)
 		}
 	}
 	return len(rows), nil

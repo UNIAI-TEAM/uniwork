@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"hash/crc32"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -26,6 +28,14 @@ func newMultipartDocEnv(t *testing.T) *docStorageEnv {
 	env.store.enableMultipart(true)
 	env.svc.SetClock(env.clock.Now)
 	return env
+}
+
+// nextIDK mints a unique Idempotency-Key for Open calls in tests; the key is
+// mandatory (D7), so cases that do not pin a key use this.
+var testIDKSeq atomic.Int64
+
+func nextIDK() string {
+	return fmt.Sprintf("it-key-%d", testIDKSeq.Add(1))
 }
 
 // buildLargePDF builds a valid PDF of exact sizeBytes (> 20 MiB) with %PDF-1.4
@@ -139,11 +149,9 @@ func TestUploadSessionOpenRejectsUnder20MiB(t *testing.T) {
 	member := human(env.tn.member)
 
 	_, probe := buildLargePDF(20<<20+1024, "probe")
-	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "exact-20mb.pdf",
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "exact-20mb.pdf",
 		SizeBytes: UploadSessionThresholdBytes, // 20 MiB exactly -> must reject
-		Probe:     probe,
-	})
+		Probe:     probe})
 	ce := wantCode(t, err, "upload_session_too_small")
 	if ce.Status != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", ce.Status)
@@ -157,11 +165,9 @@ func TestUploadSessionOpenRejectsOverMaxBytes(t *testing.T) {
 
 	maxBytes := env.svc.documentFileMaxBytes()
 	_, probe := buildLargePDF(21<<20, "over-cap")
-	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "huge.pdf",
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "huge.pdf",
 		SizeBytes: maxBytes + 1,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	ce := wantCode(t, err, "file_too_large")
 	if ce.Status != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413", ce.Status)
@@ -176,13 +182,11 @@ func TestUploadSessionOpenRejectsDisallowedExtension(t *testing.T) {
 	ctx := context.Background()
 	member := human(env.tn.member)
 
-	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "installer.exe",
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "installer.exe",
 		SizeBytes: 25 << 20,
 		Probe: UploadSessionProbeInput{
 			HeadB64: base64.StdEncoding.EncodeToString([]byte("MZ\x90\x00")),
-		},
-	})
+		}})
 	ce := wantCode(t, err, document.ErrCodeUnsupportedMedia)
 	if ce.Status != http.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want 415", ce.Status)
@@ -195,13 +199,11 @@ func TestUploadSessionOpenRejectsBadMagicInProbe(t *testing.T) {
 	member := human(env.tn.member)
 
 	pngBytes := pngBody(t, 4, 4)
-	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "disguised.pdf",
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "disguised.pdf",
 		SizeBytes: 25 << 20,
 		Probe: UploadSessionProbeInput{
 			HeadB64: base64.StdEncoding.EncodeToString(pngBytes),
-		},
-	})
+		}})
 	ce := wantCode(t, err, document.ErrCodeUnsupportedMedia)
 	if ce.Status != http.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want 415", ce.Status)
@@ -220,11 +222,9 @@ func TestUploadSessionOpenRejectsMacroInZipProbe(t *testing.T) {
 	_, probe := buildLargeDOCX(t, size, map[string][]byte{
 		"word/vbaProject.bin": []byte("macro-payload"),
 	})
-	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "macro.docx",
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "macro.docx",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	ce := wantCode(t, err, document.ErrCodeUnsupportedMedia)
 	if ce.Status != http.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want 415", ce.Status)
@@ -254,11 +254,9 @@ func TestUploadSessionOpenRejectsZipBombInProbe(t *testing.T) {
 	binary.LittleEndian.PutUint32(cdRaw[24:28], uint32(1<<30))
 	probe.CentralDirB64 = base64.StdEncoding.EncodeToString(cdRaw)
 
-	_, err = env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "bomb.docx",
+	_, err = env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "bomb.docx",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	ce := wantCode(t, err, document.ErrCodeUnsupportedMedia)
 	if ce.Status != http.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want 415", ce.Status)
@@ -277,11 +275,9 @@ func TestUploadSessionOpenReservesQuotaImmediately(t *testing.T) {
 	seedStoragePlan(t, env, 30<<20)
 
 	_, probe := buildLargePDF(50<<20, "quota-exceeded")
-	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "fifty-mb.pdf",
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "fifty-mb.pdf",
 		SizeBytes: 50 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	ce := wantCode(t, err, "quota_exceeded")
 	if ce.Status != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", ce.Status)
@@ -300,11 +296,9 @@ func TestUploadSessionOpenRollsBackQuotaWhenCreateMultipartFails(t *testing.T) {
 	env.store.createMultipartErr = errors.New("s3 create multipart failed")
 
 	_, probe := buildLargePDF(25<<20, "s3-down")
-	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "fail-mp.pdf",
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "fail-mp.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	ce := wantCode(t, err, "storage_unavailable")
 	if ce.Status != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", ce.Status)
@@ -328,35 +322,27 @@ func TestUploadSessionOpenEnforcesMax4PerUser(t *testing.T) {
 	body, probe := buildLargePDF(size, "concurrency-cap")
 
 	// Open 2 sessions in wsA and 1 session in wsB (all 'open').
-	s1, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "ok-1.pdf",
+	s1, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "ok-1.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open session 1 (wsA): %v", err)
 	}
-	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "ok-2.pdf",
+	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "ok-2.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	}); err != nil {
+		Probe:     probe}); err != nil {
 		t.Fatalf("open session 2 (wsA): %v", err)
 	}
-	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsB, OpenUploadSessionInput{
-		Filename:  "ok-3-wsb.pdf",
+	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsB, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "ok-3-wsb.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	}); err != nil {
+		Probe:     probe}); err != nil {
 		t.Fatalf("open session 3 (wsB): %v", err)
 	}
 
 	// Open a 4th session in wsA and hold it in 'validating'.
-	s4, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "ok-4-validating.pdf",
+	s4, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "ok-4-validating.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open session 4 (wsA): %v", err)
 	}
@@ -382,11 +368,9 @@ func TestUploadSessionOpenEnforcesMax4PerUser(t *testing.T) {
 
 	// 5th open session in wsA or wsB must fail with 429 upload_sessions_exhausted + retry_after = 60.
 	for _, wsID := range []string{env.tn.wsA, env.tn.wsB} {
-		_, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, wsID, OpenUploadSessionInput{
-			Filename:  "fifth.pdf",
+		_, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, wsID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "fifth.pdf",
 			SizeBytes: size,
-			Probe:     probe,
-		})
+			Probe:     probe})
 		ce := wantCode(t, err, "upload_sessions_exhausted")
 		if ce.Status != http.StatusTooManyRequests {
 			t.Fatalf("ws=%s status = %d, want 429", wsID, ce.Status)
@@ -405,11 +389,9 @@ func TestUploadSessionOpenEnforcesMax4PerUser(t *testing.T) {
 	if err := env.svc.AbortUploadSession(ctx, owner, s1.SessionID); err != nil {
 		t.Fatalf("abort session 1: %v", err)
 	}
-	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsB, OpenUploadSessionInput{
-		Filename:  "fifth-retry.pdf",
+	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, owner, env.tn.wsB, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "fifth-retry.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	}); err != nil {
+		Probe:     probe}); err != nil {
 		t.Fatalf("open after abort: %v", err)
 	}
 }
@@ -421,13 +403,10 @@ func TestUploadSessionOpenIdempotentReplay(t *testing.T) {
 
 	seedStoragePlan(t, env, 100<<20)
 	_, probe := buildLargePDF(25<<20, "idem-replay")
-	in := OpenUploadSessionInput{
-		Filename:       "replay.pdf",
-		SizeBytes:      25 << 20,
-		Title:          "Replay Doc",
-		Probe:          probe,
-		IdempotencyKey: "idem-open-1",
-	}
+	in := OpenUploadSessionInput{Filename: "replay.pdf",
+		SizeBytes: 25 << 20,
+		Title:     "Replay Doc",
+		Probe:     probe, IdempotencyKey: "idem-open-1"}
 	first, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, in)
 	if err != nil {
 		t.Fatalf("first open: %v", err)
@@ -457,12 +436,9 @@ func TestUploadSessionOpenIdempotentMismatchReturns409(t *testing.T) {
 	member := human(env.tn.member)
 
 	_, probe := buildLargePDF(25<<20, "idem-mismatch")
-	in := OpenUploadSessionInput{
-		Filename:       "first.pdf",
-		SizeBytes:      25 << 20,
-		Probe:          probe,
-		IdempotencyKey: "idem-mismatch-1",
-	}
+	in := OpenUploadSessionInput{Filename: "first.pdf",
+		SizeBytes: 25 << 20,
+		Probe:     probe, IdempotencyKey: "idem-mismatch-1"}
 	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, in); err != nil {
 		t.Fatalf("first open: %v", err)
 	}
@@ -481,11 +457,9 @@ func TestUploadSessionGetReturnsCompletedPartsAndMissingPresignedURLs(t *testing
 
 	const size = 25 << 20 // 4 parts (8M, 8M, 8M, 1M)
 	body, probe := buildLargePDF(size, "resume-parts")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "resume.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "resume.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -527,11 +501,9 @@ func TestUploadSessionGetRejectsOtherUserWith404(t *testing.T) {
 	other := human(env.tn.aclOwner)
 
 	_, probe := buildLargePDF(25<<20, "other-user")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "private-sess.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "private-sess.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -553,11 +525,9 @@ func TestUploadSessionGetReChecksRevokedPermission(t *testing.T) {
 	member := human(env.tn.member)
 
 	_, probe := buildLargePDF(25<<20, "revoked-perm")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "revoked.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "revoked.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -599,19 +569,15 @@ func TestUploadSessionFrameScopeBoundToDocument(t *testing.T) {
 	_, probe := buildLargePDF(25<<20, "frame-scope")
 
 	// Token for doc A trying to open on doc B -> 404.
-	if _, err := env.svc.OpenFrameUploadSession(ctx, claimsA, docB.Document.ID, OpenUploadSessionInput{
-		Filename:  "v2.pdf",
+	if _, err := env.svc.OpenFrameUploadSession(ctx, claimsA, docB.Document.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "v2.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	}); !errors.Is(err, ErrNotFound) {
+		Probe:     probe}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("OpenFrameUploadSession with mismatched doc = %v, want ErrNotFound", err)
 	}
 
-	openedA, err := env.svc.OpenFrameUploadSession(ctx, claimsA, docA.Document.ID, OpenUploadSessionInput{
-		Filename:  "v2.pdf",
+	openedA, err := env.svc.OpenFrameUploadSession(ctx, claimsA, docA.Document.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "v2.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("OpenFrameUploadSession on docA: %v", err)
 	}
@@ -640,12 +606,10 @@ func TestUploadSessionCompleteHappyPathCreatesDocument(t *testing.T) {
 
 	const size = 25 << 20
 	body, probe := buildLargeDOCX(t, size, nil)
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "quarterly-report.docx",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "quarterly-report.docx",
 		SizeBytes: size,
 		Title:     "Quarterly Report",
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("OpenWorkspaceUploadSession: %v", err)
 	}
@@ -679,11 +643,9 @@ func TestUploadSessionCompleteRejectsMissingOrMismatchedParts(t *testing.T) {
 
 	const size = 25 << 20
 	body, probe := buildLargePDF(size, "bad-parts")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "parts.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "parts.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -725,11 +687,9 @@ func TestUploadSessionCompleteRejectsSizeMismatch(t *testing.T) {
 	seedStoragePlan(t, env, 100<<20)
 	const size = 25 << 20
 	body, probe := buildLargePDF(size, "size-mismatch")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "truncated.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "truncated.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -759,6 +719,14 @@ func TestUploadSessionCompleteRejectsSizeMismatch(t *testing.T) {
 	if used != 0 {
 		t.Fatalf("used storage bytes after size mismatch failure = %d, want 0", used)
 	}
+
+	// Contract §4: a retried complete on a failed session answers the same
+	// error, status and reason - it never re-enters validation.
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	retry := wantCode(t, err, "upload_size_mismatch")
+	if retry.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("retry status = %d, want 422", retry.Status)
+	}
 }
 
 func TestUploadSessionCompleteRejectsChangedZipTail(t *testing.T) {
@@ -769,11 +737,9 @@ func TestUploadSessionCompleteRejectsChangedZipTail(t *testing.T) {
 	seedStoragePlan(t, env, 100<<20)
 	const size = 25 << 20
 	body, probe := buildLargeDOCX(t, size, nil)
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "tampered.docx",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "tampered.docx",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -806,6 +772,14 @@ func TestUploadSessionCompleteRejectsChangedZipTail(t *testing.T) {
 	if used != 0 {
 		t.Fatalf("used storage bytes after probe mismatch = %d, want 0", used)
 	}
+
+	// Contract §4: a retried complete on a failed session answers the same
+	// error, status and reason - it never re-enters validation.
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	retry := wantCode(t, err, "upload_probe_mismatch")
+	if retry.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("retry status = %d, want 422", retry.Status)
+	}
 }
 
 func TestUploadSessionCompleteStreamsFullValidateFile(t *testing.T) {
@@ -820,11 +794,9 @@ func TestUploadSessionCompleteStreamsFullValidateFile(t *testing.T) {
 	// on head_b64 but Complete's full ValidateFile rejects it with 415.
 	copy(body[len(body)-32:], bytes.Repeat([]byte("X"), 32))
 
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "corrupt-tail.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "corrupt-tail.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -856,6 +828,17 @@ func TestUploadSessionCompleteStreamsFullValidateFile(t *testing.T) {
 	if used != 0 {
 		t.Fatalf("used storage bytes after ValidateFile failure = %d, want 0", used)
 	}
+
+	// Contract §4: a retried complete on a failed session answers the same
+	// error, status and fields.reason - it never re-enters validation.
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	retry := wantCode(t, err, document.ErrCodeUnsupportedMedia)
+	if retry.Status != http.StatusUnsupportedMediaType {
+		t.Fatalf("retry status = %d, want 415", retry.Status)
+	}
+	if retry.Fields["reason"] != document.ReasonPDFTrailer {
+		t.Fatalf("retry reason = %v, want %s", retry.Fields["reason"], document.ReasonPDFTrailer)
+	}
 }
 
 func TestUploadSessionCompleteConcurrentCallReturns409Busy(t *testing.T) {
@@ -865,12 +848,10 @@ func TestUploadSessionCompleteConcurrentCallReturns409Busy(t *testing.T) {
 
 	const size = 25 << 20
 	body, probe := buildLargePDF(size, "concurrent-complete")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "concurrent.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "concurrent.pdf",
 		SizeBytes: size,
 		Title:     "Concurrent Doc",
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -929,11 +910,9 @@ func TestUploadSessionAbortReleasesQuotaAndAbortsMultipart(t *testing.T) {
 
 	seedStoragePlan(t, env, 100<<20)
 	_, probe := buildLargePDF(25<<20, "abort-session")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "abort.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "abort.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -977,11 +956,9 @@ func TestUploadSessionAbortAfterCompleteReturns409(t *testing.T) {
 
 	const size = 25 << 20
 	body, probe := buildLargePDF(size, "abort-after-complete")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "done.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "done.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1005,11 +982,9 @@ func TestUploadSessionAbortStealableValidatingAndLiveLeaseBusy(t *testing.T) {
 	_, probe := buildLargePDF(25<<20, "abort-validating")
 	var sessions []UploadSessionView
 	for i := 0; i < 4; i++ {
-		v, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-			Filename:  "slot.pdf",
+		v, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "slot.pdf",
 			SizeBytes: 25 << 20,
-			Probe:     probe,
-		})
+			Probe:     probe})
 		if err != nil {
 			t.Fatalf("open session %d: %v", i+1, err)
 		}
@@ -1062,11 +1037,9 @@ func TestUploadSessionAbortStealableValidatingAndLiveLeaseBusy(t *testing.T) {
 	}
 
 	// The D5 concurrency slot is now free so opening another session succeeds.
-	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "freed-slot.pdf",
+	if _, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "freed-slot.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	}); err != nil {
+		Probe:     probe}); err != nil {
 		t.Fatalf("open after aborting expired-lease validating session: %v", err)
 	}
 }
@@ -1078,11 +1051,9 @@ func TestExpireMultipartUploadsReclaimsQuotaAndAudits(t *testing.T) {
 
 	seedStoragePlan(t, env, 100<<20)
 	_, probe := buildLargePDF(25<<20, "gc-expire")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "expire-me.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "expire-me.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1117,19 +1088,15 @@ func TestExpireMultipartUploadsConcurrentCallsClaimEachRowOnce(t *testing.T) {
 	member := human(env.tn.member)
 
 	_, probe := buildLargePDF(25<<20, "gc-concurrent")
-	s1, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "expire-1.pdf",
+	s1, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "expire-1.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open s1: %v", err)
 	}
-	s2, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "expire-2.pdf",
+	s2, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "expire-2.pdf",
 		SizeBytes: 25 << 20,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open s2: %v", err)
 	}
@@ -1216,21 +1183,17 @@ func TestExpireMultipartUploadsLeavesLiveSessionsUntouched(t *testing.T) {
 	_, probe := buildLargePDF(size, "gc-live-untouched")
 
 	// 1. Live 'open' row.
-	openSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "live-open.pdf",
+	openSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "live-open.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open live session: %v", err)
 	}
 
 	// 2. 'validating' row with a live lease.
-	valSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "live-validating.pdf",
+	valSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "live-validating.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open validating session: %v", err)
 	}
@@ -1320,11 +1283,9 @@ func TestUploadSessionCompleteVersionAndFrameHappyPath(t *testing.T) {
 	bodyV2, probeV2 := buildLargePDF(size, "version-v2")
 
 	// Version open -> complete -> CommitFileVersion.
-	verSess, err := env.svc.OpenVersionUploadSession(ctx, member, doc.Document.ID, OpenUploadSessionInput{
-		Filename:  "report.pdf",
+	verSess, err := env.svc.OpenVersionUploadSession(ctx, member, doc.Document.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "report.pdf",
 		SizeBytes: size,
-		Probe:     probeV2,
-	})
+		Probe:     probeV2})
 	if err != nil {
 		t.Fatalf("OpenVersionUploadSession: %v", err)
 	}
@@ -1357,11 +1318,9 @@ func TestUploadSessionCompleteVersionAndFrameHappyPath(t *testing.T) {
 		UserID:         env.tn.member.ID,
 		Module:         OfficeFrameModulePDF,
 	}
-	frameSess, err := env.svc.OpenFrameUploadSession(ctx, claims, doc.Document.ID, OpenUploadSessionInput{
-		Filename:  "report.pdf",
+	frameSess, err := env.svc.OpenFrameUploadSession(ctx, claims, doc.Document.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "report.pdf",
 		SizeBytes: size,
-		Probe:     probeV3,
-	})
+		Probe:     probeV3})
 	if err != nil {
 		t.Fatalf("OpenFrameUploadSession: %v", err)
 	}
@@ -1403,11 +1362,9 @@ func TestUploadSessionProbeTailNotNullAndAlwaysCompared(t *testing.T) {
 
 	const size = 25 << 20
 	_, pdfProbe := buildLargePDF(size, "tail-not-null")
-	pdfSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "non-zip.pdf",
+	pdfSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "non-zip.pdf",
 		SizeBytes: size,
-		Probe:     pdfProbe,
-	})
+		Probe:     pdfProbe})
 	if err != nil {
 		t.Fatalf("open pdf session: %v", err)
 	}
@@ -1441,11 +1398,9 @@ func TestUploadSessionProbeTailNotNullAndAlwaysCompared(t *testing.T) {
 
 	// 3. Zip session stores 64-hex digest and Complete always compares the tail.
 	docxBody, docxProbe := buildLargeDOCX(t, size, nil)
-	docxSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "zip-tail.docx",
+	docxSess, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "zip-tail.docx",
 		SizeBytes: size,
-		Probe:     docxProbe,
-	})
+		Probe:     docxProbe})
 	if err != nil {
 		t.Fatalf("open docx session: %v", err)
 	}
@@ -1482,11 +1437,9 @@ func TestUploadSessionFailFencedByLeaseOwner(t *testing.T) {
 	seedStoragePlan(t, env, 100<<20)
 	const size = 25 << 20
 	body, probe := buildLargePDF(size, "fail-lease-fence")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "fenced.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "fenced.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1548,11 +1501,9 @@ func TestUploadSessionLeaseReleasePastExpiryDoesNotResurrectToOpen(t *testing.T)
 
 	const size = 25 << 20
 	_, probe := buildLargePDF(size, "release-past-expiry")
-	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
-		Filename:  "expire-during-complete.pdf",
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "expire-during-complete.pdf",
 		SizeBytes: size,
-		Probe:     probe,
-	})
+		Probe:     probe})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1582,4 +1533,652 @@ func TestUploadSessionLeaseReleasePastExpiryDoesNotResurrectToOpen(t *testing.T)
 func seedStoragePlan(t *testing.T, env *docStorageEnv, limitBytes int64) {
 	t.Helper()
 	env.setStorageLimit(t, limitBytes)
+}
+
+// buildLargeODT builds a valid ODF text package of exact sizeBytes: a stored
+// `mimetype` entry naming ODT first (the ODF-mandated shape odfType reads),
+// content.xml, and a stored pad entry, with its probe (head + central dir).
+func buildLargeODT(t *testing.T, sizeBytes int64, compressMimetype bool) ([]byte, UploadSessionProbeInput) {
+	t.Helper()
+	makeZip := func(padLen int) []byte {
+		var b bytes.Buffer
+		zw := zip.NewWriter(&b)
+		writeStored := func(name string, data []byte, compress bool) {
+			method := zip.Store
+			if compress {
+				method = zip.Deflate
+			}
+			fh := &zip.FileHeader{Name: name, Method: method}
+			w, err := zw.CreateHeader(fh)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := w.Write(data); err != nil {
+				t.Fatal(err)
+			}
+		}
+		writeStored("mimetype", []byte("application/vnd.oasis.opendocument.text"), compressMimetype)
+		writeStored("content.xml", []byte(`<?xml version="1.0"?><office:document-content/>`), false)
+		if padLen > 0 {
+			writeStored("media/pad.bin", bytes.Repeat([]byte("P"), padLen), false)
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return b.Bytes()
+	}
+	baseZip := makeZip(16)
+	padNeeded := int(sizeBytes) - len(baseZip) + 16
+	if padNeeded < 16 {
+		padNeeded = 16
+	}
+	full := makeZip(padNeeded)
+	if int64(len(full)) != sizeBytes {
+		t.Fatalf("built odt size = %d, want %d", len(full), sizeBytes)
+	}
+	// Go's zip writer defers CRC and sizes into a data descriptor (flag 0x8),
+	// which leaves them zero in the local header - and odfType proves ODF by
+	// reading the mimetype bytes straight out of that header. Patch entry 0
+	// (the stored mimetype) the way a real ODT writer emits it: descriptor
+	// flag cleared, crc + sizes in the header. The dangling descriptor after
+	// the entry is harmless: every reader here goes by the central directory.
+	if !compressMimetype {
+		if !bytes.HasPrefix(full, []byte("PK\x03\x04")) {
+			t.Fatal("expected the mimetype local header at offset 0")
+		}
+		mimeData := []byte("application/vnd.oasis.opendocument.text")
+		binary.LittleEndian.PutUint16(full[6:], 0)
+		binary.LittleEndian.PutUint32(full[14:], crc32.ChecksumIEEE(mimeData))
+		binary.LittleEndian.PutUint32(full[18:], uint32(len(mimeData)))
+		binary.LittleEndian.PutUint32(full[22:], uint32(len(mimeData)))
+	}
+	cdOffset, cdSize := locateZipCentralDirectory(t, full)
+	headLen := min(sizeBytes, int64(UploadSessionMaxProbeHeadBytes))
+	return full, UploadSessionProbeInput{
+		HeadB64:       base64.StdEncoding.EncodeToString(full[:headLen]),
+		CentralDirB64: base64.StdEncoding.EncodeToString(full[cdOffset : cdOffset+cdSize]),
+		CDOffset:      cdOffset,
+		CDSize:        cdSize,
+	}
+}
+
+// multipartSideEffects counts the rows and reservations a refused open must
+// leave untouched: no multipart row, no file row, no FileService session, no
+// reserved bytes and no S3 multipart upload.
+func multipartSideEffects(t *testing.T, env *docStorageEnv) (rows, fileRows, sessRows int, reserved int64) {
+	t.Helper()
+	ctx := context.Background()
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM file_multipart_uploads WHERE created_by = $1`, env.tn.member.ID,
+	).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM files WHERE organization_id = $1`, env.tn.orgID,
+	).Scan(&fileRows); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM file_upload_sessions WHERE created_by = $1`, env.tn.member.ID,
+	).Scan(&sessRows); err != nil {
+		t.Fatal(err)
+	}
+	res, err := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rows, fileRows, sessRows, res
+}
+
+func TestUploadSessionOpenRequiresIdempotencyKey(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	doc := env.createFile(t, member, "frame-base.pdf", pdfBody("frame-base"))
+	claims := OfficeFrameClaims{
+		Version:        1,
+		DocumentID:     doc.Document.ID,
+		WorkspaceID:    env.tn.wsA,
+		OrganizationID: env.tn.orgID,
+		UserID:         env.tn.member.ID,
+		Module:         OfficeFrameModulePDF,
+	}
+
+	rows0, fileRows0, sessRows0, reserved0 := multipartSideEffects(t, env)
+	_, probe := buildLargePDF(25<<20, "blank-key")
+
+	wantRefusal := func(t *testing.T, err error) {
+		t.Helper()
+		var ve ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("blank-key open error = %#v (%v), want ValidationError (400 invalid_request)", err, err)
+		}
+	}
+	for _, key := range []string{"", "   "} {
+		_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "nokey-ws.pdf", SizeBytes: 25 << 20, Probe: probe, IdempotencyKey: key})
+		wantRefusal(t, err)
+		_, err = env.svc.OpenVersionUploadSession(ctx, member, doc.Document.ID, OpenUploadSessionInput{Filename: "nokey-ver.pdf", SizeBytes: 25 << 20, Probe: probe, IdempotencyKey: key})
+		wantRefusal(t, err)
+		_, err = env.svc.OpenFrameUploadSession(ctx, claims, doc.Document.ID, OpenUploadSessionInput{Filename: "nokey-frame.pdf", SizeBytes: 25 << 20, Probe: probe, IdempotencyKey: key})
+		wantRefusal(t, err)
+	}
+
+	rows, fileRows, sessRows, reserved := multipartSideEffects(t, env)
+	if rows != rows0 || fileRows != fileRows0 || sessRows != sessRows0 || reserved != reserved0 {
+		t.Fatalf("blank-key open left side effects: rows %d->%d files %d->%d sessions %d->%d reserved %d->%d",
+			rows0, rows, fileRows0, fileRows, sessRows0, sessRows, reserved0, reserved)
+	}
+	if env.store.multipartCreates != 0 {
+		t.Fatalf("multipartCreates = %d, want 0 for refused opens", env.store.multipartCreates)
+	}
+}
+
+func TestUploadSessionOpenRejectsShortProbeHead(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	body, _ := buildLargePDF(25<<20, "short-head")
+	shortHead := body[:UploadSessionMaxProbeHeadBytes-1024] // 63 KiB, one short of the required 64
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "short-head.pdf",
+		SizeBytes: 25 << 20,
+		Probe: UploadSessionProbeInput{
+			HeadB64: base64.StdEncoding.EncodeToString(shortHead),
+		}, IdempotencyKey: "short-head-1"})
+	ce := wantCode(t, err, document.ErrCodeUnsupportedMedia)
+	if ce.Status != http.StatusUnsupportedMediaType {
+		t.Fatalf("status = %d, want 415", ce.Status)
+	}
+	if _, ok := ce.Fields["reason"].(string); !ok || ce.Fields["reason"] == "" {
+		t.Fatalf("fields.reason = %v, want a refusal reason", ce.Fields["reason"])
+	}
+	if env.store.multipartCreates != 0 {
+		t.Fatalf("multipartCreates = %d, want 0 for a short head", env.store.multipartCreates)
+	}
+
+	// Exactly the required head length still opens.
+	full, probe := buildLargePDF(25<<20, "full-head")
+	_ = full
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "full-head.pdf", SizeBytes: 25 << 20, Probe: probe, IdempotencyKey: "full-head-1"})
+	if err != nil {
+		t.Fatalf("open with a full head: %v", err)
+	}
+	if opened.SessionID == "" {
+		t.Fatal("open with a full head returned no session id")
+	}
+}
+
+func TestUploadSessionOpenAndCompleteODT(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	body, probe := buildLargeODT(t, size, false)
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "big-report.odt",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "odt-open-1"})
+	if err != nil {
+		t.Fatalf("open ODT session: %v", err)
+	}
+	parts := uploadAllParts(t, env, opened.SessionID, body)
+	res, err := env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	if err != nil {
+		t.Fatalf("complete ODT session: %v", err)
+	}
+	if res.Document == nil || res.Document.Document.ID == "" {
+		t.Fatalf("ODT complete result missing document: %+v", res)
+	}
+}
+
+func TestUploadSessionOpenRejectsMalformedODFProbe(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	const size = 25 << 20
+	// A compressed mimetype entry is malformed ODF (the spec requires it
+	// stored): the probe sees it from the central directory alone.
+	_, probe := buildLargeODT(t, size, true)
+	_, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "deflated.odt",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "odt-bad-1"})
+	ce := wantCode(t, err, document.ErrCodeUnsupportedMedia)
+	if ce.Status != http.StatusUnsupportedMediaType {
+		t.Fatalf("status = %d, want 415", ce.Status)
+	}
+	reason, _ := ce.Fields["reason"].(string)
+	if reason == "" {
+		t.Fatalf("fields.reason missing in %#v", ce.Fields)
+	}
+	if env.store.multipartCreates != 0 {
+		t.Fatalf("multipartCreates = %d, want 0 for a malformed ODF probe", env.store.multipartCreates)
+	}
+}
+
+func TestUploadSessionAbortWhileCompleteHoldsLeaseReturnsBusy(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "abort-vs-complete")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "race.pdf",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "race-1"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	parts := uploadAllParts(t, env, opened.SessionID, body)
+
+	inComplete := make(chan struct{})
+	releaseComplete := make(chan struct{})
+	var once sync.Once
+	env.store.beforeComplete = func() {
+		once.Do(func() {
+			close(inComplete)
+			<-releaseComplete
+		})
+	}
+	defer func() { env.store.beforeComplete = nil }()
+
+	completeDone := make(chan error, 1)
+	go func() {
+		_, cerr := env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+		completeDone <- cerr
+	}()
+	<-inComplete
+
+	// Complete holds the validating lease: Abort must answer busy and touch
+	// neither the multipart upload nor the FileService session.
+	abortErr := env.svc.AbortUploadSession(ctx, member, opened.SessionID)
+	ce := wantCode(t, abortErr, "upload_session_busy")
+	if ce.Status != http.StatusConflict {
+		t.Fatalf("abort status = %d, want 409", ce.Status)
+	}
+	if env.store.multipartAborts != 0 {
+		t.Fatalf("multipartAborts = %d, want 0 while a lease is held", env.store.multipartAborts)
+	}
+	var sessStatus string
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT status FROM file_upload_sessions WHERE id = (SELECT file_upload_session_id FROM file_multipart_uploads WHERE id = $1)`,
+		opened.SessionID,
+	).Scan(&sessStatus); err != nil {
+		t.Fatal(err)
+	}
+	if sessStatus != "receiving" {
+		t.Fatalf("file session status = %q, want receiving (cancel untouched)", sessStatus)
+	}
+
+	close(releaseComplete)
+	if cerr := <-completeDone; cerr != nil {
+		t.Fatalf("complete: %v", cerr)
+	}
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "completed" {
+		t.Fatalf("row status = %q, want completed", row.Status)
+	}
+}
+
+func TestUploadSessionCompleteRetriesAfterTransientPostAssemblyFailure(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "resume-after-assembly")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "resume.pdf",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "resume-1"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	parts := uploadAllParts(t, env, opened.SessionID, body)
+
+	// One transient failure after CompleteMultipart (Stat): the retry must
+	// resume on the already-assembled object, not fail with parts_invalid.
+	env.store.mu.Lock()
+	env.store.statErrOnce = errTestStorageDown
+	env.store.mu.Unlock()
+
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	ce := wantCode(t, err, "storage_unavailable")
+	if ce.Status != http.StatusServiceUnavailable {
+		t.Fatalf("first complete status = %d, want 503", ce.Status)
+	}
+	if env.store.multipartCompletes != 1 {
+		t.Fatalf("multipartCompletes = %d, want 1", env.store.multipartCompletes)
+	}
+
+	res, err := env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	if err != nil {
+		t.Fatalf("retry complete: %v", err)
+	}
+	if res.Document == nil || res.Document.Document.ID == "" {
+		t.Fatalf("retried complete result = %+v, want a document", res)
+	}
+	if env.store.multipartCompletes != 1 {
+		t.Fatalf("multipartCompletes = %d after retry, want 1 (no second assembly)", env.store.multipartCompletes)
+	}
+}
+
+func TestUploadSessionCompleteStaleLeaseOwnerCannotStage(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "stale-owner")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "stale.pdf",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "stale-1"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	parts := uploadAllParts(t, env, opened.SessionID, body)
+
+	// Completer A passes assembly and validation, then loses its lease to B
+	// inside the streamed validation read.
+	var once sync.Once
+	env.store.beforeComplete = func() {
+		once.Do(func() {
+			env.clock.Advance(UploadSessionValidationLeaseTTL + time.Minute)
+			nowB := env.clock.Now().UTC().Truncate(time.Microsecond)
+			if _, lerr := env.f.q.LeaseFileMultipartUploadForValidation(ctx, db.LeaseFileMultipartUploadForValidationParams{
+				ID:             opened.SessionID,
+				LeaseOwner:     "complete:stealer",
+				LeaseExpiresAt: pgtype.Timestamptz{Time: nowB.Add(UploadSessionValidationLeaseTTL), Valid: true},
+				Now:            pgtype.Timestamptz{Time: nowB, Valid: true},
+			}); lerr != nil {
+				t.Errorf("stealer lease: %v", lerr)
+			}
+		})
+	}
+	defer func() { env.store.beforeComplete = nil }()
+
+	_, errA := env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	ce := wantCode(t, errA, "upload_session_busy")
+	if ce.Status != http.StatusConflict {
+		t.Fatalf("stale complete status = %d, want 409", ce.Status)
+	}
+
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "validating" || row.LeaseOwner.String != "complete:stealer" {
+		t.Fatalf("row = status %q owner %q, want validating under complete:stealer", row.Status, row.LeaseOwner.String)
+	}
+	var sessStatus, fileStatus string
+	if err := env.f.pool.QueryRow(ctx,
+		`SELECT (SELECT status FROM file_upload_sessions WHERE id = m.file_upload_session_id),
+		        (SELECT status FROM files WHERE id = m.file_id)
+		 FROM file_multipart_uploads m WHERE m.id = $1`,
+		opened.SessionID,
+	).Scan(&sessStatus, &fileStatus); err != nil {
+		t.Fatal(err)
+	}
+	if sessStatus != "receiving" || fileStatus == "ready" {
+		t.Fatalf("stale owner staged: session %q file %q, want receiving/not-ready", sessStatus, fileStatus)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionCompleted, opened.SessionID); n != 0 {
+		t.Fatalf("completed audit = %d, want 0 for a stale owner", n)
+	}
+
+	// The new owner can finish the session once its lease is handed back.
+	now := env.clock.Now().UTC().Truncate(time.Microsecond)
+	if _, err := env.f.q.ReleaseFileMultipartUploadLease(ctx, db.ReleaseFileMultipartUploadLeaseParams{
+		ID:         opened.SessionID,
+		LeaseOwner: "complete:stealer",
+		Now:        pgtype.Timestamptz{Time: now, Valid: true},
+	}); err != nil {
+		t.Fatalf("release stealer lease: %v", err)
+	}
+	if _, err := env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts}); err != nil {
+		t.Fatalf("complete under the current owner: %v", err)
+	}
+}
+
+func TestUploadSessionFailCancelErrorLeavesRowRetryable(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+	realOnly(t, env)
+
+	seedStoragePlan(t, env, 100<<20)
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "cancel-fail")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "cancel-fail.pdf",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "cf-1"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	parts := uploadAllParts(t, env, opened.SessionID, body[:len(body)-100]) // size mismatch at Stat
+
+	env.real.failNextMultipartCancel = errTestStorageDown
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	if err == nil {
+		t.Fatal("expected an error when the cleanup cancellation fails")
+	}
+
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status == "failed" || row.Status == "aborted" || row.Status == "expired" {
+		t.Fatalf("row status = %q, want non-terminal after a cleanup failure", row.Status)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionAborted, opened.SessionID); n != 0 {
+		t.Fatalf("terminal audit rows = %d, want 0", n)
+	}
+	used, err := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if used != size {
+		t.Fatalf("reserved bytes = %d, want %d still held for the retry", used, size)
+	}
+
+	// Retry: the reservation releases exactly once and the row fails closed.
+	_, err = env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts})
+	ce := wantCode(t, err, "upload_size_mismatch")
+	if ce.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("retry status = %d, want 422", ce.Status)
+	}
+	row, err = env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "failed" {
+		t.Fatalf("row status = %q, want failed after retry", row.Status)
+	}
+	used, err = env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if used != 0 {
+		t.Fatalf("reserved bytes = %d, want 0 after the retried release", used)
+	}
+}
+
+func TestUploadSessionGetReportsValidatingAndCompleted(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "get-states")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{Filename: "states.pdf",
+		SizeBytes: size,
+		Probe:     probe, IdempotencyKey: "states-1"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	parts := uploadAllParts(t, env, opened.SessionID, body)
+
+	// While a validation lease is held, GET reports validating and no parts.
+	now := env.clock.Now().UTC().Truncate(time.Microsecond)
+	if _, err := env.f.q.LeaseFileMultipartUploadForValidation(ctx, db.LeaseFileMultipartUploadForValidationParams{
+		ID:             opened.SessionID,
+		LeaseOwner:     "complete:held",
+		LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(UploadSessionValidationLeaseTTL), Valid: true},
+		Now:            pgtype.Timestamptz{Time: now, Valid: true},
+	}); err != nil {
+		t.Fatalf("lease: %v", err)
+	}
+	got, err := env.svc.GetUploadSession(ctx, member, opened.SessionID)
+	if err != nil {
+		t.Fatalf("GET under lease: %v", err)
+	}
+	if got.Status != "validating" {
+		t.Fatalf("status = %q, want validating", got.Status)
+	}
+	if len(got.Parts) != 0 || len(got.CompletedParts) != 0 {
+		t.Fatalf("validating GET returned parts %+v / completed %+v, want none", got.Parts, got.CompletedParts)
+	}
+
+	// Drop the lease and complete for real; afterwards GET reports completed
+	// with no parts to resume.
+	if _, err := env.f.q.ReleaseFileMultipartUploadLease(ctx, db.ReleaseFileMultipartUploadLeaseParams{
+		ID:         opened.SessionID,
+		LeaseOwner: "complete:held",
+		Now:        pgtype.Timestamptz{Time: env.clock.Now().UTC().Truncate(time.Microsecond), Valid: true},
+	}); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	if _, err := env.svc.CompleteUploadSession(ctx, member, opened.SessionID, CompleteUploadSessionInput{Parts: parts}); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	got, err = env.svc.GetUploadSession(ctx, member, opened.SessionID)
+	if err != nil {
+		t.Fatalf("GET after completion: %v", err)
+	}
+	if got.Status != "completed" {
+		t.Fatalf("status = %q, want completed", got.Status)
+	}
+	if len(got.Parts) != 0 || len(got.CompletedParts) != 0 {
+		t.Fatalf("completed GET returned parts %+v / completed %+v, want none", got.Parts, got.CompletedParts)
+	}
+}
+
+func TestOfficeFrameUploadSessionWrappers(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	frame := NewOfficeFrameService(env.svc, "office-frame-test-secret-0123456789abcdef")
+	if frame == nil {
+		t.Fatal("NewOfficeFrameService returned nil")
+	}
+
+	docA := env.createFile(t, member, "frame-a.pdf", pdfBody("frame-a"))
+	docB := env.createFile(t, member, "frame-b.pdf", pdfBody("frame-b"))
+	claimsA := OfficeFrameClaims{
+		Version:        1,
+		DocumentID:     docA.Document.ID,
+		WorkspaceID:    env.tn.wsA,
+		OrganizationID: env.tn.orgID,
+		UserID:         env.tn.member.ID,
+		Module:         OfficeFrameModulePDF,
+	}
+	claimsB := claimsA
+	claimsB.DocumentID = docB.Document.ID
+
+	const size = 25 << 20
+	body, probe := buildLargePDF(size, "frame-wrappers")
+	openSeq := 0
+	open := func() UploadSessionView {
+		openSeq++
+		v, err := frame.OpenUploadSession(ctx, claimsA, docA.Document.ID, OpenUploadSessionInput{Filename: "wrap.pdf",
+			SizeBytes: size,
+			Probe:     probe, IdempotencyKey: fmt.Sprintf("wrap-open-%d", openSeq)})
+		if err != nil {
+			t.Fatalf("frame open: %v", err)
+		}
+		return v
+	}
+
+	// Valid claims: each wrapper delegates and returns the inner result.
+	sessGet := open()
+	got, err := frame.GetUploadSession(ctx, claimsA, docA.Document.ID, sessGet.SessionID)
+	if err != nil || got.SessionID != sessGet.SessionID {
+		t.Fatalf("wrapper Get = %+v, %v", got, err)
+	}
+	sessComplete := open()
+	parts := uploadAllParts(t, env, sessComplete.SessionID, body)
+	res, err := frame.CompleteUploadSession(ctx, claimsA, docA.Document.ID, sessComplete.SessionID, CompleteUploadSessionInput{Parts: parts})
+	if err != nil || res.Upload == nil {
+		t.Fatalf("wrapper Complete = %+v, %v", res, err)
+	}
+	sessAbort := open()
+	if err := frame.AbortUploadSession(ctx, claimsA, docA.Document.ID, sessAbort.SessionID); err != nil {
+		t.Fatalf("wrapper Abort: %v", err)
+	}
+
+	// Mismatched document: the token names docA but the call targets docB, or
+	// the token names docB but the session belongs to docA.
+	for _, tc := range []struct {
+		name string
+		call func() error
+	}{
+		{"open", func() error {
+			_, err := frame.OpenUploadSession(ctx, claimsA, docB.Document.ID, OpenUploadSessionInput{Filename: "x.pdf", SizeBytes: size, Probe: probe, IdempotencyKey: "wrap-x"})
+			return err
+		}},
+		{"get", func() error {
+			_, err := frame.GetUploadSession(ctx, claimsB, docB.Document.ID, sessGet.SessionID)
+			return err
+		}},
+		{"complete", func() error {
+			_, err := frame.CompleteUploadSession(ctx, claimsB, docB.Document.ID, sessGet.SessionID, CompleteUploadSessionInput{})
+			return err
+		}},
+		{"abort", func() error {
+			return frame.AbortUploadSession(ctx, claimsB, docB.Document.ID, sessGet.SessionID)
+		}},
+	} {
+		if err := tc.call(); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("wrapper %s with mismatched document = %v, want ErrNotFound", tc.name, err)
+		}
+	}
+
+	// Revoked access: membership gone, so AuthorizeSave refuses before the
+	// delegate runs.
+	sessRevoked := open()
+	if _, err := env.f.pool.Exec(ctx, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, env.tn.wsA, env.tn.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		call func() error
+	}{
+		{"open", func() error {
+			_, err := frame.OpenUploadSession(ctx, claimsA, docA.Document.ID, OpenUploadSessionInput{Filename: "y.pdf", SizeBytes: size, Probe: probe, IdempotencyKey: "wrap-y"})
+			return err
+		}},
+		{"get", func() error {
+			_, err := frame.GetUploadSession(ctx, claimsA, docA.Document.ID, sessRevoked.SessionID)
+			return err
+		}},
+		{"complete", func() error {
+			_, err := frame.CompleteUploadSession(ctx, claimsA, docA.Document.ID, sessRevoked.SessionID, CompleteUploadSessionInput{})
+			return err
+		}},
+		{"abort", func() error {
+			return frame.AbortUploadSession(ctx, claimsA, docA.Document.ID, sessRevoked.SessionID)
+		}},
+	} {
+		if err := tc.call(); err == nil {
+			t.Fatalf("wrapper %s after revoked access succeeded, want a refusal", tc.name)
+		}
+	}
 }

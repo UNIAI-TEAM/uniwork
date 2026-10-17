@@ -520,6 +520,32 @@ func (q *Queries) LeaseFileMultipartUploadForValidation(ctx context.Context, arg
 	return i, err
 }
 
+const lockFileMultipartUploadForLeaseOwner = `-- name: LockFileMultipartUploadForLeaseOwner :one
+SELECT id
+FROM file_multipart_uploads
+WHERE id = $1::text
+  AND status = 'validating'
+  AND lease_owner = $2::text
+FOR UPDATE
+`
+
+type LockFileMultipartUploadForLeaseOwnerParams struct {
+	ID         string `json:"id"`
+	LeaseOwner string `json:"lease_owner"`
+}
+
+// tenant: by-id
+// Re-proves the validation lease inside the transaction that terminal-marks
+// the row (completed/failed). ErrNoRows means the lease was stolen or the row
+// already left validating, so the caller must not overwrite a newer owner.
+// FOR UPDATE holds the row lock until commit.
+func (q *Queries) LockFileMultipartUploadForLeaseOwner(ctx context.Context, arg LockFileMultipartUploadForLeaseOwnerParams) (string, error) {
+	row := q.db.QueryRow(ctx, lockFileMultipartUploadForLeaseOwner, arg.ID, arg.LeaseOwner)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const releaseFileMultipartUploadLease = `-- name: ReleaseFileMultipartUploadLease :execrows
 UPDATE file_multipart_uploads
 SET status = 'open',

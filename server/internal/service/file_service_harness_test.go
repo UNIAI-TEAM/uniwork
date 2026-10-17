@@ -87,6 +87,8 @@ type switchStore struct {
 	uploads            map[string]*testMultipartUpload
 	beforeListParts    func()
 	beforeComplete     func()
+	statErrOnce        error
+	multipartCompletes int
 }
 
 func newSwitchStore(inner storage.ObjectStore) *switchStore {
@@ -190,6 +192,13 @@ func (s *switchStore) Open(ctx context.Context, loc storage.ObjectLocator, opts 
 }
 
 func (s *switchStore) Stat(ctx context.Context, loc storage.ObjectLocator) (storage.ObjectInfo, error) {
+	s.mu.Lock()
+	statErr := s.statErrOnce
+	s.statErrOnce = nil
+	s.mu.Unlock()
+	if statErr != nil {
+		return storage.ObjectInfo{}, statErr
+	}
 	if s.isDown() {
 		return storage.ObjectInfo{}, errTestStorageDown
 	}
@@ -340,6 +349,7 @@ func (s *switchStore) CompleteMultipart(ctx context.Context, loc storage.ObjectL
 	}
 	info := up.info
 	up.completed = true
+	s.multipartCompletes++
 	s.mu.Unlock()
 
 	if hook != nil {

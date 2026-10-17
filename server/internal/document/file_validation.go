@@ -42,6 +42,7 @@ const (
 	ReasonOOXMLMissingPart  = "ooxml_missing_part"
 	ReasonODFMimetype       = "odf_mimetype"
 	ReasonODFMissingPart    = "odf_missing_part"
+	ReasonProbeHeadShort    = "probe_head_too_short"
 	ReasonPDFHeader         = "pdf_header"
 	ReasonPDFTrailer        = "pdf_trailer"
 	ReasonOLESignature      = "ole_signature"
@@ -192,29 +193,41 @@ func validateODT(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, error
 	if err != nil {
 		return FileFacts{}, err
 	}
+	if err := checkODFProbeParts(zr, parts); err != nil {
+		return FileFacts{}, err
+	}
+	return FileFacts{Format: "odt"}, nil
+}
+
+// checkODFProbeParts is the ODF shape both validateODT and the upload probe
+// apply: a `mimetype` entry, stored (never deflated), whose bytes name ODF
+// text, and a content.xml. The probe reads those bytes through its sparse
+// head/central-directory reader, which is safe only because ODF mandates
+// `mimetype` as the first entry - its data sits inside the probed head.
+func checkODFProbeParts(zr *zip.Reader, parts map[string]*zip.File) error {
 	declared, ok := parts["mimetype"]
 	if !ok {
-		return FileFacts{}, refuse(ReasonODFMissingPart, "the mimetype entry is missing")
+		return refuse(ReasonODFMissingPart, "the mimetype entry is missing")
 	}
 	if declared.Method != zip.Store {
-		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry is compressed")
+		return refuse(ReasonODFMimetype, "the mimetype entry is compressed")
 	}
 	rc, err := declared.Open()
 	if err != nil {
-		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
+		return refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
 	}
 	raw, err := io.ReadAll(io.LimitReader(rc, 256))
 	_ = rc.Close()
 	if err != nil {
-		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
+		return refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
 	}
 	if strings.TrimSpace(string(raw)) != mimeODT {
-		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry names %q", string(raw))
+		return refuse(ReasonODFMimetype, "the mimetype entry names %q", string(raw))
 	}
 	if _, ok := parts["content.xml"]; !ok {
-		return FileFacts{}, refuse(ReasonODFMissingPart, "content.xml is missing")
+		return refuse(ReasonODFMissingPart, "content.xml is missing")
 	}
-	return FileFacts{Format: "odt"}, nil
+	return nil
 }
 
 // checkZipParts applies the shared package safety rules (entry bounds, names,
@@ -488,11 +501,12 @@ func ExpectedMIMEForExtension(filename string) (string, bool) {
 	}
 }
 
-// RequiresZipCentralDirectory reports whether the contentType is an OOXML
-// package whose upload session Open probe must include central_dir_b64.
+// RequiresZipCentralDirectory reports whether the contentType is a zip-based
+// package (OOXML or ODF) whose upload session Open probe must include
+// central_dir_b64.
 func RequiresZipCentralDirectory(contentType string) bool {
 	switch contentType {
-	case mimeDOCX, mimeXLSX, mimePPTX:
+	case mimeDOCX, mimeXLSX, mimePPTX, mimeODT:
 		return true
 	default:
 		return false
@@ -506,7 +520,7 @@ func ValidateUploadProbe(contentType string, sizeBytes int64, head, centralDir [
 		return refuse(ReasonEmpty, "the probe head is empty")
 	}
 	switch contentType {
-	case mimeDOCX, mimeXLSX, mimePPTX:
+	case mimeDOCX, mimeXLSX, mimePPTX, mimeODT:
 		if len(head) < 4 || !bytes.Equal(head[:4], []byte("PK\x03\x04")) {
 			return refuse(ReasonZipUnreadable, "the file does not start with a ZIP header")
 		}
@@ -520,6 +534,9 @@ func ValidateUploadProbe(contentType string, sizeBytes int64, head, centralDir [
 		parts, err := checkZipParts(zr, limits)
 		if err != nil {
 			return err
+		}
+		if contentType == mimeODT {
+			return checkODFProbeParts(zr, parts)
 		}
 		if _, ok := parts["[content_types].xml"]; !ok {
 			return refuse(ReasonOOXMLMissingPart, "[Content_Types].xml is missing")

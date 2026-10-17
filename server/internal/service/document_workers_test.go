@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/audit"
 )
 
 func countVersions(t *testing.T, f *docPermFixture, documentID, reason string) int {
@@ -181,4 +183,83 @@ func TestDocumentWorkers(t *testing.T) {
 			t.Fatal("worker did not stop on cancel")
 		}
 	})
+}
+
+// BIGUP S1-b (R1-11): the running worker, not a direct call, must be what
+// expires an expired multipart session: parts aborted, quota released, row
+// terminal and the system audit row written.
+func TestDocumentWorkersRunExpiresMultipartUpload(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	const size = 25 << 20
+	_, probe := buildLargePDF(size, "worker-gc")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:       "worker-gc.pdf",
+		SizeBytes:      size,
+		Probe:          probe,
+		IdempotencyKey: nextIDK(),
+	})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if used, _ := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID); used != size {
+		t.Fatalf("reserved bytes = %d, want %d", used, size)
+	}
+
+	// Push the session past expires_at, then run the real worker for one
+	// commit_intent pass on a fake clock.
+	env.clock.Advance(UploadSessionTTL + time.Hour)
+	w := env.svc.NewDocumentWorkers()
+	w.now = env.clock.Now
+	w.after = func(time.Duration) <-chan time.Time { return make(chan time.Time) }
+
+	runCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		w.Run(runCtx)
+	}()
+	swept := make(chan error, 8)
+	w.swept = func(kind string, err error) {
+		if kind == "commit_intent" {
+			swept <- err
+		}
+	}
+	select {
+	case serr := <-swept:
+		if serr != nil {
+			t.Fatalf("commit_intent sweep: %v", serr)
+		}
+	case <-time.After(30 * time.Second):
+		cancel()
+		t.Fatal("commit_intent sweep did not run")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("worker did not stop on cancel")
+	}
+
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "expired" {
+		t.Fatalf("session status = %q, want expired", row.Status)
+	}
+	env.store.mu.Lock()
+	aborts := env.store.abortsByKey[row.ObjectKey]
+	env.store.mu.Unlock()
+	if aborts != 1 {
+		t.Fatalf("aborts for %s = %d, want 1", row.ObjectKey, aborts)
+	}
+	if used, _ := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID); used != 0 {
+		t.Fatalf("reserved bytes after expiry = %d, want 0", used)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionExpired, opened.SessionID); n != 1 {
+		t.Fatalf("expired audit rows = %d, want 1", n)
+	}
 }

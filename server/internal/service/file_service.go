@@ -59,6 +59,12 @@ type FileService struct {
 	refs    *fileReferenceRegistry
 	gc      FileGCConfig
 	gcHooks fileGCHooks
+
+	// failNextMultipartCancel is a test seam: the next
+	// cancelMultipartFileSession(InTx) returns it once. Production never sets
+	// it; tests use it to prove the cleanup error propagates and the
+	// multipart row stays retryable.
+	failNextMultipartCancel error
 }
 
 var _ files.Service = (*FileService)(nil)

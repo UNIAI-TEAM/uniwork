@@ -89,6 +89,19 @@ WHERE id = sqlc.arg(id)::text
   )
 RETURNING *;
 
+-- name: LockFileMultipartUploadForLeaseOwner :one
+-- tenant: by-id
+-- Re-proves the validation lease inside the transaction that terminal-marks
+-- the row (completed/failed). ErrNoRows means the lease was stolen or the row
+-- already left validating, so the caller must not overwrite a newer owner.
+-- FOR UPDATE holds the row lock until commit.
+SELECT id
+FROM file_multipart_uploads
+WHERE id = sqlc.arg(id)::text
+  AND status = 'validating'
+  AND lease_owner = sqlc.arg(lease_owner)::text
+FOR UPDATE;
+
 -- name: ReleaseFileMultipartUploadLease :execrows
 -- tenant: by-id
 UPDATE file_multipart_uploads
