@@ -62,6 +62,8 @@ export const paths = {
   requestDemo: () => "/request-demo",
   /** Public page of the UniWork Office desktop app (landing menu "Office"). */
   office: () => "/office",
+  /** Public page of the UniChat apps: desktop installers and mobile store links. */
+  unichat: () => "/unichat",
   about: () => "/about",
   security: () => "/security",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
@@ -166,6 +168,7 @@ export const GLOBAL_PREFIXES = [
   "/enterprise",
   "/request-demo",
   "/office",
+  "/unichat",
   "/vi",
   "/about",
   "/security",

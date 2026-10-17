@@ -7646,7 +7646,8 @@
       "closeMenu": "Đóng menu",
       "solutions": "Giải pháp",
       "why": "Vì sao UniWork",
-      "office": "Office"
+      "office": "Office",
+      "unichat": "UniChat"
     },
     "cta": {
       "start": "Bắt đầu ngay",
@@ -8717,6 +8718,66 @@
       "installersError": "Không tải được danh sách bản cài đặt. Kiểm tra kết nối rồi thử lại.",
       "retry": "Thử lại",
       "closing": "Đưa bộ ứng dụng văn phòng về cùng workspace của nhóm."
+    },
+    "unichat": {
+      "hero": {
+        "title": "UniChat",
+        "sub": "Chat cho công việc. Tin nhắn, kênh và cuộc gọi của nhóm nằm cạnh việc cần làm trong UniWork, trên máy tính và điện thoại.",
+        "download": "Tải UniChat"
+      },
+      "points": {
+        "title": "Trao đổi xong, việc đã có chỗ",
+        "sub": "UniChat là chat của workspace UniWork trong một ứng dụng riêng: cùng tài khoản, cùng tin nhắn, cùng việc.",
+        "task": {
+          "title": "Tin nhắn thành việc",
+          "description": "Tạo việc từ một tin nhắn hoặc gắn việc có sẵn. Thẻ việc hiện ngay dưới tin và dẫn về đúng cuộc trò chuyện."
+        },
+        "project": {
+          "title": "Kênh gắn với dự án",
+          "description": "Gắn kênh với một dự án để cuộc trao đổi và công việc của dự án ở cạnh nhau."
+        },
+        "followUp": {
+          "title": "Theo dõi và nhắc việc",
+          "description": "Đánh dấu tin cần theo dõi sau, hoặc đặt lời nhắc gửi vào kênh đúng giờ bạn chọn."
+        },
+        "call": {
+          "title": "Gọi có ghi âm và tóm tắt",
+          "description": "Gọi thoại hoặc video ngay trong cuộc trò chuyện. Cuộc gọi được ghi âm có thể được AI tóm tắt để cả nhóm đọc lại."
+        },
+        "preview": "Xem giao diện chat trong UniWork"
+      },
+      "download": {
+        "title": "Tải UniChat",
+        "version": "Bản máy tính {{version}}",
+        "requirements": "Yêu cầu: {{value}}",
+        "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
+        "unavailable": "UniChat chưa phát hành bản cho máy tính. Trong lúc chờ, bạn vẫn chat với nhóm trên web trong UniWork."
+      },
+      "installersError": "Không tải được danh sách bản cài đặt. Kiểm tra kết nối rồi thử lại.",
+      "retry": "Thử lại",
+      "mobile": {
+        "ios": "iPhone",
+        "android": "Android",
+        "appStore": "App Store",
+        "googlePlay": "Google Play",
+        "testflight": "TestFlight",
+        "playInternal": "Google Play (thử nghiệm)",
+        "pilot": "Bản thử nghiệm: chỉ người được mời vào nhóm thử mới cài được.",
+        "unavailable": "UniChat chưa phát hành bản cho điện thoại."
+      },
+      "faq": {
+        "title": "Câu hỏi thường gặp",
+        "q1": "Tôi có cần tài khoản riêng cho UniChat không?",
+        "a1": "Không. Bạn đăng nhập bằng tài khoản UniWork qua trình duyệt và thấy đúng các workspace bạn là thành viên.",
+        "q2": "UniChat khác gì chat trong UniWork trên web?",
+        "a2": "Cùng một chat: tin nhắn, kênh, việc gắn với tin và cuộc gọi là một, dù bạn mở trên web hay trong UniChat. UniChat chỉ tập trung vào chat; việc, cuộc họp và tài liệu vẫn mở đầy đủ trên web.",
+        "q3": "Tin nhắn của nhóm được lưu ở đâu?",
+        "a3": "Trong workspace UniWork của nhóm và theo phân quyền của tổ chức, như khi bạn chat trên web.",
+        "q4": "Cài UniChat trên điện thoại thế nào?",
+        "a4": "Khi bản điện thoại được phát hành, nút App Store và Google Play hiện ở mục Tải UniChat. Trong giai đoạn thử nghiệm, chỉ người được mời mới cài được qua TestFlight hoặc Google Play."
+      },
+      "security": "Xem cách UniWork xử lý dữ liệu và quyền truy cập",
+      "closing": "Đưa cuộc trò chuyện của nhóm về cạnh công việc."
     }
   },
   "documents": {

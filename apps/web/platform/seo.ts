@@ -55,6 +55,7 @@ export function pageStructuredData(path: string, locale: SupportedLocale, origin
     { "@type": "WebPage", "@id": `${absolute(path)}#webpage`, url: absolute(path), name: copy.title, description: copy.description, inLanguage: locale, isPartOf: { "@id": websiteId } },
     { "@type": "BreadcrumbList", itemListElement: crumbs.map((crumb, index) => ({ "@type": "ListItem", position: index + 1, ...crumb })) },
   ];
-  if (path === "/office") graph.push({ "@type": "SoftwareApplication", name: "UniWork Office", url: absolute(path), applicationCategory: "BusinessApplication", operatingSystem: "Windows, macOS, Linux", description: copy.description, publisher: { "@id": organizationId } });
+  const app = path === "/office" ? { name: "UniWork Office", operatingSystem: "Windows, macOS, Linux" } : path === "/unichat" ? { name: "UniChat", operatingSystem: "Windows, macOS, Linux, iOS, Android" } : null;
+  if (app) graph.push({ "@type": "SoftwareApplication", ...app, url: absolute(path), applicationCategory: "BusinessApplication", description: copy.description, publisher: { "@id": organizationId } });
   return { "@context": "https://schema.org", "@graph": graph };
 }

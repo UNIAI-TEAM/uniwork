@@ -44,6 +44,7 @@ export const RESERVED_SLUGS = [
   "solutions",
   "static",
   "tasks",
+  "unichat",
   "uploads",
   "verify",
   "vi",
