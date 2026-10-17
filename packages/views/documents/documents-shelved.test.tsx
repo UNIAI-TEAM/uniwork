@@ -729,7 +729,7 @@ describe("shelved row keep-list (RAR-01)", () => {
           : [],
     });
     const fetchMock = vi.fn((_input: RequestInfo | URL) =>
-      Promise.resolve(new Response(new Blob(["bytes"], { type: "application/pdf" }), { status: 200, headers: { "Content-Type": "application/pdf" } })),
+      Promise.resolve(new Response(new Uint8Array([98, 121, 116, 101, 115]), { status: 200, headers: { "Content-Type": "application/pdf" } })),
     );
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:document"), revokeObjectURL: vi.fn() });
@@ -776,7 +776,7 @@ describe("shelved row keep-list (RAR-01)", () => {
             ]
           : [],
     });
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(new Blob(["bytes"]), { status: 200 }))));
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(new Uint8Array([98, 121, 116, 101, 115]), { status: 200 }))));
     vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:document"), revokeObjectURL: vi.fn() });
     const names: string[] = [];
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
