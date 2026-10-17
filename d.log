@@ -1,0 +1,67 @@
+$ GATE_LEVEL=strict pnpm lint; rc=$?; echo; echo "LINT_EXIT=$rc"
+
+> uniwork@ lint /workspace
+> bash scripts/lint-gate.sh
+
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/e2e, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running lint in 11 packages
+   • Remote caching disabled
+
+@uniwork/office-engine:lint: cache miss, executing f3bf86a643f3264f
+@uniwork/ui:lint: cache miss, executing 9acc8b3a0f20ec5b
+@uniwork/views:lint: cache miss, executing b63c633ed2a1428c
+@uniwork/core:lint: cache miss, executing a5f1afab0e014197
+@uniwork/office-contracts:lint: cache miss, executing 2e897e22d8d309eb
+@uniwork/web:lint: cache miss, executing 8c7154535988da9a
+@uniwork/office-engine-app:lint: cache miss, executing 713e50c0a54ef626
+@uniwork/office-engine-app:lint: 
+@uniwork/office-engine-app:lint: > @uniwork/office-engine-app@0.0.0 lint /workspace/apps/office-engine
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-engine-app:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: > @uniwork/core@0.0.0 lint /workspace/packages/core
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: > @uniwork/views@0.0.0 lint /workspace/packages/views
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: 
+@uniwork/ui:lint: 
+@uniwork/ui:lint: > @uniwork/ui@0.0.0 lint /workspace/packages/ui
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: 
+@uniwork/web:lint: 
+@uniwork/web:lint: > @uniwork/web@0.0.0 lint /workspace/apps/web
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: 
+@uniwork/office-contracts:lint: 
+@uniwork/office-contracts:lint: > @uniwork/office-contracts@0.0.0 lint /workspace/packages/office-contracts
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: 
+@uniwork/office-engine:lint: 
+@uniwork/office-engine:lint: > @uniwork/office-engine@0.0.0 lint /workspace/packages/office-engine
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/chat/chat-page-content.tsx
+@uniwork/views:lint:   520:1  error  File has too many lines (501). Maximum allowed is 500  max-lines
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/email-hub/email-hub-view.tsx
+@uniwork/views:lint:   537:1  error  File has too many lines (504). Maximum allowed is 500  max-lines
+@uniwork/views:lint: 
+@uniwork/views:lint: ✖ 2 problems (2 errors, 0 warnings)
+@uniwork/views:lint: 
+@uniwork/views:lint:  ELIFECYCLE  Command failed with exit code 1.
+@uniwork/views#lint:  ERROR  command (/workspace/packages/views) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run lint exited (1)
+
+ Tasks:    6 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    1m33.144s 
+Failed:    @uniwork/views#lint
+
+ ERROR  run failed: command  exited (1)
+ ELIFECYCLE  Command failed with exit code 1.
+
+LINT_EXIT=1

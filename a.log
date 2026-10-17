@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+9dcf62a55c3e1fd08e271b65235c76fa0d086d78
+9dcf62a55 fix(documents): localize 423 document_locked refusal copy on upload (V-7)
+bb9e5b035 fix(documents): show whole-percent progress on the drop loading toast (V-6)
+0b5359211 fix(documents): use bg-border on the upload dialog progress track (V-5)
+b5ca85a69 fix(documents): reserve status line height in the upload dialog across phases (V-4)
+0849b124a fix(documents): use outline variant on the upload dialog Pause button (V-3)
+a29c8a74c fix(documents): show damaged-file copy when 415 reason is zip_unreadable (V-2)
+3430b60c6 fix(documents): report part bytes as they upload so the bar moves within a part (V-1)
+1ce1cc5c0 fix(documents): serialize overlapping drops so Cancel hits its own upload (R2-3, R2-5)
