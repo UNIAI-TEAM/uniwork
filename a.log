@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+b4000620866fb4e0a6329d3654fd62dc5f912800
+b4000620866fb4e0a6329d3654fd62dc5f912800
+b4000620 fix(shell): resolve DH1 reviewer_fe r1 findings in DocumentsHome
+a16d65a8 test(shell): add DH1 fix1 regression tests for reviewer_fe r1 findings
+059ffd65 merge: DH1-W1 data (feature/UNI-1856-dh1-data c1dc6300c) into DESKTOP-HOME
