@@ -9202,7 +9202,7 @@
       "archive_failed": "Could not archive. Nothing changed.",
       "archive_forbidden": "A child you cannot manage blocks the whole group from the trash.",
       "restore_title": "Restore document",
-      "restore_description": "Only the documents archived in the same batch come back together. A child whose parent stays archived returns to the workspace root.",
+      "restore_description": "Restores this item and the items inside it that you manage. It lands back in its old folder if the folder is still there, otherwise at the workspace root.",
       "restore_confirm": "Restore",
       "restore_submitting": "Restoring…",
       "restore_failed": "Could not restore. Nothing changed.",
@@ -9221,6 +9221,44 @@
       "delete_confirm": "Delete",
       "delete_submitting": "Deleting…",
       "delete_failed": "Couldn't delete. Nothing changed."
+    },
+    "trash": {
+      "intro": "Deleted items are kept for 30 days, then permanently deleted. You can restore items you manage; items you can only edit show as read-only.",
+      "note": "Restore is per item: a document returns to its old folder if the folder is still there, otherwise to the workspace root. Restoring a folder brings along only the children you manage.",
+      "columns": {
+        "name": "Name",
+        "deleted_by": "Deleted by",
+        "deleted_at": "Deleted at",
+        "purge_in": "Deleted forever in",
+        "actions": "Actions"
+      },
+      "in_trashed_folder": "In folder “{{folder}}”",
+      "deleted_by_unknown": "Former member",
+      "read_only": "View only · a manager restores",
+      "restore": "Restore",
+      "purge": "Delete forever",
+      "restore_item": "Restore {{title}}",
+      "purge_item": "Delete {{title}} forever",
+      "purge_title": "Delete {{title}} forever?",
+      "purge_description": "This item will be permanently deleted and cannot be undone.",
+      "purge_folder_description": "This folder will be permanently deleted and cannot be undone. Items inside it that you do not manage stay in the trash.",
+      "purging": "Deleting forever…",
+      "purged": "{{title}} deleted forever",
+      "purge_failed": "Could not delete. Nothing changed.",
+      "purge_days_one": "{{count}} day left",
+      "purge_days_other": "{{count}} days left",
+      "purge_today": "Deleted today",
+      "purge_expired": "Past due",
+      "restore_failed": "Could not restore. Nothing changed.",
+      "not_in_trash": "This item is no longer in the trash.",
+      "too_large": "The folder holds too many items to delete in one go. Delete what's inside in parts first.",
+      "no_permission": "You do not manage this item.",
+      "toast": {
+        "restored": "Restored {{title}}",
+        "restored_root": "Restored {{title}} to the workspace root",
+        "restored_folder": "Restored {{title}} to {{folder}}",
+        "left_in_trash": "Some children stay in the trash."
+      }
     },
     "public": {
       "loading": "Loading the document…",
@@ -9508,7 +9546,7 @@
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
-        "archived": "Archive",
+        "archived": "Trash",
         "sources": "From elsewhere",
         "chat": "Chat",
         "task": "Tasks",
@@ -9520,7 +9558,7 @@
         "home": "All",
         "recent": "Recent",
         "shared": "Shared",
-        "archived": "Archive"
+        "archived": "Trash"
       },
       "chips_label": "Filter by type",
       "chips": {
@@ -9618,8 +9656,8 @@
         "starred_description": "Star a document from a row's ⋯ menu to find it again quickly.",
         "shared_title": "Nothing has been shared with you yet",
         "shared_description": "Documents others share with you show up here.",
-        "archived_title": "The archive is empty",
-        "archived_description": "Archived documents show up here and can be restored.",
+        "archived_title": "The trash is empty",
+        "archived_description": "Deleted documents sit here for 30 days.",
         "sources_title": "No files yet",
         "sources_description": "Files from chat, tasks, meetings and email that you can read show up here."
       },

@@ -788,15 +788,19 @@ describe("DocumentsPageView", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers no move or archive on the archive and shared tabs", async () => {
-    route({ list: () => [summary()] });
+  it("offers the trash actions, never the live row menu, on the trash tab", async () => {
+    route({
+      list: (path) =>
+        queryOf(path).get("archived") === "1"
+          ? [summary({ archived_at: "2026-10-10T03:00:00Z", archived_by: "u2", purge_after: "2026-11-10T03:00:00Z" })]
+          : [],
+    });
     renderView(vi.fn());
     fireEvent.click(await screen.findByRole("tab", { name: t("documents.home.scope.archived") }));
     const row = await rowOf("Kế hoạch Q4");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
-    await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
-    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
+    expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) })).toBeNull();
   });
 
   it("gates Move and Archive by the level of each row, not by the open folder", async () => {
