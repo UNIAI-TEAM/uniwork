@@ -16,23 +16,10 @@ import { ApiError } from "../../api/http";
 import type { Document, DocumentUpload } from "../../types/document";
 import type { StorageAdapter } from "../../types/storage";
 import { buildUploadProbe, ChunkedUploadError } from "./probe";
-import {
-  clearResumableUpload,
-  findResumableUpload,
-  saveResumableUpload,
-  uploadFileKey,
-} from "./resume";
+import { clearResumableUpload, findResumableUpload, saveResumableUpload, uploadFileKey } from "./resume";
 import type { UploadSessionTarget } from "./target";
 
-export type ChunkedUploadPhase =
-  | "probing"
-  | "opening"
-  | "uploading"
-  | "paused"
-  | "verifying"
-  | "done"
-  | "failed"
-  | "canceled";
+export type ChunkedUploadPhase = "probing" | "opening" | "uploading" | "paused" | "verifying" | "done" | "failed" | "canceled";
 
 export interface ChunkedUploadProgress {
   phase: ChunkedUploadPhase;
@@ -75,11 +62,27 @@ export interface ChunkedUpload {
 
 const DEFAULT_CONCURRENCY = 4;
 const DEFAULT_RETRY_DELAYS_MS = [1000, 2000, 4000];
+const TERMINAL_COMPLETE_CODES = new Set([
+  "unsupported_media_type",
+  "file_too_large",
+  "upload_size_mismatch",
+  "upload_probe_mismatch",
+]);
 
 function isClearedSessionError(err: unknown): boolean {
   return (
     err instanceof ApiError &&
     (err.status === 404 || err.status === 410 || err.code === "upload_session_expired")
+  );
+}
+
+function isTerminalCompleteError(err: unknown): boolean {
+  return (
+    isClearedSessionError(err) ||
+    (err instanceof ApiError &&
+      (err.status === 413 ||
+        err.status === 415 ||
+        (err.code !== undefined && TERMINAL_COMPLETE_CODES.has(err.code))))
   );
 }
 
@@ -137,12 +140,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   function emit(phase: ChunkedUploadPhase): void {
     currentPhase = phase;
     const sentBytes = phase === "done" ? totalBytes : computeSentBytes();
-    opts.onProgress?.({
-      phase,
-      sentBytes,
-      totalBytes,
-      ...(sessionId ? { sessionId } : {}),
-    });
+    opts.onProgress?.({ phase, sentBytes, totalBytes, ...(sessionId ? { sessionId } : {}) });
   }
 
   function applySessionSnapshot(session: UploadSession): void {
@@ -225,36 +223,28 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       }
     }
 
-    const reqOpts = {
-      idempotencyKey: opts.idempotencyKey,
-      signal: cancelAbort.signal,
-    };
+    const reqOpts = { idempotencyKey: opts.idempotencyKey, signal: cancelAbort.signal };
+    const body = { filename: opts.filename, size_bytes: totalBytes, probe };
     let created: UploadSession | null = null;
     if (opts.target.kind === "workspace") {
       created = await createWorkspaceUploadSession(
         opts.target.workspaceId,
         {
-          filename: opts.filename,
-          size_bytes: totalBytes,
+          ...body,
           parent_id: opts.target.parentId,
           title: opts.target.title,
           visibility: opts.target.visibility,
-          probe,
         },
         reqOpts,
       );
     } else if (opts.target.kind === "version") {
-      created = await createDocumentUploadSession(
-        opts.target.documentId,
-        { filename: opts.filename, size_bytes: totalBytes, probe },
-        reqOpts,
-      );
+      created = await createDocumentUploadSession(opts.target.documentId, body, reqOpts);
     } else {
-      created = await createFrameUploadSession(
-        opts.target.documentId,
-        { filename: opts.filename, size_bytes: totalBytes, probe },
-        { ...reqOpts, frameToken: opts.target.frameToken, fetch: opts.fetch },
-      );
+      created = await createFrameUploadSession(opts.target.documentId, body, {
+        ...reqOpts,
+        frameToken: opts.target.frameToken,
+        fetch: opts.fetch,
+      });
     }
 
     if (!created) {
@@ -391,11 +381,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
           );
           if (upload) out = { kind: "upload", upload };
         } else {
-          out = await completeUploadSession(
-            sessionId,
-            { parts },
-            { signal: cancelAbort.signal },
-          );
+          out = await completeUploadSession(sessionId, { parts }, { signal: cancelAbort.signal });
         }
 
         if (!out) {
@@ -415,7 +401,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
           await abortableSleep(Math.max(1, waitSec) * 1000, cancelAbort.signal);
           continue;
         }
-        if (isClearedSessionError(err) && opts.storage) {
+        if (isTerminalCompleteError(err) && opts.storage) {
           clearResumableUpload(opts.storage, fileKey, opts.target);
         }
         throw err;
@@ -443,17 +429,16 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   const result = run();
   result.catch(() => undefined);
 
+  function wakeWaiters(): void {
+    const waiters = pauseWaiters;
+    pauseWaiters = [];
+    for (const wake of waiters) wake();
+  }
+
   return {
     result,
     pause() {
-      if (
-        paused ||
-        canceled ||
-        currentPhase === "verifying" ||
-        currentPhase === "done" ||
-        currentPhase === "failed" ||
-        currentPhase === "canceled"
-      ) {
+      if (paused || canceled || ["verifying", "done", "failed", "canceled"].includes(currentPhase)) {
         return;
       }
       paused = true;
@@ -466,9 +451,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
     resume() {
       if (!paused || canceled) return;
       paused = false;
-      const waiters = pauseWaiters;
-      pauseWaiters = [];
-      for (const wake of waiters) wake();
+      wakeWaiters();
     },
     async cancel() {
       if (canceled) return;
@@ -478,9 +461,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       cancelAbort.abort();
       partPutAbort.abort();
       partPutAbort = new AbortController();
-      const waiters = pauseWaiters;
-      pauseWaiters = [];
-      for (const wake of waiters) wake();
+      wakeWaiters();
       if (currentPhase !== "canceled") emit("canceled");
       const id =
         sessionId ??

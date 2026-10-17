@@ -778,4 +778,69 @@ describe("chunked upload engine", () => {
     await expect(upload2.cancel()).resolves.toBeUndefined();
     expect(findResumableUpload(storage, uploadFileKey(file), target)).toBeNull();
   });
+
+  it("clears the resume record on terminal complete refusals (415, 413, upload_size_mismatch, upload_probe_mismatch) and keeps it on upload_parts_invalid and 5xx", async () => {
+    const file = makeFile(10);
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    let completeStatus = 415;
+    let completeCode = "unsupported_media_type";
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(makeSessionBody(`sess-${completeCode}`, 1), 201);
+      }
+      if (method === "GET" && url.includes("/api/v1/upload-sessions/")) {
+        return json({ ...makeSessionBody(`sess-${completeCode}`, 1), status: "open" });
+      }
+      if (method === "PUT" && url.includes("part-1")) {
+        return new Response(null, { status: 200, headers: { ETag: '"etag-1"' } });
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        return json({ error: { code: completeCode, message: completeCode } }, completeStatus);
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    for (const [status, code] of [
+      [415, "unsupported_media_type"],
+      [413, "file_too_large"],
+      [422, "upload_size_mismatch"],
+      [422, "upload_probe_mismatch"],
+    ] as const) {
+      completeStatus = status;
+      completeCode = code;
+      const upload = startChunkedUpload({
+        file,
+        filename: file.name,
+        target,
+        idempotencyKey: `idem-${code}`,
+        storage,
+        fetch: fakeFetch,
+      });
+      await expect(upload.result).rejects.toMatchObject({ status, code });
+      expect(findResumableUpload(storage, uploadFileKey(file), target)).toBeNull();
+    }
+
+    for (const [status, code] of [
+      [422, "upload_parts_invalid"],
+      [502, "internal"],
+    ] as const) {
+      completeStatus = status;
+      completeCode = code;
+      const upload = startChunkedUpload({
+        file,
+        filename: file.name,
+        target,
+        idempotencyKey: `idem-${code}`,
+        storage,
+        fetch: fakeFetch,
+      });
+      await expect(upload.result).rejects.toMatchObject({ status, code });
+      expect(findResumableUpload(storage, uploadFileKey(file), target)).not.toBeNull();
+    }
+  });
 });
