@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+ae06e36e76d592f2589cdb612926630b37d3923c
+ae06e36e7 chore(merge): e6-server ARCHIVE cf415d0d8 into ARCHIVE-01 web
+11d83cf5a test(documents): reach Lưu trữ from the sub-nav and shelve folders from their card
+9d53a0093 fix(documents): offer Lưu trữ on folder cards and the open folder's menu
+cf415d0d8 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
