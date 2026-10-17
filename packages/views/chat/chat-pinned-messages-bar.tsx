@@ -50,15 +50,22 @@ function pinnedPreviewText(
   return [...text].length > 80 ? `${[...text].slice(0, 80).join("")}…` : text;
 }
 
-/** The same glyphs the composer's attach menu uses for each kind. */
-function kindIcon(kind: string | undefined): LucideIcon {
-  if (kind === "note") return StickyNote;
-  if (kind === "post") return Megaphone;
-  if (kind === "reminder") return Clock;
-  if (kind === "poll") return ChartColumn;
-  if (kind === "voice_call_log") return Phone;
-  return Pin;
+/** The same glyphs the composer's attach menu uses for each kind, on the card tints. */
+const KIND: Record<string, { icon: LucideIcon; tile: string; ink: string; label: string }> = {
+  note: { icon: StickyNote, tile: "bg-tint-yellow text-tint-yellow-foreground", ink: "text-tint-yellow-foreground", label: "chat.note_message_badge" },
+  post: { icon: Megaphone, tile: "bg-tint-orange text-tint-orange-foreground", ink: "text-tint-orange-foreground", label: "chat.post_message_badge" },
+  reminder: { icon: Clock, tile: "bg-tint-teal text-tint-teal-foreground", ink: "text-tint-teal-foreground", label: "chat.reminder_message_badge" },
+  poll: { icon: ChartColumn, tile: "bg-tint-blue text-tint-blue-foreground", ink: "text-tint-blue-foreground", label: "chat.poll_message_badge" },
+  voice_call_log: { icon: Phone, tile: "bg-tint-green text-tint-green-foreground", ink: "text-tint-green-foreground", label: "chat.voice_call_log_unknown" },
+};
+const PLAIN_PIN = { icon: Pin, tile: "bg-brand-subtle text-brand-subtle-foreground", ink: "text-brand", label: "chat.bulletin_tab_pinned" };
+
+function kindOf(kind: string | undefined) {
+  return (kind && KIND[kind]) || PLAIN_PIN;
 }
+
+/** 44px icon buttons at the end of a pin row. */
+const ROW_ICON_BUTTON = "size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground";
 
 export function ChatPinnedMessagesBar({
   workspaceId,
@@ -87,20 +94,19 @@ export function ChatPinnedMessagesBar({
         .filter((row) => row.pinned)
         .map((row) => ({
           id: row.id,
-          kind: row.kind,
-          icon: kindIcon(row.kind),
+          ...kindOf(row.kind),
           preview: pinnedPreviewText(row, voiceCallLabel, mediaLabels),
         }))
         .reverse(),
     [rows, voiceCallLabel, mediaLabels],
   );
 
-  if (pinned.length === 0) return null;
+  const item = pinned[0];
+  if (!item) return null;
   // Pins are read from the latest page only (no pinned-messages endpoint
   // yet); when that page is full, say how far back the bar looked.
   const windowFull = rows.length >= CHAT_MESSAGE_INITIAL;
 
-  const visible = expanded || pinned.length === 1 ? pinned : pinned.slice(0, 1);
   const hiddenCount = pinned.length - 1;
 
   // Unpinning is one tap away from a mistake, so it says it happened and
@@ -124,64 +130,60 @@ export function ChatPinnedMessagesBar({
     });
   };
 
-  return (
-    <section className="shrink-0 border-b border-border bg-surface" aria-label={t("chat.pinned_bar_aria")}>
-      {visible.map((item) => (
-        <div
-          key={item.id}
-          className={cn(
-            "flex items-center gap-2 px-2 py-1",
-            visible.length > 1 && "border-b border-border last:border-b-0",
-          )}
-        >
-          <button
-            type="button"
-            className="flex min-h-8 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 py-1 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover pointer-coarse:min-h-11"
-            aria-label={t("chat.pinned_bar_jump", { preview: item.preview })}
-            title={windowFull ? t("chat.pinned_bar_window", { count: CHAT_MESSAGE_INITIAL }) : undefined}
-            onClick={() => onJumpToMessage(item.id)}
-          >
-            <item.icon className="size-4 shrink-0 text-brand-subtle-foreground" aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-caption text-foreground">{item.preview}</span>
-          </button>
-          {canPinMessages ? (
-            <Button
+  const unpinButton = (id: string) =>
+    canPinMessages ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className={ROW_ICON_BUTTON}
+        aria-label={t("chat.action_unpin")}
+        disabled={togglePin.isPending}
+        onClick={() => void handleUnpin(id)}
+      >
+        <X className="size-4.5" aria-hidden />
+      </Button>
+    ) : null;
+  const jumpTitle = windowFull ? t("chat.pinned_bar_window", { count: CHAT_MESSAGE_INITIAL }) : undefined;
+  const jumpClass =
+    "flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-lg py-1 pr-2 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover";
+  const kindTile = (item: (typeof pinned)[number]) => (
+    <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", item.tile)}>
+      <item.icon className="size-4" aria-hidden />
+    </span>
+  );
+
+  if (expanded && pinned.length > 1) {
+    return (
+      <section
+        className="shrink-0 border-b border-border bg-surface shadow-surface"
+        aria-label={t("chat.pinned_bar_aria")}
+      >
+        {pinned.map((pin) => (
+          <div key={pin.id} className="flex h-15 items-center gap-1 border-b border-border pr-2 pl-3 sm:pr-3 sm:pl-4">
+            <button
               type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-              aria-label={t("chat.action_unpin")}
-              disabled={togglePin.isPending}
-              onClick={() => void handleUnpin(item.id)}
+              className={cn(jumpClass, "gap-3 pl-1")}
+              aria-label={t("chat.pinned_bar_jump", { preview: pin.preview })}
+              title={jumpTitle}
+              onClick={() => onJumpToMessage(pin.id)}
             >
-              <X className="size-4" aria-hidden />
-            </Button>
-          ) : null}
-          {!expanded && pinned.length > 1 && item.id === visible[0]?.id ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-              aria-expanded={false}
-              aria-label={t("chat.pinned_bar_show_more", { count: hiddenCount })}
-              onClick={() => setExpanded(true)}
-            >
-              <ChevronDown className="size-4" aria-hidden />
-            </Button>
-          ) : null}
-        </div>
-      ))}
-      {expanded && pinned.length > 1 ? (
-        <div className="flex items-center justify-between gap-2 px-2 py-1">
-          <p className="px-2 text-caption text-muted-foreground">
-            {windowFull ? t("chat.pinned_bar_window", { count: CHAT_MESSAGE_INITIAL }) : null}
-          </p>
+              {kindTile(pin)}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className={cn("text-caption font-semibold", pin.ink)}>{t(pin.label)}</span>
+                <span className="truncate text-body text-foreground">{pin.preview}</span>
+              </span>
+            </button>
+            {unpinButton(pin.id)}
+          </div>
+        ))}
+        <div className="flex min-h-12 items-center justify-between gap-2 pr-2 pl-4 sm:pr-3 sm:pl-5">
+          <p className="text-label text-muted-foreground tabular-nums">{jumpTitle}</p>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="gap-1 text-muted-foreground"
+            className="h-8.5 shrink-0 gap-1.5 rounded-full pr-3.5 pl-2.5 text-muted-foreground"
             aria-expanded={true}
             aria-label={t("chat.pinned_bar_show_less")}
             onClick={() => setExpanded(false)}
@@ -190,7 +192,52 @@ export function ChatPinnedMessagesBar({
             {t("chat.pinned_bar_show_less")}
           </Button>
         </div>
-      ) : null}
+      </section>
+    );
+  }
+
+  // Collapsed: the newest pin, with one segment per pin on the left marking
+  // which of them the bar is showing.
+  return (
+    <section className="shrink-0 border-b border-border bg-surface" aria-label={t("chat.pinned_bar_aria")}>
+      <div className="flex h-13 items-center gap-2.5 pr-2 pl-3 sm:pr-3 sm:pl-5">
+        <span aria-hidden className="flex h-9 w-0.75 shrink-0 flex-col gap-0.5">
+          {pinned.map((pin) => (
+            <span
+              key={pin.id}
+              className={cn("min-h-px flex-1 rounded-full", pin.id === item.id ? "bg-brand" : "bg-brand/20")}
+            />
+          ))}
+        </span>
+        <button
+          type="button"
+          className={jumpClass}
+          aria-label={t("chat.pinned_bar_jump", { preview: item.preview })}
+          title={jumpTitle}
+          onClick={() => onJumpToMessage(item.id)}
+        >
+          {kindTile(item)}
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-label font-semibold text-brand">{t("chat.bulletin_tab_pinned")}</span>
+            <span className="truncate text-body text-foreground">{item.preview}</span>
+          </span>
+        </button>
+        {unpinButton(item.id)}
+        {pinned.length > 1 ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-8.5 shrink-0 gap-1 rounded-full pr-2 pl-3 font-semibold tabular-nums"
+            aria-expanded={false}
+            aria-label={t("chat.pinned_bar_show_more", { count: hiddenCount })}
+            onClick={() => setExpanded(true)}
+          >
+            +{hiddenCount}
+            <ChevronDown className="size-4" aria-hidden />
+          </Button>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -56,7 +56,7 @@ function highlightSnippet(rawBody: string, query: string): ReactNode {
   return (
     <>
       {before}
-      <mark className="rounded-sm bg-brand-subtle px-0.5 font-medium text-brand-subtle-foreground">{match}</mark>
+      <mark className="rounded-sm bg-tint-yellow px-0.5 font-semibold text-foreground">{match}</mark>
       {after}
     </>
   );
@@ -72,6 +72,9 @@ function formatResultTime(iso: string, locale: string): string {
     minute: "2-digit",
   });
 }
+
+/** 44px icon buttons with a 12px radius, as on the canvas search row. */
+const SEARCH_ICON_BUTTON = "size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground";
 
 export function ChatMessageSearchBar({
   workspaceId,
@@ -165,13 +168,22 @@ export function ChatMessageSearchBar({
     document.getElementById(`${listId}-${selected.id}`)?.scrollIntoView?.({ block: "nearest" });
   }, [listId, selected]);
 
+  const showResults = debouncedQuery.length >= 2;
+  // The position sits inside the field, for the eye; a screen reader already
+  // hears the active option through aria-activedescendant, and hears the
+  // total once, when the results change.
+  const counter =
+    showResults && !isFetching && textResults.length > 0
+      ? t("chat.search_results_count", { current: selectedIndex + 1, total: textResults.length })
+      : null;
+
   return (
-    <div className="border-b border-border bg-surface">
-      <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
-        <div className="relative min-w-0 flex-1">
+    <div className="shrink-0 border-b border-border bg-surface">
+      <div className="flex h-16 items-center gap-0.5 pr-2 pl-3 sm:pr-3">
+        <div className="relative mr-1.5 min-w-0 flex-1">
           <Search
             aria-hidden
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             ref={inputRef}
@@ -185,7 +197,7 @@ export function ChatMessageSearchBar({
             aria-expanded={textResults.length > 0}
             aria-controls={listId}
             aria-activedescendant={selected ? `${listId}-${selected.id}` : undefined}
-            className="h-8 pl-9"
+            className={cn("h-11 rounded-lg bg-muted pl-10 md:text-body-lg", counter ? "pr-32" : "pr-3")}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
@@ -210,43 +222,51 @@ export function ChatMessageSearchBar({
               }
             }}
           />
+          {counter ? (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-label font-medium text-muted-foreground tabular-nums"
+            >
+              {counter}
+            </span>
+          ) : null}
         </div>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0"
+          className={SEARCH_ICON_BUTTON}
           aria-label={t("chat.search_prev_result")}
           disabled={textResults.length === 0}
           onClick={() => moveSelection(-1)}
         >
-          <ChevronUp aria-hidden className="size-4" />
+          <ChevronUp aria-hidden className="size-5" />
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0"
+          className={SEARCH_ICON_BUTTON}
           aria-label={t("chat.search_next_result")}
           disabled={textResults.length === 0}
           onClick={() => moveSelection(1)}
         >
-          <ChevronDown aria-hidden className="size-4" />
+          <ChevronDown aria-hidden className="size-5" />
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0"
+          className={SEARCH_ICON_BUTTON}
           aria-label={t("chat.search_close")}
           onClick={onClose}
         >
-          <X aria-hidden className="size-4" />
+          <X aria-hidden className="size-5" />
         </Button>
       </div>
 
-      {debouncedQuery.length >= 2 ? (
-        <div className="border-t border-border px-3 py-2 sm:px-4">
+      {showResults ? (
+        <div className="border-t border-border px-2 py-1.5">
           {isFetching ? (
             <div className="space-y-2 py-1" aria-busy>
               <span className="sr-only">{t("chat.search_loading")}</span>
@@ -258,26 +278,17 @@ export function ChatMessageSearchBar({
               ))}
             </div>
           ) : textResults.length === 0 ? (
-            <p className="py-1 text-caption text-muted-foreground" role="status">
+            <p className="px-2.5 py-2 text-label text-muted-foreground" role="status">
               {t("chat.search_messages_no_results")}
             </p>
           ) : (
             <>
-              {/* The position is for the eye; a screen reader already hears
-                  the active option through aria-activedescendant, and hears
-                  the total once, when the results change. */}
-              <p className="mb-1.5 text-caption text-muted-foreground tabular-nums" aria-hidden>
-                {t("chat.search_results_count", {
-                  current: selectedIndex + 1,
-                  total: textResults.length,
-                })}
-              </p>
               <p className="sr-only" role="status">
                 {t("chat.message_list.search_results_total", { count: textResults.length })}
               </p>
               {/* Focus stays in the search field; arrows move the active option
                   (aria-activedescendant), Enter or a click jumps to it. */}
-              <ul id={listId} role="listbox" aria-label={t("chat.search_messages")} className="max-h-52 space-y-px overflow-y-auto">
+              <ul id={listId} role="listbox" aria-label={t("chat.search_messages")} className="flex max-h-72 flex-col gap-0.5 overflow-y-auto">
                 {textResults.map((message, index) => {
                   const label = senderLabelFor(message, currentUserId, youLabel, nameContext);
                   const jump = () => {
@@ -292,21 +303,23 @@ export function ChatMessageSearchBar({
                       aria-selected={index === selectedIndex}
                       tabIndex={-1}
                       className={cn(
-                        "cursor-pointer rounded-md px-3 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-hover",
-                        index === selectedIndex && "bg-surface-selected hover:bg-surface-selected",
+                        "cursor-pointer rounded-lg border-l-3 py-2 pr-2.5 pl-2 transition-colors duration-(--duration-fast)",
+                        index === selectedIndex
+                          ? "border-brand bg-brand-subtle"
+                          : "border-transparent hover:bg-surface-hover",
                       )}
                       onClick={jump}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") jump();
                       }}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-caption font-medium text-foreground">{label}</span>
-                        <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-label font-semibold text-foreground">{label}</span>
+                        <span className="shrink-0 text-caption text-muted-foreground tabular-nums">
                           {formatResultTime(message.created_at, i18n.language)}
                         </span>
                       </div>
-                      <p className="mt-0.5 line-clamp-2 text-caption text-muted-foreground">
+                      <p className="mt-0.5 line-clamp-2 text-label text-muted-foreground">
                         {describeChatMediaBody(message.body, mediaLabels) ??
                           highlightSnippet(message.body, debouncedQuery)}
                       </p>

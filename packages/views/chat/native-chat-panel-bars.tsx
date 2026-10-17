@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Bell, BellOff, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bell, BellOff, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFollowChatThread, useUnfollowChatThread } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -24,14 +24,15 @@ export function ChatThreadBar({
   const unfollow = useUnfollowChatThread(workspaceId);
   const toggle = following ? unfollow : follow;
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-1.5">
-      <p className="min-w-0 truncate text-label font-semibold text-foreground">{t("chat.thread_title")}</p>
+    <div className="flex h-13 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface pr-2 pl-4 sm:pr-3 sm:pl-5">
+      <p className="min-w-0 truncate font-display text-title-sm font-bold text-foreground">{t("chat.thread_title")}</p>
       <div className="flex shrink-0 items-center gap-1">
+        {/* A pill toggle: the brand wash while the thread is followed. */}
         <Button
           type="button"
-          variant="ghost"
+          variant={following ? "brandSubtle" : "secondary"}
           size="sm"
-          className="text-muted-foreground"
+          className="h-8.5 gap-1.5 rounded-full pr-3.5 pl-2.5 font-semibold"
           disabled={toggle.isPending}
           onClick={() =>
             toggle.mutate(threadRootId, { onError: (err) => toastChatError(err, t, t("chat.errors.internal")) })
@@ -40,9 +41,15 @@ export function ChatThreadBar({
           {following ? <BellOff aria-hidden /> : <Bell aria-hidden />}
           {following ? t("chat.thread_unfollow") : t("chat.thread_follow")}
         </Button>
-        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onClose}>
-          <X aria-hidden />
-          {t("chat.close_thread")}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-lg"
+          className="size-11 rounded-lg text-muted-foreground hover:text-foreground"
+          aria-label={t("chat.close_thread")}
+          onClick={onClose}
+        >
+          <X className="size-5" aria-hidden />
         </Button>
       </div>
     </div>
@@ -53,9 +60,17 @@ export function ChatThreadBar({
 export function ChatAnchorBar({ onBackToLatest }: { onBackToLatest: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border bg-info-soft px-4 py-1.5 text-info-soft-foreground">
-      <p className="min-w-0 truncate text-caption font-medium">{t("chat.search_jump_banner")}</p>
-      <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onBackToLatest}>
+    <div className="flex min-h-13 shrink-0 items-center gap-2.5 border-b border-border bg-info-soft py-1.5 pr-2.5 pl-4 text-info-soft-foreground">
+      <Search aria-hidden className="size-4.5 shrink-0" />
+      <p className="min-w-0 flex-1 truncate text-body font-semibold">{t("chat.search_jump_banner")}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8.5 shrink-0 gap-1.5 rounded-full border-brand/25 bg-surface pr-3.5 pl-2.5 font-semibold text-brand hover:text-brand"
+        onClick={onBackToLatest}
+      >
+        <ArrowDown aria-hidden />
         {t("chat.search_back_to_latest")}
       </Button>
     </div>
@@ -70,7 +85,7 @@ export function ChatJumpToLatestButton({ onClick }: { onClick: () => void }) {
       type="button"
       variant="outline"
       size="sm"
-      className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-surface-raised shadow-[var(--menu-shadow)]"
+      className="absolute bottom-3 left-1/2 h-8.5 -translate-x-1/2 rounded-full border-transparent bg-surface-raised px-3.5 font-semibold shadow-menu"
       onClick={onClick}
     >
       <ArrowDown aria-hidden />
@@ -87,7 +102,14 @@ export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
   return (
     <div className="flex justify-center pb-2">
-      <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onClick}>
+      {/* A chip on the chat wall, like the day separators. */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full bg-chat-chip px-3 text-chat-chip-foreground hover:bg-chat-chip hover:text-foreground"
+        onClick={onClick}
+      >
         <ArrowUp aria-hidden />
         {t("chat.message_list.load_older")}
       </Button>

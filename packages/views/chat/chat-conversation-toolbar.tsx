@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Users, type LucideIcon } from "lucide-react";
+import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 import { ChatConversationHeader } from "./chat-conversation-header";
 import { ChatRoomMark } from "./chat-room-mark";
 
@@ -85,6 +86,7 @@ export function ChatConversationToolbar({
 
 export function GroupChatToolbar({
   icon = Users,
+  tint,
   title,
   memberCount,
   backAriaLabel,
@@ -103,6 +105,8 @@ export function GroupChatToolbar({
 }: {
   /** Users for a group; Hash or Lock for a channel. */
   icon?: LucideIcon;
+  /** The room's identity colour, so the header mark matches its row in the list. */
+  tint?: Tint;
   title: string;
   memberCount: number;
   backAriaLabel?: string;
@@ -123,7 +127,7 @@ export function GroupChatToolbar({
 
   return (
     <ChatConversationToolbar
-      avatar={<ChatRoomMark icon={icon} size="header" />}
+      avatar={<ChatRoomMark icon={icon} size="header" tint={tint} />}
       title={title}
       subtitle={t("chat.group_member_count", { count: memberCount })}
       backAriaLabel={backAriaLabel}

@@ -24,6 +24,9 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 
+/** 44px icon buttons with a 12px radius, as on the canvas header. */
+const HEADER_ICON_BUTTON = "size-11 rounded-lg text-muted-foreground hover:text-foreground";
+
 /** One icon action in the header: a named button with the same name as a tooltip. */
 function HeaderAction({
   icon: Icon,
@@ -50,7 +53,7 @@ function HeaderAction({
             type="button"
             variant="ghost"
             size="icon-lg"
-            className={cn("text-muted-foreground hover:text-foreground", className)}
+            className={cn(HEADER_ICON_BUTTON, className)}
             aria-label={label}
             aria-expanded={expanded}
             disabled={disabled}
@@ -59,7 +62,7 @@ function HeaderAction({
           />
         }
       >
-        <Icon className="size-4.5" aria-hidden />
+        <Icon className="size-5" aria-hidden />
       </TooltipTrigger>
       {label ? <TooltipContent>{label}</TooltipContent> : null}
     </Tooltip>
@@ -125,7 +128,7 @@ export function ChatConversationHeader({
   return (
     <header
       className={cn(
-        "flex h-14 shrink-0 items-center gap-2.5 border-b border-border bg-surface px-3 sm:px-4",
+        "flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface pr-2 pl-3 sm:pr-3 sm:pl-5",
         className,
       )}
     >
@@ -145,7 +148,7 @@ export function ChatConversationHeader({
           data-chat-sidebar-expand=""
         />
       ) : null}
-      {/* 32px on a phone, the full mark from sm: the avatar yields width to the name. */}
+      {/* 32px on a phone, the full 40px mark from sm: the avatar yields width to the name. */}
       <div className="flex size-8 shrink-0 items-center justify-center *:shrink-0 max-sm:*:scale-80 sm:size-auto">
         {avatar}
       </div>
@@ -156,12 +159,12 @@ export function ChatConversationHeader({
           tabIndex={-1}
           data-chat-conversation-title=""
           title={title}
-          className="truncate text-body-lg leading-tight font-semibold text-foreground focus-visible:outline-offset-2"
+          className="truncate font-display text-title-sm font-bold text-foreground focus-visible:outline-offset-2"
         >
           {title}
         </h2>
         {subtitle ? (
-          <p className="truncate text-caption leading-tight text-muted-foreground tabular-nums">{subtitle}</p>
+          <p className="truncate text-label text-muted-foreground tabular-nums">{subtitle}</p>
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
@@ -213,12 +216,12 @@ export function ChatConversationHeader({
                   type="button"
                   variant="ghost"
                   size="icon-lg"
-                  className="text-muted-foreground hover:text-foreground sm:hidden"
+                  className={cn(HEADER_ICON_BUTTON, "sm:hidden")}
                   aria-label={t("chat.header_more_aria")}
                 />
               }
             >
-              <Ellipsis className="size-4.5" aria-hidden />
+              <Ellipsis className="size-5" aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
               {onSearch ? (

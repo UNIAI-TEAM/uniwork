@@ -7,9 +7,9 @@ import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { AppLink } from "../navigation";
 import { paths } from "@uniwork/core/paths";
 import { useOptionalWorkspace } from "../layout/workspace-context";
-import { moduleTone } from "../layout/module-tones";
 import { ChatConversationIntro } from "./chat-conversation-intro";
 import { initialOf } from "./chat-initials";
+import { identityTint } from "../people/identity-tint";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
@@ -93,6 +93,7 @@ export function ChatPageConversationToolbar({
   if (target.kind === "group" && activeGroup) {
     return (
       <GroupChatToolbar
+        tint={identityTint(activeGroup.id)}
         title={headerTitle}
         memberCount={activeGroup.member_user_ids.length + 1}
         backAriaLabel={backToListLabel}
@@ -115,6 +116,7 @@ export function ChatPageConversationToolbar({
     return (
       <GroupChatToolbar
         icon={activeChannel.visibility === "private" ? Lock : Hash}
+        tint={identityTint(activeChannel.id)}
         title={headerTitle}
         memberCount={activeChannel.member_count}
         backAriaLabel={backToListLabel}
@@ -177,6 +179,9 @@ export function chatPageEmptyLabel(
   return t("chat.empty_description");
 }
 
+/** The canvas intro buttons: 34px pills. */
+const INTRO_PILL = "h-8.5 rounded-full px-3.5";
+
 /** The intro block for the open conversation, by kind of room. */
 export function ChatPageConversationIntro({
   target,
@@ -204,7 +209,7 @@ export function ChatPageConversationIntro({
     ? `${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=members`
     : undefined;
   const tile = (icon: typeof House) => (
-    <IconTile icon={icon} tone={moduleTone("chat")} size="lg" className="size-14 rounded-2xl [&_svg]:size-7" />
+    <IconTile icon={icon} tone="brand" size="lg" className="size-14 rounded-2xl [&_svg]:size-7" />
   );
   if (target.kind === "workspace") {
     // Say what is true for this workspace today: alone, the room is a place
@@ -213,7 +218,7 @@ export function ChatPageConversationIntro({
     const invite = inviteHref ? (
       <AppLink
         href={inviteHref}
-        className={buttonVariants({ variant: alone ? "default" : "ghost", size: "sm" })}
+        className={buttonVariants({ variant: alone ? "default" : "brandSubtle", size: "sm", className: INTRO_PILL })}
       >
         <UserPlus aria-hidden />
         {alone ? t("chat.intro_invite_first") : t("chat.intro_invite_more")}
@@ -233,7 +238,7 @@ export function ChatPageConversationIntro({
             invite
           ) : (
             <>
-              <Button type="button" variant="outline" size="sm" onClick={onViewMembers}>
+              <Button type="button" variant="secondary" size="sm" className={INTRO_PILL} onClick={onViewMembers}>
                 <Users aria-hidden />
                 {t("chat.intro_view_members")}
               </Button>
@@ -251,7 +256,7 @@ export function ChatPageConversationIntro({
         title={t("chat.intro_group_title", { name: headerTitle })}
         description={t("chat.intro_group_description")}
         actions={
-          <Button type="button" variant="outline" size="sm" onClick={onAddMembers}>
+          <Button type="button" size="sm" className={INTRO_PILL} onClick={onAddMembers}>
             <UserPlus aria-hidden />
             {t("chat.settings_add_member")}
           </Button>
@@ -269,7 +274,7 @@ export function ChatPageConversationIntro({
         description={topic || t("chat.intro_channel_description")}
         actions={
           channel.is_default ? undefined : (
-            <Button type="button" variant="outline" size="sm" onClick={onAddMembers}>
+            <Button type="button" size="sm" className={INTRO_PILL} onClick={onAddMembers}>
               <UserPlus aria-hidden />
               {t("chat.settings_add_member")}
             </Button>
