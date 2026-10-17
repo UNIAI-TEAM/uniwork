@@ -5125,7 +5125,9 @@
       "document_access_requested_untitled": "{{actor}} xin quyền truy cập một tài liệu.",
       "document_access_approved": "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",
       "document_access_approved_untitled": "{{actor}} đã cấp cho bạn quyền truy cập một tài liệu.",
-      "document_access_declined": "Yêu cầu truy cập tài liệu của bạn đã bị từ chối."
+      "document_access_declined": "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
+      "document_trashed_by_other": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
+      "document_trashed_by_other_untitled": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác, khôi phục trước {{date}}"
     },
     "kindTitle": {
       "document_mentioned": "Bạn được nhắc tên trong bình luận",

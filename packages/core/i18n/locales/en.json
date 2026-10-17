@@ -5129,7 +5129,9 @@
       "document_access_requested_untitled": "{{actor}} requested access to a document.",
       "document_access_approved": "{{actor}} gave you access to “{{document}}”.",
       "document_access_approved_untitled": "{{actor}} gave you access to a document.",
-      "document_access_declined": "Your request to access a document was declined."
+      "document_access_declined": "Your request to access a document was declined.",
+      "document_trashed_by_other": "{{actor}} moved your document to trash. Restore it before {{date}}",
+      "document_trashed_by_other_untitled": "{{actor}} moved one of your documents to trash. Restore it before {{date}}"
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",

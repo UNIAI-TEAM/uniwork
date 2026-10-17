@@ -36,6 +36,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   document_access_requested: moduleTone("documents"),
   document_access_approved: moduleTone("documents"),
   document_access_declined: moduleTone("documents"),
+  document_trashed_by_other: moduleTone("documents"),
 };
 
 export function kindTone(kind: string): Tint {

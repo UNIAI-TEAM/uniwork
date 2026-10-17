@@ -28,6 +28,7 @@ export const NOTIFICATION_KINDS = [
   "document_access_requested",
   "document_access_approved",
   "document_access_declined",
+  "document_trashed_by_other",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
