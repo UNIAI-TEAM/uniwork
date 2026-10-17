@@ -1850,6 +1850,152 @@ describe('usage rows and arguments', () => {
     const derivedInvented = deriveAnswer(sumCase, askWithInventedExtra);
     assert.equal(derivedInvented.answer.numeric.extra_figure_1, 888, 'DS-5: invented number not traceable to source/tools fails');
     assert.equal(score(sumCase, derivedInvented.answer).status, 'fail');
+
+    // Allowed rules: exact match (300), percent scaling (18.5 from 0.185, 0.4 from 40), shown-precision rounding (12.35 from 12.3456),
+    // and pairwise sum (300+200=500), difference (300-200=100), ratio (300/200=1.5), percent (200/300*100 rounded to 66.67) with operands shown.
+    const allowedRulesAsk = {
+      reply: `Parts 300 and 200 give sum 500, diff 100, ratio 1.5, share 66.67%, rate 18.5%, scaled 0.4, rounded 12.35.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 300, 18.5, 0.4, 12.35, 100, 1.5, 66.67],
+        items: [
+          { kind: 'cell', anchor: 'SheetA!D5', value: '500' },
+          { kind: 'cell', anchor: 'SheetB!G8', value: '300' },
+          { kind: 'cell', anchor: 'SheetC!G7', value: '200' },
+        ],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+      calls: [{ name: 'read_range' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: 'SheetB 300 SheetC 200',
+      toolResultsText: '{"rate":0.185,"wholePct":40,"rawDecimal":12.3456}',
+    };
+    assert.equal(score(sumCase, deriveAnswer(sumCase, allowedRulesAsk).answer).status, 'pass', 'DS-5: one traceable figure per allowed rule passes');
+
+    // Invented small integer 0..50 not in pool must fail (17 is not in sourceText or toolResultsText).
+    const askInventedSmallInt = {
+      ...allowedRulesAsk,
+      reply: `Total 500 from 300 and 200, plus 17.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 17],
+        items: [{ kind: 'cell', anchor: 'SheetA!D5', value: '500' }, { kind: 'cell', anchor: 'SheetB!G8', value: '300' }, { kind: 'cell', anchor: 'SheetC!G7', value: '200' }],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+    };
+    assert.equal(score(sumCase, deriveAnswer(sumCase, askInventedSmallInt).answer).status, 'fail', 'DS-5: small integer 0..50 not in pool fails');
+
+    // Invented figure near a pool number (301 near 300; 12.36 near 12.3456; 0.3 via /1000 from 300) must fail.
+    for (const nearFig of [301, 12.36, 0.3]) {
+      const askNear = {
+        ...allowedRulesAsk,
+        reply: `Total 500 from 300 and 200, near ${nearFig}.\n${ANSWER_MARKER} ${JSON.stringify({
+          numbers: [500, nearFig],
+          items: [{ kind: 'cell', anchor: 'SheetA!D5', value: '500' }],
+          refused: false,
+          not_found: false,
+          caveats: [],
+        })}`,
+      };
+      assert.equal(score(sumCase, deriveAnswer(sumCase, askNear).answer).status, 'fail', `DS-5: invented figure ${nearFig} near pool number fails`);
+    }
+
+    // A figure equal only to an expected value (not in tool results or document text) fails, and the answer's own number does not trace itself.
+    const caseWithExtraOracle = synthCase({
+      ...sumCase,
+      expected: {
+        ...sumCase.expected,
+        structural: [
+          { kind: 'cell', anchor: 'SheetA!D5', value: 500 },
+          { kind: 'count', anchor: 'paragraphs', value: 77 },
+        ],
+      },
+      referenceAnswer: {
+        ...sumCase.referenceAnswer,
+        structural: [
+          { kind: 'cell', anchor: 'SheetA!D5', value: 500 },
+          { kind: 'count', anchor: 'paragraphs', value: 77 },
+        ],
+      },
+    });
+    const askTracingOracleOnly = {
+      reply: `Total is 500 and count is 77.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 77],
+        items: [
+          { kind: 'cell', anchor: 'SheetA!D5', value: '500' },
+          { kind: 'count', anchor: 'paragraphs', value: '77' },
+        ],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+      calls: [{ name: 'read_range' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: 'SheetB 300 SheetC 200',
+      toolResultsText: '{"sum":500}',
+    };
+    assert.equal(score(caseWithExtraOracle, deriveAnswer(caseWithExtraOracle, askTracingOracleOnly).answer).status, 'fail', 'DS-5: figure equal only to expected value (not in tool results/doc) fails');
+
+    const askSelfTrace = {
+      reply: `Total is 500.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 500],
+        items: [{ kind: 'cell', anchor: 'SheetA!D5', value: '500' }],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+      calls: [{ name: 'read_range' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: 'SheetA empty',
+      toolResultsText: '{"rows":[]}',
+    };
+    assert.equal(score(sumCase, deriveAnswer(sumCase, askSelfTrace).answer).status, 'fail', 'DS-5: answer own number does not trace itself when absent from pool');
+
+    // A ratio whose operands are in the pool (80 and 16 -> 5) but NOT shown in the answer text or items fails; product (300 * 200 = 60000) also fails.
+    const askUnshownRatio = {
+      reply: `Total is 500 (from 300 and 200) and ratio is 5.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 5],
+        items: [{ kind: 'cell', anchor: 'SheetA!D5', value: '500' }],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+      calls: [{ name: 'read_range' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: 'SheetB 300 SheetC 200 HiddenA 80 HiddenB 16',
+      toolResultsText: '',
+    };
+    assert.equal(score(sumCase, deriveAnswer(sumCase, askUnshownRatio).answer).status, 'fail', 'DS-5: ratio whose operands are not shown in answer text or items fails');
+
+    const askProduct = {
+      reply: `Total is 500 from 300 and 200, product 60000.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 60000],
+        items: [{ kind: 'cell', anchor: 'SheetA!D5', value: '500' }],
+        refused: false,
+        not_found: false,
+        caveats: [],
+      })}`,
+      calls: [{ name: 'read_range' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: 'SheetB 300 SheetC 200',
+      toolResultsText: '',
+    };
+    assert.equal(score(sumCase, deriveAnswer(sumCase, askProduct).answer).status, 'fail', 'DS-5: product is not an allowed arithmetic derivation');
   });
 });
 
