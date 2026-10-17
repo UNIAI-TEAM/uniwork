@@ -1025,4 +1025,52 @@ test('DS-2: heading, count and table_cell match by topic and value rather than p
   assert.equal(anchorMatches('heading', 'level_1', 'Heading 1, block 1', '## 1. Overview', '1. Overview'), true, 'all-DSL anchor matches when value matches expectedValue');
 });
 
+test('A5: a heading value is compared as normalised equality, never as a substring (review-g712-16 A5)', () => {
+  // "Approved" is a substring of "Not Approved": a containment test credits the opposite heading.
+  assert.equal(valuesEqual('Approved', 'Not Approved', 'heading'), false, 'a negated heading must not equal the expected one');
+  assert.equal(valuesEqual('Not Approved', 'Approved', 'heading'), false, 'the containment is symmetric and must not credit either way');
+  assert.equal(valuesEqual('Approved', 'Approved', 'heading'), true, 'the same heading still compares equal');
+  // Only presentation syntax is stripped: markdown hashes, surrounding quotes and whitespace.
+  assert.equal(valuesEqual('Approved', '## Approved', 'heading'), true, 'a markdown heading marker is presentation');
+  assert.equal(valuesEqual('Approved', '"Approved"', 'heading'), true, 'surrounding quotes are presentation');
+  assert.equal(valuesEqual('Approved', '  Approved  ', 'heading'), true, 'surrounding whitespace is presentation');
+
+  const headingCase = allCases.find((c) => c.expected.structural.some((i) => i.kind === 'heading' && typeof i.value === 'string' && i.value.length > 3));
+  assert.ok(headingCase, 'the set has a heading case to mutate');
+  const item = headingCase.expected.structural.find((i) => i.kind === 'heading' && typeof i.value === 'string' && i.value.length > 3);
+  const negated = structuredClone(referenceAnswerFor(headingCase));
+  negated.structural.find((i) => i.anchor === item.anchor && i.value === item.value).value = `Not ${item.value}`;
+  assert.equal(score(headingCase, negated).status, 'fail', `${headingCase.id}: the negated heading must fail`);
+});
+
+test('A8: a table_cell topic keeps the row AND the column, dropping only private table identifiers (review-g712-16 A8)', () => {
+  const tableCase = {
+    id: 'HO-DOCX-901', format: 'docx', category: 'lookup',
+    query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
+    fixtures: [{ id: 'fx-docx-synthetic', sha256: 'd'.repeat(64), version: 'v1' }],
+    host: ['web'], role: 'viewer', sourceAnchors: ['Section 1'],
+    tools: { allowed: ['read_document', 'read_table'], required: ['read_table'] },
+    expected: { numeric: [], structural: [{ kind: 'table_cell', anchor: 'table:1/Alpha/Revenue', value: 42 }], writes: 0, mustNotContain: [] },
+    oracle: { type: 'deterministic', source: 'synthetic' },
+    referenceAnswer: { numeric: {}, structural: [{ kind: 'table_cell', anchor: 'table:1/Alpha/Revenue', value: 42 }], writes: 0, text: 'Alpha Revenue is 42.' },
+  };
+  assert.deepEqual(validateCase(tableCase), []);
+  const answer = (anchor) => ({
+    numeric: {}, structural: [{ kind: 'table_cell', anchor, value: '42' }], writes: 0, tools: { used: ['read_table'] },
+    text: 'Alpha Revenue is 42.',
+  });
+  assert.equal(score(tableCase, answer('table:1/Alpha/Revenue')).status, 'pass', 'the same row and column match');
+  assert.equal(score(tableCase, answer('Alpha — row Alpha, column Revenue')).status, 'pass', 'a natural anchor naming both topics matches');
+  assert.equal(
+    score(tableCase, answer('Alpha — Expenses')).status,
+    'fail',
+    'the same row with a coincidentally equal value under another column must fail',
+  );
+  assert.equal(
+    score(tableCase, answer('Beta — row Beta, column Revenue')).status,
+    'fail',
+    'another row with the right column must fail',
+  );
+});
+
 
