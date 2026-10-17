@@ -694,6 +694,73 @@ describe("Chunked document upload in views", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it("dismisses the drop loading toast when the library unmounts mid-upload, so no Cancel toast is left behind", async () => {
+    const loadingSpy = vi.spyOn(toast, "loading").mockReturnValue("drop-toast-unmount");
+    const dismissSpy = vi.spyOn(toast, "dismiss").mockReturnValue("");
+    vi.spyOn(toast, "error").mockReturnValue("");
+    vi.spyOn(toast, "success").mockReturnValue("");
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      if (path.startsWith("/api/v1/config")) {
+        return {
+          flags: { documents: true },
+          documents: {
+            limits: {
+              upload_max_bytes: 200 * 1024 * 1024,
+              chunked_upload_threshold_bytes: THRESHOLD,
+              docx_max_bytes: 200 * 1024 * 1024,
+              xlsx_max_bytes: 200 * 1024 * 1024,
+              pptx_max_bytes: 200 * 1024 * 1024,
+              pdf_max_bytes: 200 * 1024 * 1024,
+            },
+          },
+        };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-drop-unmount",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    // Every part PUT hangs until aborted: the drop's `chunked.start()` never settles.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (_input: RequestInfo | URL, init?: RequestInit) =>
+          await new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"));
+            });
+          }),
+      ),
+    );
+
+    const { unmount } = renderPageView();
+    await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const dropRegion = screen.getByRole("region", { name: t("documents.page.title") });
+    const bigFile = makePdfFile(THRESHOLD * 2, "dropped-unmount.pdf");
+
+    fireEvent.drop(dropRegion, { dataTransfer: { types: ["Files"], files: [bigFile] } });
+    await waitFor(() => expect(loadingSpy).toHaveBeenCalled());
+
+    unmount();
+
+    await waitFor(() => expect(dismissSpy).toHaveBeenCalledWith("drop-toast-unmount"));
+  });
+
   it("shows a loading toast with a Cancel action when dropping a file above threshold and suppresses toast.error on cancel", async () => {
     const calls: string[] = [];
     const loadingSpy = vi.spyOn(toast, "loading").mockReturnValue("drop-toast-1");

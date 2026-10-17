@@ -40,11 +40,19 @@ export function useDocumentFileUpload({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  // The loading toast of the drop currently in flight. `chunked.start()` never
+  // settles once the hook's own cleanup paused the engine, so its `finally`
+  // never dismisses the toast (R2-2): the unmount effect below has to.
+  const dropToastIdRef = useRef<string | number | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (dropToastIdRef.current !== null) {
+        toast.dismiss(dropToastIdRef.current);
+        dropToastIdRef.current = null;
+      }
     };
   }, []);
 
@@ -71,9 +79,11 @@ export function useDocumentFileUpload({
           onClick: () => void chunked.cancel(file),
         },
       });
+      dropToastIdRef.current = toastId;
       try {
         await chunked.start({ file, filename: file.name });
       } finally {
+        if (dropToastIdRef.current === toastId) dropToastIdRef.current = null;
         toast.dismiss(toastId);
       }
       return;
