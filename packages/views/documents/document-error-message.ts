@@ -1,5 +1,6 @@
 import type { useTranslation } from "react-i18next";
-import { apiErrorMessage, errorCode, errorFields } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage, errorCode, errorFields } from "@uniwork/core/api";
+import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
 import { classifyDocumentError, isDocumentNotInTrashError, isFolderTooLargeError } from "@uniwork/core/documents/errors";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import {
@@ -14,14 +15,16 @@ interface DocumentErrorMessageOptions {
   locale?: string;
   file?: { name: string; size: number };
   maxBytes?: number;
+  resumable?: boolean;
   fallbackOpts?: Record<string, unknown>;
 }
 
-// The refusals the server answers with a stable code (422): the tree rules,
-// a folder too large to archive at once, a source file that may not be
-// copied, a folder name already taken (409). Each has its own sentence in both
-// languages; any other failure keeps the server's message, then the caller's
-// fallback. The depth sentence names the shared limit through {{max}}.
+// The refusals the server answers with a stable code (422/409/415): the tree
+// rules, a folder too large to archive at once, a source file that may not be
+// copied, a folder name already taken, or an upload-session / quota refusal.
+// Each has its own sentence in both languages; any other failure keeps the
+// server's message, then the caller's fallback. The depth sentence names the
+// shared limit through {{max}}.
 const CODED = new Set([
   "document_parent_kind",
   "document_cycle",
@@ -30,6 +33,12 @@ const CODED = new Set([
   "folder_too_large",
   "folder_name_taken",
   "source_not_saveable",
+  "upload_sessions_exhausted",
+  "upload_session_expired",
+  "upload_parts_invalid",
+  "upload_size_mismatch",
+  "upload_probe_mismatch",
+  "quota_exceeded",
 ]);
 
 /**
@@ -61,8 +70,18 @@ export function documentErrorMessage(
   fallbackKey: string,
   opts?: DocumentErrorMessageOptions,
 ): string {
+  if (error instanceof ChunkedUploadError) {
+    if (error.code === "central_directory_too_large") {
+      if (opts?.file) {
+        return t("documents.upload.unsupported_format", { name: opts.file.name });
+      }
+      return t("documents.errors.unsupported_media_type");
+    }
+    if (opts?.resumable) return t("documents.upload.failed_resumable");
+    return t(fallbackKey, opts?.fallbackOpts);
+  }
   const code = errorCode(error);
-  if (code === "file_too_large") {
+  if (code === "file_too_large" || (error instanceof ApiError && error.status === 413)) {
     const rawMax = errorFields(error)?.max_bytes;
     const maxBytes =
       typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0
@@ -78,7 +97,20 @@ export function documentErrorMessage(
     }
     return t("documents.errors.file_too_large", { max });
   }
+  if (code === "unsupported_media_type" || (error instanceof ApiError && error.status === 415)) {
+    if (opts?.file) {
+      if (errorFields(error)?.reason === "zip_unreadable") {
+        return t("documents.upload.unreadable_file", { name: opts.file.name });
+      }
+      return t("documents.upload.unsupported_format", { name: opts.file.name });
+    }
+    return t("documents.errors.unsupported_media_type");
+  }
+  if (code === "document_locked" || (error instanceof ApiError && error.status === 423)) {
+    return t("documents.upload.document_locked");
+  }
   if (code && CODED.has(code)) return t(`documents.errors.${code}`, { max: TREE_MAX_LEVEL });
+  if (opts?.resumable) return t("documents.upload.failed_resumable");
   return apiErrorMessage(error) ?? t(fallbackKey, opts?.fallbackOpts);
 }
 
@@ -95,4 +127,3 @@ export function trashErrorMessage(error: unknown, t: TFunction, fallbackKey: str
   if (classifyDocumentError(error).cls === "permission") return t("documents.trash.no_permission");
   return apiErrorMessage(error) ?? t(fallbackKey);
 }
-
