@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -340,6 +342,29 @@ func TestS3SignReadPublicEndpointHost(t *testing.T) {
 	if !strings.HasPrefix(signed.URL, "https://files.example.com/testbucket/a.bin") {
 		t.Fatalf("public-endpoint URL = %q", signed.URL)
 	}
+
+	partSigned, err := store.SignUploadPart(context.Background(), store.loc("a.bin"), "up-pub", 3, SignOptions{TTL: time.Minute})
+	if err != nil {
+		t.Fatalf("SignUploadPart: %v", err)
+	}
+	if partSigned.Method != http.MethodPut {
+		t.Fatalf("SignUploadPart Method = %q, want PUT", partSigned.Method)
+	}
+	if !strings.HasPrefix(partSigned.URL, "https://files.example.com/testbucket/a.bin") {
+		t.Fatalf("SignUploadPart public-endpoint URL = %q, want prefix https://files.example.com/testbucket/a.bin", partSigned.URL)
+	}
+	if !strings.Contains(partSigned.URL, "partNumber=3") || !strings.Contains(partSigned.URL, "uploadId=up-pub") {
+		t.Fatalf("SignUploadPart URL %q missing partNumber/uploadId query", partSigned.URL)
+	}
+	if !strings.Contains(partSigned.URL, "X-Amz-Signature=") || strings.Contains(partSigned.URL, "sk") {
+		t.Fatalf("SignUploadPart URL %q has invalid signature or leaked secret", partSigned.URL)
+	}
+	if gotHost := partSigned.Headers["Host"]; gotHost != "files.example.com" {
+		t.Fatalf("SignUploadPart signed Host header = %q, want files.example.com (headers=%v)", gotHost, partSigned.Headers)
+	}
+	if len(stub.requests) != 0 {
+		t.Fatalf("presigning contacted internal stub: %v", stub.requests)
+	}
 }
 
 func TestS3CanceledPut(t *testing.T) {
@@ -501,9 +526,11 @@ func TestS3MultipartCreateListCompleteAbort(t *testing.T) {
 			}
 			w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><ListPartsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Bucket>testbucket</Bucket><Key>documents/files/a.docx</Key><UploadId>u-123</UploadId><IsTruncated>false</IsTruncated><Part><PartNumber>1</PartNumber><ETag>"etag-1"</ETag><Size>5242880</Size></Part></ListPartsResult>`))
 		case r.Method == http.MethodPost && q.Get("uploadId") == "u-123":
-			buf := make([]byte, 4096)
-			n, _ := r.Body.Read(buf)
-			completedBody = string(buf[:n])
+			bodyBytes, err := io.ReadAll(iotest.OneByteReader(r.Body))
+			if err != nil {
+				t.Errorf("read CompleteMultipart body: %v", err)
+			}
+			completedBody = string(bodyBytes)
 			w.Header().Set("x-amz-version-id", "ver-mp-1")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Location>http://example/testbucket/documents/files/a.docx</Location><Bucket>testbucket</Bucket><Key>documents/files/a.docx</Key><ETag>"final-etag"</ETag></CompleteMultipartUploadResult>`))
