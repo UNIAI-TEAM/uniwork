@@ -196,7 +196,8 @@ export async function mintOfficeFrameToken(
  *  Null when the answer does not match the contract. Rejects with ApiError
  *  403 `feature_disabled` (the module's office flag is off for the
  *  organization) or 404 `not_found` (missing, foreign or unreadable source, a
- *  format no web module opens); 413 `too_large` for a file over the module cap. */
+ *  format no web module opens). No size cap answers here: the document mint
+ *  has none either. */
 export async function mintDocumentSourceFrameToken(
   wsId: string,
   sourceFileId: string,
