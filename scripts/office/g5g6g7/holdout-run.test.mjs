@@ -11,7 +11,7 @@ import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { parseMechanicalTable } from '../instruction-pack-tools.mjs';
-import { ANSWER_MARKER, deriveAnswer, parseReport, reportingFooter } from './holdout-answer.mjs';
+import { ANSWER_MARKER, deriveAnswer, parseReport, proseQuantityTokens, reportingFooter } from './holdout-answer.mjs';
 import {
   TOOL_OPS, createBackend, frameToolCounts, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
 } from './holdout-backend.mjs';
@@ -2312,6 +2312,61 @@ describe('usage rows and arguments', () => {
       'tool-read figures, a cell address and a date must not be flagged as invented',
     );
     assert.equal(score(invCase, clean.answer).status, 'pass', 'a faithful prose answer passes');
+  });
+
+  it('R17-4/R17-5: a currency-prefixed amount is a quantity, and list markers plus written-month dates are not figures (review-g712-17 R17-4, R17-5)', () => {
+    const c = synthCase({
+      id: 'HO-TEST-920',
+      format: 'xlsx',
+      category: 'compute',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_sheet_list', 'read_range', 'compute'], required: ['read_range', 'compute'] },
+      expected: {
+        numeric: [{ name: 'synth_total', value: 143, tolerance: 0, rounding: 'none', unit: 'VND' }],
+        structural: [],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: { numeric: { synth_total: 143 }, structural: [], writes: 0, text: 'Total is 143.' },
+    });
+    const ask = (text) => ({
+      reply: `${text}\n${ANSWER_MARKER} ${JSON.stringify({ numbers: [143], items: [], refused: false, not_found: false, caveats: [] })}`,
+      calls: [{ name: 'read_range' }], writes: 0, writeLog: [], dropped: [], modules: ['sheets'],
+      sourceText: '60\n83', toolResultsText: '{"rows":[60,83]}',
+    });
+    // R17-4: an address/range exemption needs real address or range tokens; a currency-prefixed amount is a quantity.
+    // The invented amount is not traceable, so it must fail numeric_unexpected.
+    const invented = deriveAnswer(c, ask('Total 143 from 60 and 83. Forecast VND987654321.'));
+    assert.ok(
+      Object.keys(invented.answer.numeric).some((k) => k.startsWith('extra_figure_')),
+      'a currency-prefixed invented amount must be recorded as an extra',
+    );
+    assert.equal(score(c, invented.answer).status, 'fail', 'a currency-prefixed invented amount must fail');
+    const inventedSymbol = deriveAnswer(c, ask('Total 143 from 60 and 83. Forecast $987654321.'));
+    assert.ok(Object.keys(inventedSymbol.answer.numeric).some((k) => k.startsWith('extra_figure_')), 'a symbol-prefixed amount is a quantity too');
+    assert.equal(score(c, inventedSymbol.answer).status, 'fail');
+    // An address is still an address: "A1:G7" and a quoted-sheet form are not quantities.
+    const address = deriveAnswer(c, ask('Total 143 from 60 and 83, range SheetZ!A1:G7 and \'Q1 2026\'!A1.'));
+    assert.equal(
+      Object.keys(address.answer.numeric).filter((k) => k.startsWith('extra_figure_')).length,
+      0,
+      'a range with boundaries and a quoted-sheet address are not quantities',
+    );
+    assert.equal(score(c, address.answer).status, 'pass', 'addresses do not add invented figures');
+    // A Q1-style period label is a locator, not a quantity; a plain amount beside a currency word is a quantity.
+    assert.deepEqual(proseQuantityTokens('Q1 total 143, VND987654321 and 1.500.000 đồng.'), ['143', '987654321', '1.500.000']);
+    // R17-5: a list marker at line start and a written-month date are not figures; arbitrary quantities still are.
+    assert.deepEqual(proseQuantityTokens('3. Total 143 from 60 and 83.'), ['143', '60', '83']);
+    assert.deepEqual(proseQuantityTokens('1) Total 143 from 60 and 83.'), ['143', '60', '83']);
+    assert.deepEqual(proseQuantityTokens('Total 143 from 60 and 83.\n3. A note.'), ['143', '60', '83']);
+    assert.deepEqual(proseQuantityTokens('Total 143, updated October 17, 2026.'), ['143']);
+    assert.deepEqual(proseQuantityTokens('Total 143, updated 17 October 2026.'), ['143']);
+    assert.deepEqual(proseQuantityTokens('Tổng 143, cập nhật ngày 17 tháng 10 năm 2026.'), ['143']);
+    assert.deepEqual(proseQuantityTokens('Total 143, updated 2026-10-17.'), ['143'], 'a numeric date stays exempt');
+    assert.deepEqual(proseQuantityTokens('Total 143, extra 987654321.'), ['143', '987654321'], 'an arbitrary quantity is still a claim');
+    // A faithful answer with a list marker and a written-month date passes.
+    const faithful = deriveAnswer(c, ask('1. Total 143 from 60 and 83, updated 17 October 2026.'));
+    assert.equal(score(c, faithful.answer).status, 'pass', 'a list marker and a written-month date do not fail a faithful answer');
   });
 
   it('A4: compute credit needs operands a read in this turn returned and the answer shows, not an orientation call or an unrelated item (review-g712-16 A4)', () => {
