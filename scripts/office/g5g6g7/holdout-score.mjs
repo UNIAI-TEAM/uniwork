@@ -187,8 +187,15 @@ export const normalizeFormulaText = (value) => {
   return (embedded ? embedded[1] : raw).toLowerCase().replace(/[\s$]+/g, '').replace(/^=+/, '');
 };
 
+/**
+ * The single normaliser for heading values and topic segments (review-g712-18 R18-5): NFC + case fold + foldDiacritics,
+ * with collapsed whitespace. Cell and formula addresses stay on `normalizeAnchor` so exact identity is preserved.
+ */
+const normalizeTopicText = (value) =>
+  foldDiacritics(String(value ?? '').normalize('NFC')).toLowerCase().replace(/\s+/g, ' ').trim();
+
 const cleanHeadingText = (value) =>
-  String(value ?? '').trim().replace(/^#+\s*/, '').replace(/^["“”'`]+|["“”'`]+$/g, '').replace(/\s+/g, ' ').trim();
+  normalizeTopicText(String(value ?? '').trim().replace(/^#+\s*/, '').replace(/^["“”'`]+|["“”'`]+$/g, ''));
 
 function stripSheetQuotes(anchor) {
   const text = String(anchor ?? '');
@@ -204,9 +211,9 @@ export const normalizeAnchor = (anchor) =>
 const PRIVATE_DSL_SEGMENT_RE = /^(?:table:\d+|(?:heading_)?level_\d+|found_in|list_items|title|slides|tables|paragraphs|sheetnames|overwrittencells|changedcells|changed_paragraphs|changed_text_shapes|changed_text_runs|task_items|code_blocks)$/i;
 
 function topicSegments(anchor) {
-  return normalizeAnchor(splitAnchor(anchor).base)
+  return stripSheetQuotes(splitAnchor(anchor).base)
     .split('/')
-    .map((seg) => seg.replace(/^parent_of:\s*/i, '').trim())
+    .map((seg) => normalizeTopicText(seg.replace(/^parent_of:\s*/i, '')))
     .filter((seg) => seg.length > 0 && !PRIVATE_DSL_SEGMENT_RE.test(seg));
 }
 
@@ -215,7 +222,7 @@ function topicSegments(anchor) {
  * "changed paragraphs" name the same count, so conflict detection must compare topics, not raw anchor text.
  */
 export function countTopicKey(anchor) {
-  return normalizeAnchor(splitAnchor(anchor).base).replace(/[\s_]+/g, '');
+  return normalizeTopicText(stripSheetQuotes(splitAnchor(anchor).base)).replace(/[\s_]+/g, '');
 }
 
 function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedValue = undefined) {
@@ -227,8 +234,8 @@ function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedVa
   if (segs.length === 0) {
     return expectedValue !== undefined && valuesEqual(expectedValue, actualValue, kind);
   }
-  const b = normalizeAnchor(splitAnchor(actual).base);
-  const combined = actualValue ? `${b} ${normalizeAnchor(actualValue)}` : b;
+  const b = normalizeTopicText(stripSheetQuotes(splitAnchor(actual).base));
+  const combined = actualValue ? `${b} ${normalizeTopicText(actualValue)}` : b;
   // Every topic segment must appear (review-g712-16 A8): a table_cell anchor names a row AND a column, so keeping only
   // the first segment credits a coincidentally equal value under another column. Private table identifiers
   // ("table:1", "level_1", "paragraphs", …) are already dropped by topicSegments, so the row and the column both remain.
@@ -252,7 +259,7 @@ export function valuesEqual(expected, actual, kind = null) {
   }
   if (kind === 'table_cell' && /^table:\d+\//i.test(String(expected ?? '').trim())) {
     const segs = topicSegments(String(expected));
-    const normActual = normalizeAnchor(String(actual ?? ''));
+    const normActual = normalizeTopicText(String(actual ?? ''));
     if (segs.length > 0 && segs.every((seg) => normActual.includes(seg))) return true;
   }
   if (kind === 'count' && typeof expected === 'string' && expected.includes('|')) {
@@ -278,14 +285,16 @@ export function valuesEqual(expected, actual, kind = null) {
  * (R1-2, DS-1, DS-2): reporting the right number at "Doanh thu Q1!G8:G8" or "…G8 extra" is a wrong address.
  */
 export function anchorMatches(kind, expected, actual, actualValue = '', expectedValue = undefined) {
-  const a = normalizeAnchor(splitAnchor(expected).base);
-  const b = normalizeAnchor(splitAnchor(actual).base);
-  if (IDENTITY_KINDS.has(kind)) return a === b;
+  if (IDENTITY_KINDS.has(kind)) {
+    return normalizeAnchor(splitAnchor(expected).base) === normalizeAnchor(splitAnchor(actual).base);
+  }
   // A table_cell anchor names a row AND a column, so it never goes through the generic containment shortcut
   // (review-g712-17 R17-8): a candidate that names only the row ("Alpha") or only the column ("Revenue") is an
   // incomplete address, and generic `a.includes(b)`/`b.includes(a)` would credit it on a coincidentally equal value.
   // Only the every-segment topic matcher decides, and the all-DSL fallback inside it still needs the value.
   if (kind === 'table_cell') return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
+  const a = normalizeTopicText(stripSheetQuotes(splitAnchor(expected).base));
+  const b = normalizeTopicText(stripSheetQuotes(splitAnchor(actual).base));
   if (a === b || (b.length > 0 && (a.includes(b) || b.includes(a)))) return true;
   if (TOPIC_VALUE_KINDS.has(kind)) return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
   return false;
