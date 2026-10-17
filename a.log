@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+2d824f878d76207999479c7c1d17947eefd90197
+2d824f878 chore(merge): BIGUP-S1 98f36067a into the BIGUP-W1 branch (UNI-1863)
+acb680946 test(documents): use string mockReturnValue on toast.dismiss spy (F-4)
+91c59afec fix(documents): map ChunkedUploadError codes in documentErrorMessage (F-5)
+8beaf0254 fix(documents): show loading toast with cancel for dropped large files (F-4)
+883620f19 fix(documents): cancel paused upload on dialog close and pause on unmount (F-3)
+beaa43edf test(core): add chunked upload engine and probe verification coverage (F-9)
+4c2e7c23f fix(core): clear resume record on terminal complete refusals (F-7)
+0b09f5f2c fix(core): make cancel() DELETE best-effort and preserve resume record on error (F-6)
