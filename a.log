@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+039bd72918c9009633fc6525ced0a2675dd68ede
+bf693b001da6512bbf33d867c35250179106a63b
+039bd7291 chore: merge SH-W2 share scope badge + create toggle (UNI-1785, dab7fa5cc) into the sharing lane
+d72640a95 chore: merge SH-W1 share popup (UNI-1784, 4c9dfceb3) into the sharing lane
+4c9dfceb3 chore(i18n): add documents.share strings and glossary entries for SH-W1 (UNI-1784)
+dab7fa5cc feat(views): add workspace share toggle across document create surfaces (UNI-1785)
+df1caafd7 feat(views): implement ShareAccessList with home workspace, sources, and revoke preview (UNI-1784)
+5a4eac31a chore: merge SH-W3 document_shared inbox renderer (UNI-1786, a027f9162) into the sharing lane
+9899354af chore: merge SH-S3 share_scope + document_shared (UNI-1782, d03408670) into the sharing lane
+148d0c417 fix(documents): align share-candidates wire and HTTP tests with SH-S2 contract (UNI-1781)
