@@ -294,17 +294,22 @@ function canonicalConfig(sheet, keys, op) {
  * expected type on the expected sheet, carrying every setting the expectation names. Returns the observed canonical
  * `sheet|key=value,…` — the observed values, never the expected ones, so the scorer's own value comparison still
  * decides whether they are the expected settings — or null when no applied operation is this configuration.
+ *
+ * The proof must be unambiguous (review-g712-17 R17-1): when applied operations of the expected type on the expected
+ * sheet carry DIFFERENT settings for the named keys, the arguments do not say what the configuration ended as, so the
+ * edit is not proven. The same settings applied twice are one configuration.
  */
 export function configOpProof(writes, type, expectedSpec, sheetNames = []) {
   const spec = parseConfigSpec(expectedSpec);
   if (!spec) return null;
+  const observed = new Set();
   for (const write of writes) {
     for (const op of configOps(write.args ?? {})) {
       if (norm(op.type) !== norm(type)) continue;
       if (!op.sheet || !sameSheet(spec.sheet, op.sheet, sheetNames)) continue;
       const canonical = canonicalConfig(resolveSheetName(op.sheet, sheetNames), spec.keys, op);
-      if (canonical !== null) return canonical;
+      if (canonical !== null) observed.add(canonical);
     }
   }
-  return null;
+  return observed.size === 1 ? [...observed][0] : null;
 }

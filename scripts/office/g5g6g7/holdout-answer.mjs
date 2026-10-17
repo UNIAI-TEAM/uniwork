@@ -430,8 +430,13 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       structural.push({ kind: expected.kind, anchor: expected.anchor, value: 'observed' });
     }
   }
-  // The model's own unmatched items stay in the answer so the scorer's leak check still reads them.
-  for (const it of items) if (!taken.has(it)) structural.push({ kind: String(it.kind), anchor: String(it.anchor ?? ''), value: it.value });
+  // The model's own unmatched items stay in the answer so the scorer's leak check still reads them (R17-1). A claimed
+  // configuration operation is the one kind that may NEVER satisfy a structural check — only the APPLIED arguments
+  // above prove a configuration edit — so the claim is kept under a distinct kind that no expectation names.
+  for (const it of items) if (!taken.has(it)) {
+    const kind = String(it.kind);
+    structural.push({ kind: kind === 'config_op' ? 'config_op_claim' : kind, anchor: String(it.anchor ?? ''), value: it.value });
+  }
   const mismatch = proseFigureMismatch(parsed.text, figures);
 
   return {
