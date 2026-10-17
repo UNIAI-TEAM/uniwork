@@ -91,6 +91,7 @@ export function SharePeoplePicker({
   shares,
   alreadySharedUserIds,
   people,
+  locked = false,
 }: {
   id: string;
   members: readonly OrgMember[];
@@ -99,12 +100,15 @@ export function SharePeoplePicker({
   /** Additional user ids that already hold access (e.g., ACL owner and caller). */
   alreadySharedUserIds?: readonly (string | null | undefined)[];
   people: ReturnType<typeof useSharePeople>;
+  /** The document is shelved (ARCHIVE-01 U-9): nobody can be added. */
+  locked?: boolean;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
   /** Name of the person just removed, spoken through the status region until the next pick. */
   const [removed, setRemoved] = useState<string | null>(null);
-  const { ids: value, change: onChange, isPending: disabled } = people;
+  const { ids: value, change: onChange, isPending } = people;
+  const disabled = isPending || locked;
   const sharedIds = useMemo(() => {
     const ids = new Set(shares.filter((r) => r.principal_type === "user" && r.active).map((r) => r.principal_id));
     for (const uid of alreadySharedUserIds ?? []) {
