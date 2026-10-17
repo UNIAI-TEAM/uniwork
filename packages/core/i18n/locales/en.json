@@ -192,6 +192,24 @@
         "fixes": {
           "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d": "On the marketing site, each entry in the Product menu now opens that feature's own page, and the Watch demo button on a feature page opens the demo right there. The illustration at the end of the home page uses the product's current interface."
         }
+      },
+      "v1_6_0": {
+        "title": "Document access requests, sharing with several people and ownership transfer, plus fixes to creating tasks from meeting summaries",
+        "summary": "Documents gains tools for managing access: members can request access, a document can be shared with several people at once, ownership can be transferred to another member, and administrators get an access report. The Documents library shows new access columns. Creating tasks from a meeting's AI summary is fixed so tasks are created correctly, completely and only once.",
+        "note": "The access report only covers documents you administer. Tasks from a meeting summary are created only after the host confirms them, and AI summaries follow the organization's current plan.",
+        "features": {
+          "cca3275dc8b0fb0b2296db9529abe6546bec9b1f4": "Share a document with several people at once instead of adding them one by one.",
+          "c637118da6a7728102ae5a117c56babe0e609d88e": "Administrators get a document access report showing who has access to the documents they administer.",
+          "c896171fc59d1de0c535d2cd0febe6ca41e7738b9": "Document ownership can now be transferred to another member.",
+          "ca9583ec607f78bedf7a94c006620f1ee5d7c1081": "When a member opens a document they have no access to, they can request access. The document's managers get a notification and can approve or decline the request."
+        },
+        "improvements": {
+          "ccccea0fc160226064e08619e8012695125b2dc91": "The Documents library has new columns showing each document's access."
+        },
+        "fixes": {
+          "c15cfad8411e546621d6df9d7b6503a128bac61cd": "If the Share dialog fails to load the member list, you can retry right in the dialog.",
+          "cdefc46087dd47e7b2e383fa681b092a855e46e0f": "Creating tasks from a meeting's AI summary: tasks are created exactly as the host confirmed, once and as a whole batch; an item already turned into a task, or an outdated summary, no longer creates tasks again. The review dialog lets you adjust the assignee, due date, priority and project; assignee suggestions match whole words and are left empty when names are ambiguous, and due dates read phrases like \"next Tuesday\" correctly and reject dates in the past. Created items link to their task, each error explains what to do, and a meeting runs only one summary at a time."
+        }
       }
     }
   },

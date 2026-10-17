@@ -192,6 +192,24 @@
         "fixes": {
           "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d": "Trên trang giới thiệu, mỗi mục trong menu Sản phẩm nay mở trang riêng của tính năng đó, và nút Xem demo trên trang tính năng mở bản demo ngay tại trang. Hình minh họa cuối trang chủ dùng giao diện sản phẩm hiện tại."
         }
+      },
+      "v1_6_0": {
+        "title": "Yêu cầu truy cập, chia sẻ cho nhiều người và chuyển quyền sở hữu tài liệu, cùng bản sửa tạo việc từ tóm tắt cuộc họp",
+        "summary": "Tài liệu có thêm công cụ quản lý quyền truy cập: thành viên gửi được yêu cầu truy cập, một tài liệu chia sẻ được cho nhiều người trong một lần, quyền sở hữu chuyển được cho thành viên khác, và người quản trị có báo cáo quyền truy cập. Thư viện Tài liệu hiện thêm các cột về quyền truy cập. Việc tạo task từ bản tóm tắt AI của cuộc họp được sửa để tạo đúng, đủ và chỉ một lần.",
+        "note": "Báo cáo quyền truy cập chỉ gồm những tài liệu bạn có quyền quản trị. Việc từ bản tóm tắt cuộc họp chỉ được tạo sau khi chủ trì xác nhận, và tóm tắt AI tuân theo gói đang dùng của tổ chức.",
+        "features": {
+          "cca3275dc8b0fb0b2296db9529abe6546bec9b1f4": "Chia sẻ một tài liệu cho nhiều người trong một lần, không cần thêm từng người.",
+          "c637118da6a7728102ae5a117c56babe0e609d88e": "Người quản trị có báo cáo quyền truy cập tài liệu, cho biết ai đang có quyền với những tài liệu mình quản trị.",
+          "c896171fc59d1de0c535d2cd0febe6ca41e7738b9": "Quyền sở hữu tài liệu nay chuyển được sang một thành viên khác.",
+          "ca9583ec607f78bedf7a94c006620f1ee5d7c1081": "Khi mở một tài liệu chưa được cấp quyền, thành viên có thể gửi yêu cầu truy cập. Người quản lý tài liệu nhận thông báo và có thể duyệt hoặc từ chối yêu cầu."
+        },
+        "improvements": {
+          "ccccea0fc160226064e08619e8012695125b2dc91": "Thư viện Tài liệu có thêm các cột cho biết quyền truy cập của từng tài liệu."
+        },
+        "fixes": {
+          "c15cfad8411e546621d6df9d7b6503a128bac61cd": "Khi hộp thoại Chia sẻ không tải được danh sách thành viên, bạn có thể tải lại ngay trong hộp thoại.",
+          "cdefc46087dd47e7b2e383fa681b092a855e46e0f": "Tạo việc từ bản tóm tắt AI của cuộc họp: các việc được tạo đúng như chủ trì xác nhận, đúng một lần và trọn cả lô; mục đã thành việc hoặc bản tóm tắt đã cũ không tạo việc lần nữa. Hộp thoại xem lại cho chỉnh người phụ trách, hạn, ưu tiên và dự án; gợi ý người phụ trách khớp theo nguyên từ và bỏ trống khi tên trùng nhau, còn hạn chót hiểu đúng kiểu \"thứ Ba tuần sau\" và không nhận ngày đã qua. Việc đã tạo có liên kết tới task, mỗi lỗi có hướng dẫn riêng, và mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm."
+        }
       }
     }
   },
