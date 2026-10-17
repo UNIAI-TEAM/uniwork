@@ -28,7 +28,7 @@ export const voiceCallParticipantStripTileClass = "aspect-video w-28 shrink-0 sm
 /* The name plate over video: the meeting room's tile tokens (a dark plate
    that reads on any frame), caption size, no blur. */
 export const VOICE_CALL_NAME_PLATE =
-  "absolute bottom-1 left-1 flex max-w-[calc(100%-0.5rem)] items-center gap-1 truncate rounded-md bg-meeting-tile-name-bg px-1.5 py-0.5 text-caption font-medium text-meeting-tile-name-foreground";
+  "absolute bottom-1.5 left-1.5 flex max-w-[calc(100%-0.75rem)] items-center gap-1 truncate rounded-sm bg-meeting-tile-name-bg px-2 py-0.5 text-caption font-medium text-meeting-tile-name-foreground";
 
 function VoiceCallParticipantVideoTile({
   tile,
@@ -53,9 +53,9 @@ function VoiceCallParticipantVideoTile({
   return (
     <div
       className={cn(
-        "relative min-h-0 overflow-hidden rounded-lg bg-muted ring-1 transition-shadow duration-(--duration-fast)",
+        "relative min-h-0 overflow-hidden rounded-lg bg-meeting-stage transition-shadow duration-(--duration-fast)",
         // Speaking is live state: the brand ring, the same cue the meeting tiles give.
-        tile.isSpeaking ? "ring-2 ring-brand" : "ring-surface-border",
+        tile.isSpeaking && "ring-2 ring-brand",
         layout === "grid" ? "aspect-video" : "size-full",
       )}
       data-speaking={tile.isSpeaking ? "true" : undefined}
@@ -70,9 +70,9 @@ function VoiceCallParticipantVideoTile({
           className={cn("size-full object-cover", tile.isLocal && "scale-x-[-1]")}
         />
       ) : (
-        <div className="flex size-full items-center justify-center bg-muted">
-          <Avatar className={cn("text-body", layout === "strip" ? "size-10 sm:size-12" : "size-12 sm:size-14")}>
-            <AvatarFallback className="bg-brand-subtle text-brand-subtle-foreground">
+        <div className="flex size-full items-center justify-center pb-4">
+          <Avatar className={layout === "strip" ? "size-10 sm:size-12" : "size-12 sm:size-14"}>
+            <AvatarFallback className="bg-brand-subtle font-display font-bold text-brand-subtle-foreground">
               {voiceCallInitialOf(label)}
             </AvatarFallback>
           </Avatar>
@@ -112,7 +112,7 @@ function VoiceCallScreenShareTile({
   return (
     <div
       className={cn(
-        "relative min-h-0 overflow-hidden rounded-lg bg-muted ring-1 ring-surface-border",
+        "relative min-h-0 overflow-hidden rounded-lg bg-meeting-video-bg",
         presentation ? "min-h-0 flex-1" : "aspect-video",
       )}
     >
@@ -147,8 +147,8 @@ export function VoiceCallGroupVideoStage({
     return (
       <div
         className={cn(
-          "flex w-full items-center justify-center rounded-xl bg-muted ring-1 ring-surface-border",
-          size === "fullscreen" ? "aspect-video max-h-[min(70vh,720px)]" : "aspect-video max-h-36",
+          "flex aspect-video w-full items-center justify-center rounded-xl bg-meeting-stage",
+          size === "fullscreen" ? "max-h-[min(70vh,720px)]" : "max-h-36",
         )}
       >
         <p className="text-caption text-muted-foreground">{t("chat.voice_call_waiting_participants")}</p>
@@ -163,7 +163,7 @@ export function VoiceCallGroupVideoStage({
     return (
       <div
         className={cn(
-          "flex w-full min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-background p-2 ring-1 ring-surface-border",
+          "flex w-full min-h-0 flex-col gap-2 overflow-hidden",
           size === "fullscreen" ? "h-full max-h-[min(70vh,720px)] flex-1" : "max-h-64",
         )}
       >
@@ -180,7 +180,7 @@ export function VoiceCallGroupVideoStage({
         </div>
         <div
           role="list"
-          className="flex shrink-0 gap-2 overflow-x-auto pb-0.5 pt-1"
+          className="flex shrink-0 gap-2 overflow-x-auto p-0.5 pt-1"
           aria-label={t("chat.voice_call_participant_strip")}
         >
           {tiles.map((tile) => (
@@ -204,14 +204,14 @@ export function VoiceCallGroupVideoStage({
   return (
     <div
       className={cn(
-        "flex w-full flex-col gap-2 overflow-hidden rounded-xl bg-background p-2 ring-1 ring-surface-border",
+        "flex w-full flex-col gap-2 overflow-hidden",
         size === "fullscreen" ? "max-h-[min(70vh,720px)]" : "max-h-64",
       )}
     >
       <div
         role="list"
         aria-label={t("chat.voice_call_participant_grid")}
-        className={cn("grid min-h-0 flex-1 gap-2 overflow-y-auto", gridClass)}
+        className={cn("grid min-h-0 flex-1 gap-2 overflow-y-auto p-0.5", gridClass)}
       >
         {tiles.map((tile) => (
           <div key={tile.identity} role="listitem" className="min-w-0">

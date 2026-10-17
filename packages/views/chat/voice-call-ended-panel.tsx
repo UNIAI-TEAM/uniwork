@@ -52,7 +52,7 @@ export function VoiceCallEndedPanel({
       statusLabel={message}
       notice={
         state.reason === "device" && state.device?.failure === "denied" ? (
-          <p className="mb-3 text-center text-caption text-muted-foreground">
+          <p className="text-center text-caption text-muted-foreground">
             {t("meetings.devicePreviewDeniedHint")}
           </p>
         ) : undefined
@@ -65,8 +65,7 @@ export function VoiceCallEndedPanel({
             ariaLabel={retry ? t("common.retry") : t("chat.voice_call_call_back")}
             tone="accept"
             onClick={onRetry}
-            icon={retry ? <RefreshCw aria-hidden className="size-5" /> : <Phone aria-hidden className="size-5" />}
-            compact
+            icon={retry ? <RefreshCw aria-hidden className="size-6" /> : <Phone aria-hidden className="size-6" />}
           />
         ) : null}
         <VoiceCallLabeledAction
@@ -74,8 +73,7 @@ export function VoiceCallEndedPanel({
           ariaLabel={t("common.close")}
           tone="neutral"
           onClick={onDismiss}
-          icon={<X aria-hidden className="size-5" />}
-          compact
+          icon={<X aria-hidden className="size-6" />}
         />
       </div>
     </PreConnectFloatingCall>

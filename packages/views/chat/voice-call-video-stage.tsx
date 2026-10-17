@@ -66,7 +66,7 @@ export function VoiceCallVideoStage({
   const hasScreenShare = screenShareEnabled || remoteScreenShareEnabled;
   const showRemoteScreenShare = remoteScreenShareEnabled;
   const showLocalScreenShare = screenShareEnabled && !remoteScreenShareEnabled;
-  const remoteMicMuted = participantTiles.find((tile) => !tile.isLocal)?.micMuted;
+  const remoteTile = participantTiles.find((tile) => !tile.isLocal);
   // The big frame shows the peer (or a shared screen). When only our own
   // camera is on, our video takes the whole frame instead of hiding behind
   // the peer's avatar.
@@ -74,14 +74,21 @@ export function VoiceCallVideoStage({
 
   if (!cameraEnabled && !remoteFillsStage) {
     return (
-      <div className="flex flex-col items-center gap-3 py-2 text-center">
-        <Avatar className={cn("text-title", size === "fullscreen" ? "size-32" : "size-20")}>
-          <AvatarFallback className="bg-brand-subtle text-brand-subtle-foreground">
+      <div className="flex flex-col items-center gap-4 py-3 text-center">
+        {/* Speaking is live state: the brand ring, the cue the group tiles give. */}
+        <Avatar
+          className={cn(
+            "transition-shadow duration-(--duration-fast)",
+            size === "fullscreen" ? "size-36" : "size-30",
+            remoteTile?.isSpeaking && "ring-3 ring-brand",
+          )}
+        >
+          <AvatarFallback className="bg-brand-subtle font-display text-display font-bold text-brand-subtle-foreground">
             {voiceCallInitialOf(peerName)}
           </AvatarFallback>
         </Avatar>
         {size === "fullscreen" ? (
-          <p className="truncate text-title font-medium text-foreground">{peerName}</p>
+          <p className="truncate font-display text-title-lg font-bold text-foreground">{peerName}</p>
         ) : null}
       </div>
     );
@@ -90,8 +97,8 @@ export function VoiceCallVideoStage({
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-xl bg-muted ring-1 ring-surface-border",
-        size === "fullscreen" ? "aspect-video max-h-[min(70vh,720px)]" : "aspect-video max-h-36",
+        "relative aspect-video w-full overflow-hidden rounded-xl bg-meeting-video-bg",
+        size === "fullscreen" && "max-h-[min(70vh,720px)]",
       )}
     >
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- LiveKit realtime video has no caption track */}
@@ -101,24 +108,28 @@ export function VoiceCallVideoStage({
         playsInline
         className={cn(
           "size-full",
-          hasScreenShare ? "bg-muted object-contain" : "object-cover",
+          hasScreenShare ? "object-contain" : "object-cover",
           !remoteFillsStage && "hidden",
         )}
       />
-      {remoteFillsStage ? <NamePlate name={peerName} micMuted={remoteMicMuted} /> : null}
+      {remoteFillsStage ? <NamePlate name={peerName} micMuted={remoteTile?.micMuted} /> : null}
       {cameraEnabled ? (
         <div
           className={cn(
             "overflow-hidden",
             remoteFillsStage
               ? size === "fullscreen"
-                ? "absolute right-4 bottom-4 h-28 w-40 rounded-xl border border-border shadow-[var(--menu-shadow)] sm:h-36 sm:w-52"
-                : "absolute right-2 bottom-2 h-16 w-24 rounded-lg border border-border shadow-[var(--menu-shadow)]"
+                ? "absolute right-4 bottom-4 h-28 w-40 rounded-xl border border-meeting-bar-border shadow-floating sm:h-36 sm:w-52"
+                : "absolute right-2 bottom-2 h-16 w-24 rounded-lg border border-meeting-bar-border shadow-floating"
               : "absolute inset-0",
           )}
         >
           <video ref={bindLocalVideo} autoPlay playsInline muted className="size-full scale-x-[-1] object-cover" />
-          <NamePlate name={t("chat.you")} micMuted={muted} />
+          <NamePlate
+            name={t("chat.you")}
+            micMuted={muted}
+            className={remoteFillsStage && size !== "fullscreen" ? "bottom-1 left-1 px-1.5 text-micro" : undefined}
+          />
         </div>
       ) : null}
     </div>

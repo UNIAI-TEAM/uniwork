@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CircleAlert, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -115,23 +116,27 @@ export function VoiceCallRecordingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl" closeLabel={t("common.close")}>
+      <DialogContent className="gap-5 rounded-2xl p-6 sm:max-w-3xl" closeLabel={t("common.close")}>
         <DialogHeader>
-          <DialogTitle>{t("chat.voice_call_recording_title")}</DialogTitle>
+          <DialogTitle className="font-display text-title-lg leading-tight font-bold">
+            {t("chat.voice_call_recording_title")}
+          </DialogTitle>
         </DialogHeader>
         {status === "loading" ? (
           <div aria-busy>
             <span className="sr-only">{t("chat.voice_call_recording_loading")}</span>
-            <Skeleton className="aspect-video w-full rounded-md" />
+            <Skeleton className="aspect-video w-full rounded-xl" />
           </div>
         ) : null}
         {status === "error" ? (
           <div
             role="alert"
-            className="flex flex-wrap items-center gap-3 rounded-md bg-destructive-soft px-3 py-2 text-body text-destructive-soft-foreground"
+            className="flex flex-wrap items-center gap-3 rounded-lg bg-destructive-soft px-3.5 py-3 text-body font-medium text-destructive-soft-foreground"
           >
+            <CircleAlert aria-hidden className="size-4 shrink-0" />
             <span className="min-w-0 flex-1">{t("chat.voice_call_recording_error")}</span>
-            <Button type="button" size="sm" variant="outline" onClick={retry}>
+            <Button type="button" variant="outline" className="rounded-full px-3.5" onClick={retry}>
+              <RefreshCw aria-hidden />
               {t("common.retry")}
             </Button>
           </div>
@@ -139,8 +144,8 @@ export function VoiceCallRecordingDialog({
         {status === "ready" && playbackUrlRef.current ? (
           /* eslint-disable-next-line jsx-a11y/media-has-caption -- recorded call playback has no caption track */
           <video
-            // The meeting stage's dark plate letterboxes the video in both themes.
-            className="max-h-[min(70vh,720px)] w-full rounded-md bg-meeting-bar-bg object-contain"
+            // The call's dark letterbox, the same in both themes.
+            className="max-h-[min(70vh,720px)] w-full rounded-xl bg-meeting-video-bg object-contain"
             controls
             playsInline
             preload="metadata"

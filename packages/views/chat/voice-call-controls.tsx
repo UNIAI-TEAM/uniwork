@@ -16,8 +16,26 @@ import type { VoiceCallKind } from "./voice-call-overlay-types";
 import { VoiceCallRecordControl } from "./voice-call-recording-controls";
 import { useVoiceCallActions, useVoiceCallStatus } from "./voice-call-room-context";
 
-/** Solid hang-up red with the on-solid glyph: the one control that ends something. */
-const HANG_UP = "border-transparent bg-destructive-solid text-on-solid hover:bg-destructive-solid hover:opacity-90";
+/**
+ * Round controls on the dark call plane. Neutral is the meeting bar's chip;
+ * `on` (camera, screen share live) is the brand fill; `off` (mic muted) is the
+ * light fill, so a muted mic stands out from the row; hang-up is the solid red
+ * with the on-solid glyph — the one control that ends something.
+ */
+const TONE_VARIANT = {
+  default: "meetingChip",
+  on: "default",
+  off: "default",
+  hangup: "destructiveSolid",
+} as const;
+const TONE_CLASS = {
+  default: "border-transparent",
+  on: "hover:bg-primary/90",
+  off: "bg-foreground text-background hover:bg-foreground/90",
+  hangup: "",
+} as const;
+/** 52px in the panel, 56px fullscreen; both clear the 44px target. */
+const ROUND_SIZE = { panel: "size-13 rounded-full", large: "size-14 rounded-full" } as const;
 
 /** Ctrl/⌘+D and Ctrl/⌘+E, the meeting room's shortcuts (useRoomMediaShortcuts). */
 const MIC_KEYS = "Control+D Meta+D";
@@ -26,9 +44,7 @@ const CAMERA_KEYS = "Control+E Meta+E";
 /**
  * One call control, the same shape as the meeting room's: a fixed label (it
  * names the device, not the next action), `aria-pressed` for its state, and
- * the name again as a tooltip. `off` is a device the user has turned off
- * (mic muted) and reads in the danger soft pair; `on` is a device that is
- * live (camera, screen share) and reads as the brand wash.
+ * the name again as a tooltip.
  */
 function VoiceCallRoundControl({
   ariaLabel,
@@ -38,6 +54,7 @@ function VoiceCallRoundControl({
   disabled,
   pressed,
   tone = "default",
+  sizeClass,
   children,
 }: {
   ariaLabel: string;
@@ -46,7 +63,8 @@ function VoiceCallRoundControl({
   onClick: () => void;
   disabled?: boolean;
   pressed?: boolean;
-  tone?: "default" | "on" | "off" | "hangup";
+  tone?: keyof typeof TONE_VARIANT;
+  sizeClass: string;
   children: ReactNode;
 }) {
   return (
@@ -55,15 +73,9 @@ function VoiceCallRoundControl({
         render={
           <Button
             type="button"
-            variant="outline"
-            size="icon-lg"
-            className={cn(
-              "size-11 rounded-xl",
-              tone === "on" && "border-transparent bg-brand-subtle text-brand-subtle-foreground hover:bg-brand-subtle",
-              tone === "off" &&
-                "border-transparent bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft",
-              tone === "hangup" && HANG_UP,
-            )}
+            variant={TONE_VARIANT[tone]}
+            size="icon"
+            className={cn(sizeClass, TONE_CLASS[tone])}
             aria-label={ariaLabel}
             aria-pressed={pressed}
             aria-keyshortcuts={keyShortcuts}
@@ -86,6 +98,7 @@ export function ActiveVoiceControls({
   onLeave,
   onEndForAll,
   compact,
+  large,
 }: {
   callKind: VoiceCallKind;
   isCaller: boolean;
@@ -93,6 +106,8 @@ export function ActiveVoiceControls({
   onLeave: () => void;
   onEndForAll: () => void;
   compact?: boolean;
+  /** Fullscreen: the bigger round buttons. */
+  large?: boolean;
 }) {
   const { t } = useTranslation();
   const { connected, muted, cameraEnabled, screenShareEnabled } = useVoiceCallStatus();
@@ -120,23 +135,25 @@ export function ActiveVoiceControls({
     return (
       <Button
         type="button"
-        size="icon-lg"
-        className={cn("shrink-0 rounded-full", HANG_UP)}
+        variant="destructiveSolid"
+        size="icon"
+        className="size-11 shrink-0 rounded-full"
         aria-label={leaveLabel}
         title={leaveLabel}
         onClick={handleLeave}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <PhoneOff aria-hidden className="size-4" />
+        <PhoneOff aria-hidden className="size-4.5" />
       </Button>
     );
   }
 
+  const sizeClass = large ? ROUND_SIZE.large : ROUND_SIZE.panel;
   const micLabel = t("chat.voice_call_mic");
   const cameraLabel = t("chat.voice_call_camera");
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-3">
       <VoiceCallControlRow>
         {/* Device failures surface as the notice above the stage; the
             controls only show the state LiveKit reports back. */}
@@ -146,10 +163,11 @@ export function ActiveVoiceControls({
           keyShortcuts={MIC_KEYS}
           pressed={!muted}
           tone={muted ? "off" : "default"}
+          sizeClass={sizeClass}
           disabled={!connected}
           onClick={() => void toggleMute()}
         >
-          {muted ? <MicOff aria-hidden className="size-4" /> : <Mic aria-hidden className="size-4" />}
+          {muted ? <MicOff aria-hidden className="size-5" /> : <Mic aria-hidden className="size-5" />}
         </VoiceCallRoundControl>
         <VoiceCallRoundControl
           ariaLabel={cameraLabel}
@@ -157,30 +175,37 @@ export function ActiveVoiceControls({
           keyShortcuts={CAMERA_KEYS}
           pressed={cameraEnabled}
           tone={cameraEnabled ? "on" : "default"}
+          sizeClass={sizeClass}
           disabled={!connected}
           onClick={() => void toggleCamera()}
         >
-          {cameraEnabled ? <Video aria-hidden className="size-4" /> : <VideoOff aria-hidden className="size-4" />}
+          {cameraEnabled ? <Video aria-hidden className="size-5" /> : <VideoOff aria-hidden className="size-5" />}
         </VoiceCallRoundControl>
         <VoiceCallRoundControl
           ariaLabel={t("chat.voice_call_screen_share")}
           pressed={screenShareEnabled}
           tone={screenShareEnabled ? "on" : "default"}
+          sizeClass={sizeClass}
           disabled={!connected}
           onClick={handleToggleScreenShare}
         >
-          <MonitorUp aria-hidden className="size-4" />
+          <MonitorUp aria-hidden className="size-5" />
         </VoiceCallRoundControl>
-        <VoiceCallRecordControl recording={recording} disabled={!connected} />
-        <VoiceCallRoundControl ariaLabel={leaveLabel} tone="hangup" onClick={handleLeave}>
-          <PhoneOff aria-hidden className="size-4" />
+        <VoiceCallRecordControl recording={recording} disabled={!connected} className={sizeClass} />
+        <VoiceCallRoundControl ariaLabel={leaveLabel} tone="hangup" sizeClass={sizeClass} onClick={handleLeave}>
+          <PhoneOff aria-hidden className="size-5" />
         </VoiceCallRoundControl>
       </VoiceCallControlRow>
       {/* Ending for everyone is rarer and heavier than leaving: a named
           text action under the row, and it asks first. */}
       {multiParty && isCaller ? (
         <>
-          <Button type="button" variant="destructive" size="sm" onClick={() => setConfirmEndOpen(true)}>
+          <Button
+            type="button"
+            variant="destructive"
+            className="h-9 rounded-full px-4 font-semibold"
+            onClick={() => setConfirmEndOpen(true)}
+          >
             {t("chat.voice_call_end_for_all")}
           </Button>
           <ConfirmDialog

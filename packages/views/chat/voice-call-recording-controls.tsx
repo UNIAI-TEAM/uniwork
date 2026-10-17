@@ -18,7 +18,7 @@ export function VoiceCallRecIndicator() {
   return (
     <span
       data-testid="voice-call-rec-indicator"
-      className="inline-flex items-center gap-1 rounded-md bg-destructive-soft px-1.5 py-0.5 text-micro font-semibold text-destructive-soft-foreground"
+      className="inline-flex items-center gap-1.5 rounded-sm bg-destructive-soft px-2 py-0.5 text-micro font-semibold text-destructive-soft-foreground"
     >
       <span className="size-1.5 rounded-full bg-destructive-solid motion-safe:animate-pulse" aria-hidden />
       {t("chat.voice_call_record_live")}
@@ -35,9 +35,12 @@ export function VoiceCallRecIndicator() {
 export function VoiceCallRecordControl({
   recording: state,
   disabled,
+  className,
 }: {
   recording: VoiceCallRecordingState;
   disabled?: boolean;
+  /** The row's round size, so the record control matches its neighbours. */
+  className?: string;
 }) {
   const { t } = useTranslation();
   const { recording, recordingEnabled, pending, start, stop } = state;
@@ -63,12 +66,14 @@ export function VoiceCallRecordControl({
           render={
             <Button
               type="button"
-              variant="outline"
-              size="icon-lg"
+              // Recording reads as the soft red with a stop square, so it never
+              // looks like the solid-red hang-up beside it.
+              variant={recording ? "destructive" : "meetingChip"}
+              size="icon"
               className={cn(
-                "size-11 rounded-xl",
-                recording &&
-                  "border-transparent bg-destructive-solid text-on-solid hover:bg-destructive-solid hover:opacity-90",
+                "size-13 rounded-full",
+                className,
+                recording ? "border-destructive/60" : "border-transparent",
               )}
               aria-label={label}
               aria-pressed={recording}
@@ -80,11 +85,11 @@ export function VoiceCallRecordControl({
           }
         >
           {recording ? (
-            <Square aria-hidden className="size-3.5 fill-current" />
+            <Square aria-hidden className="size-4 fill-current" />
           ) : (
             <Circle
               aria-hidden
-              className={cn("size-4", recordingEnabled ? "fill-destructive text-destructive" : "text-muted-foreground")}
+              className={cn("size-5", recordingEnabled ? "fill-destructive text-destructive" : "text-muted-foreground")}
             />
           )}
         </TooltipTrigger>

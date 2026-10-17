@@ -161,6 +161,7 @@ export function ActiveVoiceCallContent({
           onLeave={leave}
           onEndForAll={endForAll}
           compact={panelMode === "minimized"}
+          large={panelMode === "fullscreen"}
         />
       }
     >

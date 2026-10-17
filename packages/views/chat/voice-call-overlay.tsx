@@ -178,14 +178,26 @@ export function VoiceCallOverlay({
         : t("chat.voice_call_incoming_label");
       const notice =
         incomingRecording || incomingDeviceError ? (
-          <div className="mb-3 flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
             {incomingRecording ? (
-              <Notice tone="warning" icon={CircleDot} layout="inline" live="off">
+              <Notice
+                tone="warning"
+                icon={CircleDot}
+                layout="inline"
+                live="off"
+                className="rounded-xl border border-warning/30"
+              >
                 {t("chat.voice_call_recording_join_warning")}
               </Notice>
             ) : null}
             {incomingDeviceError ? (
-              <Notice tone="destructive" icon={PhoneOff} layout="inline" live="assertive">
+              <Notice
+                tone="destructive"
+                icon={PhoneOff}
+                layout="inline"
+                live="assertive"
+                className="rounded-xl border border-destructive/35"
+              >
                 {voiceCallDeviceMessage(incomingDeviceError, t)}
                 {incomingDeviceError.failure === "denied" ? (
                   <span className="mt-0.5 block font-normal">{t("meetings.devicePreviewDeniedHint")}</span>
@@ -212,16 +224,14 @@ export function VoiceCallOverlay({
             ariaLabel={t("chat.voice_call_decline")}
             tone="decline"
             onClick={onDecline}
-            icon={<PhoneOff aria-hidden className="size-5" />}
-            compact
+            icon={<PhoneOff aria-hidden className="size-6" />}
           />
           <VoiceCallLabeledAction
             label={incomingDeviceError ? t("common.retry") : t("chat.voice_call_accept")}
             ariaLabel={incomingDeviceError ? t("common.retry") : t("chat.voice_call_accept")}
             tone="accept"
             onClick={onAccept}
-            icon={<Phone aria-hidden className="size-5" />}
-            compact
+            icon={<Phone aria-hidden className="size-6" />}
           />
         </PreConnectFloatingCall>
       );
@@ -238,8 +248,7 @@ export function VoiceCallOverlay({
             ariaLabel={t("chat.voice_call_end")}
             tone="decline"
             onClick={cancelPreConnect}
-            icon={<PhoneOff aria-hidden className="size-5" />}
-            compact
+            icon={<PhoneOff aria-hidden className="size-6" />}
           />
         </PreConnectFloatingCall>
       );
@@ -259,8 +268,7 @@ export function VoiceCallOverlay({
             ariaLabel={cancelLabel}
             tone="decline"
             onClick={cancelPreConnect}
-            icon={<PhoneOff aria-hidden className="size-5" />}
-            compact
+            icon={<PhoneOff aria-hidden className="size-6" />}
           />
         </PreConnectFloatingCall>
       );

@@ -32,28 +32,55 @@ export function voiceCallInitialOf(name: string): string {
 }
 
 const PEER_AVATAR_SIZE = { sm: "size-10", md: "size-18", lg: "size-24" } as const;
+/* Two staggered rings on a slow 1.8s swell; ping's own 1s reads as alarm. */
+const PULSE_DELAYS = ["0s", "0.9s"] as const;
+/** 44px round icon action on the dark call plane (expand, restore). */
+const ROUND_ICON_ACTION = "size-11 shrink-0 rounded-full";
+/** Header size controls stay bare until hovered. */
+const HEADER_ACTION = cn(ROUND_ICON_ACTION, "border-transparent bg-transparent text-muted-foreground hover:text-foreground");
+const LABELED_ACTION_VARIANT = {
+  decline: "destructiveSolid",
+  accept: "successSolid",
+  neutral: "meetingChip",
+} as const;
 
-function VoiceCallPeerAvatar({
+export function VoiceCallPeerAvatar({
   peerName,
   size = "md",
   pulse,
+  pulseTone = "brand",
 }: {
   peerName: string;
   size?: "sm" | "md" | "lg";
   pulse?: boolean;
+  /** Incoming rings in the "answer" green, outgoing in the brand. */
+  pulseTone?: "brand" | "success";
 }) {
+  const ringColor = pulseTone === "success" ? "border-success" : "border-brand";
   return (
     <div className={cn("relative shrink-0", PEER_AVATAR_SIZE[size])}>
-      {/* The ring is the "it is ringing" signal; under reduced motion it
-          stays as a still halo instead of pulsing. */}
+      {/* The rings are the "it is ringing" signal: they swell out from behind
+          the avatar, and under reduced motion a still halo stands in. */}
       {pulse ? (
-        <span
-          className="absolute -inset-1 rounded-full bg-brand-subtle motion-safe:animate-ping"
-          aria-hidden
-        />
+        <>
+          <span aria-hidden className={cn("absolute -inset-1.5 rounded-full border-2 opacity-50 motion-safe:hidden", ringColor)} />
+          {PULSE_DELAYS.map((delay) => (
+            <span
+              key={delay}
+              aria-hidden
+              className={cn("absolute inset-[16%] rounded-full border-3 motion-safe:animate-ping motion-reduce:hidden", ringColor)}
+              style={{ animationDuration: "1.8s", animationDelay: delay }}
+            />
+          ))}
+        </>
       ) : null}
-      <Avatar className={cn("relative text-body", PEER_AVATAR_SIZE[size])}>
-        <AvatarFallback className="bg-brand-subtle text-brand-subtle-foreground">
+      <Avatar className={cn("relative", PEER_AVATAR_SIZE[size])}>
+        <AvatarFallback
+          className={cn(
+            "bg-brand-subtle font-display font-bold text-brand-subtle-foreground",
+            size === "lg" ? "text-display-sm" : "text-body",
+          )}
+        >
           {voiceCallInitialOf(peerName)}
         </AvatarFallback>
       </Avatar>
@@ -80,7 +107,7 @@ function VoiceCallStatusLine({
 }) {
   const { t } = useTranslation();
   return (
-    <div className={cn("flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground", className)}>
+    <div className={cn("flex min-w-0 items-center gap-1.5 text-label text-muted-foreground", className)}>
       <span role="status" className="truncate">
         {statusLabel}
       </span>
@@ -126,15 +153,18 @@ function VoiceCallPanelHeader({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-start gap-3 border-b border-border px-4 py-3",
-        dragHandleProps && "cursor-grab touch-none select-none active:cursor-grabbing",
+        "relative flex shrink-0 items-center gap-2.5 border-b border-border py-3 pr-2 pl-4",
+        dragHandleProps && "cursor-grab touch-none select-none pt-4.5 active:cursor-grabbing",
       )}
       {...dragHandleProps}
     >
+      {dragHandleProps ? (
+        <span aria-hidden className="absolute top-1.5 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-faint-foreground/50" />
+      ) : null}
       <VoiceCallPeerAvatar peerName={peerName} size="sm" pulse={pulse} />
-      <div className="min-w-0 flex-1 pt-0.5">
+      <div className="min-w-0 flex-1">
         {title ?? (
-          <p id={titleId} className="truncate text-body font-semibold text-foreground">
+          <p id={titleId} className="truncate font-display text-body-lg font-bold text-foreground">
             {peerName}
           </p>
         )}
@@ -248,31 +278,40 @@ export function VoiceCallFloatingPanel({
       >
         <div
           className={cn(
-            "flex max-w-[min(100vw-2rem,320px)] items-center gap-3 rounded-full border border-border bg-surface px-3 py-2 shadow-[var(--menu-shadow)]",
+            "flex max-w-[min(100vw-2rem,380px)] items-center gap-2.5 rounded-full border border-meeting-bar-border bg-surface-emphasis p-2 shadow-floating",
             dragHandleProps && "cursor-grab touch-none select-none active:cursor-grabbing",
           )}
           {...dragHandleProps}
         >
-          <VoiceCallPeerAvatar peerName={peerName} size="sm" pulse={pulse} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-body font-medium text-foreground">{peerName}</p>
-            <VoiceCallStatusLine statusLabel={statusLabel} duration={duration} indicator={indicator} />
+          {/* The emphasis plane is painted here in the page theme; its content
+              reads the dark palette (see --surface-emphasis in tokens.css). */}
+          <div className="dark contents text-foreground">
+            <VoiceCallPeerAvatar peerName={peerName} size="sm" pulse={pulse} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-body font-semibold text-foreground">{peerName}</p>
+              <VoiceCallStatusLine
+                statusLabel={statusLabel}
+                duration={duration}
+                indicator={indicator}
+                className="text-caption"
+              />
+            </div>
+            {allowResize ? (
+              <Button
+                ref={expandRef}
+                type="button"
+                variant="meetingChip"
+                size="icon"
+                className={cn(ROUND_ICON_ACTION, "border-transparent")}
+                aria-label={t("chat.voice_call_expand")}
+                onClick={onMaximize}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <Maximize2 aria-hidden className="size-4.5" />
+              </Button>
+            ) : null}
+            {footer}
           </div>
-          {allowResize ? (
-            <Button
-              ref={expandRef}
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="shrink-0 rounded-full"
-              aria-label={t("chat.voice_call_expand")}
-              onClick={onMaximize}
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <Maximize2 aria-hidden className="size-4" />
-            </Button>
-          ) : null}
-          {footer}
         </div>
         {live}
       </div>
@@ -289,39 +328,39 @@ export function VoiceCallFloatingPanel({
           <Button
             ref={minimizeRef}
             type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
+            variant="meetingChip"
+            size="icon"
+            className={HEADER_ACTION}
             aria-label={t("chat.voice_call_minimize")}
             onClick={onMinimize}
           >
-            <Minimize2 aria-hidden className="size-4" />
+            <Minimize2 aria-hidden className="size-4.5" />
           </Button>
         ) : null}
         {mode === "expanded" && onMaximize ? (
           <Button
             ref={fullscreenRef}
             type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
+            variant="meetingChip"
+            size="icon"
+            className={HEADER_ACTION}
             aria-label={t("chat.voice_call_fullscreen")}
             onClick={onMaximize}
           >
-            <Maximize2 aria-hidden className="size-4" />
+            <Maximize2 aria-hidden className="size-4.5" />
           </Button>
         ) : null}
         {mode === "fullscreen" && onMinimize ? (
           <Button
             ref={restoreRef}
             type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
+            variant="meetingChip"
+            size="icon"
+            className={cn(ROUND_ICON_ACTION, "border-transparent")}
             aria-label={t("chat.voice_call_restore")}
             onClick={onMinimize}
           >
-            <Minimize2 aria-hidden className="size-4" />
+            <Minimize2 aria-hidden className="size-4.5" />
           </Button>
         ) : null}
       </div>
@@ -341,33 +380,35 @@ export function VoiceCallFloatingPanel({
           showCloseButton={false}
           initialFocus={restoreRef}
           finalFocus={false}
-          overlayClassName="bg-app-shell supports-backdrop-filter:backdrop-blur-none"
-          className="top-0 left-0 flex h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-app-shell p-0 ring-0 shadow-none sm:max-w-none"
+          overlayClassName="bg-surface-emphasis supports-backdrop-filter:backdrop-blur-none"
+          className="top-0 left-0 flex h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-surface-emphasis p-0 ring-0 shadow-none sm:max-w-none"
         >
-          <VoiceCallPanelHeader
-            peerName={peerName}
-            statusLabel={statusLabel}
-            duration={duration}
-            indicator={indicator}
-            pulse={pulse}
-            actions={headerActions}
-            title={
-              <DialogTitle className="truncate text-body leading-normal font-semibold text-foreground">
-                {peerName}
-              </DialogTitle>
-            }
-          />
-          {notice ? <div className="shrink-0 px-2 pt-2 sm:px-3">{notice}</div> : null}
-          {/* The same stage the meeting room uses: a rail card on the shell. */}
-          {children ? (
-            <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto rounded-2xl bg-rail px-4 py-6 ring-1 ring-surface-border sm:px-8">
-                <div className="flex w-full max-w-5xl flex-1 flex-col items-center justify-center">{children}</div>
+          <div className="dark contents text-foreground">
+            <VoiceCallPanelHeader
+              peerName={peerName}
+              statusLabel={statusLabel}
+              duration={duration}
+              indicator={indicator}
+              pulse={pulse}
+              actions={headerActions}
+              title={
+                <DialogTitle className="truncate font-display text-title leading-normal font-bold text-foreground">
+                  {peerName}
+                </DialogTitle>
+              }
+            />
+            {notice ? <div className="shrink-0 px-4 pt-4">{notice}</div> : null}
+            {/* The same stage the meeting room uses, on the call's dark plane. */}
+            {children ? (
+              <div className="flex min-h-0 flex-1 flex-col px-4 pt-4">
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto rounded-2xl bg-meeting-stage px-4 py-6 ring-1 ring-border sm:px-8">
+                  <div className="flex w-full max-w-5xl flex-1 flex-col items-center justify-center">{children}</div>
+                </div>
               </div>
-            </div>
-          ) : null}
-          {footer ? <div className="shrink-0 border-t border-border px-4 py-4 sm:px-8">{footer}</div> : null}
-          {live}
+            ) : null}
+            {footer ? <div className="shrink-0 px-4 py-6 sm:px-8">{footer}</div> : null}
+            {live}
+          </div>
         </DialogContent>
       </Dialog>
     );
@@ -381,31 +422,33 @@ export function VoiceCallFloatingPanel({
       className={cn(
         // The footer (hang up) stays reachable on a short landscape phone:
         // the panel caps at the viewport and only its body scrolls.
-        "flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--menu-shadow)]",
+        "flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-2xl border border-meeting-bar-border bg-surface-emphasis shadow-floating",
         allowResize
           ? "fixed bottom-4 right-4 z-50 w-[min(calc(100vw-2rem),380px)] sm:bottom-6 sm:right-6"
           : "w-full",
       )}
       style={allowResize ? panelStyle : undefined}
     >
-      <VoiceCallPanelHeader
-        peerName={peerName}
-        titleId={titleId}
-        statusLabel={statusLabel}
-        duration={duration}
-        indicator={indicator}
-        pulse={pulse}
-        actions={headerActions}
-        dragHandleProps={allowResize ? dragHandleProps : undefined}
-      />
-      {notice || children ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          {notice}
-          {children}
-        </div>
-      ) : null}
-      {footer ? <div className="shrink-0 border-t border-border px-4 py-3">{footer}</div> : null}
-      {live}
+      <div className="dark contents text-foreground">
+        <VoiceCallPanelHeader
+          peerName={peerName}
+          titleId={titleId}
+          statusLabel={statusLabel}
+          duration={duration}
+          indicator={indicator}
+          pulse={pulse}
+          actions={headerActions}
+          dragHandleProps={allowResize ? dragHandleProps : undefined}
+        />
+        {notice || children ? (
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {notice}
+            {children}
+          </div>
+        ) : null}
+        {footer ? <div className="shrink-0 border-t border-border px-5 pt-4 pb-5">{footer}</div> : null}
+        {live}
+      </div>
     </div>
   );
 }
@@ -427,27 +470,19 @@ export function VoiceCallLabeledAction({
 }) {
   // The -solid fills are measured under --on-solid in both themes; the plain
   // signal colours are pastel in dark mode and fail AA under white.
-  const toneClass =
-    tone === "decline"
-      ? "bg-destructive-solid text-on-solid hover:bg-destructive-solid hover:opacity-90"
-      : tone === "accept"
-        ? "bg-success-solid text-on-solid hover:bg-success-solid hover:opacity-90"
-        : "bg-muted text-foreground hover:bg-surface-hover";
-
-  const btnSize = compact ? "size-12" : "size-14";
-
   return (
     <div className="flex flex-col items-center gap-2">
       <Button
         type="button"
-        size="icon-lg"
-        className={cn("rounded-full border-0 shadow-[var(--menu-shadow)]", btnSize, toneClass)}
+        variant={LABELED_ACTION_VARIANT[tone]}
+        size="icon"
+        className={cn("rounded-full", compact ? "size-14" : "size-16", tone === "neutral" && "border-transparent")}
         aria-label={ariaLabel}
         onClick={onClick}
       >
         {icon}
       </Button>
-      <span className="text-caption font-medium text-muted-foreground" aria-hidden>
+      <span className="text-label font-medium text-muted-foreground" aria-hidden>
         {label}
       </span>
     </div>
