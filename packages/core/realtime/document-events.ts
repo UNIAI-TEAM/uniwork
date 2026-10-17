@@ -1,15 +1,18 @@
 import { documentKeys } from "../documents/keys";
-import type { WSEventType } from "../types/events";
 
 /**
  * The query keys a `document.*` frame invalidates, or null when the frame is
- * not a document frame. Every document frame is ids-only (ADR 0015): it marks
- * queries stale and nothing from it is cached. Split out of use-realtime-sync
- * (max-lines) when FD-06 wired the three tree frames.
+ * not a document frame. `type` is a plain string: frames arrive untyped on
+ * the wire and a deployed client must still invalidate on a catalogue event
+ * its WSEventType union predates (ARCHIVE-01: document.shelved/unshelved are
+ * added to the union by the server-side worker in parallel). Every document
+ * frame is ids-only (ADR 0015): it marks queries stale and nothing from it
+ * is cached. Split out of use-realtime-sync (max-lines) when FD-06 wired the
+ * three tree frames.
  */
 export function documentFrameKeys(
   wsId: string,
-  type: WSEventType,
+  type: string,
   payload: Record<string, string>,
 ): (readonly unknown[])[] | null {
   const ownWorkspace = !payload.workspace_id || payload.workspace_id === wsId;
@@ -50,7 +53,9 @@ export function documentFrameKeys(
     case "document.link_revoked":
     case "document.moved":
     case "document.archived":
-    case "document.restored": {
+    case "document.restored":
+    case "document.shelved":
+    case "document.unshelved": {
       // SH-S1: document.workspace_access_changed (the workspace home row turned
       // on, off or changed level) takes the same refetch a document.updated
       // visibility change always took.
@@ -59,8 +64,9 @@ export function documentFrameKeys(
       // so one invalidation covers the whole subtree. The frame only marks
       // queries stale; an in-flight draft lives in the save machine, not the
       // cache (documents/save-state.ts keeps it through conflict/unverified).
-      // A move, archive or restore by someone else refreshes the tree, the
-      // folder content, search results and an open delete dialog's counts.
+      // A move, archive, restore, shelve or unshelve by someone else refreshes
+      // the tree, the folder content, search results, the shelved list (its key
+      // is a workspace-root child) and an open delete dialog's counts.
       return ownWorkspace ? [documentKeys.workspace(wsId)] : [];
     }
     default:
