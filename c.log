@@ -1,0 +1,6 @@
+$ ( [ -x /opt/google/chrome/chrome ] || npx playwright install --with-deps chrome ) && ( [ -x /opt/microsoft/msedge/msedge ] || npx playwright install --with-deps msedge ) && ( [ -x /opt/microsoft/msedge/msedge ] || npx playwright install --with-deps --force msedge ) && test -x /opt/google/chrome/chrome && test -x /opt/microsoft/msedge/msedge && /opt/google/chrome/chrome --version && /opt/microsoft/msedge/msedge --version; rc=$?; echo; echo "BROWSER_INSTALL_EXIT=$rc"
+[1017/172144.864358:WARNING:chrome/app/chrome_main_linux.cc:84] Read channel stable from /opt/google/chrome/CHROME_VERSION_EXTRA
+Google Chrome 154.0.8037.92 
+Microsoft Edge 155.0.4283.62 unknown
+
+BROWSER_INSTALL_EXIT=0
