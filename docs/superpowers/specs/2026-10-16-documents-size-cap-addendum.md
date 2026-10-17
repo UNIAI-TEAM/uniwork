@@ -130,7 +130,7 @@ Request (cả ba route; `parent_id`, `title`, `visibility` chỉ ở route works
 }
 ```
 
-Header `Idempotency-Key` bắt buộc (cùng key + cùng lệnh → cùng phiên, `200`; cùng key + lệnh khác → `409 idempotency_payload_mismatch`, mã hiện có của `BeginIdempotent`; r4 bỏ mã mới `idempotency_conflict`).
+Header `Idempotency-Key` bắt buộc (cùng key + cùng lệnh → cùng phiên, `200`; cùng key + lệnh khác → `409 idempotency_payload_mismatch`, mã hiện có của `BeginIdempotent`; r4 bỏ mã mới `idempotency_conflict`). Thiếu header hoặc header rỗng → `400 invalid_request` trước mọi kiểm tra khác (r5, BIGUP-S1 review: key rỗng từng tắt cả bảo đảm D7).
 
 Server, trước khi nhận phần nào: `size_bytes` trong `(20 MiB, DOCUMENT_MAX_BYTES]` (≤ 20 MiB → `422 upload_session_too_small`: dùng luồng thường; > cap → `413 file_too_large` + `fields.max_bytes`); đuôi tệp được nhận; quyền (tạo trong workspace / sửa tài liệu, cùng thứ tự từ chối như route upload hiện có); quota `storage.bytes` **giữ chỗ** `size_bytes`; probe chạy detector + luật zip (OOXML/ODF: `[Content_Types].xml`, thư mục chính khớp đuôi, không macro, số mục và kích thước giải nén khai báo trong giới hạn; `cd_size ≤ 1 MiB`; `head_b64 ≤ 64 KiB`) → sai thì `415 unsupported_media_type` + `fields.reason`; giới hạn phiên đang mở mỗi người → `429 upload_sessions_exhausted` + `Retry-After`.
 
