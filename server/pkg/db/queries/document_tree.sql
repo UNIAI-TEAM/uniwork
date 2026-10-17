@@ -89,7 +89,7 @@ SET archived_at = NULL,
     updated_at = now()
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
-  AND archive_batch_id = sqlc.arg(archive_batch_id)
+  AND id = ANY(sqlc.arg(ids)::text[])
   AND archived_at IS NOT NULL
 RETURNING id, parent_id;
 

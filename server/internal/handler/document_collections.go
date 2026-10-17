@@ -258,6 +258,21 @@ func (h *handlers) restoreDocument(w http.ResponseWriter, r *http.Request) {
 	h.documentLifecycleCommand(w, r, true)
 }
 
+// purgeDocument is POST /documents/{documentID}/purge: permanently deletes an
+// archived document and its same-batch, still-trashed descendants that the
+// caller manages (RESTORE-01 §2).
+func (h *handlers) purgeDocument(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	if _, err := h.Documents.PurgeDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID")); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *handlers) documentLifecycleCommand(w http.ResponseWriter, r *http.Request, restore bool) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -355,6 +370,14 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 	if doc.ArchivedAt.Valid {
 		at := doc.ArchivedAt.Time.UTC().Format(time.RFC3339)
 		out.ArchivedAt = &at
+	}
+	if doc.ArchivedBy.Valid && doc.ArchivedBy.String != "" {
+		by := doc.ArchivedBy.String
+		out.ArchivedBy = &by
+	}
+	if doc.PurgeAfter.Valid {
+		after := doc.PurgeAfter.Time.UTC().Format(time.RFC3339)
+		out.PurgeAfter = &after
 	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
