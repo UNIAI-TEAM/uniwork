@@ -9653,10 +9653,6 @@
         "owner": "Owner",
         "you_prefix": "You: {{level}}"
       },
-      "visibility": {
-        "workspace": "Workspace",
-        "restricted": "Restricted"
-      },
       "group_by": {
         "label": "Group by",
         "folder": "Folder",
@@ -9796,6 +9792,20 @@
         "error_title": "Couldn't search",
         "error_description": "Check your connection and try again."
       }
+    },
+    "scope": {
+      "private": "Private",
+      "people_one": "{{count}} person",
+      "people_other": "{{count}} people",
+      "workspace": "Workspace",
+      "workspaces_one": "{{count}} workspace",
+      "workspaces_other": "{{count}} workspaces",
+      "organization": "Organization",
+      "multiple": "Multiple scopes",
+      "public_link": "Public link",
+      "tooltip_home_workspace": "Workspace {{name}}",
+      "tooltip_other_workspaces_one": "{{count}} other workspace",
+      "tooltip_other_workspaces_other": "{{count}} other workspaces"
     },
     "errors": {
       "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; UniNotes and files sit in a UniNote or a folder.",

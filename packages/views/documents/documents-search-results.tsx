@@ -7,6 +7,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
+import { DocumentShareScopeBadge } from "./document-share-scope-badge";
 import { DocumentTypeIcon, documentIconFormat } from "./document-type-icon";
 import {
   DOCUMENT_SEARCH_FILTERS,
@@ -212,6 +213,11 @@ export function DocumentsSearchResults({
                           {t("documents.home.search.path", { path: full })}
                         </span>
                       </span>
+                      <DocumentShareScopeBadge
+                        shareScope={item.share_scope}
+                        visibility={item.visibility}
+                        compact
+                      />
                     </button>
                   </li>
                 );
