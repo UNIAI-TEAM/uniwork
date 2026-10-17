@@ -40,6 +40,11 @@ async function focusEditor(frame) {
 export const readHostDirty = (page, hostSelector) =>
   page.$eval(hostSelector, (el) => el.hasAttribute('data-dirty')).catch(() => null);
 
+/** The host's own view after a Save: dirty flag and save state (office-module-frame.tsx:337-338). */
+export const readHostState = (page, hostSelector) =>
+  page.$eval(hostSelector, (el) => ({ dirty: el.hasAttribute('data-dirty'), saveState: el.getAttribute('data-save-state') }))
+    .catch(() => ({ dirty: null, saveState: null }));
+
 /**
  * R2-5: undo the AI change, then redo it, through the frame. Undo clicks the AI panel's undo
  * control when it is there, else presses the editor's own shortcut; redo is the editor shortcut
@@ -86,7 +91,7 @@ export async function driveUndoRedo({ page, frame, hostSelector, undoSelector, t
 const realIo = Object.freeze({
   driveUndoRedo, webSave, readFrameHead, readVersionBytes,
   readVersionCount: (args) => readVersionCount(listVersions, args),
-  readHostDirty, sleep,
+  readHostDirty, readHostState, sleep,
 });
 
 /**
@@ -117,6 +122,9 @@ export async function runEditStage(ctx, io = realIo) {
   if (first.status !== 'saved') return { stop: failVerdict('web_save_failed_after_ai_edit', { saved: first }) };
   const afterFirst = await io.readVersionCount(api);
   if (!afterFirst.ok) return { stop: blockedVerdict(afterFirst.reason, { detail: afterFirst.detail, step: 'after_first_save' }) };
+  // Evidence for the second Save's answer: what the host and the server held between the two Saves.
+  const hostAfterFirst = await io.readHostState(page, sel.host);
+  const headAfterFirst = await io.readFrameHead(api);
 
   const secondRaw = await io.webSave(page, { kind: row.module, timeoutMs: Math.min(timeoutMs, SECOND_SAVE_BOUND_MS) });
   const second = { ...secondRaw, dirty: secondRaw.status === 'saved' ? false : await io.readHostDirty(page, sel.host) };
@@ -155,6 +163,11 @@ export async function runEditStage(ctx, io = realIo) {
     oldBytes: old.bytes,
     details: {
       secondSaveOutcome: obs.secondOutcome,
+      saves: {
+        first: { versionId: first.versionId, revision: headAfterFirst.revision, sha256: headAfterFirst.sha256, host: hostAfterFirst },
+        second: { status: secondRaw.status, versionId: secondRaw.versionId ?? null, revision: headAfterSave.revision, sha256: headAfterSave.sha256 },
+        bytesIdenticalAcrossSaves: headAfterFirst.sha256 === headAfterSave.sha256,
+      },
       versionsAfterFirstSave: afterFirst.count,
       undoRedo: { via: undoRedo.undoVia ?? null, visible: undoRedo.aiChangeVisibleBeforeSave, undoable: undoRedo.aiChangeUndoableBeforeSave },
       oldVersion: old.version,

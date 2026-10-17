@@ -29,6 +29,7 @@ function makeIo(over = {}) {
       return { bytes: new Uint8Array([1]), sha256: over.oldSha ?? 'pre-turn-sha' };
     },
     async readHostDirty() { return over.dirtyAfterSecond ?? false; },
+    async readHostState() { return { dirty: false, saveState: 'saved' }; },
   };
   return io;
 }
@@ -56,7 +57,7 @@ describe('G7-08 w2e2 runEditStage', () => {
     assert.equal(out.details.secondSaveOutcome, 'committed');
     // Order: undo/redo before the first Save; count between the Saves; old bytes after both.
     const order = io.calls.map((c) => c[0]);
-    assert.deepEqual(order, ['undoRedo', 'webSave', 'count', 'webSave', 'count', 'head', 'oldBytes']);
+    assert.deepEqual(order, ['undoRedo', 'webSave', 'count', 'head', 'webSave', 'count', 'head', 'oldBytes']);
     assert.deepEqual(io.calls.at(-1), ['oldBytes', 1], 'the previous version number is read again');
   });
 
