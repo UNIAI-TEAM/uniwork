@@ -2354,6 +2354,65 @@ describe('usage rows and arguments', () => {
     assert.equal(score(c, shown.answer).status, 'pass');
   });
 
+  it('R17-2/R17-3: compute operands come only from successful data reads this turn returned, and the result must equal a permitted derivation of read-and-shown operands (review-g712-17 R17-2, R17-3)', () => {
+    const c = synthCase({
+      id: 'HO-TEST-918',
+      format: 'xlsx',
+      category: 'compute',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_sheet_list', 'read_range', 'compute'], required: ['read_range', 'compute'] },
+      expected: {
+        numeric: [{ name: 'synth_total', value: 143, tolerance: 0, rounding: 'none', unit: 'VND' }],
+        structural: [],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: { numeric: { synth_total: 143 }, structural: [], writes: 0, text: 'Total is 143.' },
+    });
+    const report = (numbers) => `${ANSWER_MARKER} ${JSON.stringify({ numbers, items: [], refused: false, not_found: false, caveats: [] })}`;
+    const ask = (text, numbers, over = {}) => ({
+      reply: `${text}\n${report(numbers)}`,
+      calls: [{ name: 'read_range' }], writes: 0, writeLog: [], dropped: [], modules: ['sheets'],
+      sourceText: '60\n83', toolResultsText: '{"rows":[{"cells":{"A1":"60","A2":"83"}}]}', ...over,
+    });
+    // R17-2: an orientation call only. Its metadata result carries no operands, and sourceText is not read evidence.
+    const orientation = deriveAnswer(c, ask('Total 143 from 60 and 83.', [143], {
+      calls: [{ name: 'get_workbook_context' }], toolResultsText: '{"sheets":[]}',
+    }));
+    assert.ok(!orientation.answer.tools.used.includes('compute'), 'orientation metadata is not operand evidence (R17-2)');
+    assert.equal(score(c, orientation.answer).status, 'fail', 'no data read in the turn means the compute requirement fails');
+    // R17-2: the same, with the operands only in sourceText and an empty result.
+    const hidden = deriveAnswer(c, ask('Total 143 from 60 and 83.', [143], { toolResultsText: '' }));
+    assert.ok(!hidden.answer.tools.used.includes('compute'), 'sourceText alone is not operand evidence (R17-2)');
+    assert.equal(score(c, hidden.answer).status, 'fail');
+    // R17-3: two shown operands are not enough; the reported figure must be a permitted derivation of them.
+    const unrelated = deriveAnswer(c, ask('Result 999 from 60 and 83.', [999], {
+      toolResultsText: '{"rows":[{"cells":{"A1":"60","A2":"83"}}]}',
+    }));
+    assert.ok(!unrelated.answer.tools.used.includes('compute'), 'an unrelated result is no computation of the operands (R17-3)');
+    // A4 positive control: the sum of both operands is a permitted derivation.
+    const sum = deriveAnswer(c, ask('Total 143 from 60 and 83.', [143]));
+    assert.ok(sum.answer.tools.used.includes('compute'), 'the sum of the shown operands earns compute');
+    assert.equal(score(c, sum.answer).status, 'pass');
+    // R17-3: one shown operand alone is a direct read, not a computation.
+    const single = deriveAnswer(c, ask('Total 60.', [60]));
+    assert.ok(!single.answer.tools.used.includes('compute'), 'a single shown operand is a direct read (R17-3)');
+    // A ratio of two shown operands (83 / 60 * 100 = 138.33) is permitted; a product (60 * 83) is not.
+    const ratioCase = synthCase({
+      id: 'HO-TEST-919',
+      format: 'xlsx',
+      category: 'compute',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_sheet_list', 'read_range', 'compute'], required: ['read_range', 'compute'] },
+      expected: { numeric: [{ name: 'share', value: 138.33, tolerance: 0, rounding: '2dp', unit: '%' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { share: 138.33 }, structural: [], writes: 0, text: 'Share 138.33% from 83 and 60.' },
+    });
+    const ratio = deriveAnswer(ratioCase, ask('Share 138.33% from 83 and 60.', [138.33]));
+    assert.ok(ratio.answer.tools.used.includes('compute'), 'a ratio of two shown operands is a permitted derivation');
+    const product = deriveAnswer(synthCase({ ...ratioCase, expected: { ...ratioCase.expected, numeric: [{ name: 'share', value: 4980, tolerance: 0, rounding: 'none', unit: 'VND' }] }, referenceAnswer: { ...ratioCase.referenceAnswer, numeric: { share: 4980 }, text: 'Product 4980 from 60 and 83.' } }), ask('Product 4980 from 60 and 83.', [4980]));
+    assert.ok(!product.answer.tools.used.includes('compute'), 'a product of two shown operands is not a permitted derivation');
+  });
+
   it('Item 5: deriveAnswer reports pick.value for table_cell and an anchor-matching table_cell with a wrong value fails', () => {
     const tblCase = synthCase({
       id: 'HO-DOCX-907',
