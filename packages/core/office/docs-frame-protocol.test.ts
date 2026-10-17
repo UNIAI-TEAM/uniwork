@@ -3,6 +3,7 @@ import {
   CAPABILITY_KEYS,
   COMMENTS_LEVELS,
   DocsProtocolError,
+  FRAME_REQUEST_TYPES,
   PROTOCOL_ERROR_CODES,
   PROTOCOL_NS,
   PROTOCOL_VERSION,
@@ -156,3 +157,25 @@ describe("comments.shareView and the commentsShareView capability (G8-18)", () =
     expect(found).toMatchObject({ ok: true });
   });
 });
+
+describe("api.saveCopy and the saveCopy capability (UNI-1872)", () => {
+  const envelope = (kind: string, payload: unknown) => ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: "f6", kind, type: "api.saveCopy", payload });
+
+  it("is a frame request type and a capability key", () => {
+    expect(FRAME_REQUEST_TYPES).toContain("api.saveCopy");
+    expect(CAPABILITY_KEYS).toContain("saveCopy");
+  });
+
+  it("validates {name, data} on the request and {documentId, title} on the response", () => {
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04]).buffer;
+    expect(parseEnvelope(envelope("request", { name: "Budget (copy)", data: bytes }))).toMatchObject({ ok: true });
+    for (const bad of [{}, { name: "", data: bytes }, { name: "Budget (copy)", data: "not-bytes" }, null]) {
+      expect(parseEnvelope(envelope("request", bad))).toMatchObject({ ok: false, reason: "malformed" });
+    }
+    expect(parseEnvelope(envelope("response", { documentId: "doc_2", title: "Budget (copy)" }))).toMatchObject({ ok: true });
+    for (const bad of [{}, { documentId: "doc_2" }, { documentId: "", title: "Budget (copy)" }, { documentId: "doc_2", title: "" }, null]) {
+      expect(parseEnvelope(envelope("response", bad))).toMatchObject({ ok: false, reason: "malformed" });
+    }
+  });
+});
+
