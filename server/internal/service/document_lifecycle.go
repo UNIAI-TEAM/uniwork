@@ -467,13 +467,14 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 // reachable again; descendants the caller cannot manage stay in the trash with
 // their archive_batch_id and purge_after untouched.
 //
-// Restore is not bounded like archive. A batch written since the bound exists
-// holds at most documentArchiveMaxNodes nodes, so only a legacy batch (from
-// before folders) could be larger, and refusing it would strand it in the
-// trash: a restore cannot be done in parts. It stays cheap under the tree
-// lock: the batch is read, cleared and audited in one statement each, the
-// trivial manage rules are read off the rows, and only a node whose parent is
-// outside the restored set costs a parent lookup.
+// Restore is not bounded like archive: the managed-subset walk reads one
+// archive batch, and a batch written since the bound exists holds at most
+// documentArchiveMaxNodes nodes, so only a legacy batch (from before folders)
+// could be larger. The caller may legitimately restore only their managed
+// share of it, so nothing needs refusing on size. It stays cheap under the
+// tree lock: the batch is read, cleared and audited in one statement each,
+// the trivial manage rules are read off the rows, and only a node whose
+// parent is outside the restored set costs a parent lookup.
 func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
 	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if !doc.ArchivedAt.Valid {
