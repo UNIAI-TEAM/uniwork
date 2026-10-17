@@ -36,6 +36,7 @@
     --ring: 220.4 91.7% 47.1%;
     --brand: 220.4 91.7% 47.1%;
     --brand-foreground: 0 0% 100%;
+    --success-solid: 149.4 71.1% 29.8%;
   }
 
   .dark:root {
@@ -60,5 +61,6 @@
     --ring: 218.2 100% 67.6%;
     --brand: 218.2 100% 67.6%;
     --brand-foreground: 224.2 42.2% 8.8%;
+    --success-solid: 149.4 71.1% 29.8%;
   }
 }

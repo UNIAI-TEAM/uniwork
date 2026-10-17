@@ -29,6 +29,7 @@ module.exports = {
         popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
         brand: { DEFAULT: "hsl(var(--brand))", foreground: "hsl(var(--brand-foreground))" },
+        "success-solid": "hsl(var(--success-solid))",
       },
       // React Native cannot read the web package's CSS custom properties, so
       // one mobile JSON feeds both NativeWind classes and inline styles.
