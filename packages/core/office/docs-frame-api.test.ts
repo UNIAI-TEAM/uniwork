@@ -416,7 +416,7 @@ describe("createDocsFrameApi saveCopy (UNI-1872)", () => {
     await expect(badCopy.api.saveCopy!({ name: "Plan (copy).docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "internal" });
   });
 
-  it("maps 404, 409, 413 (preserving max_bytes on upload or copy) and 423 to protocol error codes", async () => {
+  it("maps 403, 404, 409 and 413 (preserving max_bytes on upload or copy) to protocol error codes", async () => {
     const uploadTooLarge = setup({
       "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
         json({ error: { code: "file_too_large", message: "big", fields: { max_bytes: 52_428_800 } } }, 413),
@@ -439,9 +439,9 @@ describe("createDocsFrameApi saveCopy (UNI-1872)", () => {
     });
 
     for (const [status, apiCode, code] of [
+      [403, "forbidden", "forbidden"],
       [404, "not_found", "not_found"],
       [409, "conflict", "conflict"],
-      [423, "document_locked", "forbidden"],
     ] as const) {
       const { api } = setup({
         "POST /api/v1/office-frame/documents/doc-1/uploads": () => json(UPLOAD),

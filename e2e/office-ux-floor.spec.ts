@@ -4,12 +4,10 @@ import { auditText } from "./contrast";
 import { seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
   COMPOSER, EDITOR, FRAME_SELECTOR, PICKER_POP, S5_CARD, S5_MASK, S6_BAR, aiFlagsBeforeAll, clippedLabels, commitElsewhere, contrastIn, docsFrameInstalled,
-  expectFocus, finding, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
+  expectFocus, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
   reachConflict, recordLiveWrites, recordMotion, s5Choices, selectUniworkAi, sizeFrame, smallTargets, surfaceIsMode, visualOrder,
   uniworkOption, waitForBar, type Locale, type Mode,
 } from "./office-ux-floor-fixtures";
-
-void finding;
 
 /**
  * G7-09 (UNI-1383): the deterministic part of the UX acceptance checklist

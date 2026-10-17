@@ -109,9 +109,7 @@ export function docsFrameError(error: unknown): DocsProtocolError {
       ? { code: "unsupported" as const, message, status: error.status }
       : error.status === 504
         ? { code: "timeout" as const, message, status: 504, retryable: true }
-        : error.status === 423
-          ? { code: "forbidden" as const, message: `${error.code || "document_locked"} (HTTP 423)`, status: 423 }
-          : errorFromHttpStatus(error.status, message).toShape();
+        : errorFromHttpStatus(error.status, message).toShape();
     const rawMax = error.fields?.["max_bytes"];
     const maxBytes = typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : undefined;
     return new DocsProtocolError({
