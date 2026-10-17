@@ -1,6 +1,6 @@
 # UniChat M4 — Phát hành mobile: EAS, TestFlight/Play internal, OTA, Maestro — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — issue UNI-1836, nhánh `feature/UNI-1836-unichat-m4-phat-hanh-mobile-eas-build-su`. Phase 1 đang làm; phase 2 chờ M2a (UNI-1832) và M3 (UNI-1834) lên `develop`.
+> **Trạng thái:** in-progress — issue UNI-1836, nhánh `feature/UNI-1836-unichat-m4-phat-hanh-mobile-eas-build-su`. Phase 1 xong (2026-10-17, PR của UNI-1836); phase 2 chờ M2a (UNI-1832) và M3 (UNI-1834) lên `develop`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - Không tạo dự án EAS, không đẩy tag, không chạy lệnh `eas` cần đăng nhập. Không bí mật trong repo (gitleaks); id dự án EAS không phải bí mật và sẽ được commit khi có.
-- Chỉ `app.config.ts` đọc biến build (`apps/chat-mobile/CLAUDE.md`); không `.env`. Biến mới: `UNICHAT_EAS_PROJECT_ID`.
+- Chỉ `app.config.ts` đọc biến build (`apps/chat-mobile/CLAUDE.md`); không `.env`. Id dự án EAS nằm ở hằng `EAS_PROJECT_ID` (trống tới khi có tài khoản), `UNICHAT_EAS_PROJECT_ID` ghi đè (`""` tắt EAS) — vì `eas update` không nhận `env` của profile build.
 - Bản `staging`/`production` thiếu `UNICHAT_API_URL` hoặc `UNICHAT_APP_URL` thì `app.config.ts` ném lỗi: một bản store trỏ `localhost` là bản hỏng, phải đỏ lúc build chứ không lúc người dùng mở app.
 - Workflow theo kiểu của repo (D2 `chat-desktop-release.yml`): `permissions: contents: read`, `persist-credentials: false`, môi trường GitHub cho bí mật phát hành, commit được tag phải nằm trên `main` hoặc `develop`. Thêm `!.github/workflows/<file>` vào `.gitignore` gốc (dòng `.github/workflows/*`).
 - Runbook trong `docs/runbooks/` theo `scripts/alerts-runbooks.test.mjs`: dòng 3 là `> **Trạng thái:** shipped`, đúng bốn H2 Triệu chứng → Kiểm tra → Khắc phục → Leo thang, đăng ký trong `OPERATOR_RUNBOOKS` và bảng runbook vận hành của README.
@@ -45,7 +45,7 @@
 
 ---
 
-## Phase 1 (bây giờ)
+## Phase 1 (xong 2026-10-17)
 
 ### Task 1: Plan, spec, issue
 
@@ -55,41 +55,41 @@
 
 **Files:** `apps/chat-mobile/app.config.ts`, `apps/chat-mobile/app.config.test.ts`, `apps/chat-mobile/package.json`, `pnpm-lock.yaml`
 
-- [ ] Test: Review Focus 2 (đỏ trước).
-- [ ] `pnpm --filter @uniwork/chat-mobile exec expo install expo-updates` (expo install gọi npm trong workspace pnpm và hỏng — thêm dòng `expo-updates ~57.0.26` vào `package.json` rồi `pnpm install` để cập nhật lockfile); `runtimeVersion`, `updates`, `extra.eas`, chặn URL thiếu.
-- [ ] `expo config --type public` cho `dev`, `staging`, `production`, có và không có `UNICHAT_EAS_PROJECT_ID`.
+- [x] Test: Review Focus 2 (đỏ trước).
+- [x] `pnpm --filter @uniwork/chat-mobile exec expo install expo-updates` (expo install gọi npm trong workspace pnpm và hỏng — thêm dòng `expo-updates ~57.0.26` vào `package.json` rồi `pnpm install` để cập nhật lockfile; `knip.json` bỏ qua `expo-updates` vì plugin expo của knip đọc config dev, nơi updates tắt); `runtimeVersion`, `updates`, `extra.eas`, chặn URL thiếu.
+- [x] `expo config --type public` cho `dev`, `staging`, `production`, có và không có `UNICHAT_EAS_PROJECT_ID`.
 
 ### Task 3: `eas.json`
 
 **Files:** `apps/chat-mobile/eas.json`
 
-- [ ] `cli` (`appVersionSource: remote`), `build.base` (pnpm 10.28.2), `development` (dev client, internal, simulator iOS), `preview`, `internal` (store, autoIncrement), `production`; mỗi profile `env.UNICHAT_ENV`, `channel`, `environment`. `submit.internal` (Android `track: internal`; iOS điền `ascAppId` khi có app trên ASC), `submit.production` (Android `production` + `draft`).
+- [x] `cli` (`appVersionSource: remote`), `build.base` (pnpm 10.28.2), `development` (dev client, internal, simulator iOS), `preview`, `internal` (store, autoIncrement), `production`; mỗi profile `env.UNICHAT_ENV`, `channel`, `environment`. `submit.internal` (Android `track: internal`; iOS điền `ascAppId` khi có app trên ASC), `submit.production` (Android `production` + `draft`).
 
 ### Task 4: Workflow phát hành
 
 **Files:** `.github/workflows/chat-mobile-release.yml`, `.gitignore`
 
-- [ ] Tag `chat-mobile-v*`, môi trường `chat-mobile-release`, gate `EXPO_TOKEN` (notice + thoát xanh), commit trên `main`/`develop`, tag = `version`, cài `--filter "@uniwork/chat-mobile..."`, `expo/expo-github-action`, `eas build --platform all --profile internal --non-interactive --auto-submit`.
+- [x] Tag `chat-mobile-v*`, môi trường `chat-mobile-release`, gate `EXPO_TOKEN` (notice + thoát xanh), commit trên `main`/`develop`, tag = `version`, cài `--filter "@uniwork/chat-mobile..."`, `expo/expo-github-action`, `eas build --platform all --profile internal --non-interactive --auto-submit`.
 
 ### Task 5: Nightly Maestro + flow
 
 **Files:** `.github/workflows/chat-mobile-verify.yml`, `apps/chat-mobile/maestro/{config.yaml,subflows/login.yaml,flows/login.yaml,flows/push-open-room.yaml}`, `.gitignore`
 
-- [ ] Workflow: `schedule` + `workflow_dispatch`; job `gate` (vars/secrets đủ → `ready`); `ios` (macos, prebuild, pod install, `xcodebuild` Release simulator ký ad-hoc, boot simulator, Maestro, `simctl push` rồi flow push); `android` (prebuild, `assembleRelease`, `android-emulator-runner`, Maestro); upload báo cáo Maestro.
-- [ ] Flow: subflow đăng nhập (sheet thật), flow `login` (đăng nhập → thấy tab Chat), flow `push-open-room` (khung: định tuyến tới phòng; khẳng định tên phòng là phase 2).
+- [x] Workflow: `schedule` + `workflow_dispatch`; job `gate` (vars/secrets đủ → `ready`); `ios` (macos, prebuild, pod install, `xcodebuild` Release simulator ký ad-hoc, boot simulator, Maestro, `simctl push` rồi flow push); `android` (prebuild, `assembleRelease`, `android-emulator-runner`, Maestro); upload báo cáo Maestro.
+- [x] Flow: subflow đăng nhập (sheet thật), flow `login` (đăng nhập → thấy tab Chat), flow `push-open-room` (khung: định tuyến tới phòng; khẳng định tên phòng là phase 2).
 
 ### Task 6: Runbook, tài liệu store, CLAUDE.md
 
 **Files:** `docs/runbooks/unichat-mobile-release.md`, `docs/runbooks/README.md`, `scripts/alerts-runbooks.test.mjs`, `apps/chat-mobile/store/listing.md`, `apps/chat-mobile/CLAUDE.md`
 
-- [ ] Runbook: cắt bản, nộp, OTA, rollback (OTA và store), thiết lập lần đầu (EAS, ASC, Play, GitHub Environment, staging cho nightly).
-- [ ] Store: mô tả vi/en, privacy labels (Apple) + Data safety (Google), lý do từng quyền, tài khoản demo cho review.
-- [ ] `apps/chat-mobile/CLAUDE.md` mục Phát hành.
+- [x] Runbook: cắt bản, nộp, OTA, rollback (OTA và store), thiết lập lần đầu (EAS, ASC, Play, GitHub Environment, staging cho nightly).
+- [x] Store: mô tả vi/en, privacy labels (Apple) + Data safety (Google), lý do từng quyền, tài khoản demo cho review.
+- [x] `apps/chat-mobile/CLAUDE.md` mục Phát hành.
 
 ### Task 7: Kiểm và PR
 
-- [ ] `pnpm --filter @uniwork/chat-mobile test|lint|typecheck`; `pnpm knip`; `node --test scripts/{governance,no-usf-leak,catalog-check,alerts-runbooks}.test.mjs`; `actionlint` nếu có; `maestro check-syntax` nếu có.
-- [ ] Plan đánh dấu phase 1 xong; `make issue-pr KEY=UNI-1836`; body PR; ghi chú `[agent]` trên issue.
+- [x] `pnpm --filter @uniwork/chat-mobile test|lint|typecheck` (285 test, coverage 100 %); `pnpm knip`; `node --test scripts/{governance,no-usf-leak,catalog-check,alerts-runbooks,mobile-core-allowlist}.test.mjs` (28/28); `expo config --type public` cho dev, staging, production (thiếu URL → lỗi; có id → `updates.url`, `extra.eas`); YAML của hai workflow và ba flow parse được (Ruby Psych); bước gate của hai workflow chạy thử có/không bí mật. `actionlint`, `maestro`, `gitleaks` không có trên máy — chưa chạy. Không build native, không chạy thiết bị.
+- [x] Plan đánh dấu phase 1 xong; `make issue-pr KEY=UNI-1836`; body PR; ghi chú `[agent]` trên issue.
 
 ## Phase 2 (sau khi M2a, M3 lên `develop`)
 
@@ -97,11 +97,13 @@
 
 - [ ] Thêm `testID` ở các màn M2a/M3 mà flow cần (danh sách hội thoại, ô soạn, nút gửi, nút gọi) — chọn bằng id, không bằng chữ.
 - [ ] `flows/chat-read-send.yaml`: đăng nhập → mở phòng thử → thấy tin seed → gửi một tin có dấu thời gian → thấy nó trong luồng.
-- [ ] `flows/push-open-room.yaml`: khẳng định header là tên phòng thử; Android: push thật từ staging (Maestro `runScript` gọi API với tài khoản thứ hai) khi đã có `UNICHAT_EAS_PROJECT_ID` + FCM.
+- [ ] `flows/push-open-room.yaml`: khẳng định header là tên phòng thử; Android: push thật từ staging (Maestro `runScript` gọi API với tài khoản thứ hai) khi đã có dự án EAS + FCM.
 - [ ] `flows/call-join.yaml`: vào cuộc gọi của phòng thử (quyền mic/camera: `launchApp.permissions`), thấy màn trong cuộc gọi, rời.
+- [ ] Lần chạy thật đầu tiên xác nhận các giả định phase 1 chưa kiểm được: Maestro tự đọc biến `MAESTRO_*`; `-e PUSH_DELIVERED=true` thắng `env` mặc định của flow (ảnh chụp cho thấy chạm thông báo, không phải `openLink`); Maestro cấp quyền thông báo cho app trên simulator (bản staging không tự xin vì chưa có dự án EAS); hộp thoại "Continue" của iOS chạm được; image `google_apis` có Chrome cho Custom Tab; runner `macos-26` có Xcode 27.
 - [ ] Ghim phiên bản Maestro; đo 5 đêm liên tiếp xanh trên cả hai nền tảng; nếu sheet đăng nhập là nguồn đỏ thì cân nhắc lối tắt dev theo ràng buộc ở bảng quyết định.
 
 ### Task 9: Khi có tài khoản (UNI-1838)
 
-- [ ] Làm theo "Thiết lập lần đầu" trong runbook; commit `UNICHAT_EAS_PROJECT_ID` và `ascAppId`; tag `chat-mobile-v0.1.0` đầu tiên; kiểm tiêu chí spec §3 (hai bản trên TestFlight/Play internal, OTA áp ở lần mở sau, bản native mới không nhận OTA cũ).
+- [ ] Làm theo "Thiết lập lần đầu" trong runbook; ghi id vào hằng `EAS_PROJECT_ID` và `ascAppId` vào `eas.json`; tag `chat-mobile-v0.1.0` đầu tiên; kiểm tiêu chí spec §3 (hai bản trên TestFlight/Play internal, OTA áp ở lần mở sau, bản native mới không nhận OTA cũ).
+- [ ] Bản EAS đầu tiên: `pnpm install` của EAS chạy `prepare` của mọi workspace (`packages/office-upstream` dựng engine Office) — nếu chậm hoặc hỏng thì thu hẹp bằng `.easignore` hoặc hook `eas-build-pre-install`, không đổi luật workspace.
 - [ ] Plan → shipped khi tiêu chí §3 đạt.
