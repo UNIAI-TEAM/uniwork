@@ -9,11 +9,11 @@ import test from "node:test";
 import { countAssertion, deltaAssertion, oneIntent, pathAssertion, sameKey } from "./app-case-drivers.mjs";
 import { EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
 import { expandExits, selectAppCases } from "./app-cases-lib.mjs";
-import { PROXY_LOG_KEYS, caseExpect, validateExpect } from "./case-expect.mjs";
+import { OFFLINE_EXPECT_KEYS, PROXY_LOG_KEYS, caseExpect, validateExpect } from "./case-expect.mjs";
 import { loadFaultCases } from "./server-cases-lib.mjs";
 
 const here = (name) => fileURLToPath(new URL(name, import.meta.url));
-const DRIVER_SOURCE = ["app-case-drivers.mjs", "app-case-drivers-blocked.mjs"].map((f) => readFileSync(here(f), "utf8")).join("\n");
+const DRIVER_SOURCE = ["app-case-drivers.mjs", "app-case-drivers-blocked.mjs", "app-case-drivers-offline.mjs"].map((f) => readFileSync(here(f), "utf8")).join("\n");
 const selected = selectAppCases(loadFaultCases());
 const rows = selected.runnable;
 // every app row, ready or pending: a pending row's expectation must be readable the day it becomes runnable (review r2 R2-2)
@@ -122,5 +122,11 @@ test("every machine-readable expectation an app row carries is read by an app dr
     if (row.expect.clientPath || exitExpects.some((e) => e.clientPath)) assert.ok(DRIVER_SOURCE.includes("pathAssertion(ctx"), `${row.id}: clientPath is not read`);
     if ("clientIntents" in row.expect) assert.ok(DRIVER_SOURCE.includes("oneIntent(ctx"), `${row.id}: clientIntents is not read`);
     if ("clientIntentsWhileFull" in row.expect) assert.ok(DRIVER_SOURCE.includes("clientIntentsWhileFull()"), `${row.id}: clientIntentsWhileFull is not read`);
+    // every `expect.offline` key an FL row carries is read by an offline driver (case-expect.mjs `ctx.expect.offline`)
+    const offlineKeys = new Set([...Object.keys(row.expect.offline ?? {}), ...exitExpects.flatMap((e) => Object.keys(e.offline ?? {}))]);
+    for (const key of offlineKeys) {
+      assert.ok(OFFLINE_EXPECT_KEYS.includes(key), `${row.id}: ${key} is a known expect.offline key`);
+      assert.ok(DRIVER_SOURCE.includes(`"${key}"`), `${row.id}: no app driver reads expect.offline.${key}`);
+    }
   }
 });

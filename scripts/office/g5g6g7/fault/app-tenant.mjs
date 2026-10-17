@@ -404,6 +404,29 @@ export const clearSyncWrite = (tenant) =>
   }, [200, 204, 404], "/api/v1/admin/flags/{key}/overrides");
 
 /**
+ * G7-03b: the org capability `office_offline_library` (default OFF,
+ * server/internal/featureflags/keys.go:60) is switched on for the FL rows only,
+ * through the SAME organization-scoped admin override route the harness already
+ * uses for `office_sync_write` (its own precedent). The alternative the contract
+ * names - `FF_OFFICE_OFFLINE_LIBRARY=true` in the runner's ENV_FILE - also works
+ * without touching the harness: start.sh copies the VM's .env into the server's
+ * own cwd minus the keys the run owns (harness/lib.mjs `serverDotEnv`), and the
+ * server's flag service reads `FF_<KEY>` (pkg/featureflag env_provider.go:41-46).
+ * The override is chosen here because it is scoped to the run's own tenant and
+ * can be lifted per row, so a non-FL row never runs with the capability on.
+ */
+export const setOfflineLibrary = (tenant, enabled = true) =>
+  must("office_offline_library override", tenant.apiOrigin, "/api/v1/admin/flags/office_offline_library/overrides", {
+    method: "PUT", as: tenant.owner,
+    json: { scope_type: "organization", scope_id: tenant.orgId, enabled, reason: ADMIN_REASON },
+  }, undefined, "/api/v1/admin/flags/{key}/overrides");
+export const clearOfflineLibrary = (tenant) =>
+  must("office_offline_library override delete", tenant.apiOrigin, "/api/v1/admin/flags/office_offline_library/overrides", {
+    method: "DELETE", as: tenant.owner,
+    json: { scope_type: "organization", scope_id: tenant.orgId, reason: ADMIN_REASON },
+  }, [200, 204, 404], "/api/v1/admin/flags/{key}/overrides");
+
+/**
  * FQ-24's test setup (OQ-F3, agreed by the lead): expires the upload claims the
  * app staged in this run's organization, in the run's own database, through
  * psql (table and columns: server/migrations/951_file_upload_sessions.up.sql).

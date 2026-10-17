@@ -29,9 +29,10 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runEvidence } from "../evidence.mjs";
 import { loadPlaywright } from "../g7-06/capture/playwright.mjs";
-import { DEFAULT_FORK_SHA, harnessPaths, isMainModule, readStartStatus, startGate } from "../harness/lib.mjs";
+import { DEFAULT_FORK_SHA, HARNESS_DEPLOYMENT_ID, harnessPaths, isMainModule, readStartStatus, startGate } from "../harness/lib.mjs";
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
+import { OFFLINE_DRIVERS } from "./app-case-drivers-offline.mjs";
 import {
   BLOCKED_EXIT_CODE, appTraceArtifacts, blockedAfterFailure, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
   noServerReason, parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
@@ -40,7 +41,8 @@ import { ExitRangeError, parseExitRange, partialCaseResult, partialLabel, select
 import { guardCaseResult, harnessDownReason, seedBehindGuard } from "./app-process-guard.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
-  clearSyncWrite, createFileDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, runnerApiOrigin, seedAppTenant, setSyncWrite,
+  clearOfflineLibrary, clearSyncWrite, createFileDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, runnerApiOrigin, seedAppTenant,
+  setOfflineLibrary, setSyncWrite,
 } from "./app-tenant.mjs";
 import { caseExpect } from "./case-expect.mjs";
 import { EMPTY_SERVER_VERSIONS, collectServerVersions } from "./collect.mjs";
@@ -50,7 +52,7 @@ import { DEFAULT_CASES_PATH, REPO_ROOT, loadFaultCases, renderCaseRules } from "
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 const FIXTURES_MANIFEST = resolve(REPO_ROOT, "docs", "office", "g5g6g7", "fixtures", "manifest.json");
-const DRIVERS = { ...QUEUE_DRIVERS, ...BLOCKED_DRIVERS };
+const DRIVERS = { ...QUEUE_DRIVERS, ...BLOCKED_DRIVERS, ...OFFLINE_DRIVERS };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** One run per exit of a row: its own `exits` array, then the driver's extra exits. */
@@ -205,15 +207,27 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     expect: caseExpect(row, run.exit), marker: `G703A${row.id.replace("-", "")}X${run.index}`,
     databaseUrl, sleep, waitFor, sha256File,
     now: () => new Date().toISOString(),
+    // ---- G7-03b (FL) seams: the offline-library drivers read the fork's stores
+    // on disk and write their own artifacts beside the run's, so the paths live
+    // here instead of inside a driver.
+    userDataDir: () => join(appDir, "userdata"),
+    /** the deployment the run's app reads (FL-08 launches a second one) */
+    deploymentId: () => HARNESS_DEPLOYMENT_ID,
+    runDirOut: () => runDirOut,
+    artifactPath: (name) => join(runDirOut, name),
+    /** the app answered its last call: a wait that timed out on a dead app is BLOCKED, never FAIL */
+    appAlive: async (session) => Boolean(await session.shell.evaluate(() => true).catch(() => false)),
+    setOfflineLibrary: (enabled) => setOfflineLibrary(tenant, enabled),
+    clearOfflineLibrary: () => clearOfflineLibrary(tenant),
     newDocument: async () => {
       const doc = await createFileDocument(tenant, fixture, `${row.id} run ${run.index}`);
       docs.set(doc.id, await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: doc.id }));
       return doc;
     },
-    launch: async ({ stuckAfterMs, recheckMs, requireSignIn = true } = {}) => {
+    launch: async ({ stuckAfterMs, recheckMs, deploymentId = null, requireSignIn = true } = {}) => {
       const session = await launchApp({
         playwright, ports, proxyOrigin: proxy.origin, userDataDir: join(appDir, "userdata"), traceFile,
-        stuckAfterMs, recheckMs, logFile: join(appDir, "app.log"), harnessPidFile: harnessPaths(runDir).pidFile,
+        stuckAfterMs, recheckMs, deploymentId, logFile: join(appDir, "app.log"), harnessPidFile: harnessPaths(runDir).pidFile,
       });
       sessions.push(session);
       if (!requireSignIn) return session;
@@ -270,6 +284,11 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   } finally {
     for (const session of sessions) await closeApp(session).catch(() => {});
     await fetch(`${proxy.origin}/__fault/rules`, { method: "DELETE" }).catch(() => {});
+    // the FL rows switch the org capability on through an admin override; the tenant
+    // outlives the run, so a non-FL row must never inherit it (contract Acceptance:
+    // the capability is enabled only for the FL runs). Best-effort: the run's own
+    // verdict is already decided and a lift failure must not mask it.
+    await clearOfflineLibrary(tenant).catch(() => {});
   }
   const docId = outcome.documentId ?? [...docs.keys()][0] ?? null;
   const traceLines = docId ? readTrace(docId) : [];
