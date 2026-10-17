@@ -1,0 +1,108 @@
+$ echo "=== T4 ==="; xvfb-run -a -s "-screen 0 1440x900x24" node tools/g7-05/t4-pre-guard.mjs; rc=$?; echo; echo "T4_PRE_GUARD_EXIT=$rc"
+=== T4 ===
+[g7-05/t4] N+1 snapshot missing or incomplete; building N+1-written store directly...
+[g7-05/t4] Installing /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb via sudo dpkg -i ...
+[g7-05/t4] ERROR: Error: dpkg install check failed for /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb (expected 1.0.0-g705n1): status=0, query="install ok installed 1.0.0~g705n1", stderr="dpkg: warning: downgrading uniwork-office from 1.0.0 to 1.0.0~g705n1"
+    at installDebPackage (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:81:11)
+    at prepareN1StoreOnProfile (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:122:21)
+    at main (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:185:36)
+    at file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:329:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+[g7-05/t4] Saved T4 report to /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05/t4-pre-guard.json
+G7_05_T4_JSON_BEGIN
+{
+  "suite": "T4-pre-guard",
+  "startedAt": "2026-10-17T14:23:56.764Z",
+  "builds": {
+    "n1": {
+      "role": "N+1 (synthetic store-level 3 test build)",
+      "forkSha": "b9c947f0ff01c0d6b7469c56b96a98591ac0c208",
+      "baseCommitSha": "b9c947f0ff01c0d6b7469c56b96a98591ac0c208",
+      "patchScript": "tools/g7-05/apply-n1-patch.mjs",
+      "appVersion": "1.0.0-g705n1",
+      "storeSchema": 2,
+      "appStoreLevel": 3,
+      "buildExitCode": 0,
+      "logPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1-build.log",
+      "deb": {
+        "name": "UniWork-Office_1.0.0-g705n1_amd64.deb",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb",
+        "bytes": 152578792,
+        "mib": 145.51,
+        "sha256": "6b3b3601f49603912094fc10799072f71e71a2309e307e4c5fdd28be97af7280"
+      },
+      "appImage": {
+        "name": "UniWork-Office-1.0.0-g705n1-x86_64.AppImage",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office-1.0.0-g705n1-x86_64.AppImage",
+        "bytes": 187288821,
+        "mib": 178.61,
+        "sha256": "e060a784ba40aa95ba3dca5dba5c24fca5733e8e65789aa20c174fe3ab49f37b"
+      },
+      "rpm": {
+        "name": "UniWork-Office-1.0.0-g705n1.x86_64.rpm",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office-1.0.0-g705n1.x86_64.rpm",
+        "bytes": 123229625,
+        "mib": 117.52,
+        "sha256": "c66e2cbd75fa1fb74bb144db91d66c1d9c870f4a0517ffc714417b707c4e7280"
+      }
+    },
+    "preNPrime": {
+      "role": "pre-N' (pre-G5-04g store-level guard)",
+      "forkSha": "fcfcd29ddb989b1497993204486bc110e0ae8b04",
+      "tag": "v0.11.0-dev.6",
+      "appVersion": "0.11.0",
+      "storeSchema": 1,
+      "appStoreLevel": null,
+      "buildExitCode": 0,
+      "logPath": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/pre-n-prime-build.log",
+      "deb": {
+        "name": "UniWork-Office_0.11.0_amd64.deb",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/pre-n-prime/UniWork-Office_0.11.0_amd64.deb",
+        "bytes": 150151640,
+        "mib": 143.2,
+        "sha256": "d5196347add880cd1330b3f1c083b66ff4842b1ddb846b2f69f1d47c1074642a"
+      },
+      "appImage": {
+        "name": "UniWork-Office-0.11.0-x86_64.AppImage",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/pre-n-prime/UniWork-Office-0.11.0-x86_64.AppImage",
+        "bytes": 184349384,
+        "mib": 175.81,
+        "sha256": "38efef93318061404f7aa94e5f5a5fb33dbf2f763bd546c11ba4decd26c6f998"
+      },
+      "rpm": {
+        "name": "UniWork-Office-0.11.0.x86_64.rpm",
+        "path": "/home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/pre-n-prime/UniWork-Office-0.11.0.x86_64.rpm",
+        "bytes": 122411441,
+        "mib": 116.74,
+        "sha256": "55d05b3c94cec8174a57009d99e7a1d3ce66d243584d6a612f581875ea68c96e"
+      }
+    }
+  },
+  "ids": {
+    "deploymentId": "dep-g705-matrix",
+    "accountId": "acct-g705-user",
+    "deviceSessionId": "dev-g705-1",
+    "sessionId": "sess-g705-1",
+    "documentId": "doc-g705-bound-1",
+    "workspaceId": "ws-g705-1",
+    "orgId": "org-g705-1",
+    "filename": "fx-docx-report-vi.docx",
+    "title": "fx-docx-report-vi",
+    "apiOrigin": "https://127.0.0.1:1",
+    "intentId": "intent-g705-seed-1",
+    "intentKey": "office-save-seed-1"
+  },
+  "error": "Error: dpkg install check failed for /home/ubuntu/work/uniwork-office/apps/shell/release/g7-05-matrix/n1/UniWork-Office_1.0.0-g705n1_amd64.deb (expected 1.0.0-g705n1): status=0, query=\"install ok installed 1.0.0~g705n1\", stderr=\"dpkg: warning: downgrading uniwork-office from 1.0.0 to 1.0.0~g705n1\"\n    at installDebPackage (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:81:11)\n    at prepareN1StoreOnProfile (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:122:21)\n    at main (file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:185:36)\n    at file:///home/ubuntu/work/uniwork-office/tools/g7-05/t4-pre-guard.mjs:329:1\n    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)",
+  "completedAt": "2026-10-17T14:24:04.370Z",
+  "markers": {
+    "T4_PRE_GUARD_EXIT": 1,
+    "G7_05_T4_EXIT": 1
+  }
+}
+G7_05_T4_JSON_END
+T4_PRE_GUARD_EXIT=1
+G7_05_T4_EXIT=1
+
+T4_PRE_GUARD_EXIT=1
