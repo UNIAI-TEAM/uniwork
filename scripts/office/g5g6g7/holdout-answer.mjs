@@ -26,7 +26,7 @@
 // A reply without the line (or with an invalid one) reports nothing, so the scorer fails it closed; `reportStatus`
 // keeps that protocol failure apart from a wrong answer.
 
-import { anchorMatches, normalizeAnchor, normalizeFormulaText, splitAnchor, toNumber } from './holdout-score.mjs';
+import { anchorMatches, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
 import { cellProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
@@ -73,17 +73,7 @@ const roundTo = (value, rounding) => {
   return value;
 };
 
-const sameValue = (a, b, kind = null) => {
-  if (kind === 'formula') {
-    const fa = normalizeFormulaText(a);
-    const fb = normalizeFormulaText(b);
-    if (fa && fa === fb) return true;
-  }
-  const x = toNumber(a);
-  const y = toNumber(b);
-  if (x !== null && y !== null) return Math.abs(x - y) < 1e-9;
-  return String(a).trim() === String(b).trim();
-};
+const sameValue = (a, b, kind = null, actualAnchor = '') => valuesEqual(b, a, kind, actualAnchor);
 const norm = (anchor) => normalizeAnchor(anchor ?? '');
 
 /** Matches the reported figures to the expected numeric items; returns { numeric, extras }. */
@@ -195,11 +185,11 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     if (VALUE_KINDS.has(expected.kind)) {
       const same = items.filter((it) => it.kind === expected.kind && !taken.has(it));
       const proof = editCase ? editProof(expected, applied, ask.sheetNames ?? [], sourceText) : null;
-      const atAnchor = (it) => anchorMatches(expected.kind, expected.anchor, String(it.anchor ?? ''));
-      let pick = same.find((it) => sameValue(it.value, expected.value, expected.kind) && atAnchor(it));
+      const atAnchor = (it) => anchorMatches(expected.kind, expected.anchor, String(it.anchor ?? ''), String(it.value ?? ''));
+      let pick = same.find((it) => sameValue(it.value, expected.value, expected.kind, String(it.anchor ?? '')) && atAnchor(it));
       let lenient = false;
       if (!pick && anchors === 'lenient') {
-        pick = same.find((it) => sameValue(it.value, expected.value, expected.kind)) ?? same.find((it) => norm(it.anchor) === norm(expected.anchor));
+        pick = same.find((it) => sameValue(it.value, expected.value, expected.kind, String(it.anchor ?? ''))) ?? same.find((it) => norm(it.anchor) === norm(expected.anchor));
         lenient = Boolean(pick);
       }
       if (pick && proof) {

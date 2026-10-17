@@ -102,7 +102,9 @@ const PROBE_KINDS = new Set(['numberFormat']);
 const NUMBER_FORMAT_VALUES = new Set(['percent', 'number', 'text', 'currency', 'date']);
 const PROBE_PATTERN = /^(.+)#(\w+)$/;
 // Kinds whose anchor is an identity (where a value lives or an edit landed), not a topic: the anchors must be equal.
-const IDENTITY_KINDS = new Set(['cell', 'formula', 'table_cell']);
+const IDENTITY_KINDS = new Set(['cell', 'formula']);
+// Kinds matched by topic and value rather than private case anchor DSL (UNI-1874 DS-2).
+const TOPIC_VALUE_KINDS = new Set(['heading', 'count', 'table_cell']);
 
 const isFilled = (v) => typeof v === 'string' && v.trim().length > 0;
 const isInt = (v) => Number.isInteger(v) && v >= 0;
@@ -183,18 +185,8 @@ export const normalizeFormulaText = (value) => {
   return (embedded ? embedded[1] : raw).toLowerCase().replace(/[\s$]+/g, '').replace(/^=+/, '');
 };
 
-function valuesEqual(expected, actual, kind = null) {
-  if (kind === 'formula') {
-    const a = normalizeFormulaText(expected);
-    const b = normalizeFormulaText(actual);
-    if (a && a === b) return true;
-  }
-  if (typeof expected === 'number' && typeof actual === 'number') return Math.abs(expected - actual) < 1e-9;
-  const a = toNumber(expected);
-  const b = toNumber(actual);
-  if (a !== null && b !== null) return Math.abs(a - b) < 1e-9;
-  return String(expected).trim() === String(actual).trim();
-}
+const cleanHeadingText = (value) =>
+  String(value ?? '').trim().replace(/^#+\s*/, '').replace(/^["“”'`]+|["“”'`]+$/g, '').replace(/\s+/g, ' ').trim();
 
 function stripSheetQuotes(anchor) {
   const text = String(anchor ?? '');
@@ -207,17 +199,65 @@ function stripSheetQuotes(anchor) {
 export const normalizeAnchor = (anchor) =>
   stripSheetQuotes(anchor).toLowerCase().replace(/\s+/g, ' ').trim();
 
+const PRIVATE_DSL_SEGMENT_RE = /^(?:table:\d+|(?:heading_)?level_\d+|found_in|list_items|title|slides|tables|paragraphs|sheetnames|overwrittencells|changedcells|changed_paragraphs|changed_text_shapes|changed_text_runs|task_items|code_blocks)$/i;
+
+function topicSegments(anchor) {
+  return normalizeAnchor(splitAnchor(anchor).base)
+    .split('/')
+    .map((seg) => seg.replace(/^parent_of:\s*/i, '').trim())
+    .filter((seg) => seg.length > 0 && !PRIVATE_DSL_SEGMENT_RE.test(seg));
+}
+
+function topicAnchorMatches(kind, expected, actual, actualValue = '') {
+  const segs = topicSegments(expected);
+  if (segs.length === 0) return true;
+  const b = normalizeAnchor(splitAnchor(actual).base);
+  const combined = actualValue ? `${b} ${normalizeAnchor(actualValue)}` : b;
+  if (kind === 'table_cell') {
+    const primary = segs.length > 1 && /^slide\s+\d+$/i.test(segs[0]) ? segs.slice(0, 2) : [segs[0]];
+    return primary.every((seg) => combined.includes(seg));
+  }
+  return segs.every((seg) => combined.includes(seg));
+}
+
+export function valuesEqual(expected, actual, kind = null, actualAnchor = '') {
+  if (kind === 'formula') {
+    const a = normalizeFormulaText(expected);
+    const b = normalizeFormulaText(actual);
+    if (a && a === b) return true;
+  }
+  if (kind === 'heading') {
+    const a = cleanHeadingText(expected);
+    const b = cleanHeadingText(actual);
+    if (a && (a === b || (a.length > 3 && b.includes(a)) || cleanHeadingText(actualAnchor) === a)) return true;
+  }
+  if (kind === 'table_cell' && /^table:\d+\//i.test(String(expected ?? '').trim())) {
+    if (topicAnchorMatches('table_cell', String(expected), actualAnchor, String(actual ?? ''))) return true;
+  }
+  if (kind === 'count' && typeof expected === 'string' && expected.includes('|')) {
+    const parts = expected.split('|').map((s) => s.trim()).filter(Boolean);
+    const n = toNumber(actual);
+    if (parts.length > 0 && n !== null && Math.abs(n - parts.length) < 1e-9) return true;
+  }
+  if (typeof expected === 'number' && typeof actual === 'number') return Math.abs(expected - actual) < 1e-9;
+  const a = toNumber(expected);
+  const b = toNumber(actual);
+  if (a !== null && b !== null) return Math.abs(a - b) < 1e-9;
+  return String(expected).trim() === String(actual).trim();
+}
+
 /**
- * Anchors are graded as topics for the kinds that name a heading, a count or a prose outcome: the same topic, not the
- * same wording (selection anchors are opaque). For cell/formula/table_cell anchors the location is an identity, so
- * only an equal anchor matches (R1-2): reporting the right number at "Doanh thu Q1!G8:G8" or "…G8 extra" is a wrong
- * address, not a looser way of naming the same cell.
+ * Anchors are graded as topics for the kinds that name a heading, a count, a table cell or a prose outcome: the same
+ * topic, not private case DSL. For cell/formula anchors the location is an identity, so only an equal anchor matches
+ * (R1-2, DS-1, DS-2): reporting the right number at "Doanh thu Q1!G8:G8" or "…G8 extra" is a wrong address.
  */
-export function anchorMatches(kind, expected, actual) {
+export function anchorMatches(kind, expected, actual, actualValue = '') {
   const a = normalizeAnchor(splitAnchor(expected).base);
   const b = normalizeAnchor(splitAnchor(actual).base);
   if (IDENTITY_KINDS.has(kind)) return a === b;
-  return a === b || a.includes(b) || b.includes(a);
+  if (a === b || (b.length > 0 && (a.includes(b) || b.includes(a)))) return true;
+  if (TOPIC_VALUE_KINDS.has(kind)) return topicAnchorMatches(kind, expected, actual, actualValue);
+  return false;
 }
 
 /**
@@ -229,9 +269,15 @@ function takeMatch(expected, candidates, consumed) {
   const wanted = splitAnchor(expected.anchor);
   const free = candidates.filter((item) => !consumed.has(item));
   const sameProbe = (item) => splitAnchor(item.anchor).probe === wanted.probe;
-  const exact = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base));
+  const exact = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base) && (!VALUE_KINDS.has(expected.kind) || valuesEqual(expected.value, item.value, expected.kind, item.anchor)));
   if (exact) return exact;
-  return free.find((item) => sameProbe(item) && anchorMatches(expected.kind, expected.anchor, item.anchor)) ?? null;
+  if (VALUE_KINDS.has(expected.kind)) {
+    const byTopicAndValue = free.find((item) => sameProbe(item) && valuesEqual(expected.value, item.value, expected.kind, item.anchor) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value));
+    if (byTopicAndValue) return byTopicAndValue;
+  }
+  const exactAnchorOnly = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base));
+  if (exactAnchorOnly) return exactAnchorOnly;
+  return free.find((item) => sameProbe(item) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value)) ?? null;
 }
 
 /**
@@ -536,7 +582,7 @@ export function score(caseDoc, answer) {
     }
     consumed.add(match);
     if (VALUE_KINDS.has(expected.kind)) {
-      const ok = valuesEqual(expected.value, match.value, expected.kind);
+      const ok = valuesEqual(expected.value, match.value, expected.kind, match.anchor);
       add(label, ok ? 'pass' : 'fail', ok ? `value ${JSON.stringify(match.value)}` : `${JSON.stringify(match.value)} != ${JSON.stringify(expected.value)}`);
     } else if (PROSE_KINDS.has(expected.kind)) {
       // The value is a free-text explanation: presence plus the anchor topic is what can be graded.
