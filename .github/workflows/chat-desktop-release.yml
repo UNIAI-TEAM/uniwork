@@ -96,6 +96,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build and package
         shell: bash
+        working-directory: apps/chat-desktop
         env:
           # Each runner gets its own platform's secrets only: electron-builder
           # would sign a Windows build with CSC_LINK when WIN_CSC_LINK is unset.
@@ -114,8 +115,8 @@ jobs:
             [ -n "${!name}" ] || unset "$name"
           done
           # Same step as the package: electron.vite.config.ts reads CSC_LINK too.
-          pnpm --filter @uniwork/chat-desktop build
-          pnpm --filter @uniwork/chat-desktop package --${{ matrix.platform }} "-c.extraMetadata.version=$VERSION"
+          pnpm run build
+          pnpm run package --${{ matrix.platform }} "-c.extraMetadata.version=$VERSION"
       - name: Collect the installers and update files
         shell: bash
         working-directory: apps/chat-desktop/dist/package
