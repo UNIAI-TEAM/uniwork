@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+4e46940ab60921762e153c3f3ac476e21ec55261
+4e46940ab60921762e153c3f3ac476e21ec55261
+4e46940a fix(shell): open uploaded document and guard cancelled upload in DocumentsHome
+b6764b7f test(shell): test upload opening document and cancel guard in DocumentsHome
+c7ff396a fix(shell): show ufFolderNoAccess notice when a folder children read returns forbidden
