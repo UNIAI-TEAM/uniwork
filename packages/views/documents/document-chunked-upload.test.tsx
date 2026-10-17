@@ -1,10 +1,17 @@
+import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
-import { saveResumableUpload, uploadFileKey } from "@uniwork/core/documents/chunked-upload";
+import {
+  clearResumableUpload,
+  findResumableUpload,
+  saveResumableUpload,
+  uploadFileKey,
+} from "@uniwork/core/documents/chunked-upload";
 import { forgetHeldEditLock, registerHeldEditLock } from "@uniwork/core/documents/edit-lock-registry";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import {
   FeatureFlagsProvider,
   FeatureFlagService,
@@ -16,8 +23,10 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
+import { editLockRoute } from "../test/edit-lock-fake";
 import { DocumentFileView } from "./document-file-view";
 import { DocumentsPageView } from "./documents-page-view";
+import { onWriteRefused } from "./edit-lock-refusal";
 
 const { t } = initI18n();
 const WS = "ws1";
@@ -878,6 +887,551 @@ describe("Chunked document upload in views", () => {
 
     expect(errorSpy).not.toHaveBeenCalled();
     expect(successSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new versions (UNI-1890)", () => {
+  const DOC_ID = "d1";
+  const VERSION_TARGET = { kind: "version" as const, documentId: DOC_ID };
+
+  const LIMITS_CONFIG = {
+    flags: { documents: true },
+    documents: {
+      limits: {
+        upload_max_bytes: 150 * 1024 * 1024,
+        chunked_upload_threshold_bytes: THRESHOLD,
+        docx_max_bytes: 150 * 1024 * 1024,
+        xlsx_max_bytes: 150 * 1024 * 1024,
+        pptx_max_bytes: 150 * 1024 * 1024,
+        pdf_max_bytes: 150 * 1024 * 1024,
+      },
+    },
+  };
+
+  function lockStateResponse(
+    lock: {
+      holder_id: string;
+      holder_name: string;
+      held_by_me: boolean;
+      since?: string;
+      expires_at?: string;
+      reserved?: boolean;
+    } | null,
+  ) {
+    return {
+      lock: lock
+        ? {
+            holder_id: lock.holder_id,
+            holder_name: lock.holder_name,
+            since: lock.since ?? "2026-10-18T01:00:00Z",
+            expires_at: lock.expires_at ?? "2026-10-18T01:02:00Z",
+            reserved: lock.reserved ?? false,
+            held_by_me: lock.held_by_me,
+          }
+        : null,
+      my_request: null,
+      pending_requests: [],
+      can_take_over: false,
+      can_request: false,
+      server_time: "2026-10-18T01:00:30Z",
+    };
+  }
+
+  async function openDialogAndSubmit(file: File, client?: QueryClient) {
+    const doc = createdFileDoc(DOC_ID);
+    render(wrap(<DocumentFileView wsId={WS} doc={doc} readonly={false} />, client));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    await screen.findByText(t("documents.upload.size_hint", { max: "150 MB" }));
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+  }
+
+  it("refuses a large new version before session create when another holder holds the edit lock, leaving any resume record untouched", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "locked-other.pdf");
+    saveResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET, {
+      session_id: "sess-prior-1",
+      expires_at: "2099-01-01T00:00:00Z",
+      idempotency_key: "idem-prior-1",
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } },
+    });
+    // Seed a cached unlocked state so staleTime: 0 must fetch fresh from the server.
+    client.setQueryData(documentKeys.editLock(WS, DOC_ID), lockStateResponse(null));
+
+    editLockRoute.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      return lockStateResponse({
+        holder_id: "u2",
+        holder_name: "Bình",
+        held_by_me: false,
+      });
+    });
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      return {};
+    });
+
+    const putSpy = vi.fn();
+    vi.stubGlobal("fetch", putSpy);
+    const refused = vi.fn();
+    const off = onWriteRefused(DOC_ID, refused);
+
+    try {
+      await openDialogAndSubmit(bigFile, client);
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(t("documents.upload.document_locked"));
+      expect(calls).toContain(`GET /api/v1/documents/${DOC_ID}/edit-lock`);
+      expect(calls).not.toContain(`POST /api/v1/documents/${DOC_ID}/upload-sessions`);
+      expect(calls).not.toContain("GET /api/v1/upload-sessions/sess-prior-1");
+      expect(putSpy).not.toHaveBeenCalled();
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(refused).toHaveBeenCalledWith(
+        expect.objectContaining({ holder_id: "u2", holder_name: "Bình", held_by_me: false }),
+        undefined,
+      );
+      expect(findResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET)).toEqual({
+        session_id: "sess-prior-1",
+        expires_at: "2099-01-01T00:00:00Z",
+        idempotency_key: "idem-prior-1",
+      });
+    } finally {
+      off();
+      clearResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET);
+    }
+  });
+
+  it("refuses a large new version when held by me in another tab, mirroring checkDocumentEditLock in server/internal/service/document_edit_lock.go", async () => {
+    // checkDocumentEditLock in server/internal/service/document_edit_lock.go passes a commit
+    // only when edit_lock_id equals the live lock id, so a same-person commit from a tab
+    // without the id is refused at commit; the client pre-check mirrors it.
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "locked-other-tab.pdf");
+    saveResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET, {
+      session_id: "sess-prior-2",
+      expires_at: "2099-01-01T00:00:00Z",
+      idempotency_key: "idem-prior-2",
+    });
+
+    editLockRoute.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      return lockStateResponse({
+        holder_id: "u1",
+        holder_name: "An",
+        held_by_me: true,
+      });
+    });
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      return {};
+    });
+
+    const putSpy = vi.fn();
+    vi.stubGlobal("fetch", putSpy);
+    const refused = vi.fn();
+    const off = onWriteRefused(DOC_ID, refused);
+
+    try {
+      await openDialogAndSubmit(bigFile);
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(t("documents.upload.document_locked"));
+      expect(calls).toContain(`GET /api/v1/documents/${DOC_ID}/edit-lock`);
+      expect(calls).not.toContain(`POST /api/v1/documents/${DOC_ID}/upload-sessions`);
+      expect(calls).not.toContain("GET /api/v1/upload-sessions/sess-prior-2");
+      expect(putSpy).not.toHaveBeenCalled();
+      expect(refused).toHaveBeenCalledWith(
+        expect.objectContaining({ holder_id: "u1", holder_name: "An", held_by_me: true }),
+        undefined,
+      );
+      expect(findResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET)).toEqual({
+        session_id: "sess-prior-2",
+        expires_at: "2099-01-01T00:00:00Z",
+        idempotency_key: "idem-prior-2",
+      });
+    } finally {
+      off();
+      clearResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET);
+    }
+  });
+
+  it("passes the pre-check and commits with edit_lock_id when the lock is held in this tab", async () => {
+    const calls: { path: string; method: string; body?: unknown }[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "held-here.pdf");
+
+    editLockRoute.mockImplementation(async (path: string, opts?: { method?: string; body?: unknown }) => {
+      const method = opts?.method ?? "GET";
+      calls.push({ path, method, body: opts?.body });
+      return lockStateResponse({
+        holder_id: "u1",
+        holder_name: "An",
+        held_by_me: true,
+      });
+    });
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string; body?: unknown }) => {
+      const method = opts?.method ?? "GET";
+      calls.push({ path, method, body: opts?.body });
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-held-here",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-held-here/complete" && method === "POST") {
+        return {
+          upload_id: "up-held-here",
+          checksum_sha256: "b".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        return {
+          document: createdFileDoc(DOC_ID),
+          version: {
+            id: "v2",
+            document_id: DOC_ID,
+            version: 2,
+            kind: "file",
+            reason: "upload",
+            size_bytes: THRESHOLD + 1024,
+            checksum_sha256: "b".repeat(64),
+            created_at: "2026-10-18T01:05:00Z",
+          },
+        };
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const partNum = Number(/part-(\d+)/.exec(url)?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    registerHeldEditLock(DOC_ID, "lock-here-1");
+    try {
+      await openDialogAndSubmit(bigFile);
+      await waitFor(() => {
+        expect(calls.some((c) => c.path === `/api/v1/documents/${DOC_ID}/versions/commit`)).toBe(true);
+      });
+      expect(calls.some((c) => c.path === `/api/v1/documents/${DOC_ID}/edit-lock` && c.method === "GET")).toBe(true);
+      const commitCall = calls.find((c) => c.path === `/api/v1/documents/${DOC_ID}/versions/commit`);
+      expect(commitCall?.body).toEqual({
+        upload_id: "up-held-here",
+        base_revision: "1",
+        edit_lock_id: "lock-here-1",
+      });
+    } finally {
+      forgetHeldEditLock("lock-here-1");
+    }
+  });
+
+  it("passes the pre-check when no edit lock is held", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "unheld.pdf");
+
+    editLockRoute.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      return lockStateResponse(null);
+    });
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-unheld",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-unheld/complete" && method === "POST") {
+        return {
+          upload_id: "up-unheld",
+          checksum_sha256: "b".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        return {
+          document: createdFileDoc(DOC_ID),
+          version: {
+            id: "v2",
+            document_id: DOC_ID,
+            version: 2,
+            kind: "file",
+            reason: "upload",
+            size_bytes: THRESHOLD + 1024,
+            checksum_sha256: "b".repeat(64),
+            created_at: "2026-10-18T01:05:00Z",
+          },
+        };
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const partNum = Number(/part-(\d+)/.exec(url)?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    await openDialogAndSubmit(bigFile);
+    await waitFor(() => {
+      expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`);
+    });
+    expect(calls).toContain(`GET /api/v1/documents/${DOC_ID}/edit-lock`);
+    expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/upload-sessions`);
+  });
+
+  it("falls through to the server upload when the edit-lock pre-check read fails", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "lock-read-failed.pdf");
+
+    editLockRoute.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      throw new ApiError("Internal Server Error", "internal_error", 500);
+    });
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-fallback",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-fallback/complete" && method === "POST") {
+        return {
+          upload_id: "up-fallback",
+          checksum_sha256: "b".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        return {
+          document: createdFileDoc(DOC_ID),
+          version: {
+            id: "v2",
+            document_id: DOC_ID,
+            version: 2,
+            kind: "file",
+            reason: "upload",
+            size_bytes: THRESHOLD + 1024,
+            checksum_sha256: "b".repeat(64),
+            created_at: "2026-10-18T01:05:00Z",
+          },
+        };
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const partNum = Number(/part-(\d+)/.exec(url)?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    await openDialogAndSubmit(bigFile);
+    await waitFor(() => {
+      expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`);
+    });
+    expect(calls).toContain(`GET /api/v1/documents/${DOC_ID}/edit-lock`);
+    expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/upload-sessions`);
+  });
+
+  it("surfaces a create-time 423 document_locked as the locked copy with no resume record, no progress bar in the dialog, and no spinner toast on the drop path", async () => {
+    const gateFields = {
+      holder_id: "u2",
+      holder_name: "Bình",
+      since: "2026-10-18T01:00:00Z",
+      expires_at: "2026-10-18T01:02:00Z",
+      held_by_me: false,
+      current_revision: "3",
+    };
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "create-423.pdf");
+    const refused = vi.fn();
+    const off = onWriteRefused(DOC_ID, refused);
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        throw new ApiError("đang bị khóa", "document_locked", 423, undefined, gateFields);
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
+        throw new ApiError("đang bị khóa", "document_locked", 423, undefined, gateFields);
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    try {
+      const { unmount } = render(wrap(<DocumentFileView wsId={WS} doc={createdFileDoc(DOC_ID)} readonly={false} />));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+      await screen.findByText(t("documents.upload.size_hint", { max: "150 MB" }));
+      const input = await screen.findByLabelText(t("documents.upload.pick"));
+      fireEvent.change(input, { target: { files: [bigFile] } });
+      fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(t("documents.upload.document_locked"));
+      expect(alert).not.toHaveTextContent(t("documents.upload.failed_resumable"));
+      expect(alert).not.toHaveTextContent(t("documents.file.upload_failed"));
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("document-upload-resume-hint")).not.toBeInTheDocument();
+      expect(findResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET)).toBeNull();
+      expect(refused).toHaveBeenCalledWith(gateFields, undefined);
+      unmount();
+
+      // Drop path: loading spinner toast is dismissed and locked error toast is shown.
+      const loadingSpy = vi.spyOn(toast, "loading").mockReturnValue("drop-toast-423");
+      const dismissSpy = vi.spyOn(toast, "dismiss").mockReturnValue("");
+      const errorSpy = vi.spyOn(toast, "error").mockReturnValue("");
+
+      calls.length = 0;
+      renderPageView();
+      await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+      await waitFor(() => {
+        expect(calls.some((c) => c.startsWith("GET /api/v1/config"))).toBe(true);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const dropRegion = screen.getByRole("region", { name: t("documents.page.title") });
+      const droppedFile = makePdfFile(THRESHOLD + 1024, "dropped-423.pdf");
+      fireEvent.drop(dropRegion, {
+        dataTransfer: { types: ["Files"], files: [droppedFile] },
+      });
+
+      await waitFor(() => {
+        expect(loadingSpy).toHaveBeenCalled();
+        expect(dismissSpy).toHaveBeenCalledWith("drop-toast-423");
+        expect(errorSpy).toHaveBeenCalledWith(t("documents.upload.document_locked"));
+      });
+      expect(
+        findResumableUpload(defaultStorage, uploadFileKey(droppedFile), {
+          kind: "workspace",
+          workspaceId: WS,
+        }),
+      ).toBeNull();
+    } finally {
+      off();
+    }
+  });
+
+  it("takes no edit-lock pre-check for small files at or below the chunked threshold", async () => {
+    const calls: string[] = [];
+    const smallFile = makePdfFile(THRESHOLD, "at-threshold.pdf");
+
+    editLockRoute.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      return lockStateResponse(null);
+    });
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/uploads` && method === "POST") {
+        return {
+          upload_id: "up-small-1",
+          checksum_sha256: "c".repeat(64),
+          size_bytes: THRESHOLD,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        return {
+          document: createdFileDoc(DOC_ID),
+          version: {
+            id: "v2",
+            document_id: DOC_ID,
+            version: 2,
+            kind: "file",
+            reason: "upload",
+            size_bytes: THRESHOLD,
+            checksum_sha256: "c".repeat(64),
+            created_at: "2026-10-18T01:05:00Z",
+          },
+        };
+      }
+      return {};
+    });
+
+    await openDialogAndSubmit(smallFile);
+    await waitFor(() => {
+      expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`);
+    });
+    expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/uploads`);
+    expect(calls).not.toContain(`GET /api/v1/documents/${DOC_ID}/edit-lock`);
+    expect(calls).not.toContain(`POST /api/v1/documents/${DOC_ID}/upload-sessions`);
   });
 });
 
