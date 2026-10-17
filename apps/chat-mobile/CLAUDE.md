@@ -134,9 +134,12 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   (EAS build + auto-submit, Environment `chat-mobile-release`, chỉ
   `EXPO_TOKEN`; thiếu thì notice và xanh).
 - `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
-  có lối tắt phiên thử nghiệm trong bản nào), `flows/*.yaml` là luồng vàng chạy
-  hằng đêm bởi `.github/workflows/chat-mobile-verify.yml` với server staging
-  (biến `MAESTRO_*`; thiếu thì notice và xanh). Flow chọn theo chữ vi|en; màn
-  mới cho flow nên có `testID`.
+  có lối tắt phiên thử nghiệm trong bản nào), ba luồng vàng
+  `flows/{chat-read-send,push-open-room,call-join}.yaml` chạy hằng đêm bởi
+  `.github/workflows/chat-mobile-verify.yml` với server staging (biến
+  `MAESTRO_*`; thiếu thì notice và xanh). Trong app flow chọn theo `testID`
+  (`room-row-<roomId>`, `conversation-<roomId>`, `composer-input`,
+  `composer-send`, `room-call-*`, `call-*`) — đổi tên một id thì sửa flow cùng
+  PR; trang web trong sheet đăng nhập thì theo chữ vi|en.
 - `store/listing.md`: mô tả vi/en, privacy labels, lý do từng quyền, tài khoản
   demo cho review. Thêm quyền native thì cập nhật bảng quyền ở đó.
