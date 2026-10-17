@@ -22,6 +22,7 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { CommentActorAvatar } from "../comments/comment-actor-avatar";
+import { documentDownloadName } from "./document-download-name";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { formatShortWhen } from "./document-format";
 import { libraryCell, type LibraryLadder } from "./library-columns";
@@ -109,7 +110,7 @@ export function ShelvedRowView({
         const url = URL.createObjectURL(blob);
         const anchor = window.document.createElement("a");
         anchor.href = url;
-        anchor.download = doc.title;
+        anchor.download = documentDownloadName(doc);
         anchor.rel = "noopener";
         window.document.body.append(anchor);
         anchor.click();

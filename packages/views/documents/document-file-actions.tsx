@@ -12,6 +12,7 @@ import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import type { Document } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
+import { documentDownloadName } from "./document-download-name";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { reportWriteRefused } from "./edit-lock-refusal";
@@ -56,7 +57,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       const url = URL.createObjectURL(blob);
       const anchor = window.document.createElement("a");
       anchor.href = url;
-      anchor.download = doc.file?.filename ?? doc.title;
+      anchor.download = documentDownloadName(doc);
       anchor.rel = "noopener";
       window.document.body.append(anchor);
       anchor.click();
