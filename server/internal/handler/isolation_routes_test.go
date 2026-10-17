@@ -486,6 +486,15 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}": {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
+	// The source frame (UNI-1869): a source token, minted by the owner's
+	// session for a DOCX task attachment, opens the metadata and the bytes.
+	// do() sends that token on /api/v1/office-frame/sources/* (frameSources),
+	// so the cross-tenant pass attacks with B's own source token and the
+	// anonymous pass with none.
+	"POST /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/office/frame-token": {reason: "the mint re-runs the source's own gate and binds w/o/s into the claims; a foreign workspace or source answers 403/404"},
+	"GET /api/v1/office-frame/sources/{sourceFileID}":                                           {reason: "the source token binds w/o/s/parent; AuthorizeSource re-runs the source gate as the token's user, so a foreign source is not_found"},
+	"GET /api/v1/office-frame/sources/{sourceFileID}/content":                                   {reason: "as the open route: the bytes stream only after AuthorizeSource re-runs the source gate"},
+	"HEAD /api/v1/office-frame/sources/{sourceFileID}/content":                                  {reason: "as the open route: the headers are answered only after AuthorizeSource re-runs the source gate"},
 	// GO-A7's AI on the frame token (UNI-1014): the same bodies and vendor exemptions as the session rows.
 	"PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}":            {body: isoAICredentialPut},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions": {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
