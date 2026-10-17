@@ -286,11 +286,12 @@ type UpdateDocumentAccessSDI struct {
 
 // DocumentAccessItemSDI is one principal change in UpdateDocumentAccessSDI;
 // the element type is named on purpose so the isolation reference scanner sees
-// DocumentAccessItemSDI.principal_id.
+// DocumentAccessItemSDI.principal_id. level is required on the wire: an absent
+// key is a 400 (R1-10), an explicit null is the revoke.
 type DocumentAccessItemSDI struct {
 	PrincipalType string  `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
 	PrincipalID   string  `json:"principal_id" description:"ULID người dùng, workspace hoặc tổ chức" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level         *string `json:"level" description:"view, comment, edit, manage; null để thu hồi grant trực tiếp hiện tại (dòng Workspace gốc: tắt về restricted)" example:"edit"`
+	Level         *string `json:"level" description:"Bắt buộc: view, comment, edit, manage, hoặc null để thu hồi grant trực tiếp hiện tại (dòng Workspace gốc: tắt về restricted); thiếu khóa -> 400" example:"edit"`
 	OnExisting    string  `json:"on_existing,omitempty" description:"update (mặc định) hoặc keep (giữ nguyên grant đang có)" example:"update"`
 }
 

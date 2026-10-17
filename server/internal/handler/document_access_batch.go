@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -19,12 +20,40 @@ func (h *handlers) updateDocumentAccess(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
+	// R1-10: level is a required key on every item, where an explicit null is
+	// the revoke and an absent key is malformed. A *string conflates the two,
+	// so an incomplete item would silently revoke a live grant. The raw body
+	// is decoded once into a presence map (the updateChatChannel pattern), the
+	// typed decode runs on the same bytes, and the presence of level is read
+	// back per item before the service sees it.
+	var raw map[string]json.RawMessage
+	if !decode(w, r, &raw, maxJSONBody) {
+		return
+	}
 	var in sdi.UpdateDocumentAccessSDI
-	if !decode(w, r, &in, maxJSONBody) {
+	buf, _ := json.Marshal(raw)
+	if err := json.Unmarshal(buf, &in); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "JSON không hợp lệ")
+		return
+	}
+	var rawItems []map[string]json.RawMessage
+	if v, ok := raw["items"]; ok && string(v) != "null" {
+		if err := json.Unmarshal(v, &rawItems); err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "JSON không hợp lệ")
+			return
+		}
+	}
+	if len(rawItems) != len(in.Items) {
+		respondError(w, http.StatusBadRequest, "invalid_request", "items không hợp lệ")
 		return
 	}
 	items := make([]service.DocumentAccessBatchItem, len(in.Items))
 	for i, it := range in.Items {
+		_, levelPresent := rawItems[i]["level"]
+		if !levelPresent {
+			respondError(w, http.StatusBadRequest, "invalid_request", "level là trường bắt buộc; gửi null để thu hồi")
+			return
+		}
 		var lvl *service.DocumentLevel
 		if it.Level != nil {
 			l := service.DocumentLevel(*it.Level)
