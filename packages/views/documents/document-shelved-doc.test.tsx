@@ -1,11 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { QueryClient } from "@tanstack/react-query";
 import { ApiError } from "@uniwork/core/api";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import { editLockRoute } from "../test/edit-lock-fake";
 import { DocumentDetailView } from "./document-detail-view";
 import { VersionHistorySheet } from "./version-history-sheet";
 
@@ -50,14 +53,14 @@ function pageDocument(over: Record<string, unknown> = {}): Document {
 const shelvedPage = (over: Record<string, unknown> = {}) =>
   pageDocument({ shelved_at: SHELVED_AT, shelved_by: "u9", ...over });
 
-function withFlag(ui: React.ReactElement) {
+function withFlag(ui: React.ReactElement, client?: QueryClient) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
-  return wrapWithNav(<FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>);
+  return wrapWithNav(<FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>, undefined, client);
 }
 
-function renderView() {
+function renderView(client?: QueryClient) {
   return render(
-    withFlag(<DocumentDetailView wsId={WS} documentId="d1" libraryHref={LIBRARY} onBackToList={vi.fn()} />),
+    withFlag(<DocumentDetailView wsId={WS} documentId="d1" libraryHref={LIBRARY} onBackToList={vi.fn()} />, client),
   );
 }
 
@@ -277,6 +280,77 @@ describe("UI-AR7 document_shelved from a write turns the page read-only", () => 
     await new Promise((resolve) => setTimeout(resolve, 2_500));
     expect(keys).toHaveLength(2);
   }, 25_000);
+
+  // RAR-11: the refusal lands while the lock is held. canEdit must flip in the same commit, so the lock is
+  // released (a DELETE of the held lock id), the editor reads read-only and nothing more is saved.
+  it("releases the held edit lock when the autosave is refused, and sends nothing more", async () => {
+    let patches = 0;
+    serve(pageDocument({ my_level: "edit" }), {
+      "PATCH /api/v1/documents/d1": () => {
+        patches += 1;
+        return shelvedError();
+      },
+      // The read after the refusal never answers: only the refusal itself can turn the page read-only here.
+      "GET /api/v1/documents/d1": () => (patches > 0 ? new Promise(() => undefined) : { document: pageDocument({ my_level: "edit" }) }),
+    });
+    renderView();
+    const surface = await findEditor();
+    await waitFor(() => expect(editLockRoute.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
+    expect(editLockRoute.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+    fireEvent.paste(surface, {
+      clipboardData: { files: [], getData: (type: string) => (type === "text/plain" ? "Thêm" : "") },
+    });
+    await waitFor(() => expect(patches).toBe(1), { timeout: 8_000 });
+    await waitFor(() =>
+      expect(editLockRoute.mock.calls.some(([path, init]) => init?.method === "DELETE" && String(path).endsWith("/edit-lock/lock-d1"))).toBe(true),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: t("documents.editor.aria_label") })).toHaveAttribute("contenteditable", "false"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    expect(patches).toBe(1);
+  }, 25_000);
+
+  // RAR-10: the page already reads shelved (the refusal was seen and the document read again) when the
+  // document prop turns live again. The held draft goes out once the edit lock is held again, so that one
+  // send carries edit_lock_id (a send without it is a wasted 423).
+  it("sends the held draft once, with the edit lock id, when the doc prop goes shelved -> unshelved", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
+    const keys: (string | undefined)[] = [];
+    const bodies: unknown[] = [];
+    let current = pageDocument({ my_level: "edit" });
+    serve(current, {
+      "PATCH /api/v1/documents/d1": (init) => {
+        keys.push((init as { headers?: Record<string, string> } | undefined)?.headers?.["Idempotency-Key"]);
+        bodies.push(init?.body);
+        if (keys.length === 1) {
+          current = shelvedPage({ my_level: "edit" });
+          return shelvedError();
+        }
+        return { document: pageDocument({ my_level: "edit", revision: "4", content_text: "Nội dung A Thêm" }) };
+      },
+      "GET /api/v1/documents/d1": () => ({ document: current }),
+    });
+    renderView(client);
+    const surface = await findEditor();
+    fireEvent.paste(surface, {
+      clipboardData: { files: [], getData: (type: string) => (type === "text/plain" ? "Thêm" : "") },
+    });
+    await waitFor(() => expect(screen.getByText(t("documents.shelved_doc.banner"))).toBeInTheDocument(), { timeout: 10_000 });
+    expect(keys).toHaveLength(1);
+    // The document read again after the refusal says shelved before it is unarchived.
+    await waitFor(() => expect(client.getQueryData<Document>(documentKeys.detail(WS, "d1"))?.shelved_at).toBe(SHELVED_AT));
+    // Unarchived elsewhere: the document prop turns live again.
+    current = pageDocument({ my_level: "edit" });
+    client.setQueryData(documentKeys.detail(WS, "d1"), current);
+    await waitFor(() => expect(keys).toHaveLength(2), { timeout: 10_000 });
+    expect(keys[1]).toBe(keys[0]);
+    expect(bodies[0]).toMatchObject({ edit_lock_id: expect.any(String) });
+    expect(bodies[1]).toMatchObject({ edit_lock_id: expect.any(String) });
+    await waitFor(() => expect(screen.queryByText(t("documents.shelved_doc.banner"))).toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    expect(keys).toHaveLength(2);
+  }, 30_000);
 });
 
 // F7: a title edit refused with document_shelved leaves no stale typed text behind: the breadcrumb and the
