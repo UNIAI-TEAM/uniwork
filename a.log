@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+790e313abf3391b95d898e97021f6557c2dddec3
+790e313ab test(e2e): My Folder sub-nav, Home create destination, and guards (UNI-1850)
+2b4d1c853 feat(documents): My Folder on the web and Home creates into it (UNI-1850)
+0a2d40a5e chore: merge SHAREDBYME-01 shared by me view (UNI-1851, 54bd5363e) into the G5-G7 root
+54bd5363e fix(documents): refresh Shared by me after share changes; review fixes (UNI-1851)
+c17242021 test(e2e): verify Shared by me collection view for owner and recipient
+056496b1c feat(documents): add Shared by me collection view and sub-nav entry
+844aab79f chore: merge SIZE-S2 spool validation (UNI-1870, e40c9c519) into the G5-G7 root
+95c03a58f chore: merge SRC-02b documents source office view (UNI-1869, 3ca55437d) into the G5-G7 root
