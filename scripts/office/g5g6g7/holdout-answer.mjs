@@ -91,35 +91,50 @@ function matchNumbers(expected, figures) {
   return { numeric, extras: free.map((f) => f.value) };
 }
 
-const NUMBER_TOKEN_RE = /\d[\d.,]*\d|\d/g;
+/**
+ * Single quantity tokenizer (review-g712-16 A7, review-g712-17 R17-4/R17-5, review-g712-18 R18-2/R18-9), used for
+ * prose, read strings, shown operands and extra-figure matching. Handles unary signs (ASCII `-` and Unicode `−`
+ * U+2212, never address/date/range separators), thousands grouping (`,`, `.`, space), decimals, percent signs,
+ * currency prefixes/suffixes, and unit/magnitude suffixes (`k`, `m`, `bn`, `tr`, `trieu`, `ty`, `nghin`, `ngàn`, `%`).
+ * A sign is part of the value (`-60 != 60`), and a magnitude suffix makes the token a quantity (`60k = 60000`), never
+ * an identifier.
+ */
+const MAGNITUDE_FACTORS = new Map([
+  ['k', 1e3], ['nghin', 1e3], ['nghìn', 1e3], ['ngan', 1e3], ['ngàn', 1e3],
+  ['m', 1e6], ['tr', 1e6], ['trieu', 1e6], ['triệu', 1e6],
+  ['bn', 1e9], ['ty', 1e9], ['tỷ', 1e9], ['tỉ', 1e9],
+]);
+const MAGNITUDE_NAMES = [...MAGNITUDE_FACTORS.keys()];
+const ALL_UNIT_NAMES = [...UNIT_TOKENS, ...MAGNITUDE_NAMES, '%'];
+const QUANTITY_CANDIDATE_RE = /[-+\u2212]?(?:\d{1,3}(?:[ \u00a0]\d{3})+(?:[.,]\d+)?|\d[\d.,]*\d|\d)/g;
+const ATTACHED_MAG_RE = /^(?:(k|m|bn|tr|trieu|triệu|ty|tỷ|tỉ|nghin|nghìn|ngan|ngàn)|[ \t]+(bn|tr|trieu|triệu|ty|tỷ|tỉ|nghin|nghìn|ngan|ngàn))(?![\p{L}\d])/iu;
 
-function tokenToNumber(tok) {
-  if (/^[-+]?0\.\d+$/.test(String(tok).trim())) return Number(tok);
-  return toNumber(tok);
+function parseBaseNumber(tok) {
+  const s = String(tok ?? '').trim().replace(/\u2212/g, '-');
+  if (/^[-+]?0\.\d+$/.test(s)) return Number(s);
+  return toNumber(s);
 }
 
-// A cell or range address inside one word of the reply ("Sheet!A1", "A1:G7", "$B$2", and a label like "Q1"), a date
-// ("2026-10-17", "17/10/2026") and a section/list locator word ("slide 3", "dòng 7", "mục 2"). Digits that belong to
-// one of these are not quantity claims (review-g712-16 A7).
-//
-// R17-4 (review-g712-17): the address exemption needs real address or range tokens with boundaries — a sheet name may
-// be quoted and hold spaces, the column letters and row digits must be whole, and the cell may be `$`-absolute. A
-// currency- or unit-prefixed amount ("VND987654321", "$987654321", "987654321VND") is a QUANTITY, never an address,
-// even though the letters of the unit look like column letters; so is any other letter-led run.
+function tokenToNumber(tok) {
+  const raw = String(tok ?? '').trim().replace(/\u2212/g, '-');
+  const mag = /^(.*?\d)\s*(k|m|bn|tr|trieu|triệu|ty|tỷ|tỉ|nghin|nghìn|ngan|ngàn)\s*%?$/iu.exec(raw);
+  if (mag) {
+    const base = parseBaseNumber(mag[1]);
+    const factor = MAGNITUDE_FACTORS.get(mag[2].toLowerCase()) ?? 1;
+    return base === null ? null : base * factor;
+  }
+  return parseBaseNumber(raw);
+}
+
 const CELL_RE = String.raw`\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?`;
-// A real address or range: a sheet-qualified cell ("Sheet!A1", "Doanh thu Q1!G8:G8", "'Q1 2026'!A1") or a bare one
-// ("A1", "A1:B2"). The sheet name may be quoted and hold spaces, or be an unquoted run without spaces.
 const ADDRESS_RUN_RE = new RegExp(`(?:'(?:[^']|'')+'|[A-Za-z_][\\w.]*)!${CELL_RE}|\\b${CELL_RE}\\b`, 'g');
 const PERIOD_LABEL_RE = /^(?:q[1-4]|[qk]uý\s*[1-4]|quý\s+[ivx]+|kỳ\s*\d+|tháng\s*\d{1,2}|năm\s*\d{4}|h[1-4]|sheet\s*\d+)$/i;
-// An identifier word: a URL ("http://host:8443/v1"), an email or handle ("ops@example.com"), a key-shaped token
-// ("sk-abcdefgh12345678"), or an opaque alphanumeric token ("abcdefghijklmnop1234"). Its digits are a host, a port or
-// a secret, never an amount the reply states. A unit-suffixed amount is NOT an identifier (R17-4), so it is tested first.
-const UNIT_SUFFIX_RE = new RegExp(`^[0-9.,]+\\s*(?:${UNIT_TOKENS.map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`, 'iu');
+const UNIT_ESCAPE = ALL_UNIT_NAMES.map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+const UNIT_SUFFIX_RE = new RegExp(`^[-+\u2212]?[0-9.,]+\\s*(?:${UNIT_ESCAPE})$`, 'iu');
+const NUMBER_PREFIXED_UNIT_RE = new RegExp(`^[-+\u2212]?(?:${UNIT_ESCAPE})\\s*\\d`, 'iu');
+const KNOWN_UNIT_WORD_RE = new RegExp(`^(?:${UNIT_ESCAPE})$`, 'iu');
 const IDENTIFIER_WORD_RE = /:\/\/|@|^[A-Za-z]{2,}[-_][A-Za-z0-9_-]{6,}$|^[A-Za-z0-9]{8,}$/;
-const NUMBER_PREFIXED_UNIT_RE = new RegExp(`^(?:${UNIT_TOKENS.map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'iu');
-const DATE_WORD_RE = /\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}/;
-// Written-month dates, English and Vietnamese (R17-5): "October 17, 2026", "17 October 2026",
-// "17 tháng 10 năm 2026", "ngày 17 tháng 10, 2026". The month word is what makes it a date; a bare "17" stays a claim.
+const DATE_WORD_RE = /^(?:\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}|\d{1,2}(?:\.\d{1,2}){2,})$/;
 const MONTH_WORDS = 'january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|tháng';
 const WRITTEN_MONTH_BEFORE_RE = new RegExp(`(?:^|[^\\p{L}])(?:ngày\\s+)?(?:${MONTH_WORDS})\\s*$`, 'iu');
 const WRITTEN_MONTH_AFTER_RE = new RegExp(`^\\s*(?:${MONTH_WORDS})\\b`, 'iu');
@@ -127,7 +142,6 @@ const YEAR_AFTER_MONTH_RE = new RegExp(`(?:${MONTH_WORDS})\\s*(?:\\d{1,2}\\s*[,.
 const LOCATOR_WORD_RE = /(?:slide|page|trang|row|line|hàng|dòng|ô|cell|section|mục|chương|quý|quarter|step|bước|khu vực|table|bảng|biểu đồ|chart|phần|item|tháng|năm|ngày)\s*$/i;
 const QUOTE_CHARS = /["“”„«»]/g;
 
-/** The word (whitespace-delimited run) that holds the token at [start, end). */
 function wordAround(text, start, end) {
   let i = start;
   while (i > 0 && !/\s/.test(text[i - 1])) i -= 1;
@@ -136,11 +150,6 @@ function wordAround(text, start, end) {
   return { word: text.slice(i, j), before: text.slice(0, i), after: text.slice(j) };
 }
 
-/**
- * Is the token at [start, end) of `text` an address, a range or a period label rather than a quantity (R17-4)? The
- * whole line is scanned for real address runs, so a number inside one ("Sheet!A1", "A1:B2", "Doanh thu Q1!G8:G8",
- * "'Q1 2026'!A1") is exempt with its boundaries, and a "Q1"/"quý 1" period label is exempt on its own.
- */
 function isAddressToken(text, start, end) {
   const lineStart = text.lastIndexOf('\n', start - 1) + 1;
   const lineEnd = text.indexOf('\n', end);
@@ -155,11 +164,6 @@ function isAddressToken(text, start, end) {
   return PERIOD_LABEL_RE.test(bare);
 }
 
-/**
- * Is the token at [start, end) part of a written-month date (R17-5)? The month word is what makes it a date: the token
- * directly follows a written month ("October 17", "tháng 10"), directly precedes one ("17 October"), or is the year
- * that closes a written date ("October 17, 2026", "17 October 2026"). A bare number next to no month word stays a claim.
- */
 function isWrittenDateToken(text, start, end) {
   const token = text.slice(start, end);
   const { before, after } = wordAround(text, start, end);
@@ -167,36 +171,57 @@ function isWrittenDateToken(text, start, end) {
   return /^\d{4}$/.test(token) && YEAR_AFTER_MONTH_RE.test(before);
 }
 
-/**
- * The numbers the reply states in prose that are quantity claims (review-g712-16 A7). A prose figure is a claim like a
- * reported number, so it must be reported or traceable; only tokens that are clearly not quantities are exempt: a
- * cell/range address with real boundaries or a period label like "Q1" (R17-4), a numeric or written-month date
- * (R17-5), a locator word before it, a list marker that starts a line ("1. ", "3) "), and digits inside quoted
- * document text. A currency- or unit-prefixed amount is a quantity, not an address.
- */
-export function proseQuantityTokens(text) {
+function isRealIdentifierWord(bareWord) {
+  if (!bareWord || UNIT_SUFFIX_RE.test(bareWord) || NUMBER_PREFIXED_UNIT_RE.test(bareWord)) return false;
+  if (/:\/\/|@/.test(bareWord) || /^[A-Za-z]{2,}[-_][A-Za-z0-9_-]{6,}$/.test(bareWord)) return true;
+  if (!/^[A-Za-z0-9]{8,}$/.test(bareWord) || !/[A-Za-z]/.test(bareWord)) return false;
+  const letterRuns = bareWord.match(/[A-Za-z]+/g) ?? [];
+  return letterRuns.length > 0 && !letterRuns.every((run) => KNOWN_UNIT_WORD_RE.test(run));
+}
+
+function quantityTokens(text, { proseExemptions = false } = {}) {
   const out = [];
-  const source = String(text);
-  for (const match of source.matchAll(NUMBER_TOKEN_RE)) {
-    const start = match.index;
-    const end = start + match[0].length;
-    const { word, before, after } = wordAround(source, start, end);
-    // R17-4: a unit- or currency-prefixed run ("VND987654321", "$987654321", "987654321VND") is a QUANTITY. It is
-    // never an address, even though the unit's letters would read as column letters to the address pattern.
-    if (NUMBER_PREFIXED_UNIT_RE.test(word)) { out.push(match[0]); continue; }
-    // An identifier's digits (a URL host or port, an email, a key) are not an amount the reply states.
-    const bareWord = word.replace(/[),.;:"'“”]+$/, '');
-    if (!UNIT_SUFFIX_RE.test(bareWord) && IDENTIFIER_WORD_RE.test(bareWord) && /[A-Za-z]/.test(bareWord)) continue;
-    if (isAddressToken(source, start, end) || DATE_WORD_RE.test(word) || isWrittenDateToken(source, start, end)) continue;
-    if (LOCATOR_WORD_RE.test(before.trimEnd())) continue;
-    // A list marker (R17-5): the token starts a line (the first line counts too) and the rest of its word is only the
-    // marker punctuation ("1. Bắc", "3) Nam", "2. "). The digits of such an ordinal are not a quantity.
-    if (/(?:^|\n)[ \t]*$/.test(before) && /^[.)]+$/.test(word.slice(match[0].length))) continue;
-    // Inside quoted document text: an odd number of quote characters before it opens a quotation that this digit sits in.
-    if (((before.match(QUOTE_CHARS) ?? []).length % 2) === 1) continue;
-    out.push(match[0]);
+  const source = String(text ?? '');
+  for (const match of source.matchAll(QUANTITY_CANDIDATE_RE)) {
+    let start = match.index;
+    let raw = match[0];
+    if (/^[-+\u2212]/.test(raw)) {
+      const prev = start > 0 ? source[start - 1] : '';
+      if (prev && /[0-9\p{L}/.\-\u2212:]/u.test(prev)) {
+        raw = raw.slice(1);
+        start += 1;
+      } else if (raw[0] === '\u2212') {
+        raw = `-${raw.slice(1)}`;
+      }
+    }
+    let end = match.index + match[0].length;
+    const magMatch = ATTACHED_MAG_RE.exec(source.slice(end));
+    if (magMatch) {
+      raw = `${raw}${magMatch[0]}`;
+      end += magMatch[0].length;
+    }
+    if (proseExemptions && !magMatch) {
+      const { word, before } = wordAround(source, start, end);
+      const bareWord = word.replace(/^[([{'"“”]+|[)\]},.;:!?"'“”]+$/g, '');
+      if (!NUMBER_PREFIXED_UNIT_RE.test(bareWord) && !UNIT_SUFFIX_RE.test(bareWord)) {
+        if (isRealIdentifierWord(bareWord)) continue;
+        if (isAddressToken(source, start, end) || DATE_WORD_RE.test(bareWord) || isWrittenDateToken(source, start, end)) continue;
+        if (LOCATOR_WORD_RE.test(before.trimEnd())) continue;
+        if (/(?:^|\n)[ \t]*$/.test(before) && /^[.)]+$/.test(word.slice(raw.length))) continue;
+        if (((before.match(QUOTE_CHARS) ?? []).length % 2) === 1) continue;
+      }
+    }
+    out.push(raw);
   }
   return out;
+}
+
+export function proseQuantityTokens(text) {
+  return quantityTokens(text, { proseExemptions: true });
+}
+
+function quantityValuesOf(text, opts = {}) {
+  return quantityTokens(text, opts).map(tokenToNumber).filter((n) => n !== null);
 }
 
 function shownDecimalPlaces(value, n) {
@@ -263,27 +288,106 @@ export function isTraceableFigure(value, pool, shownNumbers = []) {
 }
 
 /**
- * The numbers one data read's result carries. A tool result is JSON, so it is read structurally when it parses: the
- * leaves are the values the read returned, and a JSON array "[60,83]" is two numbers, not one grouped "60,83" (the
- * prose tokenizer reads a comma as a grouping separator). A chunk that does not parse falls back to the prose tokens.
+ * Single per-call evidence extractor (review-g712-18 R18-1, R18-8). Operands come ONLY from VALUE-BEARING leaves of
+ * SUCCESSFUL data-read results, never from envelope keys, addresses, row/column/range metadata, counts of rows, or
+ * status/error text of a failed or partial result.
+ *
+ * Documented per-tool value fields in `/home/ubuntu/projects/uniwork-office` (and `holdout-backend.mjs` stand-ins):
+ *   - `read_range`: cell values (`apps/sheets/src/renderer/ai/tools.ts:819-900` `formatCellScalar`; harness
+ *     `holdout-backend.mjs:391-405` `rows[].cells.*` and `rows[]` scalar arrays), stripping `[formula =…]`.
+ *   - `read_cells`: `cells.*` (`apps/sheets/src/renderer/ai/tools.ts:1041-1104`; `holdout-backend.mjs:407-413`).
+ *   - `read_sheet_features`: `rows[].cells.*` (`apps/sheets/src/renderer/ai/tools.ts:1016-1040`).
+ *   - `find_cells`: `hits[].value` (`apps/sheets/src/renderer/ai/tools.ts:1105-1189`).
+ *   - `trace_precedents`: `value` (`apps/sheets/src/renderer/ai/tools.ts:1190-1230`).
+ *   - `aggregate_range` / `summarize_range`: `sum`, `average`, `min`, `max`, `groups[].{sum,average,min,max}`
+ *     (`apps/sheets/src/renderer/ai/tools.ts:911-966` `formatRangeAggregate`; `count` of rows excluded).
+ *   - `get_document_context` / `read_blocks` / `read_table` / `read_frontmatter` / `read_slide` / `read_pages` /
+ *     `search_text` / `read_source`: `blocks[].{preview,text}`, `blocks[].rows[][]`, `rows[][]`, `texts[]`,
+ *     `pages[].lines[]`, `hits[].line`, `text` (`packages/docx-engine/src/ai/tools.ts`, `packages/pptx-engine/src/ai/tools.ts`,
+ *     `packages/pdf2docx/src/ai/tools.ts`, `packages/markdown/src/ai/tools.ts`; `holdout-backend.mjs:472-555`).
  */
-function numbersOfToolResults(text) {
+const AGGREGATE_VALUE_KEYS = ['sum', 'average', 'min', 'max'];
+const NON_VALUE_META_KEYS = new Set(['error', 'err', 'status', 'denied', 'reason', 'message']);
+
+const cleanCellString = (s) => String(s ?? '').replace(/\s*\[formula\s*=[^\]]*\]/gi, '');
+
+function isFailedResultPayload(root) {
+  if (!root || typeof root !== 'object' || Array.isArray(root)) return false;
+  if (Boolean(root.error) || Boolean(root.err) || Boolean(root.denied)) return true;
+  return typeof root.status === 'string' && /^(?:error|failed|denied|refused|partial)$/i.test(root.status.trim());
+}
+
+function callValueNumbers(text, { strictToolFields = true } = {}) {
   const out = [];
-  const walk = (node) => {
-    if (typeof node === 'number') { if (Number.isFinite(node)) out.push(node); return; }
-    if (typeof node === 'string') {
-      for (const token of node.match(NUMBER_TOKEN_RE) ?? []) { const n = tokenToNumber(token); if (n !== null) out.push(n); }
-      return;
-    }
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (node !== null && typeof node === 'object') Object.values(node).forEach(walk);
+  const pushLeaf = (v) => {
+    if (typeof v === 'number') { if (Number.isFinite(v)) out.push(v); return; }
+    if (typeof v === 'string') out.push(...quantityValuesOf(strictToolFields ? cleanCellString(v) : v));
   };
+  let root;
   try {
-    walk(JSON.parse(String(text)));
-    return out;
+    root = JSON.parse(String(text));
   } catch {
-    return (String(text).match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber).filter((x) => x !== null);
+    return strictToolFields ? [] : quantityValuesOf(String(text));
   }
+  if (isFailedResultPayload(root)) return [];
+  if (!strictToolFields) {
+    const walkPool = (node) => {
+      if (typeof node === 'number' || typeof node === 'string') { pushLeaf(node); return; }
+      if (Array.isArray(node)) { node.forEach(walkPool); return; }
+      if (node && typeof node === 'object') {
+        for (const [k, v] of Object.entries(node)) {
+          if (!NON_VALUE_META_KEYS.has(k)) walkPool(v);
+        }
+      }
+    };
+    walkPool(root);
+    return out;
+  }
+  if (Array.isArray(root)) { root.forEach(pushLeaf); return out; }
+  if (!root || typeof root !== 'object') { pushLeaf(root); return out; }
+  for (const key of AGGREGATE_VALUE_KEYS) if (root[key] !== undefined) pushLeaf(root[key]);
+  if (root.value !== undefined) pushLeaf(root.value);
+  if (typeof root.text === 'string') pushLeaf(root.text);
+  if (root.cells && typeof root.cells === 'object') Object.values(root.cells).forEach(pushLeaf);
+  if (Array.isArray(root.texts)) root.texts.forEach(pushLeaf);
+  if (Array.isArray(root.rows)) {
+    for (const row of root.rows) {
+      if (Array.isArray(row)) row.forEach(pushLeaf);
+      else if (row && typeof row === 'object') {
+        if (row.cells && typeof row.cells === 'object') Object.values(row.cells).forEach(pushLeaf);
+      } else pushLeaf(row);
+    }
+  }
+  if (Array.isArray(root.hits)) {
+    for (const hit of root.hits) {
+      if (hit && typeof hit === 'object') {
+        if (hit.value !== undefined) pushLeaf(hit.value);
+        if (typeof hit.line === 'string') pushLeaf(hit.line);
+      }
+    }
+  }
+  if (Array.isArray(root.groups)) {
+    for (const grp of root.groups) {
+      if (grp && typeof grp === 'object') {
+        for (const key of AGGREGATE_VALUE_KEYS) if (grp[key] !== undefined) pushLeaf(grp[key]);
+      }
+    }
+  }
+  if (Array.isArray(root.blocks)) {
+    for (const blk of root.blocks) {
+      if (blk && typeof blk === 'object') {
+        if (typeof blk.preview === 'string') pushLeaf(blk.preview);
+        if (typeof blk.text === 'string') pushLeaf(blk.text);
+        if (Array.isArray(blk.rows)) blk.rows.flat(2).forEach(pushLeaf);
+      }
+    }
+  }
+  if (Array.isArray(root.pages)) {
+    for (const pg of root.pages) {
+      if (pg && typeof pg === 'object' && Array.isArray(pg.lines)) pg.lines.forEach(pushLeaf);
+    }
+  }
+  return out;
 }
 
 /**
@@ -316,7 +420,7 @@ export function isPermittedDerivation(value, operands) {
 
 /** Figures of the line that the prose never states (compared as numbers, so "31.337.000" and 31337000 agree). */
 function proseFigureMismatch(text, figures) {
-  const prose = (String(text).match(NUMBER_TOKEN_RE) ?? []).map(toNumber).filter((n) => n !== null);
+  const prose = quantityValuesOf(text);
   if (prose.length === 0) return [];
   const states = (f) => prose.some((p) => Math.abs(p - f) <= 1e-6 * Math.max(1, Math.abs(f)) || Math.abs(Math.round(p * 100) / 100 - f) < 1e-9 || Math.abs(p - Math.round(f)) < 1e-9);
   return figures.map(toNumber).filter((f) => f !== null && !states(f)).map(String);
@@ -493,23 +597,43 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     const ops = opsOfTool(ask.modules, c.name) ?? [];
     return ops.some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification' && !ORIENTATION_OPS.has(op));
   };
-  const readCallNames = ask.calls.filter(isDataRead).map((c) => c.name);
-  const deniedNames = new Set([
-    ...(ask.denied ?? []).map((d) => d.name),
-    ...ask.calls.filter((c) => c.denied).map((c) => c.name),
-  ]);
-  const dataReadNames = new Set(readCallNames.filter((name) => !deniedNames.has(name)));
+  const deniedCountsByName = new Map();
+  for (const d of ask.denied ?? []) {
+    if (d?.name) deniedCountsByName.set(d.name, (deniedCountsByName.get(d.name) ?? 0) + 1);
+  }
+  const seenByName = new Map();
+  const callStates = ask.calls.map((c) => {
+    const idx = seenByName.get(c.name) ?? 0;
+    seenByName.set(c.name, idx + 1);
+    const hasExplicit = Object.prototype.hasOwnProperty.call(c, 'denied');
+    const denied = hasExplicit ? Boolean(c.denied) : idx < (deniedCountsByName.get(c.name) ?? 0);
+    return { name: c.name, isRead: isDataRead(c), denied };
+  });
+  const successfulReadCount = callStates.filter((c) => c.isRead && !c.denied).length;
   const attributed = Array.isArray(ask.toolResults) ? ask.toolResults : null;
-  const readEvidenceChunks = attributed
-    ? attributed.filter((r) => dataReadNames.has(r?.name) && !deniedNames.has(r?.name)).map((r) => String(r.text ?? ''))
-    : (dataReadNames.size > 0 ? String(ask.toolResultsText ?? '').split('\n') : []);
-  const readPool = readEvidenceChunks.flatMap(numbersOfToolResults);
+  const readEvidenceChunks = [];
+  if (attributed) {
+    const resultIdxByName = new Map();
+    for (const r of attributed) {
+      const name = r?.name;
+      const occ = resultIdxByName.get(name) ?? 0;
+      resultIdxByName.set(name, occ + 1);
+      const matchingCalls = callStates.filter((c) => c.name === name);
+      const pairedCall = matchingCalls[occ] ?? matchingCalls.at(-1);
+      if (pairedCall && pairedCall.isRead && !pairedCall.denied && !r?.denied) {
+        readEvidenceChunks.push(String(r.text ?? ''));
+      }
+    }
+  } else if (successfulReadCount > 0) {
+    readEvidenceChunks.push(...String(ask.toolResultsText ?? '').split('\n').filter(Boolean));
+  }
+  const readPool = readEvidenceChunks.flatMap((chunk) => callValueNumbers(chunk, { strictToolFields: true }));
   const nearPool = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
   const figuresNow = (Array.isArray(report.numbers) ? report.numbers : []).map(toNumber).filter((n) => n !== null);
   const shownNow = [
-    ...(parsed.text.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
-    ...items.flatMap((it) => (String(it.value ?? '').match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber)),
-  ].filter((x) => x !== null);
+    ...quantityValuesOf(parsed.text),
+    ...items.flatMap((it) => quantityValuesOf(String(it.value ?? ''))),
+  ];
   // The operands: numbers the answer shows (prose or an item value) that a data read returned, percent scaling aside.
   const operandsShown = [...new Set(shownNow.filter((s) => readPool.some((p) => nearPool(p, s) || nearPool(p * 100, s) || nearPool(p / 100, s))))];
   const showsOperands = figuresNow.some((f) => isPermittedDerivation(f, operandsShown));
@@ -517,7 +641,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     computeByReply &&
     figures.length > 0 &&
     caseDoc.tools.allowed.includes('compute') &&
-    (!hasComputeTool || (dataReadNames.size > 0 && showsOperands))
+    (!hasComputeTool || (successfulReadCount > 0 && showsOperands))
   ) {
     used.add('compute');
   }
@@ -530,15 +654,18 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   // ("set D5 to 45.000.000", "does it exceed 18.000.000?") is not invented when the reply repeats it, so the question
   // is part of the pool; a forecast the reply makes up is in none of the three.
   const queryText = [caseDoc.query?.vi, caseDoc.query?.en].filter((s) => typeof s === 'string').join('\n');
-  const turnText = `${sourceText}\n${String(ask.toolResultsText ?? '')}\n${queryText}`;
-  const hasTurnContext = turnText.trim() !== '';
+  const toolChunksForPool = attributed
+    ? attributed.filter((r) => !r?.denied).map((r) => String(r.text ?? ''))
+    : String(ask.toolResultsText ?? '').split('\n').filter(Boolean);
+  const hasTurnContext = `${sourceText}\n${String(ask.toolResultsText ?? '')}\n${queryText}`.trim() !== '' || (attributed && attributed.length > 0);
   const pool = hasTurnContext
-    ? (turnText.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber).filter((x) => x !== null)
+    ? [
+        ...quantityValuesOf(sourceText),
+        ...toolChunksForPool.flatMap((chunk) => callValueNumbers(chunk, { strictToolFields: false })),
+        ...quantityValuesOf(queryText),
+      ]
     : [];
-  const shownNumbers = [
-    ...(parsed.text.match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber),
-    ...items.flatMap((it) => (String(it.value ?? '').match(NUMBER_TOKEN_RE) ?? []).map(tokenToNumber)),
-  ].filter((x) => x !== null);
+  const shownNumbers = shownNow;
   // A7: a figure the reply states in prose is a claim too. One that is neither a reported number nor traceable (the
   // same isTraceableFigure rules) joins the extras, so it fails numeric_unexpected. Locators, dates and quoted digits
   // are not quantities and are skipped by proseQuantityTokens; a reported figure and one already in `extras` are not
