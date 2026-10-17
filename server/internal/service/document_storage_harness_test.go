@@ -42,6 +42,7 @@ type docStorageEnv struct {
 	ent   *EntitlementService
 	fake  *filesfake.Fake // fake backend only
 	real  *FileService    // real backends only
+	store *switchStore    // real backends only
 	clock *fileTestClock  // real backends only
 }
 
@@ -95,7 +96,7 @@ func newFakeDocStorageEnv(t *testing.T) *docStorageEnv {
 func newRealDocStorageEnv(t *testing.T, backend fileBackend) *docStorageEnv {
 	t.Helper()
 	base := newFileHarness(t, backend, nil)
-	env := &docStorageEnv{name: backend.name, f: newDocPermFixtureOn(base.pool), clock: base.clock}
+	env := &docStorageEnv{name: backend.name, f: newDocPermFixtureOn(base.pool), store: base.store, clock: base.clock}
 	ent := NewEntitlementService(base.pool, db.New(base.pool))
 	svc, err := NewFileService(FileServiceOptions{
 		Pool: base.pool, Store: base.store, Bucket: backend.bucket, Registry: documentsOpenRegistry(t),

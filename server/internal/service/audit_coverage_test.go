@@ -1505,6 +1505,81 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal("expected the account to be marked needs-reconnect")
 			}
 		},
+		// UNI-1862 BIGUP: chunked multipart upload sessions (> 20 MiB).
+		audit.ActionDocumentUploadSessionOpened: func(t *testing.T, f *auditFixture) {
+			svc, _, _ := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-open")
+			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{
+				Filename:  "audit-open.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionCompleted: func(t *testing.T, f *auditFixture) {
+			svc, store, _ := auditMultipartDocService(t, f)
+			const size = UploadSessionThresholdBytes + 1024
+			body, probe := buildLargePDF(size, "audit-complete")
+			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{
+				Filename:  "audit-complete.pdf",
+				SizeBytes: size,
+				Probe:     probe,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			row, err := f.q.GetFileMultipartUploadByID(f.ctx, opened.SessionID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var parts []CompleteUploadPartInput
+			partSize := int(row.PartSize)
+			for i := 0; i < int(row.TotalParts); i++ {
+				start := i * partSize
+				end := min(start+partSize, len(body))
+				num := i + 1
+				etag, err := store.PutPart(row.ObjectKey, row.StorageUploadID, int32(num), body[start:end])
+				if err != nil {
+					t.Fatal(err)
+				}
+				parts = append(parts, CompleteUploadPartInput{PartNumber: num, ETag: etag})
+			}
+			if _, err := svc.CompleteUploadSession(f.ctx, Human(f.owner.ID), opened.SessionID, CompleteUploadSessionInput{Parts: parts}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionAborted: func(t *testing.T, f *auditFixture) {
+			svc, _, _ := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-abort")
+			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{
+				Filename:  "audit-abort.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.AbortUploadSession(f.ctx, Human(f.owner.ID), opened.SessionID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionExpired: func(t *testing.T, f *auditFixture) {
+			svc, _, clock := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-expire")
+			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{
+				Filename:  "audit-expire.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			clock.Advance(25 * time.Hour)
+			n, err := svc.ExpireMultipartUploads(f.ctx, clock.Now())
+			if err != nil || n < 1 {
+				t.Fatalf("ExpireMultipartUploads = %d, err = %v", n, err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -1653,6 +1728,10 @@ func auditActions() []string {
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
 		audit.ActionDocumentAssetPurged,
+		audit.ActionDocumentUploadSessionOpened,
+		audit.ActionDocumentUploadSessionCompleted,
+		audit.ActionDocumentUploadSessionAborted,
+		audit.ActionDocumentUploadSessionExpired,
 		audit.ActionSignatureCreated,
 		audit.ActionSignatureDeleted,
 		audit.ActionAICredentialSaved,
@@ -2047,4 +2126,36 @@ func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
 			}
 		})
 	}
+}
+
+func auditMultipartDocService(t *testing.T, f *auditFixture) (*DocumentService, *switchStore, *fileTestClock) {
+	t.Helper()
+	f.build(t)
+	backend := localFileBackend()
+	clock := newFileTestClock()
+	store := newSwitchStore(backend.build(t))
+	store.enableMultipart(true)
+	signer := newLocalTestSigner(t, store, clock)
+	ent := NewEntitlementService(f.pool, f.q)
+	fs, err := NewFileService(FileServiceOptions{
+		Pool:               f.pool,
+		Store:              store,
+		Bucket:             backend.bucket,
+		Registry:           documentsOpenRegistry(t),
+		Signer:             signer,
+		Quota:              ent,
+		Clock:              clock.Now,
+		SpoolDir:           t.TempDir(),
+		ReferenceProviders: productionProviders(),
+		GC:                 FileGCConfig{Mode: FileGCDestructive},
+	})
+	if err != nil {
+		t.Fatalf("NewFileService: %v", err)
+	}
+	svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+	svc.SetFiles(fs)
+	svc.SetEntitlements(ent)
+	svc.SetClock(clock.Now)
+	svc.store.spoolDir = t.TempDir()
+	return svc, store, clock
 }
