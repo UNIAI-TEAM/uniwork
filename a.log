@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+b00a9bbc5f3ada7aa9a641398a48117f2a8ae525
+b00a9bbc5 test(e2e): match the Tai len upload button exactly (FD-A03)
+a8c1cc56a fix(documents): keep the trash Name column at its floor on phones (review F1) + drop the dead in_trashed_folder key (F2)
+7fb8dbb3a chore: merge root 06f65e141 (UNI-1645 edit lock) into TRASH-01
+35d8b99fb fix(documents): drop the library column ids no ladder draws after the RESTORE-01 merge
+2375e4ac7 fix(web): close the trash/library ternary in the landing documents preview
+0b09359d2 fix(documents): keep the trash countdown and deleter on phones in the TRASH table
+761de9a22 fix(documents): keep the full document name on hover in the library and trash tables (TV-12)
+293876171 chore: merge root 907fef493 (RESTORE-01) into TRASH-01

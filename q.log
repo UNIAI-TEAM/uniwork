@@ -1,0 +1,894 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18551 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18551 PREVIEW_ORIGIN=http://localhost:13452 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads FF_DOCUMENTS=true NEXT_PUBLIC_API_URL=http://localhost:18551 NEXT_PUBLIC_WS_URL=ws://localhost:18551 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18551 OFFICE_FORK_SHA=$(node -p "require(\"./apps/web/platform/office-frame/docs.pin.json\").gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-folders.spec.ts documents-home.spec.ts documents.spec.ts documents-isolation.spec.ts documents-comments.spec.ts documents-sharing-ui.spec.ts documents-versions.spec.ts document-edit-lock.spec.ts documents-sharing.spec.ts --repeat-each=1 --reporter=list > /tmp/t4-e2e.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/t4-e2e.log | tail -n 200; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; echo "##### JUMP-DIAG"; sed -n '/\[jump-diag\] begin/,/\[jump-diag\] end/p' /tmp/t4-e2e.log | head -c 80000; echo "##### END JUMP-DIAG"; grep -E "[0-9]+ (skipped|did not run)" /tmp/t4-e2e.log; grep -qE "[0-9]+ passed" /tmp/t4-e2e.log || { echo "no passing test"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+  ✓  15 documents-folders.spec.ts:972:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast (4.5s)
+  ✓  16 documents-folders.spec.ts:1058:1 › FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop (2.6s)
+  ✓  17 documents-folders.spec.ts:1160:1 › FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable aria-disabled rows with the reason Nằm trong chính nó and refuses to select them (3.1s)
+  ✓  18 documents-folders.spec.ts:1236:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision (4.2s)
+  ✓  19 documents-folders.spec.ts:1329:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành (3.2s)
+  ✓  20 documents-folders.spec.ts:1385:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder= (5.7s)
+  ✓  21 documents-folders.spec.ts:1528:1 › FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and the … menu Các cấp ẩn opens and navigates by keyboard (2.5s)
+  ✓  22 documents-folders.spec.ts:1587:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches (5.2s)
+  ✓  23 documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing (3.3s)
+  -  24 documents-folders.spec.ts:1992:1 › FD-A10 (entity/email link API) structured graph DOCUMENT links and email-hub thread links resolve after move
+  ✘  25 documents-folders.spec.ts:2000:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (332ms)
+(node:57735) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57735) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  26 documents-folders.spec.ts:2183:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 (10.4s)
+(node:57833) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57833) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  27 documents-folders.spec.ts:2397:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button (692ms)
+(node:57904) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57904) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  28 documents-folders.spec.ts:2463:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts (3.1s)
+  ✓  29 documents-home.spec.ts:49:1 › quick create, folder, move and the other-modules section on the owner's home (9.1s)
+  ✓  30 documents-home.spec.ts:121:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.6s)
+  ✓  31 documents-home.spec.ts:226:3 › a view-only member › sees create controls at the root, none inside a folder shared at view level (2.4s)
+  ✓  32 documents-home.spec.ts:247:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.3s)
+  ✓  33 documents-isolation.spec.ts:97:1 › another organization answers not found across read, history, comments and download (34ms)
+  ✓  34 documents-isolation.spec.ts:109:1 › an organization member outside the document workspace answers not found (23ms)
+  ✓  35 documents-isolation.spec.ts:113:1 › an account in no organization answers not found (26ms)
+  ✓  36 documents-isolation.spec.ts:118:1 › a deactivated member is refused with member_deactivated (5ms)
+  ✘  37 documents-isolation.spec.ts:125:1 › two saves from one base: the first wins, the stale one conflicts (8ms)
+(node:58050) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58050) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  38 documents-isolation.spec.ts:148:1 › a create replay returns the same page; a changed payload under the same key is refused (16ms)
+  ✓  39 documents-isolation.spec.ts:164:1 › a plain member creates, types and reloads a page in the browser (5.9s)
+  ✓  40 documents-isolation.spec.ts:185:1 › a workspace member without access sees the locked card, not the content (3.4s)
+  ✓  41 documents-isolation.spec.ts:196:1 › the other organization's shell sends a foreign document URL to the picker (2.0s)
+  ✓  42 documents-sharing-ui.spec.ts:30:1 › share, public link, anonymous read, access log and revoke (14.5s)
+  ✓  43 documents-sharing.spec.ts:56:1 › a cross-workspace grant reaches the recipient and its revoke takes it away (29ms)
+  ✓  44 documents-sharing.spec.ts:93:1 › a principal from another organization cannot be granted access (11ms)
+  ✓  45 documents-sharing.spec.ts:105:1 › the other organization cannot manage the document's access (9ms)
+  ✓  46 documents-sharing.spec.ts:115:1 › a public link reads anonymously only while it is live and the switch is on (42ms)
+  ✓  47 documents-versions.spec.ts:27:1 › version checkpoint restores the working copy and a second session sees it (16.9s)
+  ✓  48 documents.spec.ts:84:1 › a page is created, typed into, and survives a reload (7.2s)
+  ✓  49 documents.spec.ts:132:1 › a file document takes a new version and downloads it (4.0s)
+  ✓  50 documents.spec.ts:164:1 › the library lists pages across its views and the tree opens one (5.3s)
+  ✓  51 documents.spec.ts:231:1 › the library and the page editor never call the Office service (2.4s)
+
+
+  1) documents-folders.spec.ts:732:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live 
+
+    Error: move: 404 {"code":"not_found","message":"not found","error_class":"missing"}
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      901 |       moveResB.ok,
+      902 |       `move: ${moveResB.status} ${JSON.stringify(moveResB.error)}`,
+    > 903 |     ).toBe(true);
+          |       ^
+      904 |
+      905 |     // User A's open folder loses the moved card and the search path updates live.
+      906 |     await expect(folderCard(page, "Hồ sơ Realtime Move")).toHaveCount(0, {
+
+    Error Context: test-results/documents-folders-FD-A05-m-d460d-dates-a-second-session-live/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A05-m-d460d-dates-a-second-session-live/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A05-m-d460d-dates-a-second-session-live/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) documents-folders.spec.ts:2000:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents 
+
+    Error: 404 {"code":"not_found","message":"not found","error_class":"missing"}
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 409
+    Received: 404
+
+      2146 |     blindCollision.status,
+      2147 |     `${blindCollision.status} ${JSON.stringify(blindCollision.error)}`,
+    > 2148 |   ).toBe(409);
+           |     ^
+      2149 |   expect(blindCollision.error?.code).toBe("folder_name_taken");
+      2150 |   expect(blindCollision.rawText).not.toContain(restrictedSibling.id);
+      2151 |   expect(blindCollision.rawText).not.toContain(restrictedSibling.title);
+
+    Error Context: test-results/documents-folders-FD-A11-p-e6e2e-llowing-same-name-documents/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A11-p-e6e2e-llowing-same-name-documents/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A11-p-e6e2e-llowing-same-name-documents/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) documents-folders.spec.ts:2183:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 
+
+    Error: getDocument: 403 {"code":"document_restricted","message":"tài liệu ở chế độ hạn chế; quản trị viên chỉ đọc được nội dung khi mở truy cập khẩn cấp","fields":{"can_break_glass":true},"error_class":"permission"}
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      2330 |       doc1After.ok,
+      2331 |       `getDocument: ${doc1After.status} ${JSON.stringify(doc1After.error)}`,
+    > 2332 |     ).toBe(true);
+           |       ^
+      2333 |     expect(doc1After.data?.parent_id).toBe(sub1.id);
+      2334 |     // server/internal/handler/documents.go:868-871 omits archived_at when doc.ArchivedAt is null.
+      2335 |     expect(doc1After.data?.archived_at).toBeUndefined();
+
+    Error Context: test-results/documents-folders-FD-A12-a-59208-re-collision-and-blocks-403/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A12-a-59208-re-collision-and-blocks-403/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A12-a-59208-re-collision-and-blocks-403/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) documents-folders.spec.ts:2397:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button 
+
+    Error: createPage(Mục-7) failed: 404 {"code":"not_found","message":"not found","error_class":"missing"} {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+
+
+    expect(received).toBeTruthy()
+
+    Received: false
+
+
+      449 |     res.ok && res.data,
+      450 |     `createPage(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
+    > 451 |   ).toBeTruthy();
+          |     ^
+      452 |   return res.data!;
+      453 | }
+      454 |
+
+    Error Context: test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) documents-isolation.spec.ts:125:1 › two saves from one base: the first wins, the stale one conflicts 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      133 |     data: { revision: "1", content: content("first save") },
+      134 |   });
+    > 135 |   expect(first.status()).toBe(200);
+          |                          ^
+      136 |   expect(((await first.json()) as { document: { revision: string } }).document.revision).toBe("2");
+      137 |
+      138 |   const stale = await request.patch(`${api}/api/v1/documents/${pageDocId}`, {
+
+    Error Context: test-results/documents-isolation-two-sa-d207b-ins-the-stale-one-conflicts/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-isolation-two-sa-d207b-ins-the-stale-one-conflicts/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-isolation-two-sa-d207b-ins-the-stale-one-conflicts/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    documents-folders.spec.ts:732:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live 
+    documents-folders.spec.ts:2000:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents 
+    documents-folders.spec.ts:2183:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 
+    documents-folders.spec.ts:2397:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button 
+    documents-isolation.spec.ts:125:1 › two saves from one base: the first wins, the stale one conflicts 
+  2 skipped
+  44 passed (4.4m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-folders.spec.ts documents-home.spec.ts documents.spec.ts documents-isolation.spec.ts documents-comments.spec.ts documents-sharing-ui.spec.ts documents-versions.spec.ts document-edit-lock.spec.ts documents-sharing.spec.ts --repeat-each=1 --reporter=list
+===== e2e/test-results/documents-folders-FD-A05-m-d460d-dates-a-second-session-live/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live
+- Location: documents-folders.spec.ts:732:1
+
+# Error details
+
+```
+Error: move: 404 {"code":"not_found","message":"not found","error_class":"missing"}
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - link "Tới nội dung chính" [ref=f3e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f3e6]:
+      - list [ref=f3e8]:
+        - listitem [ref=f3e9]:
+          - 'button "Org fd-a05-a, WS fd-a05-a: chuyển workspace" [ref=f3e10]':
+            - generic [ref=f3e11]: W
+            - generic [ref=f3e13]:
+              - generic "Org fd-a05-a" [ref=f3e14]
+              - generic "WS fd-a05-a" [ref=f3e15]
+      - navigation "Điều hướng workspace" [ref=f3e19]:
+        - list [ref=f3e22]:
+          - listitem [ref=f3e23]:
+            - link "Trang chủ" [ref=f3e24] [cursor=pointer]:
+              - /url: /rec-org-1792229914637/rec-ws-1792229914637
+          - listitem [ref=f3e30]:
+            - link "Hộp việc" [ref=f3e31] [cursor=pointer]:
+              - /url: /rec-org-1792229914637/rec-ws-1792229914637/inbox
+        - generic [ref=f3e37]:
+          - generic [ref=f3e38]: Làm việc
+          - list "Làm việc" [ref=f3e40]:
+            - listitem [ref=f3e41]:
+              - link "Công việc" [ref=f3e42] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/tasks
+            - listitem [ref=f3e48]:
+              - link "Việc của tôi" [ref=f3e49] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/my-tasks
+            - listitem [ref=f3e55]:
+              - link "Dự án" [ref=f3e56] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/projects
+            - listitem [ref=f3e61]:
+              - link "Lịch" [ref=f3e62] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/calendar
+        - generic [ref=f3e67]:
+          - generic [ref=f3e68]: Trao đổi
+          - list "Trao đổi" [ref=f3e70]:
+            - listitem [ref=f3e71]:
+              - link "Email Hub" [ref=f3e72] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/email
+            - listitem [ref=f3e78]:
+              - link "Cuộc họp" [ref=f3e79] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/meetings
+            - listitem [ref=f3e85]:
+              - link "Tài liệu" [ref=f3e86] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/documents
+            - listitem [ref=f3e92]:
+              - link "Trò chuyện" [ref=f3e93] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/chat
+            - listitem [ref=f3e98]:
+              - link "Danh bạ" [ref=f3e99] [cursor=pointer]:
+                - /url: /rec-org-1792229914637/rec-ws-1792229914637/people
+      - list [ref=f3e108]:
+        - listitem [ref=f3e109]:
+          - 'button "fd-a05-a, fd-a05-a-1792229914637@example.com: tài khoản" [ref=f3e110]':
+            - generic [ref=f3e111]: F
+            - generic [ref=f3e112]:
+              - generic "fd-a05-a" [ref=f3e113]
+              - generic "fd-a05-a-1792229914637@example.com" [ref=f3e114]
+      - button "Ẩn/hiện thanh bên" [ref=f3e117]
+    - main [ref=f3e118]:
+      - generic [ref=f3e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f3e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f3e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f3e123]:
+          - button "Thông báo" [ref=f3e124] [cursor=pointer]
+          - button "Tạo việc" [ref=f3e125] [cursor=pointer]
+          - button "Giao diện" [ref=f3e126] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f3e127] [cursor=pointer]
+      - generic [ref=f3e130]:
+        - complementary [ref=f3e131]:
+          - navigation "Điều hướng tài liệu" [ref=f3e132]:
+            - button "Tài liệu của workspace" [ref=f3e133]
+            - button "Gần đây" [ref=f3e139]
+            - button "Gắn sao" [ref=f3e145]
+            - button "Được chia sẻ với tôi" [ref=f3e150]
+            - button "Thùng rác" [ref=f3e158]
+            - generic [ref=f3e164]:
+              - heading "Thư mục" [level=3] [ref=f3e165]
+              - button "Tạo thư mục" [ref=f3e166]
+            - generic [ref=f3e168]:
+              - tree "Cây tài liệu" [ref=f3e169]:
+                - treeitem "Mở rộng Đích Đích Thao tác cho Đích" [level=1] [ref=f3e170] [cursor=pointer]:
+                  - button "Mở rộng Đích" [ref=f3e171]
+                  - generic "Đích" [ref=f3e177]
+                  - button "Thao tác cho Đích" [ref=f3e178]
+                - treeitem "Mở rộng Nguồn Nguồn Thao tác cho Nguồn" [level=1] [ref=f3e179] [cursor=pointer]:
+                  - button "Mở rộng Nguồn" [ref=f3e180]
+                  - generic "Nguồn" [ref=f3e186]
+                  - button "Thao tác cho Nguồn" [ref=f3e187]
+              - status [ref=f3e188]
+            - heading "Từ nơi khác" [level=3] [ref=f3e190]
+            - button "Chat" [ref=f3e191]
+            - button "Cuộc họp" [ref=f3e196]
+            - button "Email" [ref=f3e202]
+            - button "Công việc" [ref=f3e208]
+        - region "Tài liệu" [ref=f3e214]:
+          - generic [ref=f3e216]:
+            - generic [ref=f3e217]:
+              - navigation "Đường dẫn thư mục" [ref=f3e218]:
+                - b===== e2e/test-results/documents-folders-FD-A11-p-e6e2e-llowing-same-name-documents/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents
+- Location: documents-folders.spec.ts:2000:1
+
+# Error details
+
+```
+Error: 404 {"code":"not_found","message":"not found","error_class":"missing"}
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 409
+Received: 404
+```
+
+# Test source
+
+```ts
+  2048 |     ws.owner.token,
+  2049 |     ws.wsId,
+  2050 |     {
+  2051 |       title: "Mã",
+  2052 |       kind: "folder",
+  2053 |       parent_id: parent.id,
+  2054 |     },
+  2055 |   );
+  2056 |   expect(
+  2057 |     folderMaAccent.status,
+  2058 |     `${folderMaAccent.status} ${JSON.stringify(folderMaAccent.error)}`,
+  2059 |   ).toBe(201);
+  2060 | 
+  2061 |   // 3. Two concurrent creates with the same name under the same parent yield one 201 and one 409.
+  2062 |   // server/internal/service/document_names.go:73-74 (normalizeDocumentTitle) applies norm.NFC(strings.TrimSpace(raw))
+  2063 |   // and server/pkg/db/queries/document_names.sql:16-34 compares lower(title COLLATE "und-x-icu").
+  2064 |   const [race1, race2] = await Promise.all([
+  2065 |     apiCreateDocument(
+  2066 |       page,
+  2067 |       ws.owner.token,
+  2068 |       ws.wsId,
+  2069 |       {
+  2070 |         title: " Đua Song Song ",
+  2071 |         kind: "folder",
+  2072 |         parent_id: parent.id,
+  2073 |       },
+  2074 |       `race-1-${Date.now()}`,
+  2075 |     ),
+  2076 |     apiCreateDocument(
+  2077 |       page,
+  2078 |       ws.owner.token,
+  2079 |       ws.wsId,
+  2080 |       {
+  2081 |         title: "đua song song",
+  2082 |         kind: "folder",
+  2083 |         parent_id: parent.id,
+  2084 |       },
+  2085 |       `race-2-${Date.now()}`,
+  2086 |     ),
+  2087 |   ]);
+  2088 |   expect(
+  2089 |     [race1.status, race2.status].sort(),
+  2090 |     `race1=${race1.status} (${JSON.stringify(race1.error)}), race2=${race2.status} (${JSON.stringify(race2.error)})`,
+  2091 |   ).toEqual([201, 409]);
+  2092 | 
+  2093 |   // 4. Same-name documents (pages and files) under the same parent are allowed (201).
+  2094 |   const page1 = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+  2095 |     title: "Biên bản trùng tên",
+  2096 |     kind: "page",
+  2097 |     parent_id: parent.id,
+  2098 |   });
+  2099 |   const page2 = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+  2100 |     title: "Biên bản trùng tên",
+  2101 |     kind: "page",
+  2102 |     parent_id: parent.id,
+  2103 |   });
+  2104 |   expect(page1.status, `${page1.status} ${JSON.stringify(page1.error)}`).toBe(
+  2105 |     201,
+  2106 |   );
+  2107 |   expect(page2.status, `${page2.status} ${JSON.stringify(page2.error)}`).toBe(
+  2108 |     201,
+  2109 |   );
+  2110 |   const file1 = await uploadFixtureFile(
+  2111 |     page,
+  2112 |     ws.owner.token,
+  2113 |     ws.wsId,
+  2114 |     "fx-docx-report-vi",
+  2115 |     { parentId: parent.id, title: "bao-cao-trung.docx" },
+  2116 |   );
+  2117 |   const file2 = await uploadFixtureFile(
+  2118 |     page,
+  2119 |     ws.owner.token,
+  2120 |     ws.wsId,
+  2121 |     "fx-docx-report-vi",
+  2122 |     { parentId: parent.id, title: "bao-cao-trung.docx" },
+  2123 |   );
+  2124 |   expect(file1.id).not.toBe(file2.id);
+  2125 | 
+  2126 |   // 5. Restricted sibling folder collision: 409 response to User B carries NO id or title of A's restricted folder.
+  2127 |   const restrictedSibling = await createFolder(
+  2128 |     page,
+  2129 |     ws.owner.token,
+  2130 |     ws.wsId,
+  2131 |     "Dự Án Mật Của Owner",
+  2132 |     parent.id,
+  2133 |     "restricted",
+  2134 |   );
+  2135 |   const blindCollision = await apiCreateDocument(
+  2136 |     page,
+  2137 |     ws.member!.token,
+  2138 |     ws.wsId,
+  2139 |     {
+  2140 |       title: "dự án mật của owner",
+  2141 |       kind: "folder",
+  2142 |       parent_id: parent.id,
+  2143 |     },
+  2144 |   );
+  2145 |   expect(
+  2146 |     blindCollision.status,
+  2147 |     `${blindCollision.status} ${JSON.stringify(blindCollision.error)}`,
+> 2148 |   ).toBe(409);
+       |     ^ Error: 404 {"code":"not_found","message":"not found","error_class":"missing"}
+  2149 |   expect(blindCollision.error?.code).toBe("folder_name_taken");
+  2150 |   expect(blindCollision.rawText).not.toContain(restrictedSibling.id);
+  2151 |   expect(blindCollision.rawText).not.toContain(restrictedSibling.title);
+  2152 | 
+  2153 |   // 6. Both create and rename surface 409 as a field error (role="alert") in the dialog.
+  2154 |   await loginFolderUser(page, ws.owner.email);
+  2155 |   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${parent.id}`);
+  2156 | 
+  2157 |   await page.getByRole("button", { name: "Tạo mới", exact: true }).click();
+  2158 |   await page.getByRole("menuitem", { name: "Thư mục", exact: true }).click();
+  2159 |   const createDlg = page.getByRole("dialog", {
+  2160 |     name: "Thư mục con mới trong Thư mục Cha",
+  2161 |   });
+  2162 |   await createDlg.getByLabel("Tên thư mục").fill("HỢP ĐỒNG");
+  2163 |   await createDlg.getByRole("button", { name: "Tạo" }).click();
+  2164 |   await expect(createDlg.getByRole("alert")).toContainText(
+  2165 |     "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
+  2166 |   );
+  2167 |   await createDlg.getByLabel("Tên thư mục").press("Escape");
+  2168 |   await expect(createDlg).toBeHidden();
+  2169 | 
+  2170 |   // "Ma" is a sibling folder card; its ⋯ menu carries the same row labels.
+  2171 |   await folderCard(page, "Ma")
+  2172 |     .getByRole("button", { name: "Thao tác cho Ma", exact: true })
+  2173 |     .click();
+  2174 |   await page.getByRole("menuitem",===== e2e/test-results/documents-folders-FD-A12-a-59208-re-collision-and-blocks-403/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403
+- Location: documents-folders.spec.ts:2183:1
+
+# Error details
+
+```
+Error: getDocument: 403 {"code":"document_restricted","message":"tài liệu ở chế độ hạn chế; quản trị viên chỉ đọc được nội dung khi mở truy cập khẩn cấp","fields":{"can_break_glass":true},"error_class":"permission"}
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org fd-a12-a, WS fd-a12-a: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org fd-a12-a" [ref=f1e14]
+              - generic "WS fd-a12-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792229960165/rec-ws-1792229960165
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792229960165/rec-ws-1792229960165/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792229960165/rec-ws-1792229960165/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "fd-a12-a, fd-a12-a-1792229960165@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: F
+            - generic [ref=f1e112]:
+              - generic "fd-a12-a" [ref=f1e113]
+              - generic "fd-a12-a-1792229960165@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Thông báo" [ref=f1e124] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e125] [cursor=pointer]
+          - button "Giao diện" [ref=f1e126] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e127] [cursor=pointer]
+      - generic [ref=f1e130]:
+        - complementary [ref=f1e131]:
+          - navigation "Điều hướng tài liệu" [ref=f1e132]:
+            - button "Tài liệu của workspace" [ref=f1e133]
+            - button "Gần đây" [ref=f1e139]
+            - button "Gắn sao" [ref=f1e145]
+            - button "Được chia sẻ với tôi" [ref=f1e150]
+            - button "Thùng rác" [ref=f1e158]
+            - generic [ref=f1e164]:
+              - heading "Thư mục" [level=3] [ref=f1e165]
+              - button "Tạo thư mục" [ref=f1e166]
+            - generic [ref=f1e168]:
+              - tree "Cây tài liệu" [ref=f1e169]:
+                - treeitem "Thư mục Gốc Của A Thao tác cho Thư mục Gốc Của A" [level=1] [ref=f1e170] [cursor=pointer]:
+                  - generic "Thư mục Gốc Của A" [ref=f1e175]
+                  - button "Thao tác cho Thư mục Gốc Của A" [ref=f1e176]
+                - treeitem "Mở rộng Dự án Đóng (2) Dự án Đóng (2) Thao tác cho Dự án Đóng (2)" [level=1] [ref=f1e177] [cursor=pointer]:
+                  - button "Mở rộng Dự án Đóng (2)" [ref=f1e178]
+                  - generic "Dự án Đóng (2)" [ref=f1e184]
+                  - button "Thao tác cho Dự án Đóng (2)" [ref=f1e185]
+                - treeitem "Dự án Đóng Thao tác cho Dự án Đóng" [level=1] [ref=f1e186] [cursor=pointer]:
+                  - generic "Dự án Đóng" [ref=f1e191]
+                  - button "Thao tác cho Dự án Đóng" [===== e2e/test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button
+- Location: documents-folders.spec.ts:2397:1
+
+# Error details
+
+```
+Error: createPage(Mục-7) failed: 404 {"code":"not_found","message":"not found","error_class":"missing"} {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Test source
+
+```ts
+  351 |     owner: { id: ownerId, email: accountA.email, token: accountA.token },
+  352 |     extraMembers: [],
+  353 |   };
+  354 |   const ownerAuth = { token: accountA.token, wsId: accountA.wsId };
+  355 |   if (options?.withMemberB) {
+  356 |     setup.member = await addWorkspaceMember(page, ownerAuth, `${tag}-b`);
+  357 |   }
+  358 |   for (let i = 0; i < (options?.extraMembers ?? 0); i += 1) {
+  359 |     setup.extraMembers.push(
+  360 |       await addWorkspaceMember(page, ownerAuth, `${tag}-s${i + 1}`),
+  361 |     );
+  362 |   }
+  363 |   return setup;
+  364 | }
+  365 | 
+  366 | export async function loginFolderUser(
+  367 |   page: Page,
+  368 |   email: string,
+  369 | ): Promise<void> {
+  370 |   await loginViaUi(page, email);
+  371 | }
+  372 | 
+  373 | export async function apiCreateDocument(
+  374 |   page: Page,
+  375 |   token: string,
+  376 |   wsId: string,
+  377 |   input: {
+  378 |     title: string;
+  379 |     kind?: "page" | "folder";
+  380 |     parent_id?: string | null;
+  381 |     visibility?: "workspace" | "restricted";
+  382 |     content?: unknown;
+  383 |   },
+  384 |   idempotencyKey?: string,
+  385 | ): Promise<ApiCallResult<DocumentDTO>> {
+  386 |   const key =
+  387 |     idempotencyKey ??
+  388 |     `doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  389 |   const res = await requestWithRetry429(() =>
+  390 |     page.request.post(`${e2eApiUrl}/api/v1/workspaces/${wsId}/documents`, {
+  391 |       headers: {
+  392 |         ...authHeaders(token, key),
+  393 |         "content-type": "application/json",
+  394 |       },
+  395 |       data: input,
+  396 |     }),
+  397 |   );
+  398 |   return parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
+  399 | }
+  400 | 
+  401 | export async function createFolder(
+  402 |   page: Page,
+  403 |   token: string,
+  404 |   wsId: string,
+  405 |   title: string,
+  406 |   parentId?: string | null,
+  407 |   visibility?: "workspace" | "restricted",
+  408 | ): Promise<DocumentDTO> {
+  409 |   const res = await apiCreateDocument(page, token, wsId, {
+  410 |     title,
+  411 |     kind: "folder",
+  412 |     parent_id: parentId ?? undefined,
+  413 |     visibility,
+  414 |   });
+  415 |   expect(
+  416 |     res.ok && res.data,
+  417 |     `createFolder(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
+  418 |   ).toBeTruthy();
+  419 |   return res.data!;
+  420 | }
+  421 | 
+  422 | export async function createPage(
+  423 |   page: Page,
+  424 |   token: string,
+  425 |   wsId: string,
+  426 |   title: string,
+  427 |   parentId?: string | null,
+  428 |   options?: { visibility?: "workspace" | "restricted"; bodyText?: string },
+  429 | ): Promise<DocumentDTO> {
+  430 |   const content = options?.bodyText
+  431 |     ? {
+  432 |         type: "doc",
+  433 |         content: [
+  434 |           {
+  435 |             type: "paragraph",
+  436 |             content: [{ type: "text", text: options.bodyText }],
+  437 |           },
+  438 |         ],
+  439 |       }
+  440 |     : undefined;
+  441 |   const res = await apiCreateDocument(page, token, wsId, {
+  442 |     title,
+  443 |     kind: "page",
+  444 |     parent_id: parentId ?? undefined,
+  445 |     visibility: options?.visibility,
+  446 |     content,
+  447 |   });
+  448 |   expect(
+  449 |     res.ok && res.data,
+  450 |     `createPage(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
+> 451 |   ).toBeTruthy();
+      |     ^ Error: createPage(Mục-7) failed: 404 {"code":"not_found","message":"not found","error_class":"missing"} {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+  452 |   return res.data!;
+  453 | }
+  454 | 
+  455 | export async function uploadFixtureFile(
+  456 |   page: Page,
+  457 |   token: string,
+  458 |   wsId: string,
+  459 |   fixtureId: FolderFixtureId,
+  460 |   options?: { parentId?: string | null; filename?: string; title?: string },
+  461 | ): Promise<DocumentDTO> {
+  462 |   const meta = FIXTURE_FILES[fixtureId];
+  463 |   // server/internal/handler/documents.go:71-73,86-120 (documentUploadForm) reads
+  464 |   // text fields only while they precede the "file" part; anything after "file" is dropped.
+  465 |   const multipart: Record<string, unknown> = {};
+  466 |   if (options?.parentId) multipart.parent_id = options.parentId;
+  467 |   if (options?.title) multipart.title = options.title;
+  468 |   multipart.file = {
+  469 |     name: options?.filename ?? meta.name,
+  470 |     mimeType: meta.mimeType,
+  471 |     buffer: readFileSync(meta.path),
+  472 |   };
+  473 |   const key = `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  474 |   const res = await requestWithRetry429(() =>
+  475 |     page.request.post(
+  476 |       `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/files`,
+  477 |       {
+  478 |         headers: authHeaders(token, key),
+  479 |         multipart: multipart as Parameters<typeof page.request.post>[1] extends
+  480 |           | { multipart?: infer M }
+  481 |           | undefined
+  482 |           ? M
+  483 |           : never,
+  484 |       },
+  485 |     ),
+  486 |   );
+  487 |   const rawText = await res.text();
+  488 |   expect(
+  489 |     res.ok(),
+  490 |     `uploadFixtureFil===== e2e/test-results/documents-isolation-two-sa-d207b-ins-the-stale-one-conflicts/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-isolation.spec.ts >> two saves from one base: the first wins, the stale one conflicts
+- Location: documents-isolation.spec.ts:125:1
+
+# Error details
+
+```
+Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 200
+Received: 404
+```
+
+# Test source
+
+```ts
+  35  | 
+  36  | function createPage(
+  37  |   request: APIRequestContext,
+  38  |   token: string,
+  39  |   wsId: string,
+  40  |   data: Record<string, unknown>,
+  41  |   idempotencyKey?: string,
+  42  | ) {
+  43  |   return request.post(`${api}/api/v1/workspaces/${wsId}/documents`, {
+  44  |     headers: { ...authHeaders(token), ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
+  45  |     data: { kind: "page", ...data },
+  46  |   });
+  47  | }
+  48  | 
+  49  | test.beforeAll(async ({ browser }) => {
+  50  |   const page = await browser.newPage();
+  51  |   try {
+  52  |     m = await documentMatrix(page, api, `g109-iso-${stamp}`);
+  53  |     pageDocTitle = `G1-09 isolation ${stamp}`;
+  54  |     const created = await createPage(page.request, m.aOwner.token, m.aOwner.wsId, { title: pageDocTitle });
+  55  |     expect(created.status(), await created.text()).toBe(201);
+  56  |     pageDocId = ((await created.json()) as { document: { id: string } }).document.id;
+  57  |     ownerDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${pageDocId}`;
+  58  | 
+  59  |     restrictedDocTitle = `G1-09 restricted ${stamp}`;
+  60  |     const restricted = await createPage(page.request, m.aMember.token, m.aOwner.wsId, {
+  61  |       title: restrictedDocTitle,
+  62  |       visibility: "restricted",
+  63  |     });
+  64  |     expect(restricted.status(), await restricted.text()).toBe(201);
+  65  |     restrictedDocId = ((await restricted.json()) as { document: { id: string } }).document.id;
+  66  |     restrictedDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${restrictedDocId}`;
+  67  |   } finally {
+  68  |     await page.close();
+  69  |   }
+  70  | });
+  71  | 
+  72  | // An id nobody holds. A hidden document must answer byte for byte like it, so
+  73  | // a 404 body (message, fields) never tells a stranger the id exists.
+  74  | const UNKNOWN_ID = "01JZZZZZZZZZZZZZZZZZZZZZZZ";
+  75  | const READ_PATHS = ["", "/versions", "/comments", "/download"];
+  76  | 
+  77  | async function expectHiddenLikeUnknown(request: APIRequestContext, token: string, paths: string[]): Promise<void> {
+  78  |   const h = authHeaders(token);
+  79  |   for (const path of paths) {
+  80  |     const hidden = await request.get(`${api}/api/v1/documents/${pageDocId}${path}`, { headers: h });
+  81  |     const unknown = await request.get(`${api}/api/v1/documents/${UNKNOWN_ID}${path}`, { headers: h });
+  82  |     expect(hidden.status(), `GET ${path || "/"}`).toBe(404);
+  83  |     expect(unknown.status(), `GET ${path || "/"} (unknown id)`).toBe(404);
+  84  |     expect(await hidden.text(), `GET ${path || "/"} body`).toBe(await unknown.text());
+  85  |   }
+  86  | }
+  87  | 
+  88  | async function expectWriteLikeUnknown(request: APIRequestContext, token: string): Promise<void> {
+  89  |   const h = authHeaders(token);
+  90  |   const data = { revision: "1", title: "hijacked" };
+  91  |   const hidden = await request.patch(`${api}/api/v1/documents/${pageDocId}`, { headers: h, data });
+  92  |   const unknown = await request.patch(`${api}/api/v1/documents/${UNKNOWN_ID}`, { headers: h, data });
+  93  |   expect(hidden.status()).toBe(404);
+  94  |   expect(await hidden.text()).toBe(await unknown.text());
+  95  | }
+  96  | 
+  97  | test("another organization answers not found across read, history, comments and download", async ({ request }) => {
+  98  |   const read = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: authHeaders(m.bMember.token) });
+  99  |   expect(((await read.json()) as { error: { code: string } }).error.code).toBe("not_found");
+  100 |   await expectHiddenLikeUnknown(request, m.bMember.token, READ_PATHS);
+  101 | 
+  102 |   // A write from the other tenant changes nothing.
+  103 |   await expectWriteLikeUnknown(request, m.bMember.token);
+  104 |   const asOwner = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: authHeaders(m.aOwner.token) });
+  105 |   expect(asOwner.status()).toBe(200);
+  106 |   expect(((await asOwner.json()) as { document: { title: string } }).document.title).toBe(pageDocTitle);
+  107 | });
+  108 | 
+  109 | test("an organization member outside the document workspace answers not found", async ({ request }) => {
+  110 |   await expectHiddenLikeUnknown(request, m.aOutside.token, READ_PATHS);
+  111 | });
+  112 | 
+  113 | test("an account in no organization answers not found", async ({ request }) => {
+  114 |   await expectHiddenLikeUnknown(request, m.publicUser.token, READ_PATHS);
+  115 |   await expectWriteLikeUnknown(request, m.publicUser.token);
+  116 | });
+  117 | 
+  118 | test("a deactivated member is refused with member_deactivated", async ({ request }) => {
+  119 |   const h = authHeaders(m.aDeact.token);
+  120 |   const read = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: h });
+  121 |   expect(read.status()).toBe(403);
+  122 |   expect(((await read.json()) as { error: { code: string } }).error.code).toBe("member_deactivated");
+  123 | });
+  124 | 
+  125 | test("two saves from one base: the first wins, the stale one conflicts", async ({ request }) => {
+  126 |   const h = authHeaders(m.aMember.token);
+  127 |   const content = (text: string) => ({
+  128 |     type: "doc",
+  129 |     content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  130 |   });
+  131 |   const first = await request.patch(`${api}/api/v1/documents/${pageDocId}`, {
+  132 |     headers: h,
+  133 |     data: { revision: "1", content: conte##### JUMP-DIAG
+##### END JUMP-DIAG
+  2 skipped
+
+E2E_EXIT=1
