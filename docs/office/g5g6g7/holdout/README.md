@@ -250,7 +250,10 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   Báo cáo mục 7 in theo từng lượt hỏi "không có lần ghi đã áp mang nội dung sửa" và theo từng ca sửa đổi: chứng minh bằng đối số
   ghi / không có bằng chứng ghi / tự báo cáo (giữ nguyên) / tự báo cáo (số đếm, dò định dạng). Giới hạn đã biết: ở ca chỉ có giá
   trị giữ nguyên và số đếm (vd. rút gọn một đoạn, dịch một tiêu đề), bộ chạy không biết một lần ghi văn bản MỚI có đúng chỗ hay
-  không; nội dung bản sửa ở ca đó chỉ có tự báo cáo của model làm bằng chứng. Lời văn và dòng báo cáo
+  không; nội dung bản sửa ở ca đó chỉ có tự báo cáo của model làm bằng chứng. Giới hạn đã biết (review-g712-16 A10): lượt đọc
+  **sau khi ghi trong cùng lượt hỏi** chỉ thấy giá trị mới ở ô bảng tính (xlsx) và ở phần thay thế văn bản cấp cao của docx;
+  các định dạng ghi khác (slide, PDF, Markdown, HTML) chưa mô phỏng lại trạng thái sau ghi, nên một lượt đọc tiếp theo vẫn thấy
+  tài liệu như lúc mở. Lời văn và dòng báo cáo
   được so: con số của dòng mà lời văn không nêu bị gắn cờ theo từng lượt hỏi (cảnh báo, không tự làm sai).
 - Một tham số công cụ sai (JSON hỏng, `addresses` không phải mảng...) được backend trả `invalid_arguments` như công cụ thật; lượt
   hỏi đó bị ghi là lỗi (`errored`) và tính là lệch, lần chạy vẫn tiếp tục và giữ các lượt đã xong. Chỉ khi harness không gắn
