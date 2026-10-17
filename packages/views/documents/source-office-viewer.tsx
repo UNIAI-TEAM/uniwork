@@ -65,9 +65,9 @@ export function useSourceOfficeViewer({ wsId, organizationId, frameVersion, onDo
       >
         {view ? (
           <>
-            <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+            <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-3 py-1.5 sm:h-11 sm:flex-nowrap sm:py-0">
               <DialogTitle className="min-w-0 flex-1 truncate text-body font-medium">{view.source.name}</DialogTitle>
-              <span className="max-w-[60%] truncate rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground sm:max-w-none sm:shrink-0">
+              <span className="order-last w-full rounded-md bg-muted px-2 py-0.5 text-caption text-muted-foreground sm:order-none sm:w-auto sm:shrink-0 sm:rounded-full">
                 {t("documents.home.row.view_only_notice")}
               </span>
               <DialogClose
