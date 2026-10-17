@@ -189,6 +189,8 @@ WHERE d.organization_id = $2
   AND d.workspace_id = $3
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
+  -- ARCHIVE-01: shelved rows stay in the snapshot - read-only is a feed-row
+  -- flag; it is trashed rows that the snapshot excludes (archived_at above).
   AND ($4::boolean
        OR ($5::boolean AND d.visibility = 'workspace'
            AND d.workspace_level = ANY($6::text[]))

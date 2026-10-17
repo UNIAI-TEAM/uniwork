@@ -694,6 +694,12 @@ func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 		CreatedBy: r.CreatedBy, CreatedByKind: r.CreatedByKind, UpdatedBy: r.UpdatedBy,
 		UpdatedByKind: r.UpdatedByKind, ContentSavedAt: r.ContentSavedAt, LastVersionAt: r.LastVersionAt,
 		ArchivedAt: r.ArchivedAt, ArchivedBy: r.ArchivedBy, PurgeAfter: r.PurgeAfter,
-		ArchiveBatchID: r.ArchiveBatchID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		ArchiveBatchID: r.ArchiveBatchID,
+		// ARCHIVE-01 (Q-AR3 = a): search rows the shelf holds must report the
+		// state so the client can label them "Đã lưu trữ".
+		ShelvedAt:     r.ShelvedAt,
+		ShelvedBy:     r.ShelvedBy,
+		ShelvedByKind: r.ShelvedByKind, ShelveBatchID: r.ShelveBatchID,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }

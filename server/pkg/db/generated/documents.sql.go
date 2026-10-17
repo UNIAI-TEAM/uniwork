@@ -449,6 +449,9 @@ WHERE organization_id = $1
   AND parent_id IS NOT DISTINCT FROM $3
   AND owner_id IS NULL
   AND archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): shelved children leave the listing the office
+  -- frame walks.
+  AND shelved_at IS NULL
 ORDER BY position, id
 `
 

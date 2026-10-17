@@ -30,6 +30,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
+  -- ARCHIVE-01: shelved rows stay in the snapshot - read-only is a feed-row
+  -- flag; it is trashed rows that the snapshot excludes (archived_at above).
   AND (sqlc.arg(see_all)::boolean
        OR (sqlc.arg(member_visible)::boolean AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))

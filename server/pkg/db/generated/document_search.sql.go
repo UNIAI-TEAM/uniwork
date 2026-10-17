@@ -319,6 +319,8 @@ WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): a tree level shows live rows only.
+  AND d.shelved_at IS NULL
   AND d.parent_id IS NOT DISTINCT FROM $3
   AND (($4
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $5))
@@ -583,6 +585,9 @@ WHERE d.organization_id = $5
   AND d.workspace_id = $6
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): shelved rows leave the flat list and rejoin it
+  -- only under a search term (q), carrying shelved_at for the label.
+  AND ($1::text IS NOT NULL OR d.shelved_at IS NULL)
   AND (($2
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3))
        OR ($7 AND d.visibility = 'workspace'
@@ -937,6 +942,8 @@ WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): recent is a normal list - shelved rows leave it.
+  AND d.shelved_at IS NULL
   AND (d.updated_by = $3
        OR EXISTS (
             SELECT 1 FROM document_access_logs a
@@ -1107,6 +1114,10 @@ WHERE d.organization_id = $1
   AND d.workspace_id = $2
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): shelved nodes leave the tree; a live child of a
+  -- shelved parent (partial unshelve) is not floated - the service drops the
+  -- edge to a parent the result set does not hold.
+  AND d.shelved_at IS NULL
   AND (($3
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4))
        OR ($5 AND d.visibility = 'workspace'
