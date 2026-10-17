@@ -1,0 +1,3 @@
+$ cd server && go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate && test -z "$(git status --porcelain -- pkg/db)"; rc=$?; echo; echo "SQLC_DRIFT_EXIT=$rc"; git status --porcelain -- pkg/db | head -20
+
+SQLC_DRIFT_EXIT=0

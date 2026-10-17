@@ -1,0 +1,6 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/service -count=1 > /tmp/svc.log 2>&1); rc=$?; tail -40 /tmp/svc.log; echo; echo "TEST_SERVICE_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	461.787s
+
+TEST_SERVICE_EXIT=0
