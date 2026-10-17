@@ -24,7 +24,7 @@ import { ChatConversationNotices } from "./chat-notice";
 import { ChatPersonMessageProvider } from "./chat-person-card";
 import { useChatVoiceCall } from "./chat-voice-call-host";
 import { useChatPersonActions } from "./use-chat-person-actions";
-import { chatComposerPlaceholder } from "./chat-composer-placeholder";
+import { chatComposerBlockProps } from "./chat-composer-placeholder";
 import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
 import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
 import { useChatPagePanels } from "./use-chat-page-panels";
@@ -477,7 +477,7 @@ export function ChatPageContent({
                       : undefined
                   }
                   memberAvatarByUserId={memberAvatarByUserId}
-                  placeholder={chatComposerPlaceholder(t, {
+                  {...chatComposerBlockProps(t, {
                     dmBlocked,
                     chatSendMutedByModerator,
                     chatSendRestricted,
