@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchiveRestore, Download, Ellipsis, ExternalLink, Star, StarOff, Trash2 } from "lucide-react";
+import { ArchiveRestore, Download, Ellipsis, ExternalLink, Lock, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useDocumentDownload } from "@uniwork/core/documents/hooks";
@@ -25,7 +25,7 @@ import { CommentActorAvatar } from "../comments/comment-actor-avatar";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { formatShortWhen } from "./document-format";
 import { libraryCell, type LibraryLadder } from "./library-columns";
-import { rowAccessLabelKey, rowFormat, rowTitle, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
+import { rowFormat, rowTitle, rowVisibilityLabelKey, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
 /** The commands a shelved row offers (ARCHIVE-01 U-3/U-4). The page owns the
  *  mutations and their toasts; the row only names the item asked for. */
@@ -50,7 +50,7 @@ interface ShelvedMenuAction {
 
 /**
  * One row of the Lưu trữ table (Archive.dc, ARCHIVE-01 U-2/U-3): the name cell
- * keeps its parent-folder path line, Truy cập is the viewer's level, Lưu trữ
+ * keeps its parent-folder path line, Truy cập is the item's audience, Lưu trữ
  * bởi reads the workspace members list (a former member falls back to a
  * generic label, a null `shelved_by` is the system), Lưu trữ lúc is the short
  * stamp the trash's "Xóa lúc" uses, and the actions column is Bỏ lưu trữ for
@@ -98,7 +98,8 @@ export function ShelvedRowView({
     : t("documents.shelved_list.shelved_by_system");
   const shelverAvatar = typeof shelverMember?.avatar_url === "string" ? shelverMember.avatar_url : undefined;
 
-  const accessKey = rowAccessLabelKey(row);
+  // Truy cập is the item's audience, as the live Visibility cell draws it (F4); the list rows carry no share count.
+  const visibilityKey = rowVisibilityLabelKey(row);
 
   // Reading is allowed on a shelved item, so any reader may take the bytes of a file out (U-4, the file view's rule).
   const download = () => {
@@ -196,8 +197,15 @@ export function ShelvedRowView({
             {nameCell}
           </button>
         </td>
-        <td className={cn("px-3 py-2 text-caption text-muted-foreground", libraryCell(ladder, "access"))}>
-          {accessKey ? t(accessKey) : "—"}
+        <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "access"))}>
+          {visibilityKey ? (
+            <span className="flex items-center gap-1.5 text-foreground">
+              {doc.visibility === "restricted" ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+              <span className="truncate">{t(visibilityKey)}</span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
         </td>
         <td className={cn("px-3 py-2", libraryCell(ladder, "shelved_by"))}>
           {shelver ? (

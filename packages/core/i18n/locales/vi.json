@@ -9315,7 +9315,7 @@
     },
     "shelved_list": {
       "title": "Lưu trữ",
-      "intro": "Tài liệu đã xong việc được cất ở đây: giữ mãi, chỉ đọc, không bình luận. Bỏ lưu trữ đưa mục về như cũ.",
+      "intro": "Tài liệu đã xong việc được cất ở đây: giữ mãi, chỉ đọc, không bình luận. Bỏ lưu trữ đưa mục về như cũ. Ai xem được vẫn mở và tìm thấy (nhãn “Đã lưu trữ”). Lưu trữ một thư mục là lưu cả cây; cần quyền Quản lý.",
       "badge": "Đã lưu trữ",
       "shelve": "Lưu trữ",
       "unshelve": "Bỏ lưu trữ",

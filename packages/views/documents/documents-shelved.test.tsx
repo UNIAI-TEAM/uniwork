@@ -670,3 +670,55 @@ describe("shelved row keep-list (RAR-01)", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
   });
 });
+
+// F1: the Lưu trữ scope is one flat list, newest shelved first, as its sort label says.
+describe("shelved list layout (F1)", () => {
+  it("renders no group bands and keeps the shelved_at newest-first order", async () => {
+    route({
+      list: (path) =>
+        query(path).get("shelved") === "true"
+          ? [
+              shelved({ id: "a", title: "Mới nhất", shelved_at: "2026-10-12T03:00:00Z" }),
+              shelved({ id: "f", kind: "folder", title: "Thư mục cũ", shelved_at: "2026-10-11T03:00:00Z" }),
+              shelved({ id: "b", title: "Trong thư mục", parent_id: "f", shelved_at: "2026-10-10T03:00:00Z" }),
+              shelved({ id: "c", title: "Cũ nhất", shelved_at: "2026-10-09T03:00:00Z" }),
+            ]
+          : [],
+    });
+    renderView();
+    await openShelved();
+    await rowOf("Cũ nhất");
+    expect(document.querySelectorAll("[data-library-group]")).toHaveLength(0);
+    const order = [...document.querySelectorAll("tr[data-library-row]")].map((tr) => tr.getAttribute("data-library-row"));
+    expect(order).toEqual(["a", "f", "b", "c"]);
+  });
+});
+
+// F3 + F4: the intro carries the board's second sentence; Truy cập is the item's audience, like the live Visibility cell.
+describe("shelved list copy and audience (F3, F4)", () => {
+  it("explains who still sees a shelved item and what shelving a folder does", async () => {
+    route({ list: (path) => (query(path).get("shelved") === "true" ? [shelved()] : []) });
+    renderView();
+    await openShelved();
+    expect(
+      await screen.findByText(/Ai xem được vẫn mở và tìm thấy \(nhãn “Đã lưu trữ”\)\. Lưu trữ một thư mục là lưu cả cây; cần quyền Quản lý\./),
+    ).toBeInTheDocument();
+  });
+
+  it("shows each row's audience in Truy cập, with the lock on a restricted one, not the viewer's level", async () => {
+    route({
+      list: (path) =>
+        query(path).get("shelved") === "true"
+          ? [shelved({ id: "w", title: "Cả nhóm xem", visibility: "workspace" }), shelved({ id: "r", title: "Hồ sơ riêng", visibility: "restricted" })]
+          : [],
+    });
+    renderView();
+    await openShelved();
+    const open = await rowOf("Cả nhóm xem");
+    expect(within(open).getByText(t("documents.home.visibility.workspace"))).toBeInTheDocument();
+    expect(within(open).queryByText(t("documents.home.access.manage"))).toBeNull();
+    const closed = await rowOf("Hồ sơ riêng");
+    const cell = within(closed).getByText(t("documents.home.visibility.restricted"));
+    expect(cell.parentElement?.querySelector("svg")).not.toBeNull();
+  });
+});

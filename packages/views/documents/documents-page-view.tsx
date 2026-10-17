@@ -261,7 +261,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     desktopOpen,
   };
 
-  const groups = groupRows(library.state.rows, view.kind === "home" && folderId ? "none" : groupBy, library.folderIndex);
+  // Lưu trữ is one flat list in the server's shelved_at-newest order, as its sort label says (F1).
+  const groups = groupRows(library.state.rows, (view.kind === "home" && folderId) || view.kind === "shelved" ? "none" : groupBy, library.folderIndex);
   const scope: ScopeTab | null = view.kind === "home" || view.kind === "recent" || view.kind === "shared" || view.kind === "shelved" || view.kind === "archived" ? view.kind : null;
   const accessFiltered = library.access !== "all";
   const memberFiltered = view.kind === "shelved" && library.shelvedBy !== null;

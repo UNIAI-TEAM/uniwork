@@ -9321,7 +9321,7 @@
     },
     "shelved_list": {
       "title": "Archive",
-      "intro": "Finished documents are put away here: kept forever, read-only, no comments. Unshelving an item restores it as before.",
+      "intro": "Finished documents are put away here: kept forever, read-only, no comments. Unarchiving an item restores it as before. Anyone who can see an item still opens and finds it (labelled “Archived”). Archiving a folder archives the whole tree; it needs Manage access.",
       "badge": "Archived",
       "shelve": "Archive",
       "unshelve": "Unarchive",
