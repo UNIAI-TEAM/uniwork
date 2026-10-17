@@ -198,6 +198,12 @@ var isoReferences = []isoReference{
 		"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "organization principal", body: map[string]any{
 		"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/access", what: "user principal", body: map[string]any{
+		"items": []any{map[string]any{"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}}}, covers: []string{"DocumentAccessItemSDI.principal_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/access", what: "workspace principal", body: map[string]any{
+		"items": []any{map[string]any{"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}}}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/access", what: "organization principal", body: map[string]any{
+		"items": []any{map[string]any{"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}}}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "reply parent", body: map[string]any{
 		"body": "ref", "type": "comment", "parent_id": isoRef("docComment")}, covers: []string{"CreateDocumentCommentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "anchor base version", docKey: "anchorDoc", body: map[string]any{

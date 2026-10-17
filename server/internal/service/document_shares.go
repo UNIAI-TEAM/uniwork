@@ -36,13 +36,24 @@ func errPrincipalNotInOrganization() error {
 
 // errHomeRowLevelNotAllowed is Q-S1 of the share SRS addendum: the home row
 // tops out at edit, so a share naming the document's own workspace cannot
-// carry manage. Another workspace's share and the organization's keep the
-// behaviour they have today.
+// carry manage.
 func errHomeRowLevelNotAllowed() error {
 	return CodedError{
 		Code:   "level_not_allowed",
 		Status: http.StatusUnprocessableEntity,
 		Msg:    "dòng Workspace gốc chỉ nhận view, comment hoặc edit",
+		Fields: map[string]any{"max": string(DocumentLevelEdit)},
+	}
+}
+
+// errOrgShareLevelNotAllowed is Q-S1 (D3) of the share SRS addendum: an
+// organization-wide grant tops out at edit, so neither POST /shares nor
+// PUT /access may grant manage to principal_type='organization'.
+func errOrgShareLevelNotAllowed() error {
+	return CodedError{
+		Code:   "level_not_allowed",
+		Status: http.StatusUnprocessableEntity,
+		Msg:    "chia sẻ toàn tổ chức chỉ nhận view, comment hoặc edit",
 		Fields: map[string]any{"max": string(DocumentLevelEdit)},
 	}
 }
@@ -137,6 +148,9 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 func applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput, batchID string) (db.DocumentShare, error) {
 	if in.PrincipalType == DocumentPrincipalWorkspace && in.PrincipalID == doc.WorkspaceID {
 		return mergeDocumentShareIntoHomeRow(ctx, q, actor, doc, access, in.Level, batchID)
+	}
+	if in.PrincipalType == DocumentPrincipalOrganization && in.Level == DocumentLevelManage {
+		return db.DocumentShare{}, errOrgShareLevelNotAllowed()
 	}
 	prev, err := q.GetDocumentShare(ctx, db.GetDocumentShareParams{
 		OrganizationID: doc.OrganizationID,

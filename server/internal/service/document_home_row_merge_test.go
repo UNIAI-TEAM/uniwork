@@ -222,9 +222,10 @@ func TestShareHomeWorkspaceRefusesManage(t *testing.T) {
 }
 
 // TestOtherPrincipalsKeepTheirShareRows is the control for the merge: only the
-// document's own workspace changes shape. Another workspace and the
-// organization still get document_shares rows, manage included, and the home
-// row is untouched.
+// document's own workspace changes shape. Another workspace still gets a
+// document_shares row at manage, and the organization gets a document_shares
+// row up to edit (while manage on organization is refused with 422
+// level_not_allowed per Q-S1 / D3, SH-S2).
 func TestOtherPrincipalsKeepTheirShareRows(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "shs1mergeother")
@@ -233,9 +234,15 @@ func TestOtherPrincipalsKeepTheirShareRows(t *testing.T) {
 	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 	setWorkspaceLevel(t, f, doc, "view")
 
+	if _, err := f.svc.ShareDocument(f.ctx, H(tn.aclOwner.ID), doc.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: DocumentLevelManage,
+	}); !codedIs(err, "level_not_allowed") {
+		t.Fatalf("ShareDocument(organization, manage) = %v, want 422 level_not_allowed (Q-S1 / D3)", err)
+	}
+
 	for _, in := range []DocumentShareInput{
 		{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsB, Level: DocumentLevelManage},
-		{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: DocumentLevelManage},
+		{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: DocumentLevelEdit},
 		{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
 	} {
 		sh, err := f.svc.ShareDocument(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
