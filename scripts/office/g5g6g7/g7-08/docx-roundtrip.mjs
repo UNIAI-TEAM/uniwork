@@ -360,6 +360,12 @@ async function loadBuiltDocxEngine() {
   return cachedDocxEnginePromise;
 }
 
+/** G708-R2-10: which round-trip route produced a result, so an artifact never passes the sync repack for the engine. */
+export const DOCX_ROUND_TRIP_ROUTES = Object.freeze({
+  engine: 'docx-engine-parse-save',
+  syncRepack: 'scan-repack-sync',
+});
+
 /**
  * Full two-step async validator for `web-driver.mjs`:
  *   (i) `normalizeDocxPackage` over all XML/rels parts;
@@ -398,6 +404,7 @@ export async function runDocxRoundTrip(bytes, opts = {}) {
     return {
       normalizedOk: true,
       roundTripOk: false,
+      route: DOCX_ROUND_TRIP_ROUTES.syncRepack,
       detail: syncRt.detail ?? 'docx_roundtrip_failed',
     };
   }
@@ -405,6 +412,7 @@ export async function runDocxRoundTrip(bytes, opts = {}) {
   const engine =
     opts.docxEngine !== undefined ? opts.docxEngine : await loadBuiltDocxEngine();
   if (engine && typeof engine.parseDocx === 'function' && typeof engine.saveDocx === 'function') {
+    const route = DOCX_ROUND_TRIP_ROUTES.engine;
     try {
       const inputBuf = Buffer.from(norm.normalizedBytes);
       const parsed1 = await engine.parseDocx(inputBuf);
@@ -412,6 +420,7 @@ export async function runDocxRoundTrip(bytes, opts = {}) {
         return {
           normalizedOk: true,
           roundTripOk: false,
+          route,
           detail: 'docx_engine_parse_empty_blocks',
         };
       }
@@ -433,6 +442,7 @@ export async function runDocxRoundTrip(bytes, opts = {}) {
         return {
           normalizedOk: true,
           roundTripOk: false,
+          route,
           detail: `docx_engine_save_invalid:${savedCheck.reason}`,
         };
       }
@@ -441,6 +451,7 @@ export async function runDocxRoundTrip(bytes, opts = {}) {
         return {
           normalizedOk: true,
           roundTripOk: false,
+          route,
           detail: 'docx_engine_reopen_failed',
         };
       }
@@ -448,6 +459,7 @@ export async function runDocxRoundTrip(bytes, opts = {}) {
         return {
           normalizedOk: true,
           roundTripOk: false,
+          route,
           detail: `docx_engine_block_count_drift:${parsed1.blocks.length}->${parsed2.blocks.length}`,
         };
       }
@@ -455,13 +467,18 @@ export async function runDocxRoundTrip(bytes, opts = {}) {
       return {
         normalizedOk: true,
         roundTripOk: false,
+        route,
         detail: `docx_engine_roundtrip_threw:${err.message}`,
       };
     }
+    return { normalizedOk: true, roundTripOk: true, route };
   }
 
+  // The built engine is absent (or lacks parseDocx/saveDocx): the sync scan + repack above is
+  // the only route that ran, and the artifact says so instead of looking like the engine path.
   return {
     normalizedOk: true,
     roundTripOk: true,
+    route: DOCX_ROUND_TRIP_ROUTES.syncRepack,
   };
 }

@@ -8,6 +8,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  DOCX_ROUND_TRIP_ROUTES,
   docxRoundTripHook,
   normalizeDocxPackage,
   roundTripDocxSync,
@@ -109,6 +110,38 @@ describe('G7-08 W2 docx-roundtrip validator', () => {
     });
     assert.equal(verdict.status, 'PASS');
     assert.equal(verdict.exitCode, ROW_EXIT.PASS);
+  });
+
+  it('G708-R2-10: records which route produced the result, never passing the sync repack off as the engine', async () => {
+    const editedBytes = mutateDocxParagraphText(
+      DOCX_BYTES,
+      ORIGINAL_PARA_2,
+      'Báo cáo quý 1 ghi nhận 22.060.000 đồng (cập nhật)',
+    );
+    // No engine bundle: only the sync scan + repack ran and the artifact says so.
+    const syncOnly = await runDocxRoundTrip(editedBytes, { ...HELPER_OPTS, docxEngine: null });
+    assert.equal(syncOnly.roundTripOk, true);
+    assert.equal(syncOnly.route, 'scan-repack-sync');
+    assert.equal(DOCX_ROUND_TRIP_ROUTES.syncRepack, 'scan-repack-sync');
+    // An engine without parseDocx/saveDocx is the same sync-only route.
+    assert.equal((await runDocxRoundTrip(editedBytes, { ...HELPER_OPTS, docxEngine: {} })).route, 'scan-repack-sync');
+
+    // A working engine: open -> save -> reopen, named as such.
+    const blocks = [{ kind: 'paragraph', originalXml: '<w:p/>', docxIndex: 0 }];
+    const engineRes = await runDocxRoundTrip(editedBytes, {
+      ...HELPER_OPTS,
+      docxEngine: { parseDocx: async () => ({ blocks }), saveDocx: async () => editedBytes },
+    });
+    assert.equal(engineRes.roundTripOk, true);
+    assert.equal(engineRes.route, 'docx-engine-parse-save');
+
+    // A failing engine names the engine route too.
+    const failing = await runDocxRoundTrip(editedBytes, {
+      ...HELPER_OPTS,
+      docxEngine: { parseDocx: async () => { throw new Error('boom'); }, saveDocx: async () => editedBytes },
+    });
+    assert.equal(failing.roundTripOk, false);
+    assert.equal(failing.route, 'docx-engine-parse-save');
   });
 
   it('runs the injected normalizer over every XML and rels entry during step (i)', async () => {
