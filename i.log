@@ -1,0 +1,3 @@
+$ node tools/check-english-comments.mjs; echo ENGLISH_COMMENTS_EXIT=$?
+check-english-comments: OK
+ENGLISH_COMMENTS_EXIT=0

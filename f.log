@@ -1,0 +1,2 @@
+$ npx tsc -p web/docs/protocol/tsconfig.json && npx tsc -p web/docs/bridge/tsconfig.json && npx tsc -p web/modules/tsconfig.json; echo WEB_TSC_EXIT=$?
+WEB_TSC_EXIT=0

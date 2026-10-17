@@ -1,0 +1,17 @@
+$ npx vitest run --root web/docs/bridge --environment jsdom webapi.test.ts 2>&1 | tail -15; echo DOCS_BRIDGE_TEST_EXIT=${PIPESTATUS[0]}
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+
+ Test Files  1 passed (1)
+      Tests  116 passed (116)
+   Start at  08:27:28
+   Duration  3.94s (transform 1.04s, setup 0ms, import 1.27s, tests 2.26s, environment 314ms)
+
+DOCS_BRIDGE_TEST_EXIT=0

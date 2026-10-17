@@ -1,0 +1,2 @@
+$ git fetch -q origin main && git merge-base --is-ancestor origin/main HEAD; echo SYNCED_EXIT=$?
+SYNCED_EXIT=0

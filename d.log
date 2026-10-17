@@ -1,0 +1,11 @@
+$ npx vitest run --root web/modules shared/i18n/strings-web.test.ts shared/conflict-dialog.test.ts 2>&1 | tail -15; echo DIALOG_I18N_TEST_EXIT=${PIPESTATUS[0]}
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+
+ Test Files  2 passed (2)
+      Tests  124 passed (124)
+   Start at  08:27:26
+   Duration  1.05s (transform 381ms, setup 0ms, import 460ms, tests 395ms, environment 666ms)
+
+DIALOG_I18N_TEST_EXIT=0

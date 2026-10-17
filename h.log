@@ -1,0 +1,4 @@
+$ npx prettier --check $(git diff --name-only origin/main...HEAD -- '*.ts' '*.tsx' '*.md'); echo PRETTIER_EXIT=$?
+Checking formatting...
+All matched files use Prettier code style!
+PRETTIER_EXIT=0
