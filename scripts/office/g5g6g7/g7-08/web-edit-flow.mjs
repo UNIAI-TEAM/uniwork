@@ -18,9 +18,8 @@ import {
 const EDITOR_SELECTOR = '.ProseMirror, .cm-content';
 const AI_CHROME_SELECTOR = '.ai-panel, .ai-dock, .ai-composer, .ai-chat, .copilot';
 const UNDO_SETTLE_MS = 500;
-// The frame skips a Save with nothing to write, so the second Save of a clean document never
-// commits: it only needs long enough to prove that, not the full row bound.
-const SECOND_SAVE_BOUND_MS = 8_000;
+// The second Save answers as fast as the first; a shorter bound keeps a lost one from costing the full row bound.
+const SECOND_SAVE_BOUND_MS = 15_000;
 
 /** The text of the frame's editor surface, or null when the module has none. */
 export async function readEditorText(frame) {
@@ -126,8 +125,7 @@ export async function runEditStage(ctx, io = realIo) {
   const hostAfterFirst = await io.readHostState(page, sel.host);
   const headAfterFirst = await io.readFrameHead(api);
 
-  const secondRaw = await io.webSave(page, { kind: row.module, timeoutMs: Math.min(timeoutMs, SECOND_SAVE_BOUND_MS) });
-  const second = { ...secondRaw, dirty: secondRaw.status === 'saved' ? false : await io.readHostDirty(page, sel.host) };
+  const second = await io.webSave(page, { kind: row.module, timeoutMs: Math.min(timeoutMs, SECOND_SAVE_BOUND_MS) });
   const afterSecond = await io.readVersionCount(api);
   if (!afterSecond.ok) return { stop: blockedVerdict(afterSecond.reason, { detail: afterSecond.detail, step: 'after_second_save' }) };
   const headAfterSave = await io.readFrameHead(api);
@@ -162,10 +160,9 @@ export async function runEditStage(ctx, io = realIo) {
     },
     oldBytes: old.bytes,
     details: {
-      secondSaveOutcome: obs.secondOutcome,
       saves: {
         first: { versionId: first.versionId, revision: headAfterFirst.revision, sha256: headAfterFirst.sha256, host: hostAfterFirst },
-        second: { status: secondRaw.status, versionId: secondRaw.versionId ?? null, revision: headAfterSave.revision, sha256: headAfterSave.sha256 },
+        second: { status: second.status, versionId: second.versionId ?? null, revision: headAfterSave.revision, sha256: headAfterSave.sha256 },
         bytesIdenticalAcrossSaves: headAfterFirst.sha256 === headAfterSave.sha256,
       },
       versionsAfterFirstSave: afterFirst.count,

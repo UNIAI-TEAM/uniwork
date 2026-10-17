@@ -97,6 +97,13 @@ export function oracleVersionAndSave(observed) {
     if (typeof observed.aiChangeUndoableBeforeSave !== 'boolean') return blockedVerdict('missing_ai_change_undoable_before_save');
     if (typeof observed.saveUsedCurrentBaseRevision !== 'boolean') return blockedVerdict('missing_save_used_current_base_revision');
     if (!Number.isInteger(observed.doubleClickVersionsCreated)) return blockedVerdict('missing_double_click_versions_created');
+    // The second Save of one gesture adds no version (versionsAfterSecondSave - versionsAfterFirstSave);
+    // checked first so a duplicate version is named as that, not as "delta not one".
+    if (observed.doubleClickVersionsCreated !== 0) {
+      return failVerdict('double_click_save_created_duplicate_version', {
+        doubleClickVersionsCreated: observed.doubleClickVersionsCreated, versionsAfterAiTurn, versionsAfterSave,
+      });
+    }
     if (versionsAfterSave !== versionsAfterAiTurn + 1) {
       return failVerdict('explicit_save_version_delta_not_one', {
         versionsAfterAiTurn, versionsAfterSave, delta: versionsAfterSave - versionsAfterAiTurn,
@@ -108,12 +115,6 @@ export function oracleVersionAndSave(observed) {
     if (!observed.aiChangeVisibleBeforeSave) return failVerdict('ai_change_not_visible_before_save');
     if (!observed.aiChangeUndoableBeforeSave) return failVerdict('ai_change_not_undoable_before_save');
     if (!observed.saveUsedCurrentBaseRevision) return failVerdict('save_did_not_use_current_base_revision');
-    // The second Save of one gesture adds no version (versionsAfterSecondSave - versionsAfterFirstSave).
-    if (observed.doubleClickVersionsCreated !== 0) {
-      return failVerdict('double_click_save_created_duplicate_version', {
-        doubleClickVersionsCreated: observed.doubleClickVersionsCreated,
-      });
-    }
   }
   return passVerdict('version_and_save_ok', {
     operation, versionsBefore, versionsAfterAiTurn,

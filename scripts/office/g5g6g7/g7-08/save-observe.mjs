@@ -116,14 +116,10 @@ export function buildUndoRedoObserved({
 /**
  * R2-1 + R2-3 + R2-9: the edit rows' Save observations from what the driver saw,
  * or the BLOCKED reason when a scored field is absent. `doubleSave` is what the
- * two Control+s presses of one Save gesture answered.
- *
- * The second Save of a clean document is a no-op in the frame itself (its
- * single-flight save skips a document with nothing to write), so `second.status
- * === 'timeout'` with the frame reporting not dirty is recorded as the
- * `skipped_clean` outcome - the observation (no second version) is still
- * measured. A second Save that errored, or one that produced no commit while the
- * frame WAS dirty, is a lost Save: BLOCKED `missing_double_click_save`.
+ * two Saves of one gesture answered. A second Save that is skipped or does not
+ * answer `saved` is BLOCKED `missing_double_click_save`: the dry run showed the
+ * frame commits a second Save even of a clean document, so a skipped one is a lost
+ * Save, not a measured +0.
  */
 export function buildEditSaveObservation({
   doubleSave = null, versionsAfterFirstSave, versionsAfterSecondSave,
@@ -138,21 +134,14 @@ export function buildEditSaveObservation({
   if (!Number.isInteger(versionsAfterFirstSave) || !Number.isInteger(versionsAfterSecondSave)) {
     return { ok: false, reason: 'missing_version_list', versionsAfterFirstSave, versionsAfterSecondSave };
   }
-  const second = doubleSave.second ?? null;
-  const secondOutcome = second?.status === 'saved'
-    ? 'committed'
-    : second?.status === 'timeout' && second?.dirty === false
-      ? 'skipped_clean'
-      : null;
-  if (!secondOutcome) {
-    return { ok: false, reason: 'missing_double_click_save', saved: second };
+  if (doubleSave.second?.status !== 'saved') {
+    return { ok: false, reason: 'missing_double_click_save', saved: doubleSave.second ?? null };
   }
   if (lastCommitBaseRevision === null || lastCommitBaseRevision === undefined) {
     return { ok: false, reason: 'missing_save_base_revision' };
   }
   return {
     ok: true,
-    secondOutcome,
     observed: {
       versionsAfterSave: versionsAfterSecondSave,
       doubleClickVersionsCreated: versionsAfterSecondSave - versionsAfterFirstSave,

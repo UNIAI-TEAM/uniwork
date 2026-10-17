@@ -155,7 +155,6 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     };
     const ok = buildEditSaveObservation(base);
     assert.equal(ok.ok, true);
-    assert.equal(ok.secondOutcome, 'committed');
     assert.equal(ok.observed.doubleClickVersionsCreated, 0, 'two Saves of one edit add no second version');
     assert.equal(ok.observed.versionsAfterSave, 2);
     assert.equal(ok.observed.saveUsedCurrentBaseRevision, true);
@@ -167,24 +166,13 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     assert.equal(buildEditSaveObservation({ ...base, doubleSave: { presses: 1, first: { status: 'saved' } } }).reason, 'missing_double_click_save');
     assert.equal(buildEditSaveObservation({ ...base, doubleSave: null }).reason, 'missing_double_click_save');
 
-    // The frame's single-flight save skips a clean document: measured, not a lost Save.
-    const skipped = buildEditSaveObservation({
-      ...base,
-      doubleSave: { presses: 2, first: { status: 'saved' }, second: { status: 'timeout', dirty: false, saveState: 'saved' } },
-    });
-    assert.equal(skipped.ok, true);
-    assert.equal(skipped.secondOutcome, 'skipped_clean');
-    assert.equal(skipped.observed.doubleClickVersionsCreated, 0);
-
-    // A second Save that never committed while the frame WAS dirty is a lost Save.
-    assert.equal(
-      buildEditSaveObservation({ ...base, doubleSave: { presses: 2, first: { status: 'saved' }, second: { status: 'timeout', dirty: true } } }).reason,
-      'missing_double_click_save',
-    );
-    assert.equal(
-      buildEditSaveObservation({ ...base, doubleSave: { presses: 2, first: { status: 'saved' }, second: { status: 'error', httpStatus: 500 } } }).reason,
-      'missing_double_click_save',
-    );
+    // A second Save that never committed (skipped, timed out, errored) is a lost Save, not a +0.
+    for (const second of [{ status: 'timeout', dirty: false }, { status: 'timeout', dirty: true }, { status: 'error', httpStatus: 500 }, null]) {
+      assert.equal(
+        buildEditSaveObservation({ ...base, doubleSave: { presses: 2, first: { status: 'saved' }, second } }).reason,
+        'missing_double_click_save',
+      );
+    }
 
     // A failed first Save names its own reason.
     assert.equal(

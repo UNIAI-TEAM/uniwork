@@ -54,7 +54,7 @@ describe('G7-08 w2e2 runEditStage', () => {
     assert.equal(out.observed.versionsAfterSave, 2);
     assert.equal(out.observed.saveUsedCurrentBaseRevision, true);
     assert.equal(out.observed.revisionAfterSave, '2');
-    assert.equal(out.details.secondSaveOutcome, 'committed');
+    assert.equal(out.details.saves.second.revision, '2', 'the artifact carries what the server held after each Save');
     // Order: undo/redo before the first Save; count between the Saves; old bytes after both.
     const order = io.calls.map((c) => c[0]);
     assert.deepEqual(order, ['undoRedo', 'webSave', 'count', 'head', 'webSave', 'count', 'head', 'oldBytes']);
@@ -66,13 +66,12 @@ describe('G7-08 w2e2 runEditStage', () => {
     assert.equal(out.observed.doubleClickVersionsCreated, 1);
   });
 
-  it('R2-1: a clean second Save that never commits is measured as skipped, a dirty one that never commits is BLOCKED', async () => {
-    const skipped = await runEditStage(ctx(), makeIo({ saves: [{ status: 'saved', versionId: 'V2', revision: '2', version: 2 }, { status: 'timeout', reason: 'no commit' }] }));
-    assert.equal(skipped.details.secondSaveOutcome, 'skipped_clean');
-    assert.equal(skipped.observed.doubleClickVersionsCreated, 0);
-    const lost = await runEditStage(ctx(), makeIo({ saves: [{ status: 'saved', versionId: 'V2', revision: '2', version: 2 }, { status: 'timeout', reason: 'no commit' }], dirtyAfterSecond: true }));
-    assert.equal(lost.stop.status, 'BLOCKED');
-    assert.equal(lost.stop.reason, 'missing_double_click_save');
+  it('R2-1: a second Save that never commits is BLOCKED, whatever the host says about being dirty', async () => {
+    for (const second of [{ status: 'timeout', reason: 'no commit' }, { status: 'error', httpStatus: 500 }]) {
+      const out = await runEditStage(ctx(), makeIo({ saves: [{ status: 'saved', versionId: 'V2', revision: '2', version: 2 }, second], dirtyAfterSecond: false }));
+      assert.equal(out.stop.status, 'BLOCKED');
+      assert.equal(out.stop.reason, 'missing_double_click_save');
+    }
   });
 
   it('R2-1: a failed first Save is a FAIL and no second Save is sent', async () => {
