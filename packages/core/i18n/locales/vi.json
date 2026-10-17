@@ -10110,6 +10110,15 @@
       "loading": "Đang tải trình soạn thảo…",
       "capability_unavailable": "Trình soạn thảo không khả dụng",
       "editor_pending": "Chỉnh sửa {{format}} chưa khả dụng."
+    },
+    "size": {
+      "warn_chip": "Sắp chạm giới hạn {{max}} (đang {{size}}).",
+      "save_blocked": {
+        "title": "Chưa lưu được lên UniWork",
+        "body": "Tài liệu đã vượt {{max}}. Thay đổi của bạn vẫn ở đây. Tải bản của bạn về máy rồi giảm dung lượng ảnh hoặc chia nhỏ tài liệu.",
+        "download": "Tải bản của tôi",
+        "close": "Đóng"
+      }
     }
   },
   "officeDesktop": {

@@ -24,6 +24,7 @@ import { DocsFrameFailure } from "./docs-frame-failure";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
+import { FrameSaveBlockedDialog, FrameSizeWarningChip } from "./frame-size-ui";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 import { useFrameComments } from "./use-frame-comments";
 
@@ -346,6 +347,7 @@ export function OfficeModuleFrame({
       {desktopOpen && !booting && !session.viewOnly ? (
         <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={save} requestRef={appOpenRef} />
       ) : null}
+      <FrameSizeWarningChip warning={session.sizeWarning} />
       <iframe
         key={session.attempt}
         ref={iframeRef}
@@ -382,6 +384,12 @@ export function OfficeModuleFrame({
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : null}
+      <FrameSaveBlockedDialog
+        saveBlocked={session.saveBlocked}
+        onDownload={session.downloadCopy}
+        onDismiss={session.dismissSaveBlocked}
+        finalFocus={focusFrame}
+      />
       {/*
         A Save from here may meet a newer version: the frame then shows its own conflict dialog,
         which owns the page meanwhile, so this one steps aside until the frame answers. The leave

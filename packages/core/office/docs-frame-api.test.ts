@@ -306,4 +306,24 @@ describe("createDocsFrameApi saveAs", () => {
     const { api } = setup({ "POST /api/v1/workspaces/ws-1/documents/files": () => json({ error: { code: "quota_exceeded", message: "full" } }, 413) });
     await expect(api.saveAs!({ name: "Big.docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "too_large", status: 413 });
   });
+
+  it("preserves fields.max_bytes on a 413 file_too_large save or saveAs failure", async () => {
+    const { api } = setup({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        json({ error: { code: "file_too_large", message: "too big", fields: { max_bytes: 209715200 } } }, 413),
+      "POST /api/v1/workspaces/ws-1/documents/files": () =>
+        json({ error: { code: "file_too_large", message: "too big", fields: { max_bytes: 104857600 } } }, 413),
+    });
+    await expect(api.save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, call())).rejects.toMatchObject({
+      code: "too_large",
+      status: 413,
+      details: { apiCode: "file_too_large", max_bytes: 209715200 },
+    });
+    await expect(api.saveAs!({ name: "Big.docx", data: new ArrayBuffer(4) }, call())).rejects.toMatchObject({
+      code: "too_large",
+      status: 413,
+      details: { apiCode: "file_too_large", max_bytes: 104857600 },
+    });
+  });
 });

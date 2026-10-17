@@ -10116,6 +10116,15 @@
       "loading": "Loading editor…",
       "capability_unavailable": "This editor is unavailable",
       "editor_pending": "{{format}} editing is not available yet."
+    },
+    "size": {
+      "warn_chip": "Approaching the {{max}} limit (currently {{size}}).",
+      "save_blocked": {
+        "title": "Couldn’t save to UniWork",
+        "body": "This document is over {{max}}. Your changes are still here. Download your copy to your computer, then reduce image sizes or split the document.",
+        "download": "Download my copy",
+        "close": "Close"
+      }
     }
   },
   "officeDesktop": {
