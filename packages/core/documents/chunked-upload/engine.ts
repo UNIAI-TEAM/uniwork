@@ -117,7 +117,8 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   let pauseGeneration = 0;
   let needsRefreshBeforeUpload = false;
   let pauseWaiters: (() => void)[] = [];
-  let inFlightAbort = new AbortController();
+  const cancelAbort = new AbortController();
+  let partPutAbort = new AbortController();
   let refreshPromise: Promise<void> | null = null;
 
   function partByteLength(partNumber: number): number {
@@ -173,10 +174,10 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       return getFrameUploadSession(opts.target.documentId, id, {
         frameToken: opts.target.frameToken,
         fetch: opts.fetch,
-        signal: inFlightAbort.signal,
+        signal: cancelAbort.signal,
       });
     }
-    return getUploadSession(id, { signal: inFlightAbort.signal });
+    return getUploadSession(id, { signal: cancelAbort.signal });
   }
 
   async function refreshSession(): Promise<void> {
@@ -226,7 +227,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
 
     const reqOpts = {
       idempotencyKey: opts.idempotencyKey,
-      signal: inFlightAbort.signal,
+      signal: cancelAbort.signal,
     };
     let created: UploadSession | null = null;
     if (opts.target.kind === "workspace") {
@@ -279,6 +280,8 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
           Date.parse(partMeta.expires_at) <= Date.now());
       if (expired) {
         await refreshSession();
+        if (canceled) throw new ChunkedUploadError("upload_canceled", "Upload was canceled");
+        if (paused || pauseGeneration !== gen || signal.aborted) return;
         if (completedEtags.has(partNumber)) {
           emit("uploading");
           return;
@@ -327,14 +330,14 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   }
 
   async function uploadAllParts(): Promise<void> {
-    emit("uploading");
+    if (!paused) emit("uploading");
     while (completedEtags.size < totalParts) {
       if (canceled) throw new ChunkedUploadError("upload_canceled", "Upload was canceled");
       if (paused) await waitWhilePaused();
       if (needsRefreshBeforeUpload) {
         needsRefreshBeforeUpload = false;
         await refreshSession();
-        emit("uploading");
+        if (!paused) emit("uploading");
         continue;
       }
 
@@ -345,7 +348,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       if (queue.length === 0) break;
 
       const passGen = pauseGeneration;
-      const passSignal = inFlightAbort.signal;
+      const passSignal = partPutAbort.signal;
       let queueIdx = 0;
       const workerCount = Math.min(concurrency, queue.length);
       const workers = Array.from({ length: workerCount }, async () => {
@@ -383,7 +386,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
             {
               frameToken: opts.target.frameToken,
               fetch: opts.fetch,
-              signal: inFlightAbort.signal,
+              signal: cancelAbort.signal,
             },
           );
           if (upload) out = { kind: "upload", upload };
@@ -391,7 +394,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
           out = await completeUploadSession(
             sessionId,
             { parts },
-            { signal: inFlightAbort.signal },
+            { signal: cancelAbort.signal },
           );
         }
 
@@ -409,7 +412,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
               ? err.fields.retry_after
               : undefined;
           const waitSec = err.retryAfterSeconds ?? fieldRetry ?? 5;
-          await abortableSleep(Math.max(1, waitSec) * 1000, inFlightAbort.signal);
+          await abortableSleep(Math.max(1, waitSec) * 1000, cancelAbort.signal);
           continue;
         }
         if (isClearedSessionError(err) && opts.storage) {
@@ -446,6 +449,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       if (
         paused ||
         canceled ||
+        currentPhase === "verifying" ||
         currentPhase === "done" ||
         currentPhase === "failed" ||
         currentPhase === "canceled"
@@ -455,8 +459,8 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       paused = true;
       pauseGeneration += 1;
       needsRefreshBeforeUpload = true;
-      inFlightAbort.abort();
-      inFlightAbort = new AbortController();
+      partPutAbort.abort();
+      partPutAbort = new AbortController();
       emit("paused");
     },
     resume() {
@@ -471,8 +475,9 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       canceled = true;
       paused = false;
       pauseGeneration += 1;
-      inFlightAbort.abort();
-      inFlightAbort = new AbortController();
+      cancelAbort.abort();
+      partPutAbort.abort();
+      partPutAbort = new AbortController();
       const waiters = pauseWaiters;
       pauseWaiters = [];
       for (const wake of waiters) wake();

@@ -502,4 +502,210 @@ describe("chunked upload engine", () => {
     expect(res).toEqual({ kind: "document", document: createdDoc });
     expect(completeAttempts).toBe(2);
   });
+
+  it("pauses in opening without aborting session creation, waits before uploading parts, and resumes", async () => {
+    const file = makeFile(10);
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    let createStarted!: () => void;
+    const createInFlight = new Promise<void>((r) => {
+      createStarted = r;
+    });
+    let releaseCreate!: () => void;
+    const createGate = new Promise<void>((r) => {
+      releaseCreate = r;
+    });
+    let putCalls = 0;
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        createStarted();
+        return await new Promise<Response>((resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+          void createGate.then(() => resolve(json(makeSessionBody("sess-open-pause", 1), 201)));
+        });
+      }
+      if (method === "GET" && url === `${API}/api/v1/upload-sessions/sess-open-pause`) {
+        return json({ ...makeSessionBody("sess-open-pause", 1), status: "open" });
+      }
+      if (method === "PUT" && url.includes("part-1")) {
+        putCalls += 1;
+        return new Response(null, { status: 200, headers: { ETag: '"etag-1"' } });
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        return json({ document: createdDoc }, 200);
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+
+    const phases: string[] = [];
+    vi.stubGlobal("fetch", fakeFetch);
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-open-pause",
+      storage,
+      fetch: fakeFetch,
+      onProgress: (p) => phases.push(p.phase),
+    });
+
+    await createInFlight;
+    upload.pause();
+    releaseCreate();
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+
+    expect(phases.at(-1)).toBe("paused");
+    expect(putCalls).toBe(0);
+    expect(findResumableUpload(storage, uploadFileKey(file), target)?.session_id).toBe(
+      "sess-open-pause",
+    );
+
+    upload.resume();
+    const res = await upload.result;
+    expect(res).toEqual({ kind: "document", document: createdDoc });
+    expect(putCalls).toBe(1);
+  });
+
+  it("pauses during a session refresh without aborting GET, waits at the next boundary, and resumes", async () => {
+    const file = makeFile(10);
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    let refreshStarted!: () => void;
+    const refreshInFlight = new Promise<void>((r) => {
+      refreshStarted = r;
+    });
+    let releaseRefresh!: () => void;
+    const refreshGate = new Promise<void>((r) => {
+      releaseRefresh = r;
+    });
+    let getCalls = 0;
+    let putCalls = 0;
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(
+          makeSessionBody("sess-refresh-pause", 1, makePartUrls([1], 1, "2020-01-01T00:00:00Z")),
+          201,
+        );
+      }
+      if (method === "GET" && url === `${API}/api/v1/upload-sessions/sess-refresh-pause`) {
+        getCalls += 1;
+        if (getCalls === 1) {
+          refreshStarted();
+          return await new Promise<Response>((resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"));
+            });
+            void refreshGate.then(() =>
+              resolve(
+                json({
+                  ...makeSessionBody("sess-refresh-pause", 1, makePartUrls([1], 2)),
+                  status: "open",
+                }),
+              ),
+            );
+          });
+        }
+        return json({
+          ...makeSessionBody("sess-refresh-pause", 1, makePartUrls([1], 3)),
+          status: "open",
+        });
+      }
+      if (method === "PUT" && url.includes("part-1")) {
+        putCalls += 1;
+        return new Response(null, { status: 200, headers: { ETag: '"etag-1"' } });
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        return json({ document: createdDoc }, 200);
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+
+    const phases: string[] = [];
+    vi.stubGlobal("fetch", fakeFetch);
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-refresh-pause",
+      storage,
+      fetch: fakeFetch,
+      onProgress: (p) => phases.push(p.phase),
+    });
+
+    await refreshInFlight;
+    upload.pause();
+    releaseRefresh();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(phases.at(-1)).toBe("paused");
+    expect(putCalls).toBe(0);
+
+    upload.resume();
+    const res = await upload.result;
+    expect(res).toEqual({ kind: "document", document: createdDoc });
+    expect(putCalls).toBe(1);
+    expect(getCalls).toBe(2);
+  });
+
+  it("does not abort an in-flight complete request when pause() is called during verifying", async () => {
+    const file = makeFile(10);
+    let completeStarted!: () => void;
+    const completeInFlight = new Promise<void>((r) => {
+      completeStarted = r;
+    });
+    let releaseComplete!: () => void;
+    const completeGate = new Promise<void>((r) => {
+      releaseComplete = r;
+    });
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(makeSessionBody("sess-verify-pause", 1), 201);
+      }
+      if (method === "PUT" && url.includes("part-1")) {
+        return new Response(null, { status: 200, headers: { ETag: '"etag-1"' } });
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        completeStarted();
+        return await new Promise<Response>((resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+          void completeGate.then(() => resolve(json({ document: createdDoc }, 200)));
+        });
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+
+    const phases: string[] = [];
+    vi.stubGlobal("fetch", fakeFetch);
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target: { kind: "workspace", workspaceId: "ws-1" },
+      idempotencyKey: "idem-verify-pause",
+      fetch: fakeFetch,
+      onProgress: (p) => phases.push(p.phase),
+    });
+
+    await completeInFlight;
+    upload.pause();
+    releaseComplete();
+
+    const res = await upload.result;
+    expect(res).toEqual({ kind: "document", document: createdDoc });
+    expect(phases.at(-1)).toBe("done");
+    expect(phases).not.toContain("failed");
+  });
 });
