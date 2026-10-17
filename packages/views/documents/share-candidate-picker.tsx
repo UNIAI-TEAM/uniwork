@@ -63,7 +63,8 @@ export function buildLocalShareCandidates(
 ): DocumentShareCandidate[] {
   const directByKey = new Map<string, DocumentAccessLevel>();
   for (const s of shares) {
-    if (s.active) directByKey.set(`${s.principal_type}:${s.principal_id}`, s.level);
+    // A level a newer server added narrows to null: it is known, not "view".
+    if (s.active && s.level) directByKey.set(`${s.principal_type}:${s.principal_id}`, s.level);
   }
   if (homeWorkspace?.workspace_id && homeWorkspace.level) {
     directByKey.set(`workspace:${homeWorkspace.workspace_id}`, homeWorkspace.level);
@@ -138,7 +139,11 @@ export interface ShareCandidatePickerProps {
   hasMore: boolean;
   loadingMore: boolean;
   loadMoreError?: boolean;
+  /** True when the first page failed: there are no candidates at all, so the
+   *  "no result" empty state must not stand in for the failure. */
+  loadError?: boolean;
   onLoadMore: () => void;
+  onRetry: () => void;
   alreadySharedUserIds?: readonly (string | null | undefined)[];
   isLoading: boolean;
   disabled: boolean;
@@ -163,6 +168,8 @@ export function ShareCandidatePicker({
   hasMore,
   loadingMore,
   loadMoreError = false,
+  loadError,
+  onRetry,
   onLoadMore,
   alreadySharedUserIds,
   isLoading,
@@ -182,6 +189,7 @@ export function ShareCandidatePicker({
   const [activeIndex, setActiveIndex] = useState(0);
   const alreadySharedSet = new Set((alreadySharedUserIds ?? []).filter((id): id is string => Boolean(id)));
 
+  const firstPageFailed = Boolean(loadError && candidates.length === 0);
   return (
     <div
       ref={containerRef}
@@ -261,8 +269,8 @@ export function ShareCandidatePicker({
           id={inputId}
           role="combobox"
           aria-autocomplete="list"
-          aria-expanded={dropdownOpen}
-          aria-controls={listboxId}
+          aria-expanded={dropdownOpen && !firstPageFailed}
+          aria-controls={firstPageFailed ? undefined : listboxId}
           placeholder={t("documents.share.candidate_search")}
           value={query}
           disabled={disabled || atLimit}
@@ -295,8 +303,16 @@ export function ShareCandidatePicker({
             }
           }}
         />
+        {firstPageFailed ? (
+          <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 py-1.5">
+            <p className="text-caption text-destructive">{t("documents.share.candidates_error")}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => onRetry()}>
+              {t("documents.share.retry")}
+            </Button>
+          </div>
+        ) : null}
 
-        {dropdownOpen ? (
+        {dropdownOpen && !firstPageFailed ? (
           <div
             id={listboxId}
             role="listbox"
