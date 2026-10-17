@@ -927,6 +927,16 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		after := doc.PurgeAfter.Time.UTC().Format(time.RFC3339)
 		out.PurgeAfter = &after
 	}
+	// ARCHIVE-01: shelved fields travel on every document payload - detail,
+	// command results and the document a restore returns (spec Q-UI3).
+	if doc.ShelvedAt.Valid {
+		at := doc.ShelvedAt.Time.UTC().Format(time.RFC3339)
+		out.ShelvedAt = &at
+	}
+	if doc.ShelvedBy.Valid && doc.ShelvedBy.String != "" {
+		by := doc.ShelvedBy.String
+		out.ShelvedBy = &by
+	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}
