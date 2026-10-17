@@ -41,8 +41,10 @@ nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset �
    `uniwork-chat-mobile=uniworkchat://auth/callback|uniworkchat-dev://auth/callback` (`.env.example`). Universal link
    (`applinks:app.uniworkos.com`) cần Team ID của Apple trong AASA và SHA-256 của khoá Play App Signing trong
    `assetlinks.json` (web, lát N3).
-7. Nightly (`chat-mobile-verify.yml`): trên staging, một org thử có một workspace, một phòng và một tài khoản đăng nhập
-   bằng email/mật khẩu (không MFA, không chỉ Google). Repository variables `MAESTRO_API_URL`, `MAESTRO_APP_URL`,
+7. Nightly (`chat-mobile-verify.yml`): trên staging, một org thử có một workspace, một **phòng nhóm** (group, không
+   phải kênh mặc định của workspace) và một tài khoản thành viên của phòng đó, đăng nhập bằng email/mật khẩu (không
+   MFA, không chỉ Google). Phòng nhóm vì cuộc gọi nhóm vào thẳng phòng LiveKit mà không cần người thứ hai; mỗi đêm
+   gửi một tin `Maestro <số>` vào phòng. Repository variables `MAESTRO_API_URL`, `MAESTRO_APP_URL`,
    `MAESTRO_ORG_SLUG`, `MAESTRO_WS_SLUG`, `MAESTRO_ROOM_ID`; secrets `MAESTRO_TEST_EMAIL`, `MAESTRO_TEST_PASSWORD`.
    Lịch chạy chỉ có hiệu lực khi workflow nằm trên `main`; trước đó chạy tay bằng "Run workflow".
 
@@ -100,9 +102,11 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
 6. **Rollback bản store** (lỗi native, hoặc OTA không cứu được): store không cho hạ build number, nên đi tới. Revert
    trên `develop`, bump `version` (patch), tag. Trong lúc chờ: TestFlight → build lỗi → Expire build; Play Console →
    Internal testing → tạm dừng/thay release bằng bản mới. OTA cũ không áp vào bản mới vì runtime version khác.
-7. Nightly đỏ ở sheet đăng nhập nhiều đêm liền mà app không đổi: chụp màn từ artifact, đối chiếu nút/nhãn của trang
+7. Nightly đỏ ở `Join a call` với cuộc gọi cũ còn treo trong phòng thử (một đêm trước dừng giữa cuộc gọi): kết thúc
+   nó từ web bằng tài khoản thử rồi "Re-run failed jobs".
+8. Nightly đỏ ở sheet đăng nhập nhiều đêm liền mà app không đổi: chụp màn từ artifact, đối chiếu nút/nhãn của trang
    login/consent web với `apps/chat-mobile/maestro/subflows/sign-in.yaml`; web đổi chữ thì sửa subflow cùng PR đó.
-8. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
+9. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
    lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment.
 
 ## Leo thang
