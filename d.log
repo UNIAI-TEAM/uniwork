@@ -1,0 +1,6 @@
+$ npm --workspace @genoffice/xlsx-gateway run typecheck; echo XLSX_GATEWAY_TC_EXIT=$?
+
+> @genoffice/xlsx-gateway@0.1.0 typecheck
+> tsc --noEmit
+
+XLSX_GATEWAY_TC_EXIT=0

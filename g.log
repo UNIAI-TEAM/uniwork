@@ -1,0 +1,2 @@
+$ git status --porcelain | grep -v '^?? ' | wc -l | grep -qx 0; echo TREE_CLEAN_EXIT=$?
+TREE_CLEAN_EXIT=0

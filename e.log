@@ -1,0 +1,2 @@
+$ npx eslint packages/xlsx-gateway/src/gateway/xlsx-drawing-add.ts apps/sheets/tests/xlsx-drawing-add.test.ts; echo ESLINT_EXIT=$?
+ESLINT_EXIT=0

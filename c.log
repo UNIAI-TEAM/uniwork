@@ -1,0 +1,11 @@
+$ npx vitest run apps/sheets/tests/xlsx-drawing-add.test.ts 2>&1 | tail -30; echo SHEETS_DRAWING_TEST_EXIT=${PIPESTATUS[0]}
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office
+
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  05:38:28
+   Duration  727ms (transform 356ms, setup 0ms, import 434ms, tests 205ms, environment 0ms)
+
+SHEETS_DRAWING_TEST_EXIT=0

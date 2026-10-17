@@ -1,0 +1,4 @@
+$ npx prettier --check packages/xlsx-gateway/src/gateway/xlsx-drawing-add.ts apps/sheets/tests/xlsx-drawing-add.test.ts; echo PRETTIER_EXIT=$?
+Checking formatting...
+All matched files use Prettier code style!
+PRETTIER_EXIT=0
