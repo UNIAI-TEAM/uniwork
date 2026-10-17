@@ -1,0 +1,98 @@
+$ node --test scripts/governance.test.mjs scripts/no-pii-log.test.mjs; rc=$?; echo; echo "SCRIPTS_EXIT=$rc"
+TAP version 13
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 1 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 1.969178
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 2 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 37.016576
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 3 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.416656
+  ...
+# Subtest: both hooks exist and are executable
+ok 4 - both hooks exist and are executable
+  ---
+  duration_ms: 0.201349
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 5 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 1.085692
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 6 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 143.006072
+  ...
+# Subtest: historical message exceptions only allow their immutable commit and subject
+ok 7 - historical message exceptions only allow their immutable commit and subject
+  ---
+  duration_ms: 0.688992
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 8 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 1.959409
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 9 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.355188
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 10 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 2.845726
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 11 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.374695
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 12 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 20.833495
+  ...
+# Subtest: every plan says whether it shipped
+ok 13 - every plan says whether it shipped
+  ---
+  duration_ms: 52.477186
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 14 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 1.121881
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 15 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 49.89318
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 16 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 1.704727
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 17 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 295.689214
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 362.670056
+
+SCRIPTS_EXIT=0

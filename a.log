@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+a83878561e21cb22a0849794a71e7fbcf3d8e7d3
+a83878561 fix(documents): My Folder copy, search by label, ensure message, order first (UNI-1850)
+3358de605 fix(documents): folder heading name and specs for Home creates into My Folder (UNI-1850)
+790e313ab test(e2e): My Folder sub-nav, Home create destination, and guards (UNI-1850)
+2b4d1c853 feat(documents): My Folder on the web and Home creates into it (UNI-1850)
+0a2d40a5e chore: merge SHAREDBYME-01 shared by me view (UNI-1851, 54bd5363e) into the G5-G7 root
+54bd5363e fix(documents): refresh Shared by me after share changes; review fixes (UNI-1851)
+c17242021 test(e2e): verify Shared by me collection view for owner and recipient
+056496b1c feat(documents): add Shared by me collection view and sub-nav entry
