@@ -112,7 +112,10 @@ export function oracleVersionAndSave(observed) {
       });
     }
   }
-  return passVerdict('version_and_save_ok', { operation, versionsBefore, versionsAfterAiTurn });
+  return passVerdict('version_and_save_ok', {
+    operation, versionsBefore, versionsAfterAiTurn,
+    ...(operation === 'edit' ? { versionsAfterSave: observed.versionsAfterSave, revisionAfterSave: observed.revisionAfterSave } : {}),
+  });
 }
 
 /** G6-A06 capability surface & bound-document forbidden tools oracle ("absent, not disabled"). */

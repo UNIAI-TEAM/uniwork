@@ -465,7 +465,6 @@ export async function runWebMatrixRow(runEntry, {
       if (saved.status !== 'saved') {
         return { ...failVerdict('web_save_failed_after_ai_edit', { saved }), documentId, preconditions, screenshotPath };
       }
-      await webSave(web.page, { kind: saveKind, timeoutMs: 3_000 }).catch(() => null);
 
       const versionsAfterSave = await listVersions({ apiOrigin, fetchImpl, documentId, token });
       const headAfterSave = await readFrameHead({ apiOrigin, fetchImpl, documentId, token });
@@ -475,11 +474,13 @@ export async function runWebMatrixRow(runEntry, {
         String(lastCommitBaseRevision ?? headAfterAiTurn.revision) === String(headAfterAiTurn.revision);
       rawObserved.doubleClickVersionsCreated = versionsAfterSave - versionsAfterAiTurn;
       rawObserved.afterBytes = headAfterSave.bytes;
+      rawObserved.afterSha256 = headAfterSave.sha256;
       if (row.format === 'docx') rawObserved.roundTrip = await runDocxRoundTrip(headAfterSave.bytes);
     }
 
     const verdict = evaluateRowObserved(row, rawObserved);
-    return { ...verdict, documentId, usage, preconditions, screenshotPath };
+    const details = row.operation === 'edit' ? { ...verdict.details, explicitSave: true, versionsBefore, versionsAfterAiTurn, versionsAfterSave: rawObserved.versionsAfterSave, versionDelta: (rawObserved.versionsAfterSave ?? 0) - versionsAfterAiTurn, downloadedBytes: rawObserved.afterBytes?.length ?? 0, afterSha256: rawObserved.afterSha256 ?? null, oldVersionSha256: headAfterAiTurn.sha256, roundTrip: rawObserved.roundTrip ?? null } : verdict.details;
+    return { ...verdict, details, documentId, usage, preconditions, screenshotPath };
   } finally {
     if (web?.close) await web.close().catch(() => {});
     if (browser?.close) await browser.close().catch(() => {});

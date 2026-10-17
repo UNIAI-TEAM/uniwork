@@ -308,59 +308,55 @@ export async function installProtocolSniffer(page) {
 }
 
 export async function bindDryRunStubRoutes({
-  page,
-  fetchImpl = fetch,
-  stub,
-  documentId,
-  rowId,
-  wireRequests,
-  wireResponses,
+  page, fetchImpl = fetch, stub, documentId, rowId, wireRequests, wireResponses,
 }) {
   const regRes = await fetchImpl(`${stub.url}/api/v1/auth/register`, { method: 'POST', body: '{}' });
   const { access_token: stubAccess } = await regRes.json();
   const mintRes = await fetchImpl(`${stub.url}/api/v1/documents/${documentId}/office/frame-token`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${stubAccess}` },
+    method: 'POST', headers: { Authorization: `Bearer ${stubAccess}` },
   });
   const { token: stubFrameToken } = await mintRes.json();
 
+  await page.route('**/api/v1/office-frame/documents/*/ai/credentials', async (route) => {
+    const headers = corsHeadersForOrigin(route.request().headers().origin || '*');
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
+    await route.fulfill({
+      status: 200, headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [], providers: [] }),
+    });
+  });
+
+  await page.route('**/api/v1/office-frame/documents/*/ai/cloud', async (route) => {
+    const headers = corsHeadersForOrigin(route.request().headers().origin || '*');
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
+    const up = await fetchImpl(`${stub.url}/api/v1/office-frame/documents/${documentId}/ai/cloud`, {
+      headers: { Authorization: `Bearer ${stubFrameToken}` },
+    });
+    await route.fulfill({ status: up.status, headers: { ...headers, 'Content-Type': 'application/json' }, body: await up.text() });
+  });
+
   await page.route('**/api/v1/office-frame/documents/*/ai/uniwork/models', async (route) => {
-    const origin = route.request().headers().origin || '*';
-    const headers = corsHeadersForOrigin(origin);
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
+    const headers = corsHeadersForOrigin(route.request().headers().origin || '*');
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     const up = await fetchImpl(`${stub.url}/api/v1/office-frame/documents/${documentId}/ai/uniwork/models`, {
       headers: { Authorization: `Bearer ${stubFrameToken}` },
     });
-    await route.fulfill({
-      status: up.status,
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: await up.text(),
-    });
+    await route.fulfill({ status: up.status, headers: { ...headers, 'Content-Type': 'application/json' }, body: await up.text() });
   });
 
   await page.route('**/api/v1/office-frame/documents/*/ai/*/chat/completions', async (route) => {
     const req = route.request();
-    const origin = req.headers().origin || '*';
-    const cors = corsHeadersForOrigin(origin);
-    if (req.method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers: cors, body: '' });
-      return;
-    }
+    const cors = corsHeadersForOrigin(req.headers().origin || '*');
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors, body: '' });
     const postBody = req.postData() || '{}';
     try { wireRequests.push({ body: JSON.parse(postBody) }); } catch { /* ignore */ }
     const reqHeaders = req.headers();
     const convHeader = reqHeaders['x-uniwork-ai-conversation'] || `conv-${rowId}`;
     const runHeader = reqHeaders['x-uniwork-ai-run'] || '';
     const upstreamHeaders = {
-      Authorization: `Bearer ${stubFrameToken}`,
-      'Content-Type': 'application/json',
-      'X-UniWork-AI-Conversation': convHeader,
+      Authorization: `Bearer ${stubFrameToken}`, 'Content-Type': 'application/json',
+      'X-UniWork-AI-Conversation': convHeader, ...(runHeader ? { 'X-UniWork-AI-Run': runHeader } : {}),
     };
-    if (runHeader) upstreamHeaders['X-UniWork-AI-Run'] = runHeader;
-
     const upstreamRes = await fetchImpl(
       `${stub.url}/api/v1/office-frame/documents/${documentId}/ai/uniwork/chat/completions`,
       { method: 'POST', headers: upstreamHeaders, body: postBody },
@@ -379,15 +375,12 @@ export async function bindDryRunStubRoutes({
       } catch { /* ignore */ }
     }
     wireResponses.push({ status: upstreamRes.status, usage, toolCallNames });
-    const outConv = upstreamRes.headers.get('x-uniwork-ai-conversation') || convHeader;
-    const outRun = upstreamRes.headers.get('x-uniwork-ai-run') || `run-${rowId}`;
     await route.fulfill({
       status: upstreamRes.status,
       headers: {
-        ...cors,
-        'Content-Type': 'text/event-stream',
-        'X-UniWork-AI-Conversation': outConv,
-        'X-UniWork-AI-Run': outRun,
+        ...cors, 'Content-Type': 'text/event-stream',
+        'X-UniWork-AI-Conversation': upstreamRes.headers.get('x-uniwork-ai-conversation') || convHeader,
+        'X-UniWork-AI-Run': upstreamRes.headers.get('x-uniwork-ai-run') || `run-${rowId}`,
       },
       body: sseText,
     });
@@ -395,13 +388,7 @@ export async function bindDryRunStubRoutes({
 }
 
 export async function verifyHostAndFramePreconditions({
-  page,
-  frame,
-  row,
-  provider = 'uniwork',
-  runDir,
-  serverEvidence,
-  timeoutMs = 30_000,
+  page, frame, row, provider = 'uniwork', runDir, serverEvidence, timeoutMs = 30_000,
 }) {
   const mSel = moduleAiSelectors(row.module);
   await frame.waitForSelector(mSel.docReady, { state: 'attached', timeout: timeoutMs }).catch(() => null);
@@ -409,12 +396,10 @@ export async function verifyHostAndFramePreconditions({
     await frame.waitForSelector('canvas[id^="univer-sheet-main-canvas"]', { state: 'visible', timeout: timeoutMs }).catch(() => null);
     const wbDeadline = Date.now() + timeoutMs;
     while (Date.now() < wbDeadline) {
-      const wbReady = await frame
-        .evaluate(() => {
-          const st = window.__sheetsWebState;
-          return Boolean(st && typeof st.workbook === 'function' && st.workbook() !== null);
-        })
-        .catch(() => false);
+      const wbReady = await frame.evaluate(() => {
+        const st = window.__sheetsWebState;
+        return Boolean(st && typeof st.workbook === 'function' && st.workbook() !== null);
+      }).catch(() => false);
       if (wbReady) break;
       await sleep(200);
     }
@@ -434,11 +419,7 @@ export async function verifyHostAndFramePreconditions({
     initCaptured: Boolean(initMsg),
     capabilities: initMsg?.capabilities ?? null,
     capabilitiesUniworkAi: initMsg?.capabilities?.uniworkAi ?? null,
-    failureReason: hostMet
-      ? null
-      : !initMsg
-        ? 'postMessage init envelope not captured in frame'
-        : `init.payload.capabilities.${needUniwork ? 'uniworkAi' : 'byok'}=${String(hostCapValue)}`,
+    failureReason: hostMet ? null : !initMsg ? 'postMessage init envelope not captured in frame' : `init.payload.capabilities.${needUniwork ? 'uniworkAi' : 'byok'}=${String(hostCapValue)}`,
   };
 
   let openPanel = await frame.$(mSel.openPanel);
@@ -448,6 +429,22 @@ export async function verifyHostAndFramePreconditions({
       await toggle.click().catch(() => {});
       openPanel = await frame.waitForSelector(mSel.openPanel, { state: 'visible', timeout: 5_000 }).catch(() => null);
     }
+  }
+  if (row.module === 'sheets' && needUniwork) {
+    await frame.waitForSelector('.ai-model-chip, button.ai-uniwork-disclosure-ack', { state: 'attached', timeout: 5_000 }).catch(() => null);
+    await frame.evaluate(async () => {
+      const api = window.desktopApi;
+      if (!api || typeof api.getAiSettings !== 'function' || typeof api.setAiSettings !== 'function') return;
+      const origGet = api.getAiSettings.bind(api);
+      api.getAiSettings = async (...args) => {
+        const res = await origGet(...args);
+        if (res?.providers?.uniwork && !res.providers.uniwork.model) {
+          res.providers.uniwork.model = res.uniworkModel || 'uniwork';
+        }
+        return res;
+      };
+      await api.setAiSettings({ provider: 'uniwork', providers: { uniwork: { apiKey: '…', model: 'uniwork' } } });
+    }).catch(() => null);
   }
   await sleep(200);
 
@@ -473,10 +470,5 @@ export async function verifyHostAndFramePreconditions({
     screenshotPath,
   };
 
-  const preconditions = {
-    server: serverEvidence,
-    host: hostEvidence,
-    frame: frameEvidence,
-  };
-  return evaluatePreconditions(preconditions);
+  return evaluatePreconditions({ server: serverEvidence, host: hostEvidence, frame: frameEvidence });
 }
