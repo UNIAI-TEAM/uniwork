@@ -278,3 +278,27 @@ describe("UI-AR7 document_shelved from a write turns the page read-only", () => 
     expect(keys).toHaveLength(2);
   }, 25_000);
 });
+
+// F7: a title edit refused with document_shelved leaves no stale typed text behind: the breadcrumb and the
+// heading both read the stored title again.
+describe("F7 a refused title edit", () => {
+  it("puts the stored title back in the breadcrumb and the heading", async () => {
+    let current = pageDocument({ my_level: "edit" });
+    serve(current, {
+      "PATCH /api/v1/documents/d1": () => {
+        current = shelvedPage({ my_level: "edit" });
+        return new ApiError("document is shelved", "document_shelved", 409, undefined, undefined, "read_only");
+      },
+      "GET /api/v1/documents/d1": () => ({ document: current }),
+    });
+    renderView();
+    await findEditor();
+    const title = await screen.findByRole("textbox", { name: t("documents.page_ui.title_label") });
+    fireEvent.change(title, { target: { value: "Kế hoạch Q3 (sửa)" } });
+    fireEvent.blur(title);
+    await waitFor(() => expect(screen.getByText(t("documents.shelved_doc.banner"))).toBeInTheDocument(), { timeout: 8_000 });
+    await waitFor(() => expect(screen.queryAllByText("Kế hoạch Q3 (sửa)")).toHaveLength(0));
+    expect(screen.getByRole("heading", { name: "Kế hoạch Q3" })).toBeInTheDocument();
+    expect(screen.getAllByText("Kế hoạch Q3").length).toBeGreaterThan(1);
+  }, 20_000);
+});
