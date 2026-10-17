@@ -317,10 +317,16 @@ describe("Chunked document upload in views", () => {
 
     const pauseBtn = await screen.findByRole("button", { name: t("documents.upload.pause") });
     expect(pauseBtn).toHaveClass("border-input");
+    const statusLine = screen.getByTestId("document-upload-status");
+    expect(statusLine).toHaveClass("min-h-4");
+    expect(statusLine).toBeEmptyDOMElement();
     fireEvent.click(pauseBtn);
 
     const resumeBtn = await screen.findByRole("button", { name: t("documents.upload.resume") });
     expect(resumeBtn).toBeInTheDocument();
+    expect(screen.getByTestId("document-upload-status")).toHaveTextContent(
+      t("documents.upload.paused_status"),
+    );
 
     fireEvent.click(resumeBtn);
     await screen.findByRole("button", { name: t("documents.upload.pause") });

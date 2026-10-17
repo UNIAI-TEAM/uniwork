@@ -160,9 +160,12 @@ export function DocumentUploadDialog({
                   {`${percentage}%`}
                 </span>
               </Progress>
-              {isPaused ? (
-                <p className="text-caption text-muted-foreground">{t("documents.upload.paused_status")}</p>
-              ) : null}
+              <p
+                className="min-h-4 text-caption text-muted-foreground"
+                data-testid="document-upload-status"
+              >
+                {isPaused ? t("documents.upload.paused_status") : null}
+              </p>
             </div>
           ) : null}
           {error ? (
