@@ -132,7 +132,9 @@ function renderView(adapter: NavigationAdapter = nav(), onOpen: (id: string) => 
 }
 
 async function openTrash() {
-  fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+  // The trash lives on the sidebar, not a view tab (TRASH-01 layout).
+  const scope = await screen.findAllByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) });
+  fireEvent.click(scope[0]!);
 }
 
 async function rowOf(title: string) {
@@ -160,9 +162,9 @@ describe("trash list", () => {
     route({ list: () => [trashed()] });
     renderView();
     await openTrash();
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.archived") })).toBeInTheDocument();
-    expect(screen.getByText(t("documents.trash.intro"))).toBeInTheDocument();
-    expect(await screen.findByText(t("documents.trash.note"))).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
+    expect(screen.getByText(t("documents.trash.subtitle"))).toBeInTheDocument();
+    expect(await screen.findByText(t("documents.trash.note"), { exact: false })).toBeInTheDocument();
     for (const key of ["name", "deleted_by", "deleted_at", "purge_in"] as const) {
       expect(screen.getByText(t(`documents.trash.columns.${key}`))).toBeInTheDocument();
     }
