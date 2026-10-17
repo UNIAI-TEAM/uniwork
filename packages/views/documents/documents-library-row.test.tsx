@@ -51,7 +51,7 @@ function renderRow(doc: DocumentSummaryRow) {
   return render(
     <table>
       <tbody>
-        <LibraryRowView row={documentRow(doc)} handlers={handlers} archived={false} ladder={libraryLadder(false)} />
+        <LibraryRowView row={documentRow(doc)} handlers={handlers} ladder={libraryLadder(false)} />
       </tbody>
     </table>,
   );
