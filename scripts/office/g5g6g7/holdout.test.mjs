@@ -910,3 +910,53 @@ test('loadCases reads the directory and refuses a foreign document', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('DS-1: sheet-quoted cell/formula anchors and leading-= formula values match while range/other-cell identities still fail', () => {
+  const syntheticCase = {
+    id: 'HO-SYN-DS1',
+    format: 'xlsx',
+    category: 'structure',
+    query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
+    fixtures: [{ id: 'fx-xlsx- synthetic', sha256: 'a'.repeat(64), version: 'v1' }],
+    host: ['web'],
+    role: 'viewer',
+    sourceAnchors: ['Sheet One!A6'],
+    tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
+    expected: {
+      numeric: [],
+      structural: [
+        { kind: 'cell', anchor: 'Sheet One!A6', value: 'ITEM-05' },
+        { kind: 'formula', anchor: 'Sheet One!B8', value: 'SUM(B2:B7)' },
+      ],
+      writes: 0,
+      mustNotContain: [],
+    },
+    oracle: { type: 'deterministic', source: 'synthetic' },
+    referenceAnswer: {
+      numeric: {},
+      structural: [
+        { kind: 'cell', anchor: 'Sheet One!A6', value: 'ITEM-05' },
+        { kind: 'formula', anchor: 'Sheet One!B8', value: 'SUM(B2:B7)' },
+      ],
+      writes: 0,
+      text: 'Row 6 holds ITEM-05 and B8 uses SUM(B2:B7).',
+    },
+  };
+  const answer = {
+    numeric: {},
+    structural: [
+      { kind: 'cell', anchor: "'Sheet One'!A6", value: 'ITEM-05' },
+      { kind: 'formula', anchor: "'Sheet One'!B8", value: '=sum($B$2:$B$7)' },
+    ],
+    writes: 0,
+    tools: { used: ['read_sheet_list', 'read_range'] },
+    text: 'Row 6 holds ITEM-05 and B8 uses =SUM(B2:B7).',
+  };
+  assert.equal(score(syntheticCase, answer).status, 'pass');
+  for (const wrongAnchor of ["'Sheet One'!A6:C6", "'Sheet One'!A7"]) {
+    const bad = structuredClone(answer);
+    bad.structural[0].anchor = wrongAnchor;
+    assert.equal(score(syntheticCase, bad).status, 'fail', `cell identity must reject ${wrongAnchor}`);
+  }
+});
+
