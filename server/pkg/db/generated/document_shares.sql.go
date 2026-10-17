@@ -19,18 +19,17 @@ SELECT
       AND $2::int < $1::int
       AND GREATEST(
         CASE
-          WHEN (om.role IN ('owner', 'admin') OR hwm.user_id IS NOT NULL)
+          WHEN COALESCE(hwm.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') IN ('owner', 'admin')
             AND $3::boolean
-            AND (om.role IN ('owner', 'admin') OR hwm.role IN ('owner', 'admin'))
           THEN 4 ELSE 0
         END,
         CASE
-          WHEN (om.role IN ('owner', 'admin') OR hwm.user_id IS NOT NULL)
+          WHEN COALESCE(hwm.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') <> ''
             AND om.user_id = $4::text
           THEN 4 ELSE 0
         END,
         CASE
-          WHEN om.role IN ('owner', 'admin') OR hwm.user_id IS NOT NULL
+          WHEN COALESCE(hwm.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') <> ''
           THEN $5::int ELSE 0
         END,
         CASE WHEN $6::boolean THEN $1::int ELSE 0 END,
@@ -45,7 +44,7 @@ SELECT
           THEN $1::int ELSE 0
         END,
         CASE
-          WHEN (om.role IN ('owner', 'admin') OR hwm.role IN ('owner', 'admin'))
+          WHEN COALESCE(hwm.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') IN ('owner', 'admin')
             AND NOT $3::boolean
             AND $4::text IS DISTINCT FROM om.user_id
             AND EXISTS (
@@ -112,13 +111,22 @@ type CountDocumentAccessPreviewGroupRow struct {
 // effective member of the document's own workspace holds no role-based level
 // (R1-07): the ACL-owner path is evaluated only inside that membership.
 //
+// The home workspace role is the EFFECTIVE role GetWorkspaceAccess returns
+// (workspaces.sql:78): COALESCE(explicit workspace role, implicit org
+// admin) - an explicit workspace_members row WINS over the organization
+// role (R2-01). An organization admin who also holds an explicit home
+// `member` row is a plain member there, so they hold no role manage and no
+// AdminScope, exactly as the resolver decides. Everywhere the home role is
+// read below, this expression is the one used; it is repeated because the
+// join is a LEFT JOIN and no alias can be referenced in the same SELECT.
+//
 // losing_count counts the effective members whose post-batch level falls below
 // the rank the group grants today. The post-batch level is the greatest of the
 // paths the resolver walks (document_permissions.go), each expressed here:
-//   - role manage - an effective admin of the document's workspace, only while
-//     the document stays workspace-visible: a restricted document hands admins
-//     AdminScope, never a level, so their level comes from the shares and the
-//     break-glass grant below (R1-05).
+//   - role manage - an effective admin of the document's workspace (effective
+//     home role, R2-01), only while the document stays workspace-visible: a
+//     restricted document hands admins AdminScope, never a level, so their
+//     level comes from the shares and the break-glass grant below (R1-05).
 //   - ACL owner manage - only while the home-membership prerequisite holds.
 //   - the home row's level merged with a legacy home-workspace share
 //     (home_after_rank): the member level while workspace-visible, and on a
@@ -130,7 +138,8 @@ type CountDocumentAccessPreviewGroupRow struct {
 //     belongs to - a workspace_members row, or an implicit organization
 //     owner/admin (R1-04).
 //   - a live break-glass grant, view only, and only while the holder still
-//     holds AdminScope (R1-06).
+//     holds AdminScope - which is the effective home role, never the raw
+//     organization role (R1-06, R2-01).
 func (q *Queries) CountDocumentAccessPreviewGroup(ctx context.Context, arg CountDocumentAccessPreviewGroupParams) (CountDocumentAccessPreviewGroupRow, error) {
 	row := q.db.QueryRow(ctx, countDocumentAccessPreviewGroup,
 		arg.PrevGroupRank,

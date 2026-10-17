@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -871,6 +872,56 @@ func TestDocumentAccessBatchPreviewCountsMatchTheResolver(t *testing.T) {
 			t.Fatalf("R1-07 group = %+v, want member_count=8 losing_count=8 (ACL owner without home membership loses)", g)
 		}
 	})
+
+	t.Run("R2-01 explicit home member role beats the implicit organization admin", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c6")
+		// The organization admin holds an explicit home-workspace member row.
+		// GetWorkspaceAccess returns the explicit role FIRST, so the resolver
+		// gives them the home row's level, never role manage (R2-01).
+		f.wsMember(t, tn.wsA, tn.orgAdmin.ID, "member")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		doc = setWorkspaceLevel(t, f, doc, "view")
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelEdit, tn.aclOwner.ID)
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R2-01 batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		// The overridden role keeps the person at the home row's view
+		// (edit -> view), so they lose with the other home members.
+		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 5 {
+			t.Fatalf("R2-01 group = %+v, want member_count=8 losing_count=5", g)
+		}
+	})
+
+	t.Run("R2-01 break-glass needs real AdminScope, not the organization role", func(t *testing.T) {
+		f := newDocPermFixture(t)
+		tn := f.tenant(t, "shs2c7")
+		f.wsMember(t, tn.wsA, tn.orgAdmin.ID, "member")
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, doc, DocumentPrincipalOrganization, tn.orgID, DocumentLevelView, tn.aclOwner.ID)
+		// An unexpired break-glass grant the person cannot use: the explicit
+		// member row means they hold no AdminScope on a restricted document
+		// (R2-01), so the grant is not a surviving level either.
+		f.breakGlass(t, tn, doc.ID, tn.orgAdmin.ID, time.Now().Add(time.Hour), false)
+
+		in := UpdateDocumentAccessInput{DryRun: true, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: nil},
+		}}
+		res, err := f.svc.UpdateDocumentAccess(f.ctx, H(tn.aclOwner.ID), doc.ID, in)
+		if err != nil {
+			t.Fatalf("R2-01 break-glass batch: %v", err)
+		}
+		assertPreviewGroupCounts(t, f, doc, in, res)
+		if g := res.Preview.Groups[0]; g.MemberCount != 8 || g.LosingCount != 7 {
+			t.Fatalf("R2-01 break-glass group = %+v, want member_count=8 losing_count=7", g)
+		}
+	})
 }
 
 // installShareInsertFailFor makes every document_shares insert for one
@@ -975,28 +1026,42 @@ func accessStateSnapshot(t *testing.T, f *docPermFixture, documentID string) str
 	return b.String()
 }
 
-// TestDocumentAccessBatchLateFailureRollsBack is the R1-14 regression: a write
-// that fails after an earlier item of the same batch already succeeded must
+// TestDocumentAccessBatchLateFailureRollsBack is the R1-14/R2-04 regression: a
+// write that fails after earlier items of the same batch already succeeded must
 // leave the document exactly as it was - shares, home visibility/level/
 // revision, audit and outbox. The rejection test refuses input before the loop;
 // this one fails inside the loop, so a future pool-bound write or per-item
 // commit would slip past the other test but not this one.
+//
+// The batch deliberately exercises all three write shapes before the failure
+// (R2-04): a fresh outsider share, a HOME-ROW change on a document that also
+// carries a legacy home-workspace share (so writeDocumentHomeRow's own update
+// plus its legacy-share revoke both run), and a replacement of the seeded
+// existing direct share. A transaction escape in any of them - not just the
+// new-share insert - makes the byte-equal snapshot assertion fail.
 func TestDocumentAccessBatchLateFailureRollsBack(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "shs2late")
 	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 	doc = setWorkspaceLevel(t, f, doc, "view")
+	// A legacy home-workspace share (BR-04 duplicate source) that the home-row
+	// write retires, and a seeded direct user grant the batch replaces.
+	f.share(t, doc, DocumentPrincipalWorkspace, tn.wsA, DocumentLevelView, tn.aclOwner.ID)
 	f.share(t, doc, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
 
 	before := accessStateSnapshot(t, f, doc.ID)
 
-	// items[0] writes a new user share; items[1]'s insert for the creator
-	// raises, so the failure lands after items[0] succeeded.
+	// items[0] writes a new user share, items[1] moves the home row (turning it
+	// off and retiring the legacy share), items[2] replaces the seeded direct
+	// grant; items[3]'s insert for the creator raises, so the failure lands
+	// after every other write shape already succeeded.
 	installShareInsertFailFor(t, f, doc.ID, tn.creator.ID)
 
 	_, err := f.svc.UpdateDocumentAccess(f.ctx, Human(tn.aclOwner.ID), doc.ID, UpdateDocumentAccessInput{
 		Items: []DocumentAccessBatchItem{
 			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: docLevelPtr(DocumentLevelView)},
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: nil},
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.member.ID, Level: docLevelPtr(DocumentLevelComment)},
 			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.creator.ID, Level: docLevelPtr(DocumentLevelEdit)},
 		},
 	})

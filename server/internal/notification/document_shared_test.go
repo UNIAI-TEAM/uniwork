@@ -400,6 +400,62 @@ func TestDocumentAccessBatchNotificationIgnoresItemOrder(t *testing.T) {
 	}
 }
 
+// TestDocumentAccessBatchNotificationExcludesDirectDowngrade is the R2-02
+// regression: a mixed batch that LOWERS a recipient's direct grant (edit ->
+// view) while another item raises their effective level (their other
+// workspace is granted manage) must not notify. The command's effective
+// outcome is a rise, but the direct grant was downgraded, and the contract
+// (§2.2, Q-S2) excludes downgrade notifications - the level the notification
+// would name (view) is not the level the person actually holds (manage).
+// Both item orders must agree.
+func TestDocumentAccessBatchNotificationExcludesDirectDowngrade(t *testing.T) {
+	for _, userFirst := range []bool{true, false} {
+		name := "workspace manage then user view"
+		if userFirst {
+			name = "user view then workspace manage"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newDocumentFixture(t)
+			otherWS, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "Other WS", "other-ws-downgrade")
+			if err != nil {
+				t.Fatal(err)
+			}
+			recipient := f.addOrgOutsider(t, "downgrade@example.com", "Người Bị Hạ")
+			if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{
+				WorkspaceID: otherWS.ID, OrganizationID: f.orgID, UserID: recipient.ID, Role: "member",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			docID := f.document(t, "restricted", "Tài liệu hạ quyền trực tiếp")
+
+			// The recipient holds a direct edit grant before the command.
+			if _, err := f.q.InsertDocumentShare(f.ctx, db.InsertDocumentShareParams{
+				ID: "01J8X4DIRECTEDIT00000000000", OrganizationID: f.orgID, WorkspaceID: f.wsID,
+				DocumentID: docID, PrincipalType: service.DocumentPrincipalUser,
+				PrincipalID: recipient.ID, Level: string(service.DocumentLevelEdit),
+				GrantedBy: f.owner.ID, GrantedByKind: "human",
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			items := []service.DocumentAccessBatchItem{
+				{PrincipalType: service.DocumentPrincipalWorkspace, PrincipalID: otherWS.ID, Level: new(service.DocumentLevelManage)},
+				{PrincipalType: service.DocumentPrincipalUser, PrincipalID: recipient.ID, Level: new(service.DocumentLevelView)},
+			}
+			if userFirst {
+				items[0], items[1] = items[1], items[0]
+			}
+			if _, err := f.docs.UpdateDocumentAccess(f.ctx, service.Human(f.owner.ID), docID, service.UpdateDocumentAccessInput{Items: items}); err != nil {
+				t.Fatalf("UpdateDocumentAccess: %v", err)
+			}
+			f.handleAll(t, "document.shared")
+			if got := f.sharedNotifications(t, recipient.ID); len(got) != 0 {
+				t.Fatalf("direct downgrade hidden by a group rise notified recipient: %+v", got)
+			}
+		})
+	}
+}
+
 // TestDocumentAccessBatchNotificationHomeRowReplacement is the R1-13
 // home-row shape: a workspace-visible document grants a member view through the
 // home row; the batch turns the home row off and grants that same member a

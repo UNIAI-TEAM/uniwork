@@ -245,6 +245,13 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 // item order nor on partially applied items (SH-S3 R1-01/R1-02/R1-13). Only a
 // user grant whose recipient ends strictly higher is stamped; revoke, keep,
 // unchanged, self and non-user items yield "".
+//
+// An item that lowers or keeps the recipient's DIRECT grant is excluded even
+// when the command as a whole raises their effective level through another
+// source (R2-02): the notification names the direct share's level, and a
+// downgrade is excluded by the contract (§2.2, Q-S2). Without this, a batch
+// that drops a recipient edit -> view while granting their other workspace
+// manage would stamp the view event.
 func (s *DocumentService) batchNotifyDecisions(
 	ctx context.Context,
 	q *db.Queries,
@@ -261,6 +268,13 @@ func (s *DocumentService) batchNotifyDecisions(
 			continue
 		}
 		if actor.Kind == audit.KindHuman && it.PrincipalID == actor.ID {
+			continue
+		}
+		// The item only writes when it raises or creates the direct grant:
+		// an unchanged or lowered direct level is a no-op or a downgrade, and
+		// neither notifies (R2-02). sharesBefore is the command-start state,
+		// so the decision is order-independent.
+		if prevDirect, ok := shareLevelInSlice(sharesBefore, DocumentPrincipalUser, it.PrincipalID); ok && it.Level.rank() <= prevDirect.rank() {
 			continue
 		}
 		before, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docBefore, sharesBefore)
