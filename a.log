@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+4b1fa4fc6c9b21c8a4c725f0142665d3cc82caba
+c213ec8a9ffbaf23f01f5c087892b5fc256c2250
+4b1fa4fc6 chore: merge G5-G7 root c213ec8a9 into RFSH-5 (UNI-1892)
+7ebdd4e52 feat(views): allow saveCopy from locked-out docs tabs
+c213ec8a9 fix(seo): stop expecting the per-format 10 MiB web limit in the Office guide (UNI-1866)
+4f52c28cd test(views): pin saveCopy grant and proxy on locked-out docs tabs
+98c210422 chore: merge BIGUP-W1 chunked resumable uploader (UNI-1863, 9886305ac) into the G5-G7 root
+9886305ac test(documents): pin the XHR part PUT error paths (R3-1)
+
+SYNCED_EXIT=0
