@@ -85,6 +85,7 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentAccessRequested:     "Yêu cầu truy cập tài liệu",
 		KindDocumentAccessApproved:      "Đã được cấp quyền",
 		KindDocumentAccessDeclined:      "Yêu cầu bị từ chối",
+		KindDocumentTrashedByOther:      "Tài liệu của bạn đã vào thùng rác",
 	},
 	"en": {
 		KindDocumentMentioned:           "You were mentioned in a comment",
@@ -96,6 +97,7 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentAccessRequested:     "Document access request",
 		KindDocumentAccessApproved:      "Access granted",
 		KindDocumentAccessDeclined:      "Request declined",
+		KindDocumentTrashedByOther:      "Your document was moved to trash",
 	},
 }
 
