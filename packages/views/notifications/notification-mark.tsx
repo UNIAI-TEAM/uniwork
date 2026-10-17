@@ -25,7 +25,7 @@ export function NotificationMark({ notification: n, dimmed }: { notification: No
   const { workspace } = useWorkspace();
   const members = useMembers(workspace.id);
   const tone = kindTone(n.kind);
-  const Icon = kindIcon(n.kind);
+  const Icon = kindIcon(n.kind, n.params);
   const name = n.params.actor ?? "";
 
   if (n.actor_kind === "system" || !name) {

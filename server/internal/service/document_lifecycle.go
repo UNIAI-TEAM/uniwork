@@ -265,6 +265,17 @@ type archiveReplay struct {
 // live node of the subtree must be manageable by the caller; the command
 // refuses a subtree that contains one it cannot manage.
 func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
+	var archiveLockOps *editLockOps
+	res, err := s.archiveDocument(ctx, actor, documentID, in, &archiveLockOps)
+	if err == nil && archiveLockOps != nil {
+		s.flushEditLockOps(archiveLockOps)
+	}
+	return res, err
+}
+
+// archiveDocument is the archive command body; lockOps receives the edit lock
+// releases so ArchiveDocument counts them only once the batch committed.
+func (s *DocumentService) archiveDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput, lockOps **editLockOps) (DocumentArchiveResult, error) {
 	// pristine is decided once under the row lock: the root gate and the
 	// subtree check below must agree on it.
 	pristine := false
@@ -338,6 +349,13 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
 			return DocumentArchiveResult{}, err
 		}
+		// Archive releases the edit lock of every node it stamped, in this
+		// transaction (UNI-1645 §2, edge 4); the counters move after commit.
+		ops, err := s.releaseEditLocksOnArchive(ctx, q, actor, doc, stamped)
+		if err != nil {
+			return DocumentArchiveResult{}, err
+		}
+		*lockOps = ops
 		doc.ArchiveBatchID = pgtype.Text{String: batch, Valid: true}
 		doc.ArchivedAt = pgtype.Timestamptz{Time: s.now(), Valid: true}
 		doc.ArchivedBy = nullText(actor.ID)
@@ -891,6 +909,15 @@ func (s *DocumentService) ArchiveOwnedDocumentsInTx(ctx context.Context, q *db.Q
 			return nil, err
 		}
 	}
+	if len(stamped) > 0 {
+		// The release counters are skipped: the seam cannot see the caller's
+		// commit; the release audit row and its lock_changed frame are written
+		// in the caller's transaction, like the archive rows above.
+		if _, err := s.releaseEditLocksOnArchive(ctx, q, actor,
+			db.Document{OrganizationID: organizationID, WorkspaceID: workspaceID}, stamped); err != nil {
+			return nil, err
+		}
+	}
 	return stamped, nil
 }
 
@@ -968,6 +995,13 @@ func (s *DocumentService) ArchiveOwnedDocumentInTx(ctx context.Context, q *db.Qu
 	}, audit.Event{Topic: "document.archived", Payload: map[string]string{
 		"document_id": stamped, "workspace_id": workspaceID, "archive_batch_id": batch,
 	}}); err != nil {
+		return false, err
+	}
+	// The release counters are skipped: the seam cannot see the caller's
+	// commit; the release audit row and its lock_changed frame are written in
+	// the caller's transaction, like the archive row above.
+	if _, err := s.releaseEditLocksOnArchive(ctx, q, actor,
+		db.Document{ID: stamped, OrganizationID: organizationID, WorkspaceID: workspaceID}, []string{stamped}); err != nil {
 		return false, err
 	}
 	return true, nil

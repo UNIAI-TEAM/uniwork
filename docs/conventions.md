@@ -213,6 +213,12 @@ fails on drift. One flat namespace, keys nested by section:
 | move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
 | trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |
 | path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |
+| editing (the document edit lock as a person sees it) | **quyền sửa** | Editing | `documents.editLock.*` (UNI-1645); never "khóa" in copy, which reads as locking or restricting the document |
+| editing (someone is, now) | **đang sửa** | Editing | `rowEditing` "đang sửa" / "editing", `bannerOther` "{{name}} đang sửa từ {{time}}" |
+| take over editing | **lấy quyền sửa** | Take over editing | manage level only, takes effect at once; the button and the confirm say the same words |
+| request to edit | **yêu cầu quyền sửa** | Request to edit | edit level; the holder answers "Lưu và nhường quyền" / "Từ chối" |
+| keep editing offline | **giữ quyền sửa khi offline** | Keep editing offline | desktop only; others read "{{name}} giữ quyền sửa offline đến {{time}}" |
+| offline (the app working without a network) | **offline** | offline | kept lowercase English inside Vietnamese, like workspace: "thư viện offline", "giữ quyền sửa offline"; **Ngoại tuyến** is only a person's presence (`presence_offline`), never the app's mode |
 | origin link of a file from another module (Documents) | **Xem nơi đính kèm** | View where attached | `documents.home.row.go_to_source`; một nhãn cho việc, bình luận việc, cuộc họp và Trò chuyện (mở đúng phòng và tin nhắn); email giữ `open_email` = "Mở Email" vì Email Hub chưa có đường dẫn tới từng thread; không dùng "Đi tới bản gốc" |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { defaultEditLockRoute, editLockRoute } from "./edit-lock-fake";
 import { installMediaStubs } from "./media-stub";
 import { afterEach, beforeAll, vi } from "vitest";
 
@@ -31,12 +32,21 @@ installMediaStubs();
 // api/http; mocking that one module (by resolved path) covers all of them and
 // keeps the real schemas in the loop, so a fixture that drifts from the
 // contract fails the test the way it would fail the page.
+// The edit-lock routes go to a default fake that grants the lock (test/edit-lock-fake.ts),
+// so an editable document stays editable in suites about something else.
 vi.mock("@uniwork/core/api/http", async (orig) => {
   const { requestMock } = await import("./request-mock");
+  const { editLockRoute, isEditLockPath } = await import("./edit-lock-fake");
   return {
     ...(await orig<typeof import("@uniwork/core/api/http")>()),
-    request: (...a: unknown[]) => requestMock(...a),
+    request: (...a: unknown[]) =>
+      isEditLockPath(a[0]) ? editLockRoute(a[0], a[1] as Parameters<typeof editLockRoute>[1]) : requestMock(...a),
   };
+});
+
+afterEach(() => {
+  editLockRoute.mockReset();
+  editLockRoute.mockImplementation(defaultEditLockRoute);
 });
 
 // DOM shims for jsdom. Pure-logic suites that set `@vitest-environment node`

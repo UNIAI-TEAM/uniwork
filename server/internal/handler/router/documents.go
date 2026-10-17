@@ -46,6 +46,16 @@ import (
 //	GET    /api/v1/documents/{documentID}/access-logs             (G1-05b)
 //	PUT    /api/v1/documents/{documentID}/office/offline-lease    (G5-08s)
 //	DELETE /api/v1/documents/{documentID}/office/offline-lease    (G5-08s)
+//	GET    /api/v1/documents/{documentID}/edit-lock                         (UNI-1645 R1)
+//	POST   /api/v1/documents/{documentID}/edit-lock                         (R2)
+//	POST   /api/v1/documents/{documentID}/edit-lock/{lockID}/heartbeat      (R3)
+//	DELETE /api/v1/documents/{documentID}/edit-lock/{lockID}                (R4)
+//	POST   /api/v1/documents/{documentID}/edit-lock/take-over               (R5)
+//	PUT    /api/v1/documents/{documentID}/edit-lock/{lockID}/offline-hold   (R6)
+//	DELETE /api/v1/documents/{documentID}/edit-lock/{lockID}/offline-hold   (R7)
+//	POST   /api/v1/documents/{documentID}/edit-requests                     (R8)
+//	POST   /api/v1/documents/{documentID}/edit-requests/{requestID}/answer  (R9)
+//	DELETE /api/v1/documents/{documentID}/edit-requests/{requestID}         (R10)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/documents/{documentID}/versions/commit
@@ -73,8 +83,9 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r api, h Routes, flags *featureflag.Service) {
+func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
+	registerDocumentEditLock(d, h, editRequestLimit)
 
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
 		summary: "Create a page or folder document",

@@ -12,6 +12,7 @@ import {
 } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import type { FrameBlock } from "./frame-remote-version";
+import type { FrameEditLock } from "./frame-edit-lock";
 import type { FrameCommentsBinding } from "./use-frame-comments";
 
 // The model of one Docs frame session: its public options and state, the timings, the page's
@@ -135,6 +136,11 @@ export interface DocsFrameSessionOptions {
   onAppOpen?: () => Promise<AppOpenResult["outcome"]>;
   /** The editor's server comments (G8-08, `useFrameComments`): its four seams into this handshake. */
   comments?: FrameCommentsBinding;
+  /**
+   * The page's edit lock (UNI-1645, `frame-edit-lock.ts`): not holding it is view-only, the held id
+   * rides on the commit, a 423 on Save goes back through `onLocked`. Absent = no lock management.
+   */
+  editLock?: FrameEditLock | null;
 }
 
 export interface DocsFrameSession {

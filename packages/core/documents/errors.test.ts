@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "../api/http";
 import {
   classifyDocumentError,
+  isConflictClass,
   isDocumentNotInTrashError,
   isDocumentShelvedError,
   isFolderTooLargeError,
@@ -49,6 +50,16 @@ describe("classifyDocumentError", () => {
   it("leaves an unlisted code with an unclassifiable status unknown", () => {
     const err = new ApiError("x", "no_such_documents_code", 422);
     expect(classifyDocumentError(err).cls).toBe("unknown");
+  });
+
+  // UNI-1645: the server stamps no class on 423 document_locked; the code
+  // alone places it in the client-only "locked" class, never a conflict.
+  it("classifies document_locked as locked, not a conflict", () => {
+    const fields = { holder_id: "u2", holder_name: "Bình", held_by_me: false, current_revision: "42" };
+    const err = new ApiError("đang có người sửa", "document_locked", 423, undefined, fields);
+    const out = classifyDocumentError(err);
+    expect(out).toEqual({ cls: "locked", code: "document_locked", fields });
+    expect(isConflictClass(out.cls)).toBe(false);
   });
 
   it("reads the home-row ceiling of a level_not_allowed refusal", () => {
