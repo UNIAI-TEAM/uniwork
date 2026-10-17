@@ -2711,6 +2711,112 @@ describe('usage rows and arguments', () => {
     assert.ok(!product.answer.tools.used.includes('compute'), 'a product of two shown operands is not a permitted derivation');
   });
 
+  it('R18-1/R18-8: operand evidence comes only from value-bearing leaves of successful data-read results paired per call, never from error text or row/range metadata (review-g712-18 R18-1, R18-8)', () => {
+    const c = synthCase({
+      id: 'HO-TEST-923',
+      format: 'xlsx',
+      category: 'compute',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_sheet_list', 'read_range', 'compute'], required: ['read_range', 'compute'] },
+      expected: {
+        numeric: [{ name: 'synth_total', value: 143, tolerance: 0, rounding: 'none', unit: 'VND' }],
+        structural: [], writes: 0, mustNotContain: [],
+      },
+      referenceAnswer: { numeric: { synth_total: 143 }, structural: [], writes: 0, text: 'Total is 143.' },
+    });
+    const report = (numbers) => `${ANSWER_MARKER} ${JSON.stringify({ numbers, items: [], refused: false, not_found: false, caveats: [] })}`;
+    const ask = (text, numbers, over = {}) => ({
+      reply: `${text}\n${report(numbers)}`,
+      calls: [{ name: 'read_range' }], writes: 0, writeLog: [], dropped: [], modules: ['sheets'],
+      sourceText: '60\n83', toolResultsText: '{"rows":[{"cells":{"A1":"60","A2":"83"}}]}', ...over,
+    });
+    // R18-1: error text containing operand digits is never operand evidence.
+    const fromError = deriveAnswer(c, ask('Total 143 from 60 and 83.', [143], {
+      toolResultsText: '{"error":"Unavailable 60 and 83"}',
+      toolResults: [{ name: 'read_range', text: '{"error":"Unavailable 60 and 83"}' }],
+    }));
+    assert.ok(!fromError.answer.tools.used.includes('compute'), 'error text is never operand evidence (R18-1)');
+    assert.equal(score(c, fromError.answer).status, 'fail');
+    // R18-1: row/range metadata with no cell values is never operand evidence.
+    const metaCase = synthCase({
+      ...c,
+      id: 'HO-TEST-924',
+      expected: { numeric: [{ name: 'synth_total', value: 3, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { synth_total: 3 }, structural: [], writes: 0, text: 'Total is 3.' },
+    });
+    const envelopeOnly = '{"sheetName":"SheetZ","range":"A1:B2","hiddenRows":[],"rows":[{"row":1,"hidden":false,"cells":{}},{"row":2,"hidden":false,"cells":{}}]}';
+    const fromMeta = deriveAnswer(metaCase, ask('Total 3 from row 1 and row 2.', [3], {
+      sourceText: '',
+      toolResultsText: envelopeOnly,
+      toolResults: [{ name: 'read_range', text: envelopeOnly }],
+    }));
+    assert.ok(!fromMeta.answer.tools.used.includes('compute'), 'row and range metadata digits are never operands (R18-1)');
+    assert.equal(score(metaCase, fromMeta.answer).status, 'fail');
+    // R18-8: a successful read followed by a denied read of the same tool name keeps the successful call's result.
+    const okThenDenied = deriveAnswer(c, ask('Total 143 from 60 and 83.', [143], {
+      calls: [{ name: 'read_range', denied: null }, { name: 'read_range', denied: 'access_revoked' }],
+      toolResults: [
+        { name: 'read_range', text: '{"rows":[60,83]}' },
+        { name: 'read_range', text: '{"error":"revoked"}' },
+      ],
+    }));
+    assert.ok(okThenDenied.answer.tools.used.includes('compute'), 'a later denied call removes only its own result (R18-8)');
+    assert.equal(score(c, okThenDenied.answer).status, 'pass');
+  });
+
+  it('R18-2/R18-9: one quantity tokenizer preserves signs and magnitude suffixes across prose, operands and extra figures (review-g712-18 R18-2, R18-9)', () => {
+    const c = synthCase({
+      id: 'HO-TEST-925',
+      format: 'xlsx',
+      category: 'compute',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_sheet_list', 'read_range', 'compute'], required: ['read_range', 'compute'] },
+      expected: {
+        numeric: [{ name: 'synth_total', value: 143, tolerance: 0, rounding: 'none', unit: 'VND' }],
+        structural: [], writes: 0, mustNotContain: [],
+      },
+      referenceAnswer: { numeric: { synth_total: 143 }, structural: [], writes: 0, text: 'Total is 143.' },
+    });
+    const report = (numbers) => `${ANSWER_MARKER} ${JSON.stringify({ numbers, items: [], refused: false, not_found: false, caveats: [] })}`;
+    const ask = (text, numbers, over = {}) => ({
+      reply: `${text}\n${report(numbers)}`,
+      calls: [{ name: 'read_range' }], writes: 0, writeLog: [], dropped: [], modules: ['sheets'],
+      sourceText: '60\n83', toolResultsText: '{"rows":[60,83]}', ...over,
+    });
+    // R18-2: magnitude suffixes (k, tr, bn, m, ty) are quantities, never identifiers, and scale the value.
+    for (const phrase of [
+      'Forecast 60k.',
+      'Forecast 60tr.',
+      'Forecast 60 ty.',
+      'Forecast 987654321k.',
+      'Forecast 987654321tr.',
+      'Forecast 987654321bn.',
+      'Forecast 987654321m.',
+      'Forecast 987 654 321.',
+    ]) {
+      const res = deriveAnswer(c, ask(`Total 143 from 60 and 83. ${phrase}`, [143]));
+      assert.equal(score(c, res.answer).status, 'fail', `invented magnitude/grouped figure "${phrase}" must fail (R18-2)`);
+    }
+    // R18-9: sign is part of the value (-60 != 60).
+    const negProse = deriveAnswer(c, ask('Total 143 from 60 and 83. Forecast -60.', [143]));
+    assert.equal(score(c, negProse.answer).status, 'fail', 'invented -60 against positive 60 must fail (R18-9)');
+    const negOperands = deriveAnswer(c, ask('Total 143 from -60 and -83.', [143]));
+    assert.equal(score(c, negOperands.answer).status, 'fail', 'negative shown operands against positive read values must fail (R18-9)');
+    // R18-9: legitimate negative read operands with their negative sum pass.
+    const negCase = synthCase({
+      ...c,
+      id: 'HO-TEST-926',
+      expected: { numeric: [{ name: 'synth_total', value: -143, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { synth_total: -143 }, structural: [], writes: 0, text: 'Total is -143.' },
+    });
+    const validNeg = deriveAnswer(negCase, ask('Total -143 from -60 and -83.', [-143], {
+      sourceText: '-60\n-83',
+      toolResultsText: '{"rows":[-60,-83]}',
+    }));
+    assert.ok(validNeg.answer.tools.used.includes('compute'), 'negative operands and negative sum earn compute (R18-9)');
+    assert.equal(score(negCase, validNeg.answer).status, 'pass');
+  });
+
   it('Item 5: deriveAnswer reports pick.value for table_cell and an anchor-matching table_cell with a wrong value fails', () => {
     const tblCase = synthCase({
       id: 'HO-DOCX-907',
