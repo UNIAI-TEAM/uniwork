@@ -60,14 +60,14 @@ export const TOOL_OPS = {
     ask_clarification: ['ask_clarification'],
   },
   markdown: {
-    get_document_context: ['read_document', 'read_table'],
+    get_document_context: ['read_document'],
     read_blocks: ['read_document', 'read_table'],
     read_frontmatter: ['read_document'],
     apply_ops: ['edit_paragraph'],
     ask_clarification: ['ask_clarification'],
   },
   html: {
-    get_outline: ['read_document', 'read_table'],
+    get_outline: ['read_document'],
     read_source: ['read_document', 'read_table'],
     apply_ops: ['edit_paragraph'],
     ask_clarification: ['ask_clarification'],
@@ -465,20 +465,6 @@ function parseArguments(raw) {
   return { ok: true, args: value };
 }
 
-const UNSUPPORTED_SHEET_OP_RE = /(?:print_?area|freeze_?(?:rows|cols|columns|panes)|page_?setup)/i;
-
-/** Returns true when a propose_operations argument asks for page-setup or freeze-pane operations that the tool does not support. */
-export function hasUnsupportedSheetOp(node) {
-  if (Array.isArray(node)) return node.some(hasUnsupportedSheetOp);
-  if (!node || typeof node !== 'object') return false;
-  for (const [k, v] of Object.entries(node)) {
-    if (UNSUPPORTED_SHEET_OP_RE.test(k)) return true;
-    if (/^(?:type|op|operation|kind|action)$/i.test(k) && typeof v === 'string' && UNSUPPORTED_SHEET_OP_RE.test(v)) return true;
-    if (v && typeof v === 'object' && hasUnsupportedSheetOp(v)) return true;
-  }
-  return false;
-}
-
 function recalcSheet(sheet) {
   for (let pass = 0; pass < 2; pass += 1) {
     for (const cell of Object.values(sheet.cells)) {
@@ -591,7 +577,7 @@ function applyWriteToDoc(doc, name, args, caseDoc) {
 
 /**
  * One case's tool session. execute(name, args) answers a call; writes() is the number of writes let through;
- * denied() lists calls it refused (revoked access, viewer, stale version, unsupported op) so the runner can record them; writeLog()
+ * denied() lists calls it refused (revoked access, viewer, stale version) so the runner can record them; writeLog()
  * keeps the arguments of every write attempt (applied or refused, a dry run is none) so an edit can be scored from what
  * was proposed; sourceText() is the text of the documents as opened;
  * invalid() lists calls whose arguments the real tool would refuse (answered `invalid_arguments`, never a crash).
@@ -642,11 +628,6 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = nul
       if (isWrite) {
         if (target.role === 'viewer') { denied.push({ name, reason: 'viewer' }); writeLog.push({ name, applied: false, args }); return { error: 'permission_denied', message: 'This document is view-only.' }; }
         if (caseDoc.setup?.serverVersionAhead) { denied.push({ name, reason: 'version_conflict' }); writeLog.push({ name, applied: false, args }); return { error: 'version_conflict', message: 'The server holds a newer version than the copy that is open.' }; }
-        if (name === 'propose_operations' && hasUnsupportedSheetOp(args)) {
-          denied.push({ name, reason: 'unsupported_operation' });
-          writeLog.push({ name, applied: false, args });
-          return { error: 'unsupported_operation', message: 'Page setup and freeze-pane operations are not supported by propose_operations.' };
-        }
         writes += 1;
         writeLog.push({ name, applied: true, args });
         applyWriteToDoc(target.doc, name, args, caseDoc);
