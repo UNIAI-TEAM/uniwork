@@ -1,0 +1,326 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-docs-web.spec.ts --reporter=list > /tmp/rootbase1-office-docs-web.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rootbase1-office-docs-web.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/rootbase1-office-docs-web.log && echo "skipped: office-docs-web has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/rootbase1-office-docs-web.log || { echo "no passing test matched office-docs-web"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_DOCS_WEB_EXIT=$rc"
+  2) office-docs-web.spec.ts:225:3 › open, edit, save › PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+    Expected: visible
+    Timeout: 60000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 60000ms
+      - waiting for locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+
+
+      227 |     await page.goto(seeded.documentUrl);
+      228 |     const frame = page.frameLocator(FRAME_SELECTOR);
+    > 229 |     await expect(frame.locator(EDITOR).first()).toBeVisible({ timeout: 60_000 });
+          |                                                 ^
+      230 |     // The web build has no menu entry for PDF export; the renderer exposes the action as window.__exportPdf.
+      231 |     // Printing is stubbed (a headless run has no print dialog) and settles like the real one, on afterprint.
+      232 |     await frame.locator("body").evaluate(() => {
+
+    Error Context: test-results/office-docs-web-open-edit--4be88-the-in-frame-print-fallback/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/office-docs-web-open-edit--4be88-the-in-frame-print-fallback/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/office-docs-web-open-edit--4be88-the-in-frame-print-fallback/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    office-docs-web.spec.ts:154:3 › open, edit, save › Save as makes a copy, the page follows it and the frame keeps editing the copy 
+    office-docs-web.spec.ts:225:3 › open, edit, save › PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback 
+  1 skipped
+  8 passed (3.3m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-docs-web.spec.ts --reporter=list
+===== e2e/test-results/office-docs-web-open-edit--4be88-the-in-frame-print-fallback/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-docs-web.spec.ts >> open, edit, save >> PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback
+- Location: office-docs-web.spec.ts:225:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org docs-web-mvchji31, WS docs-web-mvchji31: chuyển workspace"': Org docs-web-mvchji31 WS docs-web-mvchji31
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792246920014/rec-ws-1792246920014/people
+- list:
+  - listitem:
+    - 'button "docs-web-mvchji31, docs-web-mvchji31-1792246920014@example.com: tài khoản"': D docs-web-mvchji31 docs-web-mvchji31-1792246920014@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Về thư viện tài liệu"
+  - link "Tài liệu":
+    - /url: /rec-org-1792246920014/rec-ws-1792246920014/documents
+  - text: docs-web.docx
+  - img "docs-web-mvchji31 đang sửa": DO
+  - button "Hành động khác"
+  - status: Bạn đang sửa tài liệu này ở cửa sổ khác.
+  - button "Sửa ở đây"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  129 | 
+  130 |     await editor.click();
+  131 |     await page.keyboard.press("Control+End");
+  132 |     await page.keyboard.type(` ${marker}`);
+  133 |     await expect(editor).toContainText(marker);
+  134 |     await page.keyboard.press("Control+s");
+  135 | 
+  136 |     // The server is the source of truth: a new version exists and its bytes hold the edit.
+  137 |     await expect.poll(async () => (await listVersions(request, seeded.account.token, seeded.documentId)).length, { timeout: 60_000, intervals: [1_000] })
+  138 |       .toBeGreaterThan(before.length);
+  139 |     const after = await listVersions(request, seeded.account.token, seeded.documentId);
+  140 |     const newest = after.reduce((a, b) => (b.version > a.version ? b : a));
+  141 |     expect(await versionBodyXml(request, seeded.account.token, seeded.documentId, newest.version)).toContain(marker);
+  142 |     test.info().attach("versions.json", { body: JSON.stringify({ before, after }, null, 2), contentType: "application/json" });
+  143 |     await page.screenshot({ path: test.info().outputPath("02-saved.png") });
+  144 | 
+  145 |     // Reopen from scratch: the edit comes back from the stored version.
+  146 |     await page.goto("about:blank");
+  147 |     await page.goto(seeded.documentUrl);
+  148 |     const reopened = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
+  149 |     await expect(reopened).toBeVisible({ timeout: 60_000 });
+  150 |     await expect(reopened).toContainText(marker, { timeout: 30_000 });
+  151 |     await page.screenshot({ path: test.info().outputPath("03-reopened.png") });
+  152 |   });
+  153 | 
+  154 |   test("Save as makes a copy, the page follows it and the frame keeps editing the copy", async ({ page, request }) => {
+  155 |     const marker = `uw-docs-web-copy-${Date.now().toString(36)}`;
+  156 |     const token = seeded.account.token;
+  157 |     const originalBefore = await listVersions(request, token, seeded.documentId);
+  158 |     await signInAs(page, seeded.account.email);
+  159 |     await page.goto(seeded.documentUrl);
+  160 |     const editor = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
+  161 |     await expect(editor).toBeVisible({ timeout: 60_000 });
+  162 |     await editor.click();
+  163 |     await page.keyboard.press("Control+End");
+  164 |     await page.keyboard.type(` ${marker}`);
+  165 |     await page.frameLocator(FRAME_SELECTOR).getByText("Tệp", { exact: true }).first().click();
+  166 |     await page.frameLocator(FRAME_SELECTOR).getByText("Lưu dưới dạng…").first().click();
+  167 | 
+  168 |     // The page follows the copy: same workspace, another document id.
+  169 |     await expect(page).not.toHaveURL(seeded.documentUrl, { timeout: 60_000 });
+  170 |     const copyId = page.u===== e2e/test-results/office-docs-web-open-edit--87b1a-rame-keeps-editing-the-copy/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-docs-web.spec.ts >> open, edit, save >> Save as makes a copy, the page follows it and the frame keeps editing the copy
+- Location: office-docs-web.spec.ts:154:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org docs-web-mvchi0mr, WS docs-web-mvchi0mr: chuyển workspace"': Org docs-web-mvchi0mr WS docs-web-mvchi0mr
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792246850740/rec-ws-1792246850740/people
+- list:
+  - listitem:
+    - 'button "docs-web-mvchi0mr, docs-web-mvchi0mr-1792246850740@example.com: tài khoản"': D docs-web-mvchi0mr docs-web-mvchi0mr-1792246850740@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Về thư viện tài liệu"
+  - link "Tài liệu":
+    - /url: /rec-org-1792246850740/rec-ws-1792246850740/documents
+  - text: docs-web.docx
+  - img "docs-web-mvchi0mr đang sửa": DO
+  - button "Hành động khác"
+  - status: Bạn đang sửa tài liệu này ở cửa sổ khác.
+  - button "Sửa ở đây"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  61  |     expect(headers["cache-control"]).toBe("public, max-age=0, must-revalidate");
+  62  |     expect(await response.text()).not.toMatch(/http-equiv=["']Content-Security-Policy/i);
+  63  |   });
+  64  | 
+  65  |   test("hashed assets and fonts are immutable and match the manifest digest", async ({ request }) => {
+  66  |     const manifest = (await (await request.get(`${baseUrl}${frameBase}/manifest.json`)).json()) as { files: { path: string; sha256: string }[] };
+  67  |     const asset = manifest.files.find((f) => f.path.startsWith("assets/") && f.path.endsWith(".js"));
+  68  |     expect(asset, "manifest lists no assets/*.js").toBeTruthy();
+  69  |     const response = await request.get(`${baseUrl}${frameBase}/${asset!.path}`);
+  70  |     expect(response.status()).toBe(200);
+  71  |     expect(response.headers()["cache-control"]).toBe("public, max-age=31536000, immutable");
+  72  |     expect(response.headers()["content-security-policy"]).toContain("frame-ancestors 'self'");
+  73  |     expect(createHash("sha256").update(await response.body()).digest("hex")).toBe(asset!.sha256);
+  74  |     const font = manifest.files.find((f) => f.path.startsWith("fonts/"));
+  75  |     if (font) expect((await request.get(`${baseUrl}${frameBase}/${font.path}`)).headers()["cache-control"]).toBe("public, max-age=31536000, immutable");
+  76  |   });
+  77  | 
+  78  |   test("an unpinned version is a 404 that still carries the locked-down policy", async ({ request }) => {
+  79  |     const response = await request.get(`${baseUrl}/office-frame/docs/9.9.9-unpinned/index.html`);
+  80  |     expect(response.status()).toBe(404);
+  81  |     expect(response.headers()["x-frame-options"]).toBe("SAMEORIGIN");
+  82  |   });
+  83  | 
+  84  |   test("the frame boots under its own CSP without a single violation", async ({ page }) => {
+  85  |     const violations: string[] = [];
+  86  |     page.on("console", (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) violations.push(m.text()); });
+  87  |     page.on("pageerror", (e) => violations.push(`pageerror: ${e.message}`));
+  88  |     await page.goto(`${baseUrl}${frameBase}/${pin.entry}`);
+  89  |     await expect(page.locator("#root")).not.toBeEmpty({ timeout: 30_000 });
+  90  |     expect(violations).toEqual([]);
+  91  |   });
+  92  | });
+  93  | 
+  94  | async function signInAs(page: Page, email: string): Promise<void> {
+  95  |   await page.goto("/login");
+  96  |   await page.getByLabel("Email").fill(email);
+  97  |   await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
+  98  |   await page.getByRole("button", { name: "Đăng nhập" }).click();
+  99  |   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
+  100 | }
+  101 | 
+  102 | test.describe("open, edit, saskipped: office-docs-web has gated or skipped tests
+
+E2E_DOCS_WEB_EXIT=1

@@ -1,0 +1,3064 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_UX_FLOOR_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-ux-floor.spec.ts --reporter=list > /tmp/rootbase1-office-ux-floor.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rootbase1-office-ux-floor.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/rootbase1-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/rootbase1-office-ux-floor.log && echo "skipped: office-ux-floor has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/rootbase1-office-ux-floor.log || { echo "no passing test matched office-ux-floor"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_UX_FLOOR_EXIT=$rc"
+      76 |
+
+    Error Context: test-results/office-ux-floor-UniWork-AI-7c82f-ooter-are-siblings-after-it/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/office-ux-floor-UniWork-AI-7c82f-ooter-are-siblings-after-it/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/office-ux-floor-UniWork-AI-7c82f-ooter-are-siblings-after-it/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23 failed
+    office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light vi 
+    office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light en 
+    office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark vi 
+    office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark en 
+    office-ux-floor.spec.ts:123:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert 
+    office-ux-floor.spec.ts:168:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › aria-disabled choices (web offline) stay in the Tab loop with a reason 
+    office-ux-floor.spec.ts:189:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy sits between Reload and Overwrite with edit access 
+    office-ux-floor.spec.ts:199:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy creates a copy with the source visibility and leaves the open document in conflict 
+    office-ux-floor.spec.ts:226:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Docs shows 'Xem khác biệt' before Reload 
+    office-ux-floor.spec.ts:237:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › the window live nodes stay outside the inert tree while S5 is open 
+    office-ux-floor.spec.ts:262:3 › live regions (Floor › Vùng live) › an S6 bar is read once, through the window node; the bar itself is not live 
+    office-ux-floor.spec.ts:290:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 buttons keep a visible border, not colour alone 
+    office-ux-floor.spec.ts:307:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 aria-disabled buttons use GrayText text and border 
+    office-ux-floor.spec.ts:336:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable 
+    office-ux-floor.spec.ts:357:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable 
+    office-ux-floor.spec.ts:375:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked 
+    office-ux-floor.spec.ts:375:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked 
+    office-ux-floor.spec.ts:394:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › reduced motion: no slide/fade on S6 or S5 
+    office-ux-floor.spec.ts:415:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer) 
+    office-ux-floor.spec.ts:427:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en 
+    office-ux-floor.spec.ts:427:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi 
+    office-ux-floor.spec.ts:451:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark 
+    office-ux-floor.spec.ts:497:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it 
+  6 passed (9.6m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-ux-floor.spec.ts --reporter=list
+===== e2e/test-results/office-ux-floor-contrast-o-01b4a-reachable-S5-step-—-dark-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> contrast on the rendered frame (DESIGN.md › Colors) >> S6 clean + dirty bars and every reachable S5 step — dark vi
+- Location: office-ux-floor.spec.ts:78:7
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:25Z","held_by_me":true,"holder_id":"01M5537ZJVB0HSXF7VGRFBC68Q","holder_name":"ux-floor-mvch5v6o","since":"2026-10-17T14:11:25Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch5v6o, WS ux-floor-mvch5v6o: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch5v6o" [ref=f1e14]
+              - generic "WS ux-floor-mvch5v6o" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246283808/rec-ws-1792246283808
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246283808/rec-ws-1792246283808/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246283808/rec-ws-1792246283808/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch5v6o, ux-floor-mvch5v6o-1792246283808@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch5v6o" [ref=f1e113]
+              - generic "ux-floor-mvch5v6o-1792246283808@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246283808/rec-ws-1792246283808/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa có thay đổi" [ref=f1e142]
+              - button "Lưu vào UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Hoàn tác" [disabled] [ref=f2e19]
+                  - button "Làm lại" [disabled] [ref=f2e23]
+ ===== e2e/test-results/office-ux-floor-contrast-o-2b072-reachable-S5-step-—-dark-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> contrast on the rendered frame (DESIGN.md › Colors) >> S6 clean + dirty bars and every reachable S5 step — dark en
+- Location: office-ux-floor.spec.ts:78:7
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:30Z","held_by_me":true,"holder_id":"01M55384EFYD7M2YHR2KG572HE","holder_name":"ux-floor-mvch5z0z","since":"2026-10-17T14:11:30Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Skip to main content" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch5z0z, WS ux-floor-mvch5z0z: switch workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch5z0z" [ref=f1e14]
+              - generic "WS ux-floor-mvch5z0z" [ref=f1e15]
+      - navigation "Workspace navigation" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Home" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246288787/rec-ws-1792246288787
+          - listitem [ref=f1e30]:
+            - link "Inbox" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246288787/rec-ws-1792246288787/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Work
+          - list "Work" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Tasks" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/tasks
+            - listitem [ref=f1e48]:
+              - link "My tasks" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Projects" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/projects
+            - listitem [ref=f1e61]:
+              - link "Calendar" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Communication
+          - list "Communication" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/email
+            - listitem [ref=f1e78]:
+              - link "Meetings" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/meetings
+            - listitem [ref=f1e85]:
+              - link "Documents" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/documents
+            - listitem [ref=f1e92]:
+              - link "Chat" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/chat
+            - listitem [ref=f1e98]:
+              - link "People" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246288787/rec-ws-1792246288787/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch5z0z, ux-floor-mvch5z0z-1792246288787@example.com: account" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch5z0z" [ref=f1e113]
+              - generic "ux-floor-mvch5z0z-1792246288787@example.com" [ref=f1e114]
+      - button "Toggle sidebar" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Toggle sidebar" [ref=f1e120] [cursor=pointer]
+        - button "Search…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Ask UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Notifications" [ref=f1e125] [cursor=pointer]
+          - button "New task" [ref=f1e126] [cursor=pointer]
+          - button "Theme" [ref=f1e127] [cursor=pointer]
+          - button "Language" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Back to documents" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Documents" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246288787/rec-ws-1792246288787/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "No changes" [ref=f1e142]
+              - button "Save to UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Save
+            - group [ref=f1e147]:
+              - button "Open in UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "UniWork Office options" [ref=f1e150] [cursor=pointer]
+            - button "More actions" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Discussion" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "File" [ref=f2e13] [cursor=pointer]
+                  - button "Save (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Undo" [disabled] [ref=f2e19]
+                  - button "Redo" [disabled] [ref=f2e23]
+                  - button "Home" [ref=f2e28] [cursor=pointer]
+                  - button "Insert" [ref=f2e29] [cursor=pointer]
+                  - button "Draw" [r===== e2e/test-results/office-ux-floor-contrast-o-4eb1c-eachable-S5-step-—-light-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> contrast on the rendered frame (DESIGN.md › Colors) >> S6 clean + dirty bars and every reachable S5 step — light en
+- Location: office-ux-floor.spec.ts:78:7
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:20Z","held_by_me":true,"holder_id":"01M5537TTR0Y2G6E48WSTXQKMY","holder_name":"ux-floor-mvch5rfh","since":"2026-10-17T14:11:20Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Skip to main content" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch5rfh, WS ux-floor-mvch5rfh: switch workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch5rfh" [ref=f1e14]
+              - generic "WS ux-floor-mvch5rfh" [ref=f1e15]
+      - navigation "Workspace navigation" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Home" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246278942/rec-ws-1792246278942
+          - listitem [ref=f1e30]:
+            - link "Inbox" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246278942/rec-ws-1792246278942/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Work
+          - list "Work" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Tasks" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/tasks
+            - listitem [ref=f1e48]:
+              - link "My tasks" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Projects" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/projects
+            - listitem [ref=f1e61]:
+              - link "Calendar" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Communication
+          - list "Communication" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/email
+            - listitem [ref=f1e78]:
+              - link "Meetings" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/meetings
+            - listitem [ref=f1e85]:
+              - link "Documents" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/documents
+            - listitem [ref=f1e92]:
+              - link "Chat" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/chat
+            - listitem [ref=f1e98]:
+              - link "People" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246278942/rec-ws-1792246278942/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch5rfh, ux-floor-mvch5rfh-1792246278942@example.com: account" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch5rfh" [ref=f1e113]
+              - generic "ux-floor-mvch5rfh-1792246278942@example.com" [ref=f1e114]
+      - button "Toggle sidebar" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Toggle sidebar" [ref=f1e120] [cursor=pointer]
+        - button "Search…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Ask UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Notifications" [ref=f1e125] [cursor=pointer]
+          - button "New task" [ref=f1e126] [cursor=pointer]
+          - button "Theme" [ref=f1e127] [cursor=pointer]
+          - button "Language" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Back to documents" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Documents" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246278942/rec-ws-1792246278942/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "No changes" [ref=f1e142]
+              - button "Save to UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Save
+            - group [ref=f1e147]:
+              - button "Open in UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "UniWork Office options" [ref=f1e150] [cursor=pointer]
+            - button "More actions" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Discussion" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "File" [ref=f2e13] [cursor=pointer]
+                  - button "Save (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Undo" [disabled] [ref=f2e19]
+                  - button "Redo" [disabled] [ref=f2e23]
+                  - button "Home" [ref=f2e28] [cursor=pointer]
+                  - button "Insert" [ref=f2e29] [cursor=pointer]
+                  - button "Draw" [===== e2e/test-results/office-ux-floor-contrast-o-5ec70-eachable-S5-step-—-light-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> contrast on the rendered frame (DESIGN.md › Colors) >> S6 clean + dirty bars and every reachable S5 step — light vi
+- Location: office-ux-floor.spec.ts:78:7
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:15Z","held_by_me":true,"holder_id":"01M5537NA5M27TRNR99DF5S3ZN","holder_name":"ux-floor-mvch5n2g","since":"2026-10-17T14:11:15Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch5n2g, WS ux-floor-mvch5n2g: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch5n2g" [ref=f1e14]
+              - generic "WS ux-floor-mvch5n2g" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246273290/rec-ws-1792246273290
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246273290/rec-ws-1792246273290/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246273290/rec-ws-1792246273290/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch5n2g, ux-floor-mvch5n2g-1792246273290@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch5n2g" [ref=f1e113]
+              - generic "ux-floor-mvch5n2g-1792246273290@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246273290/rec-ws-1792246273290/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa có thay đổi" [ref=f1e142]
+              - button "Lưu vào UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Hoàn tác" [disabled] [ref=f2e19]
+                  - button "Làm lại" [disabled] [ref=f2e23]
+===== e2e/test-results/office-ux-floor-forced-col-7cde1-se-GrayText-text-and-border/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> forced colors (DESIGN.md › Colors › Forced colors) >> S5 aria-disabled buttons use GrayText text and border
+- Location: office-ux-floor.spec.ts:307:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:15:18Z","held_by_me":true,"holder_id":"01M553BDN9HVNC9PEPPGKH6DAP","holder_name":"ux-floor-mvch8a5r","since":"2026-10-17T14:13:18Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch8a5r, WS ux-floor-mvch8a5r: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch8a5r" [ref=f1e14]
+              - generic "WS ux-floor-mvch8a5r" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246396527/rec-ws-1792246396527
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246396527/rec-ws-1792246396527/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246396527/rec-ws-1792246396527/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch8a5r, ux-floor-mvch8a5r-1792246396527@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch8a5r" [ref=f1e113]
+              - generic "ux-floor-mvch8a5r-1792246396527@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246396527/rec-ws-1792246396527/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn tác" [ref=f2e19] [cursor=pointer]
+          ===== e2e/test-results/office-ux-floor-forced-col-ef808-ble-border-not-colour-alone/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> forced colors (DESIGN.md › Colors › Forced colors) >> S5 buttons keep a visible border, not colour alone
+- Location: office-ux-floor.spec.ts:290:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:15:13Z","held_by_me":true,"holder_id":"01M553B837MBAAQCR51WFG049Q","holder_name":"ux-floor-mvch85rh","since":"2026-10-17T14:13:13Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch85rh, WS ux-floor-mvch85rh: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch85rh" [ref=f1e14]
+              - generic "WS ux-floor-mvch85rh" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246390829/rec-ws-1792246390829
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246390829/rec-ws-1792246390829/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246390829/rec-ws-1792246390829/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch85rh, ux-floor-mvch85rh-1792246390829@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch85rh" [ref=f1e113]
+              - generic "ux-floor-mvch85rh-1792246390829@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246390829/rec-ws-1792246390829/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn tác" [ref=f2e19] [cursor=pointer]
+             ===== e2e/test-results/office-ux-floor-live-regio-e30ce--the-bar-itself-is-not-live/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> live regions (Floor › Vùng live) >> an S6 bar is read once, through the window node; the bar itself is not live
+- Location: office-ux-floor.spec.ts:262:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org ux-floor-mvch6qhb, WS ux-floor-mvch6qhb: chuyển workspace"': Org ux-floor-mvch6qhb WS ux-floor-mvch6qhb
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792246324368/rec-ws-1792246324368/people
+- list:
+  - listitem:
+    - 'button "ux-floor-mvch6qhb, ux-floor-mvch6qhb-1792246324368@example.com: tài khoản"': U ux-floor-mvch6qhb ux-floor-mvch6qhb-1792246324368@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Về thư viện tài liệu"
+  - link "Tài liệu":
+    - /url: /rec-org-1792246324368/rec-ws-1792246324368/documents
+  - text: docs-web.docx
+  - img "ux-floor-mvch6qhb đang sửa": UX
+  - button "Hành động khác"
+  - status: Bạn đang sửa tài liệu này ở cửa sổ khác.
+  - button "Sửa ở đây"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  1   | import { expect, test, type APIRequestContext, type Frame, type Locator, type Page } from "@playwright/test";
+  2   | import { readFileSync } from "node:fs";
+  3   | import { Client } from "pg";
+  4   | import { basename, resolve } from "node:path";
+  5   | import { e2eApiUrl } from "./api-url";
+  6   | import { readPinnedFrame, type SeededDocx } from "./office-docs-web-fixtures";
+  7   | import { signInAs } from "./office-module-web-fixtures";
+  8   | 
+  9   | /**
+  10  |  * Helpers for the G7-09 UX acceptance spec (office-ux-floor.spec.ts): reach the
+  11  |  * web-frame surfaces of EXPERIENCE.md (S5 conflict dialog, S6 new-version bar,
+  12  |  * S7 picker, S9 result line) on a D web page hosting the pinned Docs frame, and
+  13  |  * read them inside the same-origin iframe. The selectors are the fork's own
+  14  |  * (web/modules/shared/frame-dialog.ts, remote-bar.ts, packages/ui AiModelPicker)
+  15  |  * at the pinned frame version, so a renamed class fails loudly here.
+  16  |  */
+  17  | const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+  18  | const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
+  19  | const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  20  | 
+  21  | export const FRAME_SELECTOR = 'iframe[src*="/office-frame/docs/"]';
+  22  | export const EDITOR = '.ProseMirror[contenteditable="true"]';
+  23  | /**
+  24  |  * S5: the conflict dialog's backdrop carries the marker, the card is the alertdialog. The Docs frame stamps its dialogs
+  25  |  * with `data-docs-web` (web/docs/bridge/notice.ts MARKER_ATTR, passed as `markerAttr` through `conflictFrame()`); the
+  26  |  * other modules use the default `data-office-web`. r1 used the default and never found the Docs dialog. Both are
+  27  |  * accepted, so a later pin that moves the Docs frame onto the shared marker still finds S5.
+  28  |  */
+  29  | export const S5_MASK = ':is([data-docs-web="conflict"], [data-office-web="conflict"])';
+  30  | export const S5_CARD = `${S5_MASK} .ow-dlg`;
+  31  | export const S6_BAR = ".uw-remote-bar";
+  32  | export const PICKER_POP = ".ai-model-pop";
+  33  | export const COMPOSER = ".ai-composer textarea, .ai-composer [contenteditable='true']";
+  34  | 
+  35  | export type Mode = "light" | "dark";
+  36  | export type Locale = "vi" | "en";
+  37  | 
+  38  | /** Whether the web build under test serves the pinned Docs bundle. */
+  39  | export async function docsFrameInstalled(request: APIRequestContext, baseUrl: string): Promise<boolean> {
+  40  |   try {
+  41  |     return (await request.get(`${baseUrl}/office-frame/docs/${readPinnedFrame().version}/manifest.json`)).ok();
+  42  |  ===== e2e/test-results/office-ux-floor-S5-order-f-498c7--the-Tab-loop-with-a-reason/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> aria-disabled choices (web offline) stay in the Tab loop with a reason
+- Location: office-ux-floor.spec.ts:168:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:40Z","held_by_me":true,"holder_id":"01M5538E06CP82Z3X52GAP3YAC","holder_name":"ux-floor-mvch66ks","since":"2026-10-17T14:11:40Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch66ks, WS ux-floor-mvch66ks: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch66ks" [ref=f1e14]
+              - generic "WS ux-floor-mvch66ks" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246298572/rec-ws-1792246298572
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246298572/rec-ws-1792246298572/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246298572/rec-ws-1792246298572/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch66ks, ux-floor-mvch66ks-1792246298572@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch66ks" [ref=f1e113]
+              - generic "ux-floor-mvch66ks-1792246298572@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246298572/rec-ws-1792246298572/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "H===== e2e/test-results/office-ux-floor-S5-order-f-6295d--stays-in-the-rest-is-inert/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert
+- Location: office-ux-floor.spec.ts:123:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:35Z","held_by_me":true,"holder_id":"01M5538919V1Q4BGH0BBDZRCKN","holder_name":"ux-floor-mvch62nk","since":"2026-10-17T14:11:35Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch62nk, WS ux-floor-mvch62nk: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch62nk" [ref=f1e14]
+              - generic "WS ux-floor-mvch62nk" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246293488/rec-ws-1792246293488
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246293488/rec-ws-1792246293488/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246293488/rec-ws-1792246293488/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch62nk, ux-floor-mvch62nk-1792246293488@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch62nk" [ref=f1e113]
+              - generic "ux-floor-mvch62nk-1792246293488@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246293488/rec-ws-1792246293488/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]===== e2e/test-results/office-ux-floor-S5-order-f-7bfbc-Xem-khác-biệt-before-Reload/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> Docs shows 'Xem khác biệt' before Reload
+- Location: office-ux-floor.spec.ts:226:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:55Z","held_by_me":true,"holder_id":"01M5538X4S1FVCZBW4N8JKPB5Y","holder_name":"ux-floor-mvch6ijj","since":"2026-10-17T14:11:55Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch6ijj, WS ux-floor-mvch6ijj: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch6ijj" [ref=f1e14]
+              - generic "WS ux-floor-mvch6ijj" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246314079/rec-ws-1792246314079
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246314079/rec-ws-1792246314079/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246314079/rec-ws-1792246314079/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch6ijj, ux-floor-mvch6ijj-1792246314079@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch6ijj" [ref=f1e113]
+              - generic "ux-floor-mvch6ijj-1792246314079@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246314079/rec-ws-1792246314079/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn tác" [ref=f2e19] [cur===== e2e/test-results/office-ux-floor-S5-order-f-99d84-inert-tree-while-S5-is-open/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> the window live nodes stay outside the inert tree while S5 is open
+- Location: office-ux-floor.spec.ts:237:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:14:01Z","held_by_me":true,"holder_id":"01M5539244ECAFTSJ76CJTA1TH","holder_name":"ux-floor-mvch6mh1","since":"2026-10-17T14:12:01Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch6mh1, WS ux-floor-mvch6mh1: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch6mh1" [ref=f1e14]
+              - generic "WS ux-floor-mvch6mh1" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246319173/rec-ws-1792246319173
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246319173/rec-ws-1792246319173/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246319173/rec-ws-1792246319173/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch6mh1, ux-floor-mvch6mh1-1792246319173@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch6mh1" [ref=f1e113]
+              - generic "ux-floor-mvch6mh1-1792246319173@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246319173/rec-ws-1792246319173/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn===== e2e/test-results/office-ux-floor-S5-order-f-a1727--Overwrite-with-edit-access/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> Save copy sits between Reload and Overwrite with edit access
+- Location: office-ux-floor.spec.ts:189:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:45Z","held_by_me":true,"holder_id":"01M5538K59RZSC9NXF63212CKN","holder_name":"ux-floor-mvch6anj","since":"2026-10-17T14:11:45Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch6anj, WS ux-floor-mvch6anj: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch6anj" [ref=f1e14]
+              - generic "WS ux-floor-mvch6anj" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246303855/rec-ws-1792246303855
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246303855/rec-ws-1792246303855/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246303855/rec-ws-1792246303855/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch6anj, ux-floor-mvch6anj-1792246303855@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch6anj" [ref=f1e113]
+              - generic "ux-floor-mvch6anj-1792246303855@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246303855/rec-ws-1792246303855/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn tác"===== e2e/test-results/office-ux-floor-S5-order-f-e3d37-e-open-document-in-conflict/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) >> Save copy creates a copy with the source visibility and leaves the open document in conflict
+- Location: office-ux-floor.spec.ts:199:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:13:50Z","held_by_me":true,"holder_id":"01M5538R5X080GM5G3HNJ02E91","holder_name":"ux-floor-mvch6em7","since":"2026-10-17T14:11:50Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch6em7, WS ux-floor-mvch6em7: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch6em7" [ref=f1e14]
+              - generic "WS ux-floor-mvch6em7" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246308991/rec-ws-1792246308991
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246308991/rec-ws-1792246308991/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246308991/rec-ws-1792246308991/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch6em7, ux-floor-mvch6em7-1792246308991@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch6em7" [ref=f1e113]
+              - generic "ux-floor-mvch6em7-1792246308991@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246308991/rec-ws-1792246308991/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+       ===== e2e/test-results/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — dark vi
+- Location: office-ux-floor.spec.ts:427:7
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org ux-floor-mvchax1x, WS ux-floor-mvchax1x: chuyển workspace"': Org ux-floor-mvchax1x WS ux-floor-mvchax1x
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792246519509/rec-ws-1792246519509/people
+- list:
+  - listitem:
+    - 'button "ux-floor-mvchax1x, ux-floor-mvchax1x-1792246519509@example.com: tài khoản"': U ux-floor-mvchax1x ux-floor-mvchax1x-1792246519509@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Về thư viện tài liệu"
+  - link "Tài liệu":
+    - /url: /rec-org-1792246519509/rec-ws-1792246519509/documents
+  - text: docs-web.docx
+  - img "ux-floor-mvchax1x đang sửa": UX
+  - button "Hành động khác"
+  - status: Bạn đang sửa tài liệu này ở cửa sổ khác.
+  - button "Sửa ở đây"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  1   | import { expect, test, type APIRequestContext, type Frame, type Locator, type Page } from "@playwright/test";
+  2   | import { readFileSync } from "node:fs";
+  3   | import { Client } from "pg";
+  4   | import { basename, resolve } from "node:path";
+  5   | import { e2eApiUrl } from "./api-url";
+  6   | import { readPinnedFrame, type SeededDocx } from "./office-docs-web-fixtures";
+  7   | import { signInAs } from "./office-module-web-fixtures";
+  8   | 
+  9   | /**
+  10  |  * Helpers for the G7-09 UX acceptance spec (office-ux-floor.spec.ts): reach the
+  11  |  * web-frame surfaces of EXPERIENCE.md (S5 conflict dialog, S6 new-version bar,
+  12  |  * S7 picker, S9 result line) on a D web page hosting the pinned Docs frame, and
+  13  |  * read them inside the same-origin iframe. The selectors are the fork's own
+  14  |  * (web/modules/shared/frame-dialog.ts, remote-bar.ts, packages/ui AiModelPicker)
+  15  |  * at the pinned frame version, so a renamed class fails loudly here.
+  16  |  */
+  17  | const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+  18  | const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
+  19  | const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  20  | 
+  21  | export const FRAME_SELECTOR = 'iframe[src*="/office-frame/docs/"]';
+  22  | export const EDITOR = '.ProseMirror[contenteditable="true"]';
+  23  | /**
+  24  |  * S5: the conflict dialog's backdrop carries the marker, the card is the alertdialog. The Docs frame stamps its dialogs
+  25  |  * with `data-docs-web` (web/docs/bridge/notice.ts MARKER_ATTR, passed as `markerAttr` through `conflictFrame()`); the
+  26  |  * other modules use the default `data-office-web`. r1 used the default and never found the Docs dialog. Both are
+  27  |  * accepted, so a later pin that moves the Docs frame onto the shared marker still finds S5.
+  28  |  */
+  29  | export const S5_MASK = ':is([data-docs-web="conflict"], [data-office-web="conflict"])';
+  30  | export const S5_CARD = `${S5_MASK} .ow-dlg`;
+  31  | export const S6_BAR = ".uw-remote-bar";
+  32  | export const PICKER_POP = ".ai-model-pop";
+  33  | export const COMPOSER = ".ai-composer textarea, .ai-composer [contenteditable='true']";
+  34  | 
+  35  | export type Mode = "light" | "dark";
+  36  | export type Locale = "vi" | "en";
+  37  | 
+  38  | /** Whether the web build under test serves the pinned Docs bundle. */
+  39  | export async function docsFrameInstalled(request: APIRequestContext, baseUrl: string): Promise<boolean> {
+  40  |   try {
+  41  |     return (await request.get(`${baseUrl}/office-frame/docs/${readPinnedFrame().ve===== e2e/test-results/office-ux-floor-UniWork-AI-7c82f-ooter-are-siblings-after-it/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 listbox sits on the list, Manage and the footer are siblings after it
+- Location: office-ux-floor.spec.ts:497:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org ux-floor-mvchf4j0, WS ux-floor-mvchf4j0: chuyển workspace"': Org ux-floor-mvchf4j0 WS ux-floor-mvchf4j0
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792246715820/rec-ws-1792246715820/people
+- list:
+  - listitem:
+    - 'button "ux-floor-mvchf4j0, ux-floor-mvchf4j0-1792246715820@example.com: tài khoản"': U ux-floor-mvchf4j0 ux-floor-mvchf4j0-1792246715820@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Về thư viện tài liệu"
+  - link "Tài liệu":
+    - /url: /rec-org-1792246715820/rec-ws-1792246715820/documents
+  - text: docs-web.docx
+  - img "ux-floor-mvchf4j0 đang sửa": UX
+  - button "Hành động khác"
+  - status: Bạn đang sửa tài liệu này ở cửa sổ khác.
+  - button "Sửa ở đây"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  1   | import { expect, test, type APIRequestContext, type Frame, type Locator, type Page } from "@playwright/test";
+  2   | import { readFileSync } from "node:fs";
+  3   | import { Client } from "pg";
+  4   | import { basename, resolve } from "node:path";
+  5   | import { e2eApiUrl } from "./api-url";
+  6   | import { readPinnedFrame, type SeededDocx } from "./office-docs-web-fixtures";
+  7   | import { signInAs } from "./office-module-web-fixtures";
+  8   | 
+  9   | /**
+  10  |  * Helpers for the G7-09 UX acceptance spec (office-ux-floor.spec.ts): reach the
+  11  |  * web-frame surfaces of EXPERIENCE.md (S5 conflict dialog, S6 new-version bar,
+  12  |  * S7 picker, S9 result line) on a D web page hosting the pinned Docs frame, and
+  13  |  * read them inside the same-origin iframe. The selectors are the fork's own
+  14  |  * (web/modules/shared/frame-dialog.ts, remote-bar.ts, packages/ui AiModelPicker)
+  15  |  * at the pinned frame version, so a renamed class fails loudly here.
+  16  |  */
+  17  | const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+  18  | const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
+  19  | const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  20  | 
+  21  | export const FRAME_SELECTOR = 'iframe[src*="/office-frame/docs/"]';
+  22  | export const EDITOR = '.ProseMirror[contenteditable="true"]';
+  23  | /**
+  24  |  * S5: the conflict dialog's backdrop carries the marker, the card is the alertdialog. The Docs frame stamps its dialogs
+  25  |  * with `data-docs-web` (web/docs/bridge/notice.ts MARKER_ATTR, passed as `markerAttr` through `conflictFrame()`); the
+  26  |  * other modules use the default `data-office-web`. r1 used the default and never found the Docs dialog. Both are
+  27  |  * accepted, so a later pin that moves the Docs frame onto the shared marker still finds S5.
+  28  |  */
+  29  | export const S5_MASK = ':is([data-docs-web="conflict"], [data-office-web="conflict"])';
+  30  | export const S5_CARD = `${S5_MASK} .ow-dlg`;
+  31  | export const S6_BAR = ".uw-remote-bar";
+  32  | export const PICKER_POP = ".ai-model-pop";
+  33  | export const COMPOSER = ".ai-composer textarea, .ai-composer [contenteditable='true']";
+  34  | 
+  35  | export type Mode = "light" | "dark";
+  36  | export type Locale = "vi" | "en";
+  37  | 
+  38  | /** Whether the web build under test serves the pinned Docs bundle. */
+  39  | export async function docsFrameInstalled(request: APIRequestContext, baseUrl: string): Promise<boolean> {
+  40  |   try {
+  41  |     return (await request.get(`${baseUrl}/office-frame/docs/${readPinn===== e2e/test-results/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — light en
+- Location: office-ux-floor.spec.ts:427:7
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+
+```
+
+```yaml
+- link "Skip to main content":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org ux-floor-mvch91yd, WS ux-floor-mvch91yd: switch workspace"': Org ux-floor-mvch91yd WS ux-floor-mvch91yd
+- navigation "Workspace navigation":
+  - list:
+    - listitem:
+      - link "Home":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549
+    - listitem:
+      - link "Inbox":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/inbox
+  - list "Work":
+    - listitem:
+      - link "Tasks":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/tasks
+    - listitem:
+      - link "My tasks":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/my-tasks
+    - listitem:
+      - link "Projects":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/projects
+    - listitem:
+      - link "Calendar":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/calendar
+  - list "Communication":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/email
+    - listitem:
+      - link "Meetings":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/meetings
+    - listitem:
+      - link "Documents":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/documents
+    - listitem:
+      - link "Chat":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/chat
+    - listitem:
+      - link "People":
+        - /url: /rec-org-1792246432549/rec-ws-1792246432549/people
+- list:
+  - listitem:
+    - 'button "ux-floor-mvch91yd, ux-floor-mvch91yd-1792246432549@example.com: account"': U ux-floor-mvch91yd ux-floor-mvch91yd-1792246432549@example.com
+- button "Toggle sidebar"
+- main:
+  - button "Toggle sidebar"
+  - button "Search…": Search… Ctrl+K
+  - button "Ask UNI (Ctrl+J)"
+  - button "Notifications"
+  - button "New task"
+  - button "Theme"
+  - button "Language"
+  - button "Back to documents"
+  - link "Documents":
+    - /url: /rec-org-1792246432549/rec-ws-1792246432549/documents
+  - text: docs-web.docx
+  - img "ux-floor-mvch91yd is editing": UX
+  - button "More actions"
+  - status: You’re editing this document in another window.
+  - button "Edit here"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  1   | import { expect, test, type APIRequestContext, type Frame, type Locator, type Page } from "@playwright/test";
+  2   | import { readFileSync } from "node:fs";
+  3   | import { Client } from "pg";
+  4   | import { basename, resolve } from "node:path";
+  5   | import { e2eApiUrl } from "./api-url";
+  6   | import { readPinnedFrame, type SeededDocx } from "./office-docs-web-fixtures";
+  7   | import { signInAs } from "./office-module-web-fixtures";
+  8   | 
+  9   | /**
+  10  |  * Helpers for the G7-09 UX acceptance spec (office-ux-floor.spec.ts): reach the
+  11  |  * web-frame surfaces of EXPERIENCE.md (S5 conflict dialog, S6 new-version bar,
+  12  |  * S7 picker, S9 result line) on a D web page hosting the pinned Docs frame, and
+  13  |  * read them inside the same-origin iframe. The selectors are the fork's own
+  14  |  * (web/modules/shared/frame-dialog.ts, remote-bar.ts, packages/ui AiModelPicker)
+  15  |  * at the pinned frame version, so a renamed class fails loudly here.
+  16  |  */
+  17  | const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+  18  | const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
+  19  | const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  20  | 
+  21  | export const FRAME_SELECTOR = 'iframe[src*="/office-frame/docs/"]';
+  22  | export const EDITOR = '.ProseMirror[contenteditable="true"]';
+  23  | /**
+  24  |  * S5: the conflict dialog's backdrop carries the marker, the card is the alertdialog. The Docs frame stamps its dialogs
+  25  |  * with `data-docs-web` (web/docs/bridge/notice.ts MARKER_ATTR, passed as `markerAttr` through `conflictFrame()`); the
+  26  |  * other modules use the default `data-office-web`. r1 used the default and never found the Docs dialog. Both are
+  27  |  * accepted, so a later pin that moves the Docs frame onto the shared marker still finds S5.
+  28  |  */
+  29  | export const S5_MASK = ':is([data-docs-web="conflict"], [data-office-web="conflict"])';
+  30  | export const S5_CARD = `${S5_MASK} .ow-dlg`;
+  31  | export const S6_BAR = ".uw-remote-bar";
+  32  | export const PICKER_POP = ".ai-model-pop";
+  33  | export const COMPOSER = ".ai-composer textarea, .ai-composer [contenteditable='true']";
+  34  | 
+  35  | export type Mode = "light" | "dark";
+  36  | export type Locale = "vi" | "en";
+  37  | 
+  38  | /** Whether the web build under test serves the pinned Docs bundle. */
+  39  | export async function docsFrameInstalled(request: APIRequestContext, baseUrl: string): Promise<boolean> {
+  40  |   try {
+  41  |     return (await request.get(`${baseUrl}/office-frame/docs/${readPinnedFrame().version}/manifest.json`)).ok();
+  42  |   } catch {
+  43  |     return false;
+  44  |   }
+  45  | }
+  46  | 
+  47  | /** The pinned frame ver===== e2e/test-results/office-ux-floor-UniWork-AI-e6195--against-accent-soft-—-dark/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 the selected option's focus ring is >= 3:1 against accent-soft — dark
+- Location: office-ux-floor.spec.ts:451:5
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for locator('iframe[src*="/office-frame/docs/"]').contentFrame().locator('.ProseMirror[contenteditable="true"]').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org ux-floor-mvchd0c2, WS ux-floor-mvchd0c2: chuyển workspace"': Org ux-floor-mvchd0c2 WS ux-floor-mvchd0c2
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792246617075/rec-ws-1792246617075/people
+- list:
+  - listitem:
+    - 'button "ux-floor-mvchd0c2, ux-floor-mvchd0c2-1792246617075@example.com: tài khoản"': U ux-floor-mvchd0c2 ux-floor-mvchd0c2-1792246617075@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Về thư viện tài liệu"
+  - link "Tài liệu":
+    - /url: /rec-org-1792246617075/rec-ws-1792246617075/documents
+  - text: docs-web.docx
+  - img "ux-floor-mvchd0c2 đang sửa": UX
+  - button "Hành động khác"
+  - status: Bạn đang sửa tài liệu này ở cửa sổ khác.
+  - button "Sửa ở đây"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  1   | import { expect, test, type APIRequestContext, type Frame, type Locator, type Page } from "@playwright/test";
+  2   | import { readFileSync } from "node:fs";
+  3   | import { Client } from "pg";
+  4   | import { basename, resolve } from "node:path";
+  5   | import { e2eApiUrl } from "./api-url";
+  6   | import { readPinnedFrame, type SeededDocx } from "./office-docs-web-fixtures";
+  7   | import { signInAs } from "./office-module-web-fixtures";
+  8   | 
+  9   | /**
+  10  |  * Helpers for the G7-09 UX acceptance spec (office-ux-floor.spec.ts): reach the
+  11  |  * web-frame surfaces of EXPERIENCE.md (S5 conflict dialog, S6 new-version bar,
+  12  |  * S7 picker, S9 result line) on a D web page hosting the pinned Docs frame, and
+  13  |  * read them inside the same-origin iframe. The selectors are the fork's own
+  14  |  * (web/modules/shared/frame-dialog.ts, remote-bar.ts, packages/ui AiModelPicker)
+  15  |  * at the pinned frame version, so a renamed class fails loudly here.
+  16  |  */
+  17  | const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+  18  | const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
+  19  | const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  20  | 
+  21  | export const FRAME_SELECTOR = 'iframe[src*="/office-frame/docs/"]';
+  22  | export const EDITOR = '.ProseMirror[contenteditable="true"]';
+  23  | /**
+  24  |  * S5: the conflict dialog's backdrop carries the marker, the card is the alertdialog. The Docs frame stamps its dialogs
+  25  |  * with `data-docs-web` (web/docs/bridge/notice.ts MARKER_ATTR, passed as `markerAttr` through `conflictFrame()`); the
+  26  |  * other modules use the default `data-office-web`. r1 used the default and never found the Docs dialog. Both are
+  27  |  * accepted, so a later pin that moves the Docs frame onto the shared marker still finds S5.
+  28  |  */
+  29  | export const S5_MASK = ':is([data-docs-web="conflict"], [data-office-web="conflict"])';
+  30  | export const S5_CARD = `${S5_MASK} .ow-dlg`;
+  31  | export const S6_BAR = ".uw-remote-bar";
+  32  | export const PICKER_POP = ".ai-model-pop";
+  33  | export const COMPOSER = ".ai-composer textarea, .ai-composer [contenteditable='true']";
+  34  | 
+  35  | export type Mode = "light" | "dark";
+  36  | export type Locale = "vi" | "en";
+  37  | 
+  38  | /** Whether the web build under test serves the pinned Docs bundle. */
+  39  | export async function docsFrameInstalled(request: APIRequestContext, baseUrl: string): Promise<boolean> {
+  40  |   try {
+  41  |     return (await request.get(`${baseUrl}/office-frame/docs/${readPi===== e2e/test-results/office-ux-floor-zoom-narro-09d97-6px-margins-buttons-stacked/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> zoom, narrow frames and motion (Floor, Responsive & Platform) >> narrow web frame 600px: S5 full width minus 16px margins, buttons stacked
+- Location: office-ux-floor.spec.ts:375:5
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:15:39Z","held_by_me":true,"holder_id":"01M553C265BG77MQGX92MV4GCD","holder_name":"ux-floor-mvch8qdn","since":"2026-10-17T14:13:39Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch8qdn, WS ux-floor-mvch8qdn: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch8qdn" [ref=f1e14]
+              - generic "WS ux-floor-mvch8qdn" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246417547/rec-ws-1792246417547
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246417547/rec-ws-1792246417547/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246417547/rec-ws-1792246417547/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch8qdn, ux-floor-mvch8qdn-1792246417547@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch8qdn" [ref=f1e113]
+              - generic "ux-floor-mvch8qdn-1792246417547@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246417547/rec-ws-1792246417547/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn tác" [ref=f2e19] ===== e2e/test-results/office-ux-floor-zoom-narro-2c15e--clipped-S5-fully-reachable/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> zoom, narrow frames and motion (Floor, Responsive & Platform) >> zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable
+- Location: office-ux-floor.spec.ts:336:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:15:23Z","held_by_me":true,"holder_id":"01M553BJYW9DPH3HF3CZ9V7XJ6","holder_name":"ux-floor-mvch8ece","since":"2026-10-17T14:13:23Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - main [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e6] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e7] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e9]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e10] [cursor=pointer]
+          - button "Thông báo" [ref=f1e11] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e12] [cursor=pointer]
+          - button "Giao diện" [ref=f1e13] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e14] [cursor=pointer]
+      - generic [ref=f1e18]:
+        - generic [ref=f1e19]:
+          - button "Về thư viện tài liệu" [ref=f1e20] [cursor=pointer]
+          - generic [ref=f1e21]:
+            - link "Tài liệu" [ref=f1e22] [cursor=pointer]:
+              - /url: /rec-org-1792246401950/rec-ws-1792246401950/documents
+            - generic [ref=f1e25]: docs-web.docx
+          - generic [ref=f1e26]:
+            - generic [ref=f1e27]:
+              - status "Chưa gửi" [ref=f1e28]:
+                - generic [ref=f1e29]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e30] [cursor=pointer]:
+                - generic [ref=f1e31]: Lưu
+            - group [ref=f1e33]:
+              - button "Mở bằng UniWork Office" [ref=f1e34] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e36] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e37] [cursor=pointer]
+        - status [ref=f1e38]
+        - iframe [active] [ref=f1e41]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn tác" [ref=f2e19] [cursor=pointer]
+                  - button "Làm lại" [disabled] [ref=f2e23]
+                  - button "Trang đầu" [ref=f2e28] [cursor=pointer]
+                  - button "Chèn" [ref=f2e29] [cursor=pointer]
+                  - button "Vẽ" [ref=f2e30] [cursor=pointer]
+                  - button "Thiết kế" [ref=f2e31] [cursor=pointer]
+                  - button "Bố trí" [ref=f2e32] [cursor=pointer]
+                  - button "Tham khảo" [ref=f2e33] [cursor=pointer]
+                  - button "Xem lại" [ref=f2e34] [cursor=pointer]
+                  - button "Xem" [ref=f2e35] [cursor=pointer]
+                - generic [ref=f2e36]:
+                  - generic [ref=f2e38]:
+                    - generic [ref=f2e39]:
+                      - button "Dán" [ref=f2e40] [cursor=pointer]
+                      - button "Dán" [ref=f2e48] [cursor=pointer]
+                    - generic [ref=f2e53]:
+                      - button "Cắt (Ctrl+X)" [ref=f2e54] [cursor=pointer]
+                      - button "Sao chép (Ctrl+C)" [ref=f2e59] [cursor=pointer]
+                      - 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng" [ref=f2e63] [cursor=pointer]'
+                  - generic [ref=f2e70]:
+                    - generic [ref=f2e71]:
+                      - generic [ref=f2e72]:
+                        - textbox "Phông chữ" [ref=f2e73]: Calibri
+                        - button "Phông chữ" [ref=f2e74] [cursor=pointer]
+                      - generic [ref=f2e77]:
+                        - textbox "Cỡ chữ" [ref=f2e78]: "10"
+                        - button "Cỡ chữ" [ref=f2e79] [cursor=pointer]
+                      - button "Tăng cỡ chữ" [ref=f2e82] [cursor=pointer]
+                      - button "Giảm cỡ chữ" [ref=f2e86] [cursor=pointer]
+                      - button [ref=f2e92] [cursor=pointer]
+                      - button "Xóa toàn bộ định dạng" [ref=f2e99] [cursor=pointer]
+                    - generic [ref=f2e106]:
+                      - button "In đậm (Ctrl+B)" [ref=f2e107] [cursor=pointer]:
+                        - generic [ref=f2e108]: B
+                      - button "In nghiêng (Ctrl+I)" [ref=f2e109] [cursor=pointer]:
+                        - generic [ref=f2e110]: I
+                      - button "Gạch chân (Ctrl+U)" [ref=f2e111] [cursor=pointer]:
+                        - generic [ref=f2e112]: U
+                      - button "Gạch ngang" [ref=f2e113] [cursor=pointer]:
+                        - generic [ref=f2e114]: ab
+                      - button [ref=f2e115] [cursor=pointer]
+                      - button [ref=f2e119] [cursor=pointer]
+                      - generic [ref=f2e124]:
+                        - button "Màu tô sáng văn bản" [ref=f2e125] [cursor=pointer]
+                        - button [ref=f2e130] [cursor=pointer]
+                      - generic [ref=f2e133]:
+                        - button [ref=f2e134] [cursor=pointer]
+                        - button [ref=f2e139] [cursor=pointer]
+            ===== e2e/test-results/office-ux-floor-zoom-narro-37579-6px-margins-buttons-stacked/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> zoom, narrow frames and motion (Floor, Responsive & Platform) >> narrow web frame 390px: S5 full width minus 16px margins, buttons stacked
+- Location: office-ux-floor.spec.ts:375:5
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:15:34Z","held_by_me":true,"holder_id":"01M553BX8QNX9Z99FJ63BRCR9C","holder_name":"ux-floor-mvch8mho","since":"2026-10-17T14:13:34Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch8mho, WS ux-floor-mvch8mho: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch8mho" [ref=f1e14]
+              - generic "WS ux-floor-mvch8mho" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246412508/rec-ws-1792246412508
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246412508/rec-ws-1792246412508/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246412508/rec-ws-1792246412508/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch8mho, ux-floor-mvch8mho-1792246412508@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch8mho" [ref=f1e113]
+              - generic "ux-floor-mvch8mho-1792246412508@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246412508/rec-ws-1792246412508/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn tác" [ref=f2e19] ===== e2e/test-results/office-ux-floor-zoom-narro-52f3d--24x24-CSS-px-fine-pointer-/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> zoom, narrow frames and motion (Floor, Responsive & Platform) >> target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer)
+- Location: office-ux-floor.spec.ts:415:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:15:49Z","held_by_me":true,"holder_id":"01M553CBTRA5VCS2ZMP1MXETB7","holder_name":"ux-floor-mvch8xzy","since":"2026-10-17T14:13:49Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch8xzy, WS ux-floor-mvch8xzy: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch8xzy" [ref=f1e14]
+              - generic "WS ux-floor-mvch8xzy" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246427422/rec-ws-1792246427422
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246427422/rec-ws-1792246427422/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246427422/rec-ws-1792246427422/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch8xzy, ux-floor-mvch8xzy-1792246427422@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch8xzy" [ref=f1e113]
+              - generic "ux-floor-mvch8xzy-1792246427422@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246427422/rec-ws-1792246427422/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn tác" [ref=f2e19] [curs===== e2e/test-results/office-ux-floor-zoom-narro-9a345-t-every-button-is-reachable/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> zoom, narrow frames and motion (Floor, Responsive & Platform) >> S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable
+- Location: office-ux-floor.spec.ts:357:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:15:29Z","held_by_me":true,"holder_id":"01M553BR3MGPKB51EZZ5YF5C8W","holder_name":"ux-floor-mvch8iey","since":"2026-10-17T14:13:29Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch8iey, WS ux-floor-mvch8iey: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch8iey" [ref=f1e14]
+              - generic "WS ux-floor-mvch8iey" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246407226/rec-ws-1792246407226
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246407226/rec-ws-1792246407226/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246407226/rec-ws-1792246407226/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch8iey, ux-floor-mvch8iey-1792246407226@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch8iey" [ref=f1e113]
+              - generic "ux-floor-mvch8iey-1792246407226@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246407226/rec-ws-1792246407226/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa gửi" [ref=f1e142]:
+                - generic [ref=f1e143]: Chưa lưu
+              - button "Lưu vào UniWork" [ref=f1e144] [cursor=pointer]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [ref=f2e14] [cursor=pointer]
+                  - button "Hoàn t�===== e2e/test-results/office-ux-floor-zoom-narro-d769b-n-no-slide-fade-on-S6-or-S5/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> zoom, narrow frames and motion (Floor, Responsive & Platform) >> reduced motion: no slide/fade on S6 or S5
+- Location: office-ux-floor.spec.ts:394:3
+
+# Error details
+
+```
+Error: commit elsewhere: HTTP 423 {"error":{"code":"document_locked","message":"tài liệu đang được người khác sửa","fields":{"current_revision":"1","expires_at":"2026-10-17T14:15:44Z","held_by_me":true,"holder_id":"01M553C727WA2WVAHXECS2YX7K","holder_name":"ux-floor-mvch8u8e","since":"2026-10-17T14:13:44Z"}}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvch8u8e, WS ux-floor-mvch8u8e: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvch8u8e" [ref=f1e14]
+              - generic "WS ux-floor-mvch8u8e" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792246422542/rec-ws-1792246422542
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792246422542/rec-ws-1792246422542/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792246422542/rec-ws-1792246422542/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvch8u8e, ux-floor-mvch8u8e-1792246422542@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvch8u8e" [ref=f1e113]
+              - generic "ux-floor-mvch8u8e-1792246422542@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792246422542/rec-ws-1792246422542/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa có thay đổi" [ref=f1e142]
+              - button "Lưu vào UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - status [ref=f1e152]
+        - iframe [active] [ref=f1e155]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Hoàn tác" [disabled] [ref=f2e19]
+                  - button "Làm lại" [disabled] [ref=f2e23]
+            ===== S9_SERVER_AI
+14:11:25.075 INF http request method=GET path=/api/v1/workspaces/01M5537ZKZV5V79DCKECNRDHE1/ai/capabilities status=200 duration=8.691ms request_id=cursor/WMpMQ7Tj50-000265 correlation_id=e13b5526f9648894713749275384361e trace_id=e13b5526f9648894713749275384361e span_id=1052c7aeab83f0bb organization_id=01M5537ZKM9CN7ZF9QZD0X8M53 workspace_id=01M5537ZKZV5V79DCKECNRDHE1 actor_id=01M5537ZJVB0HSXF7VGRFBC68Q actor_kind=human
+14:11:25.612 INF http request method=GET path=/api/v1/workspaces/01M5537ZKZV5V79DCKECNRDHE1/ai/capabilities status=200 duration=9.235ms request_id=cursor/WMpMQ7Tj50-000283 correlation_id=4f5ae346b7b47299bb4a54949b4677fd trace_id=4f5ae346b7b47299bb4a54949b4677fd span_id=eb04b7efef9a5577 organization_id=01M5537ZKM9CN7ZF9QZD0X8M53 workspace_id=01M5537ZKZV5V79DCKECNRDHE1 actor_id=01M5537ZJVB0HSXF7VGRFBC68Q actor_kind=human
+14:11:29.952 INF http request method=OPTIONS path=/api/v1/workspaces/01M55384FE9QN90WGGCYMAY8N5/ai/capabilities status=200 duration=3µs request_id=cursor/WMpMQ7Tj50-000358 correlation_id=c86167bcb9bee85e21266823cc319854 trace_id=c86167bcb9bee85e21266823cc319854 span_id=6d98978ec80bac97
+14:11:29.964 INF http request method=GET path=/api/v1/workspaces/01M55384FE9QN90WGGCYMAY8N5/ai/capabilities status=200 duration=7.43ms request_id=cursor/WMpMQ7Tj50-000363 correlation_id=7169c610220afc59bc6e33fff2ecff0d trace_id=7169c610220afc59bc6e33fff2ecff0d span_id=2f8e2b5b2403fa7e organization_id=01M55384F6VPA8BCH90X1W635P workspace_id=01M55384FE9QN90WGGCYMAY8N5 actor_id=01M55384EFYD7M2YHR2KG572HE actor_kind=human
+14:11:30.823 INF http request method=GET path=/api/v1/workspaces/01M55384FE9QN90WGGCYMAY8N5/ai/capabilities status=200 duration=10.417ms request_id=cursor/WMpMQ7Tj50-000397 correlation_id=c240a0868fd3514c703d4cec42bccbb3 trace_id=c240a0868fd3514c703d4cec42bccbb3 span_id=2aa1e95ed7dc9c41 organization_id=01M55384F6VPA8BCH90X1W635P workspace_id=01M55384FE9QN90WGGCYMAY8N5 actor_id=01M55384EFYD7M2YHR2KG572HE actor_kind=human
+14:11:34.717 INF http request method=OPTIONS path=/api/v1/workspaces/01M5538928M52D0V47MRKN7M35/ai/capabilities status=200 duration=8µs request_id=cursor/WMpMQ7Tj50-000477 correlation_id=86189dbd7cdc3fbf9e83f7decf562a2a trace_id=86189dbd7cdc3fbf9e83f7decf562a2a span_id=bea80c8b42ec857d
+14:11:34.728 INF http request method=GET path=/api/v1/workspaces/01M5538928M52D0V47MRKN7M35/ai/capabilities status=200 duration=6.977ms request_id=cursor/WMpMQ7Tj50-000482 correlation_id=631c40ee14fae5da31ca55afb97e2282 trace_id=631c40ee14fae5da31ca55afb97e2282 span_id=457317f4453f2d40 organization_id=01M553891ZJJDMYZA7A7F2G503 workspace_id=01M5538928M52D0V47MRKN7M35 actor_id=01M5538919V1Q4BGH0BBDZRCKN actor_kind=human
+14:11:35.274 INF http request method=GET path=/api/v1/workspaces/01M5538928M52D0V47MRKN7M35/ai/capabilities status=200 duration=9.956ms request_id=cursor/WMpMQ7Tj50-000496 correlation_id=435c7f3885deedc6bdecab164352cc38 trace_id=435c7f3885deedc6bdecab164352cc38 span_id=1d8c90c12e77ae90 organization_id=01M553891ZJJDMYZA7A7F2G503 workspace_id=01M5538928M52D0V47MRKN7M35 actor_id=01M5538919V1Q4BGH0BBDZRCKN actor_kind=human
+14:11:39.784 INF http request method=OPTIONS path=/api/v1/workspaces/01M5538E109ZG3AQAD2H6EPG38/ai/capabilities status=200 duration=8µs request_id=cursor/WMpMQ7Tj50-000576 correlation_id=f7c0713735746a697ce1f048acc462ec trace_id=f7c0713735746a697ce1f048acc462ec span_id=dd1a679e31355b24
+14:11:39.796 INF http request method=GET path=/api/v1/workspaces/01M5538E109ZG3AQAD2H6EPG38/ai/capabilities status=200 duration=8.755ms request_id=cursor/WMpMQ7Tj50-000583 correlation_id=d100b0d58e8bc61ba898c753a8aafe52 trace_id=d100b0d58e8bc61ba898c753a8aafe52 span_id=36271c2deede97a2 organization_id=01M5538E0TFJZ25AFS2WT1EK84 workspace_id=01M5538E109ZG3AQAD2H6EPG38 actor_id=01M5538E06CP82Z3X52GAP3YAC actor_kind=human
+14:11:40.364 INF http request method=GET path=/api/v1/workspaces/01M5538E109ZG3AQAD2H6EPG38/ai/capabilities status=200 duration=8.039ms request_id=cursor/WMpMQ7Tj50-000601 correlation_id=244fa78e82402783800c7aaaa99cb663 trace_id=244fa78e82402783800c7aaaa99cb663 span_id=6299bb18b5f17a50 organization_id=01M5538E0TFJZ25AFS2WT1EK84 workspace_id=01M5538E109ZG3AQAD2H6EPG38 actor_id=01M5538E06CP82Z3X52GAP3YAC actor_kind=human
+14:11:45.103 INF http request method=OPTIONS path=/api/v1/workspaces/01M5538K69T3XQ7NR7AXB9E3KW/ai/capabilities status=200 duration=3µs request_id=cursor/WMpMQ7Tj50-000677 correlation_id=b988a36a5314eea8a1a56d7f9cc8a17c trace_id=b988a36a5314eea8a1a56d7f9cc8a17c span_id=9a47a216babc91cf
+14:11:45.122 INF http request method=GET path=/api/v1/workspaces/01M5538K69T3XQ7NR7AXB9E3KW/ai/capabilities status=200 duration=14.35ms request_id=cursor/WMpMQ7Tj50-000683 correlation_id=ed266511691c6fd8d781eb698c66a284 trace_id=ed266511691c6fd8d781eb698c66a284 span_id=eeadb02ef1e23cf7 organization_id=01M5538K6079K3HE472V9SXY2M workspace_id=01M5538K69T3XQ7NR7AXB9E3KW actor_id=01M5538K59RZSC9NXF63212CKN actor_kind=human
+14:11:45.681 INF http request method=GET path=/api/v1/workspaces/01M5538K69T3XQ7NR7AXB9E3KW/ai/capabilities status=200 duration=18.474ms request_id=cursor/WMpMQ7Tj50-000695 correlation_id=1e7b862d8a1e62a2de83bd263ccdbdcf trace_id=1e7b862d8a1e62a2de83bd263ccdbdcf span_id=6ee6a99fcff1f4fa organization_id=01M5538K6079K3HE472V9SXY2M workspace_id=01M5538K69T3XQ7NR7AXB9E3KW actor_id=01M5538K59RZSC9NXF63212CKN actor_kind=human
+14:11:50.205 INF http request method=OPTIONS path=/api/v1/workspaces/01M5538R6SCVQDZEXDAADQZD57/ai/capabilities status=200 duration=6µs request_id=cursor/WMpMQ7Tj50-000780 correlation_id=2eb36b6f9432af936673dae5139d5927 trace_id=2eb36b6f9432af936673dae5139d5927 span_id=529d195c4652ae36
+14:11:50.218 INF http request method=GET path=/api/v1/workspaces/01M5538R6SCVQDZEXDAADQZD57/ai/capabilities status=200 duration=10.542ms request_id=cursor/WMpMQ7Tj50-000786 correlation_id=742528ba6e5a9f4f9637bfed9a47fd3e trace_id=742528ba6e5a9f4f9637bfed9a47fd3e span_id=fce1184ce9803970 organization_id=01M5538R6HF6AFKE4ZHB2NSRJA workspace_id=01M5538R6SCVQDZEXDAADQZD57 actor_id=01M5538R5X080GM5G3HNJ02E91 actor_kind=human
+14:11:50.767 INF http request method=GET path=/api/v1/workspaces/01M5538R6SCVQDZEXDAADQZD57/ai/capabilities status=200 duration=14.653ms request_id=cursor/WMpMQ7Tj50-000805 correlation_id=d9dbbd7cbb7ccf5a35e7566b7e0db3eb trace_id=d9dbbd7cbb7ccf5a35e7566b7e0db3eb span_id=c5c9d61ba5e0e60b organization_id=01M5538R6HF6AFKE4ZHB2NSRJA workspace_id=01M5538R6SCVQDZEXDAADQZD57 actor_id=01M5538R5X080GM5G3HNJ02E91 actor_kind=human
+14:11:55.297 INF http request method=OPTIONS path=/api/v1/workspaces/01M5538X5RYPC9C6KPK15F0BEA/ai/capabilities status=200 duration=6µs request_id=cursor/WMpMQ7Tj50-000885 correlation_id=77068b2e22ee3900b3a45269f17d5db1 trace_id=77068b2e22ee3900b3a45269f17d5db1 span_id=3b47d29b8718f69e
+14:11:55.305 INF http request method=GET path=/api/v1/workspaces/01M5538X5RYPC9C6KPK15F0BEA/ai/capabilities status=200 duration=5.605ms request_id=cursor/WMpMQ7Tj50-000889 correlation_id=66f7906d3c62ca85ca63b603e8c17316 trace_id=66f7906d3c62ca85ca63b603e8c17316 span_id=22c1c05e2851e3b9 organization_id=01M5538X5F6N9RNKW49ZKQC9NN workspace_id=01M5538X5RYPC9C6KPK15F0BEA actor_id=01M5538X4S1FVCZBW4N8JKPB5Y actor_kind=human
+14:11:55.857 INF http request method=GET path=/api/v1/workspaces/01M5538X5RYPC9C6KPK15F0BEA/ai/capabilities status=200 duration=7.071ms request_id=cursor/WMpMQ7Tj50-000905 correlation_id=42cf3c1ccc9c276d2ad4033c198755f1 trace_id=42cf3c1ccc9c276d2ad4033c198755f1 span_id=1754861bd192678b organization_id=01M5538X5F6N9RNKW49ZKQC9NN workspace_id=01M5538X5RYPC9C6KPK15F0BEA actor_id=01M5538X4S1FVCZBW4N8JKPB5Y actor_kind=human
+14:12:00.407 INF http request method=OPTIONS path=/api/v1/workspaces/01M553925198KRNBC15FE6Y3ZE/ai/capabilities status=200 duration=9µs request_id=cursor/WMpMQ7Tj50-000980 correlation_id=f5faab6e09384bd1f97373ecdcec5dc7 trace_id=f5faab6e09384bd1f97373ecdcec5dc7 span_id=e4bd8edf3e4f166b
+14:12:00.420 INF http request method=GET path=/api/v1/workspaces/01M553925198KRNBC15FE6Y3ZE/ai/capabilities status=200 duration=8.488ms request_id=cursor/WMpMQ7Tj50-000985 correlation_id=aefd2be43cff44385a17a1d9f8c2184f trace_id=aefd2be43cff44385a17a1d9f8c2184f span_id=eeced27094578f99 organization_id=01M553924SHYV1DRGRWGVS9SBB workspace_id=01M553925198KRNBC15FE6Y3ZE actor_id=01M5539244ECAFTSJ76CJTA1TH actor_kind=human
+14:12:00.997 INF http request method=GET path=/api/v1/workspaces/01M553925198KRNBC15FE6Y3ZE/ai/capabilities status=200 duration=6.18ms request_id=cursor/WMpMQ7Tj50-001001 correlation_id=53b5dcbadbdecb5c6b76aa7dca58b985 trace_id=53b5dcbadbdecb5c6b76aa7dca58b985 span_id=c41340c66b374932 organization_id=01M553924SHYV1DRGRWGVS9SBB workspace_id=01M553925198KRNBC15FE6Y3ZE actor_id=01M5539244ECAFTSJ76CJTA1TH actor_kind=human
+14:12:05.587 INF http request method=OPTIONS path=/api/v1/workspaces/01M553977AP94R0N5JMTB9PJJS/ai/capabilities status=200 duration=6µs request_id=cursor/WMpMQ7Tj50-001082 correlation_id=e89496582329beca74866e9e9a25f6f6 trace_id=e89496582329beca74866e9e9a25f6f6 span_id=5bc685aa912c9885
+14:12:05.594 INF http request method=GET path=/api/v1/workspaces/01M553977AP94R0N5JMTB9PJJS/ai/capabilities status=200 duration=4.57ms request_id=cursor/WMpMQ7Tj50-001087 correlation_id=2f5c13626105bf7501d1d80be0a7750b trace_id=2f5c13626105bf7501d1d80be0a7750b span_id=f7da2ece602bf9f2 organization_id=01M5539770EW3M1N30DE6MNMN8 workspace_id=01M553977AP94R0N5JMTB9PJJS actor_id=01M553976A011004MC1RYBSVHD actor_kind=human
+14:12:06.152 INF http request method=GET path=/api/v1/workspaces/01M553977AP94R0N5JMTB9PJJS/ai/capabilities status=200 duration=7.413ms request_id=cursor/WMpMQ7Tj50-001100 correlation_id=51afdff8b3942eb9990afe3a4b99c948 trace_id=51afdff8b3942eb9990afe3a4b99c948 span_id=16e70aed9f025768 organization_id=01M5539770EW3M1N30DE6MNMN8 workspace_id=01M553977AP94R0N5JMTB9PJJS actor_id=01M553976A011004MC1RYBSVHD actor_kind=human
+14:12:09.060 INF http request method=OPTIONS path=/api/v1/workspaces/01M553977AP94R0N5JMTB9PJJS/ai/capabilities status=200 duration=8µs request_id=cursor/WMpMQ7Tj50-001171 correlation_id=a6f61abff992cd2b961f87c2287437e9 trace_id=a6f61abff992cd2b961f87c2287437e9 span_id=fb0b2ad1f1796f30
+14:12:09.068 INF http request method=GET path=/api/v1/workspaces/01M553977AP94R0N5JMTB9PJJS/ai/capabilities status=200 duration=5.069ms request_id=cursor/WMpMQ7Tj50-001174 correlation_id=c527576fd6f79dac02909385643db53f trace_id=c527576fd6f79dac02909385643db53f span_id=280495c90d194a12 organization_id=01M5539770EW3M1N30DE6MNMN8 workspace_id=01M553977AP94R0N5JMTB9PJJS actor_id=01M553976A011004MC1RYBSVHD actor_kind=human
+14:12:09.612 INF http request method=GET path=/api/v1/workspaces/01M553977AP94R0N5JMTB9PJJS/ai/capabilities status=200 duration=4.834ms request_id=cursor/WMpMQ7Tj50-001191 correlation_id=918d9d699ff7102095889e67b12bc935 trace_id=918d9d699ff7102095889e67b12bc935 span_id=252acd22b2486ad6 organization_id=01M5539770EW3M1N30DE6MNMN8 workspace_id=01M553977AP94R0N5JMTB9PJJS actor_id=01M553976A011004MC1RYBSVHD actor_kind=human
+14:13:12.078 INF http request method=OPTIONS path=/api/v1/workspaces/01M553B843C936ZYFY09FTTH50/ai/capabilities status=200 duration=7µs request_id=cursor/WMpMQ7Tj50-001271 correlation_id=1962ee92703183df2fd74e1e80b68680 trace_id=1962ee92703183df2fd74e1e80b68680 span_id=dc3f6fee17aaba31
+14:13:12.088 INF http request method=GET path=/api/v1/workspaces/01M553B843C936ZYFY09FTTH50/ai/capabilities status=200 duration=4.697ms request_id=cursor/WMpMQ7Tj50-001278 correlation_id=0a731521da31a7ff3e5e84d5cf7a8f0e trace_id=0a731521da31a7ff3e5e84d5cf7a8f0e span_id=d532e462d031f173 organization_id=01M553B83X4PF3QAP3S898M106 workspace_id=01M553B843C936ZYFY09FTTH50 actor_id=01M553B837MBAAQCR51WFG049Q actor_kind=human
+14:13:13.039 INF http request method=GET path=/api/v1/workspaces/01M553B843C936ZYFY09FTTH50/ai/capabilities status=200 duration=9.409ms request_id=cursor/WMpMQ7Tj50-001311 correlation_id=62903016fb700a262c47ca52913fcd5f trace_id=62903016fb700a262c47ca52913fcd5f span_id=e551973d33f3db01 organization_id=01M553B83X4PF3QAP3S898M106 workspace_id=01M553B843C936ZYFY09FTTH50 actor_id=01M553B837MBAAQCR51WFG049Q actor_kind=human
+14:13:17.882 INF http request method=OPTIONS path=/api/v1/workspaces/01M553BDP79PVX38H87JGW5YKM/ai/capabilities status=200 duration=25µs request_id=cursor/WMpMQ7Tj50-001386 correlation_id=d34478fd09acc640eff63da8edaf6734 trace_id=d34478fd09acc640eff63da8edaf6734 span_id=4efb3235efb3a107
+14:13:17.890 INF http request method=GET path=/api/v1/workspaces/01M553BDP79PVX38H87JGW5YKM/ai/capabilities status=200 duration=5.103ms request_id=cursor/WMpMQ7Tj50-001393 correlation_id=822a868393289e3dd9c85d4a81c02115 trace_id=822a868393289e3dd9c85d4a81c02115 span_id=620c037407f06b95 organization_id=01M553BDP0PK4Z2EX8CGX9VKSK workspace_id=01M553BDP79PVX38H87JGW5YKM actor_id=01M553BDN9HVNC9PEPPGKH6DAP actor_kind=human
+14:13:18.842 INF http request method=GET path=/api/v1/workspaces/01M553BDP79PVX38H87JGW5YKM/ai/capabilities status=200 duration=9.206ms request_id=cursor/WMpMQ7Tj50-001425 correlation_id=bb195580b767d8856922161859ca9b24 trace_id=bb195580b767d8856922161859ca9b24 span_id=10494571e1160dd2 organization_id=01M553BDP0PK4Z2EX8CGX9VKSK workspace_id=01M553BDP79PVX38H87JGW5YKM actor_id=01M553BDN9HVNC9PEPPGKH6DAP actor_kind=human
+14:13:23.261 INF http request method=OPTIONS path=/api/v1/workspaces/01M553BJZQVSCQDA9QBZMBGMA1/ai/capabilities status=200 duration=4µs request_id=cursor/WMpMQ7Tj50-001503 correlation_id=f8d90a679effbd7010a699d1642ba153 trace_id=f8d90a679effbd7010a699d1642ba153 span_id=b08d77ed83fc634e
+14:13:23.271 INF http request method=GET path=/api/v1/workspaces/01M553BJZQVSCQDA9QBZMBGMA1/ai/capabilities status=200 duration=6.096ms request_id=cursor/WMpMQ7Tj50-001511 correlation_id=27eb1d4238c901b08763387f57e5ac09 trace_id=27eb1d4238c901b08763387f57e5ac09 span_id=77b84950bd526129 organization_id=01M553BJZFMPSBY4X8P9M0Q3RS workspace_id=01M553BJZQVSCQDA9QBZMBGMA1 actor_id=01M553BJYW9DPH3HF3CZ9V7XJ6 actor_kind=human
+14:13:23.814 INF http request method=GET path=/api/v1/workspaces/01M553BJZQVSCQDA9QBZMBGMA1/ai/capabilities status=200 duration=3.121ms request_id=cursor/WMpMQ7Tj50-001528 correlation_id=2e1433ab3f2f096f68c0b1a37e1b5558 trace_id=2e1433ab3f2f096f68c0b1a37e1b5558 span_id=3d6dd9c40ab4eede organization_id=01M553BJZFMPSBY4X8P9M0Q3RS workspace_id=01M553BJZQVSCQDA9QBZMBGMA1 actor_id=01M553BJYW9DPH3HF3CZ9V7XJ6 actor_kind=human
+14:13:28.453 INF http request method=OPTIONS path=/api/v1/workspaces/01M553BR4GJ7TE6WY7TGCXP1S8/ai/capabilities status=200 duration=7µs request_id=cursor/WMpMQ7Tj50-001602 correlation_id=6d4b343003b0b3defc4285c3d542cd06 trace_id=6d4b343003b0b3defc4285c3d542cd06 span_id=355a781ca8a49b1d
+14:13:28.468 INF http request method=GET path=/api/v1/workspaces/01M553BR4GJ7TE6WY7TGCXP1S8/ai/capabilities status=200 duration=11.874ms request_id=cursor/WMpMQ7Tj50-001608 correlation_id=cdf4d00f380138e843f27c61d9287f55 trace_id=cdf4d00f380138e843f27c61d9287f55 span_id=a854b33bc60cdbaf organization_id=01M553BR49JC0ECPDNY8Q4YV0V workspace_id=01M553BR4GJ7TE6WY7TGCXP1S8 actor_id=01M553BR3MGPKB51EZZ5YF5C8W actor_kind=human
+14:13:29.117 INF http request method=GET path=/api/v1/workspaces/01M553BR4GJ7TE6WY7TGCXP1S8/ai/capabilities status=200 duration=8.267ms request_id=cursor/WMpMQ7Tj50-001626 correlation_id=dc77d8d4a4b935f488f76705538d52f2 trace_id=dc77d8d4a4b935f488f76705538d52f2 span_id=099a6f8a2b040ee7 organization_id=01M553BR49JC0ECPDNY8Q4YV0V workspace_id=01M553BR4GJ7TE6WY7TGCXP1S8 actor_id=01M553BR3MGPKB51EZZ5YF5C8W actor_kind=human
+14:13:33.700 INF http request method=OPTIONS path=/api/v1/workspaces/01M553BX9H2TK57Q3DRWANH606/ai/capabilities status=200 duration=7µs request_id=cursor/WMpMQ7Tj50-001702 correlation_id=69752fe7cc61647467ea21716faba2ae trace_id=69752fe7cc61647467ea21716faba2ae span_id=ea4a38d0c5e27e63
+14:13:33.710 INF http request method=GET path=/api/v1/workspaces/01M553BX9H2TK57Q3DRWANH606/ai/capabilities status=200 duration=9.024ms request_id=cursor/WMpMQ7Tj50-001707 correlation_id=458000164f965e9a50e4bd5407c4bd35 trace_id=458000164f965e9a50e4bd5407c4bd35 span_id=0b9a7c7e00bd3242 organization_id=01M553BX9BRATMKN9N2Z58C5R1 workspace_id=01M553BX9H2TK57Q3DRWANH606 actor_id=01M553BX8QNX9Z99FJ63BRCR9C actor_kind=human
+14:13:34.269 INF http request method=GET path=/api/v1/workspaces/01M553BX9H2TK57Q3DRWANH606/ai/capabilities status=200 duration=5.069ms request_id=cursor/WMpMQ7Tj50-001723 correlation_id=dc1f9eb58a01341fb4db5586cd2e03d4 trace_id=dc1f9eb58a01341fb4db5586cd2e03d4 span_id=1cfb1c75155eab44 organization_id=01M553BX9BRATMKN9N2Z58C5R1 workspace_id=01M553BX9H2TK57Q3DRWANH606 actor_id=01M553BX8QNX9Z99FJ63BRCR9C actor_kind=human
+14:13:38.738 INF http request method=OPTIONS path=/api/v1/workspaces/01M553C26ZQRHEFVT3WX521TDG/ai/capabilities status=200 duration=8µs request_id=cursor/WMpMQ7Tj50-001801 correlation_id=045cf83ff530dcf373c8b89986e0453c trace_id=045cf83ff530dcf373c8b89986e0453c span_id=2e2bca4bff5a4cc8
+14:13:38.749 INF http request method=GET path=/api/v1/workspaces/01M553C26ZQRHEFVT3WX521TDG/ai/capabilities status=200 duration=7.888ms request_id=cursor/WMpMQ7Tj50-001807 correlation_id=601c24ba67829a97208d2dccb6e8d049 trace_id=601c24ba67829a97208d2dccb6e8d049 span_id=cf03858d74af9917 organization_id=01M553C26SHACTG1NEMBYWSG4F workspace_id=01M553C26ZQRHEFVT3WX521TDG actor_id=01M553C265BG77MQGX92MV4GCD actor_kind=human
+14:13:39.301 INF http request method=GET path=/api/v1/workspaces/01M553C26ZQRHEFVT3WX521TDG/ai/capabilities status=200 duration=7.422ms request_id=cursor/WMpMQ7Tj50-001826 correlation_id=14d21f3e21c1fc14f5d0ea7499c07e67 trace_id=14d21f3e21c1fc14f5d0ea7499c07e67 span_id=cfbc339b82484ca9 organization_id=01M553C26SHACTG1NEMBYWSG4F workspace_id=01M553C26ZQRHEFVT3WX521TDG actor_id=01M553C265BG77MQGX92MV4GCD actor_kind=human
+14:13:43.731 INF http request method=OPTIONS path=/api/v1/workspaces/01M553C734NZHA8K3GQEBHBR9J/ai/capabilities status=200 duration=8µs request_id=cursor/WMpMQ7Tj50-001899 correlation_id=3ae42266e2b795fcf2176af4ab5e747f trace_id=3ae42266e2b795fcf2176af4ab5e747f span_id=608d14f40463c1ab
+14:13:43.750 INF http request method=GET path=/api/v1/workspaces/01M553C734NZHA8K3GQEBHBR9J/ai/capabilities status=200 duration=11.573ms request_id=cursor/WMpMQ7Tj50-001906 correlation_id=285e2d5ff0a9decd7163e8311a389d2f trace_id=285e2d5ff0a9decd7163e8311a389d2f span_id=f17d4b7fd4c2bbdd organization_id=01M553C72YFDX2573N2ZGA3S0X workspace_id=01M553C734NZHA8K3GQEBHBR9J actor_id=01M553C727WA2WVAHXECS2YX7K actor_kind=human
+14:13:44.317 INF http request method=GET path=/api/v1/workspaces/01M553C734NZHA8K3GQEBHBR9J/ai/capabilities status=200 duration=11.497ms request_id=cursor/WMpMQ7Tj50-001920 correlation_id=814a22b2c4025037125affd69b894a45 trace_id=814a22b2c4025037125affd69b894a45 span_id=c2a76ba0efa5ea9e organization_id=01M553C72YFDX2573N2ZGA3S0X workspace_id=01M553C734NZHA8K3GQEBHBR9J actor_id=01M553C727WA2WVAHXECS2YX7K actor_kind=human
+14:13:48.622 INF http request method=OPTIONS path=/api/v1/workspaces/01M553CBVNV6643ZZ7EB52PSCQ/ai/capabilities status=200 duration=7µs request_id=cursor/WMpMQ7Tj50-002001 correlation_id=337b2f692c8f386ac52f42d505490cff trace_id=337b2f692c8f386ac52f42d505490cff span_id=645f5b710def23f6
+14:13:48.633 INF http request method=GET path=/api/v1/workspaces/01M553CBVNV6643ZZ7EB52PSCQ/ai/capabilities status=200 duration=9.315ms request_id=cursor/WMpMQ7Tj50-002004 correlation_id=d1d56303001b43c08eabed9dbdd9cabb trace_id=d1d56303001b43c08eabed9dbdd9cabb span_id=8b7bc28cda3fc129 organization_id=01M553CBVDGSKBX3KSGJCFHX7S workspace_id=01M553CBVNV6643ZZ7EB52PSCQ actor_id=01M553CBTRA5VCS2ZMP1MXETB7 actor_kind=human
+14:13:49.206 INF http request method=GET path=/api/v1/workspaces/01M553CBVNV6643ZZ7EB52PSCQ/ai/capabilities status=200 duration=6.733ms request_id=cursor/WMpMQ7Tj50-002020 correlation_id=b8946f16385f375079c6056b9d7e87cb trace_id=b8946f16385f375079c6056b9d7e87cb span_id=27b84d11cc313f1d organization_id=01M553CBVDGSKBX3KSGJCFHX7S workspace_id=01M553CBVNV6643ZZ7EB52PSCQ actor_id=01M553CBTRA5VCS2ZMP1MXETB7 actor_kind=human
+14:14:12.947 INF http request method=OPTIONS path=/api/v1/workspaces/01M553CGVZA1AEZACC8Z5396ET/ai/capabilities status=200 duration=4µs request_id=cursor/WMpMQ7Tj50-002119 correlation_id=2018d2ea204437a01b36c75e7141e9c0 trace_id=2018d2ea204437a01b36c75e7141e9c0 span_id=0699b48e951900d2
+14:14:12.958 INF http request method=GET path=/api/v1/workspaces/01M553CGVZA1AEZACC8Z5396ET/ai/capabilities status=200 duration=5.741ms request_id=cursor/WMpMQ7Tj50-002125 correlation_id=29afa40c285275796b3df42f3ba440b7 trace_id=29afa40c285275796b3df42f3ba440b7 span_id=0d4485eae60352e0 organization_id=01M553CGVP6Q7GKPKR926916NY workspace_id=01M553CGVZA1AEZACC8Z5396ET actor_id=01M553CGTZ41N00WMW3FNBJY9V actor_kind=human
+14:14:13.496 INF http request method=GET path=/api/v1/workspaces/01M553CGVZA1AEZACC8Z5396ET/ai/capabilities status=200 duration=4.552ms request_id=cursor/WMpMQ7Tj50-002144 correlation_id=85a397832e97c95833e7db8355658170 trace_id=85a397832e97c95833e7db8355658170 span_id=df165f22fdf927b3 organization_id=01M553CGVP6Q7GKPKR926916NY workspace_id=01M553CGVZA1AEZACC8Z5396ET actor_id=01M553CGTZ41N00WMW3FNBJY9V actor_kind=human
+14:14:17.393 INF http request method=OPTIONS path=/api/v1/workspaces/01M553CGVZA1AEZACC8Z5396ET/ai/capabilities status=200 duration=7µs request_id=cursor/WMpMQ7Tj50-002211 correlation_id=5c57d2e039336c3a055e5f3d860b05c6 trace_id=5c57d2e039336c3a055e5f3d860b05c6 span_id=f959a11d0daf7682
+14:14:17.406 INF http request method=GET path=/api/v1/workspaces/01M553CGVZA1AEZACC8Z5396ET/ai/capabilities status=200 duration=9.548ms request_id=cursor/WMpMQ7Tj50-002216 correlation_id=87df4c04f5ba9e23b55a1712d2148842 trace_id=87df4c04f5ba9e23b55a1712d2148842 span_id=87df64b5075b45b0 organization_id=01M553CGVP6Q7GKPKR926916NY workspace_id=01M553CGVZA1AEZACC8Z5396ET actor_id=01M553CGTZ41N00WMW3FNBJY9V actor_kind=human
+14:14:18.266 INF http request method=GET path=/api/v1/workspaces/01M553CGVZA1AEZACC8Z5396ET/ai/capabilities status=200 duration=10.682ms request_id=cursor/WMpMQ7Tj50-002251 correlation_id=bfb22c44e9e6723cab69f0644bde2f01 trace_id=bfb22c44e9e6723cab69f0644bde2f01 span_id=54d5e3f7c0d18a61 organization_id=01M553CGVP6Q7GKPKR926916NY workspace_id=01M553CGVZA1AEZACC8Z5396ET actor_id=01M553CGTZ41N00WMW3FNBJY9V actor_kind=human
+14:15:51.087 INF http request method=OPTIONS path=/api/v1/workspaces/01M553F5SCCJCX36Y3ABJNJJXZ/ai/capabilities status=200 duration=3µs request_id=cursor/WMpMQ7Tj50-002362 correlation_id=3863b1463a4f2960e620e28f30aa9bb7 trace_id=3863b1463a4f2960e620e28f30aa9bb7 span_id=987e11676c6fafa4
+14:15:51.099 INF http request method=GET path=/api/v1/workspaces/01M553F5SCCJCX36Y3ABJNJJXZ/ai/capabilities status=200 duration=6.191ms request_id=cursor/WMpMQ7Tj50-002367 correlation_id=700efebaf335bcdd7f6111e3c4ae3032 trace_id=700efebaf335bcdd7f6111e3c4ae3032 span_id=4b16b582de7bcdf1 organization_id=01M553F5S5PZSBBA5P5ERFNJTH workspace_id=01M553F5SCCJCX36Y3ABJNJJXZ actor_id=01M553F5RF0XTPTPDENWEJ31SM actor_kind=human
+14:15:52.023 INF http request method=GET path=/api/v1/workspaces/01M553F5SCCJCX36Y3ABJNJJXZ/ai/capabilities status=200 duration=8.057ms request_id=cursor/WMpMQ7Tj50-002395 correlation_id=57d4adad2d9520909d80187b5d81c5c7 trace_id=57d4adad2d9520909d80187b5d81c5c7 span_id=917b240f13c8c852 organization_id=01M553F5S5PZSBBA5P5ERFNJTH workspace_id=01M553F5SCCJCX36Y3ABJNJJXZ actor_id=01M553F5RF0XTPTPDENWEJ31SM actor_kind=human
+14:15:55.192 INF http request method=OPTIONS path=/api/v1/workspaces/01M553F5SCCJCX36Y3ABJNJJXZ/ai/capabilities status=200 duration=8µs request_id=cursor/WMpMQ7Tj50-002465 correlation_id=a65e4340af2617be29f2935375b404f5 trace_id=a65e4340af2617be29f2935375b404f5 span_id=547bfd9a9bd08fe7
+14:15:55.198 INF http request method=GET path=/api/v1/workspaces/01M553F5SCCJCX36Y3ABJNJJXZ/ai/capabilities status=200 duration=1.399ms request_id=cursor/WMpMQ7Tj50-002471 correlation_id=34ab9b7176c699a2cf299a971538f26b trace_id=34ab9b7176c699a2cf299a971538f26b span_id=d2794fc1efd31098 organization_id=01M553F5S5PZSBBA5P5ERFNJTH workspace_id=01M553F5SCCJCX36Y3ABJNJJXZ actor_id=01M553F5RF0XTPTPDENWEJ31SM actor_kind=human
+14:15:55.757 INF http request method=GET path=/api/v1/workspaces/01M553F5SCCJCX36Y3ABJNJJXZ/ai/capabilities status=200 duration=8.925ms request_id=cursor/WMpMQ7Tj50-002490 correlation_id=d56abdb8193e10e66bd3c9713b5f6dc5 trace_id=d56abdb8193e10e66bd3c9713b5f6dc5 span_id=946ff5af1450ccde organization_id=01M553F5S5PZSBBA5P5ERFNJTH workspace_id=01M553F5SCCJCX36Y3ABJNJJXZ actor_id=01M553F5RF0XTPTPDENWEJ31SM actor_kind=human
+14:17:28.500 INF http request method=OPTIONS path=/api/v1/workspaces/01M553J52A30D1W3ZBC0276CNX/ai/capabilities status=200 duration=5µs request_id=cursor/WMpMQ7Tj50-002599 correlation_id=fb2109eed470d5c5967b81cc39196556 trace_id=fb2109eed470d5c5967b81cc39196556 span_id=11bb6f7f9597bed0
+14:17:28.512 INF http request method=GET path=/api/v1/workspaces/01M553J52A30D1W3ZBC0276CNX/ai/capabilities status=200 duration=6.64ms request_id=cursor/WMpMQ7Tj50-002608 correlation_id=c90f7e33c905676968bdc14d65ac3799 trace_id=c90f7e33c905676968bdc14d65ac3799 span_id=a24cdc453e755f4b organization_id=01M553J524ZYVEMY2KK4TEE1WJ workspace_id=01M553J52A30D1W3ZBC0276CNX actor_id=01M553J51DV9PSK4GAT5XXFRAQ actor_kind=human
+14:17:29.372 INF http request method=GET path=/api/v1/workspaces/01M553J52A30D1W3ZBC0276CNX/ai/capabilities status=200 duration=6.477ms request_id=cursor/WMpMQ7Tj50-002642 correlation_id=b251ac362474f4735d49ea421756cd15 trace_id=b251ac362474f4735d49ea421756cd15 span_id=f5ed2681582ff6ff organization_id=01M553J524ZYVEMY2KK4TEE1WJ workspace_id=01M553J52A30D1W3ZBC0276CNX actor_id=01M553J51DV9PSK4GAT5XXFRAQ actor_kind=human
+14:17:33.427 INF http request method=OPTIONS path=/api/v1/workspaces/01M553J52A30D1W3ZBC0276CNX/ai/capabilities status=200 duration=6µs request_id=cursor/WMpMQ7Tj50-002708 correlation_id=b4f3d1a3c70aa6e50c913653828b7293 trace_id=b4f3d1a3c70aa6e50c913653828b7293 span_id=988e597ca53098cf
+14:17:33.442 INF http request method=GET path=/api/v1/workspaces/01M553J52A30D1W3ZBC0276CNX/ai/capabilities status=200 duration=3.694ms request_id=cursor/WMpMQ7Tj50-002711 correlation_id=abe003061bca5e527c8ea18b4e6bc8d4 trace_id=abe003061bca5e527c8ea18b4e6bc8d4 span_id=fa22b6ed835373ed organization_id=01M553J524ZYVEMY2KK4TEE1WJ workspace_id=01M553J52A30D1W3ZBC0276CNX actor_id=01M553J51DV9PSK4GAT5XXFRAQ actor_kind=human
+14:17:34.409 INF http request method=GET path=/api/v1/workspaces/01M553J52A30D1W3ZBC0276CNX/ai/capabilities status=200 duration=5.613ms request_id=cursor/WMpMQ7Tj50-002750 correlation_id=47d1c026ecf0f084f91ab919536dd785 trace_id=47d1c026ecf0f084f91ab919536dd785 span_id=27bee1f0f4a356d6 organization_id=01M553J524ZYVEMY2KK4TEE1WJ workspace_id=01M553J52A30D1W3ZBC0276CNX actor_id=01M553J51DV9PSK4GAT5XXFRAQ actor_kind=human
+14:19:07.228 INF http request method=OPTIONS path=/api/v1/workspaces/01M553N5G8EPP3EPF19T2H5GYV/ai/capabilities status=200 duration=3µs request_id=cursor/WMpMQ7Tj50-002866 correlation_id=92b8ad85244348321c86ae295e592d79 trace_id=92b8ad85244348321c86ae295e592d79 span_id=9eea3164cf9464bd
+14:19:07.261 INF http request method=GET path=/api/v1/workspaces/01M553N5G8EPP3EPF19T2H5GYV/ai/capabilities status=200 duration=27.409ms request_id=cursor/WMpMQ7Tj50-002871 correlation_id=6c096b27553cf2022a5854183b87525a trace_id=6c096b27553cf2022a5854183b87525a span_id=43f1c88c80f3d66e organization_id=01M553N5G0DV0FRXV7PVYYM3EV workspace_id=01M553N5G8EPP3EPF19T2H5GYV actor_id=01M553N5F7YZTHB8VYEGRTEBEZ actor_kind=human
+14:19:07.820 INF http request method=GET path=/api/v1/workspaces/01M553N5G8EPP3EPF19T2H5GYV/ai/capabilities status=200 duration=5.693ms request_id=cursor/WMpMQ7Tj50-002892 correlation_id=9da23248878550e8fa68b7b7bdfa6138 trace_id=9da23248878550e8fa68b7b7bdfa6138 span_id=c1047f9ec0104441 organization_id=01M553N5G0DV0FRXV7PVYYM3EV workspace_id=01M553N5G8EPP3EPF19T2H5GYV actor_id=01M553N5F7YZTHB8VYEGRTEBEZ actor_kind=human
+14:19:10.979 INF http request method=OPTIONS path=/api/v1/workspaces/01M553N5G8EPP3EPF19T2H5GYV/ai/capabilities status=200 duration=6µs request_id=cursor/WMpMQ7Tj50-002964 correlation_id=ae8e6ca01192db6c20ee7aaedd549c98 trace_id=ae8e6ca01192db6c20ee7aaedd549c98 span_id=2ed8b01fde20945a
+14:19:10.990 INF http request method=GET path=/api/v1/workspaces/01M553N5G8EPP3EPF19T2H5GYV/ai/capabilities status=200 duration=6.296ms request_id=cursor/WMpMQ7Tj50-002965 correlation_id=863710708d7c647d3ac439ca0d3c679b trace_id=863710708d7c647d3ac439ca0d3c679b span_id=2e55e11ed1228c30 organization_id=01M553N5G0DV0FRXV7PVYYM3EV workspace_id=01M553N5G8EPP3EPF19T2H5GYV actor_id=01M553N5F7YZTHB8VYEGRTEBEZ actor_kind=human
+14:19:11.577 INF http request method=GET path=/api/v1/workspaces/01M553N5G8EPP3EPF19T2H5GYV/ai/capabilities status=200 duration=8.06ms request_id=cursor/WMpMQ7Tj50-002981 correlation_id=cf35474551232ff6ad04c0b08d1ee814 trace_id=cf35474551232ff6ad04c0b08d1ee814 span_id=fdae7d584f3c6c41 organization_id=01M553N5G0DV0FRXV7PVYYM3EV workspace_id=01M553N5G8EPP3EPF19T2H5GYV actor_id=01M553N5F7YZTHB8VYEGRTEBEZ actor_kind=human
+14:20:44.320 INF http request method=OPTIONS path=/api/v1/workspaces/01M553R49HTVCREB2KD0A9SGWV/ai/capabilities status=200 duration=5µs request_id=cursor/WMpMQ7Tj50-003100 correlation_id=ff52123184eb0151b5e9389c8894bc1e trace_id=ff52123184eb0151b5e9389c8894bc1e span_id=7fae4b9fa2728d20
+14:20:44.328 INF http request method=GET path=/api/v1/workspaces/01M553R49HTVCREB2KD0A9SGWV/ai/capabilities status=200 duration=6.251ms request_id=cursor/WMpMQ7Tj50-003103 correlation_id=f6fc6653aac683e6735e7e5847172a77 trace_id=f6fc6653aac683e6735e7e5847172a77 span_id=5807478988d756d0 organization_id=01M553R4999C81PW07N8CMKZ6X workspace_id=01M553R49HTVCREB2KD0A9SGWV actor_id=01M553R48J3WC3VW8Y0S412VJ1 actor_kind=human
+14:20:45.255 INF http request method=GET path=/api/v1/workspaces/01M553R49HTVCREB2KD0A9SGWV/ai/capabilities status=200 duration=3.049ms request_id=cursor/WMpMQ7Tj50-003136 correlation_id=c0b4998887a3898ecadb812a37ef291a trace_id=c0b4998887a3898ecadb812a37ef291a span_id=b6d75dd9a3689905 organization_id=01M553R4999C81PW07N8CMKZ6X workspace_id=01M553R49HTVCREB2KD0A9SGWV actor_id=01M553R48J3WC3VW8Y0S412VJ1 actor_kind=human
+
+E2E_UX_FLOOR_EXIT=1

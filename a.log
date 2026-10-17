@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+866ad34d0b30a55c37f38c45aa5af2684ffeb92f
+beff883849315aa144174d873fd338800d0c8cc2
+866ad34d0 fix(office): address FE review findings RFSH-1 and RFSH-2 (UNI-1872)
+82602d6dd chore: merge G5-G7 root bf693b001 into SAVECOPY-HOST (UNI-1872)
+09da7ebb9 test(e2e): remove UXF-02 finding and cover S5 Save copy flow (UNI-1872)
+5b7fd9e41 feat(office): implement host api.saveCopy and saveCopy capability (UNI-1872)
+fd46ad0e7 feat(office): re-vendor protocol and re-pin frames to web-0.1.0-5d5b089 (UNI-1872)
+813e9822a feat(documents): support upload_id in CopyDocument for save-as-copy (UNI-1872)
+
+SYNCED_EXIT=1

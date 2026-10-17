@@ -1,0 +1,469 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_MODULES_WEB_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-markdown-web.spec.ts --reporter=list > /tmp/rootbase1-office-markdown-web.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rootbase1-office-markdown-web.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/rootbase1-office-markdown-web.log && echo "skipped: office-markdown-web has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/rootbase1-office-markdown-web.log || { echo "no passing test matched office-markdown-web"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_MARKDOWN_WEB_EXIT=$rc"
+
+  3) office-markdown-web.spec.ts:90:5 › bundle installed › open, edit, save › an edit is saved as a new version and survives a reopen 
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 1
+    Received:   1
+
+    Call Log:
+    - Timeout 60000ms exceeded while waiting on the predicate
+
+      100 |       await page.keyboard.press("Control+s");
+      101 |       await expect.poll(async () => (await listVersions(request, seeded.account.token, seeded.documentId)).length, { timeout: 60_000, intervals: [1_000] })
+    > 102 |         .toBeGreaterThan(before.length);
+          |          ^
+      103 |       const newest = (await listVersions(request, seeded.account.token, seeded.documentId)).reduce((a, b) => (b.version > a.version ? b : a));
+      104 |       expect((await versionBytes(request, seeded.account.token, seeded.documentId, newest.version)).toString("utf8")).toContain(marker);
+      105 |       await page.goto("about:blank");
+
+    Error Context: test-results/office-markdown-web-bundle-1f4af-rsion-and-survives-a-reopen/error-context.md
+
+    Error Context: test-results/office-markdown-web-bundle-1f4af-rsion-and-survives-a-reopen/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/office-markdown-web-bundle-1f4af-rsion-and-survives-a-reopen/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/office-markdown-web-bundle-1f4af-rsion-and-survives-a-reopen/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, light) 
+    office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, light) 
+    office-markdown-web.spec.ts:90:5 › bundle installed › open, edit, save › an edit is saved as a new version and survives a reopen 
+  1 skipped
+  5 passed (4.2m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-markdown-web.spec.ts --reporter=list
+===== e2e/test-results/office-markdown-web-bundle-1f4af-rsion-and-survives-a-reopen/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-markdown-web.spec.ts >> bundle installed >> open, edit, save >> an edit is saved as a new version and survives a reopen
+- Location: office-markdown-web.spec.ts:90:5
+
+# Error details
+
+```
+Error: expect(received).toBeGreaterThan(expected)
+
+Expected: > 1
+Received:   1
+
+Call Log:
+- Timeout 60000ms exceeded while waiting on the predicate
+```
+
+# Test source
+
+```ts
+  2   | import { e2eBaseUrl } from "./api-url";
+  3   | import { listVersions, seedDocument, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
+  4   | import {
+  5   |   evidencePath, expectDesktopOpenInstallerMenu, expectFrameNotice, moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes,
+  6   | } from "./office-module-web-fixtures";
+  7   | 
+  8   | /**
+  9   |  * Markdown web frame (UNI-1014): the genoffice Markdown editor served from
+  10  |  * /office-frame/markdown/<version>/ and opened for a .md behind
+  11  |  * `office_markdown_web`. The first module spec; the others copy its shape.
+  12  |  *
+  13  |  * Runs with OFFICE_MODULES_WEB_E2E=1 against a production build that installed
+  14  |  * the markdown bundle (markdown.pin.json + the committed source.json, or an
+  15  |  * OFFICE_FRAME_SOURCE override); without it the "bundle not installed" case runs and the frame cases skip.
+  16  |  */
+  17  | test.describe.configure({ timeout: 180_000 });
+  18  | test.skip(process.env.OFFICE_MODULES_WEB_E2E !== "1", "Set OFFICE_MODULES_WEB_E2E=1 to run the module web frame contract.");
+  19  | 
+  20  | const baseUrl = e2eBaseUrl;
+  21  | const pin = readModulePin("markdown");
+  22  | const frameBase = pin ? moduleFrameBase("markdown", pin) : "/office-frame/markdown/unpinned";
+  23  | const FRAME_SELECTOR = 'iframe[src*="/office-frame/markdown/"]';
+  24  | 
+  25  | test.describe("bundle installed", () => {
+  26  |   test.beforeEach(async ({ request }) => {
+  27  |     test.skip(!(await moduleFrameInstalled(request, baseUrl, "markdown")), "no markdown bundle is installed in this web build");
+  28  |   });
+  29  | 
+  30  |   test("index.html is served with the module's pinned CSP and same-origin framing", async ({ request }) => {
+  31  |     const response = await request.get(`${baseUrl}${frameBase}/${pin!.entry}`);
+  32  |     expect(response.status()).toBe(200);
+  33  |     const headers = response.headers();
+  34  |     expect(headers["content-security-policy"]).toContain("frame-ancestors 'self'");
+  35  |     expect(headers["content-security-policy"]).toContain("script-src 'self'");
+  36  |     expect(headers["x-frame-options"]).toBe("SAMEORIGIN");
+  37  |     expect(headers["cache-control"]).toBe("public, max-age=0, must-revalidate");
+  38  |   });
+  39  | 
+  40  |   test.describe("open, edit, save", () => {
+  41  |     let seeded: SeededDocx;
+  42  | 
+  43  |     test.beforeAll(async ({ browser }) => {
+  44  |       const context = await browser.newContext({ baseURL: baseUrl });
+  45  |       try {
+  46  |         seeded = await seedDocument(await context.newPage(), baseUrl, `md-web-${Date.now().toString(36)}`, {
+  47  |           name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from("# Ghi chú\n\nĐoạn đầu tiên.\n"),
+  48  |         });
+  49  |       } finally {
+  50  |         await context.close();
+  51  |       }
+  52  |       await setFlag("office_engine", seeded.organizationId, true);
+  53  |       await setFlag("office_markdown_web", seeded.organizationId, true);
+  54  |     });
+  55  | 
+  56  |     test.afterAll(async () => {
+  57  |       if (seeded) await setFlag("office_markdown_web", seeded.organizationId, false);
+  58  |     });
+  59  | 
+  60  |     test("a .md opens in the markdown frame and the handshake completes", async ({ page }) => {
+  61  |       const violations: string[] = [];
+  62  |       page.on("console", (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) violations.push(m.text()); });
+  63  |       await signInAs(page, seeded.account.email);
+  64  |       await page.goto(seeded.documentUrl);
+  65  |       const frame = page.locator(FRAME_SELECTOR);
+  66  |       await expect(frame).toBeVisible({ timeout: 60_000 });
+  67  |       expect(await frame.getAttribute("src")).toContain(`${frameBase}/`);
+  68  |       // data-state="ready" is set only after the frame acknowledged init (module checked, token handed over).
+  69  |       await expect(moduleFrameHost(page, "markdown")).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+  70  |       await page.screenshot({ path: test.info().outputPath("01-opened-in-markdown-frame.png") });
+  71  |       expect(violations).toEqual([]);
+  72  |     });
+  73  | 
+  74  |     for (const locale of ["vi", "en"] as const) {
+  75  |       for (const theme of ["light", "dark"] as const) {
+  76  |         test(`Open in desktop app sits in the frame header and opens the installer menu (${locale}, ${theme})`, async ({ page, context }) => {
+  77  |           await context.addCookies([{ name: "uniwork-locale", value: locale, url: baseUrl }]);
+  78  |           // The app theme follows the system (next-themes), and the frame follows the app's resolved theme.
+  79  |           await page.emulateMedia({ colorScheme: theme });
+  80  |           await signInAs(page, seeded.account.email);
+  81  |           await page.goto(seeded.documentUrl);
+  82  |           await expect(moduleFrameHost(page, "markdown")).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+  83  |           await expectDesktopOpenInstallerMenu(page, async (step) => {
+  84  |             await page.screenshot({ path: evidencePath(`${step}-${locale}-${theme}`) });
+  85  |           });
+  86  |         });
+  87  |       }
+  88  |     }
+  89  | 
+  90  |     test("an edit is saved as a new version and survives a reopen", async ({===== e2e/test-results/office-markdown-web-bundle-5518b-he-installer-menu-en-light-/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-markdown-web.spec.ts >> bundle installed >> open, edit, save >> Open in desktop app sits in the frame header and opens the installer menu (en, light)
+- Location: office-markdown-web.spec.ts:76:9
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('[data-office-desktop-action]').first()
+Expected: visible
+Timeout: 30000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for locator('[data-office-desktop-action]').first()
+
+```
+
+```yaml
+- link "Skip to main content":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org md-web-mvchn3ca, WS md-web-mvchn3ca: switch workspace"': Org md-web-mvchn3ca WS md-web-mvchn3ca
+- navigation "Workspace navigation":
+  - list:
+    - listitem:
+      - link "Home":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530
+    - listitem:
+      - link "Inbox":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/inbox
+  - list "Work":
+    - listitem:
+      - link "Tasks":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/tasks
+    - listitem:
+      - link "My tasks":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/my-tasks
+    - listitem:
+      - link "Projects":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/projects
+    - listitem:
+      - link "Calendar":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/calendar
+  - list "Communication":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/email
+    - listitem:
+      - link "Meetings":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/meetings
+    - listitem:
+      - link "Documents":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/documents
+    - listitem:
+      - link "Chat":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/chat
+    - listitem:
+      - link "People":
+        - /url: /rec-org-1792247087530/rec-ws-1792247087530/people
+- list:
+  - listitem:
+    - 'button "md-web-mvchn3ca, md-web-mvchn3ca-1792247087530@example.com: account"': M md-web-mvchn3ca md-web-mvchn3ca-1792247087530@example.com
+- button "Toggle sidebar"
+- main:
+  - button "Toggle sidebar"
+  - button "Search…": Search… Ctrl+K
+  - button "Ask UNI (Ctrl+J)"
+  - button "Notifications"
+  - button "New task"
+  - button "Theme"
+  - button "Language"
+  - button "Back to documents"
+  - link "Documents":
+    - /url: /rec-org-1792247087530/rec-ws-1792247087530/documents
+  - text: notes.md
+  - img "md-web-mvchn3ca is editing": MD
+  - button "More actions"
+  - status: You’re editing this document in another window.
+  - button "Edit here"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  1   | import { expect, type APIRequestContext, type Page } from "@playwright/test";
+  2   | import { existsSync, readFileSync } from "node:fs";
+  3   | import { basename, resolve } from "node:path";
+  4   | import { e2eApiUrl } from "./api-url";
+  5   | 
+  6   | /**
+  7   |  * Helpers for the genoffice module frames (UNI-1014/1015/1016), the module
+  8   |  * counterpart of office-docs-web-fixtures.ts. A module bundle reaches the web
+  9   |  * build the same way the Docs one does: `<module>.pin.json` names it and
+  10  |  * `office-frame-sync.mjs --ensure` installs it from the committed source.json (a
+  11  |  * tarball of the fork dist-web root holding `<module>/<version>/`; OFFICE_FRAME_SOURCE overrides it) during `pnpm build`. A
+  12  |  * spec skips itself when its module is not installed in the build under test.
+  13  |  */
+  14  | const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+  15  | 
+  16  | export type FrameModule = "pdf" | "markdown" | "html" | "slides" | "sheets";
+  17  | 
+  18  | export interface ModulePin {
+  19  |   version: string;
+  20  |   entry: string;
+  21  | }
+  22  | 
+  23  | /** The checked-in (or locally re-pinned) pin of a module, null when it has none. */
+  24  | export function readModulePin(module: FrameModule): ModulePin | null {
+  25  |   const path = resolve(repoRoot, `apps/web/platform/office-frame/${module}.pin.json`);
+  26  |   return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as ModulePin) : null;
+  27  | }
+  28  | 
+  29  | /** Same-origin base path of a module build. */
+  30  | export function moduleFrameBase(module: FrameModule, pin: ModulePin): string {
+  31  |   return `/office-frame/${module}/${pin.version}`;
+  32  | }
+  33  | 
+  34  | /** Whether the web build under test serves the pinned build of the module. */
+  35  | export async function moduleFrameInstalled(request: APIRequestContext, baseUrl: string, module: FrameModule): Promise<boolean> {
+  36  |   const pin = readModulePin(module);
+  37  |   if (!pin) return false;
+  38  |   try {
+  39  |     return (await request.get(`${baseUrl}${moduleFrameBase(module, pin)}/manifest.json`)).ok();
+  40  |   } catch {
+  41  |     return false;
+  42  |   }
+  43  | }
+  44  | 
+  45  | /** The host's wrapper of a module frame (OfficeModuleFrame), by module and state. */
+  46  | export function moduleFrameHost(page: Page, module: FrameModule) {
+  47  |   return page.locator(`[data-office-docs-frame][data-office-module="${module}"]`);
+  48  | }
+  49  | 
+  50  | export async function signInAs(page: Page, email: string): Promise<void> {
+  51  |   await page.goto("/login");
+  52  |   await page.getByLabel("Email").fill(email);
+  53  |   // Either locale: the desktop-open step signs in under vi and en.
+  54  |   await page.getByLabel(/^(Mật khẩu|Password)$/).fill("password123");
+  55  |   await page.getByRole("button", { name: /^(Đăng nhập|Log in)$/ }).click();
+  56  |   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
+  57  ===== e2e/test-results/office-markdown-web-bundle-e231c-he-installer-menu-vi-light-/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-markdown-web.spec.ts >> bundle installed >> open, edit, save >> Open in desktop app sits in the frame header and opens the installer menu (vi, light)
+- Location: office-markdown-web.spec.ts:76:9
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('[data-office-desktop-action]').first()
+Expected: visible
+Timeout: 30000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for locator('[data-office-desktop-action]').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org md-web-mvchmb6l, WS md-web-mvchmb6l: chuyển workspace"': Org md-web-mvchmb6l WS md-web-mvchmb6l
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792247051037/rec-ws-1792247051037/people
+- list:
+  - listitem:
+    - 'button "md-web-mvchmb6l, md-web-mvchmb6l-1792247051037@example.com: tài khoản"': M md-web-mvchmb6l md-web-mvchmb6l-1792247051037@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Về thư viện tài liệu"
+  - link "Tài liệu":
+    - /url: /rec-org-1792247051037/rec-ws-1792247051037/documents
+  - text: notes.md
+  - img "md-web-mvchmb6l đang sửa": MD
+  - button "Hành động khác"
+  - status: Bạn đang sửa tài liệu này ở cửa sổ khác.
+  - button "Sửa ở đây"
+  - iframe
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  1   | import { expect, type APIRequestContext, type Page } from "@playwright/test";
+  2   | import { existsSync, readFileSync } from "node:fs";
+  3   | import { basename, resolve } from "node:path";
+  4   | import { e2eApiUrl } from "./api-url";
+  5   | 
+  6   | /**
+  7   |  * Helpers for the genoffice module frames (UNI-1014/1015/1016), the module
+  8   |  * counterpart of office-docs-web-fixtures.ts. A module bundle reaches the web
+  9   |  * build the same way the Docs one does: `<module>.pin.json` names it and
+  10  |  * `office-frame-sync.mjs --ensure` installs it from the committed source.json (a
+  11  |  * tarball of the fork dist-web root holding `<module>/<version>/`; OFFICE_FRAME_SOURCE overrides it) during `pnpm build`. A
+  12  |  * spec skips itself when its module is not installed in the build under test.
+  13  |  */
+  14  | const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+  15  | 
+  16  | export type FrameModule = "pdf" | "markdown" | "html" | "slides" | "sheets";
+  17  | 
+  18  | export interface ModulePin {
+  19  |   version: string;
+  20  |   entry: string;
+  21  | }
+  22  | 
+  23  | /** The checked-in (or locally re-pinned) pin of a module, null when it has none. */
+  24  | export function readModulePin(module: FrameModule): ModulePin | null {
+  25  |   const path = resolve(repoRoot, `apps/web/platform/office-frame/${module}.pin.json`);
+  26  |   return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as ModulePin) : null;
+  27  | }
+  28  | 
+  29  | /** Same-origin base path of a module build. */
+  30  | export function moduleFrameBase(module: FrameModule, pin: ModulePin): string {
+  31  |   return `/office-frame/${module}/${pin.version}`;
+  32  | }
+  33  | 
+  34  | /** Whether the web build under test serves the pinned build of the module. */
+  35  | export async function moduleFrameInstalled(request: APIRequestContext, baseUrl: string, module: FrameModule): Promise<boolean> {
+  36  |   const pin = readModulePin(module);
+  37  |   if (!pin) return false;
+  38  |   try {
+  39  |     return (await request.get(`${baseUrl}${moduleFrameBase(module, pin)}/manifest.json`)).ok();
+  40  |   } catch {
+  41  |     return false;
+  42  |   }
+  43  | }
+  44  | 
+  45  | /** The host's wrapper of a module frame (OfficeModuleFrame), by module and state. */
+  46  | export function moduleFrameHost(page: Page, module: FrameModule) {
+  47  |   return page.locator(`[data-office-docs-frame][data-office-module="${module}"]`);
+  48  | }
+  49  | 
+  50  | export async function signInAs(page: Page, email: string): Promise<void> {
+  51  |   await page.goto("/login");
+  52  |   await page.getByLabel("Email").fill(email);
+  53  |   // Either locale: the desktop-open step signs in under vi and en.
+  54  |   await page.getByLabel(/^(Mật khẩu|Password)$/).fill("password123");
+  55  |   await page.getByRoleskipped: office-markdown-web has gated or skipped tests
+
+E2E_MARKDOWN_WEB_EXIT=1
