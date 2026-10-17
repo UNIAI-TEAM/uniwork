@@ -113,6 +113,10 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   let maxSentBytes = 0;
   const completedEtags = new Map<number, string>();
   const partUrls = new Map<number, UploadSessionPartURL>();
+  // Bytes the transport has already handed over for a part that is still
+  // going, so the bar moves during the first 8 MiB part (V-1). Cleared when
+  // that part settles, retries included.
+  const inFlightBytes = new Map<number, number>();
 
   let currentPhase: ChunkedUploadPhase = "probing";
   let paused = false;
@@ -133,6 +137,10 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   function computeSentBytes(): number {
     let sum = 0;
     for (const partNumber of completedEtags.keys()) sum += partByteLength(partNumber);
+    for (const [partNumber, loaded] of inFlightBytes) {
+      if (completedEtags.has(partNumber)) continue;
+      sum += Math.min(loaded, partByteLength(partNumber));
+    }
     maxSentBytes = Math.max(maxSentBytes, Math.min(totalBytes, sum));
     return maxSentBytes;
   }
@@ -284,22 +292,30 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
 
       const start = (partNumber - 1) * partSize;
       const chunk = opts.file.slice(start, Math.min(totalBytes, start + partSize));
+      inFlightBytes.set(partNumber, 0);
 
       try {
         const etag = await putUploadSessionPart(partMeta.url, chunk, {
           headers: partMeta.headers,
           signal,
           fetch: opts.fetch,
+          onProgress: (loaded) => {
+            inFlightBytes.set(partNumber, loaded);
+            if (canceled || paused || pauseGeneration !== gen || signal.aborted) return;
+            emit("uploading");
+          },
         });
         if (canceled) throw new ChunkedUploadError("upload_canceled", "Upload was canceled");
         if (paused || pauseGeneration !== gen || signal.aborted) return;
         if (!etag) {
           throw new ChunkedUploadError("missing_etag", `Missing ETag on part ${partNumber}`);
         }
+        inFlightBytes.delete(partNumber);
         completedEtags.set(partNumber, etag);
         emit("uploading");
         return;
       } catch (err) {
+        inFlightBytes.delete(partNumber);
         if (canceled) throw new ChunkedUploadError("upload_canceled", "Upload was canceled");
         if (paused || pauseGeneration !== gen || signal.aborted) return;
         if (isClearedSessionError(err)) {

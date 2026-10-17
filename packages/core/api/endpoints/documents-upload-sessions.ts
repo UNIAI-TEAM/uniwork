@@ -148,6 +148,93 @@ export interface UploadSessionPartPutOpts {
   headers?: Record<string, string>;
   signal?: AbortSignal;
   fetch?: typeof fetch;
+  /**
+   * Bytes of the request body the transport has already handed to the network,
+   * from the request's own upload events. The engine adds them to the finished
+   * parts, so the bar moves while the first 8 MiB part is still going (V-1).
+   * Only the XMLHttpRequest path reports: an injected `fetch` cannot see
+   * upload progress.
+   */
+  onProgress?: (loaded: number) => void;
+}
+
+/** `getAllResponseHeaders()` as a header map (its value is a CRLF-separated raw string). */
+function headersFromRaw(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of raw.split(/\r?\n/)) {
+    const colon = line.indexOf(":");
+    if (colon <= 0) continue;
+    out[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+  }
+  return out;
+}
+
+/**
+ * The part PUT over XMLHttpRequest — the only transport that reports upload
+ * bytes (V-1). It keeps the fetch path's contract: `withCredentials` off, no
+ * Authorization header, the ETag read from the response, and the same
+ * ApiError mapping through `throwFromFailedResponse` on a synthetic Response,
+ * so both transports fail identically.
+ */
+function partPutXhr(
+  url: string,
+  body: Blob,
+  headers: Record<string, string>,
+  opts?: UploadSessionPartPutOpts,
+): Promise<Response> {
+  return new Promise<Response>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.withCredentials = false;
+    for (const [key, value] of Object.entries(headers)) xhr.setRequestHeader(key, value);
+    const onAbort = () => xhr.abort();
+    const cleanup = () => opts?.signal?.removeEventListener("abort", onAbort);
+    opts?.signal?.addEventListener("abort", onAbort, { once: true });
+    const onProgress = opts?.onProgress;
+    // A runtime may expose XMLHttpRequest without the upload side; the request
+    // then just runs without progress, like the fetch path.
+    if (onProgress && xhr.upload) {
+      xhr.upload.addEventListener("progress", (event) => onProgress(event.loaded));
+    }
+    xhr.addEventListener("load", () => {
+      cleanup();
+      try {
+        // 204/205/304 may not carry a body; a status of 0 (a blocked request)
+        // makes the Response constructor throw, which is the network error.
+        const noBody = xhr.status === 204 || xhr.status === 205 || xhr.status === 304;
+        resolve(
+          new Response(noBody ? null : xhr.responseText, {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            headers: headersFromRaw(xhr.getAllResponseHeaders()),
+          }),
+        );
+      } catch {
+        reject(new TypeError("Failed to fetch"));
+      }
+    });
+    // fetch rejects a network failure with TypeError and an abort with
+    // DOMException("AbortError"); the retry logic depends on that shape.
+    xhr.addEventListener("error", () => {
+      cleanup();
+      reject(new TypeError("Failed to fetch"));
+    });
+    xhr.addEventListener("timeout", () => {
+      cleanup();
+      reject(new TypeError("Failed to fetch"));
+    });
+    xhr.addEventListener("abort", () => {
+      cleanup();
+      reject(new DOMException("Aborted", "AbortError"));
+    });
+    if (opts?.signal?.aborted) {
+      // `abort()` before `send()` fires nothing, so settle directly.
+      cleanup();
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    xhr.send(body);
+  });
 }
 
 async function frameRequest(
@@ -340,7 +427,6 @@ export async function putUploadSessionPart(
   body: Blob,
   opts?: UploadSessionPartPutOpts,
 ): Promise<string | null> {
-  const doFetch = opts?.fetch ?? ((input: RequestInfo | URL, reqInit?: RequestInit) => fetch(input, reqInit));
   const headers: Record<string, string> = {};
   if (opts?.headers) {
     for (const [k, v] of Object.entries(opts.headers)) {
@@ -349,13 +435,22 @@ export async function putUploadSessionPart(
       }
     }
   }
-  const res = await doFetch(url, {
-    method: "PUT",
-    headers,
-    credentials: "omit",
-    body,
-    signal: opts?.signal,
-  });
+  // A browser can only observe how many bytes of a request body have left the
+  // machine through XMLHttpRequest; `fetch` reports nothing until the response,
+  // which for an 8 MiB part means the bar sits still for seconds (V-1). Only
+  // when a caller wants those bytes: the fetch path stays for an injected
+  // transport (tests, a host that re-routes the origin), for runtimes without
+  // XHR, and for every call that does not ask for progress.
+  const res =
+    opts?.onProgress && !opts.fetch && typeof XMLHttpRequest !== "undefined"
+      ? await partPutXhr(url, body, headers, opts)
+      : await (opts?.fetch ?? fetch)(url, {
+          method: "PUT",
+          headers,
+          credentials: "omit",
+          body,
+          signal: opts?.signal,
+        });
   if (!res.ok) await throwFromFailedResponse(res);
   const rawEtag = res.headers.get("ETag") ?? res.headers.get("etag") ?? "";
   const parsed = parseWithFallback<{ etag: string } | null>(

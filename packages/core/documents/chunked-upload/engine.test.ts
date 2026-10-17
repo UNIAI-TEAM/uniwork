@@ -80,6 +80,77 @@ function makeFile(sizeBytes = 25, name = "Report.pdf"): File {
   return new File([bytes], name, { type: "application/pdf", lastModified: 1760700000000 });
 }
 
+/** The `xhr.upload` side of the fake: only `progress` listeners are used. */
+class FakeXhrUploadTarget {
+  listeners: Record<string, ((event: { loaded: number }) => void)[]> = {};
+
+  addEventListener(type: string, fn: (event: { loaded: number }) => void): void {
+    (this.listeners[type] ??= []).push(fn);
+  }
+}
+
+/**
+ * The part PUT goes through XMLHttpRequest because it is the only transport
+ * that reports upload bytes (V-1); this stands in for it, with `progress` and
+ * `respond` as the knobs a test drives.
+ */
+class FakeUploadXhr {
+  static install(sink: FakeUploadXhr[]): typeof XMLHttpRequest {
+    FakeUploadXhr.sink = sink;
+    return FakeUploadXhr as unknown as typeof XMLHttpRequest;
+  }
+
+  private static sink: FakeUploadXhr[] = [];
+  method = "";
+  url = "";
+  status = 0;
+  statusText = "";
+  responseText = "";
+  responseHeaders = "";
+  withCredentials = false;
+  body: Blob | null = null;
+  upload = new FakeXhrUploadTarget();
+  private listeners: Record<string, (() => void)[]> = {};
+
+  open(method: string, url: string): void {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader(): void {}
+
+  addEventListener(type: string, fn: () => void): void {
+    (this.listeners[type] ??= []).push(fn);
+  }
+
+  getAllResponseHeaders(): string {
+    return this.responseHeaders;
+  }
+
+  send(body: Blob): void {
+    this.body = body;
+    FakeUploadXhr.sink.push(this);
+  }
+
+  abort(): void {
+    for (const fn of this.listeners.abort ?? []) fn();
+  }
+
+  /** A `progress` event from the request's own upload. */
+  progress(loaded: number): void {
+    for (const fn of this.upload.listeners.progress ?? []) fn({ loaded });
+  }
+
+  /** The response arrived; `onload` reads the status, headers and body. */
+  respond(status: number, headers: Record<string, string> = {}): void {
+    this.status = status;
+    this.responseHeaders = Object.entries(headers)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\r\n");
+    for (const fn of this.listeners.load ?? []) fn();
+  }
+}
+
 describe("chunked upload engine", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -1116,6 +1187,72 @@ describe("chunked upload engine", () => {
     expect(apiCalls.map((c) => c.method)).toEqual(["POST", "GET", "POST"]);
     expect(apiCalls.every((c) => c.auth === "Bearer ftok-99")).toBe(true);
     expect(findResumableUpload(storage, uploadFileKey(file), target)).toBeNull();
+  });
+
+  it("reports a part's bytes while it is still uploading, so the bar rises before the first part finishes (V-1)", async () => {
+    const file = makeFile(25);
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    const progressEvents: ChunkedUploadProgress[] = [];
+    const xhrs: FakeUploadXhr[] = [];
+    vi.stubGlobal("XMLHttpRequest", FakeUploadXhr.install(xhrs));
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(makeSessionBody("sess-progress", 3), 201);
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        return json({ document: createdDoc }, 200);
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-progress",
+      storage,
+      concurrency: 3,
+      onProgress: (p) => progressEvents.push({ ...p }),
+    });
+
+    for (let i = 0; i < 50 && xhrs.length < 3; i += 1) await Promise.resolve();
+    expect(xhrs.length).toBe(3);
+    // The bar must not have moved yet: nothing has left the machine.
+    expect(progressEvents.at(-1)).toMatchObject({ phase: "uploading", sentBytes: 0, totalBytes: 25 });
+
+    xhrs[0]!.progress(4);
+    expect(progressEvents.at(-1)).toMatchObject({
+      phase: "uploading",
+      sentBytes: 4,
+      totalBytes: 25,
+    });
+
+    // Part 1 settles at 10 bytes, part 2 is then 4 bytes in: 10 + 4.
+    xhrs[0]!.respond(200, { ETag: '"etag-1"' });
+    await Promise.resolve();
+    await Promise.resolve();
+    xhrs[1]!.progress(4);
+    expect(progressEvents.at(-1)).toMatchObject({ phase: "uploading", sentBytes: 14 });
+
+    // A part's own report is capped at its own length, so a retry cannot push
+    // the bar past the bytes that exist.
+    xhrs[1]!.progress(9999);
+    expect(progressEvents.at(-1)).toMatchObject({ sentBytes: 20 });
+
+    xhrs[1]!.respond(200, { ETag: '"etag-2"' });
+    xhrs[2]!.respond(200, { ETag: '"etag-3"' });
+    const res = await upload.result;
+    expect(res).toEqual({ kind: "document", document: createdDoc });
+
+    for (let i = 1; i < progressEvents.length; i += 1) {
+      expect(progressEvents[i]!.sentBytes).toBeGreaterThanOrEqual(progressEvents[i - 1]!.sentBytes);
+    }
+    expect(progressEvents.at(-1)).toMatchObject({ phase: "done", sentBytes: 25 });
   });
 });
 
