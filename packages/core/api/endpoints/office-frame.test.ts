@@ -147,6 +147,7 @@ describe("Office Docs frame endpoints", () => {
     f.mockResolvedValueOnce(new Response("docx-bytes"));
     await expect((await client.content(document.download_url)).text()).resolves.toBe("docx-bytes");
     await expect(client.content("https://evil.test/x")).rejects.toBeInstanceOf(ApiError);
+    await expect(client.content("/api/v1/office-frame/sources/chat%3A1/content")).rejects.toBeInstanceOf(ApiError);
     expect(f).toHaveBeenCalledTimes(1);
   });
 
@@ -310,7 +311,7 @@ describe("Office source frame endpoints (UNI-1869)", () => {
     await expect(mintDocumentSourceFrameToken("ws1", sourceId)).rejects.toMatchObject({ status: 404, code: "not_found" });
     vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "feature_disabled", message: "feature is disabled" } }, 403));
     await expect(mintDocumentSourceFrameToken("ws1", sourceId)).rejects.toMatchObject({ status: 403, code: "feature_disabled" });
-    for (const body of [{ nope: true }, null, [], "malformed", { ...sourceToken, expires_in: "600" }]) {
+    for (const body of [{ nope: true }, null, [], "malformed", { ...sourceToken, expires_in: "600" }, { ...sourceToken, can_edit: true }, { ...sourceToken, readonly: false }]) {
       vi.mocked(fetch).mockResolvedValueOnce(json(body, 201));
       await expect(mintDocumentSourceFrameToken("ws1", sourceId)).resolves.toBeNull();
     }
@@ -325,12 +326,14 @@ describe("Office source frame endpoints (UNI-1869)", () => {
     f.mockResolvedValueOnce(new Response("source-bytes"));
     await expect((await client.content(source.download_url)).text()).resolves.toBe("source-bytes");
     await expect(client.content("https://evil.test/x")).rejects.toBeInstanceOf(ApiError);
+    await expect(client.content(document.download_url)).rejects.toBeInstanceOf(ApiError);
+    expect(f).toHaveBeenCalledTimes(2);
   });
 
   it("degrades malformed source opens instead of throwing", async () => {
     const f = vi.fn<typeof fetch>();
     const client = createOfficeFrameClient({ scope: "sources", getToken: () => "ofs1.frame", fetch: f, apiUrl: "" });
-    for (const body of [{ nope: true }, null, [], "malformed", { ...source, file: { ...source.file, size_bytes: "big" } }]) {
+    for (const body of [{ nope: true }, null, [], "malformed", { ...source, file: { ...source.file, size_bytes: "big" } }, { ...source, can_edit: true }, { ...source, readonly: false }]) {
       f.mockResolvedValueOnce(json(body));
       await expect(client.open(sourceId)).resolves.toBeNull();
     }

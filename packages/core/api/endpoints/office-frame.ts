@@ -299,7 +299,8 @@ export function createOfficeFrameClient(options: OfficeFrameClientOptions): Offi
     }
   }
 
-  const docPath = (id: string) => `/api/v1/office-frame/${options.scope === "sources" ? "sources" : "documents"}/${enc(id)}`;
+  const scope = options.scope === "sources" ? "sources" : "documents";
+  const docPath = (id: string) => `/api/v1/office-frame/${scope}/${enc(id)}`;
   const form = (file: Blob, filename: string) => {
     const body = new FormData();
     body.append("file", file, filename);
@@ -308,16 +309,14 @@ export function createOfficeFrameClient(options: OfficeFrameClientOptions): Offi
 
   return {
     async open(id) {
-      if (options.scope === "sources") {
+      if (scope === "sources") {
         return parseWithFallback<OfficeFrameSource | null>(await json(docPath(id)), officeFrameSourceSchema, null, { endpoint: "GET /api/v1/office-frame/sources/{sourceFileID}" });
       }
       return parseWithFallback<OfficeFrameDocument | null>(await json(docPath(id)), officeFrameDocumentSchema, null, { endpoint: "GET /api/v1/office-frame/documents/{documentID}" });
     },
     async content(downloadUrl, signal) {
-      // Any route of the frame API (documents/{id} or sources/{id}): the Bearer
-      // token already scopes what it opens, so the check only keeps a URL that
-      // is not a frame route out.
-      if (!downloadUrl.startsWith("/api/v1/office-frame/")) {
+      // Only a route in this client's frame subtree (documents/{id} or sources/{id}).
+      if (!downloadUrl.startsWith(`/api/v1/office-frame/${scope}/`)) {
         throw new ApiError("download_url is not a frame route", "invalid_request", 400);
       }
       return (await send(downloadUrl, { signal })).blob();
