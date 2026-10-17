@@ -732,6 +732,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		// send the id percent-escaped (its colon travels as %3A, UNI-1815;
 		// url.PathEscape would keep a raw colon), so the matrix names it
 		// the way the wire does.
+		// The Office frame routes (UNI-1869) mint and serve a source token
+		// for a source one of the web modules opens: the seeded docx
+		// attachment, not the png one the download/save rows use.
+		if strings.Contains(pattern, "/office-frame/sources/") || strings.HasSuffix(pattern, "/office/frame-token") {
+			return "task%3A" + tn.get(t, "sourceDocx")
+		}
 		return "task%3A" + tn.get(t, "attachment")
 	case "{provider}":
 		return "google"

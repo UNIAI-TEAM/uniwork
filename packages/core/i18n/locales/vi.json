@@ -9695,6 +9695,7 @@
         "preview_loading": "Đang tải ảnh…",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
+        "view_only_notice": "Chỉ xem · thay đổi sẽ không được lưu",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",
         "menu": "Thao tác cho {{title}}",
@@ -9988,6 +9989,8 @@
       "errors": {
         "unauthorized": "Phiên chỉnh sửa đã hết hạn. Hãy thử lại.",
         "forbidden": "Bạn không có quyền thực hiện thao tác này trong tài liệu.",
+        "read_only_source": "Tệp này chỉ xem, không lưu được.",
+        "read_only_source_export": "Tệp này chỉ xem, không xuất được.",
         "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi.",
         "conflict": "Đã có người lưu phiên bản mới hơn. Hãy mở lại tài liệu để xem trước khi lưu.",
         "too_large": "Tệp quá lớn để tải lên.",

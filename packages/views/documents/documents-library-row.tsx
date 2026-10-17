@@ -20,6 +20,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
@@ -52,6 +53,8 @@ export interface LibraryRowHandlers {
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Image sources only: fetches the bytes and opens them view-only. */
   onPreviewSource?: (sourceId: string, name: string) => void;
+  /** Office formats the server marks openable (UNI-1869): opens the view-only module frame; absent falls back to download. */
+  onViewSource?: (source: DocumentSourceFile) => void;
   onDownloadSource: (sourceId: string) => void;
   onSaveSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Absent outside an organization (no favorites there). */
@@ -144,10 +147,12 @@ export function LibraryRowView({
     if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") {
-      // U-SRC1: the primary click opens the file view-only where the row can
-      // (images today), else downloads it; "Xem nơi đính kèm" is a secondary.
+      // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
+      // row can (image preview, or the module frame for an Office format),
+      // else downloads it; "Xem nơi đính kèm" is a secondary.
       const open = sourceOpenAction(row.source);
       if (open === "image" && handlers.onPreviewSource) handlers.onPreviewSource(row.source.id, row.source.name);
+      else if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
       else handlers.onDownloadSource(row.source.id);
     }
   };

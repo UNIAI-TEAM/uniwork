@@ -79,8 +79,8 @@ describe("sourceLinkLabelKey", () => {
 });
 
 describe("sourceOpenAction", () => {
-  const file = (over: Partial<Pick<DocumentSourceFile, "mime_type" | "extension" | "name">> = {}) =>
-    ({ name: "f", mime_type: "", extension: "", ...over }) as DocumentSourceFile;
+  const file = (over: Partial<Pick<DocumentSourceFile, "mime_type" | "extension" | "name" | "can_open_in_app">> = {}) =>
+    ({ name: "f", mime_type: "", extension: "", can_open_in_app: false, ...over }) as DocumentSourceFile;
 
   it("previews an image by its mime type or extension", () => {
     expect(sourceOpenAction(file({ mime_type: "image/png" }))).toBe("image");
@@ -89,9 +89,26 @@ describe("sourceOpenAction", () => {
     expect(sourceOpenAction(file({ name: "ảnh.PNG" }))).toBe("image");
   });
 
-  it("downloads everything else until a view-only source frame route exists", () => {
-    // U-SRC1 wants Office formats in the Office viewer; the office-frame API is
-    // document-bound, so a source file downloads until the server gap closes.
+  it("opens an Office format in the view-only frame when the server vouches for it (can_open_in_app)", () => {
+    // UNI-1869: a module frame opens the source; the flag alone is not enough —
+    // a module must exist for the extension (officeModuleForFormat), so a
+    // can_open_in_app the client cannot map still downloads.
+    for (const f of [
+      file({ extension: "docx", can_open_in_app: true }),
+      file({ extension: "xlsx", can_open_in_app: true }),
+      file({ extension: "pptx", can_open_in_app: true }),
+      file({ extension: "pdf", can_open_in_app: true }),
+      file({ extension: "md", can_open_in_app: true }),
+      file({ extension: "html", can_open_in_app: true }),
+      file({ name: "Báo cáo.DOCX", extension: "", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", can_open_in_app: true }),
+    ]) {
+      expect(sourceOpenAction(f)).toBe("office");
+    }
+    // An image the server also marks openable keeps the SRC-02a preview.
+    expect(sourceOpenAction(file({ mime_type: "image/png", can_open_in_app: true }))).toBe("image");
+  });
+
+  it("downloads a format no module opens, or when the server does not mark it openable", () => {
     for (const f of [
       file({ mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
       file({ extension: "docx" }),
@@ -99,7 +116,9 @@ describe("sourceOpenAction", () => {
       file({ mime_type: "application/pdf" }),
       file({ extension: "md" }),
       file({ extension: "html" }),
-      file({ extension: "zip" }),
+      file({ extension: "zip", can_open_in_app: true }),
+      file({ extension: "doc", can_open_in_app: true }),
+      file({ can_open_in_app: true }),
       file(),
     ]) {
       expect(sourceOpenAction(f)).toBe("download");
