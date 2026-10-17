@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1645c-el1a-desktop; git log --oneline -3
+059f63f06480291341e1d821be21cc6b0b93c782
+059f63f06480291341e1d821be21cc6b0b93c782
+059f63f0 merge: fork main 4eef8dc35 (NET-OFF-01 offline-ui, G7-05) into EL-1(a)
+502c4e73 test(shell): pin EL-1(a) reviewer r2 findings (UNI-1645 c, EL1A-R2-2..5)
+4eef8dc3 fix(g7-05): drop unused null initializers in t4-pre-guard (UNI-1387)
