@@ -17,7 +17,8 @@ Pilot chứng minh UniChat dùng được làm kênh chat chính của nhân s�
 
 **Chuẩn bị (trước ngày 1)**
 
-1. Điều kiện vào pilot (`docs/evidence/unichat/README.md`): M3 (UNI-1834) đã lên `develop`; một bản desktop đã cắt
+1. Điều kiện vào pilot (`docs/evidence/unichat/README.md`): M3 đã lên `develop` (PR #345) và foreground service Android
+   khi gọi (UNI-1880) xong; một bản desktop đã cắt
    theo `docs/runbooks/unichat-desktop-release.md` và qua smoke trên máy sạch; bản mobile đã cài được trên ít nhất một
    iPhone và hai máy Android thật (`docs/evidence/unichat/test-scripts.md` §3, §4). Chưa có tài khoản Apple Developer thì
    iPhone không cài được bản nào (TestFlight và ad hoc đều cần tài khoản), nên pilot chỉ chạy với Android và desktop,

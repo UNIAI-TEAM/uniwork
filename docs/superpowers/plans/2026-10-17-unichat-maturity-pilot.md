@@ -54,8 +54,8 @@ UNI-1826").
   `GOOGLE_SERVICES_JSON`; khoá FCM V1, ASC API key; `EXPO_TOKEN` vào Environment `chat-mobile-release` (giới hạn tag).
 - [ ] **11. Cắt bản**: tag `chat-desktop-v0.1.0-beta.1`, smoke desktop trên máy sạch ba hệ điều hành (`test-scripts.md`
   §2, ký tên); bản mobile `preview`/TestFlight/Play internal, smoke máy thật (§3) — lần đầu M2a/M2b/M3 chạy trên máy.
-- [ ] **12. M3 (UNI-1834) và M4 phase 2** lên `develop`; đặt biến/secret `MAESTRO_*`, workflow lên `main`; Maestro xanh 5
-  đêm liên tiếp.
+- [ ] **12. M4 phase 2 (UNI-1836) và foreground service Android (UNI-1880)** lên `develop` (M3 đã vào qua PR #345);
+  đặt biến/secret `MAESTRO_*`, workflow lên `main`; Maestro xanh 5 đêm liên tiếp.
 - [ ] **13. Server production**: `UNICHAT_INSTALLER_*_URLS`, `UNICHAT_TESTFLIGHT_URL`, `UNICHAT_PLAY_INTERNAL_URL`,
   `UNICHAT_IOS_TEAM_ID`, `UNICHAT_ANDROID_SHA256`; chụp `/unichat` sống.
 - [ ] **14. Pilot** ≥ 10 ngày làm việc liên tục theo `docs/runbooks/unichat-pilot.md`; kịch bản K1–K9; nhật ký `[pilot]`

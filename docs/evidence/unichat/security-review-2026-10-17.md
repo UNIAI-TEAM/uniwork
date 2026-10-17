@@ -1,7 +1,9 @@
 # UniChat — rà soát bảo mật 2026-10-17 (Q1)
 
 > **Trạng thái:** shipped — rà soát mã trên `develop` `aab341175` (sau M4 phase 1), issue UNI-1838; mục medium đã sửa
-> trong PR của UNI-1838, phần còn lại ở UNI-1877, UNI-1878, UNI-1879. Không gồm mã gọi LiveKit của M3 (UNI-1834, đang làm).
+> trong PR của UNI-1838, phần còn lại ở UNI-1877, UNI-1878, UNI-1879. Không gồm mã gọi LiveKit của M3 (PR #345, vào `develop` sau lượt
+> rà soát); riêng đường push cuộc gọi của M3 đã kiểm sau rebase: đi qua cùng lọc subscription đang sống và cùng bản sửa
+> lỗi ticket Expo (test `TestCallPushSkipsAPhoneWhoseDeviceWasRevoked`).
 
 ## 1. Phạm vi và cách làm
 
@@ -76,7 +78,7 @@ qua `expo-router > query-string` (chạy lúc parse URL trong app; `lib/deep-lin
 | --- | --- |
 | S-F1 | `go test ./internal/service -run TestRevokingADeviceClosesThePushItRegistered` đỏ trước, xanh sau; cùng các test `TestDesktop*`, `TestEndingASession…`, `TestOfficeLeaseRevokedWithRevokeAll`, admin/family; `go test ./internal/notification ./migrations ./internal` (DB thử riêng) xanh; `go vet`, `staticcheck` sạch |
 | S-F3 | `go test ./internal/notification -run TestExpoPushSender` đỏ trước, xanh sau |
-| Mo-M3, Mo-L1, Firebase | `vitest run` toàn bộ `apps/chat-mobile` (53 tệp, 626 test) xanh; `typecheck`, `lint` sạch |
+| Mo-M3, Mo-L1, Firebase | `vitest run` toàn bộ `apps/chat-mobile` (53 tệp, 626 test; sau rebase lên M3: 56 tệp, 726 test) xanh; `typecheck`, `lint` sạch |
 | Mo-M2 | `node --test scripts/governance.test.mjs` (test mới đỏ trước, xanh sau) |
 | D-M2, crash renderer | `vitest run` toàn bộ `apps/chat-desktop` (21 tệp, 261 test) xanh; `typecheck`, `lint` sạch |
 

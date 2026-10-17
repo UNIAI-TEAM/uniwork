@@ -1,6 +1,6 @@
 # UniChat M4 — Phát hành mobile: EAS, TestFlight/Play internal, OTA, Maestro — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — phase 1 merge vào develop 2026-10-17 qua PR #343 (squash aab341175); phase 2 (ba luồng vàng) chờ M3 (UNI-1834) lên `develop`. Issue UNI-1836.
+> **Trạng thái:** in-progress — phase 1 merge vào develop 2026-10-17 qua PR #343 (squash aab341175); phase 2 (ba luồng vàng) chưa làm, M3 (UNI-1834) đã vào develop qua PR #345. Issue UNI-1836.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

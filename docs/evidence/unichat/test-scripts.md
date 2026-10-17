@@ -57,7 +57,7 @@ Người chạy ký: tên, ngày, phiên bản tệp cài cho từng cột.
 
 ## 3. Smoke mobile trên máy thật (M1, M2a, M2b, M3)
 
-Chưa có bản nào chạy trên simulator hay máy thật cho M2a/M2b/M3 (2026-10-17). Chạy trước pilot, trên một iPhone
+Chưa có bản nào chạy trên simulator hay máy thật cho M2a/M2b/M3 (2026-10-18). Chạy trước pilot, trên một iPhone
 (khi có tài khoản Apple) và hai máy Android khác hãng; bản `preview` hoặc TestFlight/Play internal.
 
 | Bước | Kỳ vọng | iOS | Android 1 | Android 2 |
@@ -70,5 +70,5 @@ Chưa có bản nào chạy trên simulator hay máy thật cho M2a/M2b/M3 (2026
 | Push | Cho phép thông báo; K4 một mẫu; chạm mở đúng phòng | ☐ | ☐ | ☐ |
 | Link `https://app.uniworkos.com/<org>/<ws>/chat?room=<id>` (khi đã có AASA/assetlinks) | Mở app ở đúng phòng | ☐ | ☐ | ☐ |
 | Tab Cuộc gọi, Danh bạ, Cài đặt | Lịch sử cuộc gọi; danh bạ mở DM; Cài đặt: thiết bị, bật/tắt push, giao diện, ngôn ngữ, đổi workspace, đăng xuất | ☐ | ☐ | ☐ |
-| Gọi (M3) | Gọi 1:1 và nhóm với web; nhận cuộc gọi khi app foreground và qua push | ☐ | ☐ | ☐ |
+| Gọi (M3) | Gọi 1:1 và nhóm với web; nhận cuộc gọi khi app foreground và qua push; đang gọi thì ra nền 2 phút — người kia vẫn nghe (Android: UNI-1880) | ☐ | ☐ | ☐ |
 | Nền 10 phút rồi mở lại | Tin mới hiện, không trùng | ☐ | ☐ | ☐ |
