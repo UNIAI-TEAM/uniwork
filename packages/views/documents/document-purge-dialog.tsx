@@ -40,6 +40,8 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
   const purge = usePurgeDocument(wsId);
   const [error, setError] = useState<string | null>(null);
   const keyRef = useRef<string | null>(null);
+  // `pending` is a render snapshot: two clicks in one frame both read false.
+  const inFlightRef = useRef(false);
   const pending = purge.isPending;
 
   useEffect(() => {
@@ -53,7 +55,8 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
   const folder = doc.kind === "folder";
 
   const confirm = async () => {
-    if (pending) return;
+    if (pending || inFlightRef.current) return;
+    inFlightRef.current = true;
     setError(null);
     keyRef.current ??= createSafeId();
     try {
@@ -63,6 +66,8 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
       toast.success(t("documents.trash.purged", { title }));
     } catch (failure) {
       setError(trashErrorMessage(failure, t, "documents.trash.purge_failed"));
+    } finally {
+      inFlightRef.current = false;
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useRestoreDocument } from "@uniwork/core/documents/hooks-collections";
@@ -15,6 +15,8 @@ export interface TrashActions {
   onRestore: (doc: DocumentSummaryRow) => void;
   /** Open the permanent-delete confirmation for one item (RESTORE-01 §2). */
   onPurge: (doc: DocumentSummaryRow) => void;
+  /** True while that item's restore request runs: its button is disabled, a second click sends nothing. */
+  isRestoring: (documentId: string) => boolean;
   /** The pending purge dialog, rendered beside the other row dialogs. */
   dialog: ReactNode;
 }
@@ -64,8 +66,19 @@ export function useTrashActions({ wsId, rows }: { wsId: string; rows: LibraryRow
   const { t } = useTranslation();
   const restore = useRestoreDocument(wsId);
   const [purging, setPurging] = useState<DocumentSummaryRow | null>(null);
+  // The ref answers a second click that lands before React re-renders; the
+  // state drives the disabled button.
+  const restoringRef = useRef<Set<string>>(new Set());
+  const [restoring, setRestoring] = useState<ReadonlySet<string>>(new Set());
+  const trackRestoring = (documentId: string, on: boolean) => {
+    if (on) restoringRef.current.add(documentId);
+    else restoringRef.current.delete(documentId);
+    setRestoring(new Set(restoringRef.current));
+  };
 
   const onRestore = (doc: DocumentSummaryRow) => {
+    if (restoringRef.current.has(doc.id)) return;
+    trackRestoring(doc.id, true);
     // The descendants this folder could leave behind are the rows the list
     // shows BEFORE the mutation; read them now, the refetch comes with it.
     const left = doc.kind === "folder" ? trashedDescendants(doc, rows) : new Set<string>();
@@ -79,15 +92,17 @@ export function useTrashActions({ wsId, rows }: { wsId: string; rows: LibraryRow
             ? t("documents.trash.toast.restored_folder", { title, folder: dest.folder })
             : t("documents.trash.toast.restored", { title });
         const partial = [...left].filter((id) => !result.affected.includes(id)).length > 0;
-        toast.success(partial ? `${base} ${t("documents.trash.toast.left_in_trash")}` : base);
+        if (partial) toast.success(base, { description: t("documents.trash.toast.left_in_trash") });
+        else toast.success(base);
       },
       (failure: unknown) => toast.error(trashErrorMessage(failure, t, "documents.trash.restore_failed")),
-    );
+    ).finally(() => trackRestoring(doc.id, false));
   };
 
   return {
     onRestore,
     onPurge: (doc) => setPurging(doc),
+    isRestoring: (documentId) => restoring.has(documentId),
     dialog: purging ? (
       <DocumentPurgeDialog
         open

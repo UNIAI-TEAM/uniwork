@@ -798,8 +798,8 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     fireEvent.click(await screen.findByRole("tab", { name: t("documents.home.scope.archived") }));
     const row = await rowOf("Kế hoạch Q4");
-    expect(within(row).getByRole("button", { name: t("documents.trash.restore") })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: t("documents.trash.purge") })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) })).toBeNull();
   });
 

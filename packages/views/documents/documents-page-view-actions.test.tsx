@@ -610,8 +610,8 @@ describe("library views", () => {
     renderView();
     fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
     const row = await rowOf("Cũ");
-    expect(within(row).getByRole("button", { name: t("documents.trash.restore") })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: t("documents.trash.purge") })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Cũ" }) })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) })).toBeNull();
   });
 

@@ -17,6 +17,7 @@ import { isFolderRow, rowFormat, rowTitle, rowTypeKey, type DocumentSummaryRow, 
 function purgeDaysLeft(purgeAfter: string | null | undefined, now: Date = new Date()): number | null {
   if (!purgeAfter) return null;
   const then = new Date(purgeAfter);
+  if (Number.isNaN(then.getTime())) return null;
   const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   return Math.round((dayStart(then) - dayStart(now)) / 86_400_000);
 }
@@ -26,6 +27,7 @@ function purgeDaysLeft(purgeAfter: string | null | undefined, now: Date = new Da
 export interface TrashRowActions {
   onRestore: (doc: DocumentSummaryRow) => void;
   onPurge: (doc: DocumentSummaryRow) => void;
+  isRestoring: (documentId: string) => boolean;
 }
 
 /**
@@ -152,6 +154,9 @@ export function TrashRowView({
               variant="outline"
               size="sm"
               className="pointer-coarse:min-h-11"
+              aria-label={t("documents.trash.restore_item", { title })}
+              disabled={trash.isRestoring(doc.id)}
+              aria-busy={trash.isRestoring(doc.id) || undefined}
               onClick={() => trash.onRestore(doc)}
             >
               <ArchiveRestore aria-hidden className="size-3.5" />
@@ -162,7 +167,7 @@ export function TrashRowView({
               variant="ghost"
               size="icon-sm"
               className="text-destructive pointer-coarse:size-11"
-              aria-label={t("documents.trash.purge")}
+              aria-label={t("documents.trash.purge_item", { title })}
               onClick={() => trash.onPurge(doc)}
             >
               <Trash2 aria-hidden />

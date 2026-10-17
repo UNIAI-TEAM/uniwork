@@ -9237,6 +9237,8 @@
       "read_only": "View only · a manager restores",
       "restore": "Restore",
       "purge": "Delete forever",
+      "restore_item": "Restore {{title}}",
+      "purge_item": "Delete {{title}} forever",
       "purge_title": "Delete {{title}} forever?",
       "purge_description": "This item will be permanently deleted and cannot be undone.",
       "purge_folder_description": "This folder will be permanently deleted and cannot be undone. Items inside it that you do not manage stay in the trash.",
