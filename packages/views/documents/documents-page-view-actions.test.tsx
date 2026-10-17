@@ -273,6 +273,7 @@ describe("file from another module", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(toast.error).toHaveBeenCalledTimes(1);
     expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed"));
+    expect(toast.dismiss).not.toHaveBeenCalled();
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 
@@ -334,6 +335,7 @@ describe("file from another module", () => {
       expect(toast.error).toHaveBeenCalledTimes(1);
       expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed"));
       expect(toast.error).not.toHaveBeenCalledWith(t("office.docsFrame.errors.not_found"));
+      expect(toast.dismiss).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
     }

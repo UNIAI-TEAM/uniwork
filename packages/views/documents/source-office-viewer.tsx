@@ -52,7 +52,6 @@ export function useSourceOfficeViewer({ wsId, organizationId, frameVersion, onDo
   // own words explain why.
   const onSessionFailure = (_failure: ProtocolErrorShape) => {
     setView(null);
-    toast.dismiss?.();
     toast.error(t("documents.home.row.preview_failed"));
   };
 
