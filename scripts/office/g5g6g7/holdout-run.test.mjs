@@ -293,6 +293,42 @@ describe('fixture backend: arguments, write log and number formats', () => {
     assert.equal(status([], 0), 'fail');
   });
 
+  it('R17-1: a config_op item the model reports itself never satisfies the check; only applied arguments do, and a contradicted proof fails (review-g712-17 R17-1)', () => {
+    const structural = [
+      { kind: 'config_op', anchor: 'set_page_setup', value: 'SheetZ|printArea=A1:G7' },
+      { kind: 'config_op', anchor: 'set_freeze', value: 'SheetZ|rows=1,columns=0' },
+    ];
+    const c = synthCase({
+      id: 'HO-TEST-917', format: 'xlsx', category: 'edit',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural, writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural, writes: 1, text: 'Setup done.' },
+    });
+    const ask = (operations, items = []) => ({
+      reply: `Setup done.\n${ANSWER_MARKER} ${JSON.stringify({ numbers: [], items, refused: false, not_found: false, caveats: [] })}`,
+      calls: [{ name: 'propose_operations' }], writes: 1,
+      writeLog: [{ name: 'propose_operations', applied: true, args: { operations } }],
+      dropped: [], modules: ['sheets'], sheetNames: ['SheetZ'], sourceText: '',
+    });
+    // The report claims both operations while the applied write is an unrelated cell write: no argument proves the claim.
+    const bypass = deriveAnswer(c, ask([{ sheetId: 'SheetZ', address: 'B2', value: 'brand new words' }], structural));
+    assert.equal(score(c, bypass.answer).status, 'fail', 'a self-reported config_op never satisfies the structural check');
+    assert.equal(bypass.adapter.writeBacked, 0, 'no applied operation proves the configuration');
+    // Applied arguments still prove the configuration, whether or not the report repeats them.
+    const applied = deriveAnswer(c, ask([{ op: 'set_page_setup', sheetId: 'SheetZ', printArea: 'A1:G7' }, { op: 'set_freeze', sheetId: 'SheetZ', rows: 1, columns: 0 }]));
+    assert.equal(score(c, applied.answer).status, 'pass', 'applied arguments still prove the configuration');
+    const repeated = deriveAnswer(c, ask([{ op: 'set_page_setup', sheetId: 'SheetZ', printArea: 'A1:G7' }, { op: 'set_freeze', sheetId: 'SheetZ', rows: 1, columns: 0 }], structural));
+    assert.equal(score(c, repeated.answer).status, 'pass', 'a report that repeats the applied operations is still proven by them');
+    // Two applied operations of one type on one sheet with different settings prove nothing.
+    const contradicted = deriveAnswer(c, ask([
+      { op: 'set_page_setup', sheetId: 'SheetZ', printArea: 'A1:G7' },
+      { op: 'set_page_setup', sheetId: 'SheetZ', printArea: 'A1:H9' },
+      { op: 'set_freeze', sheetId: 'SheetZ', rows: 1, columns: 0 },
+    ]));
+    assert.equal(score(c, contradicted.answer).status, 'fail', 'a contradicted proof is no proof');
+  });
+
   it('reads the number format of a cell from the workbook, as the #numberFormat probe of the cases needs (G712-13)', () => {
     const probe = cases.find((c) => c.expected.structural.some((i) => i.anchor.includes('#numberFormat')));
     assert.ok(probe, 'the set has a #numberFormat case');
