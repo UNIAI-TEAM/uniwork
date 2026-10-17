@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1645c-el1a-desktop; git log --oneline -3
+76beb39fcb33cf3539eb844fa059e5e5be95973c
+76beb39fcb33cf3539eb844fa059e5e5be95973c
+76beb39f fix(shell): resolve EL-1(a) reviewer findings (UNI-1645 c, EL1A-FE-1..7, EL1A-BE-1/2/4)
+6d1fc63f test(shell): add EL-1(a) fix1 red tests (UNI-1645 c, reviewer_fe r1 + reviewer_be r1)
+9cc8c816 fix(shell): map HTTP 423 document_locked to edit_locked state
