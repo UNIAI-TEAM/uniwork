@@ -1,15 +1,16 @@
 // G7-08 (UNI-1385) W2 web frame driver per format family and provider ('uniwork' | 'byok').
-// Reuses harness/web.mjs, g7-04/cross-host.mjs (listVersions), g7-10/tracer.mjs, and docx-roundtrip.mjs.
+// Reuses harness/web.mjs, g7-04/cross-host.mjs (listVersions, strict), g7-10/tracer.mjs, docx-roundtrip.mjs;
+// the Save/undo/old-version tail of the edit rows is web-edit-flow.mjs, its pure decisions save-observe.mjs.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fmtVi, q1Shares } from '../fixtures-lib/data.mjs';
 import { listVersions } from '../g7-04/cross-host.mjs';
-import { callTracerApi, cleanupSeededOrganization, seedFixtureDocument } from '../g7-10/tracer.mjs';
+import { cleanupSeededOrganization, seedFixtureDocument } from '../g7-10/tracer.mjs';
 import { loadPlaywrightChromium, parseEnvFile, sleep } from '../harness/app-steps.mjs';
-import { loadVerifiedFixture, sha256Hex } from '../harness/fixture-files.mjs';
+import { loadVerifiedFixture } from '../harness/fixture-files.mjs';
 import { harnessPaths, readStartStatus, startGate } from '../harness/lib.mjs';
-import { documentUrl, webFrameSelectors, webLogin, webSave } from '../harness/web.mjs';
+import { documentUrl, webFrameSelectors, webLogin } from '../harness/web.mjs';
 import { startStubFacade } from '../holdout-stub-facade.helper.mjs';
 import { computeTruth } from '../holdout-xlsx-truth.mjs';
 import { docxRoundTripHook, runDocxRoundTrip } from './docx-roundtrip.mjs';
@@ -22,6 +23,10 @@ import {
   parseDocxStructure, parsePptxStructure, parseXlsxWorkbookBytes,
 } from './oracles.mjs';
 import { DEFAULT_REPO_ROOT, getRowById } from './rows.mjs';
+import {
+  extractWireUsage, isSaveIntentPath, parseCommitBaseRevision, readFrameHead, readVersionCount,
+} from './save-observe.mjs';
+import { readEditorText, runEditStage } from './web-edit-flow.mjs';
 import {
   FRAME_SELECTOR_OWNER, HARNESS_PRECONDITION_OWNER, MODULE_AI_SELECTORS,
   bindDryRunStubRoutes, ensureServerPreconditions, evaluatePreconditions,
@@ -79,18 +84,6 @@ export function extractWireToolCalls(requests = [], responses = []) {
     }
   }
   return { offeredTools: [...offeredSet], executedTools: [...executedSet] };
-}
-
-export function extractWireUsage(responses = []) {
-  let modelCalls = 0;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  for (const res of responses) {
-    modelCalls += 1;
-    inputTokens += Number(res?.usage?.prompt_tokens ?? res?.usage?.input_tokens ?? 0) || 0;
-    outputTokens += Number(res?.usage?.completion_tokens ?? res?.usage?.output_tokens ?? 0) || 0;
-  }
-  return { modelCalls, inputTokens, outputTokens };
 }
 
 export function buildVersionAndSaveObserved(raw) {
@@ -228,15 +221,6 @@ export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
   };
 }
 
-async function readFrameHead({ apiOrigin, fetchImpl = fetch, documentId, token }) {
-  const tokenRes = await callTracerApi({ apiOrigin, fetchImpl, name: 'mintOfficeFrameToken', params: { documentID: documentId }, token });
-  const frameToken = tokenRes.data?.token;
-  if (!frameToken) throw new Error('mintOfficeFrameToken returned no token');
-  const openRes = await callTracerApi({ apiOrigin, fetchImpl, name: 'openOfficeFrameDocument', params: { documentID: documentId }, token: frameToken });
-  const contentRes = await callTracerApi({ apiOrigin, fetchImpl, name: 'getOfficeFrameDocumentContent', params: { documentID: documentId }, token: frameToken, expectBinary: true });
-  return { versionId: openRes.data?.file?.version_id ?? null, version: openRes.data?.file?.version ?? null, revision: openRes.data?.revision ?? null, bytes: new Uint8Array(contentRes.bytes), sha256: sha256Hex(contentRes.bytes) };
-}
-
 export async function runWebMatrixRow(runEntry, {
   runDir, repoRoot = DEFAULT_REPO_ROOT, dryRun = false, fetchImpl = fetch,
   env = process.env, timeoutMs = 45_000, observedOverride = null,
@@ -269,7 +253,10 @@ export async function runWebMatrixRow(runEntry, {
   try {
     seeded = await seedFixtureDocument({ apiOrigin, runDir, fetchImpl, fixtureId: row.fixtureId, repoRoot });
     const { documentId, token, organizationSlug, workspaceSlug, email, password, userId } = seeded;
-    const versionsBefore = await listVersions({ apiOrigin, fetchImpl, documentId, token });
+    // R2-6: a 200 without a versions array is BLOCKED, never a count of 0.
+    const countBefore = await readVersionCount(listVersions, { apiOrigin, fetchImpl, documentId, token });
+    if (!countBefore.ok) return { ...blockedVerdict(countBefore.reason, { detail: countBefore.detail, step: 'before_ai_turn' }), documentId };
+    const versionsBefore = countBefore.count;
     const headBefore = await readFrameHead({ apiOrigin, fetchImpl, documentId, token });
     if (dryRun) stub = await startStubFacade({ model: buildDryRunStubModel(row, fixture.bytes) });
 
@@ -288,19 +275,18 @@ export async function runWebMatrixRow(runEntry, {
 
     let inAiTurn = false;
     let saveIntentsDuringAiTurn = 0;
-    let lastCommitBaseRevision = null;
+    const commitBases = [];
     const wireRequests = [];
     const wireResponses = [];
 
+    // R2-2: every save-intent POST (host upload, frame commit, legacy version create) during the turn counts.
     web.page.on('request', (req) => {
       if (req.method() !== 'POST') return;
       const p = new URL(req.url()).pathname;
-      if (/\/versions\/(uploads|commit)$/.test(p) || /\/documents\/[^/]+\/versions$/.test(p)) {
-        if (inAiTurn) saveIntentsDuringAiTurn += 1;
-        if (p.endsWith('/versions/commit')) {
-          try { lastCommitBaseRevision = JSON.parse(req.postData() || '{}').base_revision ?? null; } catch { /* ignore */ }
-        }
-      }
+      if (!isSaveIntentPath(p)) return;
+      if (inAiTurn) saveIntentsDuringAiTurn += 1;
+      // R2-3: the base the frame's own commit named after the turn; a parse miss stays absent (null).
+      else if (p.endsWith('/versions/commit')) commitBases.push(parseCommitBaseRevision(req.postData()));
     });
 
     if (dryRun && stub) {
@@ -354,6 +340,7 @@ export async function runWebMatrixRow(runEntry, {
     const sendBtn = await frame.$(FRAME_AI_SELECTORS.sendBtn);
     if (!sendBtn) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.sendBtn, { rowId: row.id }), preconditions, screenshotPath };
 
+    const textBeforeTurn = await readEditorText(frame);
     inAiTurn = true;
     await composer.fill(row.prompt);
     await sleep(150);
@@ -369,11 +356,17 @@ export async function runWebMatrixRow(runEntry, {
     }
     inAiTurn = false;
 
+    const usage = extractWireUsage(wireResponses);
+    // R2-7: a model call without usage is an unknown, not 0 tokens - the row stops here and the run stops after it.
+    if (usage.missingUsageCalls > 0) {
+      return { ...blockedVerdict('missing_usage_on_model_call', { missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls }), documentId, usage, preconditions, screenshotPath };
+    }
+
     const replyText = await frame.$$eval(
       `${FRAME_AI_SELECTORS.assistantAnswer}, ${FRAME_AI_SELECTORS.assistantMsg}`,
       (els) => els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).pop() ?? '',
     ).catch(() => '');
-    if (!replyText) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.assistantAnswer, { rowId: row.id }), preconditions, screenshotPath };
+    if (!replyText) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.assistantAnswer, { rowId: row.id }), usage, preconditions, screenshotPath };
 
     const stepTitles = await frame.$$eval(FRAME_AI_SELECTORS.stepTitle, (els) => els.map((el) => el.getAttribute('data-tip') || (el.textContent ?? '').trim()).filter(Boolean)).catch(() => []);
     const panelFootprintText = await frame.$$eval(FRAME_AI_SELECTORS.footprint, (els) => els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).join(' | ')).catch(() => '');
@@ -381,11 +374,12 @@ export async function runWebMatrixRow(runEntry, {
       els.map((el) => ({ capability: el.getAttribute('data-capability') || el.getAttribute('data-tool') || '', present: true, disabled: el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true' })),
     ).catch(() => []);
 
-    const versionsAfterAiTurn = await listVersions({ apiOrigin, fetchImpl, documentId, token });
+    const countAfterAi = await readVersionCount(listVersions, { apiOrigin, fetchImpl, documentId, token });
+    if (!countAfterAi.ok) return { ...blockedVerdict(countAfterAi.reason, { detail: countAfterAi.detail, step: 'after_ai_turn' }), documentId, usage, preconditions, screenshotPath };
+    const versionsAfterAiTurn = countAfterAi.count;
     const headAfterAiTurn = await readFrameHead({ apiOrigin, fetchImpl, documentId, token });
     const wire = extractWireToolCalls(wireRequests, wireResponses);
     const executedTools = [...new Set([...wire.executedTools, ...stepTitles])];
-    const usage = extractWireUsage(wireResponses);
 
     const rawObserved = {
       rowId: row.id, operation: row.operation, fixtureBytes: fixture.bytes,
@@ -406,12 +400,8 @@ export async function runWebMatrixRow(runEntry, {
       ];
     }
 
+    let editStage = null;
     if (row.operation === 'edit') {
-      const dirtyBeforeSave = await web.page.$eval(sel.host, (el) => el.hasAttribute('data-dirty')).catch(() => false);
-      const undoBtn = await frame.$(FRAME_AI_SELECTORS.undoBtn);
-      rawObserved.aiChangeVisibleBeforeSave = Boolean(dirtyBeforeSave || undoBtn || executedTools.length > 0);
-      rawObserved.aiChangeUndoableBeforeSave = Boolean(undoBtn || dirtyBeforeSave);
-
       if (row.format === 'html') {
         const preview = await frame.$eval(FRAME_AI_SELECTORS.htmlPreviewFrame, (el) => ({
           sandbox: el.getAttribute('sandbox') ?? '',
@@ -421,35 +411,40 @@ export async function runWebMatrixRow(runEntry, {
         rawObserved.frameCsp = preview?.csp;
       }
 
-      const saveKind = ['docs', 'sheets', 'slides', 'pdf'].includes(row.module) ? row.module : 'docs';
-      const saved = await webSave(web.page, { kind: saveKind, timeoutMs });
-      if (saved.status !== 'saved') return { ...failVerdict('web_save_failed_after_ai_edit', { saved }), documentId, preconditions, screenshotPath };
-
-      const versionsAfterSave = await listVersions({ apiOrigin, fetchImpl, documentId, token });
-      const headAfterSave = await readFrameHead({ apiOrigin, fetchImpl, documentId, token });
-      rawObserved.versionsAfterSave = versionsAfterSave;
-      rawObserved.revisionAfterSave = headAfterSave.revision;
-      rawObserved.saveUsedCurrentBaseRevision = String(lastCommitBaseRevision ?? headAfterAiTurn.revision) === String(headAfterAiTurn.revision);
-      rawObserved.doubleClickVersionsCreated = versionsAfterSave - versionsAfterAiTurn;
-      rawObserved.afterBytes = headAfterSave.bytes;
-      rawObserved.afterSha256 = headAfterSave.sha256;
+      editStage = await runEditStage({
+        row, page: web.page, frame, sel, undoSelector: FRAME_AI_SELECTORS.undoBtn, apiOrigin, fetchImpl, documentId, token,
+        timeoutMs, textBeforeTurn, headAfterAiTurn, versionsAfterAiTurn, commitBases,
+      });
+      if (editStage.stop?.missingSelector) {
+        return { ...missingSelectorVerdict(editStage.stop.missingSelector, { rowId: row.id }), documentId, usage, preconditions, screenshotPath };
+      }
+      if (editStage.stop) return { ...editStage.stop, documentId, usage, preconditions, screenshotPath };
+      Object.assign(rawObserved, editStage.observed);
       if (row.format === 'docx') {
-        rawObserved.roundTrip = await runDocxRoundTrip(headAfterSave.bytes);
+        rawObserved.roundTrip = await runDocxRoundTrip(rawObserved.afterBytes);
         if (runDir) {
           const artDir = join(runDir, 'g7-08', 'artifacts');
           mkdirSync(artDir, { recursive: true });
           rawObserved.oldDocxPath = join(artDir, `${row.id}-${provider}-web-old.docx`);
           rawObserved.newDocxPath = join(artDir, `${row.id}-${provider}-web-new.docx`);
           rawObserved.partsDiffPath = join(artDir, `${row.id}-${provider}-web-parts.diff`);
-          writeFileSync(rawObserved.oldDocxPath, Buffer.from(headAfterAiTurn.bytes));
-          writeFileSync(rawObserved.newDocxPath, Buffer.from(headAfterSave.bytes));
-          writeFileSync(rawObserved.partsDiffPath, diffDocxNonDocumentParts(headAfterAiTurn.bytes, headAfterSave.bytes), 'utf8');
+          writeFileSync(rawObserved.oldDocxPath, Buffer.from(editStage.oldBytes));
+          writeFileSync(rawObserved.newDocxPath, Buffer.from(rawObserved.afterBytes));
+          writeFileSync(rawObserved.partsDiffPath, diffDocxNonDocumentParts(editStage.oldBytes, rawObserved.afterBytes), 'utf8');
         }
       }
     }
 
     const verdict = evaluateRowObserved(row, rawObserved);
-    const details = row.operation === 'edit' ? { ...verdict.details, explicitSave: true, versionsBefore, versionsAfterAiTurn, versionsAfterSave: rawObserved.versionsAfterSave, versionDelta: (rawObserved.versionsAfterSave ?? 0) - versionsAfterAiTurn, downloadedBytes: rawObserved.afterBytes?.length ?? 0, afterSha256: rawObserved.afterSha256 ?? null, oldVersionSha256: headAfterAiTurn.sha256, roundTrip: rawObserved.roundTrip ?? null, ...(rawObserved.oldDocxPath ? { oldDocxPath: rawObserved.oldDocxPath, newDocxPath: rawObserved.newDocxPath, partsDiffPath: rawObserved.partsDiffPath } : {}) } : verdict.details;
+    const details = row.operation === 'edit' ? {
+      ...verdict.details, explicitSave: true, versionsBefore, versionsAfterAiTurn,
+      versionsAfterSave: rawObserved.versionsAfterSave, versionDelta: (rawObserved.versionsAfterSave ?? 0) - versionsAfterAiTurn,
+      doubleClickVersionsCreated: rawObserved.doubleClickVersionsCreated,
+      downloadedBytes: rawObserved.afterBytes?.length ?? 0, afterSha256: rawObserved.afterSha256 ?? null,
+      oldVersionSha256: rawObserved.oldVersionSha256, ...editStage.details,
+      roundTrip: rawObserved.roundTrip ?? null,
+      ...(rawObserved.oldDocxPath ? { oldDocxPath: rawObserved.oldDocxPath, newDocxPath: rawObserved.newDocxPath, partsDiffPath: rawObserved.partsDiffPath } : {}),
+    } : verdict.details;
     return { ...verdict, details, documentId, usage, preconditions, screenshotPath };
   } finally {
     if (web?.close) await web.close().catch(() => {});

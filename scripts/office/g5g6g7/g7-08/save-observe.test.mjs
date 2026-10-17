@@ -13,7 +13,9 @@ import {
   buildUndoRedoObserved,
   extractWireUsage,
   isSaveIntentPath,
+  observeOldVersionAfterSave,
   parseCommitBaseRevision,
+  readVersionBytes,
   readVersionCount,
 } from './save-observe.mjs';
 
@@ -90,6 +92,30 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     const blocked = await readVersionCount(listVersions, { ...args, fetchImpl: fetchWith({}) });
     assert.equal(blocked.ok, false);
     assert.equal(blocked.reason, 'missing_version_list');
+  });
+
+  it('R2-4: the old version is read again by number; no number or a failed GET is BLOCKED', async () => {
+    const seen = [];
+    const ok = await observeOldVersionAfterSave({ readBytes: async (v) => (seen.push(v), { bytes: new Uint8Array([1]), sha256: 'abc' }), version: 3 });
+    assert.deepEqual({ ok: ok.ok, sha256: ok.sha256, version: ok.version }, { ok: true, sha256: 'abc', version: 3 });
+    assert.deepEqual(seen, [3]);
+    for (const version of [null, undefined, '3']) {
+      const noNumber = await observeOldVersionAfterSave({ readBytes: async () => assert.fail('no GET without a number'), version });
+      assert.equal(noNumber.reason, 'missing_old_version_bytes_after_save');
+    }
+    const failed = await observeOldVersionAfterSave({ readBytes: async () => { throw new Error('HTTP 404'); }, version: 1 });
+    assert.equal(failed.ok, false);
+    assert.equal(failed.reason, 'missing_old_version_bytes_after_save');
+    assert.match(failed.detail, /404/);
+  });
+
+  it('R2-4: readVersionBytes asks the owner download route for that version and hashes the bytes', async () => {
+    const urls = [];
+    const fetchImpl = async (url) => { urls.push(String(url)); return new Response(new Uint8Array([7, 8, 9]), { status: 200 }); };
+    const out = await readVersionBytes({ apiOrigin: 'http://api.test', fetchImpl, documentId: 'D1', token: 't', version: 2 });
+    assert.deepEqual(urls, ['http://api.test/api/v1/documents/D1/download?version=2']);
+    assert.deepEqual([...out.bytes], [7, 8, 9]);
+    assert.match(out.sha256, /^[0-9a-f]{64}$/);
   });
 
   it('R2-5: undo/redo observation never infers visibility from executed tools', () => {

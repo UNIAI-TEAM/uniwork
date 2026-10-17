@@ -103,7 +103,8 @@ test('oracleVersionAndSave (G6-A03 + G6-A04) PASSes faithful read/edit and FAILs
     aiChangeVisibleBeforeSave: true,
     aiChangeUndoableBeforeSave: true,
     saveUsedCurrentBaseRevision: true,
-    doubleClickVersionsCreated: 1,
+    // w2e2 (G708-R2-1): versions the SECOND Save added; a double Save stays a single version.
+    doubleClickVersionsCreated: 0,
   };
   assert.equal(oracleVersionAndSave(validEdit).status, VERDICT.PASS);
 
@@ -131,6 +132,7 @@ test('oracleVersionAndSave (G6-A03 + G6-A04) PASSes faithful read/edit and FAILs
   assert.equal(oracleVersionAndSave({ ...validEdit, aiChangeVisibleBeforeSave: false }).reason, 'ai_change_not_visible_before_save');
   assert.equal(oracleVersionAndSave({ ...validEdit, aiChangeUndoableBeforeSave: false }).reason, 'ai_change_not_undoable_before_save');
   assert.equal(oracleVersionAndSave({ ...validEdit, saveUsedCurrentBaseRevision: false }).reason, 'save_did_not_use_current_base_revision');
+  assert.equal(oracleVersionAndSave({ ...validEdit, doubleClickVersionsCreated: 1 }).reason, 'double_click_save_created_duplicate_version');
   assert.equal(oracleVersionAndSave({ ...validEdit, doubleClickVersionsCreated: 2 }).reason, 'double_click_save_created_duplicate_version');
 });
 

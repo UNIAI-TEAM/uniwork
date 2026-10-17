@@ -108,7 +108,8 @@ export function oracleVersionAndSave(observed) {
     if (!observed.aiChangeVisibleBeforeSave) return failVerdict('ai_change_not_visible_before_save');
     if (!observed.aiChangeUndoableBeforeSave) return failVerdict('ai_change_not_undoable_before_save');
     if (!observed.saveUsedCurrentBaseRevision) return failVerdict('save_did_not_use_current_base_revision');
-    if (observed.doubleClickVersionsCreated !== 1) {
+    // The second Save of one gesture adds no version (versionsAfterSecondSave - versionsAfterFirstSave).
+    if (observed.doubleClickVersionsCreated !== 0) {
       return failVerdict('double_click_save_created_duplicate_version', {
         doubleClickVersionsCreated: observed.doubleClickVersionsCreated,
       });

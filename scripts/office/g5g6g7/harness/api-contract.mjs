@@ -47,6 +47,13 @@ export const TRACER_CALLS = {
     sdi: "CompleteOnboardingSDI",
     body: ["completion_path", "workspace_id"],
   },
+  // G7-08 w2e2 (G708-R2-4): the bytes of one file version of the user's own document
+  // (handler DownloadDocument; ?version=N, DownloadDocumentSDI).
+  downloadDocument: {
+    method: "GET",
+    path: "/documents/{documentID}/download",
+    params: { documentID: "id" },
+  },
   getDesktopConsent: {
     method: "GET",
     path: "/auth/desktop/authorize",

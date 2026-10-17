@@ -162,19 +162,13 @@ export function buildEditSaveObservation({
 }
 
 /** The frame's head (revision, current version) plus the bytes the content route serves. */
-export async function readFrameHead({ apiOrigin, fetchImpl = fetch, documentId, token, version = null }) {
+export async function readFrameHead({ apiOrigin, fetchImpl = fetch, documentId, token }) {
   const tokenRes = await callTracerApi({ apiOrigin, fetchImpl, name: 'mintOfficeFrameToken', params: { documentID: documentId }, token });
   const frameToken = tokenRes.data?.token;
   if (!frameToken) throw new Error('mintOfficeFrameToken returned no token');
   const openRes = await callTracerApi({ apiOrigin, fetchImpl, name: 'openOfficeFrameDocument', params: { documentID: documentId }, token: frameToken });
   const contentRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: 'getOfficeFrameDocumentContent',
-    params: { documentID: documentId },
-    query: version === null || version === undefined ? {} : { version },
-    token: frameToken,
-    expectBinary: true,
+    apiOrigin, fetchImpl, name: 'getOfficeFrameDocumentContent', params: { documentID: documentId }, token: frameToken, expectBinary: true,
   });
   return {
     versionId: openRes.data?.file?.version_id ?? null,
@@ -182,6 +176,34 @@ export async function readFrameHead({ apiOrigin, fetchImpl = fetch, documentId, 
     revision: openRes.data?.revision ?? null,
     bytes: new Uint8Array(contentRes.bytes),
     sha256: sha256Hex(contentRes.bytes),
-    requestedVersion: version ?? null,
   };
+}
+
+/**
+ * R2-4: the bytes of one earlier file version, as the document owner downloads it
+ * (`GET /api/v1/documents/{id}/download?version=N`, router/documents.go:224). The
+ * frame's content route only serves the live version, so this is the one place
+ * the old version is read again after a Save.
+ */
+export async function readVersionBytes({ apiOrigin, fetchImpl = fetch, documentId, token, version }) {
+  const res = await callTracerApi({
+    apiOrigin, fetchImpl, name: 'downloadDocument', params: { documentID: documentId }, query: { version }, token, expectBinary: true,
+  });
+  return { bytes: new Uint8Array(res.bytes), sha256: sha256Hex(res.bytes) };
+}
+
+/**
+ * R2-4: re-read the previous version after the Save. A missing version number or a
+ * failed GET is BLOCKED `missing_old_version_bytes_after_save`; the caller never
+ * falls back to the pre-save head's hash as the "old version" evidence.
+ */
+export async function observeOldVersionAfterSave({ readBytes, version }) {
+  const blocked = (detail) => ({ ok: false, reason: 'missing_old_version_bytes_after_save', detail });
+  if (!Number.isInteger(version)) return blocked('the pre-save head carries no version number to read again');
+  try {
+    const { bytes, sha256 } = await readBytes(version);
+    return { ok: true, bytes, sha256, version };
+  } catch (err) {
+    return blocked(err instanceof Error ? err.message : String(err));
+  }
 }
