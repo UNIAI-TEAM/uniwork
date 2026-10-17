@@ -1,0 +1,239 @@
+name: UniChat desktop release
+
+# Builds the UniChat desktop installers (apps/chat-desktop) from a tag and
+# publishes them on GitHub Releases (UNI-1835). Runbook:
+# docs/runbooks/unichat-desktop-release.md.
+#
+#   chat-desktop-v<major.minor.patch>[-dev.<n> | -beta.<n>]
+#     meta      tag -> version and channel (dev, beta, stable); the tagged commit
+#               must be on main or develop, because the build jobs get the
+#               signing secrets
+#     package   macOS arm64 + x64 (dmg, zip), Windows x64 (NSIS), Linux x64
+#               (AppImage, deb) in the chat-desktop-release environment
+#     assemble  read-only: installer-urls.env (UNICHAT_INSTALLER_<CHANNEL>_URLS
+#               for the server), the update files pointed at this release, SHA256SUMS
+#     publish   the only job with a write token, and it checks out nothing: the
+#               release (pre-release unless stable, never marked latest), then the
+#               update files copied onto the rolling chat-desktop-feed release that
+#               installed apps read (apps/chat-desktop/electron-builder.ts)
+#
+# Signing turns on by itself once the chat-desktop-release environment holds
+# the secrets (names only): CSC_LINK, CSC_KEY_PASSWORD sign the mac app and
+# APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID notarize it;
+# WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD sign the Windows installer. A platform
+# without its certificate ships files labelled `unsigned`. Restrict the
+# environment to chat-desktop-v* tags before adding secrets.
+
+on:
+  push:
+    tags: ["chat-desktop-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  # One release at a time, so the feed only moves in the order tags were pushed.
+  group: chat-desktop-release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  # electron-builder downloads the Electron it packages; the host binary is unused.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      channel: ${{ steps.meta.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - id: meta
+        name: Version and channel from the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          node apps/chat-desktop/scripts/release.mjs meta "$TAG" | tee -a "$GITHUB_OUTPUT"
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main && ! git merge-base --is-ancestor "$GITHUB_SHA" origin/develop; then
+            echo "::error::$TAG points at $GITHUB_SHA, which is on neither main nor develop"
+            exit 1
+          fi
+
+  package:
+    needs: meta
+    strategy:
+      matrix:
+        include:
+          - { os: macos-14, platform: mac }
+          - { os: windows-latest, platform: win }
+          - { os: ubuntu-latest, platform: linux }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    environment: chat-desktop-release
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      UNICHAT_ENV: prod
+      UNICHAT_APP_URL: ${{ vars.UNICHAT_APP_URL || 'https://uniworkos.com' }}
+      UNICHAT_API_URL: ${{ vars.UNICHAT_API_URL || 'https://uniworkos.com' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and package
+        shell: bash
+        env:
+          # Each runner gets its own platform's secrets only: electron-builder
+          # would sign a Windows build with CSC_LINK when WIN_CSC_LINK is unset.
+          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
+          WIN_CSC_LINK: ${{ matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          # An absent secret arrives as "", which electron-builder reads as a
+          # certificate path; unset means unsigned (electron-builder.ts).
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID WIN_CSC_LINK WIN_CSC_KEY_PASSWORD; do
+            [ -n "${!name}" ] || unset "$name"
+          done
+          # Same step as the package: electron.vite.config.ts reads CSC_LINK too.
+          pnpm --filter @uniwork/chat-desktop build
+          pnpm --filter @uniwork/chat-desktop package --${{ matrix.platform }} "-c.extraMetadata.version=$VERSION"
+      - name: Collect the installers and update files
+        shell: bash
+        working-directory: apps/chat-desktop/dist/package
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # Installers, mac zips, blockmaps (differential updates) and the update
+          # file <channel>[-mac|-linux].yml; not builder-debug.yml.
+          files=(unichat_"$VERSION"_* latest*.yml beta*.yml dev*.yml)
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp -- "${files[@]}" "$GITHUB_WORKSPACE/out/"
+          ls -l "$GITHUB_WORKSPACE/out"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unichat-${{ matrix.platform }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    needs: [meta, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TAG: ${{ github.ref_name }}
+      CHANNEL: ${{ needs.meta.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: unichat-*
+          path: release
+          merge-multiple: true
+      - name: URL map, update files, checksums
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/$REPOSITORY/releases/download/$TAG"
+          feed="$CHANNEL"
+          [ "$CHANNEL" != stable ] || feed=latest
+          ymls=("release/$feed.yml" "release/$feed-mac.yml" "release/$feed-linux.yml")
+          for yml in "${ymls[@]}"; do
+            [ -f "$yml" ] || { echo "::error::no update file $yml"; ls -l release; exit 1; }
+          done
+          # A file the helper refuses stops the release before anything is published.
+          urls="$(node scripts/office/installer-urls.mjs --prefix unichat --channel "$CHANNEL" --base-url "$base" --dir release)"
+          count="$(node -p 'Object.keys(JSON.parse(process.argv[1])).length' "$urls")"
+          [ "$count" = 5 ] || { echo "::error::expected 5 installers, got $count: $urls"; exit 1; }
+          name="UNICHAT_INSTALLER_$(tr '[:lower:]' '[:upper:]' <<<"$CHANNEL")_URLS"
+          echo "$name=$urls" > release/installer-urls.env
+          node apps/chat-desktop/scripts/release.mjs feed "$base" "${ymls[@]}"
+          (cd release && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
+          {
+            echo "### UniChat $TAG ($CHANNEL)"
+            echo
+            echo "Set on the UniWork server (runbook docs/runbooks/unichat-desktop-release.md):"
+            echo
+            echo '```'
+            cat release/installer-urls.env
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [meta, assemble]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # create the releases and upload their assets
+    env:
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      CHANNEL: ${{ needs.meta.outputs.channel }}
+      FEED_TAG: chat-desktop-feed
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - name: Create the release
+        run: |
+          set -euo pipefail
+          prerelease=(--prerelease)
+          [ "$CHANNEL" != stable ] || prerelease=()
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # The body is the install note people read before the first launch.
+            gh release create "$TAG" --verify-tag "${prerelease[@]}" --latest=false \
+              --title "UniChat $VERSION ($CHANNEL)" --notes-file - <<'NOTES'
+          Bản cài UniChat cho macOS (Apple Silicon, Intel), Windows x64 và Linux x64 (deb, AppImage). Kiểm tệp bằng `SHA256SUMS`.
+
+          Tệp có nhãn `unsigned` chưa được ký số:
+          - Windows: SmartScreen > More info > Run anyway.
+          - macOS: nếu báo "is damaged", chạy `xattr -d com.apple.quarantine ~/Downloads/<tệp>.dmg` rồi mở lại; nếu báo không xác minh được, System Settings > Privacy & Security > Open Anyway.
+          - Linux: `sudo apt install ./<tệp>.deb`, hoặc `chmod +x` tệp AppImage rồi chạy.
+
+          Windows và Linux tự cập nhật; bản macOS chưa ký báo khi có bản mới và mở trang tải.
+          NOTES
+          fi
+          gh release upload "$TAG" release/* --clobber
+      - name: Point the update feed at this release
+        run: |
+          set -euo pipefail
+          if ! gh release view "$FEED_TAG" >/dev/null 2>&1; then
+            gh release create "$FEED_TAG" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "UniChat update feed" \
+              --notes "Update files the installed UniChat apps read. Do not delete; rollback: docs/runbooks/unichat-desktop-release.md."
+          fi
+          gh release upload "$FEED_TAG" release/*.yml --clobber
