@@ -7,6 +7,7 @@ import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwo
 import { initI18n } from "@uniwork/core/i18n";
 import enLocale from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
+import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
@@ -17,7 +18,7 @@ import { DocumentsPageView } from "./documents-page-view";
 // go-to-source on a file from another module, starring, the Recent / Shared /
 // Starred / Archived / Elsewhere views, and the navigation sheet below `xl`.
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 const downloadBlob = vi.hoisted(() => vi.fn());
@@ -154,6 +155,7 @@ beforeEach(() => {
   downloadBlob.mockReset();
   toast.success.mockReset();
   toast.error.mockReset();
+  toast.dismiss.mockReset();
   resetAuthStoreForTests();
   setSessionUser({ ...user, onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {} });
 });
@@ -272,6 +274,69 @@ describe("file from another module", () => {
     expect(toast.error).toHaveBeenCalledTimes(1);
     expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed"));
     expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("closes with one failed toast when the source file content returns 404", async () => {
+    route({
+      sources: () => [source({ id: "chat:d6", name: "Lỗi nội dung.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })],
+      post: (path) =>
+        path.includes("/office/frame-token")
+          ? {
+              token: "ofs1.tok", token_type: "Bearer", expires_at: "2026-10-17T09:10:00Z", expires_in: 600,
+              source_id: "chat:d6", parent_kind: "chat_channel", parent_id: "c1",
+              workspace_id: WS, organization_id: "org1", can_edit: false, module: "docs", readonly: true,
+            }
+          : {},
+    });
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/office-frame/sources/chat%3Ad6")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          source_id: "chat:d6", principal: "source", workspace_id: WS, organization_id: "org1",
+          title: "Lỗi nội dung.docx", revision: "0", can_edit: false, readonly: true, module: "docs",
+          file: { version: 1, filename: "Lỗi nội dung.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 120 },
+          download_url: "/api/v1/office-frame/sources/chat%3Ad6/content",
+        }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
+      if (url.endsWith("/api/v1/office-frame/sources/chat%3Ad6/content")) {
+        return Promise.resolve(new Response(JSON.stringify({ error: { code: "not_found", message: "not found" } }), { status: 404, headers: { "Content-Type": "application/json" } }));
+      }
+      return Promise.resolve(new Response("", { status: 200 }));
+    }));
+    try {
+      renderView(nav(), { officeFrameVersion: () => "9.9.9-test" });
+      const row = await rowOf("Lỗi nội dung.docx");
+      fireEvent.click(sourceNameButton(row));
+      const dialog = await screen.findByRole("dialog", { name: /Lỗi nội dung\.docx/ });
+      const iframe = (await within(dialog).findByTestId("office-docs-frame-iframe")) as HTMLIFrameElement;
+      const win = iframe.contentWindow!;
+      const envelope = (kind: Envelope["kind"], type: string, payload: unknown, id: string): Envelope =>
+        ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, payload });
+      const post = (data: unknown) => act(() => {
+        window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin, source: win }));
+      });
+      vi.spyOn(win, "postMessage").mockImplementation((message: unknown) => {
+        const m = message as Envelope;
+        if (m.kind === "request" && m.type === "init") {
+          queueMicrotask(() => {
+            void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id));
+            void post(envelope("request", "api.open", { fileId: "chat:d6" }, "open-1"));
+          });
+        }
+        if (m.kind === "response" && m.id === "open-1" && m.error) {
+          queueMicrotask(() => {
+            void post(envelope("event", "error", { error: m.error, fatal: true }, "err-1"));
+          });
+        }
+      });
+      await post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, module: "docs" }, "r-1"));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed"));
+      expect(toast.error).not.toHaveBeenCalledWith(t("office.docsFrame.errors.not_found"));
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("downloads instead when no frame build is installed for the module", async () => {

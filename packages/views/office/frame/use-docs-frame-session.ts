@@ -294,7 +294,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
             payload,
             remote,
             context.signal,
-          ),
+          ).catch((error: unknown) => {
+            if (latest.current.isSource) failSession(shapeOf(error));
+            throw error;
+          }),
         "api.save": async (payload, context) => {
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
           const watch = hostSave.current?.life === life ? hostSave.current : null;
