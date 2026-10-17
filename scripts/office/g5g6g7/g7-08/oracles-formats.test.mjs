@@ -3,6 +3,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { fmtVi, q1Shares } from '../fixtures-lib/data.mjs';
 import { buildPdf } from '../fixtures-lib/pdf.mjs';
 import { buildHtml, buildMarkdown } from '../fixtures-lib/text.mjs';
 import { buildXlsx } from '../fixtures-lib/xlsx.mjs';
@@ -184,27 +185,33 @@ test('oracleCapabilityAndToolSurface (G6-A06) enforces absent-not-disabled and b
 });
 
 test('oracleXlsxRead (X-R1, X-R2) and oracleXlsxEdit (X-E1) PASS faithful cases and FAIL/BLOCK every guard', () => {
+  const xlsxTruth = computeTruth(parseXlsxWorkbookBytes(xlsxFixture.bytes));
+  const q1AllVi = fmtVi(xlsxTruth.q1_revenue_all);
+  const q1VisVi = fmtVi(xlsxTruth.q1_revenue_visible);
+  const [bacShare, namShare, trungShare] = q1Shares();
+  const bacVi = fmtVi(bacShare.revenue);
+  const namVi = fmtVi(namShare.revenue);
+  const trungVi = fmtVi(trungShare.revenue);
+
   const validXr1 = {
     rowId: 'X-R1',
     fixtureBytes: xlsxFixture.bytes,
-    replyText:
-      'Tổng doanh thu Q1 (gồm cả dòng 6 ẩn Q1-005) là 22.060.000 đồng (dòng 8 SUM = 22.060.000, dòng 9 SUBTOTAL = 18.660.000). Khu vực Bắc: 9.060.000, Nam: 7.200.000, Trung: 5.800.000.',
+    replyText: `Tổng doanh thu Q1 (gồm cả dòng 6 ẩn Q1-005) là ${q1AllVi} đồng (dòng 8 SUM = ${q1AllVi}, dòng 9 SUBTOTAL = ${q1VisVi}). Khu vực Bắc: ${bacVi}, Nam: ${namVi}, Trung: ${trungVi}.`,
   };
   assert.equal(oracleXlsxRead(validXr1).status, VERDICT.PASS);
   assert.equal(oracleXlsxRead({ fixtureBytes: xlsxFixture.bytes, replyText: '' }).reason, 'missing_xlsx_read_artifact');
   assert.equal(oracleXlsxRead({ ...validXr1, fixtureBytes: Buffer.from('not-xlsx') }).reason, 'xlsx_read_invalid_fixture_bytes');
   assert.equal(oracleXlsxRead({ ...validXr1, replyText: 'Tổng doanh thu Q1 là 99.999.999 đồng.' }).reason, 'xlsx_read_numeric_mismatch');
-  assert.equal(oracleXlsxRead({ ...validXr1, replyText: 'Tổng 22.060.000, Bắc 1.000.000, Nam 7.200.000.' }).reason, 'xlsx_read_region_group_mismatch');
+  assert.equal(oracleXlsxRead({ ...validXr1, replyText: `Tổng ${q1AllVi}, Bắc 1.000.000, Nam ${namVi}.` }).reason, 'xlsx_read_region_group_mismatch');
   assert.equal(
-    oracleXlsxRead({ ...validXr1, replyText: 'Tổng 22.060.000, Bắc 9.060.000, Nam 7.200.000.' }).reason,
+    oracleXlsxRead({ ...validXr1, replyText: `Tổng ${q1AllVi}, Bắc ${bacVi}, Nam ${namVi}.` }).reason,
     'xlsx_read_missing_coverage_or_hidden_total_note',
   );
 
   const validXr2 = {
     rowId: 'X-R2',
     fixtureBytes: xlsxFixture.bytes,
-    replyText:
-      'Cột Z có Q1-003/Q2-003 nhập số 10 thay vì 10% (phần trăm 0,1). Dòng 6 (Q1-005, Q2-005) đang ẩn nên SUBTOTAL dòng 9 là 18.660.000 khác SUM 22.060.000. Các ô lỗi: #DIV/0!, #N/A, #REF!.',
+    replyText: `Cột Z có Q1-003/Q2-003 nhập số 10 thay vì 10% (phần trăm 0,1). Dòng 6 (Q1-005, Q2-005) đang ẩn nên SUBTOTAL dòng 9 là ${q1VisVi} khác SUM ${q1AllVi}. Các ô lỗi: #DIV/0!, #N/A, #REF!.`,
   };
   assert.equal(oracleXlsxRead(validXr2).status, VERDICT.PASS);
   assert.equal(oracleXlsxRead({ ...validXr2, replyText: 'Không giải thích cột giảm giá.' }).reason, 'xlsx_read_missing_z_meaning');

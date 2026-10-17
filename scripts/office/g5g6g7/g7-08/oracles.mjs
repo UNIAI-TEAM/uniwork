@@ -1,6 +1,7 @@
 // G7-08 (UNI-1385) pure deterministic oracles per format and cross-cutting ACs (G6-A03..A06).
 // Pure functions: no filesystem or network I/O; operates on Buffer/Uint8Array bytes and observed objects.
 
+import { fmtVi } from '../fixtures-lib/data.mjs';
 import { containsToken, toNumber } from '../holdout-score.mjs';
 import { normalizeFormula, parseRangeText } from '../holdout-write-proof.mjs';
 import { computeTruth, unzip } from '../holdout-xlsx-truth.mjs';
@@ -162,6 +163,8 @@ export function oracleXlsxRead(observed) {
   const sheets = parseXlsxWorkbookBytes(observed.fixtureBytes);
   if (!sheets) return failVerdict('xlsx_read_invalid_fixture_bytes');
   const truth = computeTruth(sheets);
+  const q1AllVi = fmtVi(truth.q1_revenue_all);
+  const q1VisVi = fmtVi(truth.q1_revenue_visible);
   const rowId = observed.rowId ?? 'X-R1';
   const reply = observed.replyText;
 
@@ -175,8 +178,8 @@ export function oracleXlsxRead(observed) {
     const hasQ1Total =
       expectNumeric('q1_revenue_all', nums.q1_revenue_all) ||
       expectNumeric('q1_revenue_visible', nums.q1_revenue_visible) ||
-      containsToken(reply, '22.060.000') ||
-      containsToken(reply, '22060000');
+      containsToken(reply, q1AllVi) ||
+      containsToken(reply, String(truth.q1_revenue_all));
     if (!hasQ1Total) return failVerdict('xlsx_read_numeric_mismatch', { expectedAll: truth.q1_revenue_all });
     const regionsOk =
       (expectNumeric('region_bac_revenue_all', nums.region_bac_revenue_all) || containsToken(reply, '9.060.000')) &&
@@ -192,7 +195,9 @@ export function oracleXlsxRead(observed) {
   const zMeaningOk = /10%/.test(reply) && /\b10\b/.test(reply) && /phần trăm|percent|0[,.]1/i.test(reply);
   if (!zMeaningOk) return failVerdict('xlsx_read_missing_z_meaning');
   const hiddenAndTotalsOk =
-    /Q1-005|Q2-005|dòng\s*6|hidden/i.test(reply) && /SUBTOTAL|18[.,]660[.,]000/i.test(reply) && /22[.,]060[.,]000/.test(reply);
+    /Q1-005|Q2-005|dòng\s*6|hidden/i.test(reply) &&
+    (/SUBTOTAL/i.test(reply) || containsToken(reply, q1VisVi) || containsToken(reply, String(truth.q1_revenue_visible))) &&
+    (containsToken(reply, q1AllVi) || containsToken(reply, String(truth.q1_revenue_all)));
   if (!hiddenAndTotalsOk) return failVerdict('xlsx_read_missing_hidden_or_total_handling');
   for (const errCode of ['#DIV/0!', '#N/A', '#REF!']) {
     if (!reply.includes(errCode)) return failVerdict('xlsx_read_error_cells_mismatch', { missingError: errCode });
