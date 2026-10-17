@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1847-save-01-desktop; git log --oneline -3
+743cd9b2bdb1c034d5bb05f1f66b0a32fcc5d8c3
+743cd9b2bdb1c034d5bb05f1f66b0a32fcc5d8c3
+743cd9b2 fix(shell): SAVE-01 firstSave adopts a server too_large like the upload path
+ba67c38b test(shell): SAVE-01 r4 pins the size preflight's server 413 and post-read refusals
+97b668cb fix(shell): SAVE-01 firstSave uses the shared upload size preflight
