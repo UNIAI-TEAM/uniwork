@@ -1,0 +1,4 @@
+$ npx eslint --max-warnings 0 $(git diff --name-only origin/feature/UNI-923-office-g5-g6-g7...HEAD -- 'e2e/*.ts') 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "E2E_LINT_EXIT=$rc"
+sh: 1: eslint: not found
+
+E2E_LINT_EXIT=127

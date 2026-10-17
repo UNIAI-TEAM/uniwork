@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+7a87faa608f3a387d6355f4ecd5374470ef298c7
+844aab79fe141fd802094e457f206a793074dad2
+7a87faa60 test(e2e): adapt office web frame specs to document edit lock (UNI-1872)
+7fe992725 chore: merge G5-G7 root beff88384 into SAVECOPY-HOST (UNI-1872)
+beff88384 chore: merge BIGUP-S1 server upload sessions (UNI-1862, 98f36067a) into the G5-G7 root
+98f36067a fix(documents): classify the multipart upload table in the file and export guards (UNI-1862)
+866ad34d0 fix(office): address FE review findings RFSH-1 and RFSH-2 (UNI-1872)
+82602d6dd chore: merge G5-G7 root bf693b001 into SAVECOPY-HOST (UNI-1872)
+
+SYNCED_EXIT=1

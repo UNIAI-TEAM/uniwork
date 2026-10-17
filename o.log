@@ -1,0 +1,18 @@
+$ pnpm --filter @uniwork/core exec vitest run api/endpoints/office.test.ts office/ 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "CORE_OFFICE_VITEST_EXIT=$rc"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+
+
+ Test Files  11 passed (11)
+      Tests  159 passed (159)
+   Start at  15:39:06
+   Duration  2.31s (transform 511ms, setup 1.30s, import 1.01s, tests 199ms, environment 2.88s)
+
+
+CORE_OFFICE_VITEST_EXIT=0
