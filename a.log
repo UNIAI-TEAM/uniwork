@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+21f2dc20c54c3374d138bcf5daae3de8d571155f
+06f65e141cf57af6d6d47de56ac60e8cd68e06e6
+21f2dc20c chore(merge): e6-server ARCHIVE-01 head 452b611ab (root 06f65e141 + shelved edit-lock refusal) into the web lane branch
+bc7ba686a style(documents): keep document-workspace.tsx under max-lines
+3b6bdcac9 fix(documents): a title edit refused as shelved shows the stored title again (F7)
+fc2691f5f fix(documents): Chuyển quyền sở hữu is off on a shelved document's share dialog (F5)
+6b8784499 fix(documents): retry the held save once when the refetch reads the document live (RAR-07)
+760550960 fix(documents): scope tab strip scrolls to every tab at 390px; merge order fix (F8)
+c2894e55b fix(documents): Lưu trữ list is flat, says who still sees it, shows the audience (F1, F3, F4)
+a15adce4f fix(documents): a shelved file row offers Tải xuống (RAR-01)
+4f5f2f60e fix(documents): header Lưu trữ / Bỏ lưu trữ follow canManageTrashed (RAR-04, F6)
+a2135073e fix(documents): the restore toast reads only the answer's shelved_at (RAR-06)
