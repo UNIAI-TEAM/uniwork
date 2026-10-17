@@ -1,4 +1,4 @@
-# Golden flow 2 (scaffold): a chat push opens its room.
+# Golden flow 2: a chat push opens its room.
 #
 # PUSH_DELIVERED=true: the workflow already pushed an APNs payload shaped like
 # the server's Expo push to the simulator (xcrun simctl push, iOS only) with
@@ -6,11 +6,8 @@
 # through the app's notification listener.
 # Otherwise (Android, local runs): open the URL the server puts in the push's
 # data.url, wrapped in the custom scheme; it takes the same parseDeepLink →
-# deepLinkHref route. A real push from staging replaces this on Android once
-# the EAS project and FCM exist.
-#
-# shortcut: asserts the chat tab only; phase 2 asserts the room header once
-# M2a renders ?room=.
+# deepLinkHref route but not the listener. A real push from staging replaces
+# this on Android once the EAS project and FCM exist (UNI-1838).
 appId: com.uniworkos.chat.staging
 name: Push opens the room
 tags:
@@ -33,6 +30,10 @@ env:
       - launchApp
       - runFlow: ../subflows/sign-in.yaml
       - openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_ROOM_ID)}
+# The room the push named, not just the app: its conversation and composer.
 - extendedWaitUntil:
-    visible: "Chat|Trò chuyện"
+    visible:
+      id: conversation-${MAESTRO_ROOM_ID}
     timeout: 30000
+- assertVisible:
+    id: composer-input
