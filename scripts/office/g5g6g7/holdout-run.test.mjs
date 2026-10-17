@@ -2144,6 +2144,51 @@ describe('usage rows and arguments', () => {
     assert.equal(score(invCase, clean.answer).status, 'pass', 'a faithful prose answer passes');
   });
 
+  it('A4: compute credit needs operands a read in this turn returned and the answer shows, not an orientation call or an unrelated item (review-g712-16 A4)', () => {
+    const c = synthCase({
+      id: 'HO-XLSX-910',
+      format: 'xlsx',
+      category: 'compute',
+      tools: { allowed: ['read_sheet_list', 'read_range', 'compute'], required: ['read_range', 'compute'] },
+      expected: {
+        numeric: [{ name: 'synth_total', value: 143, tolerance: 0, rounding: 'none', unit: 'VND' }],
+        structural: [],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: { numeric: { synth_total: 143 }, structural: [], writes: 0, text: 'Total is 143.' },
+    });
+    const report = (numbers, items = []) => `${ANSWER_MARKER} ${JSON.stringify({ numbers, items, refused: false, not_found: false, caveats: [] })}`;
+    // The reviewer's counterexample: an orientation call plus an unrelated heading item, no operand shown or read.
+    // The tool result carries no rows at all, so no operand of the reported figure came from a read.
+    const unrelated = deriveAnswer(c, {
+      reply: `Result 143.\n${report([143], [{ kind: 'heading', anchor: 'heading', value: 'unrelated' }])}`,
+      calls: [{ name: 'get_workbook_context' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: '',
+      toolResultsText: '{"rows":[]}',
+    });
+    assert.ok(!unrelated.answer.tools.used.includes('compute'), 'an orientation call and an unrelated item are not operand evidence');
+    assert.equal(score(c, unrelated.answer).status, 'fail', 'no tool-read operands means the compute requirement fails');
+
+    // The other side: a read that returns the operands and an answer that shows them still earns compute.
+    const shown = deriveAnswer(c, {
+      reply: `Total is 143 from 60 and 83.\n${report([143], [])}`,
+      calls: [{ name: 'read_range' }],
+      writes: 0,
+      writeLog: [],
+      dropped: [],
+      modules: ['sheets'],
+      sourceText: '60\n83',
+      toolResultsText: '{"rows":[{"cells":{"A1":"60","A2":"83"}}]}',
+    });
+    assert.ok(shown.answer.tools.used.includes('compute'), 'a read that returned the shown operands earns compute');
+    assert.equal(score(c, shown.answer).status, 'pass');
+  });
+
   it('Item 5: deriveAnswer reports pick.value for table_cell and an anchor-matching table_cell with a wrong value fails', () => {
     const tblCase = synthCase({
       id: 'HO-DOCX-907',
