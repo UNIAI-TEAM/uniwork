@@ -84,7 +84,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
 	}
 	if c.presence != nil && isChatPushKind(n.Kind) {
-		t, ok, err := c.presence.LastPresenceBeat(ctx, n.UserID)
+		// Same bound as the rate limiter's best-effort Redis call: a stalled
+		// Redis fails open instead of holding the push lane.
+		pctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		t, ok, err := c.presence.LastPresenceBeat(pctx, n.UserID)
+		cancel()
 		if err == nil && ok && c.now().Sub(t) <= pushActiveWindow {
 			if m := c.metrics; m != nil {
 				m.IncPushSuppressed(n.Kind)

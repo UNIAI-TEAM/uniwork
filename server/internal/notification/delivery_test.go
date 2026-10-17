@@ -392,3 +392,47 @@ func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
 		t.Fatalf("skipped row not marked pushed: %+v err=%v", n, err)
 	}
 }
+
+// blockingPresence stands in for a stalled Redis: it answers only when its
+// context is done.
+type blockingPresence struct{}
+
+func (blockingPresence) LastPresenceBeat(ctx context.Context, _ string) (time.Time, bool, error) {
+	<-ctx.Done()
+	return time.Time{}, false, ctx.Err()
+}
+
+// A stalled presence lookup must not hold the two-worker push lane: the
+// call is bounded and the push fails open within that bound.
+func TestChatPushFailsOpenFastWhenPresenceStalls(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	ev := f.lastEvent(t, TopicPush)
+
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	pc.SetPresence(blockingPresence{})
+	ctx, cancel := context.WithTimeout(f.ctx, 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	err = pc.Handle(ctx, ev)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("stalled presence must fail open: %v", err)
+	}
+	if len(spy.sent) != 1 {
+		t.Fatalf("stalled presence must still push, sent=%d", len(spy.sent))
+	}
+	if elapsed >= time.Second {
+		t.Fatalf("Handle took %s with a stalled presence lookup", elapsed)
+	}
+}
