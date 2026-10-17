@@ -103,8 +103,9 @@ describe("NotificationsTab", () => {
     await waitFor(() => expect(requestMock.mock.calls.filter(([, init]) => (init as { method?: string })?.method === "PUT")).toHaveLength(1));
     const put = requestMock.mock.calls.find(([, init]) => (init as { method?: string })?.method === "PUT")!;
     const sent = (put[1] as { body: { preferences: { kind: string; email: boolean }[] } }).body.preferences;
-    // Only the kinds that were off are written, all of them switched on.
-    expect(sent.map((p) => p.kind)).toEqual(["mentioned"]);
+    // Only the kinds that were off are written, all of them switched on; the
+    // omitted trash kind defaults email off (Q-R2), so it joins the write.
+    expect(sent.map((p) => p.kind)).toEqual(["mentioned", "document_trashed_by_other"]);
     expect(sent.every((p) => p.email)).toBe(true);
     expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "true");
   });
@@ -146,6 +147,44 @@ describe("NotificationsTab", () => {
     expect(await push("Truy cập khẩn cấp vào tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Được nhắc đến trong thảo luận")).toHaveAttribute("aria-checked", "true");
     expect(await push("Phản hồi bình luận")).toHaveAttribute("aria-checked", "false");
+  });
+
+  // BE-TN-2: the trash kind carries a translated label, not a raw key, in vi.
+  it("renders the trash kind with its settings label and switch labels", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    const header = await screen.findByRole("rowheader", { name: "Tài liệu của bạn bị chuyển vào thùng rác" });
+    expect(header).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Tài liệu của bạn bị chuyển vào thùng rác · Email" })).toBeInTheDocument();
+  });
+
+  // BE-TN-5: a kind the server omitted falls back to the server's own
+  // defaults - for document_trashed_by_other that is in-app only, never
+  // email; a toggle on the row must write that effective value back.
+  it("omits the trash kind's email and writes it back off", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    const email = await screen.findByRole("switch", {
+      name: "Tài liệu của bạn bị chuyển vào thùng rác · Email",
+    });
+    expect(email).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Tài liệu của bạn bị chuyển vào thùng rác · Hộp việc" }),
+    );
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notification-preferences",
+        expect.objectContaining({
+          method: "PUT",
+          body: {
+            preferences: [
+              { kind: "document_trashed_by_other", in_app: false, push: false, email: false },
+            ],
+          },
+        }),
+      ),
+    );
   });
 
   it("shows a load error with retry instead of a guessed matrix, and writes nothing", async () => {
