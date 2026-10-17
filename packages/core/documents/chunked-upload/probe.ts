@@ -40,37 +40,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 async function readBlobSlice(file: Blob, start: number, end: number): Promise<Uint8Array> {
-  const slice = file.slice(start, end);
-  if (typeof slice.arrayBuffer === "function") {
-    const ab = await slice.arrayBuffer();
-    return new Uint8Array(ab);
-  }
-  for (const sym of Object.getOwnPropertySymbols(slice)) {
-    const impl = (
-      slice as unknown as Record<
-        symbol,
-        { _buffer?: { buffer: ArrayBufferLike; byteOffset: number; byteLength: number } }
-      >
-    )[sym];
-    const buf = impl?._buffer;
-    if (buf && typeof buf.byteLength === "number" && typeof buf.byteOffset === "number") {
-      return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
-    }
-  }
-  if (typeof FileReader !== "undefined") {
-    return new Promise<Uint8Array>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        resolve(new Uint8Array(reader.result as ArrayBuffer));
-      };
-      reader.onerror = () => {
-        reject(reader.error ?? new Error("Failed to read Blob slice"));
-      };
-      reader.readAsArrayBuffer(slice);
-    });
-  }
-  const ab = await new Response(slice).arrayBuffer();
-  return new Uint8Array(ab);
+  return new Uint8Array(await file.slice(start, end).arrayBuffer());
 }
 
 function isZipLocalHeader(head: Uint8Array): boolean {
