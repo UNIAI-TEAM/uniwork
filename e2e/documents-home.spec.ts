@@ -243,7 +243,7 @@ test.describe("a view-only member", () => {
     await expect(page.getByRole("button", { name: "Đổi tên thư mục" })).toHaveCount(0);
   });
 
-  test("gets no Move or Archive on a row shared at view level", async ({ page }) => {
+  test("gets no Move, Archive or Move to trash on a row shared at view level", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginViaUi(page, m.aOther.email);
     await openLibrary(page, m.aOwner.orgSlug, m.aOwner.wsSlug);
@@ -254,5 +254,6 @@ test.describe("a view-only member", () => {
     await expect(page.getByRole("menuitem", { name: "Mở trên web" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Di chuyển" })).toHaveCount(0);
     await expect(page.getByRole("menuitem", { name: "Lưu trữ" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Chuyển vào thùng rác" })).toHaveCount(0);
   });
 });
