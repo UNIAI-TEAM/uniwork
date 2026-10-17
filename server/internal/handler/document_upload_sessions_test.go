@@ -593,6 +593,44 @@ func TestAbortUploadSessionIsIdempotentAndRefusesCompleted(t *testing.T) {
 	}
 }
 
+// A shelved document is read-only on the session routes too (ARCHIVE-01 §3,
+// BIGUP-S1 ar fix4): the wire answer is 409 document_shelved with the
+// read_only class the client switches on.
+func TestUploadSessionOpenRefusesAShelvedDocument(t *testing.T) {
+	w := newUploadSessionWorld(t)
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+w.docID+"/shelve", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("shelve = %d %v", res.StatusCode, out)
+	}
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+w.docID+"/upload-sessions", w.token,
+		map[string]string{"Idempotency-Key": util.NewID()}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
+	if code, class := errCodeClass(out); res.StatusCode != 409 || code != "document_shelved" || class != "read_only" {
+		t.Fatalf("open a version session on a shelved document = %d %v", res.StatusCode, out)
+	}
+}
+
+// The complete route catches a shelve that landed between open and complete:
+// the session is opened while the document is still live, exactly as a real
+// client's large save would, and the shelve then races it.
+func TestUploadSessionCompleteRefusesAShelvedDocument(t *testing.T) {
+	w := newUploadSessionWorld(t)
+	res, out := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+w.docID+"/upload-sessions", w.token,
+		map[string]string{"Idempotency-Key": util.NewID()}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
+	if res.StatusCode != 201 {
+		t.Fatalf("open version session on a live document = %d %v", res.StatusCode, out)
+	}
+	sessionID := out["session_id"].(string)
+	complete := w.seedParts(t, sessionID)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+w.docID+"/shelve", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("shelve after open = %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/upload-sessions/"+sessionID+"/complete", w.token, complete)
+	if code, class := errCodeClass(out); res.StatusCode != 409 || code != "document_shelved" || class != "read_only" {
+		t.Fatalf("complete a version session after the shelve = %d %v", res.StatusCode, out)
+	}
+}
+
 // The config advertises the chunk threshold only where the flow can run: a
 // store with multipart + presign answers it, the local adapter alone does not.
 // The second server reuses this world's pool - a second newTestDeps would wait

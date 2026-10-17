@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -48,6 +49,10 @@ func TestShelvedWriteBlock(t *testing.T) {
 	title := "Đổi tên"
 	restricted := "restricted"
 	content := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"sửa"}]}]}`)
+	// The session rows move a body just over the 20 MiB threshold: the
+	// smallest body the routes accept, so no row proves a shape with more
+	// bytes than it must.
+	const sessionSize = UploadSessionThresholdBytes + 1
 
 	// rows are (write name, fixture builder, command); shelve happens inside
 	// the command itself so every row names the document it shelved.
@@ -348,12 +353,101 @@ func TestShelvedWriteBlock(t *testing.T) {
 			shelve(t, env, page.ID)
 			return env.svc.CancelDocumentEditRequest(env.f.ctx, Human(env.tn.member.ID), page.ID, req.Request.ID)
 		}},
+		// BIGUP-S1 large upload sessions (ar fix4): the session routes are
+		// writes on the document they name, so opening or completing one on a
+		// shelved document refuses like every other path. The complete rows
+		// open their session on a live document first, because the raced
+		// shelve is the case that matters: the commit must catch it by
+		// re-reading the document it is about to version.
+		{"upload_session_open_version", func(t *testing.T, env *docStorageEnv) error {
+			file := env.createFile(t, Human(env.tn.aclOwner.ID), "sess-"+util.NewID()[20:]+".pdf", pdfBody("sh2-open"))
+			d := shelve(t, env, file.Document.ID)
+			in, _ := sessionOpenInputFor(sessionSize, "sh2-open")
+			_, err := env.svc.OpenVersionUploadSession(env.f.ctx, Human(env.tn.aclOwner.ID), d.ID, in)
+			return err
+		}},
+		{"upload_session_open_frame", func(t *testing.T, env *docStorageEnv) error {
+			file := env.createFile(t, Human(env.tn.aclOwner.ID), "sess-"+util.NewID()[20:]+".pdf", pdfBody("sh2-frame-open"))
+			d := shelve(t, env, file.Document.ID)
+			in, _ := sessionOpenInputFor(sessionSize, "sh2-frame-open")
+			_, err := env.svc.OpenFrameUploadSession(env.f.ctx, frameClaims(env, d.ID, env.tn.aclOwner.ID), d.ID, in)
+			return err
+		}},
+		{"create_file_from_staged_upload_into_shelved_parent", func(t *testing.T, env *docStorageEnv) error {
+			// The row only needs a claimable staged file; lockPageParent
+			// answers the shelved parent before anything is created.
+			up, err := env.fs.Upload(env.f.ctx, files.UploadInput{
+				Actor: Human(env.tn.aclOwner.ID), Purpose: files.DocumentFile,
+				Scope:          files.Scope{OrganizationID: env.tn.orgID, WorkspaceID: env.tn.wsA},
+				IdempotencyKey: nextIDK(), Filename: "child.pdf", Body: bytes.NewReader(pdfBody("sh2-staged")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			parent := shelve(t, env, folderDoc(t, env).ID)
+			_, err = env.svc.CreateFileDocumentFromUpload(env.f.ctx, Human(env.tn.aclOwner.ID), env.tn.wsA,
+				CreateFileDocumentFromUploadInput{UploadID: string(up.File.ID), Filename: "child.pdf", Title: "Con", ParentID: parent.ID})
+			return err
+		}},
+		{"upload_session_complete_version", func(t *testing.T, env *docStorageEnv) error {
+			file := env.createFile(t, Human(env.tn.aclOwner.ID), "sess-"+util.NewID()[20:]+".pdf", pdfBody("sh2-complete"))
+			in, body := sessionOpenInputFor(sessionSize, "sh2-complete")
+			sess, err := env.svc.OpenVersionUploadSession(env.f.ctx, Human(env.tn.aclOwner.ID), file.Document.ID, in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parts := uploadAllParts(t, env, sess.SessionID, body)
+			shelve(t, env, file.Document.ID)
+			_, err = env.svc.CompleteUploadSession(env.f.ctx, Human(env.tn.aclOwner.ID), sess.SessionID, CompleteUploadSessionInput{Parts: parts})
+			return err
+		}},
+		{"upload_session_complete_frame", func(t *testing.T, env *docStorageEnv) error {
+			file := env.createFile(t, Human(env.tn.aclOwner.ID), "sess-"+util.NewID()[20:]+".pdf", pdfBody("sh2-frame-complete"))
+			in, body := sessionOpenInputFor(sessionSize, "sh2-frame-complete")
+			claims := frameClaims(env, file.Document.ID, env.tn.aclOwner.ID)
+			sess, err := env.svc.OpenFrameUploadSession(env.f.ctx, claims, file.Document.ID, in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parts := uploadAllParts(t, env, sess.SessionID, body)
+			shelve(t, env, file.Document.ID)
+			_, err = env.svc.CompleteFrameUploadSession(env.f.ctx, claims, file.Document.ID, sess.SessionID, CompleteUploadSessionInput{Parts: parts})
+			return err
+		}},
+		{"upload_session_complete_workspace_into_shelved_parent", func(t *testing.T, env *docStorageEnv) error {
+			parent := folderDoc(t, env)
+			body, probe := buildLargeDOCX(t, sessionSize, nil)
+			sess, err := env.svc.OpenWorkspaceUploadSession(env.f.ctx, Human(env.tn.aclOwner.ID), env.tn.wsA,
+				OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "child.docx", SizeBytes: sessionSize, Title: "Con", ParentID: &parent.ID, Probe: probe})
+			if err != nil {
+				t.Fatal(err)
+			}
+			parts := uploadAllParts(t, env, sess.SessionID, body)
+			shelve(t, env, parent.ID)
+			_, err = env.svc.CompleteUploadSession(env.f.ctx, Human(env.tn.aclOwner.ID), sess.SessionID, CompleteUploadSessionInput{Parts: parts})
+			return err
+		}},
 	}
 
+	// sessionEnv overrides the env of the rows whose command opens a multipart
+	// session: a session can never open on the fake, so those rows need the
+	// real store or their refusal would prove nothing about the shelved gate.
+	// One env per row: the test database serializes on one advisory lock, so a
+	// second env inside a running test would wait forever.
+	sessionEnv := map[string]func(*testing.T) *docStorageEnv{
+		"upload_session_open_version":                           newMultipartDocEnv,
+		"upload_session_open_frame":                             newMultipartDocEnv,
+		"upload_session_complete_version":                       newMultipartDocEnv,
+		"upload_session_complete_frame":                         newMultipartDocEnv,
+		"upload_session_complete_workspace_into_shelved_parent": newMultipartDocEnv,
+	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
-			env := newFakeDocStorageEnv(t)
-			wantShelvedWrite(t, row.run(t, env))
+			envFn := newFakeDocStorageEnv
+			if fn, ok := sessionEnv[row.name]; ok {
+				envFn = fn
+			}
+			wantShelvedWrite(t, row.run(t, envFn(t)))
 		})
 	}
 }
@@ -369,6 +463,26 @@ func takeEditLock(t *testing.T, env *docStorageEnv, u db.User, docID, editor, cl
 		t.Fatalf("acquire edit lock: %v", err)
 	}
 	return v
+}
+
+// sessionOpenInputFor builds the open input and the body a large-upload
+// session row moves: a valid PDF of exactly size bytes with its probe, named
+// so two rows never share a filename.
+func sessionOpenInputFor(size int64, marker string) (OpenUploadSessionInput, []byte) {
+	body, probe := buildLargePDF(size, marker)
+	return OpenUploadSessionInput{
+		IdempotencyKey: nextIDK(), Filename: "v2-" + marker + ".pdf", SizeBytes: size, Probe: probe,
+	}, body
+}
+
+// frameClaims is the frame token's claims for a document of this tenant, the
+// shape OpenFrameUploadSession and CompleteFrameUploadSession take.
+func frameClaims(env *docStorageEnv, documentID, userID string) OfficeFrameClaims {
+	return OfficeFrameClaims{
+		Version: 1, DocumentID: documentID,
+		WorkspaceID: env.tn.wsA, OrganizationID: env.tn.orgID, UserID: userID,
+		Module: OfficeFrameModulePDF,
+	}
 }
 
 // pageDoc seeds one live page the ACL owner manages (acl_owner => manage).
@@ -491,7 +605,42 @@ func TestShelvedWriteBlockAllowed(t *testing.T) {
 		if err := env.svc.ReleaseDocumentEditLock(env.f.ctx, mgr, lockPage.ID, held.Lock.ID); err != nil {
 			t.Fatalf("release on a shelved page: %v", err)
 		}
+		// BE-AR-2: the row observes the effect, not just a nil answer - a
+		// release that silently acknowledged the lock without ending the
+		// tenure would leave the editor locked out and still pass otherwise.
+		tenure, err := env.f.q.GetDocumentEditLock(env.f.ctx, db.GetDocumentEditLockParams{
+			ID: held.Lock.ID, OrganizationID: lockPage.OrganizationID, DocumentID: lockPage.ID,
+		})
+		if err != nil {
+			t.Fatalf("reload the tenure after release: %v", err)
+		}
+		if !tenure.EndedAt.Valid || tenure.EndReason.String != DocumentEditEndReleased {
+			t.Fatalf("tenure after release on a shelved page = ended %v reason %q, want ended with %q",
+				tenure.EndedAt.Valid, tenure.EndReason.String, DocumentEditEndReleased)
+		}
 	})
+}
+
+// TestShelvedUploadSessionAbortStaysAllowed is the abort half: aborting a
+// shelved upload session frees the staged bytes of a session the client no
+// longer wants, so the shelve must not strand them. The session is opened on a
+// live document and the shelve lands before the abort - the state a client
+// that shelved while a large save was in flight actually holds. Its own
+// top-level test: the test database serializes on one advisory lock, so a
+// second env inside a running test would wait forever.
+func TestShelvedUploadSessionAbortStaysAllowed(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	mgr := Human(env.tn.aclOwner.ID)
+	file := env.createFile(t, mgr, "hủy-"+util.NewID()[20:]+".pdf", pdfBody("sh2-abort"))
+	in, _ := sessionOpenInputFor(UploadSessionThresholdBytes+1, "sh2-abort")
+	sess, err := env.svc.OpenVersionUploadSession(env.f.ctx, mgr, file.Document.ID, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shelve(t, env, file.Document.ID)
+	if err := env.svc.AbortUploadSession(env.f.ctx, mgr, sess.SessionID); err != nil {
+		t.Fatalf("abort on a shelved document: %v", err)
+	}
 }
 
 // TestShelvedWriteBlockVisibility: a caller who cannot see the shelved row
@@ -509,6 +658,31 @@ func TestShelvedWriteBlockVisibility(t *testing.T) {
 	if _, err := env.svc.AddDocumentComment(env.f.ctx, Human(env.tn.outsider.ID), page.ID, AddCommentInput{Body: "x"}, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("outsider comment on shelved doc = %v, want not_found", err)
 	}
+
+	// BE-AR-1: the heartbeat is the one edit-lock command outside the shared
+	// mutation wrapper, so its own ordering needs its own pin. An outsider
+	// holding the real lock id must learn nothing: access is decided before
+	// the shelved state is read, so the answer is not_found, not 409.
+	t.Run("outsider heartbeat on a shelved page", func(t *testing.T) {
+		lockPage := pageDoc(t, env)
+		held := takeEditLock(t, env, env.tn.aclOwner, lockPage.ID, "e-out", DocumentEditClientWebPage, "sid-out")
+		shelve(t, env, lockPage.ID)
+		if _, err := env.svc.HeartbeatDocumentEditLock(env.f.ctx, Human(env.tn.outsider.ID), lockPage.ID, held.Lock.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("outsider heartbeat on shelved page = %v, want not_found", err)
+		}
+	})
+
+	// The session routes have their own access gate: an outsider opening a
+	// version session on a shelved file is refused by that gate, before the
+	// shelved state is read.
+	t.Run("outsider opens a version session on a shelved file", func(t *testing.T) {
+		file := env.createFile(t, Human(env.tn.aclOwner.ID), "vis-"+util.NewID()[20:]+".pdf", pdfBody("sh2-vis"))
+		shelve(t, env, file.Document.ID)
+		in, _ := sessionOpenInputFor(UploadSessionThresholdBytes+1, "sh2-vis")
+		if _, err := env.svc.OpenVersionUploadSession(env.f.ctx, Human(env.tn.outsider.ID), file.Document.ID, in); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("outsider version session on a shelved file = %v, want not_found", err)
+		}
+	})
 }
 
 // TestShelvedOfficeFrame is the SH-6 frame half: Mint keeps opening the
