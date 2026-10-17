@@ -582,13 +582,13 @@ test("FD-A03 upload into the open folder places the uploaded file under the open
   ).toBeVisible();
 
   // Open the real Upload file dialog from the header "Tải lên" (documents-home-create.tsx CreateMenu).
-  await page.getByRole("button", { name: "Tải lên" }).click();
+  await page.getByRole("button", { name: "Tải lên", exact: true }).click();
   const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
   await expect(uploadDialog).toBeVisible();
   await uploadDialog
     .getByLabel("Chọn tệp")
     .setInputFiles(getFixtureFilePath("fx-docx-report-vi"));
-  await uploadDialog.getByRole("button", { name: "Tải lên" }).click();
+  await uploadDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
   await expect(uploadDialog).toBeHidden();
   await expect(page).toHaveURL(/\/documents\/[0-9A-Za-z]+$/);
 

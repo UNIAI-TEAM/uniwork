@@ -134,11 +134,11 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   await onboard(page, fileSeed);
 
   await page.goto(`/${fileSeed.orgSlug}/${fileSeed.wsSlug}/documents`);
-  await page.getByRole("button", { name: "Tải lên" }).click();
+  await page.getByRole("button", { name: "Tải lên", exact: true }).click();
   const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
   await expect(uploadDialog).toBeVisible();
   await uploadDialog.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
-  await uploadDialog.getByRole("button", { name: "Tải lên" }).click();
+  await uploadDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
 
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 90_000 });
   await expect(page.getByText("parity-upload.txt").first()).toBeVisible({ timeout: 60_000 });
@@ -150,7 +150,7 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   await page.getByRole("button", { name: "Tải phiên bản mới" }).click();
   const versionDialog = page.getByRole("dialog", { name: "Tải phiên bản mới" });
   await versionDialog.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
-  await versionDialog.getByRole("button", { name: "Tải lên" }).click();
+  await versionDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
   await expect(page.getByText("Phiên bản 2")).toBeVisible({ timeout: 90_000 });
 
   // Download goes through the authenticated proxy route (no presigned URL).
