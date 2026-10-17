@@ -177,8 +177,8 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   // the server's own row count. The sidebar tree lists folders only.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
   const list = page.getByRole("table", { name: "Tài liệu" });
-  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toHaveCount(0);
+  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("treeitem", { name: /UniNote mới/ })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: /Tất cả/ })).toContainText("1");
 
   // The other tabs read their own endpoints (nothing is shared with anyone).
@@ -194,15 +194,15 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   await page.getByRole("button", { name: "Docs", exact: true }).click();
   await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
-  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
 
   // The row opens the document.
-  await libraryRowButton(list, /Trang mới/).click();
+  await libraryRowButton(list, /UniNote mới/).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
 
   // Dark and mobile screenshots, then English, on the same library.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
-  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await shot(page, "documents-library-dark-vi");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
