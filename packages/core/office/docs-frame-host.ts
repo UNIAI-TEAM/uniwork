@@ -1,6 +1,7 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at bf4ff7b07ee799b13375e0b63ad4798ff255ae05
-// (fork lockstep branch feature/UNI-1413-doc05-lockstep-fork at bf4ff7b07; unchanged since the G5-03w re-vendor, SHA bumped with the protocol.)
+// web/docs/protocol/host.ts at 07605ced5e14733de4fa28d57c1bec967b605973
+// (fork SIZE-F1 integration branch feature/UNI-1861-size-f1 at 07605ced5: document size limits, size_warning,
+// save_blocked, doc.download, lag_detected, open_refused; additive over bf4ff7b07; re-vendor from fork main once SIZE-F1 lands there).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
@@ -155,7 +156,9 @@ export interface DocsFrameHost {
   setLanguage(locale: string): void
   /** proactive token rotation */
   pushToken(token: TokenPayload): void
-  on<K extends 'dirty' | 'title' | 'modal' | 'resize' | 'saved' | 'error' | 'aiRun'>(
+  on<
+    K extends 'dirty' | 'title' | 'modal' | 'resize' | 'saved' | 'error' | 'aiRun' | 'open_refused',
+  >(
     type: K,
     listener: FrameEventListener<K>,
   ): () => void
