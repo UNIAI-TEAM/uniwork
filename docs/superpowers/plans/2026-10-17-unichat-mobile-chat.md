@@ -65,3 +65,12 @@
 - `pnpm --filter @uniwork/chat-mobile test|lint|typecheck`; `node --test scripts/mobile-core-allowlist.test.mjs scripts/no-usf-leak.test.mjs`.
 - Không chạy simulator/thiết bị (orchestrator smoke sau); kịch bản chéo §5 ghi vào issue.
 - `apps/chat-mobile/CLAUDE.md`: thêm mục Chat.
+
+## Tiến độ (2026-10-17)
+
+- [x] Task 1 — dep, plugin picker, i18n (`chat` + `chat.mobile.*`), multipart + `Retry-After` ở `data/api.ts`.
+- [x] Task 2 — `lib/*` parity; thêm `people-display`, `message-display`, `room-list`, `chat-routes` (thuần, có test).
+- [x] Task 3 — `data/*`: endpoint, key, timeline, cache, hàng đợi gửi, store, realtime; coverage `lib/**` + `data/**` giữ 100 %.
+- [x] Task 4 — màn hình danh sách, hội thoại, luồng, thông tin phòng, DM mới, thư mục kênh; hook realtime gắn ở layout workspace.
+- [x] Task 5 — lệnh kiểm như trên xanh; `CLAUDE.md` của app có mục Chat.
+- [ ] Còn lại ngoài tầm lát code: smoke trên simulator/máy thật (orchestrator) và kịch bản chéo web + điện thoại §5 (ghi ở issue UNI-1832).
