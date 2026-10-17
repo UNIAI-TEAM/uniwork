@@ -3,6 +3,8 @@
 import { useRef, type KeyboardEvent } from "react";
 import { CircleAlert, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { isShelved } from "@uniwork/core/types/document";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -201,6 +203,13 @@ export function DocumentsSearchResults({
                         <span className="min-w-0 truncate text-body font-medium text-foreground sm:shrink-0 sm:max-w-[70%]">
                           {title}
                         </span>
+                        {/* U-6: a shelved hit keeps the "Đã lưu trữ" label so a
+                            search never passes it off as a live document. */}
+                        {isShelved(item) ? (
+                          <Badge variant="secondary" className="shrink-0 gap-1 text-caption">
+                            {t("documents.shelved_list.badge")}
+                          </Badge>
+                        ) : null}
                         <span
                           aria-hidden
                           title={full}

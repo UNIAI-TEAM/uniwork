@@ -23,8 +23,68 @@ import { Tabs, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ACCESS_FILTERS, FOLDER_SORT, GROUP_BY, TYPE_CHIPS, type AccessFilter, type FolderSort, type GroupBy, type TypeChip } from "./library-rows";
 
-export const SCOPE_TABS = ["home", "recent", "shared", "archived"] as const;
+export const SCOPE_TABS = ["home", "recent", "shared", "shelved", "archived"] as const;
 export type ScopeTab = (typeof SCOPE_TABS)[number];
+
+export interface ScopeTabsBarProps {
+  /** The active scope; null while a view without a tab (starred, a source) is open. */
+  scope: ScopeTab | null;
+  count: { value: number; more: boolean } | null;
+  onScope: (scope: ScopeTab) => void;
+}
+
+/** The scope tabs (Tất cả / Gần đây / Được chia sẻ / Lưu trữ / Thùng rác) — shared by
+ *  the library toolbar and the shelved toolbar, which carries no access/group controls. */
+export function ScopeTabsBar({ scope, count, onScope }: ScopeTabsBarProps) {
+  const { t } = useTranslation();
+  return (
+    <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
+      <TabsList className="no-scrollbar max-w-full overflow-x-auto overflow-y-hidden" aria-label={t("documents.home.scope_label")}>
+        {SCOPE_TABS.map((tab) => (
+          <TabsTrigger key={tab} value={tab} className="pointer-coarse:min-h-11 pointer-coarse:min-w-11">
+            {t(`documents.home.scope.${tab}`)}
+            {scope === tab && count && count.value > 0 ? (
+              <span className="font-mono text-caption tabular-nums text-muted-foreground">
+                {count.value}
+                {count.more ? "+" : ""}
+              </span>
+            ) : null}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  );
+}
+
+export interface TypeChipRowProps {
+  chip: TypeChip;
+  onChip: (chip: TypeChip) => void;
+}
+
+/** The Loại chips the shelved toolbar reuses as-is (server-side `format` filters). */
+export function TypeChipRow({ chip, onChip }: TypeChipRowProps) {
+  const { t } = useTranslation();
+  return (
+    <div role="group" aria-label={t("documents.home.chips_label")} className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden px-1 py-1">
+      {TYPE_CHIPS.map((value) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={chip === value}
+          onClick={() => onChip(value)}
+          className={cn(
+            "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+            chip === value
+              ? "border-foreground bg-foreground text-background"
+              : "border-border bg-background text-foreground hover:bg-accent",
+          )}
+        >
+          {t(`documents.home.chips.${value}`)}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export interface LibraryToolbarProps {
   /** The active scope; null while a view without a tab (starred, a source) is open. */
@@ -53,39 +113,8 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, access, on
   const sortItems = FOLDER_SORT.map((value) => ({ value, label: t(`documents.home.sort.${value}`) }));
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
-        <TabsList className="no-scrollbar max-w-full overflow-x-auto overflow-y-hidden" aria-label={t("documents.home.scope_label")}>
-          {SCOPE_TABS.map((tab) => (
-            <TabsTrigger key={tab} value={tab} className="pointer-coarse:min-h-11 pointer-coarse:min-w-11">
-              {t(`documents.home.scope.${tab}`)}
-              {scope === tab && count && count.value > 0 ? (
-                <span className="font-mono text-caption tabular-nums text-muted-foreground">
-                  {count.value}
-                  {count.more ? "+" : ""}
-                </span>
-              ) : null}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
-      <div role="group" aria-label={t("documents.home.chips_label")} className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden px-1 py-1">
-        {TYPE_CHIPS.map((value) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={chip === value}
-            onClick={() => onChip(value)}
-            className={cn(
-              "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-              chip === value
-                ? "border-foreground bg-foreground text-background"
-                : "border-border bg-background text-foreground hover:bg-accent",
-            )}
-          >
-            {t(`documents.home.chips.${value}`)}
-          </button>
-        ))}
-      </div>
+      <ScopeTabsBar scope={scope} count={count} onScope={onScope} />
+      <TypeChipRow chip={chip} onChip={onChip} />
       {/* The caption keeps the second "All" from reading as a repeat of the type chips, wherever the groups wrap. */}
       {/* ml-3 on top of the row gap: with only two options (archive) the group fits beside the chips and must still read as its own group. */}
       <div className="ml-3 flex max-w-full items-center gap-1.5">

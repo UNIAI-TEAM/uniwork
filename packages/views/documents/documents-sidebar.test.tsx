@@ -91,6 +91,7 @@ describe("DOCUMENTS_NAV_ICONS", () => {
     ["shared", Users],
     ["sharedByMe", Share2],
     ["archive", Archive],
+    ["shelved", Archive],
     ["trash", Trash],
     ["folder", Folder],
   ] as const)("maps %s to its board glyph", (key, Expected) => {
@@ -98,6 +99,6 @@ describe("DOCUMENTS_NAV_ICONS", () => {
   });
 
   it("covers every entry of the map", () => {
-    expect(Object.keys(DOCUMENTS_NAV_ICONS)).toHaveLength(9);
+    expect(Object.keys(DOCUMENTS_NAV_ICONS)).toHaveLength(10);
   });
 });

@@ -3,7 +3,8 @@
 import { ArchiveRestore, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Member } from "@uniwork/core/types/workspace";
-import { canManageTrashed } from "@uniwork/core/types/document";
+import { canManageTrashed, isShelved } from "@uniwork/core/types/document";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CommentActorAvatar } from "../comments/comment-actor-avatar";
@@ -95,7 +96,16 @@ export function TrashRowView({
     <>
       <DocumentTypeIcon format={folder ? "folder" : rowFormat(row)} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-body text-foreground">{title}</span>
+        <span className="block truncate text-body text-foreground">
+          {title}
+          {/* U-6: a shelved row that also sits in the trash keeps its label —
+              "Đã lưu trữ" beside the title (Q-UI3: shelved_at rides trash rows). */}
+          {isShelved(doc) ? (
+            <Badge variant="secondary" className="ml-2 align-middle text-caption">
+              {t("documents.shelved_list.badge")}
+            </Badge>
+          ) : null}
+        </span>
         <span className="block truncate text-caption text-muted-foreground">{context}</span>
         {/* Narrow widths carry the meta the columns have not joined yet:
             deleted-at + countdown until 46rem, deleted-by until 56rem. */}

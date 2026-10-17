@@ -9,8 +9,9 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
+import { ShelvedRowView, type ShelvedRowActions } from "./documents-shelved-row";
 import { TrashRowView, type TrashRowActions } from "./documents-trash-row";
-import { libraryGroupSpans, libraryLadder, trashLadder, type LibraryColumnId } from "./library-columns";
+import { libraryGroupSpans, libraryLadder, shelvedLadder, trashLadder, type LibraryColumnId } from "./library-columns";
 import { rowTypeKey, type RowGroup } from "./library-rows";
 
 const COLUMN_LABEL: Record<LibraryColumnId, string> = {
@@ -26,6 +27,10 @@ const COLUMN_LABEL: Record<LibraryColumnId, string> = {
   deleted_by: "documents.trash.columns.deleted_by",
   deleted_at: "documents.trash.columns.deleted_at",
   purge_in: "documents.trash.columns.purge_in",
+  // Shelved-only columns get their real labels in SHELVED_COLUMN_LABEL; the
+  // base map must still satisfy Record<LibraryColumnId, string>.
+  shelved_by: "documents.shelved_list.columns.shelved_by",
+  shelved_at: "documents.shelved_list.columns.shelved_at",
 };
 
 // The trash table reads its own header keys (documents.trash.columns.*) for
@@ -34,6 +39,17 @@ const TRASH_COLUMN_LABEL: Record<LibraryColumnId, string> = {
   ...COLUMN_LABEL,
   name: "documents.trash.columns.name",
   actions: "documents.trash.columns.actions",
+};
+
+// The Lưu trữ table reads its own header keys (documents.shelved_list.columns.*)
+// for every column; it shares the shell, the group spanners and the states only.
+const SHELVED_COLUMN_LABEL: Record<LibraryColumnId, string> = {
+  ...COLUMN_LABEL,
+  name: "documents.shelved_list.columns.name",
+  access: "documents.shelved_list.columns.access",
+  shelved_by: "documents.shelved_list.columns.shelved_by",
+  shelved_at: "documents.shelved_list.columns.shelved_at",
+  actions: "documents.shelved_list.columns.actions",
 };
 
 export interface DocumentsLibraryListProps {
@@ -63,7 +79,17 @@ export interface DocumentsLibraryListProps {
     /** True once the members query has answered; until then an unknown id is "still loading", not "former member". */
     membersReady: boolean;
   };
-  /** Show the Type column (`documents.home.columns.type`) when an open folder is displayed. */
+  /** The Lưu trữ layout (ARCHIVE-01 U-2): the shelved ladder and
+   *  ShelvedRowView with its own columns and per-row commands. */
+  shelved?: {
+    actions: ShelvedRowActions;
+    /** The workspace member list by user id, feeding the Lưu trữ bởi column. */
+    members: ReadonlyMap<string, Member>;
+    membersReady: boolean;
+  };
+  /** The no-matches copy of the open view when it is not the generic library
+   *  wording (the shelved list names its own empty-filtered line). */
+  emptyFiltered?: { title: string; description: string };
   showType?: boolean;
   hasMore: boolean;
   loadingMore: boolean;
@@ -90,6 +116,8 @@ export function DocumentsLibraryList({
   typeFiltered = false,
   cardsShown = false,
   trash,
+  shelved,
+  emptyFiltered,
   showType = false,
   hasMore,
   loadingMore,
@@ -139,22 +167,25 @@ export function DocumentsLibraryList({
       return (
         <CollectionPageState
           icon={Search}
-          title={t("documents.library.no_matches_title")}
-          description={t(
-            accessFiltered && typeFiltered
-              ? clientFiltered && hasMore
-                ? "documents.home.no_matches_filters_more_description"
-                : "documents.home.no_matches_filters_description"
-              : accessFiltered
+          title={emptyFiltered?.title ?? t("documents.library.no_matches_title")}
+          description={
+            emptyFiltered?.description ??
+            t(
+              accessFiltered && typeFiltered
                 ? clientFiltered && hasMore
-                  ? "documents.home.no_matches_access_more_description"
-                  : "documents.home.no_matches_access_description"
-                : clientFiltered && hasMore
-                  ? "documents.home.no_matches_more_description"
-                  : cardsShown
-                    ? "documents.home.no_matches_description"
-                    : "documents.home.no_matches_plain_description",
-          )}
+                  ? "documents.home.no_matches_filters_more_description"
+                  : "documents.home.no_matches_filters_description"
+                : accessFiltered
+                  ? clientFiltered && hasMore
+                    ? "documents.home.no_matches_access_more_description"
+                    : "documents.home.no_matches_access_description"
+                  : clientFiltered && hasMore
+                    ? "documents.home.no_matches_more_description"
+                    : cardsShown
+                      ? "documents.home.no_matches_description"
+                      : "documents.home.no_matches_plain_description",
+            )
+          }
           role="status"
           actions={
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -184,9 +215,9 @@ export function DocumentsLibraryList({
     return "";
   };
 
-  const ladder = trash ? trashLadder() : libraryLadder(showType);
+  const ladder = trash ? trashLadder() : shelved ? shelvedLadder() : libraryLadder(showType);
   const groupSpans = libraryGroupSpans(ladder);
-  const columnLabel = trash ? TRASH_COLUMN_LABEL : COLUMN_LABEL;
+  const columnLabel = trash ? TRASH_COLUMN_LABEL : shelved ? SHELVED_COLUMN_LABEL : COLUMN_LABEL;
   // A trash row names its parent folder when the parent is itself a listed
   // trash row; the row titles by id are enough for that lookup.
   const trashTitles = trash
@@ -243,6 +274,16 @@ export function DocumentsLibraryList({
                     parentTitle={row.type === "document" && row.doc.parent_id ? (trashTitles?.get(row.doc.parent_id) ?? null) : null}
                     ladder={ladder}
                     trash={trash.actions}
+                    onOpen={handlers.onOpen}
+                  />
+                ) : shelved ? (
+                  <ShelvedRowView
+                    key={row.id}
+                    row={row}
+                    members={shelved.members}
+                    membersReady={shelved.membersReady}
+                    ladder={ladder}
+                    shelved={shelved.actions}
                     onOpen={handlers.onOpen}
                   />
                 ) : (

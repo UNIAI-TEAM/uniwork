@@ -4,6 +4,7 @@ import { useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -65,6 +66,10 @@ export interface LibraryRowHandlers {
   onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
+  /** Lưu trữ (ARCHIVE-01 U-4): manage-only, hidden on My Folder; the page
+   *  wires it so a folder opens the confirm dialog and a document shelves at
+   *  once with an undo toast. */
+  onShelve?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
@@ -180,6 +185,11 @@ export function LibraryRowView({
     }
     if (handlers.onMove && canMoveRow(level)) {
       actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+    }
+    if (handlers.onShelve && canArchiveRow(level) && !isMyFolder(doc) && !isShelved(doc)) {
+      // U-4: shelve sits beside the trash command, manage-only and never on
+      // the My Folder root; the page decides document-now vs folder-dialog.
+      actions.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
     }
     if (handlers.onArchive && canArchiveRow(level)) {
       // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.

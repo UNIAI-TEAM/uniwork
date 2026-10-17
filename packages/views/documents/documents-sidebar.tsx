@@ -26,6 +26,7 @@ export type LibraryView =
   | { kind: "recent" }
   | { kind: "starred" }
   | { kind: "shared" }
+  | { kind: "shelved" }
   | { kind: "archived" }
   | { kind: "sources"; source: DocumentSourceKind | null };
 

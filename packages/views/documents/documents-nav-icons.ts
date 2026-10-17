@@ -27,6 +27,7 @@ export const DOCUMENTS_NAV_ICONS = {
   shared: Users,
   sharedByMe: Share2,
   archive: Archive,
+  shelved: Archive,
   trash: Trash,
   folder: Folder,
 } as const satisfies Record<string, LucideIcon>;

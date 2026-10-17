@@ -596,3 +596,36 @@ describe("permanent delete", () => {
     expect(document.activeElement && document.body.contains(document.activeElement)).toBe(true);
   });
 });
+
+// ARCHIVE-01 (UNI-1845) U-11 + UI-AR8: a shelved trash row wears the "Đã lưu
+// trữ" label and restoring it lands back in Lưu trữ.
+describe("shelved trash rows (U-11)", () => {
+  it("marks a shelved row with the Đã lưu trữ label", async () => {
+    route({ list: () => [trashed({ shelved_at: "2026-10-09T03:00:00Z", shelved_by: "u2" }), trashed({ id: "d2", title: "Chưa lưu trữ" })] });
+    renderView();
+    await openTrash();
+    const row = await rowOf("Kế hoạch Q4");
+    expect(within(row).getAllByText(t("documents.shelved_list.badge")).length).toBeGreaterThan(0);
+    const plain = await rowOf("Chưa lưu trữ");
+    expect(within(plain).queryByText(t("documents.shelved_list.badge"))).toBeNull();
+  });
+
+  it("toasts 'into Lưu trữ' when the restored document comes back shelved", async () => {
+    let restored = false;
+    route({
+      list: (path) =>
+        new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? (restored ? [] : [trashed({ shelved_at: "2026-10-09T03:00:00Z", shelved_by: "u2" })]) : [],
+      post: (path) => {
+        if (path !== "/api/v1/documents/d1/restore") return {};
+        restored = true;
+        return { document: { ...trashed(), archived_at: null, archived_by: null, purge_after: null, shelved_at: "2026-10-09T03:00:00Z" }, affected: ["d1"] };
+      },
+    });
+    renderView();
+    await openTrash();
+    fireEvent.click(within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(t("documents.shelved_list.toast.restored_to_shelved", { title: "Kế hoạch Q4" })),
+    );
+  });
+});

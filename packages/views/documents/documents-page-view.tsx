@@ -27,6 +27,7 @@ import { CreateCards, CreateMenu, DocumentsGreeting } from "./documents-home-cre
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { FolderBreadcrumb, LibraryToolbar, type ScopeTab } from "./documents-library-toolbar";
+import { ShelvedToolbar, SHELVED_BY_SYSTEM, type ShelvedByOption } from "./documents-shelved-toolbar";
 import { DocumentsSidebar, DocumentsSidebarSheet, SOURCE_KINDS, type LibraryView } from "./documents-sidebar";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type AccessFilter, type GroupBy, type TypeChip } from "./library-rows";
@@ -41,7 +42,7 @@ import { DocumentsSearchBox } from "./documents-search-box";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
 import { useTrashActions } from "./use-trash-actions";
-/** The access options the trash's server filter accepts (UNI-1868): manage/edit are refused there. */
+import { useShelvedActions } from "./use-shelved-actions";
 const ARCHIVED_ACCESS_OPTIONS: readonly AccessFilter[] = ["all", "restricted"];
 
 function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
@@ -53,6 +54,8 @@ function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
     case "shared":
     case "archived":
       return { kind: rawView };
+    case "shelved":
+      return { kind: "shelved" };
     case "sources": {
       const rawSource = searchParams.get("source");
       const source =
@@ -165,8 +168,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
+  const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
+  // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
   const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred");
 
   const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
@@ -244,6 +249,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
+    onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {
           const op = starred ? unfavorite : favorite;
@@ -256,9 +262,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   };
 
   const groups = groupRows(library.state.rows, view.kind === "home" && folderId ? "none" : groupBy, library.folderIndex);
-  const scope: ScopeTab | null = view.kind === "home" || view.kind === "recent" || view.kind === "shared" || view.kind === "archived" ? view.kind : null;
+  const scope: ScopeTab | null = view.kind === "home" || view.kind === "recent" || view.kind === "shared" || view.kind === "shelved" || view.kind === "archived" ? view.kind : null;
   const accessFiltered = library.access !== "all";
-  const filteredBy = chip !== "all" || accessFiltered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
+  const memberFiltered = view.kind === "shelved" && library.shelvedBy !== null;
+  const filteredBy = chip !== "all" || accessFiltered || memberFiltered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   const listLoading = state.loading || (Boolean(folderId) && folder.isPending);
   // The header and the active tab count the same thing: the rows this list
@@ -278,7 +285,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
               </Button>
             ) : undefined,
         }
-      : { title: t(`documents.home.empty.${view.kind}_title`), description: t(`documents.home.empty.${view.kind}_description`) };
+      : view.kind === "shelved"
+        ? { title: t("documents.shelved_list.empty_title"), description: t("documents.shelved_list.empty_description") }
+        : { title: t(`documents.home.empty.${view.kind}_title`), description: t(`documents.home.empty.${view.kind}_description`) };
 
   const breadcrumbPath = folderDoc
     ? [...folderDoc.breadcrumbs.filter((crumb) => crumb.id !== folderDoc.id).map(({ id, title }) => ({ id, title })), { id: folderDoc.id, title: folderDoc.title }]
@@ -295,6 +304,18 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onNewFolder: (title?: string) => newRootFolder(title),
   };
+
+  // The "Lưu trữ bởi" options (U-2/Q-UI2): the workspace members plus the
+  // former-member ids the loaded rows still carry, and a system entry when a
+  // row was shelved by nobody. Filtering itself runs client-side in
+  // useDocumentsLibrary; the toolbar says so.
+  const shelvedByOptions: ShelvedByOption[] = [
+    ...(members.data ?? []).map((m) => ({ value: m.user_id, label: m.display_name })),
+    ...library.shelverIds
+      .filter((id) => !(members.data ?? []).some((m) => m.user_id === id))
+      .map((id) => ({ value: id, label: t("documents.shelved_list.shelved_by_former") })),
+    ...(library.shelvedHasSystem ? [{ value: SHELVED_BY_SYSTEM, label: t("documents.shelved_list.shelved_by_system") }] : []),
+  ];
   const createProps = {
     pending: creator.pending,
     unavailable: creator.unavailable,
@@ -379,8 +400,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                     <DocumentsGreeting name={context?.user.display_name ?? null} folderTitle={folderDoc?.title ?? null} readOnly={!canCreate} />
                   ) : (
                     <div className="flex min-w-0 flex-col gap-1">
-                      <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
+                      <h2 className="text-title font-semibold">
+                        {view.kind === "shelved"
+                          ? t("documents.shelved_list.title")
+                          : t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}
+                      </h2>
                       {view.kind === "archived" ? <p className="text-caption text-muted-foreground">{t("documents.trash.intro")}</p> : null}
+                      {view.kind === "shelved" ? <p className="text-caption text-muted-foreground">{t("documents.shelved_list.intro")}</p> : null}
                     </div>
                   )}
                   <Button type="button" variant="outline" size="sm" className="shrink-0 xl:hidden" onClick={() => setNavOpen(true)}>
@@ -403,20 +429,33 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                     }}
                   />
                 ) : null}
-                <LibraryToolbar
-                  scope={scope}
-                  count={scope && !listLoading ? { value: state.rows.length, more: state.hasMore } : null}
-                  onScope={(next) => goHome({ kind: next })}
-                  chip={chip}
-                  onChip={setChip}
-                  access={library.access}
-                  onAccess={library.setAccess}
-                  accessOptions={view.kind === "archived" ? ARCHIVED_ACCESS_OPTIONS : undefined}
-                  groupBy={groupBy}
-                  onGroupBy={setGroupBy}
-                  sort={view.kind === "home" && folderId ? library.sort : null}
-                  onSort={view.kind === "home" && folderId ? library.setSort : undefined}
-                />
+                {view.kind === "shelved" ? (
+                  <ShelvedToolbar
+                    scope={scope}
+                    count={scope && !listLoading ? { value: state.rows.length, more: state.hasMore } : null}
+                    onScope={(next) => goHome({ kind: next })}
+                    chip={chip}
+                    onChip={setChip}
+                    shelvedByOptions={shelvedByOptions}
+                    shelvedBy={library.shelvedBy}
+                    onShelvedBy={library.setShelvedBy}
+                  />
+                ) : (
+                  <LibraryToolbar
+                    scope={scope}
+                    count={scope && !listLoading ? { value: state.rows.length, more: state.hasMore } : null}
+                    onScope={(next) => goHome({ kind: next })}
+                    chip={chip}
+                    onChip={setChip}
+                    access={library.access}
+                    onAccess={library.setAccess}
+                    accessOptions={view.kind === "archived" ? ARCHIVED_ACCESS_OPTIONS : undefined}
+                    groupBy={groupBy}
+                    onGroupBy={setGroupBy}
+                    sort={view.kind === "home" && folderId ? library.sort : null}
+                    onSort={view.kind === "home" && folderId ? library.setSort : undefined}
+                  />
+                )}
                 <DocumentsLibraryList
                   groups={groups}
                   loading={listLoading}
@@ -424,8 +463,31 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   filteredBy={filteredBy}
                   accessFiltered={accessFiltered}
                   typeFiltered={chip !== "all"}
+                  emptyFiltered={
+                    view.kind === "shelved"
+                      ? {
+                          title: t("documents.shelved_list.no_matches_title"),
+                          description: t("documents.shelved_list.no_matches_description"),
+                        }
+                      : undefined
+                  }
                   cardsShown={canCreate && view.kind === "home"}
                   trash={view.kind === "archived" ? { actions: trashActions, members: memberIndex, membersReady: Boolean(members.data) } : undefined}
+                  shelved={
+                    view.kind === "shelved"
+                      ? {
+                          actions: {
+                            onUnshelve: shelvedActions.onUnshelve,
+                            onTrash: (doc) => rowDialogs.onArchive(doc),
+                            isUnshelving: shelvedActions.isUnshelving,
+                            onToggleStar: handlers.onToggleStar,
+                            isStarred: handlers.isStarred,
+                          },
+                          members: memberIndex,
+                          membersReady: Boolean(members.data),
+                        }
+                      : undefined
+                  }
                   showType={view.kind === "home" && Boolean(folderId)}
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}
@@ -434,6 +496,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   onClearFilters={() => {
                     setChip("all");
                     library.setAccess("all");
+                    library.setShelvedBy(null);
                   }}
                   handlers={handlers}
                   empty={emptyCopy}
@@ -474,6 +537,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       {sourcePreview.dialog}
 
       {trashActions.dialog}
+
+      {shelvedActions.dialog}
 
       {rowDialogs.dialogs}
     </div>
