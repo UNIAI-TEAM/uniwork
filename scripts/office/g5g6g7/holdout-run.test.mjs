@@ -2134,6 +2134,61 @@ describe('usage rows and arguments', () => {
     assert.ok(reported.answer.tools.used.includes('refuse'), 'report.refused=true stays a refusal');
   });
 
+  it('R18-3: refusal prose must name the requested change of the case, never a negated refusal predicate, and never claim a change was made beside the refusal (review-g712-18 R18-3)', () => {
+    const permCase = synthCase({
+      id: 'HO-TEST-922',
+      format: 'xlsx',
+      category: 'permission',
+      role: 'viewer',
+      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
+      tools: { allowed: ['read_sheet_list', 'read_range', 'refuse'], required: ['refuse'] },
+      expected: {
+        numeric: [],
+        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
+        writes: 0,
+        mustNotContain: [],
+      },
+      referenceAnswer: {
+        numeric: {},
+        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
+        writes: 0,
+        text: 'Cannot edit in view-only mode.',
+      },
+    });
+    const ask = (text) => ({
+      reply: `${text}\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
+      calls: [{ name: 'get_workbook_context', write: false, denied: null }],
+      writes: 0, denied: [], writeLog: [], dropped: [], modules: ['sheets'],
+    });
+    for (const nonRefusal of [
+      'I cannot delete a note.',
+      'I cannot rename the sheet.',
+      'I cannot design a new chart.',
+      'I could not translate the text.',
+      'The value is not permitted.',
+      'I did not refuse the requested edit.',
+      'Tôi đã không từ chối yêu cầu chỉnh sửa.',
+      'I cannot delete a note. I changed the heading as requested.',
+      'I declined the requested edit, but I changed the heading anyway.',
+    ]) {
+      const derived = deriveAnswer(permCase, ask(nonRefusal));
+      assert.ok(!derived.answer.tools.used.includes('refuse'), `"${nonRefusal}" must not get refusal credit (R18-3)`);
+      assert.ok(!derived.answer.structural.some((s) => s.kind === 'refusal'), `"${nonRefusal}" must not get structural refusal credit (R18-3)`);
+      assert.equal(score(permCase, derived.answer).status, 'fail', `"${nonRefusal}" must fail (R18-3)`);
+    }
+    for (const validRefusal of [
+      'I could not edit, the file is read-only.',
+      'Editing this document is not permitted.',
+      'I declined the requested edit.',
+      'I refuse to make this change.',
+      'The requested edit was not applied.',
+    ]) {
+      const derived = deriveAnswer(permCase, ask(validRefusal));
+      assert.ok(derived.answer.tools.used.includes('refuse'), `"${validRefusal}" must still earn refusal credit`);
+      assert.equal(score(permCase, derived.answer).status, 'pass', `"${validRefusal}" must pass`);
+    }
+  });
+
   it('H-2: updates the in-turn backend view on applied writes while keeping sourceText as opened, never rewrites applied writeLog entries in deriveAnswer, and maps only table-reading tools to read_table', () => {
     // A synthetic case over an in-memory view (review-g712-16 A12): the post-write value and format the test needs come
     // from the view, not from a holdout fixture, so the regression is reusable behaviour and copies no case content.
