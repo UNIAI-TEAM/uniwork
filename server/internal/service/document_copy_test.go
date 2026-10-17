@@ -3,7 +3,10 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
@@ -420,4 +423,302 @@ func TestDocumentCopyPristineArchive(t *testing.T) {
 			}
 		})
 	})
+}
+
+// TestDocumentCopyUpload (UNI-1872): CopyDocument with upload_id creates the
+// copy's first version from a staged upload of the same document, actor and
+// organization while preserving ACL snapshot, provenance, audit and outbox.
+func TestDocumentCopyUpload(t *testing.T) {
+	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
+		ctx := context.Background()
+		member := human(env.tn.member)
+		aclOwner := human(env.tn.aclOwner)
+		creator := human(env.tn.creator)
+
+		t.Run("copy with upload_id uses the staged upload bytes while keeping acl, provenance, audit and outbox", func(t *testing.T) {
+			headBytes := []byte("# Nguon ban dau\n")
+			stagedBytes := []byte("# Ban nhap da sua trong frame\n")
+			src := env.createFile(t, member, "upload-copy.md", headBytes)
+			if _, err := env.f.pool.Exec(ctx,
+				`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
+				src.Document.ID, env.tn.aclOwner.ID); err != nil {
+				t.Fatal(err)
+			}
+			for _, p := range []struct {
+				kind string
+				id   string
+				lvl  DocumentLevel
+			}{
+				{DocumentPrincipalWorkspace, env.tn.wsB, DocumentLevelView},
+				{DocumentPrincipalUser, env.tn.member.ID, DocumentLevelEdit},
+			} {
+				if _, err := env.svc.ShareDocument(ctx, aclOwner, src.Document.ID, DocumentShareInput{
+					PrincipalType: p.kind, PrincipalID: p.id, Level: p.lvl,
+				}); err != nil {
+					t.Fatalf("share: %v", err)
+				}
+			}
+			srcDoc := env.doc(t, src.Document.ID)
+			up := env.upload(t, member, src.Document.ID, "upload-copy-edited.md", stagedBytes)
+
+			copied, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", UploadID: up.UploadID, IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "copy with upload_id")
+			if copied.Document.ID == src.Document.ID {
+				t.Fatal("copy is the source")
+			}
+			if copied.Document.Title != srcDoc.Title+" (bản sao)" {
+				t.Fatalf("copy title = %q, want %q", copied.Document.Title, srcDoc.Title+" (bản sao)")
+			}
+			if copied.Version.FileID.String != up.UploadID || copied.File.FileID != up.UploadID {
+				t.Fatalf("copy file_id = %s/%s, want staged upload %s", copied.Version.FileID.String, copied.File.FileID, up.UploadID)
+			}
+			if got := env.read(t, member, copied.Document.ID, 0, DocumentByteRange{}); !bytes.Equal(got, stagedBytes) {
+				t.Fatalf("copy bytes = %q, want staged bytes %q", got, stagedBytes)
+			}
+			if got := env.read(t, member, src.Document.ID, 0, DocumentByteRange{}); !bytes.Equal(got, headBytes) {
+				t.Fatalf("source bytes = %q, want untouched head %q", got, headBytes)
+			}
+			if copied.Document.Visibility != srcDoc.Visibility ||
+				copied.Document.AclOwnerID.String != srcDoc.AclOwnerID.String {
+				t.Fatalf("copy acl = %s/%s, want %s/%s", copied.Document.Visibility,
+					copied.Document.AclOwnerID.String, srcDoc.Visibility, srcDoc.AclOwnerID.String)
+			}
+			if copied.Document.SourceDocumentID.String != srcDoc.ID ||
+				copied.Document.SourceVersionID.String != src.Version.ID ||
+				!copied.Document.SourceRevision.Valid || copied.Document.SourceRevision.Int64 != srcDoc.Revision ||
+				copied.Document.SourceChecksumSha256.String != src.Version.ChecksumSha256.String {
+				t.Fatalf("copy provenance = %+v", copied.Document)
+			}
+			after := env.doc(t, src.Document.ID)
+			if after.Revision != srcDoc.Revision || len(env.versions(t, after)) != 1 {
+				t.Fatalf("source changed: rev %d versions %d", after.Revision, len(env.versions(t, after)))
+			}
+			// Audit and outbox are unchanged: document.created with reason "copy" and no extra fields.
+			if n := env.countAudit(t, "document.created", copied.Document.ID); n != 1 {
+				t.Fatalf("document.created audit rows = %d, want 1", n)
+			}
+			if n := env.countOutbox(t, "document.created", copied.Document.ID); n != 1 {
+				t.Fatalf("document.created outbox rows = %d, want 1", n)
+			}
+			var rawChanges []byte
+			if err := env.f.pool.QueryRow(ctx,
+				`SELECT changes FROM audit_events WHERE resource_id = $1 AND action = 'document.created'`,
+				copied.Document.ID).Scan(&rawChanges); err != nil {
+				t.Fatalf("read audit changes: %v", err)
+			}
+			var diff struct {
+				After map[string]any `json:"after"`
+			}
+			if err := json.Unmarshal(rawChanges, &diff); err != nil {
+				t.Fatalf("decode audit changes %s: %v", rawChanges, err)
+			}
+			wantKeys := map[string]bool{
+				"title": true, "kind": true, "version_id": true, "file_id": true,
+				"source_document_id": true, "source_version_id": true, "reason": true,
+			}
+			if len(diff.After) != len(wantKeys) || diff.After["reason"] != "copy" || diff.After["file_id"] != up.UploadID {
+				t.Fatalf("audit changes.after = %v, want exact copy keys with file_id=%s", diff.After, up.UploadID)
+			}
+			for k := range diff.After {
+				if !wantKeys[k] {
+					t.Fatalf("unexpected audit field %q in %v", k, diff.After)
+				}
+			}
+		})
+
+		t.Run("upload must belong to the same document, actor and organization or fail closed as 404", func(t *testing.T) {
+			src := env.createFile(t, member, "scope-src.md", []byte("# Nguon A\n"))
+			otherDoc := env.createFile(t, member, "scope-other.md", []byte("# Nguon B\n"))
+			otherTn := env.f.tenant(t, "other"+strings.ToLower(util.NewID()[20:]))
+			otherOrgMember := human(otherTn.member)
+			otherOrgDoc, err := env.svc.CreateFileDocument(ctx, otherOrgMember, otherTn.wsA, CreateFileDocumentInput{
+				Title: "Other Org File", Filename: "other-org.md", Body: bytes.NewReader([]byte("# Org B\n")),
+				Visibility: documentVisibilityWorkspace, IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "other org doc")
+
+			upOtherDoc := env.upload(t, member, otherDoc.Document.ID, "other-doc.md", []byte("# Staged on B\n"))
+			upOtherActor := env.upload(t, creator, src.Document.ID, "other-actor.md", []byte("# Staged by creator\n"))
+			upOtherOrg := env.upload(t, otherOrgMember, otherOrgDoc.Document.ID, "other-org-up.md", []byte("# Staged in org B\n"))
+
+			before := copyDocCount(t, env)
+			for name, badID := range map[string]string{
+				"unknown upload id":     util.NewID(),
+				"other document upload": upOtherDoc.UploadID,
+				"other actor upload":    upOtherActor.UploadID,
+				"other org upload":      upOtherOrg.UploadID,
+				"source head file_id":   src.Version.FileID.String,
+			} {
+				_, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+					Consent: "copy", UploadID: badID, IdempotencyKey: util.NewID(),
+				})
+				if !errors.Is(err, ErrNotFound) {
+					t.Fatalf("%s: err = %v, want ErrNotFound (404)", name, err)
+				}
+				var ce CodedError
+				if errors.As(err, &ce) {
+					t.Fatalf("%s: returned coded error %+v, want plain ErrNotFound", name, ce)
+				}
+			}
+			if after := copyDocCount(t, env); after != before {
+				t.Fatalf("refused copies created %d documents", after-before)
+			}
+		})
+
+		t.Run("upload is consumed once: idempotent replay, payload mismatch and already-claimed refusal", func(t *testing.T) {
+			src := env.createFile(t, member, "once.md", []byte("# Nguon\n"))
+			up1 := env.upload(t, member, src.Document.ID, "once-1.md", []byte("# Ban 1\n"))
+			up2 := env.upload(t, member, src.Document.ID, "once-2.md", []byte("# Ban 2\n"))
+			key := util.NewID()
+
+			first, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", UploadID: up1.UploadID, IdempotencyKey: key,
+			})
+			mustf(t, err, "first copy with upload_id")
+
+			// Same key + same upload_id replays the first copy.
+			replayed, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", UploadID: up1.UploadID, IdempotencyKey: key,
+			})
+			mustf(t, err, "replay with same key and upload_id")
+			if replayed.Document.ID != first.Document.ID || replayed.Version.ID != first.Version.ID {
+				t.Fatalf("replay = %s/%s, want %s/%s", replayed.Document.ID, replayed.Version.ID, first.Document.ID, first.Version.ID)
+			}
+
+			// Same key + different upload_id (or no upload_id) -> 409 idempotency_payload_mismatch.
+			for _, otherUpload := range []string{up2.UploadID, ""} {
+				_, err = env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+					Consent: "copy", UploadID: otherUpload, IdempotencyKey: key,
+				})
+				if ce := wantCode(t, err, "idempotency_payload_mismatch"); ce.Status != http.StatusConflict {
+					t.Fatalf("mismatch upload_id=%q: %+v", otherUpload, ce)
+				}
+			}
+
+			// New key + already-claimed upload_id -> 409 upload_already_committed.
+			before := copyDocCount(t, env)
+			_, err = env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", UploadID: up1.UploadID, IdempotencyKey: util.NewID(),
+			})
+			if ce := wantCode(t, err, "upload_already_committed"); ce.Status != http.StatusConflict {
+				t.Fatalf("reused upload_id with new key = %+v", ce)
+			}
+			if after := copyDocCount(t, env); after != before {
+				t.Fatal("reused upload_id created a second copy")
+			}
+
+			// An upload committed on the source via CommitFileVersion is also refused by CopyDocument.
+			_, err = env.commit(member, src.Document.ID, up2.UploadID, src.Document.Revision, util.NewID())
+			mustf(t, err, "commit up2 on source")
+			_, err = env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", UploadID: up2.UploadID, IdempotencyKey: util.NewID(),
+			})
+			if ce := wantCode(t, err, "upload_already_committed"); ce.Status != http.StatusConflict {
+				t.Fatalf("upload committed on source used in copy = %+v", ce)
+			}
+		})
+
+		t.Run("claim and copy commit in one transaction and roll back together on failure", func(t *testing.T) {
+			src := env.createFile(t, member, "tx-copy.md", []byte("# Nguon\n"))
+			up := env.upload(t, member, src.Document.ID, "tx-copy-v2.md", []byte("# Ban sao tx\n"))
+			boom := errors.New("injected failure after claim in copy")
+			env.svc.store.afterClaim = func() error { return boom }
+			key := util.NewID()
+			before := copyDocCount(t, env)
+			_, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", UploadID: up.UploadID, IdempotencyKey: key,
+			})
+			env.svc.store.afterClaim = nil
+			if !errors.Is(err, boom) {
+				t.Fatalf("copy with injected failure = %v, want %v", err, boom)
+			}
+			if after := copyDocCount(t, env); after != before {
+				t.Fatal("failed copy left a document row behind")
+			}
+			if env.real != nil {
+				if st := env.sessionStatus(t, up.UploadID); st != "staged" {
+					t.Fatalf("upload session after rollback = %s, want staged", st)
+				}
+			}
+			// Retry with the same upload and key succeeds once the failure clears.
+			copied, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", UploadID: up.UploadID, IdempotencyKey: key,
+			})
+			mustf(t, err, "retry copy after rollback")
+			if copied.Version.FileID.String != up.UploadID {
+				t.Fatalf("copied file_id = %s, want %s", copied.Version.FileID.String, up.UploadID)
+			}
+			if env.real != nil {
+				if st := env.sessionStatus(t, up.UploadID); st != "claimed" {
+					t.Fatalf("upload session after commit = %s, want claimed", st)
+				}
+			}
+		})
+
+		t.Run("upload_id together with job_id is 400 invalid", func(t *testing.T) {
+			src := env.createFile(t, member, "both.md", []byte("# Nguon\n"))
+			up := env.upload(t, member, src.Document.ID, "both-v2.md", []byte("# Ban 2\n"))
+			before := copyDocCount(t, env)
+			_, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", JobID: util.NewID(), UploadID: up.UploadID, IdempotencyKey: util.NewID(),
+			})
+			var ve ValidationError
+			if !errors.As(err, &ve) {
+				t.Fatalf("copy with both job_id and upload_id = %v, want ValidationError (400)", err)
+			}
+			if after := copyDocCount(t, env); after != before {
+				t.Fatal("refused copy created a document")
+			}
+		})
+	})
+}
+
+func TestDocumentCopyUploadSizeCap(t *testing.T) {
+	ctx := context.Background()
+	const initialCap = int64(8192)
+	const loweredCap = int64(2048)
+	env := fakeDocStorageEnvWithCap(t, initialCap)
+	member := human(env.tn.member)
+	src := env.createFile(t, member, "cap.md", []byte("# Small\n"))
+
+	// An upload exceeding DOCUMENT_MAX_BYTES is refused at stage time with 413 file_too_large + max_bytes.
+	_, err := env.svc.UploadDocumentFile(ctx, member, src.Document.ID, DocumentUploadInput{
+		Filename: "over.md", Body: bytes.NewReader(bytes.Repeat([]byte("a"), int(initialCap+1))),
+		IdempotencyKey: util.NewID(),
+	})
+	if ce := wantCode(t, err, "file_too_large"); ce.Status != http.StatusRequestEntityTooLarge || ce.Fields["max_bytes"] != initialCap {
+		t.Fatalf("upload over cap = %+v, want 413 file_too_large max_bytes=%d", ce, initialCap)
+	}
+
+	// If an upload was staged under a higher cap and the service cap is lowered before CopyDocument,
+	// CopyDocument enforces the cap with the same 413 file_too_large + max_bytes.
+	up := env.upload(t, member, src.Document.ID, "staged-4k.md", bytes.Repeat([]byte("b"), 4096))
+	env.svc.SetFiles(filesfakeWithCapFrom(env.fake, loweredCap))
+	_, err = env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+		Consent: "copy", UploadID: up.UploadID, IdempotencyKey: util.NewID(),
+	})
+	if ce := wantCode(t, err, "file_too_large"); ce.Status != http.StatusRequestEntityTooLarge || ce.Fields["max_bytes"] != loweredCap {
+		t.Fatalf("copy over cap = %+v, want 413 file_too_large max_bytes=%d", ce, loweredCap)
+	}
+}
+
+type cappedRegistryFiles struct {
+	files.Service
+	reg files.Registry
+}
+
+func (c cappedRegistryFiles) Registry() files.Registry { return c.reg }
+
+func filesfakeWithCapFrom(base files.Service, capBytes int64) files.Service {
+	specs := files.SpecsWithDocumentMaxBytes(capBytes)
+	for i := range specs {
+		specs[i].Disabled = false
+	}
+	reg, err := files.NewRegistry(specs...)
+	if err != nil {
+		panic(err)
+	}
+	return cappedRegistryFiles{Service: base, reg: reg}
 }

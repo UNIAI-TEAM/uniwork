@@ -46,6 +46,9 @@ type CopyDocumentInput struct {
 	// the copy's first version is the job's OOXML output
 	// (document_copy_convert.go) instead of the source's own bytes.
 	JobID string
+	// UploadID, when set, creates the copy's first version from a staged
+	// upload of this document by the same actor instead of the source's head.
+	UploadID string
 }
 
 func errCopyConsentRequired() error {
