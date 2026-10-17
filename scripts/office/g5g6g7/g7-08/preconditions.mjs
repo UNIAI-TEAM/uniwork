@@ -2,12 +2,12 @@
 // Enforces contract g708-w2b: prove (a) server, (b) host postMessage init, and (c) frame AI panel
 // before any AI turn; attribute (a)/(b) failures to D (harness) and only (c) selector absence to F.
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { callTracerApi } from '../g7-10/tracer.mjs';
 import { parseEnvFile, sleep } from '../harness/app-steps.mjs';
-import { buildServerEnv, harnessPaths } from '../harness/lib.mjs';
+import { harnessPaths } from '../harness/lib.mjs';
 import { VERDICT, blockedVerdict, passVerdict } from './oracles.mjs';
 import { DEFAULT_REPO_ROOT, FORMAT_FEATURE_FLAGS, SERVER_FORMAT_TOKENS } from './rows.mjs';
 
@@ -114,6 +114,8 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
   }
 
   const fileEnv = parseUnquotedEnvFile(join(runDir, 'server.env'));
+  // Feature flags use FF_<KEY> env only (server/pkg/featureflag/config.go:138, env_provider.go:54-60,
+  // server/internal/featureflags/db_provider.go:139-149). No feature_flag_overrides SQL.
   const serverEnv = {
     ...process.env,
     STORAGE_BACKEND: 'local',
@@ -123,7 +125,6 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
     AI_PROVIDER: 'fake',
     AI_CONVERSATION_KEY: TEST_CONVERSATION_KEY_B64,
     FF_OFFICE_AI_UNIWORK: 'true',
-    FF_OFFICE_AI_BYOK: 'true',
     FF_OFFICE_AI_UNIWORK_XLSX: 'true',
     FF_OFFICE_AI_UNIWORK_DOCX: 'true',
     FF_OFFICE_AI_UNIWORK_PPTX: 'true',
@@ -164,6 +165,14 @@ async function ensureHarnessServerAiProvider({ runDir, repoRoot = DEFAULT_REPO_R
   return false;
 }
 
+/**
+ * Verifies server preconditions (a) for the test org seeded via POST /api/v1/orgs:
+ * - Entitlement `office.ai_cloud` (and `ai.tokens = 100000`) comes from the default Starter plan
+ *   assigned on org creation (`server/internal/service/organization.go:119` -> `createDefaultSubscription`
+ *   in `server/internal/service/billing.go:66-78`, seeded by `9991791524388002_office_ai_features.up.sql:11-16`,
+ *   same path as `e2e/office-ux-floor-fixtures.ts:401-411`).
+ * - Flags `office_ai_uniwork` and `office_ai_uniwork_<format>` come from `FF_OFFICE_AI_*` env.
+ */
 export async function ensureServerPreconditions({
   runDir,
   repoRoot = DEFAULT_REPO_ROOT,
@@ -177,41 +186,8 @@ export async function ensureServerPreconditions({
 } = {}) {
   const paths = harnessPaths(runDir);
   const ports = parseUnquotedEnvFile(paths.envFile);
-  const srvEnv = parseUnquotedEnvFile(join(runDir, 'server.env'));
-  const dbUrl = srvEnv.DATABASE_URL || process.env.DATABASE_URL || '';
-  let dbName = ports.WORKTREE_DB_NAME || '';
-  if (!dbName && dbUrl) {
-    try { dbName = new URL(dbUrl).pathname.replace(/^\//, ''); } catch { /* ignore */ }
-  }
-  const pgContainer = ports.PG_CONTAINER || 'uniwork-postgres-1';
-  const pgUser = ports.PG_USER || 'uniwork';
   const formatFlag = FORMAT_FEATURE_FLAGS[row?.format] || `office_ai_uniwork_${row?.format}`;
   const serverFormatToken = SERVER_FORMAT_TOKENS[row?.format] || row?.format;
-  const allFlags = [
-    'office_ai_uniwork',
-    'office_ai_byok',
-    'office_ai_uniwork_xlsx',
-    'office_ai_uniwork_docx',
-    'office_ai_uniwork_pptx',
-    'office_ai_uniwork_pdf',
-    'office_ai_uniwork_markdown',
-    'office_ai_uniwork_html',
-  ];
-
-  if (dbName && seeded?.organizationId && seeded?.userId) {
-    const flagValuesSql = allFlags
-      .map((f, i) => `('01J0000000000000000000G70${i}', '${f}', 'global', '', true, 'g708 w2b precondition', '${seeded.userId}')`)
-      .join(', ');
-    const sql = [
-      `UPDATE users SET platform_role = 'admin' WHERE id = '${seeded.userId}';`,
-      `UPDATE subscriptions SET overrides = COALESCE(overrides, '{}'::jsonb) || '{"office.ai_cloud": true, "ai.tokens": 100000000}'::jsonb WHERE organization_id = '${seeded.organizationId}';`,
-      `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by) VALUES ${flagValuesSql} ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = true;`,
-    ].join(' ');
-    const r1 = spawnSync('docker', ['exec', pgContainer, 'psql', '-U', pgUser, '-d', dbName, '-c', sql], { timeout: 10_000 });
-    if (r1.status !== 0 && pgContainer === 'uniwork-postgres-1') {
-      spawnSync('docker', ['exec', 'uniwork-postgres', 'psql', '-U', pgUser, '-d', dbName, '-c', sql], { timeout: 10_000 });
-    }
-  }
 
   const checkEndpoints = async () => {
     const capRes = await fetchImpl(`${apiOrigin}/api/v1/orgs/${seeded.organizationId}/office/capabilities`, {
