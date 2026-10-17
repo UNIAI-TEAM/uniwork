@@ -253,6 +253,42 @@ export async function restoreDocument(
   });
 }
 
+/** POST /api/v1/documents/{documentID}/shelve — archives the subtree into the
+ *  read-only "Lưu trữ" state in one batch (ARCHIVE-01, addendum §2 S-1).
+ *  Same envelope and Idempotency-Key semantics as archive; null means the
+ *  shelve cannot be proven. */
+export async function shelveDocument(
+  documentId: string,
+  opts?: DocumentRequestOpts,
+): Promise<DocumentArchive | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/shelve`, {
+    method: "POST",
+    headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentArchive | null>(raw, DocumentArchiveSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/shelve",
+  });
+}
+
+/** POST /api/v1/documents/{documentID}/unshelve — brings back the target
+ *  shelved item and the shelved descendants of the same batch the caller
+ *  manages (ARCHIVE-01 §2 S-2). Null means the unshelve cannot be proven. */
+export async function unshelveDocument(
+  documentId: string,
+  opts?: DocumentRequestOpts,
+): Promise<DocumentArchive | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/unshelve`, {
+    method: "POST",
+    headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentArchive | null>(raw, DocumentArchiveSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/unshelve",
+  });
+}
+
+
 /** POST /api/v1/documents/{documentID}/purge — permanently delete a trashed
  *  item and the trashed descendants in its batch that the caller manages
  *  (RESTORE-01). The server answers 204 and keeps no purge ledger, so no
