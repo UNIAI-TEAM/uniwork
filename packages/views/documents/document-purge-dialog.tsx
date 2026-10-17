@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { isDocumentNotInTrashError } from "@uniwork/core/documents/errors";
 import { usePurgeDocument } from "@uniwork/core/documents/hooks-collections";
 import { documentKeys } from "@uniwork/core/documents/keys";
-import { createSafeId } from "@uniwork/core/utils";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -44,7 +43,6 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
   const purge = usePurgeDocument(wsId);
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const keyRef = useRef<string | null>(null);
   // `pending` is a render snapshot: two clicks in one frame both read false.
   const inFlightRef = useRef(false);
   const pending = purge.isPending;
@@ -52,7 +50,6 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
   useEffect(() => {
     if (!open) {
       setError(null);
-      keyRef.current = null;
     }
   }, [open]);
 
@@ -63,10 +60,8 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
     if (pending || inFlightRef.current) return;
     inFlightRef.current = true;
     setError(null);
-    keyRef.current ??= createSafeId();
     try {
-      await purge.mutateAsync({ documentId: doc.id, idempotencyKey: keyRef.current });
-      keyRef.current = null;
+      await purge.mutateAsync(doc.id);
       onOpenChange(false);
       toast.success(t("documents.trash.purged", { title }));
     } catch (failure) {

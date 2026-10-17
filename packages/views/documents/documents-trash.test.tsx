@@ -179,6 +179,16 @@ describe("trash list", () => {
     expect(within(row).queryByText(t("documents.trash.read_only"))).toBeNull();
   });
 
+  it("keeps Khôi phục and Xóa vĩnh viễn on a restricted row a workspace admin sees (no my_level, admin_scope)", async () => {
+    route({ list: () => [trashed({ my_level: undefined, admin_scope: true, title: "Hồ sơ hạn chế" })] });
+    renderView();
+    await openTrash();
+    const row = await rowOf("Hồ sơ hạn chế");
+    expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Hồ sơ hạn chế" }) })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Hồ sơ hạn chế" }) })).toBeInTheDocument();
+    expect(within(row).queryByText(t("documents.trash.read_only"))).toBeNull();
+  });
+
   it("shows the read-only label and no actions on a row the viewer only edits, and its name does not open", async () => {
     route({ list: () => [trashed({ my_level: "edit", kind: "file", title: "Slide kick-off.pptx" })] });
     const onOpen = vi.fn();
