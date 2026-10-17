@@ -60,7 +60,9 @@ Chỉ cắt stable khi bản mac/Windows đã có chữ ký (UNI-1838).
 5. Bật ký lần đầu (UNI-1838): giới hạn Environment `chat-desktop-release` cho tag `chat-desktop-v*`, thêm secrets
    `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, `WIN_CSC_LINK`,
    `WIN_CSC_KEY_PASSWORD`, rồi cắt một bản dev. Tên tệp mac/Windows mất nhãn `_unsigned`, bản mac tự cập nhật
-   từ bản ký đầu tiên; bản mac chưa ký đã cài vẫn chỉ nhận thông báo và phải tải tay một lần.
+   từ bản ký đầu tiên; bản mac chưa ký đã cài vẫn chỉ nhận thông báo và phải tải tay một lần. Chứng chỉ Windows
+   mua sau 2023-06 nằm trên phần cứng/HSM, không có `.pfx` cho `WIN_CSC_LINK`: đổi bước ký Windows theo
+   `docs/evidence/unichat/release-accounts.md` (ghi chú Windows) trước khi thêm secret Windows.
 
 ## Leo thang
 
