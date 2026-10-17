@@ -189,6 +189,17 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
                     {/* TV-12: the truncated name still reads in full on hover. */}
                     <span title={title} className="block truncate text-body font-medium text-foreground">{title}</span>
                     {origin ? <span className="block truncate text-caption text-muted-foreground">{origin}</span> : null}
+                    {/* Narrow widths carry the meta the columns have not joined
+                        yet (RESTORE-01): deleted-at + countdown below 40rem,
+                        wrapping rather than truncating; deleted-by below 54rem. */}
+                    {deletedAt || purgeText ? (
+                      <span data-trash-meta="" className="block text-caption text-muted-foreground @min-[40rem]/trash:hidden">
+                        {[deletedAt, purgeText].filter(Boolean).join(" · ")}
+                      </span>
+                    ) : null}
+                    {deleter ? (
+                      <span data-trash-meta="" className="block truncate text-caption text-muted-foreground @min-[54rem]/trash:hidden">{deleter}</span>
+                    ) : null}
                   </span>
                 </>
               );

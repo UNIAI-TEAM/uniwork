@@ -157,6 +157,19 @@ describe("DocumentsTrashView", () => {
     expect(rung(cells[3]!).length).toBeGreaterThan(0);
   });
 
+  it("carries deleted-at, the countdown and the deleter in the name cell until their columns join (RESTORE-01 phones)", () => {
+    renderView({ rows: [row("a", { purge_after: "2026-10-20T00:00:00Z" })] });
+    const name = (document.querySelector("[data-trash-row]") as HTMLElement).querySelector("td")!;
+    const [stamp, deleter] = Array.from(name.querySelectorAll("[data-trash-meta]"));
+    // One wrapping line (no truncate), gone once Xóa lúc + Xóa vĩnh viễn sau join at 40rem.
+    expect(stamp).toHaveTextContent(/ · Còn 4 ngày$/);
+    expect(stamp).toHaveClass("@min-[40rem]/trash:hidden");
+    expect(stamp).not.toHaveClass("truncate");
+    // The deleter line stays until Xóa bởi joins at 54rem.
+    expect(deleter).toHaveTextContent("Mai Trường");
+    expect(deleter).toHaveClass("@min-[54rem]/trash:hidden");
+  });
+
   it("counts the purge deadline down in days from purge_after, names today, and marks an expired row", () => {
     renderView({
       rows: [
