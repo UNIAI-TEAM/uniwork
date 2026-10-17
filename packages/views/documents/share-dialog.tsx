@@ -396,6 +396,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                           ownerId={access.data.acl_owner.user_id}
                           ownerName={memberName(access.data.acl_owner.user_id) ?? t("documents.share.person_unknown")}
                           orgMembers={members.rows}
+                          lockedBy={lockedBy}
                         />
                       </span>
                     </li>

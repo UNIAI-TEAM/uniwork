@@ -118,6 +118,22 @@ describe("UI-AR6 share dialog on a shelved document", () => {
     expect(writes()).toHaveLength(0);
   });
 
+  // F5: the server's shelve gate is the default of every document mutation (withDocumentMutation, addendum §3),
+  // so handing the ACL owner on is refused like any grant: the button says why and opens nothing.
+  it("keeps Chuyển quyền sở hữu in the tab order but off, with the shelved note", async () => {
+    renderDialog();
+    await screen.findByText("Bình");
+    const note = screen.getByText(t("documents.shelved_doc.share_note"));
+    const transfer = screen.getByRole("button", { name: t("documents.share.owner.transfer_button") });
+    expect(transfer).toHaveAttribute("aria-disabled", "true");
+    expect(transfer).not.toBeDisabled();
+    expect(transfer.getAttribute("aria-describedby")).toBe(note.id);
+    const dialogs = screen.getAllByRole("dialog").length;
+    fireEvent.click(transfer);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getAllByRole("dialog")).toHaveLength(dialogs);
+  });
+
   it("leaves a live document's dialog as it was", async () => {
     renderDialog(shelvedDoc({ shelved_at: null, shelved_by: null }));
     await screen.findByText("Bình");

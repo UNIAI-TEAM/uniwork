@@ -45,6 +45,9 @@ export interface OwnerTransferActionProps {
   ownerName: string;
   /** Active organization members, already loaded by the share dialog. */
   orgMembers: readonly OrgMember[];
+  /** The id of the line saying why the transfer is off (a shelved document): the button stays in the
+   *  tab order, aria-disabled and described by it, and opens nothing. */
+  lockedBy?: string;
 }
 
 /**
@@ -52,7 +55,7 @@ export interface OwnerTransferActionProps {
  * §2.4; W-DOC06, UNI-1630). The caller already passed canAdministerDocument;
  * a work-product document never gets here (the dialog hides itself).
  */
-export function OwnerTransferAction(props: OwnerTransferActionProps) {
+export function OwnerTransferAction({ lockedBy, ...props }: OwnerTransferActionProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
@@ -64,7 +67,11 @@ export function OwnerTransferAction(props: OwnerTransferActionProps) {
         variant="outline"
         size="sm"
         aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
+        aria-disabled={lockedBy ? true : undefined}
+        aria-describedby={lockedBy}
+        onClick={() => {
+          if (!lockedBy) setOpen(true);
+        }}
       >
         {t("documents.share.owner.transfer_button")}
       </Button>
