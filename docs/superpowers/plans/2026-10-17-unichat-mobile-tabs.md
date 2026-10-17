@@ -1,6 +1,6 @@
 # UniChat M2b — Tab Cuộc gọi, Danh bạ, Cài đặt — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — issue UNI-1833, nhánh `feature/UNI-1833-unichat-m2b-tab-cuoc-goi-lich-su-danh-ba`.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #340 (squash 22b9e8a67); issue UNI-1833.
 
 **Goal:** Ba tab còn lại của app mobile đủ dùng: lịch sử cuộc gọi xuyên phòng (một tuyến đọc mới), danh bạ workspace mở DM, cài đặt tài khoản/thiết bị/thông báo/giao diện/ngôn ngữ/workspace/đăng xuất.
 

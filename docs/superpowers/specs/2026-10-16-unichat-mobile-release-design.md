@@ -1,6 +1,6 @@
 # UniChat — Phát hành mobile: EAS, TestFlight/Play internal, OTA, Maestro (lát M4)
 
-> **Trạng thái:** in-progress — Đã duyệt (chủ sở hữu 2026-10-17). Lát M4 của epic UNI-1826; issue UNI-1836, nhánh `feature/UNI-1836-unichat-m4-phat-hanh-mobile-eas-build-su`; phase 1 (EAS, OTA, workflow, khung Maestro, runbook, store) đang làm, phase 2 (ba luồng vàng) chờ M2a và M3. Plan: `docs/superpowers/plans/2026-10-17-unichat-mobile-release.md`.
+> **Trạng thái:** in-progress — phase 1 (EAS, OTA, workflow, khung Maestro, runbook, store) merge vào develop 2026-10-17 qua PR #343 (squash aab341175); phase 2 (ba luồng Maestro vàng) chờ M3 (UNI-1834). Plan `../plans/2026-10-17-unichat-mobile-release.md`. Lát M4 của epic UNI-1826; issue UNI-1836.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §6 M4, §9, §10 · **Tiền lệ:** `multica/.github/workflows/mobile-verify.yml`, mục Build & release trong `multica/apps/mobile/CLAUDE.md`
 

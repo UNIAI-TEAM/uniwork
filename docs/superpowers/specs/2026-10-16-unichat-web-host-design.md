@@ -1,6 +1,6 @@
 # UniChat — Web host: session provider theo token, layout chỉ Chat, badge/focus/deep link, universal links (lát N3)
 
-> **Trạng thái:** in-progress — đang triển khai trên nhánh `feature/UNI-1829-unichat-n3-web-host-session-provider-the`; plan `../plans/2026-10-16-unichat-web-host.md`. Lát N3 của epic UNI-1826; issue UNI-1829.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #333 (squash d4d5aaa31, gộp N1–N3 giai đoạn 1); sửa sau khảo sát usf qua PR #334 (df17638c0); plan `../plans/2026-10-16-unichat-web-host.md`. Lát N3 của epic UNI-1826; issue UNI-1829.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.2, §6 D2–D3, M1 (well-known) · **Vùng:** `packages/core/{auth,api,platform}`, `packages/views/layout/`, `apps/web/platform/`, `apps/web/app/.well-known/`
 

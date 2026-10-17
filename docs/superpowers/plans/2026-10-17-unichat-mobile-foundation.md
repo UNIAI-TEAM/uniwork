@@ -1,6 +1,6 @@
 # UniChat M1 — Nền app mobile `apps/chat-mobile` (Expo) — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — issue UNI-1831, nhánh `feature/UNI-1831-unichat-m1-apps-chat-mobile-nen-expo-ios`.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #337 (squash f24ce4874); issue UNI-1831.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

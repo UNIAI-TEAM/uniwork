@@ -1,6 +1,6 @@
 # UniChat N3 — Web host: session provider theo token, layout chỉ Chat, badge/focus/deep link, universal links — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — issue UNI-1829, nhánh `feature/UNI-1829-unichat-n3-web-host-session-provider-the`.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #333 (squash d4d5aaa31, gộp N1–N3 giai đoạn 1); sửa sau khảo sát usf qua PR #334 (df17638c0); issue UNI-1829.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

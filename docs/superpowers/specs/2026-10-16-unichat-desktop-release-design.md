@@ -1,6 +1,6 @@
 # UniChat — Đóng gói và phát hành desktop (lát D2)
 
-> **Trạng thái:** in-progress — duyệt 2026-10-17 (chủ sở hữu: "làm tiếp đến khi hoàn thành UNI-1826"); nhánh `feature/UNI-1835-unichat-d2-dong-goi-va-phat-hanh-desktop`; plan `docs/superpowers/plans/2026-10-17-unichat-desktop-release.md`. Lát D2 của epic UNI-1826; issue UNI-1835.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #339 (squash 0c72b9b15); plan `../plans/2026-10-17-unichat-desktop-release.md`; chạy thật tag → release, smoke cài/cập nhật trên máy sạch và ký số còn lại cho Q1 (UNI-1838). Lát D2 của epic UNI-1826; issue UNI-1835.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.1, §6 D5, §10 · **Tiền lệ:** `scripts/office/installer-urls.mjs` (+ test), `packages/core/office/desktop-platform.ts` (`DESKTOP_INSTALLER_KINDS`), `server/internal/service/office_desktop_*` (parser `OFFICE_INSTALLER_<CHANNEL>_URLS`), `uniwork-office/.github/workflows/release-installers.yml`
 

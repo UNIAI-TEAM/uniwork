@@ -1,6 +1,6 @@
 # UniChat — Tab Cuộc gọi (lịch sử), Danh bạ, Cài đặt (lát M2b)
 
-> **Trạng thái:** in-progress — đang triển khai trên nhánh `feature/UNI-1833-unichat-m2b-tab-cuoc-goi-lich-su-danh-ba`; plan `../plans/2026-10-17-unichat-mobile-tabs.md`. Lát M2b của epic UNI-1826; issue UNI-1833.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #340 (squash 22b9e8a67); plan `../plans/2026-10-17-unichat-mobile-tabs.md`; chạy trên máy/simulator thật còn lại cho Q1 (UNI-1838). Lát M2b của epic UNI-1826; issue UNI-1833.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.3, §6 M2 · **Quyết định:** bốn tab từ bản đầu (chủ sở hữu, 2026-10-16); tab Cuộc gọi hiện lịch sử trước, gọi được ở M3
 

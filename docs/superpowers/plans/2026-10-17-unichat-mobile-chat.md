@@ -1,6 +1,6 @@
 # UniChat M2a — Tab Chat: danh sách hội thoại hợp nhất và hội thoại lõi — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — issue UNI-1832, nhánh `feature/UNI-1832-unichat-m2a-tab-chat-danh-sach-hoi-thoai`.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #342 (squash bd3216771); issue UNI-1832.
 
 **Spec:** `docs/superpowers/specs/2026-10-16-unichat-mobile-chat-design.md` (spec cha §6 M2, §8). **Mẫu:** plan M1 `2026-10-17-unichat-mobile-foundation.md`.
 

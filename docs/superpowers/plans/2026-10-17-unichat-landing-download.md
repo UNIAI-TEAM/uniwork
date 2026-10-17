@@ -1,6 +1,6 @@
 # UniChat L1 — Trang tải `/unichat` trên landing — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — mã xong trên nhánh `feature/UNI-1837-unichat-l1-trang-tai-tren-landing-unicha`, chờ review PR; issue UNI-1837.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #341 (squash b997165a9); issue UNI-1837.
 
 **Mục tiêu:** Trang công khai `/unichat` (và `/vi/unichat`) giới thiệu UniChat và cho tải đúng bản: desktop theo hệ điều hành và kênh từ `unichat_installers`, điện thoại theo store từ `unichat_stores`; mọi link đến từ `GET /api/v1/config`; env trống thì nói thật "chưa phát hành".
 

@@ -1,6 +1,6 @@
 # UniChat N1 — Client PKCE native, scheme callback theo server, rate limit refresh theo thiết bị — Kế hoạch triển khai
 
-> **Trạng thái:** shipped — issue UNI-1827, nhánh `feature/UNI-1827-unichat-n1-client-pkce-native-uniwork-ch`.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #333 (squash d4d5aaa31, gộp N1–N3 giai đoạn 1); sửa sau khảo sát usf qua PR #334 (df17638c0); issue UNI-1827.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
