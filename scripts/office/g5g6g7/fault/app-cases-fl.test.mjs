@@ -249,3 +249,26 @@ test("the driver module registers exactly the four W1 rows and reads no store fi
   const writes = [...source.matchAll(/writeFileSync\(/g)].length;
   assert.equal(writes, 4, "tamper, two store-evidence files and a screenshot: no other write");
 });
+
+test("every shot a ready FL row declares is one its driver actually captures", () => {
+  const source = readFileSync(new URL("./app-case-drivers-offline.mjs", import.meta.url), "utf8");
+  const rows = loadFaultCases().cases.filter((row) => row.status === "ready" && row.id.startsWith("FL-"));
+  assert.equal(rows.length, 4);
+  // each driver's body is the text between its `async function flNN(` and the next one
+  const bodyOf = (id) => {
+    const start = source.indexOf(`async function ${id.toLowerCase().replace("-", "")}(`);
+    assert.ok(start > 0, `${id}: no driver body`);
+    const next = source.indexOf("\nasync function ", start + 10);
+    return source.slice(start, next === -1 ? source.length : next);
+  };
+  for (const row of rows) {
+    const body = bodyOf(row.id);
+    for (const artifact of row.artifacts.filter((name) => name.endsWith(".png"))) {
+      assert.ok(body.includes(`artifactPath("${artifact}")`), `${row.id}: declares ${artifact} but its driver never captures it`);
+    }
+    // and no driver captures a shot the row does not declare
+    for (const shot of [...body.matchAll(/artifactPath\("(\S+\.png)"\)/g)].map((m) => m[1])) {
+      assert.ok(row.artifacts.includes(shot), `${row.id}: captures ${shot} but does not declare it`);
+    }
+  }
+});

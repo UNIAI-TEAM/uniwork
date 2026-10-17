@@ -445,6 +445,8 @@ async function fl01(ctx) {
   const log = await ctx.proxyLog();
   const after = collectOfflineState(storeArgs(ctx, [doc.id]));
   writeStoreEvidence(ctx.runDirOut(), { before, after });
+  // the shot is evidence: open S3 first, then grab the panel it renders
+  await openOfflineTab(session);
   await captureS3(session, { file: ctx.artifactPath("s3-offline-tab.png") });
   const delta = storeDelta(before, after);
   return {
@@ -485,7 +487,12 @@ async function fl03(ctx) {
   const after = collectOfflineState(storeArgs(ctx, [doc.id]));
   writeStoreEvidence(ctx.runDirOut(), { before, after });
   const opened = await offlineOpen(second, doc.id);
+  // S11 = the lock panel of a copy that could not be opened: open S3 first so the
+  // panel that carries the refusal is rendered, then grab it (evidence only)
+  await openOfflineTab(second);
   await captureS11(second, { file: ctx.artifactPath("s11-lock-panel.png") });
+  // S3 beside it: the `corrupt` row the row asserts on, on the same surface
+  await captureS3(second, { file: ctx.artifactPath("s3-offline-tab.png") });
   // "never served": a row reads `ready` only when the bytes under it verified, so a
   // tampered ciphertext still on disk beside a `ready` row is the product serving it.
   const stillTampered = after.library.some((record) => tamperedNames.has(record.name));
@@ -520,6 +527,11 @@ async function fl07(ctx) {
   const facts = await signedOutFacts(session);
   const signedOutReading = await offlineSnapshot(session);
   const afterSignOut = collectOfflineState(storeArgs(ctx, [doc.id]));
+  // S3 shot while A is signed out: the surface that must keep no document name,
+  // plus S11 - A's copy is locked at this boundary, which is what S11 shows
+  await openOfflineTab(session);
+  await captureS3(session, { file: ctx.artifactPath("s3-offline-tab.png") });
+  await captureS11(session, { file: ctx.artifactPath("s11-lock-panel.png") });
   await signIn(session, ctx.tenant.apiOrigin, ctx.tenant.foreign);
   const bSnapshot = await offlineSnapshot(session);
   const bRows = rowsOf(bSnapshot);
@@ -562,6 +574,9 @@ async function fl08(ctx) {
   const after = collectOfflineState(storeArgs(ctx, [doc.id]));
   const delta = storeDelta(before, after);
   writeStoreEvidence(ctx.runDirOut(), { before, after });
+  // S3 on deployment B: the empty library the row claims, captured as evidence
+  await openOfflineTab(bSession);
+  await captureS3(bSession, { file: ctx.artifactPath("s3-offline-tab.png") });
   return {
     documentId: doc.id,
     assertions: [

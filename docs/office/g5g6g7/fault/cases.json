@@ -2857,7 +2857,7 @@
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3"
           ]
         }
       },
@@ -2871,8 +2871,7 @@
         "case-result.json",
         "offline-store-before.json",
         "offline-store-after.json",
-        "s3-offline-tab.png",
-        "s11-lock-panel.png"
+        "s3-offline-tab.png"
       ]
     },
     {
@@ -3373,7 +3372,7 @@
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3"
           ]
         }
       },
@@ -3387,8 +3386,7 @@
         "case-result.json",
         "offline-store-before.json",
         "offline-store-after.json",
-        "s3-offline-tab.png",
-        "s11-lock-panel.png"
+        "s3-offline-tab.png"
       ]
     },
     {
