@@ -697,9 +697,9 @@ describe("Chunked document upload in views", () => {
   it("shows a loading toast with a Cancel action when dropping a file above threshold and suppresses toast.error on cancel", async () => {
     const calls: string[] = [];
     const loadingSpy = vi.spyOn(toast, "loading").mockReturnValue("drop-toast-1");
-    const dismissSpy = vi.spyOn(toast, "dismiss").mockImplementation(() => undefined);
-    const errorSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
-    const successSpy = vi.spyOn(toast, "success").mockImplementation(() => "");
+    const dismissSpy = vi.spyOn(toast, "dismiss").mockReturnValue("");
+    const errorSpy = vi.spyOn(toast, "error").mockReturnValue("");
+    const successSpy = vi.spyOn(toast, "success").mockReturnValue("");
 
     requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
       const method = opts?.method ?? "GET";
