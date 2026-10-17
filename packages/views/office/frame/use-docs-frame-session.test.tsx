@@ -217,7 +217,7 @@ describe("useDocsFrameSession: a Save the page sends to the frame", () => {
     await frame.respond(request, { ok: false, error: { code, message: "refused", status } });
     await expect(saving).resolves.toBe("failed");
     expect(frame.hook.result.current.saveState).toBe("error");
-    expect(frame.onError).toHaveBeenCalledWith(expect.objectContaining({ code }));
+    expect(frame.onError).toHaveBeenCalledWith(expect.objectContaining({ code }), { fatal: false });
   });
 
   it("holds a navigate save through the frame's conflict dialog until the frame answers", async () => {

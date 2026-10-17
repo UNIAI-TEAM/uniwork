@@ -177,8 +177,8 @@ export function OfficeModuleFrame({
     onSourceWriteRefused: () => {
       toast.error(tRef.current("errors.read_only_source"));
     },
-    onError: (error: ProtocolErrorShape) => {
-      if (error.code === "cancelled" || onSessionFailureRef.current) return;
+    onError: (error: ProtocolErrorShape, { fatal }) => {
+      if (error.code === "cancelled" || (fatal && onSessionFailureRef.current)) return;
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";
       toast.error(tRef.current(`errors.${key}`));
     },

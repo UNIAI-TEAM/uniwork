@@ -148,8 +148,8 @@ export interface DocsFrameSessionOptions {
    * without its extension: the host adds the module's own.
    */
   downloadName?: () => string;
-  /** Non-fatal frame or proxy errors the user should hear about. */
-  onError: (error: ProtocolErrorShape) => void;
+  /** Frame or proxy errors the user should hear about (`fatal` when the frame's error event ended the session). */
+  onError: (error: ProtocolErrorShape, options: { fatal: boolean }) => void;
   /** Called when a view-only source frame asks to save, export, upload, or download. */
   onSourceWriteRefused?: () => void;
   /**

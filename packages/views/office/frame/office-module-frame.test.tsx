@@ -40,12 +40,12 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, ackComments = false, ackCapabilities, fileRef }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, onSessionFailure, ackComments = false, ackCapabilities, fileRef }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; onSessionFailure?: (failure: unknown) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
   const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
   requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : path === SOURCE_MINT_PATH ? Promise.resolve({ ...mintedSource, module: tokenModule }) : Promise.reject(new Error(`unexpected ${path}`))));
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const bare = <OfficeModuleFrame module={module} wsId="ws-1" fileRef={ref} title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} />;
+  const bare = <OfficeModuleFrame module={module} wsId="ws-1" fileRef={ref} title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} onSessionFailure={onSessionFailure} />;
   const framed = fileActions
     ? <OfficeTooLargeProvider value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
     : bare;
@@ -80,6 +80,9 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     ready: (payload: Record<string, unknown>) => post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, ...payload })),
     inits: () => received.filter((m) => m.kind === "request" && m.type === "init"),
+    sent: (type: string) => received.filter((m) => m.kind === "request" && m.type === type),
+    respondError: (to: Envelope, error: Envelope["error"]) =>
+      post({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: to.id, kind: "response", type: to.type, error }),
     request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
     answerTo: (id: string) => received.find((m) => m.kind === "response" && m.id === id),
   };
@@ -146,6 +149,27 @@ describe("OfficeModuleFrame", () => {
     expect(lastApi?.export).not.toHaveBeenCalled();
     expect(lastApi?.addAttachments).not.toHaveBeenCalled();
     expect(lastApi?.uploadImage).not.toHaveBeenCalled();
+  });
+
+  it("still toasts a failed print in a source view while suppressing only fatal frame errors when onSessionFailure is set (F2)", async () => {
+    const onSessionFailure = vi.fn();
+    const frame = mountFrame("docs", { fileRef: { kind: "source", id: "chat:s-1" }, onSessionFailure });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === SOURCE_MINT_PATH)).toBe(true));
+    await frame.ready({ module: "docs" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true });
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(1));
+    await frame.respondError(frame.sent("print")[0]!, { code: "internal", message: "print failed" });
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith("Trình soạn thảo tài liệu gặp lỗi.");
+    expect(onSessionFailure).not.toHaveBeenCalled();
+
+    toast.error.mockClear();
+    await frame.event("error", { error: { code: "not_found", message: "not found" }, fatal: true });
+    await waitFor(() => expect(onSessionFailure).toHaveBeenCalledTimes(1));
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("takes back its comments claim when the frame unmounts, so the page's own panel returns", async () => {

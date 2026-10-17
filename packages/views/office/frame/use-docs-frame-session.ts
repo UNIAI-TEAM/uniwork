@@ -437,7 +437,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       // reaches the host only as this event: a toast here would say it twice.
       if (error.code === "conflict" && !isFatal) return;
       if (error.code === "too_large" && !isFatal && saveBlockedOpen.current) return;
-      latest.current.options.onError(error);
+      latest.current.options.onError(error, { fatal: isFatal });
     });
     const detachProbe = attachFrameBundleProbe({
       iframe,
@@ -507,7 +507,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         return "failed";
       }
       if (error.code === "too_large" && saveBlockedOpen.current) return "failed";
-      latest.current.options.onError(error);
+      latest.current.options.onError(error, { fatal: false });
       return "failed";
     };
     try {
@@ -550,7 +550,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     try {
       return (await host.print({ mode: "dialog" }, { timeoutMs: 10 * 60_000 })).printed;
     } catch (error) {
-      latest.current.options.onError(shapeOf(error));
+      latest.current.options.onError(shapeOf(error), { fatal: false });
       return false;
     }
   }, [host]);
@@ -566,7 +566,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     downloadPending.current = true;
     void postDocDownload(iframeRef.current?.contentWindow ?? null, frameOrigin)
       .catch((error: unknown) => {
-        if (life.state === "live") latest.current.options.onError(shapeOf(error));
+        if (life.state === "live") latest.current.options.onError(shapeOf(error), { fatal: false });
       })
       .finally(() => {
         downloadPending.current = false;
