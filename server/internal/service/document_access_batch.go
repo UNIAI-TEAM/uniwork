@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -210,8 +211,18 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 			return err
 		}
 
+		// SH-S3 (R1-01/R1-02/R1-13): decide every user recipient's
+		// notification once, at command start, against the document and the
+		// live shares before any write. Deciding here (not inside the writer)
+		// makes the outcome independent of item order and of partially
+		// applied items.
+		notifyByIndex, err := s.batchNotifyDecisions(ctx, q, actor, doc, sharesBefore, docAfter, sharesAfter, items)
+		if err != nil {
+			return err
+		}
+
 		for i, it := range items {
-			res, updatedDoc, err := s.applyAccessBatchItem(ctx, q, actor, doc, access, i, it, batchID, in.DryRun)
+			res, updatedDoc, err := s.applyAccessBatchItem(ctx, q, actor, doc, access, i, it, batchID, in.DryRun, notifyByIndex[i])
 			if err != nil {
 				return err
 			}
@@ -223,6 +234,52 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 	})
 	if err != nil {
 		return DocumentAccessBatchResult{}, err
+	}
+	return out, nil
+}
+
+// batchNotifyDecisions decides, for every user item, whether the command as a
+// whole raises that recipient's effective level: the answer is computed once
+// from the COMMAND-START state (docBefore/sharesBefore) and the SIMULATED
+// FINAL state (docAfter/sharesAfter) before any write, so it never depends on
+// item order nor on partially applied items (SH-S3 R1-01/R1-02/R1-13). Only a
+// user grant whose recipient ends strictly higher is stamped; revoke, keep,
+// unchanged, self and non-user items yield "".
+func (s *DocumentService) batchNotifyDecisions(
+	ctx context.Context,
+	q *db.Queries,
+	actor Actor,
+	docBefore db.Document,
+	sharesBefore []db.DocumentShare,
+	docAfter db.Document,
+	sharesAfter []db.DocumentShare,
+	items []DocumentAccessBatchItem,
+) ([]string, error) {
+	out := make([]string, len(items))
+	for i, it := range items {
+		if it.PrincipalType != DocumentPrincipalUser || it.Level == nil {
+			continue
+		}
+		if actor.Kind == audit.KindHuman && it.PrincipalID == actor.ID {
+			continue
+		}
+		before, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docBefore, sharesBefore)
+		if err != nil {
+			if isGateRefusal(err) {
+				continue
+			}
+			return nil, err
+		}
+		after, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docAfter, sharesAfter)
+		if err != nil {
+			if isGateRefusal(err) {
+				continue
+			}
+			return nil, err
+		}
+		if after.Level.rank() > before.Level.rank() {
+			out[i] = it.PrincipalID
+		}
 	}
 	return out, nil
 }
@@ -572,6 +629,7 @@ func (s *DocumentService) applyAccessBatchItem(
 	it DocumentAccessBatchItem,
 	batchID string,
 	dryRun bool,
+	notifyUserID string,
 ) (DocumentAccessItemResult, db.Document, error) {
 	if it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == doc.WorkspaceID {
 		return s.applyHomeWorkspaceBatchItem(ctx, q, actor, doc, index, it, batchID, dryRun)
@@ -616,9 +674,9 @@ func (s *DocumentService) applyAccessBatchItem(
 	if !hasLive {
 		var shareID string
 		if !dryRun {
-			sh, err := applyDocumentShareWithBatch(ctx, q, actor, doc, access, DocumentShareInput{
+			sh, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, DocumentShareInput{
 				PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID, Level: target,
-			}, batchID)
+			}, batchID, notifyUserID)
 			if err != nil {
 				return DocumentAccessItemResult{}, doc, err
 			}
@@ -661,9 +719,9 @@ func (s *DocumentService) applyAccessBatchItem(
 
 	var shareID string
 	if !dryRun {
-		sh, err := applyDocumentShareWithBatch(ctx, q, actor, doc, access, DocumentShareInput{
+		sh, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, DocumentShareInput{
 			PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID, Level: target,
-		}, batchID)
+		}, batchID, notifyUserID)
 		if err != nil {
 			return DocumentAccessItemResult{}, doc, err
 		}

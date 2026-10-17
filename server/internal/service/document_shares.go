@@ -117,11 +117,54 @@ func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, docume
 		if err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, in); err != nil {
 			return err
 		}
-		sh, err := applyDocumentShare(ctx, q, actor, doc, access, in)
+		notifyUserID := ""
+		if in.PrincipalType == DocumentPrincipalUser {
+			uid, err := s.notifyOnUserShare(ctx, q, actor, doc, nil, in.PrincipalID, in.Level)
+			if err != nil {
+				return err
+			}
+			notifyUserID = uid
+		}
+		sh, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, in, "", notifyUserID)
 		out = sh
 		return err
 	})
 	return out, err
+}
+
+// notifyOnUserShare decides whether a direct user grant at `level` notifies
+// the recipient: only when the command as a whole strictly raises their
+// effective level on the document compared to before it, and never for the
+// actor's own grant (SH-S3; addendum §8, §10 Q-S2).
+//
+// It runs against the COMMAND-START document and shares, once per recipient
+// and before any write, so the decision can never depend on the order items
+// are applied nor be taken against partially applied ones (R1-01/R1-02/
+// R1-13). sharesBefore is the live share set read before the first write; a
+// nil slice means "not loaded yet" and the level is resolved with a fresh
+// read instead (the single ShareDocument path). A recipient who is refused
+// by the tenant gate is not notified: the same answer the grant would get.
+func (s *DocumentService) notifyOnUserShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sharesBefore []db.DocumentShare, userID string, level DocumentLevel) (string, error) {
+	if actor.Kind == audit.KindHuman && userID == actor.ID {
+		return "", nil
+	}
+	var acc DocumentAccess
+	var err error
+	if sharesBefore != nil {
+		acc, err = s.resolveLevelInTenantWithShares(ctx, q, Human(userID), doc, sharesBefore)
+	} else {
+		acc, err = s.effectiveLevel(ctx, q, Human(userID), doc)
+	}
+	if err != nil {
+		if isGateRefusal(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	if level.rank() > acc.Level.rank() {
+		return userID, nil
+	}
+	return "", nil
 }
 
 // validShareLevel is the one level check every share command shares, so a
@@ -141,11 +184,16 @@ func validShareLevel(level DocumentLevel) error {
 // revoked and replaced, and a new grant is inserted with its audit row and
 // document.shared event. A share naming the document's own workspace is not a
 // grant of its own (BR-04, SH-S1 item 2): it merges into the home row.
-func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput) (db.DocumentShare, error) {
-	return applyDocumentShareWithBatch(ctx, q, actor, doc, access, in, "")
+//
+// The recipient's notify decision (notifyUserID) is decided by the caller
+// BEFORE the first write of the command and passed in, never recomputed here
+// against partially applied items (SH-S3 R1-01/R1-02/R1-13): the writer only
+// stamps the id onto the event it emits.
+func (s *DocumentService) applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput) (db.DocumentShare, error) {
+	return s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, in, "", "")
 }
 
-func applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput, batchID string) (db.DocumentShare, error) {
+func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput, batchID, notifyUserID string) (db.DocumentShare, error) {
 	if in.PrincipalType == DocumentPrincipalWorkspace && in.PrincipalID == doc.WorkspaceID {
 		return mergeDocumentShareIntoHomeRow(ctx, q, actor, doc, access, in.Level, batchID)
 	}
@@ -165,18 +213,9 @@ func applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return db.DocumentShare{}, err
 	}
-	// SH-S3 (UNI-1782; addendum §8, §10 Q-S2): notify a user recipient only
-	// when the command strictly raises their effective level on the document
-	// compared to before the grant is written.
-	var notifyUserID string
-	if in.PrincipalType == DocumentPrincipalUser && !(actor.Kind == audit.KindHuman && in.PrincipalID == actor.ID) {
-		beforeAccess, err := (&DocumentService{orgs: &OrganizationService{}, ws: &WorkspaceService{}}).effectiveLevel(ctx, q, Human(in.PrincipalID), doc)
-		if err != nil && !isGateRefusal(err) {
-			return db.DocumentShare{}, err
-		}
-		if err == nil && in.Level.rank() > beforeAccess.Level.rank() {
-			notifyUserID = in.PrincipalID
-		}
+	// A self-share never notifies the actor, whatever the caller decided.
+	if in.PrincipalType == DocumentPrincipalUser && actor.Kind == audit.KindHuman && in.PrincipalID == actor.ID {
+		notifyUserID = ""
 	}
 	var before map[string]any
 	if err == nil {
