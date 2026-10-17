@@ -257,6 +257,22 @@
   --chat-sender-7: oklch(0.48 0.14 25);
   --chat-sender-8: oklch(0.45 0.11 170);
 
+  /* Chat timeline (UNI-1881): a tinted wall with a faint dot grid, white
+     bubbles for others lifted by a hairline shadow, and mine in the brand fill
+     (it follows the accent, so it reads --primary). Own-bubble text is
+     --primary-foreground (6.25 on #0a52e6); its meta is that colour at 85%
+     over the fill (4.94). Chips (day, system lines) float on the wall:
+     chip ink 10.09 on the chip, 8.66 if the chip were the wall itself. */
+  --chat-wall: #e9eef6;
+  --chat-wall-dot: rgb(10 82 230 / 0.09);
+  --chat-bubble-own: var(--primary);
+  --chat-bubble-own-foreground: var(--primary-foreground);
+  --chat-bubble-own-meta: color-mix(in srgb, var(--primary-foreground) 85%, var(--primary));
+  --chat-bubble-other: #ffffff;
+  --chat-bubble-shadow: 0 1px 1px rgb(15 23 42 / 0.08);
+  --chat-chip: rgb(255 255 255 / 0.9);
+  --chat-chip-foreground: #3b4250;
+
   /* ClickUp elevation: borders do the work, shadows stay tiny. feature-card
      for surfaces, hero-card + a 1px hairline for menus, the agent-card
      blue-tinted lift for floating layers. */
@@ -479,6 +495,20 @@
   --chat-sender-7: oklch(0.76 0.14 25);
   --chat-sender-8: oklch(0.76 0.11 170);
 
+  /* Chat timeline, dark: a neutral wall a step below the surface, others'
+     bubbles one step above it (foreground 12.88, muted 5.88 on it); mine stay
+     the brand fill with its own ink (6.44 on #5a96ff), meta at 85% (5.2);
+     chip ink 10.2 on the chip. */
+  --chat-wall: #141416;
+  --chat-wall-dot: rgb(255 255 255 / 0.05);
+  --chat-bubble-own: var(--primary);
+  --chat-bubble-own-foreground: var(--primary-foreground);
+  --chat-bubble-own-meta: color-mix(in srgb, var(--primary-foreground) 85%, var(--primary));
+  --chat-bubble-other: #26262a;
+  --chat-bubble-shadow: 0 1px 1px rgb(0 0 0 / 0.3);
+  --chat-chip: rgb(38 38 42 / 0.92);
+  --chat-chip-foreground: #d4d4d8;
+
   /* Dark tints: the hue mixed into the surface grey, glyph lifted to the
      light-theme signal weight. violet 5.82, blue 6.79, pink 6.47, orange
      7.18, green 8.16, yellow 7.89, teal 7.46 on their fills. */
@@ -686,6 +716,14 @@ html.dark[data-accent] {
   --color-chat-sender-6: var(--chat-sender-6);
   --color-chat-sender-7: var(--chat-sender-7);
   --color-chat-sender-8: var(--chat-sender-8);
+  --color-chat-wall: var(--chat-wall);
+  --color-chat-wall-dot: var(--chat-wall-dot);
+  --color-chat-bubble-own: var(--chat-bubble-own);
+  --color-chat-bubble-own-foreground: var(--chat-bubble-own-foreground);
+  --color-chat-bubble-own-meta: var(--chat-bubble-own-meta);
+  --color-chat-bubble-other: var(--chat-bubble-other);
+  --color-chat-chip: var(--chat-chip);
+  --color-chat-chip-foreground: var(--chat-chip-foreground);
   --color-tint-violet: var(--tint-violet);
   --color-tint-violet-foreground: var(--tint-violet-foreground);
   --color-tint-blue: var(--tint-blue);
@@ -732,6 +770,7 @@ html.dark[data-accent] {
   --shadow-menu: var(--menu-shadow);
   --shadow-floating: var(--floating-shadow);
   --shadow-office-page: var(--office-page-shadow);
+  --shadow-chat-bubble: var(--chat-bubble-shadow);
   /* Radius ramp, explicit per step: compact controls 8, default controls 10,
      cards 12, dialogs
      and popovers 16, panels 20, section media 32. Pill stays rounded-full. */
