@@ -172,7 +172,7 @@ export function Conversation(props: Props) {
   };
 
   return (
-    <KeyboardAvoidingView behavior="padding" className="flex-1 bg-background">
+    <KeyboardAvoidingView behavior="padding" className="flex-1 bg-background" testID={`conversation-${roomId}`}>
       {props.header}
       {props.banner}
       {props.loading ? (
