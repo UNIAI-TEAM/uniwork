@@ -3,6 +3,7 @@ import { ApiError } from "../api/http";
 import {
   classifyDocumentError,
   isDocumentNotInTrashError,
+  isDocumentShelvedError,
   isFolderTooLargeError,
   shareLevelNotAllowedMax,
 } from "./errors";
@@ -104,6 +105,23 @@ describe("classifyDocumentError", () => {
     expect(isFolderTooLargeError(tooLarge422)).toBe(true);
     expect(isFolderTooLargeError(notInTrash)).toBe(false);
     expect(isFolderTooLargeError(null)).toBe(false);
+  });
+
+  it("classifies document_shelved as read_only from the code alone (ARCHIVE-01)", () => {
+    // ARCHIVE-01 §0/§3: every write on a shelved document answers 409
+    // document_shelved, stamped read_only. A 422 code path proves the entry
+    // comes from the code map, not the status fallback (bare 422 stays
+    // unknown) - and a bare 409 would otherwise read as a save-conflict.
+    const err = new ApiError("tài liệu đã được lưu trữ", "document_shelved", 422);
+    expect(classifyDocumentError(err)).toEqual({ cls: "read_only", code: "document_shelved", fields: undefined });
+  });
+
+  it("keeps the server's read_only stamp when it declares one", () => {
+    const err = new ApiError("tài liệu đã được lưu trữ", "document_shelved", 409, "corr", undefined, "read_only");
+    expect(classifyDocumentError(err)).toEqual({ cls: "read_only", code: "document_shelved", fields: undefined });
+    expect(isDocumentShelvedError(err)).toBe(true);
+    expect(isDocumentShelvedError(new ApiError("x", "document_archived", 403))).toBe(false);
+    expect(isDocumentShelvedError(new Error("network"))).toBe(false);
   });
 });
 

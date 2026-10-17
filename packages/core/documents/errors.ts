@@ -22,6 +22,10 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   // FD-02). The server stamps the class, so this entry only fires when the
   // stamp is missing; it keeps the mirror true to errorClassByCode.
   folder_name_taken: "conflict",
+  // ARCHIVE-01 (UNI-1845): every write on a shelved document refuses with 409
+  // document_shelved. The server stamps read_only; this entry mirrors
+  // error_class.go when the stamp is stripped or the client predates it.
+  document_shelved: "read_only",
   my_folder_locked: "conflict",
   document_deleted: "gone",
   quota_exceeded: "quota",
@@ -150,4 +154,14 @@ export function isDocumentNotInTrashError(err: unknown): boolean {
  */
 export function isFolderTooLargeError(err: unknown): boolean {
   return errorCode(err) === "folder_too_large";
+}
+
+/**
+ * True when a write refused because the document sits in "Lưu trữ" (`409
+ * document_shelved`, ARCHIVE-01 §0/§3). Views switch the open document to its
+ * read-only shell off this - U-10 invalidates the document so the UI settles
+ * while the caller keeps the unsent draft.
+ */
+export function isDocumentShelvedError(err: unknown): boolean {
+  return errorCode(err) === "document_shelved";
 }

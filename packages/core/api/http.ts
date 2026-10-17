@@ -29,6 +29,9 @@ const API_ERROR_CLASSES = [
   "missing",
   "incompatible",
   "session",
+  // ARCHIVE-01 (UNI-1845): the server stamps read_only on document_shelved
+  // (409) so every shelve-blocked write fails with the same class.
+  "read_only",
 ] as const;
 
 export type ApiErrorClass = (typeof API_ERROR_CLASSES)[number];
