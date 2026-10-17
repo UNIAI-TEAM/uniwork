@@ -1,0 +1,9 @@
+$ git fetch -q origin feature/UNI-923-office-g5-g6-g7 && git checkout -q --detach 06f65e141 && git rev-parse HEAD && pnpm install --frozen-lockfile > /tmp/t3r-install.log 2>&1; rc=$?; tail -n 5 /tmp/t3r-install.log; echo; echo "ROOT_CHECKOUT_EXIT=$rc"
+06f65e141cf57af6d6d47de56ac60e8cd68e06e6
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 7.3s using pnpm v10.28.2
+
+ROOT_CHECKOUT_EXIT=0
