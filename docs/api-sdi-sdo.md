@@ -130,7 +130,7 @@ TypeScript).
 | Ràng buộc schema | `minLength`, `format` | `format:"email" minLength:"1"` |
 | Multipart | `formData:"name"` | `File []byte \`formData:"file" description:"…"\`` |
 | Path | **không** gắn trên SDI domain | `pathParamSDI` trong `openapi.go` |
-| Query / header | chưa dùng; khi cần: `query:"…"`, `header:"…"` trên SDI của đúng route | |
+| Query / header | chưa có tag; header mà middleware đọc (vd `X-UniWork-Device` của `/auth/desktop/refresh`) được nêu trong `description` của `apiOp`; khi cần schema: `query:"…"`, `header:"…"` trên SDI của đúng route | |
 
 Không dùng tag Gin `binding:"required"`. Field bắt buộc = value
 (không pointer), không `omitempty`. Optional PATCH = `*string`.

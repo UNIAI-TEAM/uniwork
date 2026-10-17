@@ -148,8 +148,9 @@ func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roo
 // explicit leave ("offline") in the workspace. The workspace hears about it
 // only when the caller's state changes (chat_presence.go). An online beat
 // returns the users online in the workspace, the caller included; nil when
-// the store could not answer or for a leave.
-func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, state string) ([]string, error) {
+// the store could not answer or for a leave. visible says the beating page
+// is in front of its user; only such a beat holds back chat pushes.
+func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, state string, visible bool) ([]string, error) {
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
@@ -159,7 +160,7 @@ func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, s
 	}
 	switch normalized {
 	case "online":
-		return s.presence().beat(ctx, workspaceID, userID)
+		return s.presence().beat(ctx, workspaceID, userID, visible)
 	case "offline":
 		return nil, s.presence().leave(ctx, workspaceID, userID)
 	default:

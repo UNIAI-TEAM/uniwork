@@ -1,19 +1,15 @@
 "use client";
 
-// Native system notification bridge for the WEB app.
+// Browser Notification API wrapper. The caller (`WorkspaceChatAttention` in
+// views) owns the WHETHER — focus and the mute preferences — and this owns only
+// the rendering. Inside the UniChat shell the same banner is shown; a click
+// then also asks the shell to bring its window forward.
 //
-// The desktop app renders OS banners through its Electron main process
-// (`window.desktopAPI.showNotification`); the web app has no such bridge, so it
-// uses the browser Notification API here. `handleInboxNew` (realtime sync) is
-// the single decision point — it already gates on focus + the source
-// workspace's mute preference — and calls `showWebNotification` as the web path
-// when no `desktopAPI` is present.
-//
-// Lives in `packages/core` (not `packages/views`) because the caller
-// (`handleInboxNew`) lives in core and `views` cannot be imported from core
-// (dependency direction is views → core). The click-routing decision, which
-// needs the app router, is injected by the host app via
-// `registerSystemNotificationClickHandler` instead — core stays headless.
+// Lives in `packages/core` so it stays headless: the click-routing decision,
+// which needs the app router, is injected by the host app via
+// `registerSystemNotificationClickHandler`.
+
+import { getDesktopBridge } from "./desktop-bridge";
 
 export interface SystemNotificationPayload {
   /**
@@ -90,11 +86,9 @@ export async function requestWebNotificationPermission(): Promise<WebNotificatio
 }
 
 /**
- * Show a native browser notification for a new inbox item. No-op unless the
- * Notification API is supported AND permission is "granted" — the caller
- * (`handleInboxNew`) owns the WHETHER (focus + mute gating); this owns only the
- * rendering. Clicking the banner focuses the tab and routes via the registered
- * click handler.
+ * Show a native browser notification. No-op unless the Notification API is
+ * supported AND permission is "granted". Clicking the banner focuses the tab
+ * (and the UniChat window) and routes via the registered click handler.
  */
 export function showWebNotification(payload: SystemNotificationPayload): void {
   const ctor = getNotificationCtor();
@@ -116,6 +110,7 @@ export function showWebNotification(payload: SystemNotificationPayload): void {
   notification.onclick = () => {
     try {
       window.focus();
+      getDesktopBridge()?.focusWindow();
     } catch {
       // Best-effort; some browsers disallow programmatic focus.
     }

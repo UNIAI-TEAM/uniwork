@@ -118,7 +118,8 @@ type VoiceSignalSDI struct {
 
 // ChatPresenceSDI is POST .../chat/presence.
 type ChatPresenceSDI struct {
-	State string `json:"state,omitempty" description:"online (default) or offline" example:"online"`
+	State   string `json:"state,omitempty" description:"online (default) or offline" example:"online"`
+	Visible bool   `json:"visible,omitempty" description:"True when the beating page is visible; only a visible beat holds back chat pushes to this user" example:"true"`
 }
 
 // ToggleChatReactionSDI is POST .../messages/{messageID}/reactions.

@@ -220,6 +220,15 @@ func (c *Consumer) Handle(ctx, ev outbox.Row) error {
   duyệt tự thay thông báo cũ cùng tag).
 - Service worker: `apps/web/public/sw.js` — chỉ `push` + `notificationclick` mở
   `url`. Không offline cache trong đợt này.
+- Addendum UNI-1828: sender được chọn theo tiền tố token — endpoint
+  `ExponentPushToken[…]`/`ExpoPushToken[…]` đi `ExpoPushSender`, còn lại đi Web Push.
+  Token Expo đăng ký qua `POST /me/push-subscriptions` với `platform` (`ios`|`android`),
+  không cần VAPID.
+- Addendum UNI-1828: ba kind chat (`chat_dm`, `chat_mentioned`, `chat_thread_replied`)
+  mang `body` đọc từ tin lúc giao, không bao giờ lưu vào `notifications`.
+- Addendum UNI-1828: người nhận có nhịp presence chat từ tab hiện trong 120 s → không
+  push ba kind chat, đánh dấu `pushed_at`, tăng `uniwork_push_suppressed_total{kind}`;
+  Redis tắt hoặc lỗi → vẫn push.
 
 ### 4.4 Email digest
 
@@ -307,6 +316,8 @@ Giọng văn theo `docs/conventions.md` §3: đồng nghiệp, không dấu ch�
   `display_name` tại thời điểm đó.
 - Push payload đi qua push service của trình duyệt (mã hóa E2E theo RFC 8291),
   vẫn giữ tối thiểu: tiêu đề + url, không mô tả task.
+- Addendum UNI-1828: preview nội dung chat đi qua Expo rồi APNs/FCM; tùy chọn tắt
+  preview theo người dùng là pha sau.
 - Người bị remove khỏi workspace: notification cũ giữ (là của họ) nhưng link mở →
   403 ở resource; consumer không tạo mới cho họ.
 - Rate: một user không thể bị đẩy > 60 push/giờ; vượt thì chỉ in-app (đếm trong

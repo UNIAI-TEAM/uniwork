@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,17 +19,33 @@ import (
 // recipient registered. It is its own consumer so a push service outage
 // retries the push, never the creation of the notification.
 type PushConsumer struct {
-	q       *db.Queries
-	sender  PushSender
-	origin  string // FRONTEND_ORIGIN, the root of every deep link
-	metrics Metrics
+	q        *db.Queries
+	sender   PushSender
+	origin   string // FRONTEND_ORIGIN, the root of every deep link
+	metrics  Metrics
+	presence PresenceChecker
+	now      func() time.Time
 }
+
+// PresenceChecker says when a user last had a chat presence heartbeat
+// (ChatService in production).
+type PresenceChecker interface {
+	LastPresenceBeat(ctx context.Context, userID string) (time.Time, bool, error)
+}
+
+// pushActiveWindow: a recipient who beat this recently is at a keyboard and
+// sees the message in the app, so the chat push is dropped (spec N2 §3.5).
+const pushActiveWindow = 120 * time.Second
 
 // NewPushConsumer wires the consumer; a nil sender means push is off and
 // rows are acknowledged without sending.
 func NewPushConsumer(q *db.Queries, sender PushSender, frontendOrigin string) *PushConsumer {
-	return &PushConsumer{q: q, sender: sender, origin: strings.TrimRight(frontendOrigin, "/")}
+	return &PushConsumer{q: q, sender: sender, origin: strings.TrimRight(frontendOrigin, "/"), now: time.Now}
 }
+
+// SetPresence lets chat pushes skip a recipient who is active right now.
+// Without it, or when it errors, every push goes out.
+func (c *PushConsumer) SetPresence(p PresenceChecker) { c.presence = p }
 
 // SetMetrics attaches counters.
 func (c *PushConsumer) SetMetrics(m Metrics) { c.metrics = m }
@@ -66,11 +83,37 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if len(subs) == 0 {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
 	}
+	if c.presence != nil && isChatPushKind(n.Kind) {
+		// Same bound as the rate limiter's best-effort Redis call: a stalled
+		// Redis fails open instead of holding the push lane.
+		pctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		t, ok, err := c.presence.LastPresenceBeat(pctx, n.UserID)
+		cancel()
+		if err == nil && ok && c.now().Sub(t) <= pushActiveWindow {
+			if m := c.metrics; m != nil {
+				m.IncPushSuppressed(n.Kind)
+			}
+			return c.q.MarkNotificationPushed(ctx, n.ID)
+		}
+	}
 	user, err := c.q.GetUserByID(ctx, n.UserID)
 	if err != nil {
 		return err
 	}
-	msg, err := c.message(ctx, user.Locale, n)
+	var body string
+	if isChatPushKind(n.Kind) {
+		// The preview is read at delivery, so a message deleted in the
+		// meantime sends nothing.
+		chatMsg, err := c.q.GetChatMessageByID(ctx, n.ResourceID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return c.q.MarkNotificationPushed(ctx, n.ID)
+		}
+		if err != nil {
+			return err
+		}
+		body = pushBody(user.Locale, chatMsg)
+	}
+	msg, err := c.message(ctx, user.Locale, n, body)
 	if err != nil {
 		return err
 	}
@@ -80,6 +123,8 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		switch {
 		case err == nil:
 			c.count("sent")
+		case errors.Is(err, ErrPushSkipped):
+			c.count("skipped")
 		case errors.Is(err, ErrSubscriptionGone):
 			c.count("gone")
 			_ = c.q.RevokePushSubscription(ctx, sub.ID)
@@ -100,14 +145,14 @@ func (c *PushConsumer) count(result string) {
 	}
 }
 
-func (c *PushConsumer) message(ctx context.Context, locale string, n db.Notification) (PushMessage, error) {
+func (c *PushConsumer) message(ctx context.Context, locale string, n db.Notification, body string) (PushMessage, error) {
 	var params map[string]string
 	_ = json.Unmarshal([]byte(n.Params), &params)
 	url, err := ResourceURL(ctx, c.q, c.origin, n)
 	if err != nil {
 		return PushMessage{}, err
 	}
-	return PushMessage{Title: PushTitle(locale, n.Kind, params), URL: url, Tag: n.GroupKey}, nil
+	return PushMessage{Title: PushTitle(locale, n.Kind, params), Body: body, URL: url, Tag: n.GroupKey}, nil
 }
 
 // ResourceURL is the deep link a notification opens, mirroring

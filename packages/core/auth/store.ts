@@ -2,11 +2,12 @@
 
 import { create } from "zustand";
 import * as auth from "../api/endpoints/auth";
-import { getAccessToken, subscribe as subscribeToToken } from "../api/session";
+import { getAccessToken, setAccessToken, subscribe as subscribeToToken } from "../api/session";
 import { endOfficeDraftSession } from "../office/draft-session-key";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
 import { syncSessionHint } from "./session-hint";
+import { getSessionProvider, registerSessionProvider, type SessionProvider } from "./session-provider";
 
 export type SessionStatus = "loading" | "authed" | "anon";
 
@@ -48,6 +49,15 @@ function endDraftSession(): void {
   void endOfficeDraftSession();
 }
 
+/** Host-owned session: take its access token, then ask the server who it belongs to. */
+async function providerSession(p: SessionProvider): Promise<{ user: User } | null> {
+  const token = await p.getAccessToken();
+  setAccessToken(token);
+  const user = token ? await auth.me() : null;
+  // The host may drop the token while /me is in flight; a user without a token is not a session.
+  return user && getAccessToken() !== null ? { user } : null;
+}
+
 /** Drop to anon. Logout callback runs only for an explicit logout, not token loss. */
 function clearSession(runLogoutCallback = true): void {
   const state = useAuthStore.getState();
@@ -77,10 +87,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (initialized) return Promise.resolve();
     initInFlight ??= (async () => {
       try {
-        const sess = await auth.refreshSession();
+        const provider = getSessionProvider();
+        const sess = provider ? await providerSession(provider) : await auth.refreshSession();
         // Login/register may finish while refresh is still in flight; do not downgrade.
         if (useAuthStore.getState().status === "authed") return;
-        set(sess ? { user: sess.user, status: "authed" } : { user: null, status: "anon" });
+        set(sess?.user ? { user: sess.user, status: "authed" } : { user: null, status: "anon" });
       } catch {
         if (useAuthStore.getState().status !== "authed") {
           set({ user: null, status: "anon" });
@@ -104,7 +115,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     clearSession();
-    await auth.logout();
+    const provider = getSessionProvider();
+    if (provider) {
+      try {
+        await provider.logout();
+      } finally {
+        setAccessToken(null);
+      }
+    } else {
+      await auth.logout();
+    }
   },
 
   setOnLogout: (cb) => {
@@ -135,5 +155,6 @@ export function resetAuthStoreForTests(): void {
   initialized = false;
   onLogout = null;
   lastUserId = null;
+  registerSessionProvider(null);
   useAuthStore.setState({ user: null, status: "loading" });
 }
