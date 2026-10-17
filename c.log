@@ -1,0 +1,92 @@
+$ ( [ -x /opt/google/chrome/chrome ] || npx playwright install --with-deps chrome ) && ( [ -x /opt/microsoft/msedge/msedge ] || npx playwright install --with-deps msedge ) && ( [ -x /opt/microsoft/msedge/msedge ] || npx playwright install --with-deps --force msedge ) && test -x /opt/google/chrome/chrome && test -x /opt/microsoft/msedge/msedge && /opt/google/chrome/chrome --version && /opt/microsoft/msedge/msedge --version; rc=$?; echo; echo "BROWSER_INSTALL_EXIT=$rc"
+Installing dependencies...
+Switching to root user to install dependencies...
+Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
+Hit:2 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:4 https://deb.nodesource.com/node_22.x nodistro InRelease
+Hit:5 https://dl.google.com/linux/chrome-stable/deb stable InRelease
+Hit:6 http://security.ubuntu.com/ubuntu noble-security InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+xvfb is already the newest version (2:21.1.12-1ubuntu1.8).
+fonts-noto-color-emoji is already the newest version (2.047-0ubuntu0.24.04.1).
+fonts-unifont is already the newest version (1:15.1.01-1build1).
+libfontconfig1 is already the newest version (2.15.0-1.1ubuntu2).
+libfreetype6 is already the newest version (2.13.2+dfsg-1ubuntu0.2).
+xfonts-cyrillic is already the newest version (1:1.0.5+nmu1).
+xfonts-scalable is already the newest version (1:1.0.3-1.3).
+fonts-liberation is already the newest version (1:2.1.5-3).
+fonts-ipafont-gothic is already the newest version (00303-21ubuntu1).
+fonts-wqy-zenhei is already the newest version (0.9.45-8).
+fonts-tlwg-loma-otf is already the newest version (1:0.7.3-1).
+fonts-freefont-ttf is already the newest version (20211204+svn4273-2).
+The following package was automatically installed and is no longer required:
+  libwayland-server0
+Use 'sudo apt autoremove' to remove it.
+0 upgraded, 0 newly installed, 0 to remove and 29 not upgraded.
+Switching to root user to install dependencies...
+++ arch
++ [[ x86_64 == \a\a\r\c\h\6\4 ]]
++ '[' -z '' ']'
++ [[ ! -f /etc/os-release ]]
+++ bash -c 'source /etc/os-release && echo $ID'
++ ID=ubuntu
++ [[ ubuntu != \u\b\u\n\t\u ]]
++ grep -q '^microsoft-edge-stable[[:space:]]*install$'
++ dpkg --get-selections
++ command -v curl
++ command -v gpg
++ gpg --dearmor
++ curl -L https://packages.microsoft.com/keys/microsoft.asc
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   975  100   975    0     0  14297      0 --:--:-- --:--:-- --:--:-- 14338
++ install -o root -g root -m 644 /tmp/microsoft.gpg /etc/apt/trusted.gpg.d/
++ sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/edge stable main" > /etc/apt/sources.list.d/microsoft-edge-stable.list'
++ rm /tmp/microsoft.gpg
++ apt-get update
+Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
+Hit:2 http://security.ubuntu.com/ubuntu noble-security InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:4 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:5 https://deb.nodesource.com/node_22.x nodistro InRelease
+Hit:6 https://dl.google.com/linux/chrome-stable/deb stable InRelease
+Get:7 https://packages.microsoft.com/repos/edge stable InRelease [3,590 B]
+Get:8 https://packages.microsoft.com/repos/edge stable/main amd64 Packages [60.0 kB]
+Fetched 63.6 kB in 0s (178 kB/s)
+Reading package lists...
++ apt-get install -y microsoft-edge-stable
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following package was automatically installed and is no longer required:
+  libwayland-server0
+Use 'sudo apt autoremove' to remove it.
+The following NEW packages will be installed:
+  microsoft-edge-stable
+0 upgraded, 1 newly installed, 0 to remove and 29 not upgraded.
+Need to get 194 MB of archives.
+After this operation, 681 MB of additional disk space will be used.
+Get:1 https://packages.microsoft.com/repos/edge stable/main amd64 microsoft-edge-stable amd64 155.0.4283.62-1 [194 MB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 194 MB in 1s (244 MB/s)
+Selecting previously unselected package microsoft-edge-stable.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 98991 files and directories currently installed.)
+Preparing to unpack .../microsoft-edge-stable_155.0.4283.62-1_amd64.deb ...
+Unpacking microsoft-edge-stable (155.0.4283.62-1) ...
+Setting up microsoft-edge-stable (155.0.4283.62-1) ...
+update-alternatives: using /usr/bin/microsoft-edge-stable to provide /usr/bin/microsoft-edge (microsoft-edge) in auto mode
+Processing triggers for desktop-file-utils (0.27-2build1) ...
+Processing triggers for man-db (2.12.0-4build2) ...
+Processing triggers for bamfdaemon (0.5.6+22.04.20220217-0ubuntu5) ...
+Rebuilding /usr/share/applications/bamf-2.index...
++ microsoft-edge-stable --version
+Microsoft Edge 155.0.4283.62 
+[1017/085934.587774:WARNING:chrome/app/chrome_main_linux.cc:84] Read channel stable from /opt/google/chrome/CHROME_VERSION_EXTRA
+Google Chrome 154.0.8037.92 
+Microsoft Edge 155.0.4283.62 unknown
+
+BROWSER_INSTALL_EXIT=0
