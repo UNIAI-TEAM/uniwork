@@ -1,6 +1,6 @@
 # UniChat — Shell Electron `apps/chat-desktop` (lát D1)
 
-> **Trạng thái:** in-progress — Đề xuất, chờ duyệt. Lát D1 của epic UNI-1826; issue UNI-1830.
+> **Trạng thái:** in-progress — đang triển khai trên nhánh `feature/UNI-1830-unichat-d1-apps-chat-desktop-shell-elect`; plan `../plans/2026-10-17-unichat-desktop-shell.md`. Lát D1 của epic UNI-1826; issue UNI-1830.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §3.2, §3.5, §6 D1 · **Nguồn mirror (đã khảo sát 2026-10-17):** `usf/apps/desktop/src/main/{navigation-guard,external-url,window-state,updater,updater-preferences,notification-gate,renderer-web-preferences,runtime-config-loader}.ts` (+ test), `usf/apps/desktop/src/shared/main-renderer-messages.ts` (+ test), `usf/apps/desktop/eslint.config.mjs` (rule `no-restricted-syntax` cấm gọi thẳng `shell.openExternal` / `webContents.downloadURL` ngoài một tệp `external-url.ts`), `uniwork-office/apps/shell/src/main/uniwork-auth/{pkce,callback,transport,session-core,manager}.ts`. **Không copy** từ usf: renderer riêng và tab coordinator, `webSecurity: false` + xóa header Origin, token trong `localStorage` + PAT của daemon, deep link mang token, `window.electron.ipcRenderer` chung · **Luật:** ADR 0026
 
@@ -62,5 +62,5 @@ Lệnh: `pnpm --filter @uniwork/chat-desktop test|lint|typecheck`; `scripts/no-u
 ## 5. Rủi ro
 Protocol handler trên Linux (desktop file) không đáng tin — chấp nhận ở pilot; `safeStorage` trên Linux phụ thuộc keyring — fallback mã hóa yếu kèm cảnh báo log.
 
-## 6. Để builder quyết
-Có dùng `@electron-toolkit/*` như multica hay không; cách sinh overlay badge Windows; picker nguồn chia sẻ màn hình; nơi lưu `window-state`.
+## 6. Quyết định của builder
+Đã chốt trong plan (`../plans/2026-10-17-unichat-desktop-shell.md` › Quyết định builder): `SessionProvider` có `login()`, trang `/login` của web trong host UniChat gọi nó (client-side routing của Next không bắn `will-navigate`, shell không chặn `/login` được — thay cho ý "navigation-guard chặn /login" ở amendment 2026-10-17); một client `uniwork-chat-desktop`, dev khác redirect `uniworkchat-dev://`; cấu hình `UNICHAT_*` thay lúc build qua `define`; `credentials.ts` giữ riêng, Linux không keyring thì từ chối (không fallback yếu, thay §5 cũ); không updater trong D1; không `@electron-toolkit`; `downloadURL` bỏ qua `name`; badge Windows là chấm overlay; chia sẻ màn hình dùng system picker trên macOS 15, nơi khác màn hình đầu tiên; deep link về renderer là URL tuyệt đối trên origin app để `parseDeepLink` của web nhận cả scheme dev.

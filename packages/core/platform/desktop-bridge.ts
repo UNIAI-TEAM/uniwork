@@ -9,6 +9,8 @@
  * tokens only (`session`), mirroring the Office shell's main-process session.
  */
 export interface SessionProvider {
+  /** Start the shell's PKCE login in the system browser; resolves once the browser is open. */
+  login(): Promise<void>;
   /** The current access token, or null when the shell has no session. */
   getAccessToken(): Promise<string | null>;
   /** Rotate and return a fresh access token; null when the session is gone. */

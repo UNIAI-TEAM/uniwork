@@ -132,13 +132,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
+// The token a host-emitted upgrade is resolving through /me, so one token runs once.
+let upgrading: string | null = null;
+
 // A failed refresh inside the transport clears the token without telling
 // anyone. Drop to anon so the UI cannot keep rendering a stale session, but
 // do not run logout cleanup — drafts stay for the same person signing back in.
+// The reverse only exists with a session provider: the host finishing its
+// login hands a token to an already-anon store (initialize has latched), so
+// ask /me who it belongs to. The cookie path never has a token arrive this way.
 subscribeToToken(() => {
-  if (getAccessToken() === null && useAuthStore.getState().status === "authed") {
-    clearSession(false);
+  const token = getAccessToken();
+  const status = useAuthStore.getState().status;
+  if (token === null) {
+    if (status === "authed") clearSession(false);
+    return;
   }
+  if (status !== "anon" || !getSessionProvider() || upgrading === token) return;
+  upgrading = token;
+  void auth
+    .me()
+    .then((user) => {
+      // Stale when the host changed or dropped the token meanwhile, or someone else signed the store in.
+      if (user && getAccessToken() === token && useAuthStore.getState().status === "anon") {
+        useAuthStore.setState({ user, status: "authed" });
+      }
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      if (upgrading === token) upgrading = null;
+    });
 });
 
 useAuthStore.subscribe((state, prev) => {
@@ -155,6 +178,7 @@ export function resetAuthStoreForTests(): void {
   initialized = false;
   onLogout = null;
   lastUserId = null;
+  upgrading = null;
   registerSessionProvider(null);
   useAuthStore.setState({ user: null, status: "loading" });
 }

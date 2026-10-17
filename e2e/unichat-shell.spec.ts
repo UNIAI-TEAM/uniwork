@@ -54,6 +54,7 @@ test("chat-only shell hides the module nav and hands other routes to the browser
       app: "unichat",
       appInfo: { version: "e2e", os: "unknown" },
       session: {
+        login: () => Promise.resolve(),
         getAccessToken: token,
         refresh: token,
         logout: () =>

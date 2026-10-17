@@ -37,6 +37,7 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/office-engine/` — the Office engine service the server calls
   (`server/internal/office/` is its client): PDF, XLSX, legacy-format
   conversion and DOCX→PDF export jobs.
+- `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,

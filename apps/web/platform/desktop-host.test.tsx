@@ -26,6 +26,7 @@ const bridge = vi.hoisted(() => {
     app: "unichat",
     appInfo: { version: "0.0.0", os: "macos" },
     session: {
+      login: vi.fn(() => Promise.resolve()),
       getAccessToken: vi.fn(() => Promise.resolve("tok")),
       refresh: vi.fn(() => Promise.resolve("tok")),
       logout: vi.fn(() => Promise.resolve()),

@@ -29,7 +29,8 @@ describe("DesktopConsentView", () => {
   it("shows app, device, deployment, account and build details", () => {
     render(wrap(<DesktopConsentView consent={consent} onDecision={vi.fn(async () => {})} />));
 
-    expect(screen.getByText("uniwork-office")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Allow UniWork Office to sign in?" })).toBeInTheDocument();
+    expect(screen.getByText("UniWork Office")).toBeInTheDocument();
     expect(screen.getByText("Minh's laptop")).toBeInTheDocument();
     expect(screen.getByText("production-eu")).toBeInTheDocument();
     expect(screen.getByText("Minh Nguyen")).toBeInTheDocument();
@@ -38,7 +39,21 @@ describe("DesktopConsentView", () => {
   });
 
   it.each([
-    ["approved", "Allowed UniWork Office to sign in"],
+    ["uniwork-chat-desktop", "UniChat"],
+    ["uniwork-office-beta", "UniWork Office"],
+    ["some-other-client", "some-other-client"],
+  ])("names the client %s as %s in the title, the app cell and the result", (client_id, app) => {
+    const { rerender } = render(wrap(<DesktopConsentView consent={{ ...consent, client_id }} onDecision={vi.fn(async () => {})} />));
+    expect(screen.getByRole("heading", { name: `Allow ${app} to sign in?` })).toBeInTheDocument();
+    expect(screen.getByText(app)).toBeInTheDocument();
+
+    rerender(wrap(<DesktopConsentView consent={{ ...consent, client_id }} state="approved" callbackUrl="uniworkchat://auth/callback?code=c" onDecision={vi.fn(async () => {})} />));
+    expect(screen.getByRole("status")).toHaveTextContent(`Allowed ${app} to sign in`);
+    expect(screen.getByRole("button", { name: `Open ${app}` })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["approved", "Allowed UniWork to sign in"],
     ["cancelled", "Desktop sign-in was cancelled."],
     ["error", "The desktop sign-in request could not be completed. Try again."],
     ["expired", "This desktop sign-in request has expired."],

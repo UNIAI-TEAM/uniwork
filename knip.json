@@ -36,6 +36,7 @@
         "public/sw.js"
       ]
     },
+    "apps/chat-desktop": {},
     "packages/*": {},
     "packages/office-engine": {
       "entry": [
