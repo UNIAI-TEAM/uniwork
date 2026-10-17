@@ -628,4 +628,21 @@ describe("shelved trash rows (U-11)", () => {
       expect(toast.success).toHaveBeenCalledWith(t("documents.shelved_list.toast.restored_to_shelved", { title: "Kế hoạch Q4" })),
     );
   });
+  it("reads only the answer's shelved_at: a row unshelved meanwhile toasts the plain restore (RAR-06)", async () => {
+    let restored = false;
+    route({
+      list: (path) =>
+        new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? (restored ? [] : [trashed({ shelved_at: "2026-10-09T03:00:00Z", shelved_by: "u2" })]) : [],
+      post: (path) => {
+        if (path !== "/api/v1/documents/d1/restore") return {};
+        restored = true;
+        return { document: { ...trashed(), archived_at: null, archived_by: null, purge_after: null, shelved_at: null }, affected: ["d1"] };
+      },
+    });
+    renderView();
+    await openTrash();
+    fireEvent.click(within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(toast.success).not.toHaveBeenCalledWith(t("documents.shelved_list.toast.restored_to_shelved", { title: "Kế hoạch Q4" }));
+  });
 });

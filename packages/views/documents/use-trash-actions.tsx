@@ -98,7 +98,7 @@ export function useTrashActions({ wsId, rows }: { wsId: string; rows: LibraryRow
         const partial = [...left].filter((id) => !result.affected.includes(id)).length > 0;
         // U-6: restoring a shelved row keeps it shelved — the toast says the
         // item went back to Lưu trữ (the row reappears with its badge).
-        const stillShelved = Boolean(result.document.shelved_at ?? doc.shelved_at);
+        const stillShelved = Boolean(result.document.shelved_at);
         const text = stillShelved ? t("documents.shelved_list.toast.restored_to_shelved", { title }) : base;
         if (partial) toast.success(text, { description: t("documents.trash.toast.left_in_trash") });
         else toast.success(text);
