@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1810-fd-13-desktop-frame; git log --oneline -3
+a49cc106fe1b897fdf1809d5a56555988d92ca62
+a49cc106fe1b897fdf1809d5a56555988d92ca62
+a49cc106 test(e2e): wait for Home UniWork launch reads before case h save check
+a82016f3 fix(shell): retry missing root listings on roots refresh, preserve soft-reload rows on error, and catch folderRoots rejections
+01a2cde0 fix(shell): gate device empty CTA, guard reload/loadMore rejections, and cache folder root listings
