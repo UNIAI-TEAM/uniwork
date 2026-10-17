@@ -76,8 +76,8 @@ describe("library table access column", () => {
     ]);
     expect(screen.getByRole("columnheader", { name: t("documents.home.columns.access") })).toBeTruthy();
     const rowA = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    // The label shows twice: "Hạn chế" in the column (wide list) and on the secondary line (narrower list).
-    expect(within(rowA).getAllByText("Hạn chế")).toHaveLength(2);
+    // The label shows twice: "Riêng tư" in the column (wide list) and on the secondary line (narrower list).
+    expect(within(rowA).getAllByText("Riêng tư")).toHaveLength(2);
     expect(within(rowA).getByText("Bạn: Quản lý")).toBeTruthy();
     const rowB = document.querySelector('[data-library-row="b"]') as HTMLElement;
     expect(within(rowB).getByText("Bạn: Chỉ xem")).toBeTruthy();
@@ -119,14 +119,14 @@ describe("library table access column", () => {
     };
     const lineA = line("a")!;
     expect(lineA.textContent).toContain("Quản lý");
-    expect(lineA.textContent).toContain("Hạn chế");
+    expect(lineA.textContent).toContain("Riêng tư");
     expect(lineA.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     // A workspace row gets its level only, no lock and no "Workspace" noise.
     expect(line("b")!.textContent).toContain("Chỉ xem");
     expect(line("b")!.querySelector("svg")).toBeNull();
     expect(line("b")!.textContent).not.toContain("Workspace");
     // Unknown/missing level and visibility show nothing in the line.
-    expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Bình luận|Hạn chế/);
+    expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Bình luận|Riêng tư|Hạn chế/);
   });
 });
 

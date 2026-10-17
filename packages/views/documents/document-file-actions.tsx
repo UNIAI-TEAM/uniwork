@@ -128,6 +128,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
       pending={pending}
       error={error}
+      showShareToggle={false}
       onSubmit={(picked) => void stageNewVersion(picked)}
     />
   );

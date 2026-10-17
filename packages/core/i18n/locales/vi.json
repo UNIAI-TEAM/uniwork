@@ -9600,7 +9600,11 @@
         },
         "folder": {
           "menu": "Thư mục"
-        }
+        },
+        "share_workspace_toggle": "Chia sẻ với workspace",
+        "share_workspace_hint": "Mọi thành viên của workspace này sẽ {{level}} tài liệu mới",
+        "share_workspace_inherited": "Thư mục này đang chia sẻ với workspace nên tài liệu mới cũng vậy",
+        "share_workspace_level_view": "chỉ xem"
       },
       "sections": {
         "folders": "Thư mục",
@@ -9684,10 +9688,6 @@
         "manage": "Quản lý",
         "owner": "Chủ sở hữu",
         "you_prefix": "Bạn: {{level}}"
-      },
-      "visibility": {
-        "workspace": "Workspace",
-        "restricted": "Hạn chế"
       },
       "group_by": {
         "label": "Nhóm theo",
@@ -9828,6 +9828,20 @@
         "error_title": "Không tìm được",
         "error_description": "Kiểm tra kết nối rồi thử lại."
       }
+    },
+    "scope": {
+      "private": "Riêng tư",
+      "people_one": "{{count}} người",
+      "people_other": "{{count}} người",
+      "workspace": "Workspace",
+      "workspaces_one": "{{count}} workspace",
+      "workspaces_other": "{{count}} workspace",
+      "organization": "Tổ chức",
+      "multiple": "Nhiều phạm vi",
+      "public_link": "Liên kết công khai",
+      "tooltip_home_workspace": "Workspace {{name}}",
+      "tooltip_other_workspaces_one": "{{count}} workspace khác",
+      "tooltip_other_workspaces_other": "{{count}} workspace khác"
     },
     "errors": {
       "document_parent_kind": "Không đặt được ở đây: thư mục chỉ nằm ở gốc hoặc trong thư mục khác; UniNote và file nằm trong UniNote hoặc thư mục.",

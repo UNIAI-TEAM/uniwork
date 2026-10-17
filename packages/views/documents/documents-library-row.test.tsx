@@ -123,7 +123,7 @@ describe("access column", () => {
       doc("b", "B.docx", { my_level: "view", visibility: "workspace" }),
     ]);
     const accessA = cellsOf("a")[1]!;
-    expect(within(accessA).getByText("Hạn chế")).toBeTruthy();
+    expect(within(accessA).getByText("Riêng tư")).toBeTruthy();
     expect(within(accessA).getByText("Bạn: Quản lý")).toBeTruthy();
     // A restricted row keeps the amber lock (warning token) ahead of the label.
     expect(accessA.querySelector("svg.text-warning")).toBeTruthy();
@@ -139,9 +139,9 @@ describe("access column", () => {
     expect(within(access).queryByText("Bạn: Quản lý")).toBeNull();
   });
 
-  it("never labels restricted as 'Riêng tư'", () => {
+  it("labels unshared restricted rows as 'Riêng tư'", () => {
     renderList([doc("a", "A.docx", { visibility: "restricted", via: "owner" as DocumentSummaryRow["via"] })]);
-    expect(screen.queryByText("Riêng tư")).toBeNull();
+    expect(screen.getAllByText("Riêng tư").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows — when the row carries no visibility, and keeps the narrow-row level on the secondary line", () => {

@@ -1,14 +1,5 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
-import {
-  DOCUMENT_COMMENT_KINDS,
-  DocumentCommentMentionSchema,
-  DocumentCommentRevisionListEnvelopeSchema,
-  DocumentCommentRevisionSchema,
-  type DocumentCommentKind,
-  type DocumentCommentMention,
-  type DocumentCommentRevision,
-} from "./document-comments";
 
 // Wire contract for the Documents API (C-01 §5 + §14; UNI-679, G1-05a).
 // The versioned samples in docs/parity/documents-api are the source of truth
@@ -313,6 +304,21 @@ const DocumentRowEditLockSchema = z.object({
   held_by_me: z.boolean().catch(false),
 });
 
+/**
+ * Compact share-scope counts attached to list and summary rows (SH-S3 §2.1,
+ * addendum §6.4 / §7): lets every row show who can see the document without a
+ * per-row shares fetch. A malformed or partial block degrades to `undefined`
+ * so the row still renders and falls back to `visibility`.
+ */
+export const DocumentShareScopeSchema = z.object({
+  home_workspace: z.boolean(),
+  users: z.number().int().nonnegative(),
+  workspaces: z.number().int().nonnegative(),
+  organization: z.boolean(),
+  public_link: z.boolean(),
+});
+export type DocumentShareScope = z.infer<typeof DocumentShareScopeSchema>;
+
 export const DocumentSummarySchema = z.object({
   id: z.string(),
   organization_id: z.string().optional().default(""),
@@ -343,6 +349,7 @@ export const DocumentSummarySchema = z.object({
   my_level: z.string().nullable().optional().catch(undefined),
   via: z.string().nullable().optional(),
   admin_scope: z.boolean().optional().catch(undefined),
+  share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
@@ -460,6 +467,8 @@ export interface DocumentTreeNode {
   icon?: string | null;
   kind: DocumentKind;
   system_kind?: DocumentSystemKind | null;
+  visibility?: DocumentVisibility;
+  share_scope?: DocumentShareScope | null;
   position: number;
   children: DocumentTreeNode[];
 }
@@ -472,6 +481,8 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
     icon: z.string().nullable().optional(),
     kind: z.string(),
     system_kind: z.string().nullable().optional().catch(undefined),
+    visibility: z.string().optional().catch(undefined),
+    share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
     position: z.number().optional().default(0),
     children: z.array(DocumentTreeNodeSchema).optional().default([]),
   }),
@@ -554,7 +565,7 @@ export {
   type DocumentCommentKind,
   type DocumentCommentMention,
   type DocumentCommentRevision,
-};
+} from "./document-comments";
 export {
   DocumentCommentEnvelopeSchema,
   DocumentCommentListEnvelopeSchema,

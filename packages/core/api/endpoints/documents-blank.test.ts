@@ -104,5 +104,23 @@ describe("documents-blank endpoint", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "future_kind" }) }, 201));
     expect((await createBlankDocumentFile("w1", { format: "docx", title: "t" }))?.id).toBe("d1");
   });
-});
 
+  it("posts visibility and workspace_level when sharing with workspace on create", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ visibility: "workspace" }) }, 201),
+    );
+    await createBlankDocumentFile("w1", {
+      format: "docx",
+      title: "Tài liệu",
+      visibility: "workspace",
+      workspace_level: "view",
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      format: "docx",
+      title: "Tài liệu",
+      visibility: "workspace",
+      workspace_level: "view",
+    });
+  });
+});
