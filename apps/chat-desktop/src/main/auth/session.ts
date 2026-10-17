@@ -68,6 +68,8 @@ export class ShellSession {
   private recoveryTimer: ReturnType<typeof setTimeout> | null = null;
   private recoveryAttempts = 0;
   private refreshInFlight: Promise<string | null> | null = null;
+  /** the callback's code exchange is on the wire: a login() meanwhile would discard its result */
+  private exchanging = false;
 
   constructor(deps: ShellSessionDeps) {
     this.deps = deps;
@@ -110,7 +112,7 @@ export class ShellSession {
 
   /** Starts the browser sign-in; resolves once the browser is open. Rejects when it cannot start. */
   async login(): Promise<void> {
-    if (this.state === "signed-in" || this.state === "refreshing") return;
+    if (this.state === "signed-in" || this.state === "refreshing" || this.exchanging) return;
     // a live but unreachable session is recovered, never shadowed by a second attempt
     if (this.live) {
       await this.refresh();
@@ -180,6 +182,7 @@ export class ShellSession {
     const generation = this.generation;
     const { config, transport } = this.deps;
     let session: DesktopSession;
+    this.exchanging = true;
     try {
       session = await transport.exchange({
         clientId: attempt.clientId,
@@ -190,6 +193,8 @@ export class ShellSession {
     } catch (error) {
       if (generation === this.generation) this.failLogin(codeOf(error));
       return;
+    } finally {
+      this.exchanging = false;
     }
     if (generation !== this.generation) return;
     const credential: StoredCredential = {
@@ -204,6 +209,8 @@ export class ShellSession {
     };
     const stored = this.persist(credential);
     if (!stored.ok) {
+      // the device is redeemed server-side but unusable here: revoke it rather than orphan it
+      void this.revoke(this.liveOf(credential, session));
       this.failLogin(stored.code);
       return;
     }
@@ -274,6 +281,8 @@ export class ShellSession {
     // rotation: the old refresh token is dead server-side, so the new one is on disk before use
     const stored = this.persist(credential);
     if (!stored.ok) {
+      // the rotated token is lost with this process: revoke the device instead of leaving it live
+      void this.revoke(this.liveOf(credential, next));
       this.endSession(stored.code);
       return null;
     }
@@ -311,12 +320,12 @@ export class ShellSession {
     }
   }
 
+  private liveOf(credential: StoredCredential, session: DesktopSession): LiveSession {
+    return { credential, accessToken: session.accessToken, accessExpiresAt: this.now() + session.expiresIn * 1000 };
+  }
+
   private adopt(credential: StoredCredential, session: DesktopSession): void {
-    this.live = {
-      credential,
-      accessToken: session.accessToken,
-      accessExpiresAt: this.now() + session.expiresIn * 1000,
-    };
+    this.live = this.liveOf(credential, session);
     this.clearRefreshTimer();
     this.clearRecoveryTimer();
     this.recoveryAttempts = 0;

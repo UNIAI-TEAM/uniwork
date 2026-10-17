@@ -212,6 +212,21 @@ describe("sign-in", () => {
     expect(ctx.openBrowser).toHaveBeenCalledTimes(1);
   });
 
+  it("a click while the exchange is on the wire does not start a second attempt; the exchanged session is adopted", async () => {
+    const ctx = setup();
+    let release: (s: DesktopSession) => void = () => undefined;
+    ctx.transport.exchange.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    await ctx.shell.login();
+    const completing = ctx.shell.completeCallback(callback(lastState(ctx)));
+    await ctx.shell.login();
+    expect(ctx.transport.start).toHaveBeenCalledTimes(1);
+    release(fakeSession());
+    await completing;
+    expect(ctx.shell.status()).toBe("signed-in");
+    expect(ctx.tokens).toEqual(["at_1"]);
+    expect(ctx.credentials.load()?.refreshToken).toBe("rt_1");
+  });
+
   it("refuses to sign in when the credential cannot be stored encrypted (Linux basic_text)", async () => {
     const credentials = createMemoryCredentialStore();
     credentials.canStore = () => false;
@@ -229,6 +244,9 @@ describe("sign-in", () => {
     expect(ctx.tokens).toEqual([]);
     expect(await ctx.shell.getAccessToken()).toBeNull();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("keystore_locked"));
+    // the redeemed device session is revoked with the access token in hand, so nothing orphaned stays live
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ctx.transport.logout).toHaveBeenCalledWith({ deviceSessionId: "dev_1" }, "at_1");
   });
 
   it("an exchange that lands after logout is dropped, whether it succeeds or fails", async () => {

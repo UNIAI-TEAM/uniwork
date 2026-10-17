@@ -196,10 +196,15 @@ describe("refresh", () => {
     ctx.credentials.save = () => {
       throw new CredentialStoreError("io");
     };
+    ctx.transport.refresh.mockImplementationOnce(async () => fakeSession({ deviceSessionId: "dev_2" }));
     expect(await ctx.shell.refresh()).toBeNull();
     expect(ctx.shell.status()).toBe("signed-out");
     expect(ctx.tokens).toEqual(["at_1", null]);
     expect(ctx.credentials.load()).toBeNull();
+    // the rotated device session nobody holds is revoked with its fresh access token, no second refresh
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ctx.transport.refresh).toHaveBeenCalledTimes(1);
+    expect(ctx.transport.logout).toHaveBeenCalledWith({ deviceSessionId: "dev_2" }, "at_2");
   });
 });
 
