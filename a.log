@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+914c2a9259cf5c16bc4085bf1d8bb0615fa5ff07
+844aab79fe141fd802094e457f206a793074dad2
+914c2a925 test(notifications): wait for both writers to block before releasing the group lock
+a5215bb95 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1844-trash-notify
+844aab79f chore: merge SIZE-S2 spool validation (UNI-1870, e40c9c519) into the G5-G7 root
+95c03a58f chore: merge SRC-02b documents source office view (UNI-1869, 3ca55437d) into the G5-G7 root
+3ca55437d fix(documents): show the whole view-only notice on narrow screens (UNI-1869)
+beff88384 chore: merge BIGUP-S1 server upload sessions (UNI-1862, 98f36067a) into the G5-G7 root

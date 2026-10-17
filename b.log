@@ -1,0 +1,9 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; gofmt -l internal/notification; go vet ./internal/notification && AI_PROVIDER=fake go test ./internal/notification -count=1 -v > /tmp/notif.log 2>&1); rc=$?; grep -E "^(--- FAIL|--- SKIP|ok|FAIL)" /tmp/notif.log | tail -20; grep -cE "^--- PASS" /tmp/notif.log; grep -E "TestDocumentTrashedGroupClaimIsExclusive" /tmp/notif.log | head -3; echo; echo "TEST_NOTIF_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/notification	24.700s
+87
+=== RUN   TestDocumentTrashedGroupClaimIsExclusive
+--- PASS: TestDocumentTrashedGroupClaimIsExclusive (0.33s)
+
+TEST_NOTIF_EXIT=0
