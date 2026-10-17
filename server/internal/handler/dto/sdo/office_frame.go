@@ -24,8 +24,8 @@ type OfficeFrameTokenSDO struct {
 // same frame token; it is never a presigned storage URL.
 type OfficeFrameDocumentSDO struct {
 	DocumentID     string          `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	WorkspaceID    string          `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	OrganizationID string          `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	WorkspaceID    string          `json:"workspace_id" description:"ULID workspace mà mint đã được cấp phép trong đó" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	OrganizationID string          `json:"organization_id" description:"ULID tổ chức của tệp nguồn" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	Title          string          `json:"title" example:"Kế hoạch Q4.docx"`
 	Revision       string          `json:"revision" description:"Revision hiện tại dạng chuỗi thập phân; gửi lại làm base_revision khi save" example:"41"`
 	CanEdit        bool            `json:"can_edit" example:"true"`
@@ -150,15 +150,15 @@ type OfficeFrameSourceFileDTO struct {
 type OfficeFrameSourceSDO struct {
 	SourceID       string                   `json:"source_id" description:"Id tệp nguồn dạng <source>:<ULID dòng gốc>" example:"chat:01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 	Principal      string                   `json:"principal" description:"Luôn source: khung này mở một tệp nguồn, không phải Document" example:"source"`
-	WorkspaceID    string                   `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	OrganizationID string                   `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	WorkspaceID    string                   `json:"workspace_id" description:"ULID workspace mà mint đã được cấp phép trong đó" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	OrganizationID string                   `json:"organization_id" description:"ULID tổ chức của tệp nguồn" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	Title          string                   `json:"title" description:"Tên tệp nguồn (dùng làm tiêu đề khung)" example:"Báo cáo quý 3.docx"`
 	Revision       string                   `json:"revision" description:"Luôn 0: tệp nguồn không có revision của tài liệu" example:"0"`
 	Module         string                   `json:"module" description:"Module web của token: docs, pdf, markdown, html, slides, sheets" example:"docs"`
 	CanEdit        bool                     `json:"can_edit" description:"Luôn false" example:"false"`
 	ReadOnly       bool                     `json:"readonly" description:"Luôn true" example:"true"`
-	Parent         DocumentSourceParentDTO  `json:"parent" description:"Nơi chứa tệp nguồn"`
-	File           OfficeFrameSourceFileDTO `json:"file" description:"Tệp hiện hành của nguồn"`
+	Parent         DocumentSourceParentDTO  `json:"parent" description:"Nơi chứa tệp nguồn" example:"{\"kind\":\"chat_dm\",\"id\":\"01J8X4ROOM0N1P2Q3R4S5T6U7V8\",\"title\":\"Nguyễn Văn A\",\"message_id\":\"01J8X4MSG0N1P2Q3R4S5T6U7V8\"}"`
+	File           OfficeFrameSourceFileDTO `json:"file" description:"Tệp hiện hành của nguồn" example:"{\"version\":1,\"filename\":\"Báo cáo quý 3.docx\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\"size_bytes\":48213}"`
 	DownloadURL    string                   `json:"download_url" description:"Route tải byte của nguồn, đọc bằng chính token khung nguồn" example:"/api/v1/office-frame/sources/chat%3A01J8X4MSG0N1P2Q3R4S5T6U7V8/content"`
 	UpdatedAt      string                   `json:"updated_at" description:"Thời điểm tệp xuất hiện ở nguồn (RFC 3339 UTC)" example:"2026-10-17T08:00:00Z"`
 }

@@ -142,7 +142,7 @@ func TestOfficeFrameSourceMint(t *testing.T) {
 	if c.Module != "" || c.ModuleName() != OfficeFrameModuleDocs {
 		t.Fatalf("module = %q, want absent (docs)", c.Module)
 	}
-	if got := time.Until(minted.ExpiresAt); minted.ExpiresAt.UnixMilli() != now.Add(OfficeFrameTokenTTL).UnixMilli() || got <= 0 {
+	if got := minted.ExpiresAt.Sub(now); minted.ExpiresAt.UnixMilli() != now.Add(OfficeFrameTokenTTL).UnixMilli() || got <= 0 {
 		t.Fatalf("expires_at = %v", minted.ExpiresAt)
 	}
 	if _, err := frame.VerifySource(minted.Token); err != nil {

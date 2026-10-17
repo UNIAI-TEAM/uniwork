@@ -12,10 +12,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -171,6 +173,69 @@ func TestOfficeFrameSourceMintAndOpen(t *testing.T) {
 	}
 	if got, want := res.Header.Get("Content-Length"), strconv.Itoa(len(body)); got != want {
 		t.Fatalf("HEAD content-length = %q, want %q", got, want)
+	}
+}
+
+// TestOfficeFrameSourceEmailHeadPromisesNoLength pins the email half of the
+// content route's HEAD contract: the attachment's size_bytes is the IMAP
+// ENCODED length, so a HEAD must not promise it as Content-Length (the GET
+// streams the decoded bytes and measures them), and a HEAD runs the lookup
+// only — it never opens the mailbox. The mailbox here points at
+// imap.example.com, which the netguarded production dialer cannot reach, so a
+// HEAD that fetched the part would answer an error instead of 200.
+//
+// The GET half (exact decoded bytes, Content-Length == decoded length) is not
+// pinned here: the IMAP dialer and trust root are unexported test seams of
+// package imapclient, and no seam outside that package can serve a part to
+// the handler stack without a production change.
+func TestOfficeFrameSourceEmailHeadPromisesNoLength(t *testing.T) {
+	srv, q := sourceFrameWorldWith(t, func(d *Deps) {
+		d.EmailHub = service.NewEmailHubService(db.New(testPool), d.Workspaces, testEmailHubSecretBox(t))
+	})
+	f := setupChatFixtureOn(t, srv, "srcf-email")
+	ctx := context.Background()
+	acc, err := q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
+		ID: util.NewID(), UserID: f.ids["a"], OrganizationID: f.orgID, EmailAddress: "mailbox-srcf@example.com",
+		Provider: "gmail", ImapHost: "imap.example.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "smtp.example.com", SmtpPort: 465, SmtpSecurity: "starttls", AuthKind: "password", PasswordEnc: "x",
+	})
+	if err != nil {
+		t.Fatalf("email account: %v", err)
+	}
+	th, err := q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: f.orgID, Folder: "INBOX", ImapUid: 1,
+		Subject: "Mail", FromAddr: "sender@example.com", ToAddrs: []string{acc.EmailAddress},
+		SentAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, HasAttachments: true,
+		ImapLabels: []string{}, ConversationKey: "conv-" + acc.ID,
+	})
+	if err != nil {
+		t.Fatalf("email thread: %v", err)
+	}
+	// 7777 is the encoded size IMAP lists; the decoded part would be shorter.
+	const encodedSize = 7777
+	att, err := q.CreateEmailHubAttachment(ctx, db.CreateEmailHubAttachmentParams{
+		ID: util.NewID(), ThreadID: th.ID, AccountID: acc.ID, OrganizationID: f.orgID,
+		Filename: "hop-dong.docx", MimeType: srcDocxMime, SizeBytes: encodedSize, PartID: "2",
+	})
+	if err != nil {
+		t.Fatalf("email attachment: %v", err)
+	}
+	sourceID := "email:" + att.ID
+	minted := sourceFrameMint(t, srv, f.wsID, sourceID, f.tokens["a"])
+	if minted["module"] != "docs" || minted["parent_kind"] != "email_thread" {
+		t.Fatalf("mint answer = %v", minted)
+	}
+	token := minted["token"].(string)
+
+	res, head := doBytes(t, srv, "HEAD", "/api/v1/office-frame/sources/"+sourceID+"/content", token)
+	if res.StatusCode != http.StatusOK || len(head) != 0 {
+		t.Fatalf("email HEAD content = %d (%d bytes), want 200 without opening the mailbox", res.StatusCode, len(head))
+	}
+	if got := res.Header.Get("Content-Length"); got != "" {
+		t.Fatalf("email HEAD content-length = %q, want none (size_bytes %d is the encoded length)", got, encodedSize)
+	}
+	if got := res.Header.Get("Content-Type"); got != srcDocxMime {
+		t.Fatalf("email HEAD content-type = %q", got)
 	}
 }
 
