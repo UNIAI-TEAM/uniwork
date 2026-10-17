@@ -116,9 +116,10 @@ const WITH_TYPE: LibraryLadder = {
 export function libraryLadder(showType: boolean): LibraryLadder {
   return showType ? WITH_TYPE : PLAIN;
 }
-/** The actions column of the trash table: room for the outlined Khôi phục
- *  button beside the destructive icon button. */
-const TRASH_ACTIONS: LibraryColumn = { id: "actions", col: "w-48", cell: "" };
+/** The actions column of the trash table: two icon buttons below the first
+ *  rung (the countdown keeps Name's room), the outlined Khôi phục button beside
+ *  the destructive icon button from there on. */
+const TRASH_ACTIONS: LibraryColumn = { id: "actions", col: "w-24 pointer-coarse:w-28 @min-[46rem]/library:w-48", cell: "" };
 
 // Trash ladder (Trash.dc, RESTORE-01): Name / Deleted by / Deleted at /
 // Deleted forever in / Actions. Below 46rem only Name and actions exist and

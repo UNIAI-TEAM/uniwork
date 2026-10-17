@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { isDocumentNotInTrashError } from "@uniwork/core/documents/errors";
 import { usePurgeDocument } from "@uniwork/core/documents/hooks-collections";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { createSafeId } from "@uniwork/core/utils";
 import {
   AlertDialog,
@@ -31,13 +34,15 @@ export interface DocumentPurgeDialogProps {
  * Permanent delete from the trash (RESTORE-01 §2, Trash.dc): one destructive
  * confirmation that names the item, says it cannot be undone, and — for a
  * folder — that children the viewer does not manage stay in the trash. The
- * command awaits the server; a refusal (folder_too_large, not_in_trash, 403)
- * stays in the dialog with its own sentence, and nothing on screen moves
+ * command awaits the server; a refusal (folder_too_large, 403) stays in the
+ * dialog with its own sentence (not_in_trash toasts, refetches the list and
+ * closes: the item is already gone), and nothing on screen moves
  * before the answer.
  */
 export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentPurgeDialogProps) {
   const { t } = useTranslation();
   const purge = usePurgeDocument(wsId);
+  const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const keyRef = useRef<string | null>(null);
   // `pending` is a render snapshot: two clicks in one frame both read false.
@@ -65,7 +70,15 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
       onOpenChange(false);
       toast.success(t("documents.trash.purged", { title }));
     } catch (failure) {
-      setError(trashErrorMessage(failure, t, "documents.trash.purge_failed"));
+      if (isDocumentNotInTrashError(failure)) {
+        // Nothing is left to confirm: say so, reread the list so the stale row
+        // leaves, and close instead of repeating the refusal.
+        void qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+        onOpenChange(false);
+        toast.error(trashErrorMessage(failure, t, "documents.trash.purge_failed"));
+      } else {
+        setError(trashErrorMessage(failure, t, "documents.trash.purge_failed"));
+      }
     } finally {
       inFlightRef.current = false;
     }

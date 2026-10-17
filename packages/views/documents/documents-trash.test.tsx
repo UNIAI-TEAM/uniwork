@@ -186,7 +186,8 @@ describe("trash list", () => {
     await openTrash();
     vi.mocked(adapter.push).mockClear();
     const row = await rowOf("Slide kick-off.pptx");
-    expect(within(row).getByText(t("documents.trash.read_only"))).toBeInTheDocument();
+    // jsdom ignores the container ladder: the name cell's wrapped line and the actions cell both carry the label.
+    expect(within(row).getAllByText(t("documents.trash.read_only")).length).toBeGreaterThan(0);
     expect(within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Slide kick-off.pptx" }) })).toBeNull();
     expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Slide kick-off.pptx" }) })).toBeNull();
     // The name is inert text, not a button (T-3: content stays manage-only).
@@ -224,6 +225,30 @@ describe("trash list", () => {
     expect(within(await rowOf("Mười hai ngày")).getByText(t("documents.trash.purge_days", { count: 12 }))).toBeInTheDocument();
     expect(within(await rowOf("Hết hạn hôm nay")).getByText(t("documents.trash.purge_today"))).toBeInTheDocument();
     expect(within(await rowOf("Quá hạn")).getByText(t("documents.trash.purge_expired"))).toBeInTheDocument();
+  });
+});
+
+describe("deleted-at stamp", () => {
+  it("shows the clock for today and a short day-month for another day, never a two-part date-time", async () => {
+    const now = new Date();
+    const earlier = new Date(now);
+    earlier.setDate(earlier.getDate() - 3);
+    earlier.setHours(12, 0, 0, 0);
+    const today = new Date(now);
+    today.setHours(0, 5, 0, 0);
+    route({
+      list: () => [
+        trashed({ id: "t1", title: "Xóa hôm nay", archived_at: today.toISOString() }),
+        trashed({ id: "t2", title: "Xóa hôm trước", archived_at: earlier.toISOString() }),
+      ],
+    });
+    renderView();
+    await openTrash();
+    const clock = new Intl.DateTimeFormat("vi", { hour: "2-digit", minute: "2-digit" }).format(today);
+    expect(within(await rowOf("Xóa hôm nay")).getAllByText(new RegExp(`^${clock}`)).length).toBeGreaterThan(0);
+    const other = within(await rowOf("Xóa hôm trước")).getAllByText(/^\d{2}\/\d{2}(\/\d{4})?(?: ·.*)?$/);
+    expect(other.length).toBeGreaterThan(0);
+    expect(other.some((el) => /\d{2}:\d{2}/.test(el.textContent ?? ""))).toBe(false);
   });
 });
 
@@ -373,6 +398,45 @@ describe("restore", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.trash.not_in_trash")));
     fireEvent.click(within(await rowOf("Cấm sửa")).getByRole("button", { name: t("documents.trash.restore_item", { title: "Cấm sửa" }) }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.trash.no_permission")));
+  });
+});
+
+describe("stale rows", () => {
+  it("rereads the list when a restore answers not-in-trash, so the stale row leaves", async () => {
+    let gone = false;
+    route({
+      list: (path) =>
+        new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? (gone ? [] : [trashed({ id: "e1", title: "Đã về" })]) : [],
+      post: () => {
+        gone = true;
+        throw new ApiError("không trong thùng rác", "document_not_in_trash", 400);
+      },
+    });
+    renderView();
+    await openTrash();
+    fireEvent.click(within(await rowOf("Đã về")).getByRole("button", { name: t("documents.trash.restore_item", { title: "Đã về" }) }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.trash.not_in_trash")));
+    await waitFor(() => expect(screen.queryByText("Đã về")).toBeNull());
+  });
+
+  it("closes the purge dialog, toasts and rereads the list when a purge answers not-in-trash", async () => {
+    let gone = false;
+    route({
+      list: (path) =>
+        new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? (gone ? [] : [trashed({ id: "e1", title: "Đã mất" })]) : [],
+      post: () => {
+        gone = true;
+        throw new ApiError("không trong thùng rác", "document_not_in_trash", 400);
+      },
+    });
+    renderView();
+    await openTrash();
+    fireEvent.click(within(await rowOf("Đã mất")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Đã mất" }) }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.trash.purge") }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(toast.error).toHaveBeenCalledWith(t("documents.trash.not_in_trash"));
+    await waitFor(() => expect(screen.queryByText("Đã mất")).toBeNull());
   });
 });
 

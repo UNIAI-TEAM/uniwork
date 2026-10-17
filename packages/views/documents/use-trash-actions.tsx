@@ -1,9 +1,12 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { isDocumentNotInTrashError } from "@uniwork/core/documents/errors";
 import { useRestoreDocument } from "@uniwork/core/documents/hooks-collections";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import type { DocumentArchive } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { DocumentPurgeDialog } from "./document-purge-dialog";
@@ -65,6 +68,7 @@ function restoreDestination(result: DocumentArchive): { root: boolean; folder: s
 export function useTrashActions({ wsId, rows }: { wsId: string; rows: LibraryRow[] }): TrashActions {
   const { t } = useTranslation();
   const restore = useRestoreDocument(wsId);
+  const qc = useQueryClient();
   const [purging, setPurging] = useState<DocumentSummaryRow | null>(null);
   // The ref answers a second click that lands before React re-renders; the
   // state drives the disabled button.
@@ -95,7 +99,11 @@ export function useTrashActions({ wsId, rows }: { wsId: string; rows: LibraryRow
         if (partial) toast.success(base, { description: t("documents.trash.toast.left_in_trash") });
         else toast.success(base);
       },
-      (failure: unknown) => toast.error(trashErrorMessage(failure, t, "documents.trash.restore_failed")),
+      (failure: unknown) => {
+        toast.error(trashErrorMessage(failure, t, "documents.trash.restore_failed"));
+        // Someone else already restored or purged it: the row is stale, so reread the list.
+        if (isDocumentNotInTrashError(failure)) void qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+      },
     ).finally(() => trackRestoring(doc.id, false));
   };
 

@@ -8,7 +8,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CommentActorAvatar } from "../comments/comment-actor-avatar";
 import { DocumentTypeIcon } from "./document-type-icon";
-import { formatWhen } from "./document-format";
+import { formatShortWhen } from "./document-format";
 import { libraryCell, type LibraryLadder } from "./library-columns";
 import { isFolderRow, rowFormat, rowTitle, rowTypeKey, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
@@ -65,7 +65,7 @@ export function TrashRowView({
   const manage = canManageTrashed(doc);
   const folder = isFolderRow(row);
   const title = rowTitle(row) || t("documents.detail.untitled");
-  const deletedAt = formatWhen(doc.archived_at, i18n.language);
+  const deletedAt = formatShortWhen(doc.archived_at, i18n.language);
   const daysLeft = purgeDaysLeft(doc.purge_after);
   const purgeText =
     daysLeft === null
@@ -100,13 +100,18 @@ export function TrashRowView({
         {/* Narrow widths carry the meta the columns have not joined yet:
             deleted-at + countdown until 46rem, deleted-by until 56rem. */}
         {deletedAt || purgeText ? (
-          <span className={cn("block truncate text-caption text-muted-foreground", ladder.metaHides)}>
+          <span className={cn("block text-caption text-muted-foreground", ladder.metaHides)}>
             {[deletedAt, purgeText].filter(Boolean).join(" · ")}
           </span>
         ) : null}
         {deleter ? (
           <span className={cn("block truncate text-caption text-muted-foreground", ladder.accessLineHides)}>{deleter}</span>
         ) : null}
+        {/* The actions column is icon-width on narrow widths, so a view-only
+            row says so here, where it can wrap. */}
+        {manage ? null : (
+          <span className={cn("block text-caption text-muted-foreground", ladder.metaHides)}>{t("documents.trash.read_only")}</span>
+        )}
       </span>
     </>
   );
@@ -130,7 +135,7 @@ export function TrashRowView({
         {deleter ? (
           <span className="flex items-center gap-2 text-body text-foreground">
             <CommentActorAvatar name={deleter} avatarUrl={deleterAvatar} size="xs" />
-            <span className="truncate">{deleter}</span>
+            <span className="min-w-0 break-words">{deleter}</span>
           </span>
         ) : (
           <span className="text-muted-foreground">—</span>
@@ -153,14 +158,15 @@ export function TrashRowView({
               type="button"
               variant="outline"
               size="sm"
-              className="pointer-coarse:min-h-11"
+              className="pointer-coarse:min-h-11 @max-[46rem]/library:w-8 @max-[46rem]/library:px-0 pointer-coarse:@max-[46rem]/library:w-11"
               aria-label={t("documents.trash.restore_item", { title })}
               disabled={trash.isRestoring(doc.id)}
               aria-busy={trash.isRestoring(doc.id) || undefined}
               onClick={() => trash.onRestore(doc)}
             >
               <ArchiveRestore aria-hidden className="size-3.5" />
-              {t("documents.trash.restore")}
+              {/* Icon-only below the width where the meta columns join: the countdown needs the room. */}
+              <span className="@max-[46rem]/library:hidden">{t("documents.trash.restore")}</span>
             </Button>
             <Button
               type="button"
@@ -175,7 +181,9 @@ export function TrashRowView({
           </div>
         ) : (
           <div className="flex items-center justify-end">
-            <span className="truncate text-caption text-muted-foreground">{t("documents.trash.read_only")}</span>
+            <span className="hidden text-right text-caption text-muted-foreground @min-[46rem]/library:block">
+              {t("documents.trash.read_only")}
+            </span>
           </div>
         )}
       </td>
