@@ -51,6 +51,14 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		}
 		in.Archived = v
 	}
+	if raw := strings.TrimSpace(q.Get("shelved")); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "shelved must be 0/1 or true/false")
+			return in, false
+		}
+		in.Shelved = v
+	}
 	for _, f := range []struct {
 		name string
 		dst  *time.Time
