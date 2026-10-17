@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDocument,
@@ -239,10 +239,21 @@ export function useDocumentDownload(wsId: string, documentId: string) {
  * PATCH transport through patchDocument, the acknowledged document written
  * back into the detail query on every save. The machine is a ref — it must
  * not re-render on every keystroke — so the hook subscribes and hands out the
- * snapshot for useSyncExternalStore.
+ * snapshot for useSyncExternalStore. `editLockId` is the edit lock the editor
+ * holds (UNI-1645); the machine reads the latest one at each send.
  */
-export function useDocumentSave(wsId: string, documentId: string, initialRevision: string) {
+export function useDocumentSave(
+  wsId: string,
+  documentId: string,
+  initialRevision: string,
+  opts?: { editLockId?: string },
+) {
   const qc = useQueryClient();
+  const lockId = opts?.editLockId;
+  const editLockId = useRef(lockId);
+  useEffect(() => {
+    editLockId.current = lockId;
+  }, [lockId]);
   // One machine per document: a revision prop change means the caller
   // re-fetched (fresh mount), not that the live machine should rebase —
   // updateBase handles in-place base moves.
@@ -252,6 +263,7 @@ export function useDocumentSave(wsId: string, documentId: string, initialRevisio
         documentId,
         initialRevision,
         transport: createDocumentPatchTransport(patchDocument),
+        getEditLockId: () => editLockId.current,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [wsId, documentId],
@@ -288,6 +300,7 @@ export function useDocumentSave(wsId: string, documentId: string, initialRevisio
       conflictResolved: (revision: string, acked?: Document | null) =>
         machine.conflictResolved(revision, acked),
       updateBase: (revision: string, acked?: Document | null) => machine.updateBase(revision, acked),
+      lockRestored: () => machine.lockRestored(),
     }),
     [machine, state],
   );

@@ -147,6 +147,10 @@ describe("NotificationsTab", () => {
     expect(await push("Truy cập khẩn cấp vào tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Được nhắc đến trong thảo luận")).toHaveAttribute("aria-checked", "true");
     expect(await push("Phản hồi bình luận")).toHaveAttribute("aria-checked", "false");
+    // The root's edit-lock kinds push by default too, except the answer.
+    expect(await push("Yêu cầu quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Bị lấy quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Trả lời yêu cầu quyền sửa")).toHaveAttribute("aria-checked", "false");
   });
 
   // BE-TN-2: the trash kind carries a translated label, not a raw key, in vi.

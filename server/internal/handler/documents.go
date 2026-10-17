@@ -250,6 +250,7 @@ func (h *handlers) patchDocument(w http.ResponseWriter, r *http.Request) {
 		Icon:       in.Icon,
 		Visibility: in.Visibility,
 		Content:    content,
+		EditLockID: strings.TrimSpace(in.EditLockID),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -349,7 +350,8 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		// The desktop app's device session is the sync path office_sync_write
 		// gates; a browser session keeps saving while the flag is off (G5-07).
-		Sync: middleware.DeviceSession(r.Context()),
+		Sync:       middleware.DeviceSession(r.Context()),
+		EditLockID: strings.TrimSpace(in.EditLockID),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -493,6 +495,7 @@ func (h *handlers) restoreDocumentVersion(w http.ResponseWriter, r *http.Request
 		Version:        versionNo,
 		BaseRevision:   base,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		EditLockID:     strings.TrimSpace(body.EditLockID),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

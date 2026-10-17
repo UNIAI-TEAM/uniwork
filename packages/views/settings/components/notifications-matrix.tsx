@@ -52,6 +52,10 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
   "chat_mentioned",
   "chat_dm",
   "chat_reminder",
+  // UNI-1645: an edit request needs a quick answer and a take-over may leave
+  // unsaved work behind; the answer to a request stays in-app.
+  "document_edit_requested",
+  "document_edit_taken_over",
 ]);
 
 /**

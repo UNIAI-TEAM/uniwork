@@ -13,7 +13,10 @@ import { classifyDocumentError, isConflictClass } from "./errors";
  *    provably the same write;
  *  - a 2xx that fails schema/identity is "unverifiable", never saved;
  *  - a conflict-class answer stops the machine: the draft stays, the key
- *    stays, and nothing retries on a newer base until the caller resolves it.
+ *    stays, and nothing retries on a newer base until the caller resolves it;
+ *  - a 423 document_locked (someone else holds the edit lock, UNI-1645)
+ *    stops it the same way in "locked": the content stays, nothing retries,
+ *    and only lockRestored() or discardDraft() leaves it.
  *
  * It is transport-agnostic: the caller injects `transport` (the patchDocument
  * endpoint in production, a fake in tests) and reads `getState()` or
@@ -31,6 +34,9 @@ export type DocumentSavePhase =
   | "saved"
   /** A conflict-class answer; the draft is kept and nothing retries. */
   | "conflict"
+  /** 423 document_locked: someone else holds the edit lock. Autosave stops,
+   *  the draft is kept, and nothing retries until lockRestored(). */
+  | "locked"
   /** Unknown or transport-level failure; draft + key kept for retry(). */
   | "error"
   /** A 2xx answer that could not prove the write; draft + key kept. */
@@ -47,6 +53,11 @@ export interface DocumentSaveState {
   errorClass: DocumentErrorClass | "unknown" | null;
   errorCode: string | null;
   errorFields: Record<string, unknown> | undefined;
+  /** The edit lock id the last send carried (UNI-1645): a 423 ends the hold only
+   *  when this is still the editor's current id. */
+  sentEditLockId: string | undefined;
+  /** Counts sends: a refusal belongs to exactly one, whatever fields it carried. */
+  sendSeq: number;
   /** The document of the last acknowledged save. */
   acked: Document | null;
 }
@@ -67,6 +78,8 @@ export interface DocumentSaveRequest {
   patch: PageDraft;
   idempotencyKey: string;
   signal: AbortSignal;
+  /** The editor's live edit lock at send time (UNI-1645); absent = none. */
+  editLockId?: string;
 }
 
 export type DocumentSaveTransport = (req: DocumentSaveRequest) => Promise<Document | null>;
@@ -82,6 +95,8 @@ export interface DocumentSaveMachineOptions {
    *  save classifies "unknown" and keeps draft + key. */
   timeoutMs?: number;
   newIdempotencyKey?: () => string;
+  /** Read at each send: the edit lock the editor holds now (UNI-1645). */
+  getEditLockId?: () => string | undefined;
 }
 
 function defaultIdempotencyKey(): string {
@@ -97,6 +112,8 @@ export class DocumentSaveMachine {
   private inFlight = false;
   private disposed = false;
   private key: string | null = null;
+  /** The lock id the current key was minted under. */
+  private keyLockId: string | undefined;
   private readonly listeners = new Set<() => void>();
   private state: DocumentSaveState;
   private readonly mintKey: () => string;
@@ -111,6 +128,8 @@ export class DocumentSaveMachine {
       errorClass: null,
       errorCode: null,
       errorFields: undefined,
+      sentEditLockId: undefined,
+      sendSeq: 0,
       acked: null,
     };
   }
@@ -135,7 +154,7 @@ export class DocumentSaveMachine {
     // different key — a mutated payload under an old key answers
     // idempotency_payload_mismatch.
     if (this.key) this.key = null;
-    if (this.inFlight || this.state.phase === "conflict") {
+    if (this.inFlight || this.stopped()) {
       this.setState({ dirty: true });
       return;
     }
@@ -154,10 +173,10 @@ export class DocumentSaveMachine {
   }
 
   /** Manual retry after "error" / "unverifiable": same draft, same key.
-   *  Ignored while a save flies and in "conflict" — retrying a stale base is
-   *  just another 409. */
+   *  Ignored while a save flies, in "conflict" — retrying a stale base is
+   *  just another 409 — and in "locked", which only lockRestored() leaves. */
   retry(): void {
-    if (this.disposed || this.inFlight || !this.draft || this.state.phase === "conflict") return;
+    if (this.disposed || this.inFlight || !this.draft || this.stopped()) return;
     void this.send();
   }
 
@@ -198,6 +217,14 @@ export class DocumentSaveMachine {
     });
   }
 
+  /** The editor holds the edit lock again on the same base (UNI-1645): leave
+   *  "locked" and send the kept draft after the quiet window. */
+  lockRestored(): void {
+    if (this.disposed || this.state.phase !== "locked") return;
+    this.setState({ phase: "idle", errorClass: null, errorCode: null, errorFields: undefined });
+    if (this.draft) this.schedule();
+  }
+
   /** Adopt a revision the query cache learned while the machine was clean
    *  (a refetch, another member's write). Ignored while a draft or a flight
    *  exists — the in-flight base or the pending draft owns it. */
@@ -222,6 +249,11 @@ export class DocumentSaveMachine {
     this.clearTimer();
     this.abort?.abort();
     this.listeners.clear();
+  }
+
+  /** Phases that never send on their own: the caller must resolve them. */
+  private stopped(): boolean {
+    return this.state.phase === "conflict" || this.state.phase === "locked";
   }
 
   private clearTimer(): void {
@@ -265,10 +297,14 @@ export class DocumentSaveMachine {
   }
 
   private async send(): Promise<void> {
-    if (this.disposed || this.inFlight || !this.draft || this.state.phase === "conflict") return;
+    if (this.disposed || this.inFlight || !this.draft || this.stopped()) return;
     const sending = this.draft;
     this.draft = undefined;
     this.inFlight = true;
+    const lockId = this.opts.getEditLockId?.();
+    // The key belongs to one payload, and edit_lock_id is part of it.
+    if (this.key && this.keyLockId !== lockId) this.key = null;
+    if (!this.key) this.keyLockId = lockId;
     this.key ??= this.mintKey();
     const controller = new AbortController();
     this.abort = controller;
@@ -280,6 +316,8 @@ export class DocumentSaveMachine {
       errorClass: null,
       errorCode: null,
       errorFields: undefined,
+      sentEditLockId: lockId,
+      sendSeq: this.state.sendSeq + 1,
     });
     try {
       const doc = await this.opts.transport({
@@ -288,6 +326,7 @@ export class DocumentSaveMachine {
         patch: sending,
         idempotencyKey: this.key,
         signal: controller.signal,
+        editLockId: lockId,
       });
       // Disposed mid-flight: drop the answer — nothing may schedule or
       // announce from a machine the editor already tore down.
@@ -313,7 +352,7 @@ export class DocumentSaveMachine {
       this.requeue(sending);
       const cls = classifyDocumentError(err);
       this.setState({
-        phase: isConflictClass(cls.cls) ? "conflict" : "error",
+        phase: cls.cls === "locked" ? "locked" : isConflictClass(cls.cls) ? "conflict" : "error",
         dirty: true,
         errorClass: cls.cls,
         errorCode: cls.code,
@@ -332,14 +371,21 @@ export class DocumentSaveMachine {
 export function createDocumentPatchTransport(
   patch: (
     documentId: string,
-    body: { revision: string; title?: string; icon?: string; content?: unknown; visibility?: DocumentVisibility },
+    body: {
+      revision: string;
+      title?: string;
+      icon?: string;
+      content?: unknown;
+      visibility?: DocumentVisibility;
+      edit_lock_id?: string;
+    },
     opts?: { idempotencyKey?: string; signal?: AbortSignal },
   ) => Promise<Document | null>,
 ): DocumentSaveTransport {
   return (req) =>
     patch(
       req.documentId,
-      { revision: req.baseRevision, ...req.patch },
+      { revision: req.baseRevision, ...req.patch, ...(req.editLockId ? { edit_lock_id: req.editLockId } : {}) },
       { idempotencyKey: req.idempotencyKey, signal: req.signal },
     );
 }

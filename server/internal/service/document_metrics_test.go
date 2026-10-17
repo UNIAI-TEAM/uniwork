@@ -44,6 +44,10 @@ func (c *countingDocMetrics) ObserveDocumentWorkerSweep(worker, result string, s
 	c.sweeps = append(c.sweeps, worker+"/"+result)
 }
 
+func (c *countingDocMetrics) IncDocumentEditLockOp(string)      {}
+func (c *countingDocMetrics) IncDocumentEditLockRefused(string) {}
+func (c *countingDocMetrics) IncDocumentEditRequest(string)     {}
+
 func (c *countingDocMetrics) AddDocumentWorkerRowsFailed(worker string, n int) {
 	for range n {
 		c.rowsFail = append(c.rowsFail, worker)

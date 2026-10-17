@@ -38,6 +38,11 @@ const (
 	KindDocumentDiscussionMentioned = "document_discussion_mentioned"
 	KindDocumentDiscussionReplied   = "document_discussion_replied"
 	KindDocumentCommentResolved     = "document_comment_resolved"
+	// The edit lock (UNI-1645, addendum §5.2): someone asks the holder to
+	// stop editing, the holder's answer, and a manager taking the lock.
+	KindDocumentEditRequested       = "document_edit_requested"
+	KindDocumentEditRequestAnswered = "document_edit_request_answered"
+	KindDocumentEditTakenOver       = "document_edit_taken_over"
 	// A workspace admin opened emergency view access to a restricted
 	// document (DOC-05; UNI-1628). Sent to the document's ACL owner; the
 	// params carry ids only.
@@ -65,6 +70,7 @@ var Kinds = []string{
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
+	KindDocumentEditRequested, KindDocumentEditRequestAnswered, KindDocumentEditTakenOver,
 	KindDocumentBreakGlass,
 	KindChatMentioned, KindChatDM, KindChatThreadReplied,
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
