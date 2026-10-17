@@ -8,7 +8,7 @@
 
 **Architecture:** Cấu hình electron-builder là hàm thuần `builderConfig(env)` trong `apps/chat-desktop/electron-builder.ts` (electron-builder nạp `.ts` qua jiti) — nhãn `unsigned` và cách ký mac đi theo env ký, nên test được. Kênh đi một đường: tag → version (`-c.extraMetadata.version`) → electron-builder suy kênh từ phần prerelease (`dev.yml`/`beta.yml`/`latest.yml`) và ghi `channel` vào `app-update.yml`; app không tự đặt kênh. Feed là provider `generic` trỏ một release cuộn `chat-desktop-feed`; workflow viết lại URL trong các `*.yml` thành URL tuyệt đối tới release theo tag. Main process có `src/main/updater.ts` thuần (mode `install` | `notify`).
 
-**Tech Stack:** electron-builder ^26 (đã có), electron-updater ^6.8.9 (mới, `dependencies`, catalog), GitHub Actions (Node 22, pnpm theo `packageManager` như `ci.yml`), `gh` CLI trong job publish.
+**Tech Stack:** electron-builder ^26 (đã có), electron-updater ^6.8.9 (mới, `dependencies`, range thường: electron-builder kiểm spec này và từ chối `catalog:`), GitHub Actions (Node 22, pnpm theo `packageManager` như `ci.yml`), `gh` CLI trong job publish.
 
 **Spec:** `docs/superpowers/specs/2026-10-16-unichat-desktop-release-design.md`; spec cha `2026-10-16-chat-native-apps-design.md` §3.1, §6 D5, §10, §12 Q8.
 
@@ -35,7 +35,7 @@
 | macOS chưa ký | `identity: "-"` (ad-hoc), `hardenedRuntime: false`, `notarize: false`; app chỉ thông báo "có bản mới" và mở trang tải | Thiếu chữ ký thì Apple Silicon báo app "hỏng"; library validation của hardened runtime từ chối framework ký ad-hoc (bài học Office). Squirrel.Mac chỉ cài vào app đã ký |
 | macOS có `CSC_LINK` | Ký Developer ID + hardened runtime + entitlements D1; notarize khi có `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID`; app tự cập nhật | Cờ build `UNICHAT_MAC_SIGNED` suy từ chính `CSC_LINK` lúc `electron-vite build`, một nguồn sự thật |
 | Windows portable zip | Không | Spec cho phép bỏ; NSIS một-click đủ cho pilot, khoá `win32-x64-zip` để trống |
-| `installer-urls.env` vào deploy | Đính vào release + in trong run summary; người phát hành chép tay vào env server (runbook) | L1 mới thêm biến; tự động hoá sang repo deploy khi có nhịp phát hành đều |
+| `installer-urls.env` vào deploy | Đính vào release + in trong run summary; người phát hành dán dòng vào `deploy/app/env/uniwork-be.env` qua PR rồi rollout (runbook), như `OFFICE_INSTALLER_*_URLS` | Cùng đường với Office; L1 mới thêm biến; tự động hoá khi có nhịp phát hành đều |
 | Kênh stable | Hỗ trợ đủ (tag `chat-desktop-v1.2.3` → `latest.yml`, release không prerelease); runbook khuyên chỉ cắt stable khi đã có chữ ký (UNI-1838) | Spec liệt kê ba kênh; chặn hay không là quyết định phát hành, không phải của mã |
 | SHA256SUMS | Một tệp `SHA256SUMS` cho mọi tệp của release | Spec ghi một tệp; người dùng kiểm một chỗ |
 | Rollback | Tải `*.yml` của release tốt trước đó, upload `--clobber` vào `chat-desktop-feed`; không `allowDowngrade` | Chặn lan bản lỗi; người đã lên bản lỗi nhận bản sửa có số lớn hơn |
@@ -75,7 +75,7 @@
 
 **Files:**
 - Create: `apps/chat-desktop/src/main/updater.ts` (+ `.test.ts`)
-- Modify: `apps/chat-desktop/src/main/index.ts`, `apps/chat-desktop/electron.vite.config.ts` (define `UNICHAT_MAC_SIGNED`), `apps/chat-desktop/package.json` (`dependencies.electron-updater: catalog:`), `pnpm-workspace.yaml` (catalog `electron-updater: ^6.8.9`), `pnpm-lock.yaml`
+- Modify: `apps/chat-desktop/src/main/index.ts`, `apps/chat-desktop/electron.vite.config.ts` (define `UNICHAT_MAC_SIGNED`), `apps/chat-desktop/package.json` (`dependencies.electron-updater: ^6.8.9`), `pnpm-lock.yaml`
 
 **Interfaces:**
 - `updateMode(platform, macSigned): "install" | "notify"`; `startUpdater({ updater, mode, notify, openDownloadPage })` — `autoDownload` theo mode; `install`: báo khi `update-downloaded`; `notify`: báo khi `update-available`, một lần mỗi version, click → `openDownloadPage`; kiểm ngay và mỗi 6 giờ; mọi promise có `.catch`.

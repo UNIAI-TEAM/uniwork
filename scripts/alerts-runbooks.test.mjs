@@ -20,6 +20,7 @@ const RUNBOOK_DIR = "docs/runbooks";
  * reason it has no alert. */
 const OPERATOR_RUNBOOKS = new Set([
   "documents-folder-name-index.md", // FD-02 (UNI-1462): release-order check after the folder-name index deploy
+  "unichat-desktop-release.md", // UniChat D2 (UNI-1835): cutting, checking and rolling back a desktop release
 ]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */
