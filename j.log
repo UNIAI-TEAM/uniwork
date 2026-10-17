@@ -1,0 +1,46 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/notifications.spec.ts e2e/documents-folders.spec.ts e2e/documents-home.spec.ts e2e/documents.spec.ts > /tmp/tnthree-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/tnthree-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/tnthree-E2E.log; grep -E "✘|\[failed\]" /tmp/tnthree-E2E.log | head -40; echo; echo "E2E_TARGETED_EXIT=$rc"
+
+Running 30 tests using 1 worker
+
+(node:18126) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18126) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 documents-folders.spec.ts:36:1 › FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to depth 20; rejects blank, >255 chars, and depth 21 (6.8s)
+  ✓   2 documents-folders.spec.ts:200:1 › FD-A02 sidebar folder tree expands/collapses independently, reveals active ?folder= ancestors, and stays collapsed across a refetch (6.2s)
+  ✓   3 documents-folders.spec.ts:349:1 › FD-A03 open folder content view lists only direct children, folders first, sorted by name or updated per viewer (3.1s)
+  ✓   4 documents-folders.spec.ts:454:1 › FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă after A) or by last update, folders first, and the choice is remembered (16.5s)
+  ✓   5 documents-folders.spec.ts:561:1 › FD-A03 upload into the open folder places the uploaded file under the open folder (not at root) (2.8s)
+  ✓   6 documents-folders.spec.ts:621:1 › FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search (4.7s)
+  ✓   7 documents-folders.spec.ts:732:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live (9.8s)
+  ✓   8 documents-folders.spec.ts:972:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast (4.7s)
+  ✓   9 documents-folders.spec.ts:1058:1 › FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop (2.2s)
+  ✓  10 documents-folders.spec.ts:1160:1 › FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable aria-disabled rows with the reason Nằm trong chính nó and refuses to select them (2.9s)
+  ✓  11 documents-folders.spec.ts:1236:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision (4.0s)
+  ✓  12 documents-folders.spec.ts:1329:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành (2.7s)
+  ✓  13 documents-folders.spec.ts:1385:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder= (6.0s)
+  ✓  14 documents-folders.spec.ts:1528:1 › FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and the … menu Các cấp ẩn opens and navigates by keyboard (2.1s)
+  ✓  15 documents-folders.spec.ts:1587:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches (5.1s)
+  ✓  16 documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing (2.9s)
+  -  17 documents-folders.spec.ts:1992:1 › FD-A10 (entity/email link API) structured graph DOCUMENT links and email-hub thread links resolve after move
+  ✓  18 documents-folders.spec.ts:2000:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (3.5s)
+  ✓  19 documents-folders.spec.ts:2183:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 (11.1s)
+FD-A12 seeded 1000 pages in 2111 ms
+  ✓  20 documents-folders.spec.ts:2397:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button (5.1s)
+  ✓  21 documents-folders.spec.ts:2463:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts (3.0s)
+  ✓  22 documents-home.spec.ts:49:1 › quick create, folder, move and the other-modules section on the owner's home (7.5s)
+  ✓  23 documents-home.spec.ts:121:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.5s)
+  ✓  24 documents-home.spec.ts:226:3 › a view-only member › sees create controls at the root, none inside a folder shared at view level (2.4s)
+  ✓  25 documents-home.spec.ts:247:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.3s)
+  ✓  26 documents.spec.ts:84:1 › a page is created, typed into, and survives a reload (6.9s)
+  ✓  27 documents.spec.ts:132:1 › a file document takes a new version and downloads it (3.9s)
+  ✓  28 documents.spec.ts:164:1 › the library lists pages across its views and the tree opens one (5.2s)
+  ✓  29 documents.spec.ts:231:1 › the library and the page editor never call the Office service (2.3s)
+  ✓  30 notifications.spec.ts:34:1 › assigning a task lights the assignee's inbox badge without a reload (9.2s)
+
+  1 skipped
+  29 passed (2.6m)
+  1 skipped
+  29 passed (2.6m)
+
+E2E_TARGETED_EXIT=0
