@@ -20,6 +20,7 @@ export const ACCEPTANCE_REL = 'docs/office/g5g6g7/acceptance.md';
 export const PROVIDERS = Object.freeze(['uniwork', 'byok']);
 export const HOSTS = Object.freeze(['web', 'desktop']);
 export const FORMATS = Object.freeze(['xlsx', 'docx', 'pptx', 'pdf', 'md', 'html']);
+export const ROW_EXIT = Object.freeze({ PASS: 0, FAIL: 1, BLOCKED: 77 });
 
 export const FORMAT_FEATURE_FLAGS = Object.freeze({
   xlsx: 'office_ai_uniwork_xlsx',

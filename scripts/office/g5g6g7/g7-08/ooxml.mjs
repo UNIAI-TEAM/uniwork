@@ -15,6 +15,7 @@ export const HARNESS_EXIT = Object.freeze({
   FAIL: 1,
   BLOCKED: 77,
 });
+export const ROW_EXIT = HARNESS_EXIT;
 
 export function passVerdict(reason, details = {}) {
   return { status: VERDICT.PASS, exitCode: HARNESS_EXIT.PASS, reason, details };
@@ -79,6 +80,7 @@ export function validateOoxmlPackage(bytes, { mainPart = 'word/document.xml' } =
   }
   const byName = new Map();
   for (const entry of entries) {
+    if (entry.name.endsWith('/')) continue;
     if (!entry.data) return failVerdict('ooxml_corrupt_zip_entry', { part: entry.name });
     if (byName.has(entry.name)) return failVerdict('ooxml_duplicate_zip_entry', { part: entry.name });
     byName.set(entry.name, entry.data);
@@ -168,7 +170,7 @@ export function validateOoxmlPackage(bytes, { mainPart = 'word/document.xml' } =
 export function parseDocxStructure(docxBytes) {
   const entries = readZipEntries(docxBytes);
   if (!entries) return null;
-  const byName = new Map(entries.map((e) => [e.name, e.data]));
+  const byName = new Map(entries.filter((e) => !e.name.endsWith('/')).map((e) => [e.name, e.data]));
   const docBuf = byName.get('word/document.xml');
   if (!docBuf) return null;
   const xml = docBuf.toString('utf8');
@@ -333,7 +335,7 @@ export function oracleDocxEdit(observed) {
 export function parsePptxStructure(pptxBytes) {
   const entries = readZipEntries(pptxBytes);
   if (!entries) return null;
-  const byName = new Map(entries.map((e) => [e.name, e.data]));
+  const byName = new Map(entries.filter((e) => !e.name.endsWith('/')).map((e) => [e.name, e.data]));
   const presBuf = byName.get('ppt/presentation.xml');
   if (!presBuf) return null;
   const slideNames = [...byName.keys()]

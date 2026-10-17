@@ -1987,7 +1987,8 @@ async function readFrameHeadViaProtocol({ apiOrigin, fetchImpl = fetch, document
   };
 }
 
-async function listVersions({ apiOrigin, fetchImpl = fetch, documentId, token }) {
+// Exported for G7-08 web-driver.mjs to reuse version counting without copying (proposal §3).
+export async function listVersions({ apiOrigin, fetchImpl = fetch, documentId, token }) {
   const res = await callTracerApi({ apiOrigin, fetchImpl, name: "listDocumentVersions", params: { documentID: documentId }, token });
   return res.data?.versions?.length ?? 0;
 }
