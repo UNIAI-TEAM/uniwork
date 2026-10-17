@@ -438,7 +438,7 @@ describe("documents collection hooks", () => {
     let promise!: Promise<void>;
     act(() => {
       promise = result.current
-        .mutateAsync({ documentId: "d1", idempotencyKey: "pg-key" })
+        .mutateAsync("d1")
         .then(() => {
           settled = true;
         });
@@ -459,7 +459,7 @@ describe("documents collection hooks", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("http://api.test/api/v1/documents/d1/purge");
     expect(init?.method).toBe("POST");
-    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("pg-key");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBeNull();
     expect(qc.getQueryState(trashKey)?.isInvalidated).toBe(true);
     expect(qc.getQueryState(parentKey)?.isInvalidated).toBe(true);
     expect(qc.getQueryState(rootListKey)?.isInvalidated).toBe(true);

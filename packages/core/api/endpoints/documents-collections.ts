@@ -255,15 +255,15 @@ export async function restoreDocument(
 
 /** POST /api/v1/documents/{documentID}/purge — permanently delete a trashed
  *  item and the trashed descendants in its batch that the caller manages
- *  (RESTORE-01). The server answers 204; a drifted 2xx JSON body degrades to
- *  undefined via parseWithFallback. */
+ *  (RESTORE-01). The server answers 204 and keeps no purge ledger, so no
+ *  Idempotency-Key is sent; a drifted 2xx JSON body degrades to undefined via
+ *  parseWithFallback. */
 export async function purgeDocument(
   documentId: string,
-  opts?: DocumentRequestOpts,
+  opts?: Pick<DocumentRequestOpts, "signal">,
 ): Promise<void> {
   const raw = await request(`/api/v1/documents/${enc(documentId)}/purge`, {
     method: "POST",
-    headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
     signal: opts?.signal,
   });
   return parseWithFallback<undefined>(raw, DocumentPurgeResponseSchema, undefined, {

@@ -172,10 +172,15 @@ export function isMyFolder(
 }
 
 /** True when the caller manages a trashed row (RESTORE-01): views use this to
- *  enable Restore / Delete forever and disable them for view/edit/unknown. */
+ *  enable Restore / Delete forever and disable them for view/edit/unknown.
+ *  A workspace admin on a restricted row arrives with no my_level and
+ *  admin_scope: true instead - they administer it, so the controls stay on. */
 export function canManageTrashed(
-  item: { my_level?: string | null } | null | undefined,
+  item: { my_level?: string | null; admin_scope?: boolean | null } | null | undefined,
 ): boolean {
+  if (item?.admin_scope === true) {
+    return true;
+  }
   switch (item?.my_level) {
     case "manage":
       return true;

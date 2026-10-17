@@ -235,10 +235,8 @@ export function useRestoreDocument(wsId: string) {
 export function usePurgeDocument(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: string | { documentId: string; idempotencyKey?: string }) => {
-      const { documentId, idempotencyKey } =
-        typeof input === "string" ? { documentId: input, idempotencyKey: undefined } : input;
-      await purgeDocument(documentId, { idempotencyKey });
+    mutationFn: async (documentId: string) => {
+      await purgeDocument(documentId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) }),
   });
