@@ -8698,12 +8698,12 @@
       "error_title": "Could not load the document list",
       "error_description": "Check your connection and try again.",
       "retry": "Try again",
-      "permission_title": "Manage access is required to view the archive",
-      "permission_description": "The archive is only open to document managers.",
+      "permission_title": "Manage access is required to view the trash",
+      "permission_description": "The trash is only open to document managers.",
       "load_more": "Load more",
       "loading_more": "Loading more…",
       "clear_filters": "Clear filters",
-      "archived_badge": "Archived"
+      "archived_badge": "In trash"
     },
     "tree": {
       "aria_label": "Document tree",
@@ -9267,7 +9267,6 @@
       "restore_submitting": "Restoring…",
       "restore_failed": "Could not restore. Nothing changed.",
       "restore_not_archived": "This document is not in the trash.",
-      "archive_folder_title": "Archive folder",
       "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later.",
       "delete_title": "Delete folder",
       "delete_subfolders_one": "{{count}} subfolder",
@@ -9839,7 +9838,7 @@
       "document_cycle": "An item can't move into itself or into something inside it.",
       "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
-      "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
+      "folder_too_large": "The folder holds more than 1,000 items, so it can't be moved to the trash in one go. Move what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
