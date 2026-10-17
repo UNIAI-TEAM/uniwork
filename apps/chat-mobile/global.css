@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theme tokens. Shape ported from usf apps/mobile/global.css; values are the
+ * hex slots of packages/ui/styles/tokens.css (:root and .dark, default accent)
+ * converted once to HSL triplets, which is what NativeWind's hsl(var(--x))
+ * needs. tokens.css has no --destructive-foreground: the label on a
+ * destructive fill reuses the primary-foreground of each theme.
+ *
+ * lib/theme.ts mirrors these values for inline styles and React Navigation;
+ * tailwind.config.js maps the class names. Change all three together.
+ */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 12.5%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 12.5%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 12.5%;
+    --primary: 220.4 91.7% 47.1%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 0 0% 12.5%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 0 0% 39.2%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 0 0% 12.5%;
+    --destructive: 0 73.9% 39%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5.9% 90%;
+    --input: 240 3.4% 54.5%;
+    --ring: 220.4 91.7% 47.1%;
+    --brand: 220.4 91.7% 47.1%;
+    --brand-foreground: 0 0% 100%;
+  }
+
+  .dark:root {
+    --background: 0 0% 6.7%;
+    --foreground: 210 16.7% 97.6%;
+    --card: 0 0% 9.4%;
+    --card-foreground: 210 16.7% 97.6%;
+    --popover: 0 0% 9.4%;
+    --popover-foreground: 210 16.7% 97.6%;
+    --primary: 218.2 100% 67.6%;
+    --primary-foreground: 224.2 42.2% 8.8%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 210 16.7% 97.6%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 210 16.7% 97.6%;
+    --destructive: 0 90.6% 70.8%;
+    --destructive-foreground: 224.2 42.2% 8.8%;
+    --border: 0 0% 18%;
+    --input: 240 3.4% 45.5%;
+    --ring: 218.2 100% 67.6%;
+    --brand: 218.2 100% 67.6%;
+    --brand-foreground: 224.2 42.2% 8.8%;
+  }
+}

@@ -62,6 +62,7 @@ server/internal/handler/data/
 !.github/workflows/
 .github/workflows/*
 !.github/workflows/changelog.yml
+!.github/workflows/mobile-verify.yml
 .codex/
 .pnpm-store/
 .uniwork-dev/

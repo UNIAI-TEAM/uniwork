@@ -1,0 +1,52 @@
+name: Mobile Verify
+
+# Adapted from usf .github/workflows/mobile-verify.yml. Typecheck, lint and the
+# Node vitest suite for apps/chat-mobile alone, beside the main CI workflow,
+# which filters the app out (ADR 0011: mobile never blocks a web/backend PR).
+# Path-filtered so a PR that touches neither the app nor what it imports pays
+# nothing: packages/core/** because the app imports types and pure functions
+# from it; the install graph, catalog and turbo pipeline because they decide
+# what the app resolves. No IPA/APK is built and nothing renders natively here.
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "apps/chat-mobile/**"
+      - "packages/core/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - ".github/workflows/mobile-verify.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "apps/chat-mobile/**"
+      - "packages/core/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - ".github/workflows/mobile-verify.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck, lint, test
+        run: pnpm exec turbo typecheck lint test --filter=@uniwork/chat-mobile

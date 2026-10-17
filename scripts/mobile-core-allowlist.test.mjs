@@ -124,3 +124,15 @@ test("no allowlisted module reaches a web-only or stateful dependency at runtime
     failures.join("\n"),
   );
 });
+
+// The lint rule allows these subpaths, so each must be reachable through the
+// package's `exports` map — a literal key, or a `/*` pattern it falls under —
+// or Metro cannot resolve what the lint lets through.
+test("every allowlisted module is reachable through packages/core exports", () => {
+  const { exports: map } = JSON.parse(fs.readFileSync(path.join(root, CORE, "package.json"), "utf8"));
+  const keys = Object.keys(map);
+  const missing = ALLOWLIST.map((e) => `./${e}`).filter(
+    (sub) => !keys.some((k) => k === sub || (k.endsWith("/*") && sub.startsWith(k.slice(0, -1)))),
+  );
+  assert.deepEqual(missing, [], `add these to ${CORE}/package.json exports: ${missing.join(", ")}`);
+});

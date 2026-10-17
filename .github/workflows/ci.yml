@@ -147,7 +147,8 @@ jobs:
         run: node scripts/changelog-review-pr.mjs check --base "$REVIEW_BASE" --head "$REVIEW_HEAD"
       - name: Build, typecheck
         if: ${{ needs.changes.outputs.frontend == 'true' }}
-        run: pnpm exec turbo build typecheck
+        # apps/chat-mobile verifies in mobile-verify.yml (ADR 0011); it has no build script.
+        run: pnpm exec turbo build typecheck --filter=!@uniwork/chat-mobile
       - name: Lint (package boundaries are lint errors)
         # Through the root script, not `turbo lint`: scripts/lint-gate.sh is
         # what reads GATE_LEVEL. docs/adr/0014 — at fast the findings print and

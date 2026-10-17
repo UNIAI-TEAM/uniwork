@@ -37,6 +37,32 @@
       ]
     },
     "apps/chat-desktop": {},
+    "apps/chat-mobile": {
+      "ignore": [
+        "global.css",
+        "lib/theme.ts",
+        "lib/use-color-scheme.ts"
+      ],
+      "ignoreDependencies": [
+        "@expo/vector-icons",
+        "@react-native-community/netinfo",
+        "@rn-primitives/avatar",
+        "@rn-primitives/portal",
+        "@rn-primitives/radio-group",
+        "@rn-primitives/separator",
+        "@rn-primitives/slot",
+        "@rn-primitives/switch",
+        "@tanstack/react-query",
+        "@uniwork/core",
+        "class-variance-authority",
+        "expo-crypto",
+        "expo-status-bar",
+        "i18next",
+        "react-i18next",
+        "zod",
+        "zustand"
+      ]
+    },
     "packages/*": {},
     "packages/office-engine": {
       "entry": [
