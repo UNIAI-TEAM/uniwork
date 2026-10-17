@@ -171,6 +171,7 @@ describe("auth store", () => {
 
 describe("auth store with a session provider", () => {
   const provider = (token: string | null) => ({
+    login: vi.fn(async () => undefined),
     getAccessToken: vi.fn(async () => token),
     refresh: vi.fn(async () => token),
     logout: vi.fn(async () => undefined),

@@ -283,7 +283,7 @@
     "tooManyAttempts": "Thử quá nhiều lần. Chờ một phút rồi thử lại.",
     "desktop": {
       "eyebrow": "Đăng nhập desktop",
-      "title": "Cho phép UniWork Office đăng nhập?",
+      "title": "Cho phép {{app}} đăng nhập?",
       "description": "Kiểm tra thông tin ứng dụng và thiết bị trước khi tiếp tục. Phê duyệt này chỉ có hiệu lực trên thiết bị này.",
       "app": "Ứng dụng",
       "device": "Thiết bị",
@@ -296,15 +296,18 @@
       "approve": "Cho phép ứng dụng desktop",
       "approving": "Đang cho phép…",
       "resultTitle": "Kết quả đăng nhập desktop",
-      "approved": "Đã cho phép UniWork Office đăng nhập",
+      "approved": "Đã cho phép {{app}} đăng nhập",
       "cancelledResult": "Đã hủy đăng nhập desktop.",
       "errorResult": "Không thể hoàn tất đăng nhập desktop. Thử lại.",
       "expired": "Yêu cầu đăng nhập desktop đã hết hạn.",
-      "openDesktop": "Mở UniWork Office",
+      "openDesktop": "Mở {{app}}",
       "closeTab": "Bạn có thể đóng tab này.",
       "accountUnknown": "Tài khoản UniWork",
       "emailUnknown": "Chưa có email",
-      "libraryWorkspace": "Thư viện tài liệu"
+      "libraryWorkspace": "Thư viện tài liệu",
+      "unichat_login_title": "Đăng nhập UniChat",
+      "unichat_login_hint": "Trình duyệt sẽ mở để bạn đăng nhập UniWork, rồi đưa bạn trở lại ứng dụng này.",
+      "unichat_login_button": "Mở trình duyệt để đăng nhập"
     },
     "connect": {
       "eyebrow": "Kết nối trợ lý AI",

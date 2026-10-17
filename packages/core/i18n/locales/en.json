@@ -283,7 +283,7 @@
     "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
     "desktop": {
       "eyebrow": "Desktop sign-in",
-      "title": "Allow UniWork Office to sign in?",
+      "title": "Allow {{app}} to sign in?",
       "description": "Check the app and device details before continuing. This approval is valid for this device only.",
       "app": "App",
       "device": "Device",
@@ -296,15 +296,18 @@
       "approve": "Allow desktop app",
       "approving": "Allowing…",
       "resultTitle": "Desktop sign-in result",
-      "approved": "Allowed UniWork Office to sign in",
+      "approved": "Allowed {{app}} to sign in",
       "cancelledResult": "Desktop sign-in was cancelled.",
       "errorResult": "The desktop sign-in request could not be completed. Try again.",
       "expired": "This desktop sign-in request has expired.",
-      "openDesktop": "Open UniWork Office",
+      "openDesktop": "Open {{app}}",
       "closeTab": "You can close this tab.",
       "accountUnknown": "Account name unavailable",
       "emailUnknown": "Email unavailable",
-      "libraryWorkspace": "Document library"
+      "libraryWorkspace": "Document library",
+      "unichat_login_title": "Sign in to UniChat",
+      "unichat_login_hint": "Your browser will open to sign in to UniWork, then bring you back to this app.",
+      "unichat_login_button": "Open the browser to sign in"
     },
     "connect": {
       "eyebrow": "Connect an AI assistant",

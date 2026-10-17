@@ -167,6 +167,7 @@ describe("request", () => {
 
 describe("request with a session provider", () => {
   const provider = (refresh: () => Promise<string | null>) => ({
+    login: vi.fn(async () => undefined),
     getAccessToken: vi.fn(async () => "tok-p1"),
     refresh: vi.fn(refresh),
     logout: vi.fn(async () => undefined),

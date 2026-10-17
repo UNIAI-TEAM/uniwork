@@ -8,6 +8,7 @@ function fakeProvider() {
     listener = null;
   });
   const provider: SessionProvider = {
+    login: vi.fn(async () => {}),
     getAccessToken: vi.fn(async () => "t"),
     refresh: vi.fn(async () => "t"),
     logout: vi.fn(async () => {}),
