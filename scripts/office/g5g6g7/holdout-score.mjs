@@ -270,6 +270,11 @@ export function anchorMatches(kind, expected, actual, actualValue = '', expected
   const a = normalizeAnchor(splitAnchor(expected).base);
   const b = normalizeAnchor(splitAnchor(actual).base);
   if (IDENTITY_KINDS.has(kind)) return a === b;
+  // A table_cell anchor names a row AND a column, so it never goes through the generic containment shortcut
+  // (review-g712-17 R17-8): a candidate that names only the row ("Alpha") or only the column ("Revenue") is an
+  // incomplete address, and generic `a.includes(b)`/`b.includes(a)` would credit it on a coincidentally equal value.
+  // Only the every-segment topic matcher decides, and the all-DSL fallback inside it still needs the value.
+  if (kind === 'table_cell') return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
   if (a === b || (b.length > 0 && (a.includes(b) || b.includes(a)))) return true;
   if (TOPIC_VALUE_KINDS.has(kind)) return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
   return false;
