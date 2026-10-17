@@ -581,7 +581,8 @@
         "chat_thread_replied": "Replies in threads you follow",
         "document_access_requested": "Document access requests",
         "document_access_approved": "Document access granted",
-        "document_access_declined": "Document access request declined"
+        "document_access_declined": "Document access request declined",
+        "document_trashed_by_other": "Your document moved to trash by someone else"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -5067,6 +5068,8 @@
     "group_older": "Older",
     "merged_other_one": "and {{count}} more change",
     "merged_other_other": "and {{count}} more changes",
+    "trashed_more_one": "and {{count}} more",
+    "trashed_more_other": "and {{count}} more",
     "deleted": "deleted",
     "unread_dot": "Unread",
     "unread_elsewhere": "Unread notifications in another workspace",
@@ -5142,7 +5145,8 @@
       "document_break_glass": "Emergency access to document",
       "document_access_requested": "Document access request",
       "document_access_approved": "Access granted",
-      "document_access_declined": "Request declined"
+      "document_access_declined": "Request declined",
+      "document_trashed_by_other": "Your document was moved to trash"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",

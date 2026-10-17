@@ -6,6 +6,7 @@ import type { Notification, TaskStatus } from "@uniwork/core/types";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { STATUS_CONFIG } from "../tasks/modes/status-config";
+import { purgeDate } from "./trashed-notice";
 
 /** Brackets each param in the rendered sentence so it can be found again. */
 const MARK = "⁣";
@@ -52,7 +53,7 @@ export function notificationTitleKey(n: Notification): string {
  * to In review" reads at a glance.
  */
 export function NotificationTitle({ notification: n, unread }: { notification: Notification; unread: boolean }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const parts = titleParts((params) => t(notificationTitleKey(n), { ...params, defaultValue: n.kind }), n.params);
   const isAgent = n.actor_kind === "agent";
 
@@ -88,6 +89,8 @@ export function NotificationTitle({ notification: n, unread }: { notification: N
           </span>
         );
       }
+      case "date":
+        return <span className="font-medium text-foreground">{purgeDate(value, i18n.language)}</span>;
       case "role":
         return <span className="font-medium text-foreground">{t(`people.role_${value}`, { defaultValue: value })}</span>;
       default:

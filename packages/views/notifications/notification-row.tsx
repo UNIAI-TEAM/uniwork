@@ -11,6 +11,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { NotificationMark } from "./notification-mark";
 import { notificationSnippet } from "./notification-snippet";
+import { trashedLine } from "./trashed-notice";
 import { NotificationTitle } from "./notification-title";
 import { absoluteTime, relativeTime } from "./relative-time";
 import { useNow } from "./use-now";
@@ -94,7 +95,11 @@ export function NotificationRow({
             className={cn("line-clamp-1 text-caption text-muted-foreground", snippet.kind === "deleted" && "italic")}
             data-notification-snippet={snippet.kind}
           >
-            {snippet.kind === "text" ? snippet.text : t(snippet.key)}
+            {snippet.kind === "text"
+              ? snippet.text
+              : snippet.kind === "trashed"
+                ? trashedLine(snippet.document, snippet.count > 0 ? t("notifications.trashed_more", { count: snippet.count }) : "")
+                : t(snippet.key)}
           </span>
         ) : null}
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground">

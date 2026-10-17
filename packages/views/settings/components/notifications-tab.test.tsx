@@ -11,7 +11,7 @@ const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
-initI18n();
+const { t } = initI18n();
 
 const prefs = [
   { kind: "task_assigned", in_app: true, push: true, email: true },
@@ -103,8 +103,9 @@ describe("NotificationsTab", () => {
     await waitFor(() => expect(requestMock.mock.calls.filter(([, init]) => (init as { method?: string })?.method === "PUT")).toHaveLength(1));
     const put = requestMock.mock.calls.find(([, init]) => (init as { method?: string })?.method === "PUT")!;
     const sent = (put[1] as { body: { preferences: { kind: string; email: boolean }[] } }).body.preferences;
-    // Only the kinds that were off are written, all of them switched on.
-    expect(sent.map((p) => p.kind)).toEqual(["mentioned"]);
+    // Only the kinds that were off are written, all of them switched on: the
+    // stored "mentioned" and the trash notice, which is off by default.
+    expect(sent.map((p) => p.kind)).toEqual(["mentioned", "document_trashed_by_other"]);
     expect(sent.every((p) => p.email)).toBe(true);
     expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "true");
   });
@@ -146,6 +147,25 @@ describe("NotificationsTab", () => {
     expect(await push("Truy cập khẩn cấp vào tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Được nhắc đến trong thảo luận")).toHaveAttribute("aria-checked", "true");
     expect(await push("Phản hồi bình luận")).toHaveAttribute("aria-checked", "false");
+  });
+
+  // TRASH-NOTIFY-01: the trash notice is in-app only (prefs.go: push off, no digest email).
+  it("fills the trash notice with in-app on, push off and email off when the server omitted it", async () => {
+    mockApi(true);
+    registerPushAdapter({
+      permission: () => "default",
+      requestPermission: () => Promise.resolve("granted"),
+      current: () => Promise.resolve(null),
+      subscribe: () => Promise.reject(new Error("unreachable")),
+      unsubscribe: () => Promise.resolve(null),
+    });
+    render(wrap(<NotificationsTab />));
+    const label = t("settings.notifications.kinds.document_trashed_by_other");
+    expect(label).not.toBe("settings.notifications.kinds.document_trashed_by_other");
+    const sw = (channel: string) => screen.findByRole("switch", { name: `${label} · ${channel}` });
+    expect(await sw("Hộp việc")).toHaveAttribute("aria-checked", "true");
+    expect(await sw("Đẩy")).toHaveAttribute("aria-checked", "false");
+    expect(await sw("Email")).toHaveAttribute("aria-checked", "false");
   });
 
   it("shows a load error with retry instead of a guessed matrix, and writes nothing", async () => {

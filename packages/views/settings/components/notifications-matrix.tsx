@@ -54,8 +54,11 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
   "chat_reminder",
 ]);
 
+/** Kinds that stay out of the morning digest by default (the trash notice is in-app only). */
+const EMAIL_OFF_BY_DEFAULT = new Set<Kind>(["document_trashed_by_other"]);
+
 function serverDefault(kind: Kind): NotificationPreference {
-  return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: true };
+  return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: !EMAIL_OFF_BY_DEFAULT.has(kind) };
 }
 
 /**
