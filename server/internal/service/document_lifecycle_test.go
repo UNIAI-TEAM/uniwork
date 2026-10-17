@@ -1274,5 +1274,32 @@ func TestDocumentTrashEditHolders(t *testing.T) {
 		if !containsID(listIDs(titleHit), contentHit.ID) {
 			t.Fatalf("editor title search missing %s (got %v)", contentHit.ID, listIDs(titleHit))
 		}
+
+		// A workspace admin reaches a restricted trashed row only through
+		// AdminScope: they administer it, they never read its content, so a
+		// content-only term must not name the row while the title still does
+		// (F-3b: see_all grants content matching only on non-restricted rows).
+		admin := Human(tn.wsAdmin.ID)
+		restrictedHit := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			title: "Restricted Agenda", searchText: "Restricted Agenda quasarbody-only",
+		})
+		if _, err := f.svc.ArchiveDocument(f.ctx, owner, restrictedHit.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("archive restrictedHit: %v", err)
+		}
+		adminContent, err := f.svc.ListDocuments(f.ctx, admin, tn.wsA, ListDocumentsInput{Archived: true, Query: "quasarbody", Limit: 100})
+		if err != nil {
+			t.Fatalf("admin content search: %v", err)
+		}
+		if containsID(listIDs(adminContent), restrictedHit.ID) {
+			t.Fatalf("admin content search leaked restricted row %s (got %v)", restrictedHit.ID, listIDs(adminContent))
+		}
+		adminTitle, err := f.svc.ListDocuments(f.ctx, admin, tn.wsA, ListDocumentsInput{Archived: true, Query: "Restricted Agenda", Limit: 100})
+		if err != nil {
+			t.Fatalf("admin title search: %v", err)
+		}
+		if !containsID(listIDs(adminTitle), restrictedHit.ID) {
+			t.Fatalf("admin title search missing %s (got %v)", restrictedHit.ID, listIDs(adminTitle))
+		}
 	})
 }

@@ -57,15 +57,18 @@ WHERE d.organization_id = $1
   -- 'restricted' - the row's visibility - is the one access filter it takes.
   AND ($18::text IS NULL OR d.visibility = 'restricted')
   -- A term can match on title for every row this view returns; it may match
-  -- on content (search_text) only for a row the caller manages - admin scope
-  -- (see_all), the ACL owner, or a live manage share (RESTORE-01 §3, Q-T1 c).
-  -- An edit holder sees the trash read-only: a content-only hit must never
-  -- name the row to them.
+  -- on content (search_text) only for a row the caller can act on AND read:
+  -- managed by the caller's own access (ACL owner, live manage share, live
+  -- human break-glass grant), or admin scope (see_all) on a non-restricted
+  -- row. A restricted trashed row reached only through AdminScope matches on
+  -- title alone - admins administer it but never read its content, and an
+  -- edit holder's trash is read-only metadata either way (RESTORE-01 §3).
   AND ($19::text IS NULL
        OR (NOT $20::boolean
-           AND ($3
-                  AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
-                OR ($5 AND d.acl_owner_id = $4)
+           AND (($3
+                 AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
+                 AND d.visibility <> 'restricted')
+                OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
                 OR ($8 AND EXISTS (
                      SELECT 1 FROM document_shares rs
                      WHERE rs.organization_id = d.organization_id
@@ -76,12 +79,22 @@ WHERE d.organization_id = $1
                        AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                             OR (rs.principal_type = 'workspace'
-                                AND rs.principal_id = ANY($9::text[]))))))
+                                AND rs.principal_id = ANY($9::text[])))))
+                OR EXISTS (
+                     SELECT 1 FROM document_break_glass_grants g
+                     WHERE g.organization_id = d.organization_id
+                       AND g.workspace_id = d.workspace_id
+                       AND g.document_id = d.id
+                       AND g.actor_id = $4
+                       AND g.actor_kind = 'human'
+                       AND g.revoked_at IS NULL
+                       AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $19::text || '%' ESCAPE '\')
        OR (($20::boolean
-            OR NOT ($3
-                      AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
-                    OR ($5 AND d.acl_owner_id = $4)
+            OR NOT (($3
+                     AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
+                     AND d.visibility <> 'restricted')
+                    OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
                     OR ($8 AND EXISTS (
                          SELECT 1 FROM document_shares rs
                          WHERE rs.organization_id = d.organization_id
@@ -92,7 +105,16 @@ WHERE d.organization_id = $1
                            AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
                                 OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                                 OR (rs.principal_type = 'workspace'
-                                    AND rs.principal_id = ANY($9::text[])))))))
+                                    AND rs.principal_id = ANY($9::text[])))))
+                    OR EXISTS (
+                         SELECT 1 FROM document_break_glass_grants g
+                         WHERE g.organization_id = d.organization_id
+                           AND g.workspace_id = d.workspace_id
+                           AND g.document_id = d.id
+                           AND g.actor_id = $4
+                           AND g.actor_kind = 'human'
+                           AND g.revoked_at IS NULL
+                           AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $19::text || '%' ESCAPE '\'))
   AND ($21::timestamptz IS NULL
        OR (d.archived_at, d.id) < ($21, $22::text))
