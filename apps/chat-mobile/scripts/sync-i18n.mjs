@@ -25,8 +25,8 @@ const PATHS = [
 
 // Strings no web screen has; keep vi and en aligned.
 const MOBILE_ONLY = {
-  vi: { mobile: { tab_calls: "Cuộc gọi" } },
-  en: { mobile: { tab_calls: "Calls" } },
+  vi: { mobile: { tab_calls: "Cuộc gọi", login_hint: "Nhắn tin và gọi cho cả đội ngay trên điện thoại." } },
+  en: { mobile: { tab_calls: "Calls", login_hint: "Message and call your team, right from your phone." } },
 };
 
 function get(obj, dotted) {

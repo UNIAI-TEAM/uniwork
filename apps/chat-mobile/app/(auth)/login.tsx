@@ -38,7 +38,7 @@ export default function Login() {
           <UniChatLogo />
           <View className="items-center gap-1">
             <Text className="text-2xl font-semibold text-foreground">{t("auth.desktop.unichat_login_title")}</Text>
-            <Text className="text-sm text-muted-foreground text-center">{t("auth.desktop.unichat_login_hint")}</Text>
+            <Text className="text-sm text-muted-foreground text-center">{t("mobile.login_hint")}</Text>
           </View>
         </View>
         {failed ? <Text className="text-sm text-destructive text-center">{t("auth.desktop.unichat_login_failed")}</Text> : null}

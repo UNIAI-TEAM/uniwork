@@ -32,7 +32,7 @@ describe("i18n singleton", () => {
   it("starts in Vietnamese and switches to English", async () => {
     expect(DEFAULT_LOCALE).toBe("vi");
     expect(SUPPORTED_LOCALES).toEqual(["vi", "en"]);
-    expect(i18n.t("auth.desktop.unichat_login_title")).toBe("Đăng nhập UniChat");
+    expect(i18n.t("auth.desktop.unichat_login_title")).toBe("Chào mừng đến với UniChat");
     expect(i18n.t("mobile.tab_calls")).toBe("Cuộc gọi");
     await i18n.changeLanguage("en");
     expect(i18n.t("nav.settings")).toBe("Settings");
