@@ -1,0 +1,4 @@
+$ ss -ltnp 2>/dev/null | grep -E ":(3000|18550)\b"; curl -s -o /dev/null -w "WEB_HTTP=%{http_code}\n" http://localhost:3000/login; curl -s http://localhost:3000/login | grep -oE "localhost:[0-9]+" | sort | rootbiq -c | head; tail -30 /tmp/rootb-web.log; true
+WEB_HTTP=000
+bash: line 1: rootbiq: command not found
+No projects matched the filters in "/workspace"

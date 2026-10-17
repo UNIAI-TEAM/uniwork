@@ -1,0 +1,1 @@
+$ for i in $(seq 1 90); do curl -sf http://localhost:18550/healthz >/dev/null && curl -sf http://localhost:3000 >/dev/null && break; sleep 2; done; curl -sf http://localhost:18550/readyz && echo READY
