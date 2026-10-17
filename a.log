@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+ae06e36e76d592f2589cdb612926630b37d3923c
+bf693b001da6512bbf33d867c35250179106a63b
+ae06e36e7 chore(merge): e6-server ARCHIVE cf415d0d8 into ARCHIVE-01 web
+11d83cf5a test(documents): reach Lưu trữ from the sub-nav and shelve folders from their card
+9d53a0093 fix(documents): offer Lưu trữ on folder cards and the open folder's menu
+cf415d0d8 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
+92a6c48b0 test(documents): build the RAR-02 trashed row with the row test's doc() fixture
+c32f9a38b chore(merge): G5-G7 root bf693b001 (TRASH-01 layout) into ARCHIVE-01 web
+82d0fe5c0 refactor(documents): keep document-workspace and the frame session under max-lines
+bf693b001 chore: merge TRASH-01 documents layout (UNI-1841, c49fc5aad) into the G5-G7 root
+2580cc716 test(documents): count only the lock release that follows the lock being held
+36c42e7df test(documents): the shelved-row download keeps the file extension (RAR-12)
