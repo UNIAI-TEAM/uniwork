@@ -28,15 +28,19 @@ import {
 import {
   FORK_SELECTOR_OWNER,
   FRAME_AI_SELECTORS,
+  FRAME_SELECTOR_OWNER,
+  HARNESS_PRECONDITION_OWNER,
   REAL_AI_BLOCKER,
   buildCapabilityObserved,
   buildDryRunStubModel,
   buildFormatObserved,
   buildVersionAndSaveObserved,
+  evaluatePreconditions,
   evaluateRowObserved,
   extractWireToolCalls,
   extractWireUsage,
   missingSelectorVerdict,
+  moduleAiSelectors,
   moduleFrameSelectors,
   runWebDocxRow,
   runWebHtmlRow,
@@ -396,4 +400,55 @@ describe('G7-08 W2 run-g7-08 CLI argument parsing, budget stop, and evidence wri
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it('maps server/host/frame preconditions to D (harness) vs F owner verdicts (W2b contract)', () => {
+    assert.equal(moduleAiSelectors('sheets').openPanel, '.copilot:not(.collapsed)');
+    assert.match(moduleAiSelectors('sheets').toggle, /\.expand-copilot/);
+    assert.equal(moduleAiSelectors('docs').openPanel, '.ai-panel');
+    assert.equal(moduleAiSelectors('docs').toggle, '.ai-rail');
+
+    // (a) Server precondition fails -> BLOCKED with owner "D (harness)", never "F"
+    const srvFail = evaluatePreconditions({
+      server: { met: false, failureReason: 'capability ai_uniwork=false' },
+      host: { met: false },
+      frame: { met: false },
+    });
+    assert.equal(srvFail.status, VERDICT.BLOCKED);
+    assert.equal(srvFail.exitCode, ROW_EXIT.BLOCKED);
+    assert.equal(srvFail.owner, HARNESS_PRECONDITION_OWNER);
+    assert.match(srvFail.reason, /^precondition server not met/);
+
+    // (b) Host precondition fails -> BLOCKED with owner "D (harness)", never "F"
+    const hostFail = evaluatePreconditions({
+      server: { met: true },
+      host: { met: false, failureReason: 'init.payload.capabilities.uniworkAi=false' },
+      frame: { met: false },
+    });
+    assert.equal(hostFail.status, VERDICT.BLOCKED);
+    assert.equal(hostFail.exitCode, ROW_EXIT.BLOCKED);
+    assert.equal(hostFail.owner, HARNESS_PRECONDITION_OWNER);
+    assert.match(hostFail.reason, /^precondition host not met/);
+
+    // (c) Only when (a) and (b) hold and frame lacks selector -> BLOCKED "missing F selector <what>" with owner "F"
+    const frameFail = evaluatePreconditions({
+      server: { met: true },
+      host: { met: true, capabilitiesUniworkAi: true },
+      frame: { met: false, missingSelector: '.copilot:not(.collapsed)' },
+    });
+    assert.equal(frameFail.status, VERDICT.BLOCKED);
+    assert.equal(frameFail.exitCode, ROW_EXIT.BLOCKED);
+    assert.equal(frameFail.owner, FRAME_SELECTOR_OWNER);
+    assert.equal(frameFail.reason, 'missing F selector .copilot:not(.collapsed)');
+
+    // All three preconditions met -> PASS
+    const allPass = evaluatePreconditions({
+      server: { met: true },
+      host: { met: true, capabilitiesUniworkAi: true },
+      frame: { met: true, panelOpened: true },
+    });
+    assert.equal(allPass.status, VERDICT.PASS);
+    assert.equal(allPass.exitCode, ROW_EXIT.PASS);
+    assert.equal(allPass.owner, null);
+  });
 });
+

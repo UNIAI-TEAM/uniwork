@@ -27,8 +27,17 @@ export const FORMAT_FEATURE_FLAGS = Object.freeze({
   docx: 'office_ai_uniwork_docx',
   pptx: 'office_ai_uniwork_pptx',
   pdf: 'office_ai_uniwork_pdf',
-  md: 'office_ai_uniwork_md',
+  md: 'office_ai_uniwork_markdown',
   html: 'office_ai_uniwork_html',
+});
+
+export const SERVER_FORMAT_TOKENS = Object.freeze({
+  xlsx: 'xlsx',
+  docx: 'docx',
+  pptx: 'pptx',
+  pdf: 'pdf',
+  md: 'markdown',
+  html: 'html',
 });
 
 export const EXPECTED_FIXTURE_SHAS = Object.freeze({

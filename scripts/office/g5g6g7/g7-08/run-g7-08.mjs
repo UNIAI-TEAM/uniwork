@@ -309,6 +309,8 @@ export async function runG708Matrix(
       reason: outcome.reason ?? '',
       blocker: outcome.blocker ?? null,
       owner: outcome.owner ?? null,
+      preconditions: outcome.preconditions ?? null,
+      screenshotPath: outcome.screenshotPath ?? null,
       details: outcome.details ?? {},
       verdicts: outcome.verdicts ?? {},
       usage: rowUsage,

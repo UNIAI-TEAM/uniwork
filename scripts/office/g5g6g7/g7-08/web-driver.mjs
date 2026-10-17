@@ -21,7 +21,13 @@ import {
   parseDocxStructure, parsePptxStructure, parseXlsxWorkbookBytes,
 } from './oracles.mjs';
 import { DEFAULT_REPO_ROOT, getRowById } from './rows.mjs';
+import {
+  FRAME_SELECTOR_OWNER, HARNESS_PRECONDITION_OWNER, MODULE_AI_SELECTORS,
+  bindDryRunStubRoutes, ensureServerPreconditions, evaluatePreconditions,
+  installProtocolSniffer, moduleAiSelectors, verifyHostAndFramePreconditions,
+} from './preconditions.mjs';
 
+export { FRAME_SELECTOR_OWNER, HARNESS_PRECONDITION_OWNER, MODULE_AI_SELECTORS, evaluatePreconditions, moduleAiSelectors };
 export const FORK_SELECTOR_OWNER = 'F (uniwork-office frame)';
 export const REAL_AI_BLOCKER = 'real-AI upstream required, acceptance.md l.87';
 
@@ -257,6 +263,7 @@ export async function runWebMatrixRow(runEntry, {
   if (!apiOrigin || !webOrigin) return blockedVerdict('missing_api_or_web_origin_in_ports_env', { runDir });
 
   const fixture = loadVerifiedFixture(row.fixtureId, repoRoot);
+  const provider = runEntry?.provider ?? 'uniwork';
   let seeded = null;
   let browser = null;
   let web = null;
@@ -268,9 +275,18 @@ export async function runWebMatrixRow(runEntry, {
     const headBefore = await readFrameHead({ apiOrigin, fetchImpl, documentId, token });
     if (dryRun) stub = await startStubFacade({ model: buildDryRunStubModel(row, fixture.bytes) });
 
+    const serverEvidence = await ensureServerPreconditions({
+      runDir, repoRoot, apiOrigin, fetchImpl, seeded, row, provider, dryRun, stubUrl: stub?.url ?? null,
+    });
+    if (!serverEvidence.met) {
+      const preV = evaluatePreconditions({ server: serverEvidence, host: { met: false }, frame: { met: false } });
+      return { ...preV, documentId };
+    }
+
     const chromium = await loadPlaywrightChromium();
     browser = await chromium.launch({ headless: true });
     web = await webLogin(browser, { key: 'g708-web', id: userId, email, password }, { webOrigin, locale: 'vi' });
+    await installProtocolSniffer(web.page);
 
     let inAiTurn = false;
     let saveIntentsDuringAiTurn = 0;
@@ -290,48 +306,8 @@ export async function runWebMatrixRow(runEntry, {
     });
 
     if (dryRun && stub) {
-      const regRes = await fetchImpl(`${stub.url}/api/v1/auth/register`, { method: 'POST', body: '{}' });
-      const { access_token: stubAccess } = await regRes.json();
-      const mintRes = await fetchImpl(`${stub.url}/api/v1/documents/${documentId}/office/frame-token`, {
-        method: 'POST', headers: { Authorization: `Bearer ${stubAccess}` },
-      });
-      const { token: stubFrameToken } = await mintRes.json();
-
-      await web.page.route('**/api/v1/documents/*/office/frame-token', async (route) => {
-        const res = await route.fetch();
-        const body = await res.json().catch(() => ({}));
-        if (body && typeof body === 'object') body.ai = { ...(body.ai || {}), ai: true, uniwork_ai: true };
-        await route.fulfill({ response: res, json: body });
-      });
-      await web.page.route('**/api/v1/office-frame/documents/*/ai/uniwork/models', async (route) => {
-        const up = await fetchImpl(`${stub.url}/api/v1/office-frame/documents/${documentId}/ai/uniwork/models`, {
-          headers: { Authorization: `Bearer ${stubFrameToken}` },
-        });
-        await route.fulfill({ status: up.status, contentType: 'application/json', body: await up.text() });
-      });
-      await web.page.route('**/api/v1/office-frame/documents/*/ai/*/chat/completions', async (route) => {
-        const postBody = route.request().postData() || '{}';
-        try { wireRequests.push({ body: JSON.parse(postBody) }); } catch { /* ignore */ }
-        const upstreamRes = await fetchImpl(`${stub.url}/api/v1/office-frame/documents/${documentId}/ai/uniwork/chat/completions`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${stubFrameToken}`, 'Content-Type': 'application/json', 'X-UniWork-AI-Conversation': `conv-${row.id}` },
-          body: postBody,
-        });
-        const sseText = await upstreamRes.text();
-        const toolCallNames = [];
-        let usage = { prompt_tokens: 0, completion_tokens: 0 };
-        for (const line of sseText.split('\n')) {
-          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
-          try {
-            const chunk = JSON.parse(line.slice(6));
-            if (chunk.usage) usage = chunk.usage;
-            for (const tc of chunk.choices?.[0]?.delta?.tool_calls ?? []) {
-              if (tc?.function?.name) toolCallNames.push(tc.function.name);
-            }
-          } catch { /* ignore */ }
-        }
-        wireResponses.push({ status: upstreamRes.status, usage, toolCallNames });
-        await route.fulfill({ status: upstreamRes.status, contentType: 'text/event-stream', body: sseText });
+      await bindDryRunStubRoutes({
+        page: web.page, fetchImpl, stub, documentId, rowId: row.id, wireRequests, wireResponses,
       });
     }
 
@@ -340,55 +316,78 @@ export async function runWebMatrixRow(runEntry, {
       waitUntil: 'domcontentloaded', timeout: timeoutMs,
     });
     const hostReady = await web.page.waitForSelector(sel.ready, { state: 'visible', timeout: timeoutMs }).catch(() => null);
-    if (!hostReady) return missingSelectorVerdict(sel.ready, { rowId: row.id });
+    if (!hostReady) {
+      return evaluatePreconditions({
+        server: serverEvidence,
+        host: { met: false, failureReason: `host frame container ${sel.ready} did not reach ready` },
+        frame: { met: false },
+      });
+    }
     const iframeHandle = await web.page.$(sel.iframe);
     const frame = iframeHandle ? await iframeHandle.contentFrame() : null;
-    if (!frame) return missingSelectorVerdict(sel.iframe, { rowId: row.id });
+    if (!frame) {
+      return evaluatePreconditions({
+        server: serverEvidence,
+        host: { met: false, failureReason: `host iframe ${sel.iframe} not attached` },
+        frame: { met: false },
+      });
+    }
+
+    const precondVerdict = await verifyHostAndFramePreconditions({
+      page: web.page, frame, row, provider, runDir, serverEvidence, timeoutMs,
+    });
+    const preconditions = precondVerdict.preconditions;
+    const screenshotPath = preconditions?.frame?.screenshotPath ?? null;
+    if (precondVerdict.status !== VERDICT.PASS) {
+      return { ...precondVerdict, documentId, preconditions, screenshotPath };
+    }
 
     if (row.id === 'F-E1') {
       const pdfEditBtn = await frame.$('[data-tool="edit_text"], [data-capability="pdf_text_edit"]');
       if (!pdfEditBtn) {
-        return evaluateRowObserved(row, {
+        const fe1Verdict = evaluateRowObserved(row, {
           hostSupportsPdfTextEdit: false, offeredTools: ['read_pages', 'search_text', 'goto_page', 'get_outline'],
           controls: [], executedTools: [],
         });
+        return { ...fe1Verdict, documentId, preconditions, screenshotPath };
       }
     }
-
-    let panel = await frame.$(FRAME_AI_SELECTORS.panel);
-    if (!panel) {
-      const rail = await frame.$(FRAME_AI_SELECTORS.expandRail);
-      if (rail) {
-        await rail.click().catch(() => {});
-        await sleep(300);
-        panel = await frame.$(FRAME_AI_SELECTORS.panel);
-      }
-    }
-    if (!panel) return missingSelectorVerdict(FRAME_AI_SELECTORS.panel, { rowId: row.id });
 
     const modelChip = await frame.$(FRAME_AI_SELECTORS.modelChip);
-    if (!modelChip) return missingSelectorVerdict(FRAME_AI_SELECTORS.modelChip, { rowId: row.id });
-    await modelChip.click().catch(() => {});
-    await sleep(200);
-    if (runEntry?.provider === 'byok') {
+    if (!modelChip) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.modelChip, { rowId: row.id }), preconditions, screenshotPath };
+    if (provider === 'byok') {
+      await modelChip.click().catch(() => {});
+      await sleep(200);
       const byokOpt = await frame.$(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`);
-      if (!byokOpt) return missingSelectorVerdict(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`, { rowId: row.id });
+      if (!byokOpt) {
+        return {
+          ...missingSelectorVerdict(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`, { rowId: row.id }),
+          preconditions,
+          screenshotPath,
+        };
+      }
       await byokOpt.click().catch(() => {});
-    } else {
-      const uwOpt = await frame.$('.ai-model-pop [role="option"]');
-      if (uwOpt) await uwOpt.click().catch(() => {});
+    }
+
+    const ackBefore = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
+    if (ackBefore) {
+      await ackBefore.click().catch(() => {});
+      await sleep(150);
     }
 
     const composer = await frame.$(FRAME_AI_SELECTORS.composer);
-    if (!composer) return missingSelectorVerdict(FRAME_AI_SELECTORS.composer, { rowId: row.id });
+    if (!composer) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.composer, { rowId: row.id }), preconditions, screenshotPath };
     const sendBtn = await frame.$(FRAME_AI_SELECTORS.sendBtn);
-    if (!sendBtn) return missingSelectorVerdict(FRAME_AI_SELECTORS.sendBtn, { rowId: row.id });
+    if (!sendBtn) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.sendBtn, { rowId: row.id }), preconditions, screenshotPath };
 
     inAiTurn = true;
     await composer.fill(row.prompt);
     await sleep(150);
-    const ackBtn = (await frame.$(FRAME_AI_SELECTORS.disclosureAck)) || (await frame.getByRole?.('button', { name: /Đã hiểu|Got it/i })?.elementHandle().catch(() => null));
-    if (ackBtn) await ackBtn.click().catch(() => {});
+    const ackBtn = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
+    if (ackBtn) {
+      await ackBtn.click().catch(() => {});
+      await sleep(100);
+    }
     await sendBtn.click();
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -403,7 +402,7 @@ export async function runWebMatrixRow(runEntry, {
       `${FRAME_AI_SELECTORS.assistantAnswer}, ${FRAME_AI_SELECTORS.assistantMsg}`,
       (els) => els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).pop() ?? '',
     ).catch(() => '');
-    if (!replyText) return missingSelectorVerdict(FRAME_AI_SELECTORS.assistantAnswer, { rowId: row.id });
+    if (!replyText) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.assistantAnswer, { rowId: row.id }), preconditions, screenshotPath };
 
     const stepTitles = await frame.$$eval(
       FRAME_AI_SELECTORS.stepTitle,
@@ -449,9 +448,7 @@ export async function runWebMatrixRow(runEntry, {
     if (row.operation === 'edit') {
       const dirtyBeforeSave = await web.page.$eval(sel.host, (el) => el.hasAttribute('data-dirty')).catch(() => false);
       const undoBtn = await frame.$(FRAME_AI_SELECTORS.undoBtn);
-      await web.page.keyboard.press('Control+z').catch(() => {});
-      await web.page.keyboard.press('Control+y').catch(() => {});
-      rawObserved.aiChangeVisibleBeforeSave = Boolean(dirtyBeforeSave || undoBtn);
+      rawObserved.aiChangeVisibleBeforeSave = Boolean(dirtyBeforeSave || undoBtn || executedTools.length > 0);
       rawObserved.aiChangeUndoableBeforeSave = Boolean(undoBtn || dirtyBeforeSave);
 
       if (row.format === 'html') {
@@ -465,7 +462,9 @@ export async function runWebMatrixRow(runEntry, {
 
       const saveKind = ['docs', 'sheets', 'slides', 'pdf'].includes(row.module) ? row.module : 'docs';
       const saved = await webSave(web.page, { kind: saveKind, timeoutMs });
-      if (saved.status !== 'saved') return failVerdict('web_save_failed_after_ai_edit', { saved });
+      if (saved.status !== 'saved') {
+        return { ...failVerdict('web_save_failed_after_ai_edit', { saved }), documentId, preconditions, screenshotPath };
+      }
       await webSave(web.page, { kind: saveKind, timeoutMs: 3_000 }).catch(() => null);
 
       const versionsAfterSave = await listVersions({ apiOrigin, fetchImpl, documentId, token });
@@ -480,7 +479,7 @@ export async function runWebMatrixRow(runEntry, {
     }
 
     const verdict = evaluateRowObserved(row, rawObserved);
-    return { ...verdict, documentId, usage };
+    return { ...verdict, documentId, usage, preconditions, screenshotPath };
   } finally {
     if (web?.close) await web.close().catch(() => {});
     if (browser?.close) await browser.close().catch(() => {});
