@@ -177,8 +177,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
       async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current, scopeId: doc, viewOnly: refused, editLockId: lockId } = latest.current;
-        if (write && refused) throw readOnly(type);
+        const { options: current, scopeId: doc, viewOnly: refused, isSource: source, editLockId: lockId } = latest.current;
+        if ((write || (source && type === "api.export")) && refused) { if (source) current.onSourceWriteRefused?.(); throw readOnly(type); }
         const run = pick(current.api);
         if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
         const { token: frameToken } = await currentToken();
@@ -294,10 +294,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
             payload,
             remote,
             context.signal,
-          ).catch((error: unknown) => {
-            if (latest.current.isSource) failSession(shapeOf(error));
-            throw error;
-          }),
+          ).catch((error: unknown) => { if (latest.current.isSource) failSession(shapeOf(error)); throw error; }),
         "api.save": async (payload, context) => {
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
           const watch = hostSave.current?.life === life ? hostSave.current : null;
@@ -359,7 +356,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
             source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
           );
-          if (refused || minted?.can_edit !== true) throw readOnly("api.download");
+          if (refused || minted?.can_edit !== true) { if (source) current.onSourceWriteRefused?.(); throw readOnly("api.download"); }
           return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc, initDownloadMaxBytes.current);
         },
         "app.open": async () => {

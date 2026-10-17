@@ -17,7 +17,8 @@ import { OfficeModuleFrame } from "./office-module-frame";
 import { OfficeModuleOpenSwitch } from "./office-module-open-switch";
 import { OfficeTooLargeProvider } from "../too-large-notice";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), dismiss: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
 const SOURCE_MINT_PATH = `/api/v1/workspaces/ws-1/documents/sources/${encodeURIComponent("chat:s-1")}/office/frame-token`;
@@ -84,7 +85,7 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
   };
 }
 
-afterEach(async () => { requestMock.mockReset(); resetAuthStoreForTests(); await endOfficeDraftSession(); });
+afterEach(async () => { requestMock.mockReset(); toast.error.mockReset(); toast.success.mockReset(); toast.dismiss.mockReset(); resetAuthStoreForTests(); await endOfficeDraftSession(); });
 
 describe("OfficeModuleFrame", () => {
   it("serves the module's build and grants it only what its frame implements", async () => {
@@ -114,6 +115,37 @@ describe("OfficeModuleFrame", () => {
     // No comments claim and no save control for a read-only source.
     expect(init?.capabilities?.comments ?? false).toBe(false);
     expect(screen.queryByLabelText("Lưu vào UniWork")).toBeNull();
+  });
+
+  it("refuses save, saveAs, export, attachments, images, and download from a view-only source frame with no server call and a view-only toast", async () => {
+    const frame = mountFrame("docs", { fileRef: { kind: "source", id: "chat:s-1" } });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === SOURCE_MINT_PATH)).toBe(true));
+    await frame.ready({ module: "docs" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    requestMock.mockClear();
+
+    const requests: [string, unknown][] = [
+      ["api.save", { fileId: "chat:s-1", data: new ArrayBuffer(1), etag: "0" }],
+      ["api.saveAs", { fileId: "chat:s-1", name: "Copy.docx", data: new ArrayBuffer(1) }],
+      ["api.export", { fileId: "chat:s-1", format: "pdf" }],
+      ["api.export", { fileId: "chat:s-1", format: "html" }],
+      ["api.attachments.add", { files: [{ name: "a.bin", mimeType: "application/octet-stream", data: new ArrayBuffer(1) }] }],
+      ["api.images.upload", { fileId: "chat:s-1", name: "img.png", mimeType: "image/png", data: new ArrayBuffer(1) }],
+      ["api.download", { data: new ArrayBuffer(1) }],
+    ];
+    for (const [type, payload] of requests) {
+      toast.error.mockClear();
+      const id = frame.request(type, payload);
+      await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith("Tệp này chỉ xem, không lưu được.");
+    }
+    expect(requestMock).not.toHaveBeenCalled();
+    expect(lastApi?.save).not.toHaveBeenCalled();
+    expect(lastApi?.saveAs).not.toHaveBeenCalled();
+    expect(lastApi?.export).not.toHaveBeenCalled();
+    expect(lastApi?.addAttachments).not.toHaveBeenCalled();
+    expect(lastApi?.uploadImage).not.toHaveBeenCalled();
   });
 
   it("takes back its comments claim when the frame unmounts, so the page's own panel returns", async () => {

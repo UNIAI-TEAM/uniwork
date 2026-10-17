@@ -9996,6 +9996,7 @@
       "errors": {
         "unauthorized": "Your editing session expired. Try again.",
         "forbidden": "You do not have permission to do that in this document.",
+        "read_only_source": "This file is view-only and can't be saved.",
         "not_found": "This document no longer exists or was moved.",
         "conflict": "Someone saved a newer version. Reopen the document to see it before saving.",
         "too_large": "The file is too large to upload.",
