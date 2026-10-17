@@ -123,16 +123,70 @@
       "timezoneSearch": "Tìm thành phố hoặc UTC…",
       "timezoneEmpty": "Không có múi giờ nào khớp.",
       "toastSaved": "Đã lưu"
+    },
+    "profile": {
+      "email": "Email"
+    },
+    "security": {
+      "sessions": {
+        "revoke": "Thu hồi",
+        "revokeFailed": "Không thu hồi được phiên"
+      }
+    },
+    "notifications": {
+      "push_section": "Thông báo đẩy"
     }
   },
   "workspace": {
     "pickTitle": "Chọn workspace"
   },
   "chat": {
-    "no_conversation_hint": "Mở một cuộc trò chuyện trong danh sách, hoặc bấm + để nhắn tin mới."
+    "no_conversation_hint": "Mở một cuộc trò chuyện trong danh sách, hoặc bấm + để nhắn tin mới.",
+    "voice_call_log_completed": "Cuộc gọi · {{duration}}",
+    "voice_call_log_missed": "Cuộc gọi nhỡ",
+    "voice_call_log_declined_outgoing": "Cuộc gọi bị từ chối",
+    "voice_call_log_declined_incoming": "Bạn đã từ chối cuộc gọi",
+    "voice_call_log_cancelled": "Đã hủy cuộc gọi",
+    "voice_call_log_unknown": "Cuộc gọi",
+    "video_call_log_completed": "Cuộc gọi video · {{duration}}",
+    "video_call_log_missed": "Cuộc gọi video nhỡ",
+    "video_call_log_declined_outgoing": "Cuộc gọi video bị từ chối",
+    "video_call_log_declined_incoming": "Bạn đã từ chối cuộc gọi video",
+    "video_call_log_cancelled": "Đã hủy cuộc gọi video",
+    "video_call_log_unknown": "Cuộc gọi video",
+    "presence_online": "Đang hoạt động",
+    "member_search_placeholder": "VD: Minh hoặc minh@congty.vn"
   },
   "mobile": {
     "tab_calls": "Cuộc gọi",
-    "login_hint": "Nhắn tin và gọi cho cả đội ngay trên điện thoại."
+    "login_hint": "Nhắn tin và gọi cho cả đội ngay trên điện thoại.",
+    "calls": {
+      "empty": "Chưa có cuộc gọi nào. Cuộc gọi trong các cuộc trò chuyện của bạn sẽ hiện ở đây.",
+      "outgoing": "Gọi đi",
+      "incoming": "Gọi đến"
+    },
+    "contacts": {
+      "empty": "Chưa có ai khác trong workspace này.",
+      "no_match": "Không tìm thấy ai khớp.",
+      "search": "Tìm theo tên hoặc email",
+      "count_one": "{{count}} người",
+      "count_other": "{{count}} người"
+    },
+    "settings": {
+      "account": "Tài khoản",
+      "devices": "Thiết bị đã đăng nhập",
+      "devices_hint": "Thu hồi một thiết bị thì thiết bị đó bị đăng xuất trong vòng 1 phút.",
+      "this_device": "Thiết bị này",
+      "unnamed_device": "Thiết bị không tên",
+      "revoke_title": "Thu hồi {{device}}?",
+      "revoke_body": "Thiết bị đó bị đăng xuất và phải đăng nhập lại.",
+      "push_this_device": "Nhận thông báo trên thiết bị này",
+      "push_hint": "Khi bạn đang dùng UniWork hoặc UniChat ở nơi khác, thông báo không gửi tới điện thoại.",
+      "push_unavailable": "Thiết bị chưa cho phép thông báo. Bật trong cài đặt của máy rồi thử lại.",
+      "push_failed": "Không đổi được thông báo. Thử lại sau.",
+      "workspace": "Workspace",
+      "switch_workspace": "Chuyển workspace",
+      "version": "Phiên bản {{version}}"
+    }
   }
 }

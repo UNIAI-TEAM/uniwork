@@ -23,10 +23,91 @@ const PATHS = [
   "chat.no_conversation_hint",
 ];
 
+// M2b (UNI-1833): the calls, contacts and settings tabs say what the web says.
+const TABS_PATHS = [
+  ...["voice", "video"].flatMap((kind) =>
+    ["completed", "missed", "declined_outgoing", "declined_incoming", "cancelled", "unknown"].map(
+      (outcome) => `chat.${kind}_call_log_${outcome}`,
+    ),
+  ),
+  "chat.presence_online",
+  "chat.member_search_placeholder",
+  "settings.profile.email",
+  "settings.security.sessions.revoke",
+  "settings.security.sessions.revokeFailed",
+  "settings.notifications.push_section",
+];
+
 // Strings no web screen has; keep vi and en aligned.
 const MOBILE_ONLY = {
-  vi: { mobile: { tab_calls: "Cuộc gọi", login_hint: "Nhắn tin và gọi cho cả đội ngay trên điện thoại." } },
-  en: { mobile: { tab_calls: "Calls", login_hint: "Message and call your team, right from your phone." } },
+  vi: {
+    mobile: {
+      tab_calls: "Cuộc gọi",
+      login_hint: "Nhắn tin và gọi cho cả đội ngay trên điện thoại.",
+      calls: {
+        empty: "Chưa có cuộc gọi nào. Cuộc gọi trong các cuộc trò chuyện của bạn sẽ hiện ở đây.",
+        outgoing: "Gọi đi",
+        incoming: "Gọi đến",
+      },
+      contacts: {
+        empty: "Chưa có ai khác trong workspace này.",
+        no_match: "Không tìm thấy ai khớp.",
+        search: "Tìm theo tên hoặc email",
+        count_one: "{{count}} người",
+        count_other: "{{count}} người",
+      },
+      settings: {
+        account: "Tài khoản",
+        devices: "Thiết bị đã đăng nhập",
+        devices_hint: "Thu hồi một thiết bị thì thiết bị đó bị đăng xuất trong vòng 1 phút.",
+        this_device: "Thiết bị này",
+        unnamed_device: "Thiết bị không tên",
+        revoke_title: "Thu hồi {{device}}?",
+        revoke_body: "Thiết bị đó bị đăng xuất và phải đăng nhập lại.",
+        push_this_device: "Nhận thông báo trên thiết bị này",
+        push_hint: "Khi bạn đang dùng UniWork hoặc UniChat ở nơi khác, thông báo không gửi tới điện thoại.",
+        push_unavailable: "Thiết bị chưa cho phép thông báo. Bật trong cài đặt của máy rồi thử lại.",
+        push_failed: "Không đổi được thông báo. Thử lại sau.",
+        workspace: "Workspace",
+        switch_workspace: "Chuyển workspace",
+        version: "Phiên bản {{version}}",
+      },
+    },
+  },
+  en: {
+    mobile: {
+      tab_calls: "Calls",
+      login_hint: "Message and call your team, right from your phone.",
+      calls: {
+        empty: "No calls yet. Calls in your conversations show up here.",
+        outgoing: "Outgoing",
+        incoming: "Incoming",
+      },
+      contacts: {
+        empty: "No one else is in this workspace yet.",
+        no_match: "No one matches.",
+        search: "Search by name or email",
+        count_one: "{{count}} person",
+        count_other: "{{count}} people",
+      },
+      settings: {
+        account: "Account",
+        devices: "Signed-in devices",
+        devices_hint: "A revoked device is signed out within a minute.",
+        this_device: "This device",
+        unnamed_device: "Unnamed device",
+        revoke_title: "Revoke {{device}}?",
+        revoke_body: "That device is signed out and has to sign in again.",
+        push_this_device: "Get notifications on this device",
+        push_hint: "While you are using UniWork or UniChat elsewhere, notifications are not sent to this phone.",
+        push_unavailable: "Notifications are not allowed on this device. Turn them on in system settings, then try again.",
+        push_failed: "Could not change notifications. Try again later.",
+        workspace: "Workspace",
+        switch_workspace: "Switch workspace",
+        version: "Version {{version}}",
+      },
+    },
+  },
 };
 
 function get(obj, dotted) {
@@ -43,7 +124,7 @@ function set(obj, dotted, value) {
 function build(locale) {
   const core = JSON.parse(fs.readFileSync(path.join(coreLocales, `${locale}.json`), "utf8"));
   const out = {};
-  for (const dotted of PATHS) {
+  for (const dotted of [...PATHS, ...TABS_PATHS]) {
     const value = get(core, dotted);
     if (value === undefined) throw new Error(`${locale}.json has no ${dotted}`);
     set(out, dotted, value);

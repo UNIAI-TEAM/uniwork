@@ -123,16 +123,70 @@
       "timezoneSearch": "Search a city or UTC…",
       "timezoneEmpty": "No matching time zone.",
       "toastSaved": "Saved"
+    },
+    "profile": {
+      "email": "Email"
+    },
+    "security": {
+      "sessions": {
+        "revoke": "Revoke",
+        "revokeFailed": "Could not revoke the session"
+      }
+    },
+    "notifications": {
+      "push_section": "Push notifications"
     }
   },
   "workspace": {
     "pickTitle": "Choose a workspace"
   },
   "chat": {
-    "no_conversation_hint": "Open one from the conversation list, or press + to start a new one."
+    "no_conversation_hint": "Open one from the conversation list, or press + to start a new one.",
+    "voice_call_log_completed": "Call · {{duration}}",
+    "voice_call_log_missed": "Missed voice call",
+    "voice_call_log_declined_outgoing": "Call declined",
+    "voice_call_log_declined_incoming": "You declined the call",
+    "voice_call_log_cancelled": "Call cancelled",
+    "voice_call_log_unknown": "Call",
+    "video_call_log_completed": "Video call · {{duration}}",
+    "video_call_log_missed": "Missed video call",
+    "video_call_log_declined_outgoing": "Video call declined",
+    "video_call_log_declined_incoming": "You declined the video call",
+    "video_call_log_cancelled": "Video call cancelled",
+    "video_call_log_unknown": "Video call",
+    "presence_online": "Active now",
+    "member_search_placeholder": "e.g. Minh or minh@company.com"
   },
   "mobile": {
     "tab_calls": "Calls",
-    "login_hint": "Message and call your team, right from your phone."
+    "login_hint": "Message and call your team, right from your phone.",
+    "calls": {
+      "empty": "No calls yet. Calls in your conversations show up here.",
+      "outgoing": "Outgoing",
+      "incoming": "Incoming"
+    },
+    "contacts": {
+      "empty": "No one else is in this workspace yet.",
+      "no_match": "No one matches.",
+      "search": "Search by name or email",
+      "count_one": "{{count}} person",
+      "count_other": "{{count}} people"
+    },
+    "settings": {
+      "account": "Account",
+      "devices": "Signed-in devices",
+      "devices_hint": "A revoked device is signed out within a minute.",
+      "this_device": "This device",
+      "unnamed_device": "Unnamed device",
+      "revoke_title": "Revoke {{device}}?",
+      "revoke_body": "That device is signed out and has to sign in again.",
+      "push_this_device": "Get notifications on this device",
+      "push_hint": "While you are using UniWork or UniChat elsewhere, notifications are not sent to this phone.",
+      "push_unavailable": "Notifications are not allowed on this device. Turn them on in system settings, then try again.",
+      "push_failed": "Could not change notifications. Try again later.",
+      "workspace": "Workspace",
+      "switch_workspace": "Switch workspace",
+      "version": "Version {{version}}"
+    }
   }
 }
