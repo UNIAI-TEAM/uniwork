@@ -1,7 +1,37 @@
 import type { ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
-import { mergeChatContact, type ChatContact } from "./contacts-store";
+import type { ChatContact } from "./contacts-store";
 import type { GroupChat } from "./groups-store";
-import { lookupChatUserByIdCached } from "./user-lookup";
+
+const ULID_PATTERN = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
+
+/** True when the label is just the raw UniWork id (sync ran before profile loaded). */
+export function isPlaceholderChatDisplayName(displayName: string, userId: string): boolean {
+  const label = displayName.trim();
+  if (!label) return true;
+  if (label.toUpperCase() === userId.trim().toUpperCase()) return true;
+  return ULID_PATTERN.test(label);
+}
+
+function preferDisplayName(
+  incoming: string,
+  existing: string | undefined,
+  userId: string,
+): string {
+  if (!isPlaceholderChatDisplayName(incoming, userId)) return incoming;
+  if (existing && !isPlaceholderChatDisplayName(existing, userId)) return existing;
+  return incoming;
+}
+
+/** Keep human-readable names when a background sync only knows the UniWork id. */
+export function mergeChatContact(existing: ChatContact | undefined, incoming: ChatContact): ChatContact {
+  if (!existing) return incoming;
+  return {
+    user_id: incoming.user_id,
+    email: incoming.email || existing.email,
+    display_name: preferDisplayName(incoming.display_name, existing.display_name, incoming.user_id),
+    dm_room_id: incoming.dm_room_id ?? existing.dm_room_id,
+  };
+}
 
 export function chatRoomToContact(room: ChatRoomRecord): ChatContact {
   return {
@@ -124,8 +154,4 @@ export function toChatContactFromLookup(lookup: ChatUserLookup): ChatContact {
     email: lookup.email,
     display_name: lookup.display_name,
   };
-}
-
-export function fetchChatUserById(workspaceId: string, userId: string): Promise<ChatUserLookup | null> {
-  return lookupChatUserByIdCached(workspaceId, userId);
 }
