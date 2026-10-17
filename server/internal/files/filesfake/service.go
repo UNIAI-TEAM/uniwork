@@ -23,7 +23,7 @@ var errStreamTooLarge = errors.New("filesfake: stream passed the purpose byte ca
 
 // Upload stages one logical upload. The body is read once, under the purpose
 // cap, and the verified type comes from the bytes.
-func (f *Fake) Upload(_ context.Context, in files.UploadInput) (files.Upload, error) {
+func (f *Fake) Upload(ctx context.Context, in files.UploadInput) (files.Upload, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -90,6 +90,12 @@ func (f *Fake) Upload(_ context.Context, in files.UploadInput) (files.Upload, er
 		failure := files.TypeRejected(contentType)
 		f.uploads[in.IdempotencyKey] = &uploadAttempt{fingerprint: fingerprint, failure: failure}
 		return files.Upload{}, failure
+	}
+	if in.Check != nil {
+		if err := in.Check(ctx, bytes.NewReader(body), int64(len(body)), contentType); err != nil {
+			f.uploads[in.IdempotencyKey] = &uploadAttempt{fingerprint: fingerprint, failure: files.TypeRejected(contentType)}
+			return files.Upload{}, err
+		}
 	}
 
 	readyAt := f.now()

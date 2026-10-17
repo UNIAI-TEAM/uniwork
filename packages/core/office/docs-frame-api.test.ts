@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
-import { createDocsFrameApi, docsFrameApiBase, docsFrameSrc, docsFrameToken, type DocsFrameCall } from "./docs-frame-api";
+import { createDocsFrameApi, createOfficeFrameSourceApi, docsFrameApiBase, docsFrameSrc, docsFrameToken, type DocsFrameCall } from "./docs-frame-api";
 
 // The transport here is the frame client's fetch: injected, never the network.
 
@@ -175,11 +175,11 @@ describe("createDocsFrameApi", () => {
 
   it("lists recents, degrading a malformed answer to none", async () => {
     const ok = fakeFetch({ "GET /api/v1/office-frame/documents/doc-1/recents?limit=5": () => json({ items: [{ document_id: "doc-9", title: "Old.docx", updated_at: "2026-10-01T00:00:00Z" }] }) });
-    await expect(createDocsFrameApi({ apiUrl: API, fetch: ok.fetch }).recents({ limit: 5 }, call())).resolves.toEqual({
+    await expect(createDocsFrameApi({ apiUrl: API, fetch: ok.fetch }).recents?.({ limit: 5 }, call())).resolves.toEqual({
       files: [{ fileId: "doc-9", name: "Old.docx", modifiedAt: Date.parse("2026-10-01T00:00:00Z") }],
     });
     const drifted = fakeFetch({ "GET /api/v1/office-frame/documents/doc-1/recents": () => json({ items: "nope" }) });
-    await expect(createDocsFrameApi({ apiUrl: API, fetch: drifted.fetch }).recents({}, call())).resolves.toEqual({ files: [] });
+    await expect(createDocsFrameApi({ apiUrl: API, fetch: drifted.fetch }).recents?.({}, call())).resolves.toEqual({ files: [] });
   });
 
   it("has no image-upload handler: the frame embeds data: URIs and an asset URL on the API origin could not load under img-src 'self'", () => {
@@ -347,5 +347,57 @@ describe("createDocsFrameApi saveAs", () => {
       status: 413,
       details: { apiCode: "file_too_large", max_bytes: 104857600 },
     });
+  });
+});
+
+describe("createOfficeFrameSourceApi (UNI-1869)", () => {
+  const SRC_ID = "chat:01J8X4MSG0N1P2Q3R4S5T6U7V8";
+  const SRC = {
+    source_id: SRC_ID, principal: "source", workspace_id: "ws-1", organization_id: "org-1",
+    title: "Báo cáo.docx", revision: "0", module: "docs", can_edit: false, readonly: true,
+    parent: { kind: "chat_channel", id: "c-1", title: "Kênh chung" },
+    file: { version: 1, filename: "Báo cáo.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 48213 },
+    download_url: `/api/v1/office-frame/sources/${encodeURIComponent(SRC_ID)}/content`,
+    updated_at: "2026-10-17T08:00:00Z",
+  };
+  const sourceCall = (): DocsFrameCall => ({ workspaceId: "ws-1", documentId: SRC_ID, token: "ofs1.tok", signal: new AbortController().signal });
+
+  it("opens the source under its own base and hands the frame read-only meta and bytes", async () => {
+    const { fetch, calls } = fakeFetch({
+      [`GET /api/v1/office-frame/sources/${encodeURIComponent(SRC_ID)}`]: () => json(SRC),
+      [`GET ${SRC.download_url}`]: () => new Response(new Uint8Array([9, 8, 7])),
+    });
+    const api = createOfficeFrameSourceApi("docs", { apiUrl: API, fetch });
+    const opened = await api.open({ fileId: SRC_ID }, sourceCall());
+    expect(opened.file).toEqual({
+      fileId: SRC_ID, name: "Báo cáo.docx", sizeBytes: 48213,
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      etag: "0", writable: false, modifiedAt: Date.parse("2026-10-17T08:00:00Z"),
+    });
+    expect(opened.assets).toBeUndefined();
+    expect(opened.source.kind === "bytes" && new Uint8Array(opened.source.data)).toEqual(new Uint8Array([9, 8, 7]));
+    for (const { init } of calls) {
+      expect(header(init, "Authorization")).toBe("Bearer ofs1.tok");
+      expect(init.credentials).toBe("omit");
+    }
+  });
+
+  it("refuses a source the token is not scoped to without calling the API", async () => {
+    const { fetch } = fakeFetch({});
+    await expect(createOfficeFrameSourceApi("docs", { apiUrl: API, fetch }).open({ fileId: "chat:other" }, sourceCall())).rejects.toMatchObject({ code: "forbidden" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("has nothing but open: no save, recents, export, assets or image routes exist for a source", async () => {
+    const api = createOfficeFrameSourceApi("markdown", { apiUrl: API, fetch: fakeFetch({}).fetch });
+    await expect(api.save({ fileId: SRC_ID, data: new ArrayBuffer(1), etag: "0" }, sourceCall())).rejects.toMatchObject({ code: "unsupported" });
+    for (const key of ["saveAs", "export", "addAttachments", "uploadImage", "resolveAssets", "recents"] as const) {
+      expect(api[key]).toBeUndefined();
+    }
+  });
+
+  it("degrades a malformed open answer to a typed error", async () => {
+    const { fetch } = fakeFetch({ [`GET /api/v1/office-frame/sources/${encodeURIComponent(SRC_ID)}`]: () => json({ source_id: 42 }) });
+    await expect(createOfficeFrameSourceApi("docs", { apiUrl: API, fetch }).open({ fileId: SRC_ID }, sourceCall())).rejects.toMatchObject({ code: "internal" });
   });
 });

@@ -457,6 +457,21 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/break-glass":     {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
 	"POST /api/v1/documents/{documentID}/uploads":         {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
 	"POST /api/v1/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	// Large upload sessions (BIGUP-S1, contract §5). The owner's seeded session
+	// is the control of each session route; the complete routes answer 422 on
+	// it because no part was ever PUT, which still proves the owner reached the
+	// part check. The workspace create route's write control is its
+	// isoReferences parent case: a third session would cross the
+	// 4-open-per-person limit that buildUploadSessions already spends two of.
+	"POST /api/v1/workspaces/{workspaceID}/documents/upload-sessions":                       {body: isoUploadSessionOpen("workspace"), skipControl: "seeding a third session would cross the 4-open-per-person limit; the isoReferences parent case is this route's owner control"},
+	"POST /api/v1/documents/{documentID}/upload-sessions":                                   {body: isoUploadSessionOpen("version")},
+	"POST /api/v1/office-frame/documents/{documentID}/upload-sessions":                      {body: isoUploadSessionOpen("frame")},
+	"GET /api/v1/upload-sessions/{sessionID}":                                               {},
+	"POST /api/v1/upload-sessions/{sessionID}/complete":                                     {body: isoUploadSessionComplete, control: []int{http.StatusUnprocessableEntity}},
+	"DELETE /api/v1/upload-sessions/{sessionID}":                                            {},
+	"GET /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}":           {},
+	"POST /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}/complete": {body: isoUploadSessionComplete, control: []int{http.StatusUnprocessableEntity}},
+	"DELETE /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}":        {},
 	// G5-07: the lookup sends the key isolation_world_test.go seeds and leaves not_committed, so the
 	// owner's control reads its own intent (200 not_committed) and the other tenant is refused on the
 	// document before any intent is read.
@@ -471,6 +486,15 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}": {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
+	// The source frame (UNI-1869): a source token, minted by the owner's
+	// session for a DOCX task attachment, opens the metadata and the bytes.
+	// do() sends that token on /api/v1/office-frame/sources/* (frameSources),
+	// so the cross-tenant pass attacks with B's own source token and the
+	// anonymous pass with none.
+	"POST /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/office/frame-token": {reason: "the mint re-runs the source's own gate and binds w/o/s into the claims; a foreign workspace or source answers 403/404"},
+	"GET /api/v1/office-frame/sources/{sourceFileID}":                                           {reason: "the source token binds w/o/s/parent; AuthorizeSource re-runs the source gate as the token's user, so a foreign source is not_found"},
+	"GET /api/v1/office-frame/sources/{sourceFileID}/content":                                   {reason: "as the open route: the bytes stream only after AuthorizeSource re-runs the source gate"},
+	"HEAD /api/v1/office-frame/sources/{sourceFileID}/content":                                  {reason: "as the open route: the headers are answered only after AuthorizeSource re-runs the source gate"},
 	// GO-A7's AI on the frame token (UNI-1014): the same bodies and vendor exemptions as the session rows.
 	"PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}":            {body: isoAICredentialPut},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions": {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},

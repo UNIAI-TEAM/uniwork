@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 )
 
@@ -153,5 +155,342 @@ func TestMinIOBackendIntegration(t *testing.T) {
 	var apiErr smithy.APIError
 	if !errors.As(headErr, &apiErr) || apiErr.ErrorCode() != "NotFound" && apiErr.ErrorCode() != "404" {
 		t.Fatalf("HeadObject after delete: error = %v, want a not-found answer", headErr)
+	}
+}
+
+// TestMinIOMultipartIntegration exercises CreateMultipart, presigned
+// UploadPart, ListParts, CompleteMultipart, Stat, Open and AbortMultipart
+// against a real MinIO service.
+func TestMinIOMultipartIntegration(t *testing.T) {
+	required := []string{
+		"MINIO_ENDPOINT",
+		"MINIO_BUCKET",
+		"MINIO_ACCESS_KEY_ID",
+		"MINIO_SECRET_ACCESS_KEY",
+		"MINIO_REGION",
+	}
+	for _, key := range required {
+		if strings.TrimSpace(os.Getenv(key)) == "" {
+			t.Skipf("skipping MinIO multipart integration test: %s is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`", key)
+		}
+	}
+
+	t.Setenv("LOCAL_UPLOAD_DIR", "")
+	t.Setenv("S3_BUCKET", "")
+	env := func(key string) (string, bool) {
+		if key == "STORAGE_BACKEND" {
+			return "", false
+		}
+		return os.LookupEnv(key)
+	}
+	cfg, err := LoadConfig(registryFor(t, BackendMinIO), env)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	store, err := (minioFactory{}).New(ctx, cfg)
+	if err != nil {
+		t.Fatalf("minio factory: %v", err)
+	}
+	if !store.Capabilities().Multipart {
+		t.Fatal("minio store Capabilities().Multipart = false, want true")
+	}
+
+	runMinIOMultipartLifecycle(t, ctx, store, cfg.MinIO.Bucket)
+
+	t.Run("versioned_bucket_cleanup", func(t *testing.T) {
+		rawClient := s3.New(s3.Options{
+			Region:       cfg.MinIO.Region,
+			BaseEndpoint: aws.String(cfg.MinIO.Endpoint),
+			UsePathStyle: true,
+			Credentials:  credentials.NewStaticCredentialsProvider(cfg.MinIO.AccessKeyID, cfg.MinIO.SecretAccessKey, ""),
+		})
+		verBucket := fmt.Sprintf("%s-ver-%d-%d", cfg.MinIO.Bucket, os.Getpid(), time.Now().UnixNano())
+		if _, err := rawClient.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(verBucket)}); err != nil {
+			t.Fatalf("CreateBucket %s: %v", verBucket, err)
+		}
+		t.Cleanup(func() {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cleanupCancel()
+			if vers, err := rawClient.ListObjectVersions(cleanupCtx, &s3.ListObjectVersionsInput{Bucket: aws.String(verBucket)}); err == nil {
+				for _, v := range vers.Versions {
+					_, _ = rawClient.DeleteObject(cleanupCtx, &s3.DeleteObjectInput{
+						Bucket:    aws.String(verBucket),
+						Key:       v.Key,
+						VersionId: v.VersionId,
+					})
+				}
+				for _, dm := range vers.DeleteMarkers {
+					_, _ = rawClient.DeleteObject(cleanupCtx, &s3.DeleteObjectInput{
+						Bucket:    aws.String(verBucket),
+						Key:       dm.Key,
+						VersionId: dm.VersionId,
+					})
+				}
+			}
+			_, _ = rawClient.DeleteBucket(cleanupCtx, &s3.DeleteBucketInput{Bucket: aws.String(verBucket)})
+		})
+		if _, err := rawClient.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
+			Bucket: aws.String(verBucket),
+			VersioningConfiguration: &s3types.VersioningConfiguration{
+				Status: s3types.BucketVersioningStatusEnabled,
+			},
+		}); err != nil {
+			t.Fatalf("PutBucketVersioning: %v", err)
+		}
+
+		verMinIO := *cfg.MinIO
+		verMinIO.Bucket = verBucket
+		verCfg := Config{
+			Backend: BackendMinIO,
+			MinIO:   &verMinIO,
+		}
+		verStore, err := (minioFactory{}).New(ctx, verCfg)
+		if err != nil {
+			t.Fatalf("versioned minio factory: %v", err)
+		}
+		if !verStore.Capabilities().VersionedObjects {
+			t.Fatal("versioned minio store Capabilities().VersionedObjects = false, want true")
+		}
+
+		var assembledLoc ObjectLocator
+		t.Run("lifecycle", func(t *testing.T) {
+			assembledLoc = runMinIOMultipartLifecycle(t, ctx, verStore, verBucket)
+		})
+		if assembledLoc.Version == "" {
+			t.Error("assembled locator has empty Version on versioned bucket")
+		}
+		if _, err := verStore.Stat(ctx, assembledLoc); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("Stat versioned object after cleanup = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("second_upload_abort_cleanup_on_timeout", func(t *testing.T) {
+		timeoutLoc := ObjectLocator{
+			Storage: BackendMinIO,
+			Bucket:  cfg.MinIO.Bucket,
+			Key:     fmt.Sprintf("multipart/%d-%s/abort-timeout.bin", os.Getpid(), time.Now().UTC().Format("20060102T150405.000000000")),
+		}
+		expiredCtx, expiredCancel := context.WithDeadline(ctx, time.Now().Add(-time.Second))
+		defer expiredCancel()
+
+		var cleanups []func()
+		abortID, abortErr := runSecondMultipartAbort(
+			ctx,
+			expiredCtx,
+			func(fn func()) { cleanups = append(cleanups, fn) },
+			func(err error) { t.Errorf("cleanup AbortMultipart abort upload: %v", err) },
+			store,
+			timeoutLoc,
+		)
+		if abortID != "" {
+			t.Cleanup(func() {
+				cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cleanupCancel()
+				_ = store.AbortMultipart(cleanupCtx, timeoutLoc, abortID)
+			})
+		}
+		if abortErr == nil {
+			t.Fatal("runSecondMultipartAbort with expired abortCtx succeeded")
+		}
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i]()
+		}
+		if _, err := store.ListParts(ctx, timeoutLoc, abortID); !errors.Is(err, ErrMultipartNotFound) {
+			t.Fatalf("ListParts after second-upload cleanup = %v, want ErrMultipartNotFound", err)
+		}
+	})
+}
+
+func runMinIOMultipartLifecycle(t *testing.T, ctx context.Context, store ObjectStore, bucket string) ObjectLocator {
+	t.Helper()
+	stamp := fmt.Sprintf("multipart/%d-%s", os.Getpid(), time.Now().UTC().Format("20060102T150405.000000000"))
+	loc := ObjectLocator{Storage: BackendMinIO, Bucket: bucket, Key: stamp + "/assembled.bin"}
+	abortLoc := ObjectLocator{Storage: BackendMinIO, Bucket: bucket, Key: stamp + "/aborted.bin"}
+
+	uploadID, err := store.CreateMultipart(ctx, loc, WriteInfo{
+		ContentType: "application/octet-stream",
+		Filename:    "assembled.bin",
+	})
+	if err != nil {
+		t.Fatalf("CreateMultipart: %v", err)
+	}
+	var completed bool
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		if err := store.AbortMultipart(cleanupCtx, loc, uploadID); err != nil {
+			t.Errorf("cleanup AbortMultipart: %v", err)
+		}
+		if completed || !store.Capabilities().VersionedObjects {
+			if err := store.Delete(cleanupCtx, loc); err != nil {
+				t.Errorf("cleanup Delete: %v", err)
+			}
+		}
+	})
+
+	// First part 5 MiB (S3 minimum non-final part size), second part smaller.
+	part1 := bytes.Repeat([]byte("A1B2C3D4"), (5*1024*1024)/8)
+	part2 := []byte("trailing second part payload")
+	full := append(append([]byte(nil), part1...), part2...)
+
+	putPart := func(partNum int32, payload []byte) string {
+		t.Helper()
+		signed, err := store.SignUploadPart(ctx, loc, uploadID, partNum, SignOptions{TTL: 15 * time.Minute})
+		if err != nil {
+			t.Fatalf("SignUploadPart(%d): %v", partNum, err)
+		}
+		etag, err := putPresignedPart(ctx, http.DefaultClient, partNum, signed, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return etag
+	}
+
+	etag1 := putPart(1, part1)
+	etag2 := putPart(2, part2)
+
+	parts, err := store.ListParts(ctx, loc, uploadID)
+	if err != nil {
+		t.Fatalf("ListParts: %v", err)
+	}
+	if len(parts) != 2 {
+		t.Fatalf("ListParts len = %d, want 2 (%+v)", len(parts), parts)
+	}
+	if parts[0].PartNumber != 1 || parts[0].ETag != etag1 || parts[0].SizeBytes != int64(len(part1)) {
+		t.Fatalf("part[0] = %+v, want PartNumber=1 ETag=%s SizeBytes=%d", parts[0], etag1, len(part1))
+	}
+	if parts[1].PartNumber != 2 || parts[1].ETag != etag2 || parts[1].SizeBytes != int64(len(part2)) {
+		t.Fatalf("part[1] = %+v, want PartNumber=2 ETag=%s SizeBytes=%d", parts[1], etag2, len(part2))
+	}
+
+	completeRes, err := store.CompleteMultipart(ctx, loc, uploadID, parts)
+	if err != nil {
+		t.Fatalf("CompleteMultipart: %v", err)
+	}
+	completed = true
+	loc.Version = completeRes.VersionID
+
+	info, err := store.Stat(ctx, loc)
+	if err != nil {
+		t.Fatalf("Stat assembled object: %v", err)
+	}
+	if info.SizeBytes != int64(len(full)) {
+		t.Fatalf("Stat SizeBytes = %d, want %d", info.SizeBytes, len(full))
+	}
+
+	obj, err := store.Open(ctx, loc, ReadOptions{})
+	if err != nil {
+		t.Fatalf("Open assembled object: %v", err)
+	}
+	got, readErr := io.ReadAll(obj.Body)
+	_ = obj.Body.Close()
+	if readErr != nil {
+		t.Fatalf("read assembled object: %v", readErr)
+	}
+	if !bytes.Equal(got, full) {
+		t.Fatalf("assembled object bytes mismatch (got %d bytes, want %d)", len(got), len(full))
+	}
+
+	// Second upload: Abort, then ListParts gives ErrMultipartNotFound, and a
+	// second Abort gives nil.
+	if _, err := runSecondMultipartAbort(ctx, ctx, t.Cleanup, func(err error) {
+		t.Errorf("cleanup AbortMultipart abort upload: %v", err)
+	}, store, abortLoc); err != nil {
+		t.Fatal(err)
+	}
+	return loc
+}
+
+func runSecondMultipartAbort(
+	ctx, abortCtx context.Context,
+	registerCleanup func(func()),
+	onCleanupErr func(error),
+	store ObjectStore,
+	abortLoc ObjectLocator,
+) (string, error) {
+	abortID, err := store.CreateMultipart(ctx, abortLoc, WriteInfo{ContentType: "application/octet-stream"})
+	if err != nil {
+		return "", fmt.Errorf("CreateMultipart abort upload: %w", err)
+	}
+	registerCleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		if err := store.AbortMultipart(cleanupCtx, abortLoc, abortID); err != nil && onCleanupErr != nil {
+			onCleanupErr(err)
+		}
+	})
+	if err := store.AbortMultipart(abortCtx, abortLoc, abortID); err != nil {
+		return abortID, fmt.Errorf("first AbortMultipart: %w", err)
+	}
+	if _, err := store.ListParts(ctx, abortLoc, abortID); !errors.Is(err, ErrMultipartNotFound) {
+		return abortID, fmt.Errorf("ListParts after AbortMultipart = %v, want ErrMultipartNotFound", err)
+	}
+	if err := store.AbortMultipart(ctx, abortLoc, abortID); err != nil {
+		return abortID, fmt.Errorf("second AbortMultipart = %v, want nil", err)
+	}
+	return abortID, nil
+}
+
+func putPresignedPart(ctx context.Context, client *http.Client, partNum int32, signed SignedURL, payload []byte) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, signed.Method, signed.URL, bytes.NewReader(payload))
+	if err != nil {
+		return "", fmt.Errorf("NewRequest part %d: %T", partNum, err)
+	}
+	req.ContentLength = int64(len(payload))
+	for k, v := range signed.Headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("PUT part %d: %T", partNum, err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("PUT part %d status = %d, want 200", partNum, resp.StatusCode)
+	}
+	etag := resp.Header.Get("ETag")
+	if etag == "" {
+		return "", fmt.Errorf("PUT part %d returned empty ETag", partNum)
+	}
+	return etag, nil
+}
+
+type failingRoundTripper struct {
+	err error
+}
+
+func (f failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, f.err
+}
+
+func TestPresignedPutErrorDoesNotLeakSignedURL(t *testing.T) {
+	stub := &stubS3{}
+	store := newStubS3(t, stub)
+	loc := store.loc("multipart/secret-check.bin")
+	signed, err := store.SignUploadPart(context.Background(), loc, "upload-secret-1", 1, SignOptions{TTL: 15 * time.Minute})
+	if err != nil {
+		t.Fatalf("SignUploadPart: %v", err)
+	}
+	if !strings.Contains(signed.URL, "X-Amz-Signature=") {
+		t.Fatalf("signed URL missing X-Amz-Signature: %q", signed.URL)
+	}
+
+	client := &http.Client{
+		Transport: failingRoundTripper{err: errors.New("connection reset by peer")},
+	}
+	_, putErr := putPresignedPart(context.Background(), client, 1, signed, []byte("part-bytes"))
+	if putErr == nil {
+		t.Fatal("putPresignedPart with failing transport succeeded")
+	}
+	msg := putErr.Error()
+	if strings.Contains(msg, signed.URL) || strings.Contains(msg, "X-Amz-Signature") || strings.Contains(msg, "X-Amz-Credential") {
+		t.Fatalf("presigned PUT error leaked signed URL details: %s", msg)
+	}
+	if !strings.Contains(msg, "PUT part 1") {
+		t.Fatalf("presigned PUT error missing op/part context: %s", msg)
 	}
 }

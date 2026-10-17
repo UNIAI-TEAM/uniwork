@@ -6,8 +6,8 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentLimits } from "@uniwork/core/documents/limits";
-import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
-import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
+import { officeFrameKeys, useOfficeFrameSourceToken, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
+import type { OfficeFrameSourceToken, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import { DocsProtocolError, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
@@ -47,8 +47,12 @@ import { useFrameRemote } from "./use-frame-remote-source";
  * `api.*` proxy, and the dirty / title / theme / language / resize wiring.
  */
 export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrameSession {
-  const { iframeRef, frameOrigin, wsId, documentId, locale, theme } = options;
+  const { iframeRef, frameOrigin, wsId, fileRef, locale, theme } = options;
   const module = options.module ?? "docs";
+  // A file from another module (UNI-1869) mints on the workspace source route
+  // and is view-only by construction: no write route accepts `ofs1.`.
+  const isSource = fileRef.kind === "source";
+  const fileId = fileRef.id;
   // Display data for the editors (comment and note authors), never an identity the frame authorises with.
   const displayName = useAuthStore((s) => s.user?.display_name ?? "");
   const userId = useAuthStore((s) => s.user?.id ?? "");
@@ -56,17 +60,21 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const queryClient = useQueryClient();
   // The document the frame edits: the page's, until a save-as moves it to the copy.
   const [savedAs, setSavedAs] = useState<{ from: string; to: string } | null>(null);
-  const scopeId = savedAs?.from === documentId ? savedAs.to : documentId;
-  const tokenQuery = useOfficeFrameToken(wsId, scopeId);
+  const scopeId = savedAs?.from === fileId ? savedAs.to : fileId;
+  const docTokenQuery = useOfficeFrameToken(wsId, scopeId, { enabled: !isSource });
+  const sourceTokenQuery = useOfficeFrameSourceToken(wsId, scopeId, { enabled: isSource });
+  const tokenQuery = isSource ? sourceTokenQuery : docTokenQuery;
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
   // Every module honours the minted token's can_edit, so a view-only user is treated as readonly even
   // when the page did not say so; a shelved document's token says it (ARCHIVE-01 §3). A save the
   // server refused with document_shelved makes the live session read-only too, without a reload.
   // Not holding the page's edit lock (acquiring, someone else, lost) is view-only too (UNI-1645).
+  // A source has no lock to hold: it is view-only already and never reads one.
+  const editLock = isSource ? null : options.editLock;
   const { shelved, shelvedRef, setShelved } = useShelvedFlag(scopeId);
-  const lockedOut = options.editLock != null && !options.editLock.held;
-  const viewOnly = options.readonly || tokenQuery.data?.can_edit === false || shelved || lockedOut;
-  const editLockId = options.editLock?.held ? options.editLock.lockId : undefined;
+  const lockedOut = editLock != null && !editLock.held;
+  const viewOnly = isSource || options.readonly || tokenQuery.data?.can_edit === false || shelved || lockedOut;
+  const editLockId = editLock?.held ? editLock.lockId : undefined;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [slow, setSlow] = useState(false);
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
@@ -82,18 +90,18 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const documentLimits = useDocumentLimits();
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLockId, documentLimits });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLockId, documentLimits };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, documentLimits, isSource });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, documentLimits, isSource };
   // Once the document is known to be shelved its refusals are already told (onShelved): no second toast.
-  const reportError = useCallback((error: ProtocolErrorShape) => {
+  const reportError = useCallback((error: ProtocolErrorShape, fatal = false) => {
     if (shelvedRef.current && (error.code === "forbidden" || error.code === "conflict")) return;
-    latest.current.options.onError(error);
+    latest.current.options.onError(error, { fatal });
   }, [shelvedRef]);
   // The current frame was initialised read-only because the lock was not held: holding it later
   // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
   const initLockedOut = useRef(false);
   // New-version bookkeeping of the current endpoint (frame-remote-version.ts); a block outlives a retry.
-  const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, scopeId, syncFeed);
+  const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, isSource ? "" : scopeId, syncFeed);
   const sentToken = useRef<string | null>(null);
   // The Save the page has in flight, and whether the frame shows a dialog right now.
   const hostSave = useRef<HostSaveWatch | null>(null);
@@ -130,7 +138,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     frameLife.current = life;
     // `endpoint` is assigned below, before any frame can open anything to announce.
     const remote = createFrameRemoteVersion({
-      documentId: latest.current.scopeId, enabled: () => latest.current.syncFeed,
+      // A source is not a documents row: there is no remote feed for it.
+      documentId: latest.current.scopeId, enabled: () => latest.current.syncFeed && !latest.current.isSource,
       notify: (payload) => { if (life.state === "live") endpoint.notifyRemoteVersion(payload); },
       notifyBlocked: (payload) => { if (life.state === "live") endpoint.notifyBlocked(payload); },
     });
@@ -164,9 +173,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
 
     const currentToken = async (): Promise<TokenPayload> => {
-      const { options: { wsId: ws }, scopeId: doc } = latest.current;
+      const { options: { wsId: ws }, scopeId: doc, isSource: source } = latest.current;
       // The cache may hold a token this render has not seen yet.
-      const cached = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(ws, doc));
+      const cached = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+        source ? officeFrameKeys.sourceToken(ws, doc) : officeFrameKeys.token(ws, doc),
+      );
       if (cached) return docsFrameToken(cached);
       // The first mint may still be in flight: join it rather than mint twice.
       const { data } = await latest.current.refetch({ cancelRefetch: false });
@@ -175,8 +186,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
       async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current, scopeId: doc, viewOnly: refused, editLockId: lockId } = latest.current;
-        if (write && refused) throw readOnly(type);
+        const { options: current, scopeId: doc, viewOnly: refused, isSource: source, editLockId: lockId } = latest.current;
+        if ((write || (source && type === "api.export")) && refused) { if (source) current.onSourceWriteRefused?.(type === "api.export" ? "export" : "write"); throw readOnly(type); }
         const run = pick(current.api);
         if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
         const { token: frameToken } = await currentToken();
@@ -194,8 +205,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       shelvedRef.current = true;
       latest.current.viewOnly = true;
       setShelved(true);
-      const { wsId: ws, documentId: pageDoc, onShelved } = latest.current.options;
-      void queryClient.invalidateQueries({ queryKey: documentKeys.detail(ws, pageDoc) });
+      const { wsId: ws, fileRef: pageFile, onShelved } = latest.current.options;
+      void queryClient.invalidateQueries({ queryKey: documentKeys.detail(ws, pageFile.id) });
       onShelved?.();
     };
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
@@ -204,7 +215,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
     // read-only) and the frame hears the same refusal the host gives a viewer, so it opens no
     // conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
-    const lockAware = lockAwareSave(upload, (fields) => latest.current.options.editLock?.onLocked(fields));
+    const lockAware = lockAwareSave(upload, (fields) => latest.current.editLock?.onLocked(fields));
     // The shelved guard sits outside the remote-version wrapper, which must see the raw 409, not a refusal.
     const save = shelvedGuard(remoteAwareSave(lockAware, remote, applyBlock), lockShelved);
     // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
@@ -280,9 +291,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
-        const { options: current, scopeId: doc, displayName: name, userId: uid, documentLimits: limits } = latest.current;
-        const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
-        const { init, lockedOut, downloadMaxBytes } = await composeFrameInit({ module, frameToken, current, doc, name, uid, minted, limits, shelved: shelvedRef.current });
+        const { options: current, scopeId: doc, displayName: name, userId: uid, documentLimits: limits, isSource: source, editLock: lock } = latest.current;
+        const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+          source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
+        );
+        const { init, lockedOut, downloadMaxBytes } = await composeFrameInit({ module, frameToken, current, doc, name, uid, minted, limits, source, editLock: lock, shelved: shelvedRef.current });
         initLockedOut.current = lockedOut;
         initDownloadMaxBytes.current = downloadMaxBytes;
         return init;
@@ -302,7 +315,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
             payload,
             remote,
             context.signal,
-          ),
+          ).catch((error: unknown) => { const shape = shapeOf(error); if (latest.current.isSource && shape.code !== "cancelled") failSession(shape); throw error; }),
         "api.save": async (payload, context) => {
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
           const watch = hostSave.current?.life === life ? hostSave.current : null;
@@ -341,7 +354,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           setSaveBlocked(null);
           remote.rebind(rebind.documentId);
           if (saved.ok) remote.committed(saved.file, saved.versionId);
-          setSavedAs({ from: current.documentId, to: rebind.documentId });
+          setSavedAs({ from: current.fileRef.id, to: rebind.documentId });
           const frameToken = docsFrameToken(rebind.token);
           sentToken.current = frameToken.token;
           endpoint.pushToken(frameToken);
@@ -360,9 +373,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.assets.resolve": proxy("api.assets.resolve", false, (api) => api.resolveAssets),
         // The conflict dialog's "download my version": bytes only; name, type and size are the host's.
         "api.download": async (payload) => {
-          const { options: current, scopeId: doc, viewOnly: refused } = latest.current;
-          const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
-          if (refused || minted?.can_edit !== true) throw readOnly("api.download");
+          const { options: current, scopeId: doc, viewOnly: refused, isSource: source } = latest.current;
+          const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+            source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
+          );
+          if (refused || minted?.can_edit !== true) { if (source) current.onSourceWriteRefused?.("write"); throw readOnly("api.download"); }
           return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc, initDownloadMaxBytes.current);
         },
         "app.open": async () => {
@@ -443,7 +458,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       // reaches the host only as this event: a toast here would say it twice.
       if (error.code === "conflict" && !isFatal) return;
       if (error.code === "too_large" && !isFatal && saveBlockedOpen.current) return;
-      reportError(error);
+      reportError(error, isFatal);
     });
     const detachProbe = attachFrameBundleProbe({
       iframe,
@@ -471,11 +486,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (remoteRef.current === remote) remoteRef.current = null;
       setHost(null);
     };
-  }, [applyBlock, attempt, documentId, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, reportError, setShelved, shelvedRef, wsId]);
+  }, [applyBlock, attempt, fileId, frameOrigin, heldReasons, iframeRef, isSource, module, queryClient, remoteRef, reportError, setShelved, shelvedRef, wsId]);
 
   // The lock arrived after the frame opened read-only ("Edit now", a handover, the first R2):
   // re-attach it in edit mode.
-  const lockHeld = options.editLock?.held === true;
+  const lockHeld = editLock?.held === true;
   useEffect(() => {
     if (!lockHeld || !initLockedOut.current) return;
     initLockedOut.current = false;
@@ -556,7 +571,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     try {
       return (await host.print({ mode: "dialog" }, { timeoutMs: 10 * 60_000 })).printed;
     } catch (error) {
-      latest.current.options.onError(shapeOf(error));
+      latest.current.options.onError(shapeOf(error), { fatal: false });
       return false;
     }
   }, [host]);
@@ -572,7 +587,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     downloadPending.current = true;
     void postDocDownload(iframeRef.current?.contentWindow ?? null, frameOrigin)
       .catch((error: unknown) => {
-        if (life.state === "live") latest.current.options.onError(shapeOf(error));
+        if (life.state === "live") latest.current.options.onError(shapeOf(error), { fatal: false });
       })
       .finally(() => {
         downloadPending.current = false;

@@ -98,6 +98,12 @@ export type DocsFrameStatus = "booting" | "ready" | "failed";
 /** What the page header says about the frame's edits: driven by its dirty / saved events and the save proxy. */
 export type DocsFrameSaveState = "ready" | "dirty" | "saving" | "saved" | "error";
 
+/** What the frame session opens: a saved document, or a file from another module (UNI-1869), opened view-only. */
+export interface OfficeFrameFileRef {
+  kind: "document" | "source";
+  id: string;
+}
+
 export interface DocsFrameSizeWarning {
   bytes: number;
   maxBytes: number;
@@ -126,7 +132,8 @@ export interface DocsFrameSessionOptions {
    */
   module?: OfficeModule;
   wsId: string;
-  documentId: string;
+  /** The file the session opens; `kind: "source"` forces view-only and mints on the source route. */
+  fileRef: OfficeFrameFileRef;
   readonly: boolean;
   locale: string;
   theme: Theme;
@@ -141,8 +148,10 @@ export interface DocsFrameSessionOptions {
    * without its extension: the host adds the module's own.
    */
   downloadName?: () => string;
-  /** Non-fatal frame or proxy errors the user should hear about. */
-  onError: (error: ProtocolErrorShape) => void;
+  /** Frame or proxy errors the user should hear about (`fatal` when the frame's error event ended the session). */
+  onError: (error: ProtocolErrorShape, options: { fatal: boolean }) => void;
+  /** Called when a view-only source frame asks to save, export, upload, or download. */
+  onSourceWriteRefused?: (kind: "write" | "export") => void;
   /**
    * A write answered `document_shelved` (ARCHIVE-01 U-8): the document went to "Lưu trữ" under the open
    * frame. Called once per session; the session is read-only from then on and the page says so.
@@ -232,7 +241,7 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
   const cloud = ai || uniworkAi;
   return {
     ...grant,
-    save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
+    save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents") && Boolean(api.recents), print: on("print"),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, uniworkAi, webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,
@@ -244,6 +253,15 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     // The host renders the size-warning chip and save-blocked dialog (SIZE-W1b).
     sizeUi: true,
   };
+}
+
+/**
+ * A file from another module (UNI-1869) opens to look at and print, nothing
+ * else: read-only grant, no token AI grant, and no recents, export or
+ * download whatever the API object carries.
+ */
+export function officeSourceCapabilities(module: OfficeModule, api: DocsFrameApi): Capabilities {
+  return { ...officeModuleCapabilities(module, true, api), recents: false, exportPdf: false, exportHtml: false };
 }
 
 export const unauthorized = () => new DocsProtocolError({ code: "unauthorized", message: "frame token unavailable" });

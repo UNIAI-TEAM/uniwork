@@ -141,6 +141,9 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 		{intentTick, func(ctx context.Context) {
 			started := time.Now()
 			_, err := w.svc.SweepCommitIntents(ctx)
+			if err == nil {
+				_, err = w.svc.ExpireMultipartUploads(ctx, w.clock()())
+			}
 			w.svc.recordDocumentSweep("commit_intent", 0, err, started)
 			if w.swept != nil {
 				w.swept("commit_intent", err)

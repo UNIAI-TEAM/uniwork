@@ -74,7 +74,7 @@ function mountLagFrame(module: OfficeModule = "docs", options: MountOptions = {}
   const wrap = (docId: string) => {
     const bare = (
       <OfficeModuleFrame
-        module={module} wsId="ws-1" documentId={docId} title="Report" frameVersion="1.0.0" api={api}
+        module={module} wsId="ws-1" fileRef={{ kind: "document", id: docId }} title="Report" frameVersion="1.0.0" api={api}
         readonly={readonly} desktopOpen={desktopOpen} fileSizeBytes={fileSizeBytes}
         hasLagObserver={hasLagObserver} lagStorage={lagStorage} controlsRef={controlsRef}
       />

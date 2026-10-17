@@ -43,7 +43,7 @@ function FrameHost({ document: doc, wsId, readonly }: { wsId: string; document: 
   const reportFrameComments = useReportFrameComments();
   return (
     <OfficeModuleFrame
-      module="docs" wsId={wsId} documentId={doc.id} title={doc.title} frameVersion="1.0.0" readonly={readonly}
+      module="docs" wsId={wsId} fileRef={{ kind: "document", id: doc.id }} title={doc.title} frameVersion="1.0.0" readonly={readonly}
       myLevel={doc.my_level} revealCommentId={searchParams.get("comment")} onFrameCommentsChange={reportFrameComments}
       api={{ open: vi.fn(), save: vi.fn(), recents: vi.fn() } as unknown as DocsFrameApi}
     />
