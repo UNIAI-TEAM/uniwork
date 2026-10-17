@@ -254,7 +254,7 @@ export function ShareAccessList({
       ? formatSourceOrigin(higherSource)
       : formatSourceOrigin({ via: (share.effective_via || "member") as DocumentAccessVia });
     return (
-      <p className="text-caption text-warning-foreground" data-testid={`warning-direct-below-group-${share.principal_id}`}>
+      <p className="text-caption text-warning" data-testid={`warning-direct-below-group-${share.principal_id}`}>
         {t("documents.share.warning_direct_below_group", { name: personName, effectiveLevel, source })}
       </p>
     );
