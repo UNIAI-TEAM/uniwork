@@ -1,0 +1,7 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test ./internal/handler/dto/sdo ./internal/handler/router -count=1 > /tmp/sdo.log 2>&1); rc=$?; cat /tmp/sdo.log; echo; echo "TEST_SDO_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.014s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	3.884s
+
+TEST_SDO_EXIT=0
