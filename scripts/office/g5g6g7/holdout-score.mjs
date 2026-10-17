@@ -177,7 +177,18 @@ const roundTo = (value, rounding) => {
   return value;
 };
 
-function valuesEqual(expected, actual) {
+export const normalizeFormulaText = (value) => {
+  const raw = String(value ?? '');
+  const embedded = /\[formula\s*=([^\]]+)\]/i.exec(raw);
+  return (embedded ? embedded[1] : raw).toLowerCase().replace(/[\s$]+/g, '').replace(/^=+/, '');
+};
+
+function valuesEqual(expected, actual, kind = null) {
+  if (kind === 'formula') {
+    const a = normalizeFormulaText(expected);
+    const b = normalizeFormulaText(actual);
+    if (a && a === b) return true;
+  }
   if (typeof expected === 'number' && typeof actual === 'number') return Math.abs(expected - actual) < 1e-9;
   const a = toNumber(expected);
   const b = toNumber(actual);
@@ -185,8 +196,16 @@ function valuesEqual(expected, actual) {
   return String(expected).trim() === String(actual).trim();
 }
 
-const normalizeAnchor = (anchor) =>
-  String(anchor).toLowerCase().replace(/\s+/g, ' ').trim();
+function stripSheetQuotes(anchor) {
+  const text = String(anchor ?? '');
+  const bang = text.indexOf('!');
+  if (bang <= 0) return text;
+  const sheet = text.slice(0, bang).trim().replace(/^'(.*)'$/, '$1').replace(/''/g, "'");
+  return `${sheet}!${text.slice(bang + 1)}`;
+}
+
+export const normalizeAnchor = (anchor) =>
+  stripSheetQuotes(anchor).toLowerCase().replace(/\s+/g, ' ').trim();
 
 /**
  * Anchors are graded as topics for the kinds that name a heading, a count or a prose outcome: the same topic, not the
@@ -517,7 +536,7 @@ export function score(caseDoc, answer) {
     }
     consumed.add(match);
     if (VALUE_KINDS.has(expected.kind)) {
-      const ok = valuesEqual(expected.value, match.value);
+      const ok = valuesEqual(expected.value, match.value, expected.kind);
       add(label, ok ? 'pass' : 'fail', ok ? `value ${JSON.stringify(match.value)}` : `${JSON.stringify(match.value)} != ${JSON.stringify(expected.value)}`);
     } else if (PROSE_KINDS.has(expected.kind)) {
       // The value is a free-text explanation: presence plus the anchor topic is what can be graded.
