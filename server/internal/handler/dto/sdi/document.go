@@ -328,3 +328,11 @@ type ListMentionCandidatesSDI struct {
 	// Include is honoured only for a caller who may list the workspace's members.
 	Include *string `query:"include" description:"no_access = thêm cả người chưa xem được tài liệu, mỗi dòng có can_view (G8-18); chỉ có hiệu lực khi người gọi xem được danh sách thành viên workspace, ngược lại bị bỏ qua" example:"no_access"`
 }
+
+// ListDocumentShareCandidatesSDI documents GET
+// /api/v1/documents/{documentID}/share-candidates (SH-S2, UNI-1781).
+type ListDocumentShareCandidatesSDI struct {
+	Q      *string `query:"q" description:"Từ khóa tìm theo tên, email và slug (gấp dấu uw_fold_search)" example:"nguyen"`
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"bmd1eWVuAHVzZXIAMDFKOA"`
+	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 100" example:"20"`
+}
