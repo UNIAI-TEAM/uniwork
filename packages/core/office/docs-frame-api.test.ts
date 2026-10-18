@@ -99,6 +99,35 @@ describe("createDocsFrameApi", () => {
     expect(header(commit!.init, "Idempotency-Key")).toMatch(/:commit$/);
   });
 
+  it("uploads under the filename the call carries (the first-save rename) (UNI-1847)", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" },
+      { ...call(), filename: "Kế hoạch Q4.docx" },
+    );
+    expect(result).toMatchObject({ ok: true });
+    const upload = calls.find((c) => c.path.endsWith("/uploads"));
+    expect((upload?.init.body as FormData).get("file")).toMatchObject({ name: "Kế hoạch Q4.docx" });
+  });
+
+  it("ignores a blank call filename: the stored name still names the upload", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" },
+      { ...call(), filename: "   " },
+    );
+    const upload = calls.find((c) => c.path.endsWith("/uploads"));
+    expect((upload?.init.body as FormData).get("file")).toMatchObject({ name: "Plan.docx" });
+  });
+
   it("commits with the host's edit lock id when the call carries one (UNI-1645)", async () => {
     const { fetch, calls } = fakeFetch({
       "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
@@ -322,8 +351,9 @@ describe("createDocsFrameApi saveAs", () => {
     return { ...fake, api: createDocsFrameApi({ apiUrl: API, fetch: fake.fetch }) };
   }
 
-  it("creates the copy with the session, mints a token for it and answers with its open shape", async () => {
+  it("creates the copy next to its source, mints a token for it and answers with its open shape", async () => {
     const { api, calls } = setup({
+      "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: "folder-src" } }),
       "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
       "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
       "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
@@ -334,25 +364,62 @@ describe("createDocsFrameApi saveAs", () => {
       file: expect.objectContaining({ fileId: "doc-2", name: "Copy.docx", etag: "1", writable: true }),
     });
     expect(result.rebind).toEqual({ documentId: "doc-2", token: COPY_TOKEN });
-    const [create, mint, open] = calls;
+    const [read, create, mint, open] = calls;
+    expect(read!.path).toBe("/api/v1/documents/doc-1");
     const form = create!.init.body as FormData;
     expect((form.get("file") as File).name).toBe("Copy.docx");
     expect(form.get("title")).toBe("Copy");
+    // The copy lands beside the source document, not at the workspace root (UNI-1847 D6).
+    expect(form.get("parent_id")).toBe("folder-src");
+    expect(form.get("destination")).toBeNull();
     expect(new Headers(create!.init.headers).get("Idempotency-Key")).toBeTruthy();
     expect(new Headers(create!.init.headers).get("Authorization")).toBe("Bearer session-tok");
     expect(new Headers(mint!.init.headers).get("Authorization")).toBe("Bearer session-tok");
     expect(header(open!.init, "Authorization")).toBe("Bearer copy-tok");
   });
 
+  it("places the copy of a root document into My Folder instead of the workspace root (UNI-1847 D6)", async () => {
+    const MY_FOLDER = { id: "mf-1", organization_id: "org-1", workspace_id: "ws-1", parent_id: null, kind: "folder", system_kind: "my_folder", title: "My Folder", visibility: "restricted", revision: "1" };
+    const { api, calls } = setup({
+      "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: null } }),
+      "POST /api/v1/workspaces/ws-1/documents/my-folder": () => json({ document: MY_FOLDER }),
+      "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
+      "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
+      "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
+    });
+    const result = await api.saveAs!({ name: "Copy", data: new ArrayBuffer(4) }, call());
+    expect(result.rebind.documentId).toBe("doc-2");
+    expect(calls.some((c) => c.path === "/api/v1/workspaces/ws-1/documents/my-folder")).toBe(true);
+    const create = calls.find((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")!;
+    const form = create.init.body as FormData;
+    expect(form.get("parent_id")).toBe("mf-1");
+    expect(form.get("destination")).toBeNull();
+  });
+
+  it("lets an explicit folderId win without reading the source (its folder picker chose)", async () => {
+    const { api, calls } = setup({
+      "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
+      "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
+      "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
+    });
+    await api.saveAs!({ name: "Copy", folderId: "folder-picked", data: new ArrayBuffer(4) }, call());
+    expect(calls.some((c) => c.path === "/api/v1/documents/doc-1")).toBe(false);
+    const create = calls.find((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")!;
+    expect((create.init.body as FormData).get("parent_id")).toBe("folder-picked");
+  });
+
   it("keys one save-as by workspace, name and bytes, so a retry replays the same copy", async () => {
     const keyOf = async (bytes: number[], name = "Copy") => {
       const { api, calls } = setup({
+        "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: null } }),
+        "POST /api/v1/workspaces/ws-1/documents/my-folder": () => json({ document: { id: "mf-1", workspace_id: "ws-1", kind: "folder", title: "My Folder", revision: "1", system_kind: "my_folder" } }),
         "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
         "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
         "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
       });
       await api.saveAs!({ name, data: new Uint8Array(bytes).buffer }, call());
-      return new Headers(calls[0]!.init.headers).get("Idempotency-Key");
+      const create = calls.find((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")!;
+      return new Headers(create.init.headers).get("Idempotency-Key");
     };
     expect(await keyOf([1, 2])).toBe(await keyOf([1, 2]));
     expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 3]));
@@ -360,10 +427,16 @@ describe("createDocsFrameApi saveAs", () => {
   });
 
   it("degrades a malformed create or mint answer to a typed error", async () => {
-    const drifted = setup({ "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: { id: 7 } }) });
+    const drifted = setup({
+      "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: null } }),
+      "POST /api/v1/workspaces/ws-1/documents/my-folder": () => json({ document: { id: "mf-1", workspace_id: "ws-1", kind: "folder", title: "My Folder", revision: "1", system_kind: "my_folder" } }),
+      "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: { id: 7 } }),
+    });
     await expect(drifted.api.saveAs!({ name: "Copy.docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "internal" });
 
     const noToken = setup({
+      "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: null } }),
+      "POST /api/v1/workspaces/ws-1/documents/my-folder": () => json({ document: { id: "mf-1", workspace_id: "ws-1", kind: "folder", title: "My Folder", revision: "1", system_kind: "my_folder" } }),
       "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
       "POST /api/v1/documents/doc-2/office/frame-token": () => json({ token: "" }),
     });
@@ -371,13 +444,18 @@ describe("createDocsFrameApi saveAs", () => {
   });
 
   it("maps a refused create to the protocol code", async () => {
-    const { api } = setup({ "POST /api/v1/workspaces/ws-1/documents/files": () => json({ error: { code: "quota_exceeded", message: "full" } }, 413) });
+    const { api } = setup({
+      "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: null } }),
+      "POST /api/v1/workspaces/ws-1/documents/my-folder": () => json({ document: { id: "mf-1", workspace_id: "ws-1", kind: "folder", title: "My Folder", revision: "1", system_kind: "my_folder" } }),
+      "POST /api/v1/workspaces/ws-1/documents/files": () => json({ error: { code: "quota_exceeded", message: "full" } }, 413),
+    });
     await expect(api.saveAs!({ name: "Big.docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "too_large", status: 413 });
   });
 
   it("preserves fields.max_bytes on a 413 file_too_large save or saveAs failure", async () => {
     const { api } = setup({
       "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: "folder-src" } }),
       "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
         json({ error: { code: "file_too_large", message: "too big", fields: { max_bytes: 209715200 } } }, 413),
       "POST /api/v1/workspaces/ws-1/documents/files": () =>
@@ -446,6 +524,24 @@ describe("createDocsFrameApi chunked upload sessions above threshold (UNI-1863)"
     expect(header(commit.init, "Idempotency-Key")).toBe(header(createSess.init, "Idempotency-Key")?.replace(/:upload$/, ":commit"));
   });
 
+  it("names the chunked save's upload session with the call's filename (the first-save rename, UNI-1847)", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions": () => json(sessionBody("sess-fn", "fpart"), 201),
+      "PUT /s3/fpart-1": partOk('"e1"'),
+      "PUT /s3/fpart-2": partOk('"e2"'),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions/sess-fn/complete": () =>
+        json({ upload_id: "up-sess-fn", checksum_sha256: "abc", size_bytes: 12, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: OVER_BYTES, etag: "7" },
+      { ...call(), chunkedUploadThresholdBytes: THRESHOLD, filename: "Kế hoạch Q4.docx" },
+    );
+    const createSess = calls.find((c) => c.path === "/api/v1/office-frame/documents/doc-1/upload-sessions")!;
+    expect(JSON.parse(String(createSess.init.body))).toMatchObject({ filename: "Kế hoạch Q4.docx" });
+  });
+
   it("keeps a save at or below the threshold on the single-request frame upload route", async () => {
     const { fetch, calls } = fakeFetch({
       "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
@@ -499,11 +595,31 @@ describe("createDocsFrameApi chunked upload sessions above threshold (UNI-1863)"
     expect(JSON.parse(String(createSess.init.body))).toMatchObject({ filename: "Copy.docx", size_bytes: 12, parent_id: "folder-9", title: "Copy" });
   });
 
+  it("places a chunked saveAs copy beside its source parent, or in My Folder for a root document (UNI-1847 D6)", async () => {
+    configureRuntime({ apiUrl: API });
+    setAccessToken("session-tok");
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: "folder-src" } }),
+      "POST /api/v1/workspaces/ws-1/documents/upload-sessions": () => json(sessionBody("sess-w2", "wpart"), 201),
+      "PUT /s3/wpart-1": partOk('"we1"'),
+      "PUT /s3/wpart-2": partOk('"we2"'),
+      "POST /api/v1/upload-sessions/sess-w2/complete": () => json({ document: COPY }),
+      "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
+      "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
+    });
+    vi.stubGlobal("fetch", fetch);
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).saveAs!({ name: "Copy", data: OVER_BYTES }, { ...call(), chunkedUploadThresholdBytes: THRESHOLD });
+    expect(result.rebind.documentId).toBe("doc-2");
+    const createSess = calls.find((c) => c.path === "/api/v1/workspaces/ws-1/documents/upload-sessions")!;
+    expect(JSON.parse(String(createSess.init.body))).toMatchObject({ filename: "Copy.docx", parent_id: "folder-src", title: "Copy" });
+  });
+
   it("uses the single-request routes for both save and saveAs when threshold is null", async () => {
     configureRuntime({ apiUrl: API });
     setAccessToken("session-tok");
     const { fetch, calls } = fakeFetch({
       "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "GET /api/v1/documents/doc-1": () => json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision: "7", parent_id: "folder-src" } }),
       "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
         json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 12, claim_expires_at: "2026-10-08T11:00:00Z" }),
       "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),

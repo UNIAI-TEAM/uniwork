@@ -4,27 +4,45 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
-import { chunkedUploadThreshold } from "@uniwork/core/documents/chunked-upload";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentLimits } from "@uniwork/core/documents/limits";
 import { officeFrameKeys, useOfficeFrameSourceToken, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
 import type { OfficeFrameSourceToken, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
-import { docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
-import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
-import { DocsProtocolError, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
+import { docsFrameToken, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
+import { createDocsFrameHost, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
+import { DocsProtocolError, type FileMeta, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
 import {
-  armWatchdog, attachFrameBundleProbe, lockAwareSave, onSizeEvents, postDocDownload, readOnly,
-  saveBlockedMaxBytes, saveCopyHandler, shapeOf, shelvedGuard, toFrameLimits, unauthorized,
-  type DocsFrameBundleFailure, type DocsFrameSaveBlocked, type DocsFrameSaveOutcome, type DocsFrameSaveState,
-  type DocsFrameSession, type DocsFrameSessionOptions, type DocsFrameSizeWarning, type DocsFrameStatus,
-  type FrameLife, type HostSaveWatch,
+  armWatchdog,
+  attachFrameBundleProbe,
+  lockAwareSave,
+  onSizeEvents,
+  postDocDownload,
+  readOnly,
+  saveBlockedMaxBytes,
+  saveCopyHandler,
+  shapeOf,
+  shelvedGuard,
+  toFrameLimits,
+  unauthorized,
+  type DocsFrameBundleFailure,
+  type DocsFrameSaveBlocked,
+  type DocsFrameSaveOutcome,
+  type DocsFrameSaveState,
+  type DocsFrameSession,
+  type DocsFrameSessionOptions,
+  type DocsFrameSizeWarning,
+  type DocsFrameStatus,
+  hostSaveCauseError,
+  type FrameLife,
+  type HostSaveWatch,
 } from "./docs-frame-session-model";
 import { composeFrameInit } from "./docs-frame-init";
 import { useShelvedFlag } from "./use-shelved-flag";
 import { deliverFrameDownload, frameDownloadMaxBytes } from "./frame-download";
 import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave } from "./frame-remote-version";
+import { createFrameApiProxy } from "./frame-api-proxy";
+import { createFirstSaveGate } from "./first-save-gate";
 import { useFrameRemote } from "./use-frame-remote-source";
-
 
 /**
  * The host half of one Docs frame on the vendored protocol host: the token
@@ -76,8 +94,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const documentLimits = useDocumentLimits();
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource, renameName: undefined as { id: string; name: string } | undefined });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource, renameName: latest.current.renameName };
   // Once the document is known to be shelved its refusals are already told (onShelved): no second toast.
   const reportError = useCallback((error: ProtocolErrorShape, fatal = false) => {
     if (shelvedRef.current && (error.code === "forbidden" || error.code === "conflict")) return;
@@ -96,6 +114,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const frameLife = useRef<FrameLife>({ state: "disposed" });
   // A clean frame after a save reads "saved"; one never saved reads "ready".
   const savedOnce = useRef(false);
+  // The page's own Save (below, post-declaration): a declined frame save re-issues through it.
+  const pageSave = useRef<((reason: "user" | "navigate") => Promise<DocsFrameSaveOutcome>) | null>(null);
+  // UNI-1847 (SAVE-01): the one gate deciding a save names a never-saved blank first.
+  const firstSaveGate = useRef(createFirstSaveGate({
+    current: () => ({ firstSave: latest.current.options.firstSave, viewOnly: latest.current.viewOnly, savedOnce: savedOnce.current }),
+  }));
   const sizeWarnedDoc = useRef<string | null>(null);
   const saveBlockedOpen = useRef(false);
   const downloadPending = useRef(false);
@@ -120,6 +144,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     modalOpen.current = false;
     sentToken.current = null;
     savedOnce.current = false;
+    firstSaveGate.current.reset();
     const life: FrameLife = { state: "live" };
     frameLife.current = life;
     // `endpoint` is assigned below, before any frame can open anything to announce.
@@ -170,20 +195,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (!data) throw unauthorized();
       return docsFrameToken(data);
     };
-    const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
-      async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current, scopeId: doc, viewOnly: refused, copyRefused: noCopy, isSource: source, editLockId: lockId, documentLimits: limits } = latest.current;
-        if ((write || (source && type === "api.export")) && (type === "api.saveCopy" ? noCopy : refused)) { if (source) current.onSourceWriteRefused?.(type === "api.export" ? "export" : "write"); throw readOnly(type); }
-        const run = pick(current.api);
-        if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
-        const { token: frameToken } = await currentToken();
-        const threshold = chunkedUploadThreshold(limits);
-        try {
-          return (await run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal, ...(lockId && type !== "api.saveCopy" ? { editLockId: lockId } : {}), ...(threshold !== null ? { chunkedUploadThresholdBytes: threshold } : {}) } as never)) as FrameRequests[K]["result"];
-        } catch (error) {
-          throw error instanceof DocsProtocolError ? error : docsFrameError(error);
-        }
-      };
+    const proxy = createFrameApiProxy(latest, currentToken);
 
     // The document went to "Lưu trữ" under the open frame: read-only from now on, the frame and its content
     // stay as they are, the page reads the document again and says so once.
@@ -305,6 +317,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
             context.signal,
           ).catch((error: unknown) => { const shape = shapeOf(error); if (latest.current.isSource && shape.code !== "cancelled") failSession(shape); throw error; }),
         "api.save": async (payload, context) => {
+          // UNI-1847 (SAVE-01, D4 + S01-V2): a frame save of a still-unnamed blank is declined
+          // at once and the page names the document, then sends the Save itself. The pinned
+          // frame has no silent cancel shape - every api.save answer that is not ok/conflict/
+          // too_large lands in the status bar as "Lưu thất bại" (bundle: hEe maps cancelled to
+          // webSaveFailedGeneric), and its api.save request times out at No.transfer (120 s),
+          // so holding the answer while the dialog is open cannot help either.
+          const declined = firstSaveGate.current.declineFrameSave(() => void pageSave.current?.("user"));
+          if (declined) return declined;
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
           const watch = hostSave.current?.life === life ? hostSave.current : null;
           if (watch) { watch.busy += 1; armWatchdog(watch); }
@@ -503,6 +523,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // One Save at a time: a second one (the page is inert while the frame's dialog is open) is refused, unsent.
     const life = frameLife.current;
     if (!host || hostSave.current || life.state !== "live") return "failed";
+    // UNI-1847 (SAVE-01, D2): a never-saved blank is named before its first upload. Cancel
+    // answers "cancelled" (the edits stay, the header stays unsaved); the name written, the
+    // same Save carries on - and every later one, the dialog never opens twice.
+    const naming = firstSaveGate.current.pendingName();
+    if (naming) {
+      if (!(await firstSaveGate.current.pageAsk(naming))) return "cancelled";
+      // The dialog may stay open a long time: a frame Save that joined it re-issued this Save
+      // already, and the frame may have been retried or gone meanwhile.
+      if (!host || hostSave.current || frameLife.current !== life || life.state !== "live") return "failed";
+    }
     const watch: HostSaveWatch = { life, abort: new AbortController(), cause: null, settled: false, busy: 0, modal: modalOpen.current, stored: false, timer: null };
     hostSave.current = watch;
     armWatchdog(watch);
@@ -536,12 +566,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     } catch (error) {
       // The frame failed for good: its failure is already on screen (and reported once), and this Save ends with it.
       if (watch.cause === "fatal") { setSaveState("error"); return "failed"; }
-      if (watch.cause === "watchdog") {
-        return fail({ code: "timeout", message: "the editor did not answer the save in time", retryable: true });
-      }
-      if (watch.cause === "unload") {
-        return fail({ code: "internal", message: "the editor closed before it answered the save", retryable: true, details: { reason: "frame_unloaded" } });
-      }
+      const caused = hostSaveCauseError(watch.cause);
+      if (caused) return fail(caused);
       const shape = shapeOf(error);
       // The session itself went away (retry, unmount): nobody is left to tell, and the session
       // that replaced it keeps its own header.
@@ -554,6 +580,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (hostSave.current === watch) hostSave.current = null;
     }
   }, [host, reportError]);
+  pageSave.current = save;
 
   const print = useCallback(async () => {
     if (!host) return false;
@@ -578,9 +605,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       .catch((error: unknown) => {
         if (life.state === "live") latest.current.options.onError(shapeOf(error), { fatal: false });
       })
-      .finally(() => {
-        downloadPending.current = false;
-      });
+      .finally(() => { downloadPending.current = false; });
   }, [frameOrigin, iframeRef]);
 
   const tokenFailure = !token && (tokenQuery.isError || (tokenQuery.isSuccess && tokenQuery.data === null)) ? shapeOf(tokenQuery.error ?? unauthorized()) : null;
@@ -590,6 +615,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     if (tokenFailure) void refetchToken();
     setAttempt((n) => n + 1);
   }, [refetchToken, tokenFailure]);
+
+  // The document's name changed on the page (the first-save dialog named it): the frame's
+  // title bar and recents read the same name without waiting on a save (UNI-1847, D5) -
+  // and the next save's upload carries that filename so the stored file follows (S01-V3).
+  const notifyRenamed = useCallback((file: FileMeta) => {
+    latest.current.renameName = { id: file.fileId, name: file.name };
+    if (frameLife.current.state === "live") host?.notifyRenamed(file);
+  }, [host]);
   return { status: failure ? "failed" : status, slow: slow && status === "booting" && !failure, viewOnly, failure, dirty,
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
@@ -597,5 +630,5 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     height, aiRunning: aiRunning && status === "ready" && !failure, blocked,
     sizeWarning: status === "ready" && !failure ? sizeWarning : null,
     saveBlocked: status === "ready" && !failure ? saveBlocked : null,
-    dismissSaveBlocked, downloadCopy, save, print, attempt, retry };
+    dismissSaveBlocked, downloadCopy, save, print, notifyRenamed, attempt, retry };
 }
