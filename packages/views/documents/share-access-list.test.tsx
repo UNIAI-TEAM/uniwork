@@ -121,9 +121,10 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     expect(rowLine).toHaveClass("flex", "flex-wrap", "items-center", "justify-between");
 
     // Q-S1: Home workspace and Organization rows do NOT offer "Quản lý" in their level Select.
+    // Wait for the popup first, so the absence check runs against rendered options.
     await user.click(levelTrigger);
+    expect(await screen.findByRole("option", { name: "Chỉnh sửa" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Quản lý" })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Chỉnh sửa" })).toBeInTheDocument();
   });
 
   it("AC07: revoking a person who keeps group access shows FR-09 sentence and fires past-tense toast on confirm", async () => {
