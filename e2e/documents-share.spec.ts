@@ -174,8 +174,12 @@ test("AC03 three people at Edit and seven at View: per-person levels with a live
   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
 
   // Changing the common level never overwrites a level set per person without asking.
+  // The per-person popup must be gone first: a click that lands while it closes opens nothing.
+  const openList = page.getByRole("listbox").filter({ visible: true });
+  await expect(openList).toHaveCount(0);
   await dialog.getByRole("combobox", { name: "Mức quyền", exact: true }).click();
-  await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Nhận xét" }).click();
+  await expect(openList.getByRole("option", { name: "Nhận xét" })).toBeVisible();
+  await openList.getByRole("option", { name: "Nhận xét" }).click();
   await expect(dialog.getByText("Đặt tất cả 3 đối tượng thành Nhận xét?")).toBeVisible();
   await dialog.getByRole("button", { name: /^Hu/ }).click();
   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
