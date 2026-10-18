@@ -133,7 +133,8 @@ func TestUploadSessionOpenAPISpec(t *testing.T) {
 		OneOf []schemaRef `json:"oneOf"`
 	}
 	type operation struct {
-		Responses map[string]struct {
+		Description string `json:"description"`
+		Responses   map[string]struct {
 			Description string `json:"description"`
 			Content     map[string]struct {
 				Schema schemaRef `json:"schema"`
@@ -183,6 +184,24 @@ func TestUploadSessionOpenAPISpec(t *testing.T) {
 		}
 		if len(resp204.Content) != 0 {
 			t.Errorf("DELETE %s 204 content = %+v, want empty body (no content)", delPath, resp204.Content)
+		}
+	}
+
+	// BIGUP-LOCKCHECK S-4: both create operations answer 423 document_locked
+	// when another holder has the edit lock, and the spec's description says
+	// so (the reflector only auto-adds 400/401; a named error code lives in
+	// the description, as on the edit-lock routes).
+	for _, createPath := range []string{
+		"/api/v1/documents/{documentID}/upload-sessions",
+		"/api/v1/office-frame/documents/{documentID}/upload-sessions",
+	} {
+		op, ok := spec.Paths[createPath]["post"]
+		if !ok {
+			t.Errorf("POST %s is missing from the spec", createPath)
+			continue
+		}
+		if !strings.Contains(op.Description, "423 document_locked") {
+			t.Errorf("POST %s description = %q, want it to name 423 document_locked", createPath, op.Description)
 		}
 	}
 }

@@ -13,7 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -627,6 +629,9 @@ func TestDocumentTrashedGroupClaimIsExclusive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A fatal below must not leave the table locked on a pooled connection:
+	// the writers would stay parked and the pool teardown would wait on them.
+	defer func() { _ = hold.Rollback(f.ctx) }()
 	if _, err := hold.Exec(f.ctx, `LOCK TABLE notifications IN ACCESS EXCLUSIVE MODE`); err != nil {
 		t.Fatal(err)
 	}
@@ -636,24 +641,60 @@ func TestDocumentTrashedGroupClaimIsExclusive(t *testing.T) {
 		eventID string
 		draft   Draft
 	}{{topEv.ID, topDraft}, {otherEv.ID, otherDraft}}
+	// The writers run on their own pool so their backends carry a name the
+	// barrier below can count (BE-TN-12). On the fixture pool every
+	// connection reports the same application_name, so a single writer
+	// retrying its statement would be indistinguishable from two writers.
+	writerCfg, err := pgxpool.ParseConfig(f.pool.Config().ConnString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	writerCfg.ConnConfig.RuntimeParams["application_name"] = writerAppName
+	writerPool, err := pgxpool.NewWithConfig(f.ctx, writerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(writerPool.Close)
+	writers := NewConsumer(writerPool, f.q, f.ws)
+
 	var wg sync.WaitGroup
 	errs := make(chan error, len(jobs))
-	ready := make(chan struct{}, len(jobs))
 	for _, j := range jobs {
 		wg.Add(1)
 		go func(eventID string, d Draft) {
 			defer wg.Done()
-			ready <- struct{}{}
-			if err := f.consumer.write(f.ctx, eventID, "", d, prefs); err != nil {
+			if err := writers.write(f.ctx, eventID, "", d, prefs); err != nil {
 				errs <- err
 			}
 		}(j.eventID, j.draft)
 	}
-	<-ready
-	<-ready
-	// Both writers are inside write() now; the pause lets them reach the held
-	// table so the release below frees them together.
-	time.Sleep(250 * time.Millisecond)
+	// Wait on an observed boundary rather than on elapsed time: both writers
+	// must be parked inside their transaction - one on the held table lock,
+	// the other on that or on the group advisory lock - before the release
+	// below, so neither can run its existence read against a sibling row
+	// that the other already committed.
+	deadline := time.Now().Add(writerBlockDeadline)
+	for {
+		waiting := f.writersWaitingOnTheGroupLock(t, hold)
+		if waiting >= len(jobs) {
+			break
+		}
+		if time.Now().After(deadline) {
+			// Free the parked writer before failing, or the pool teardown
+			// below would wait on a backend still holding its transaction.
+			_ = hold.Rollback(f.ctx)
+			wg.Wait()
+			t.Fatalf("only %d of %d writers reached the held notifications lock within %s: the group claim does not hold both writers at their existence read",
+				waiting, len(jobs), writerBlockDeadline)
+		}
+		select {
+		case err := <-errs:
+			_ = hold.Rollback(f.ctx)
+			wg.Wait()
+			t.Fatalf("a writer failed before both reached the lock: %v", err)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 	if err := hold.Rollback(f.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -669,6 +710,41 @@ func TestDocumentTrashedGroupClaimIsExclusive(t *testing.T) {
 	if got := f.trashedNotifications(t, owner); len(got) != 1 || got[0].Count != 1 {
 		t.Fatalf("notification rows = %+v, want one row with count 1", got)
 	}
+}
+
+// writerAppName names the concurrent writers' connections so the barrier can
+// pick their backends out of pg_stat_activity.
+const writerAppName = "notif-group-lock-writer"
+
+// writerBlockDeadline bounds how long the barrier waits for both writers to
+// park; a missing park fails the test rather than waiting longer (BE-TN-12).
+const writerBlockDeadline = 10 * time.Second
+
+// writersWaitingOnTheGroupLock counts the named writer backends parked on the
+// notifications table lock or on the group advisory lock, excluding the
+// holder's own backend by pid. Two means both writers are inside their
+// transaction at the existence-read boundary, which is the point the release
+// must find them at.
+func (f *documentFixture) writersWaitingOnTheGroupLock(t *testing.T, hold pgx.Tx) int {
+	t.Helper()
+	var holderPID int
+	if err := hold.QueryRow(f.ctx, `SELECT pg_backend_pid()`).Scan(&holderPID); err != nil {
+		t.Fatal(err)
+	}
+	var waiting int
+	if err := f.pool.QueryRow(f.ctx, `
+		SELECT count(DISTINCT a.pid)
+		FROM pg_stat_activity a
+		JOIN pg_locks l ON l.pid = a.pid AND NOT l.granted
+		WHERE a.application_name = $1
+		  AND a.pid <> $2
+		  AND (
+		    l.locktype = 'relation' AND l.relation = 'notifications'::regclass
+		    OR l.locktype = 'advisory'
+		  )`, writerAppName, holderPID).Scan(&waiting); err != nil {
+		t.Fatal(err)
+	}
+	return waiting
 }
 
 // trashDraft runs the archived rule for one event and returns the single

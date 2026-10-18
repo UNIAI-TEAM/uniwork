@@ -432,6 +432,11 @@ func (s *DocumentService) OpenVersionUploadSession(ctx context.Context, actor Ac
 	if err := decideFileSave(doc, access); err != nil {
 		return UploadSessionView{}, err
 	}
+	// BIGUP-LOCKCHECK S-1: refuse before any part is uploaded when another
+	// holder has the edit lock; the commit gate stays the authority.
+	if err := s.checkVersionUploadLock(ctx, actor, doc); err != nil {
+		return UploadSessionView{}, err
+	}
 	return s.openUploadSession(ctx, actor, openSessionTarget{
 		openedVia:   "version",
 		orgID:       doc.OrganizationID,
@@ -456,6 +461,11 @@ func (s *DocumentService) OpenFrameUploadSession(ctx context.Context, claims Off
 		return UploadSessionView{}, ErrNotFound
 	}
 	if err := decideFileSave(doc, access); err != nil {
+		return UploadSessionView{}, err
+	}
+	// BIGUP-LOCKCHECK S-1: the frame create route answers the same 423 as the
+	// document route when another holder has the edit lock.
+	if err := s.checkVersionUploadLock(ctx, actor, doc); err != nil {
 		return UploadSessionView{}, err
 	}
 	return s.openUploadSession(ctx, actor, openSessionTarget{

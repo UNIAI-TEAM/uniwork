@@ -180,7 +180,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 	d.Post("/documents/{documentID}/upload-sessions", h.CreateDocumentUploadSession, apiOp{
 		summary: "Open a large upload session for a new version",
 		description: "Như route workspace nhưng cho phiên bản mới của tài liệu file trên path: body {filename, size_bytes, probe} + Idempotency-Key. " +
-			"Quyền sửa như POST /documents/{id}/uploads; hoàn tất trả DocumentUploadSDO để commit qua /versions/commit. Cùng ngưỡng, mã lỗi và thứ tự từ chối như route workspace; parent_id/title/visibility không nhận ở đây.",
+			"Quyền sửa như POST /documents/{id}/uploads; hoàn tất trả DocumentUploadSDO để commit qua /versions/commit. Cùng ngưỡng, mã lỗi và thứ tự từ chối như route workspace; parent_id/title/visibility không nhận ở đây. " +
+			"Tài liệu đang bị người khác giữ khóa sửa (hoặc một agent) -> 423 document_locked trước mọi giữ chỗ quota và trước khi mở phiên, với cùng fields như cổng commit (holder_id, holder_name, since, expires_at, held_by_me, current_revision; không có lock_id); người gọi đang giữ khóa (bất kỳ tab nào) hoặc không có khóa sống thì qua.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateUploadSessionSDI{},
 		sdo:    sdo.UploadSessionSDO{},
