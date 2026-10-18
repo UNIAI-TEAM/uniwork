@@ -7,14 +7,22 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "app-keyring.sh");
-const have = (tool) => spawnSync("bash", ["-c", `command -v ${tool}`], { encoding: "utf8" }).status === 0;
+const FAULT_DIR = dirname(fileURLToPath(import.meta.url));
+const SCRIPT_NAME = "app-keyring.sh";
+const SCRIPT = join(FAULT_DIR, SCRIPT_NAME);
+// The one bash both the probe and the parse check use: on Windows the PATH lookup finds
+// C:\WINDOWS\system32\bash.exe (WSL), which cannot open a `D:\...` argument (it strips the
+// separators and reports no such file), but it resolves a relative name against the cwd it is
+// started in - as do Git Bash and Linux bash. So the syntax check passes the bare file name and
+// the script's own directory as cwd, and the probe asks that same bash (G703-R6-5).
+const BASH = "bash";
+const have = (tool) => spawnSync(BASH, ["-c", `command -v ${tool}`], { cwd: FAULT_DIR, encoding: "utf8" }).status === 0;
 const skipLive = process.platform === "win32" || !["bash", "gnome-keyring-daemon", "dbus-run-session", "dbus-send", "secret-tool"].every(have)
   ? "needs a Linux host with bash, gnome-keyring-daemon, dbus-run-session, dbus-send and secret-tool"
   : false;
 
 test("app-keyring.sh parses", { skip: have("bash") ? false : "no bash" }, () => {
-  const res = spawnSync("bash", ["-n", SCRIPT], { encoding: "utf8" });
+  const res = spawnSync(BASH, ["-n", SCRIPT_NAME], { encoding: "utf8", cwd: FAULT_DIR });
   assert.equal(res.status, 0, res.stderr);
 });
 
