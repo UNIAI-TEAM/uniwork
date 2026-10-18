@@ -25,8 +25,8 @@ export async function composeFrameInit(args: {
   /** The page's edit lock, already null for a source. */
   editLock: DocsFrameSessionOptions["editLock"] | null;
   limits: Pick<DocumentLimits, "upload_max_bytes" | "save_warn_ratio">;
-  /** The page learnt the document is shelved (ARCHIVE-01 §3): the init goes read-only. */
-  shelved: boolean;
+  /** The page learnt the document is shelved (ARCHIVE-01 §3): another reason for the readOnly profile. */
+  shelved?: boolean;
 }): Promise<{ init: Omit<InitPayload, "protocolVersion">; lockedOut: boolean; downloadMaxBytes: number }> {
   const { module, frameToken, current, doc, name, uid, minted, source, editLock } = args;
   // The server derives the module from the stored file; a frame mounted for another
@@ -37,11 +37,20 @@ export async function composeFrameInit(args: {
       details: { tokenModule: minted.module, expectedModule: module },
     });
   }
-  // Same rule as the hook's viewOnly / copyRefused, read from the token this init carries. A shelved
-  // document's token says can_edit=false for every module, Docs included.
+  // Same rule as the hook's viewOnly / copyRefused, read from the token this init carries.
+  // `readonly` and `can_edit === false` are the readOnly profile only for a true viewer
+  // (RFH-1, SVH-1): a document level of `comment` may not save but still comments
+  // (init.commentsLevel), so it keeps `save: false` without the profile; any other or
+  // unknown level is a viewer. A source is view-only by construction, whatever the level.
+  // Shelving is another unconditional reason (ARCHIVE-01 §3): a shelved document's token
+  // says can_edit=false for every module, Docs included, and a session shelved mid-way
+  // keeps the flag so a re-attach composes the same read-only profile.
   const lockedOut = editLock != null && !editLock.held;
-  const viewOnly = source || current.readonly || minted?.can_edit === false || args.shelved || lockedOut;
-  const copyRefused = source || current.readonly || minted?.can_edit !== true;
+  const levelViewer = (current.readonly || minted?.can_edit === false) && current.myLevel !== "comment";
+  const readOnlyProfile = source || args.shelved || levelViewer;
+  const viewOnly = readOnlyProfile || current.readonly || minted?.can_edit === false || args.shelved || lockedOut;
+  // copyRefused does not include shelved: the server's CopyDocument accepts a shelved source.
+  const copyRefused = source || levelViewer || minted?.can_edit !== true;
   // Draft recovery (CONTRACT C18): the session's key, again on every init so a reloaded
   // frame reads the drafts it wrote. A viewer has nothing unsaved to recover.
   const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
@@ -59,6 +68,7 @@ export async function composeFrameInit(args: {
     locale: current.locale, theme: current.theme,
     capabilities,
     limits,
+    ...(readOnlyProfile ? { profile: "readOnly" } : {}),
     // The cap api.download enforces, told up front so the conflict dialog can disable its
     // download choice before a 413; only with the capability (the frame ignores it otherwise).
     ...(capabilities.download ? { downloadMaxBytes } : {}),
@@ -66,7 +76,7 @@ export async function composeFrameInit(args: {
     ...(recovery ? { recovery } : {}),
   };
   return {
-    init: current.comments ? current.comments.augmentInit(init, { canEdit: minted?.can_edit, readonly: viewOnly }) : init,
+    init: current.comments ? current.comments.augmentInit(init, { canEdit: minted?.can_edit, readonly: readOnlyProfile }) : init,
     lockedOut,
     downloadMaxBytes,
   };

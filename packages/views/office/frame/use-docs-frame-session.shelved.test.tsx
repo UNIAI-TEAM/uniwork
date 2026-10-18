@@ -116,6 +116,31 @@ describe("UI-AR5 the Office frame of a shelved document", () => {
     expect(frame.onError).not.toHaveBeenCalled();
   });
 
+  it("composes the readOnly profile when a session shelved mid-way re-initialises (retry), and still grants saveCopy", async () => {
+    const save409 = vi.fn(async () => ({ ok: false as const, error: shelvedShape() }));
+    const saveCopy = vi.fn(async (_payload: unknown, _call: unknown) => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const frame = setup({ api: { save: save409, saveCopy } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    expect(frame.sent("init")[0]?.payload).not.toHaveProperty("profile");
+
+    const refused = save(frame);
+    expect((await frame.answered(refused)).error?.code).toBe("forbidden");
+    await waitFor(() => expect(frame.hook.result.current.viewOnly).toBe(true));
+
+    // The re-attach composes the init again: the shelved flag makes it the same readOnly
+    // profile a viewer or a source gets (ARCHIVE-01 on UNI-1876), never an editable init.
+    act(() => { frame.hook.result.current.retry(); });
+    await frame.boot();
+    const inits = frame.sent("init");
+    expect(inits).toHaveLength(2);
+    const init = inits[1]?.payload as { profile?: string; capabilities: Record<string, boolean> };
+    expect(init.profile).toBe("readOnly");
+    expect(init.capabilities).toMatchObject({ save: false, saveAs: false });
+    // copyRefused does not include shelved and the cached token still says can_edit: the
+    // copy survives a re-attach too (UNI-1892).
+    expect(init.capabilities.saveCopy).toBe(true);
+  });
+
   it("still answers api.saveCopy after the document went shelved mid-session (UNI-1892)", async () => {
     const save409 = vi.fn(async () => ({ ok: false as const, error: shelvedShape() }));
     const saveCopy = vi.fn(async (_payload: unknown, _call: unknown) => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));

@@ -175,6 +175,15 @@ export interface DocsFrameSessionOptions {
    */
   editLock?: FrameEditLock | null;
   /**
+   * The document's effective level for the user (`my_level`). Only `comment`
+   * keeps a `can_edit === false` token out of the readOnly profile (RFH-1: a
+   * commenter may not save but still comments); any other or absent level is a
+   * true viewer. The comments binding reads the same prop off the page.
+   */
+  myLevel?: string | null;
+  /** Called when the frame sends `close_requested {reason: 'escape'}` and the session is live, idle (not saving), and has no modal open. */
+  onCloseRequested?: () => void;
+  /**
    * UNI-1847 (SAVE-01): the first save of a never-saved blank Office document asks for its
    * name before the upload. `needsName` is the page's detection (`untitled.<ext>` at version 1,
    * the user may edit); `ask` opens the page's naming dialog and resolves `true` once the title
@@ -188,9 +197,10 @@ export interface DocsFrameSession {
   /** Still booting after `slowAfterMs`: the page explains the wait instead of showing a bare skeleton. */
   slow: boolean;
   /**
-   * The page's readonly, a minted token that cannot edit (can_edit=false: every module, a shelved
-   * document included), or a write the server refused with document_shelved: writes are refused in
-   * the host and desktop-open is hidden.
+   * The page's readonly, a source file, a minted token that cannot edit (can_edit=false:
+   * every module, a shelved document included), not holding the edit lock, or a write the
+   * server refused with document_shelved: writes are refused in the host and desktop-open
+   * is hidden.
    */
   viewOnly: boolean;
   /** Why the session failed: a token that could not be minted, or a fatal frame error. */
@@ -258,8 +268,10 @@ export function hostSaveCauseError(cause: HostSaveWatch["cause"]): ProtocolError
 
 /**
  * Capabilities this host grants. Routes that do not exist yet stay off.
- * `exportPdf` follows the API alone: nothing tells the host whether this
- * deployment has a PDF renderer, so it is offered and a 501 answers
+ * `exportPdf` is `module !== "docs" || api.export`: the grant decides alone
+ * outside Docs (Slides renders the PDF in the frame), while Docs goes through
+ * `api.export` — nothing tells the host whether this deployment has a PDF
+ * renderer, so it is offered when the API exists and a 501 answers
  * `unsupported`, on which the frame prints in place instead. Each module
  * starts from its grant (`officeModuleSpec(module).grant`, one table the
  * module workers fill in), narrowed by readonly and by what the API
@@ -284,7 +296,7 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     ...grant,
     save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents") && Boolean(api.recents), print: on("print"),
     ...(saveCopy ? { saveCopy: true } : {}),
-    exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
+    exportPdf: on("exportPdf") && (module !== "docs" || Boolean(api.export)), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, uniworkAi, webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,
     imageGeneration: cloud && aiGrant?.image_generation === true,

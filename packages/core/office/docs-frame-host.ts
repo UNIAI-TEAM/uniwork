@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 5d5b0896e737c512acba43ca6d7f8babfa4717a5
-// (fork release web-0.1.0-5d5b089 at 5d5b0896e: G5-04 open_refused and UNI-1872 api.saveCopy).
+// web/docs/protocol/host.ts at f6395d85d729ff32ec3839a773217b34d23991d8
+// (fork release web-0.1.0-f6395d8 at f6395d85d: G5-04 open_refused, UNI-1872 api.saveCopy, and UNI-1876 close_requested).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
@@ -156,7 +156,16 @@ export interface DocsFrameHost {
   /** proactive token rotation */
   pushToken(token: TokenPayload): void
   on<
-    K extends 'dirty' | 'title' | 'modal' | 'resize' | 'saved' | 'error' | 'aiRun' | 'open_refused',
+    K extends
+      | 'dirty'
+      | 'title'
+      | 'modal'
+      | 'resize'
+      | 'saved'
+      | 'error'
+      | 'aiRun'
+      | 'open_refused'
+      | 'close_requested',
   >(
     type: K,
     listener: FrameEventListener<K>,

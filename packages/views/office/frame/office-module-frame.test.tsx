@@ -41,7 +41,7 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, onSessionFailure, ackComments = false, ackCapabilities, fileRef, documentDetail, extraRoutes }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; onSessionFailure?: (failure: unknown) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string }; documentDetail?: Document; extraRoutes?: (path: string, init?: { method?: string; body?: unknown }) => Promise<unknown> | undefined } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, onSessionFailure, ackComments = false, ackCapabilities, fileRef, myLevel, documentDetail, extraRoutes }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; onSessionFailure?: (failure: unknown) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string }; myLevel?: string | null; documentDetail?: Document; extraRoutes?: (path: string, init?: { method?: string; body?: unknown }) => Promise<unknown> | undefined } = {}) {
   const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
   requestMock.mockImplementation((path: string, init?: { method?: string; body?: unknown }) => {
     const routed = extraRoutes?.(path, init);
@@ -50,7 +50,7 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
   });
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const bare = <OfficeModuleFrame module={module} wsId="ws-1" fileRef={ref} title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} onSessionFailure={onSessionFailure} documentDetail={documentDetail} />;
+  const bare = <OfficeModuleFrame module={module} wsId="ws-1" fileRef={ref} title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} myLevel={myLevel} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} onSessionFailure={onSessionFailure} documentDetail={documentDetail} />;
   const framed = fileActions
     ? <OfficeTooLargeProvider value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
     : bare;
@@ -105,6 +105,7 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).not.toHaveProperty("profile");
     expect(frame.inits()[0]?.payload).toMatchObject({
       module: "pdf", documentId: "doc-1", token: "tok-1",
       capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
@@ -121,6 +122,7 @@ describe("OfficeModuleFrame", () => {
     expect(init).toMatchObject({
       documentId: "chat:s-1",
       token: "ofs1.tok",
+      profile: "readOnly",
       capabilities: { save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false, desktopOpen: false, download: false },
     });
     // No comments claim and no save control for a read-only source.
@@ -325,7 +327,20 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
-    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { save: false, saveAs: false, print: true } });
+    expect(frame.inits()[0]?.payload).toMatchObject({ profile: "readOnly", capabilities: { save: false, saveAs: false, print: true } });
+  });
+
+  it("keeps comments for a comment-level user the host mounted read-only (SVH-1): no profile, commentsLevel 'comment'", async () => {
+    // The document page mounts the frame with readonly={!canEdit}, so a commenter arrives
+    // with readonly: true on top of can_edit: false; the init must still keep their level.
+    const frame = mountFrame("docs", { readonly: true, canEdit: false, myLevel: "comment" });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
+    await frame.ready({ module: "docs" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const init = frame.inits()[0]?.payload as { profile?: string; commentsLevel?: string; capabilities?: Record<string, boolean> };
+    expect(init.profile).toBeUndefined();
+    expect(init.commentsLevel).toBe("comment");
+    expect(init.capabilities).toMatchObject({ comments: true, save: false, saveAs: false });
   });
 
   it("refuses the writes of a user whose minted token cannot edit, though the page is not readonly", async () => {

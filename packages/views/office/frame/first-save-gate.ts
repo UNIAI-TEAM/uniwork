@@ -27,6 +27,11 @@ export interface FirstSaveGate {
   frameAsk: (namer: FirstSaveNamer, reissue: () => void) => void;
   /** A frame `api.save` of an unnamed blank: the answer to give at once (null when it may run), the naming started. */
   declineFrameSave: (reissue: () => void) => SaveResult | null;
+  /**
+   * A naming dialog this gate opened is still unsettled (UNI-1901): the wait counts
+   * as a save in flight, so a `close_requested` Esc is ignored while it is open.
+   */
+  asking: () => number;
   /** A fresh session (retry, another document) asks again for its own blank. */
   reset: () => void;
 }
@@ -36,14 +41,22 @@ export function createFirstSaveGate(opts: {
   current: () => { firstSave?: FirstSaveNamer; viewOnly: boolean; savedOnce: boolean };
 }): FirstSaveGate {
   let namedOnce = false;
+  // Unsettled namer.ask() calls this gate opened. Deliberately not reset(): a dialog that
+  // outlives its session still sits on the page, so its close must stay blocked until it
+  // settles - mirroring the per-session `saves` counter that never takes a late decrement.
+  let asking = 0;
+  const ask = (namer: FirstSaveNamer): Promise<boolean> => {
+    asking += 1;
+    return namer.ask().finally(() => { asking = Math.max(0, asking - 1); });
+  };
   const gate: FirstSaveGate = {
     pendingName: () => {
       const { firstSave, viewOnly, savedOnce } = opts.current();
       return firstSave && !savedOnce && !namedOnce && !viewOnly && firstSave.needsName() ? firstSave : null;
     },
-    pageAsk: async (namer) => (await namer.ask()) ? (namedOnce = true) : false,
+    pageAsk: async (namer) => (await ask(namer)) ? (namedOnce = true) : false,
     frameAsk: (namer, reissue) => {
-      void namer.ask().then((named) => { if (named) { namedOnce = true; reissue(); } });
+      void ask(namer).then((named) => { if (named) { namedOnce = true; reissue(); } });
     },
     declineFrameSave: (reissue) => {
       const namer = gate.pendingName();
@@ -51,6 +64,7 @@ export function createFirstSaveGate(opts: {
       gate.frameAsk(namer, reissue);
       return FIRST_SAVE_DECLINED;
     },
+    asking: () => asking,
     reset: () => { namedOnce = false; },
   };
   return gate;
