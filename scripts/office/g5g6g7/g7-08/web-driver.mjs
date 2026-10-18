@@ -290,6 +290,7 @@ export async function runWebMatrixRow(runEntry, {
       else if (p.endsWith('/versions/commit')) commitBases.push(parseCommitBaseRevision(req.postData()));
     });
 
+    let settleWire = async () => 0;
     if (dryRun && stub) {
       await bindDryRunStubRoutes({
         page: web.page, fetchImpl, stub, documentId, rowId: row.id, wireRequests, wireResponses,
@@ -297,7 +298,7 @@ export async function runWebMatrixRow(runEntry, {
     } else {
       // R3-1: on a real run nothing routes or fulfils the model call - the observer only listens,
       // so the SSE stream the frame sees is untouched, and every model response (usage or not) is recorded.
-      observeModelWire(web.page, { requests: wireRequests, responses: wireResponses });
+      settleWire = observeModelWire(web.page, { requests: wireRequests, responses: wireResponses }).settle;
     }
 
     const sel = moduleFrameSelectors(row.module);
@@ -368,6 +369,8 @@ export async function runWebMatrixRow(runEntry, {
       turnError = err;
     }
     inAiTurn = false;
+    // A response body still in flight is not a response that never arrived: settle the observer first.
+    await settleWire();
     // R3-3: a turn that threw after a model request had begun consumed an unknown amount; only a
     // failure that provably happened before any request keeps its own error for `row_runner_threw`.
     const interruption = interruptionFromTurn(turnError, { requests: wireRequests, responses: wireResponses });

@@ -28,7 +28,7 @@ import {
   usageFromSseText,
 } from './save-observe.mjs';
 
-/** A Playwright-shaped event emitter: `on`, `emit`, and an awaitable emit for async listeners. */
+/** A Playwright-shaped event emitter: `on` and `emit`, like the page the driver listens on. */
 function makeFakePage() {
   const listeners = new Map();
   const page = {
@@ -40,9 +40,6 @@ function makeFakePage() {
     },
     emit(event, payload) {
       for (const handler of listeners.get(event) ?? []) handler(payload);
-    },
-    async emitAsync(event, payload) {
-      for (const handler of listeners.get(event) ?? []) await handler(payload);
     },
   };
   return page;
@@ -317,14 +314,15 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     const page = makeFakePage();
     const requests = [];
     const responses = [];
-    observeModelWire(page, { requests, responses });
+    const { settle } = observeModelWire(page, { requests, responses });
 
     page.emit('request', fakeRequest('POST', 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', JSON.stringify({ tools: [{ function: { name: 'read_range' } }, { function: { name: 'edit_block' } }] })));
     page.emit('request', fakeRequest('GET', 'http://web.test/api/v1/office-frame/documents/D1/content'));
     page.emit('request', fakeRequest('POST', 'http://web.test/api/v1/office-frame/documents/D1/uploads', '{}'));
 
-    await page.emitAsync('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', 'data: {"usage":{"prompt_tokens":100,"completion_tokens":20}}\n\ndata: [DONE]\n'));
-    await page.emitAsync('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/content', 'not a model response'));
+    page.emit('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', 'data: {"usage":{"prompt_tokens":100,"completion_tokens":20}}\n\ndata: [DONE]\n'));
+    page.emit('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/content', 'not a model response'));
+    assert.equal(await settle(), 0, 'the observer settles every in-flight body before the caller reads it');
 
     assert.equal(requests.length, 1, 'only the model route is recorded');
     assert.deepEqual(offeredToolsFromRequestBody(requests[0].body), ['read_range', 'edit_block']);
@@ -340,14 +338,40 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     const page = makeFakePage();
     const requests = [];
     const responses = [];
-    observeModelWire(page, { requests, responses });
+    const { settle } = observeModelWire(page, { requests, responses });
     page.emit('request', fakeRequest('POST', 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', '{}'));
-    await page.emitAsync('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', 'data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n'));
+    page.emit('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', 'data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n'));
+    await settle();
 
     const wire = evaluateWireObservation({ requests, responses, sawTurnEffects: true });
     assert.equal(wire.reason, 'missing_usage_on_model_call');
     assert.equal(wire.missingUsageCalls, 1);
     assert.equal(wire.outputTokens, 0);
+  });
+
+  it('R3-1: a model request the observer never answered is BLOCKED, and a listener failure never throws into the page', async () => {
+    const page = makeFakePage();
+    const requests = [];
+    const responses = [];
+    const errors = [];
+    const { settle } = observeModelWire(page, { requests, responses, onError: (err) => errors.push(err) });
+    page.emit('request', fakeRequest('POST', 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', '{}'));
+    page.emit('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', 'data: [DONE]\n'));
+    await settle();
+
+    assert.equal(requests.length, 1);
+    assert.equal(responses.length, 1, 'a stream with no usage is still a recorded response');
+    assert.equal(responses[0].usage, null);
+    assert.equal(evaluateWireObservation({ requests, responses, sawTurnEffects: true }).reason, 'missing_usage_on_model_call');
+
+    // A listener that throws must not take the turn down.
+    const broken = makeFakePage();
+    const brokenErrors = [];
+    const brokenObserver = observeModelWire(broken, { requests: [], responses: [], onError: (err) => brokenErrors.push(err) });
+    broken.emit('request', { method: () => 'POST', url: () => 'not a url', postData: () => '{}' });
+    await brokenObserver.settle();
+    assert.equal(brokenErrors.length, 1);
+    assert.equal(observeModelWire(null).settle() instanceof Promise, true, 'a missing page is a no-op, not a crash');
   });
 
   it('R3-3: a turn that threw after a model request is an unknown-usage stop, not a bare crash', () => {

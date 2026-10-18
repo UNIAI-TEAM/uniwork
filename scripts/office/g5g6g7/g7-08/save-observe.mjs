@@ -113,7 +113,7 @@ export function interruptionFromTurn(turnError, { requests = [], responses = [] 
  * Both providers answer through it: `/ai/uniwork/chat/completions` and
  * `/ai/{aiProvider}/chat/completions` (router/office_frame_ai.go:74,126).
  */
-export const MODEL_COMPLETION_PATH_RE = /\/office-frame\/documents\/[^/]+\/ai\/[^/]+\/chat\/completions$/;
+const MODEL_COMPLETION_PATH_RE = /\/office-frame\/documents\/[^/]+\/ai\/[^/]+\/chat\/completions$/;
 
 export function isModelCompletionPath(pathname) {
   return MODEL_COMPLETION_PATH_RE.test(String(pathname ?? ''));
@@ -240,7 +240,18 @@ export function evaluateWireObservation({ requests = [], responses = [], sawTurn
  * guarded.
  */
 export function observeModelWire(page, { requests, responses, onError } = {}) {
-  if (!page || typeof page.on !== 'function') return;
+  const pending = new Set();
+  const settle = async ({ timeoutMs = 5_000 } = {}) => {
+    const deadline = Date.now() + timeoutMs;
+    while (pending.size > 0 && Date.now() < deadline) {
+      await Promise.race([
+        Promise.all([...pending]),
+        new Promise((resolve) => { setTimeout(resolve, 50).unref?.(); }),
+      ]);
+    }
+    return pending.size;
+  };
+  if (!page || typeof page.on !== 'function') return { settle: async () => 0 };
   const fail = (err) => {
     if (typeof onError === 'function') onError(err);
   };
@@ -256,8 +267,10 @@ export function observeModelWire(page, { requests, responses, onError } = {}) {
       fail(err);
     }
   });
-  page.on('response', async (res) => {
-    try {
+  page.on('response', (res) => {
+    // Reading the finished body is async: the caller settles this before it reads the usage, so a
+    // body still in flight is not mistaken for a response that never arrived.
+    const task = (async () => {
       const req = res.request();
       if (req?.method() !== 'POST') return;
       const pathname = new URL(res.url()).pathname;
@@ -269,10 +282,11 @@ export function observeModelWire(page, { requests, responses, onError } = {}) {
         usage: usageFromSseText(text),
         toolCallNames: toolCallNamesFromSseText(text),
       });
-    } catch (err) {
-      fail(err);
-    }
+    })();
+    pending.add(task);
+    task.catch(fail).finally(() => pending.delete(task));
   });
+  return { settle };
 }
 
 /**
