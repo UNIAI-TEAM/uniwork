@@ -156,7 +156,6 @@ export function DocumentUploadDialog({
           }}
         >
           <div className="flex flex-col gap-1.5">
-
             <input
               key={inputKey}
               id="document-upload-file"
