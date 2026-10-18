@@ -9097,7 +9097,12 @@
       "readonly_description": "You can read and download the committed copy, but not edit it. Editing needs the edit level.",
       "revoked_title": "You no longer have access to this document",
       "revoked_description": "Its content is hidden under your current access. Ask for access again if you need it.",
-      "archived_banner": "This document is in the trash — read-only."
+      "archived_banner": "This document is in the trash — read-only.",
+      "first_save": {
+        "title": "Name the document",
+        "hint": "You can rename it later from the folder.",
+        "submit": "Save"
+      }
     },
     "save": {
       "status_label": "Save status",

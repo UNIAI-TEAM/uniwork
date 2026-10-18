@@ -9092,7 +9092,12 @@
       "readonly_description": "Bạn xem được bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.",
       "revoked_title": "Bạn không còn quyền xem tài liệu này",
       "revoked_description": "Nội dung đã bị ẩn theo quyền hiện tại. Xin lại quyền truy cập nếu bạn cần xem tiếp.",
-      "archived_banner": "Tài liệu này đang ở trong thùng rác — chỉ xem."
+      "archived_banner": "Tài liệu này đang ở trong thùng rác — chỉ xem.",
+      "first_save": {
+        "title": "Đặt tên tài liệu",
+        "hint": "Bạn có thể đổi tên sau trong thư mục.",
+        "submit": "Lưu"
+      }
     },
     "save": {
       "status_label": "Trạng thái lưu",
