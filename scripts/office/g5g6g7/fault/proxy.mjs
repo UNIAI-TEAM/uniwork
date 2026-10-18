@@ -407,9 +407,16 @@ export async function startFaultProxy({
             chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
           });
           proxyRes.on("end", () => {
-            logOnce(statusCode);
-            if (res.writableEnded || res.destroyed) return;
             const original = Buffer.concat(chunks);
+            // the rewrite changes only the patched field: the answer's own error code / lease epoch is still read from the original
+            const leaseGrantRewritten = statusCode === 200 && req.method === "PUT" && String(cleanPath).endsWith(LEASE_PATH_SUFFIX);
+            const sniffable = (statusCode >= 400 || leaseGrantRewritten) && !proxyRes.headers["content-encoding"];
+            logOnce(
+              statusCode,
+              sniffable && !leaseGrantRewritten ? errorCodeOf(original) : null,
+              sniffable && leaseGrantRewritten ? policyEpochOf(original) : null,
+            );
+            if (res.writableEnded || res.destroyed) return;
             const rewritten = applyJsonPatch(original, proxyRes.headers, rewriteJsonPatch);
             if (!rewritten) {
               res.writeHead(statusCode, proxyRes.headers);

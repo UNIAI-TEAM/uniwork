@@ -256,10 +256,10 @@ test("R2-9: FL-06 the fake's downloadNow does not lease-PUT a fresh lease (no re
   }
 });
 
-test("R2-9: FL-06 a driver that never lets the renewal come due sees no refusal (the wait is what causes it)", async () => {
-  const { failed } = await run("FL-06", (w) => { w.ctx.sleep = async () => {}; });
-  assert.ok(failed.includes("renew_refused_after_revoke"));
-  assert.ok(failed.includes("row_revoked"));
+test("R2-9 (fix2): FL-06 a driver that never lets the renewal come due sees no lease PUT - BLOCKED \"fork did not renew\", not a FAIL", async () => {
+  const { outcome } = await run("FL-06", (w) => { w.ctx.sleep = async () => {}; });
+  assert.match(outcome.blocker, /^fork did not renew: no lease PUT reached the proxy/);
+  assert.deepEqual(outcome.assertions, []);
 });
 
 test("R2-9: FL-06 a 403 that is not offline_lease_revoked (access_denied) is not the revoke", async () => {
@@ -276,7 +276,7 @@ test("R2-9: FL-06 a revoke CLI line for ANOTHER organization, or that revoked no
 
 test("R2-9: FL-06 the row carries the short-lease rule, the exact refusal code and no draft claim", () => {
   const row = loadFaultCases().cases.find((r) => r.id === "FL-06");
-  assert.deepEqual(row.proxyRules.map((rule) => rule.id), ["short-lease", "cut-network", "cut-open"]);
+  assert.deepEqual(row.proxyRules.map((rule) => rule.id), ["short-lease", "refuse-regrant", "cut-network", "cut-open"]);
   assert.equal(row.expect.offline.renewRefusalCode, "offline_lease_revoked");
   assert.equal(row.expect.offline.renewRefusalStatus, 403);
 });
@@ -357,11 +357,11 @@ test("R2-11: an unproven cleanup stops every later row through the shared guard,
 test("R2-9 amendment: FL-06 asserts the regrant - none without the live session, then one fresh grant under the NEW epoch from the CLI line", async () => {
   const { byName, failed, world } = await run("FL-06");
   assert.deepEqual(failed, []);
-  assert.deepEqual(world.row.expect.offline.regrantStates, ["ready"]);
-  assert.match(byName.regrant_needs_live_session.actual, /^0 grant\(s\), row revoked$/);
-  assert.match(byName.regrant_records_new_epoch.actual, /^200 policy_epoch 2$/);
-  assert.match(byName.regrant_records_new_epoch.expected, /policy_epoch 2 \(the CLI line's epoch\)/);
-  assert.equal(byName.regrant_row_usable.actual, "ready");
+  assert.deepEqual(world.row.expect.offline.regrantStates, ["lease-expiring"]);
+  assert.equal(byName.regrant_needs_live_session.actual, "0 lease 200(s)");
+  assert.equal(byName.regrant_records_new_epoch.actual, "403 offline_lease_revoked, 200 policy_epoch 2");
+  assert.match(byName.regrant_records_new_epoch.expected, /policy_epoch 2 \(the CLI line's epoch\), in that order/);
+  assert.equal(byName.regrant_row_usable.actual, "lease-expiring");
 });
 
 test("R2-9 amendment: FL-06 a regrant stamped with the OLD epoch is not the new epoch - regrant_records_new_epoch fails", async () => {
@@ -370,7 +370,7 @@ test("R2-9 amendment: FL-06 a regrant stamped with the OLD epoch is not the new 
 });
 
 test("R2-9 amendment: FL-06 a product that cannot take the one fresh grant (no regrant) fails regrant_records_new_epoch and regrant_row_usable", async () => {
-  const { failed } = await run("FL-06", (w) => { w.regrantsLeft = 0; });
+  const { failed } = await run("FL-06", (w) => { w.regrantRefused = true; });
   assert.ok(failed.includes("regrant_records_new_epoch"));
   assert.ok(failed.includes("regrant_row_usable"));
   assert.equal(failed.includes("renew_refused_after_revoke"), false, "the old-epoch renewal refusal is unchanged");

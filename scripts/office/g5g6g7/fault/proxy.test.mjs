@@ -841,3 +841,48 @@ test("the proxy log records policy_epoch of a 200 lease PUT answer and nothing e
   assert.equal("policyEpoch" in entries[1], false, "only a lease grant answer is read");
   assert.equal(log.includes("SECRET-TOKEN"), false);
 });
+
+test("a rewrite_json rule keeps the log's error code and policy_epoch: the short-lease row can still tell a 403 offline_lease_revoked from any other and read a re-grant's epoch (G703-R3-1)", async (t) => {
+  const upstream = http.createServer((req, res) => {
+    req.resume();
+    req.on("end", () => {
+      const first = !upstream.seen;
+      upstream.seen = true;
+      const status = first ? 403 : 200;
+      const body = first
+        ? JSON.stringify({ error: { code: "offline_lease_revoked", message: "SECRET-BODY-TEXT" } })
+        : JSON.stringify({ policy_epoch: 4, expires_at: "2099-01-01T00:00:00.000Z", token: "SECRET-TOKEN" });
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(body);
+    });
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  const proxy = await startFaultProxy({ target: `http://127.0.0.1:${upstream.address().port}` });
+  t.after(async () => {
+    await proxy.close();
+    await new Promise((resolve) => upstream.close(resolve));
+  });
+  await fetch(`${proxy.origin}/__fault/rules`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify([
+      { id: "short-lease", match: { method: "PUT", path: "^/api/v1/documents/[^/]+/office/offline-lease$" }, action: { type: "rewrite_json", patch: { expires_at: { now_plus_ms: 120000 } } } },
+    ]),
+  });
+  const refused = await fetch(`${proxy.origin}/api/v1/documents/d1/office/offline-lease`, { method: "PUT" });
+  assert.equal(refused.status, 403);
+  await refused.arrayBuffer();
+  const granted = await fetch(`${proxy.origin}/api/v1/documents/d1/office/offline-lease`, { method: "PUT" });
+  const grantedBody = await granted.json();
+  assert.notEqual(grantedBody.expires_at, "2099-01-01T00:00:00.000Z", "the rewrite still applies");
+  const log = await (await fetch(`${proxy.origin}/__fault/log`)).text();
+  const entries = log.trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(entries[0].status, 403);
+  assert.equal(entries[0].errorCode, "offline_lease_revoked");
+  assert.equal("policyEpoch" in entries[0], false);
+  assert.equal(entries[1].status, 200);
+  assert.equal(entries[1].policyEpoch, 4);
+  assert.equal("errorCode" in entries[1], false);
+  assert.equal(entries[1].ruleId, "short-lease");
+  assert.equal(log.includes("SECRET-BODY-TEXT") || log.includes("SECRET-TOKEN"), false);
+});

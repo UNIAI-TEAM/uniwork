@@ -373,8 +373,8 @@ test("FL-05: a rollback lock that never lifts after the real clock returns fails
 test("FL-06: the org revoke runs while the network is cut and the next renewal is refused with the row's status", async () => {
   const { world, byName, failed } = await run("FL-06");
   assert.deepEqual(failed, []);
-  assert.deepEqual(world.vmCalls.filter((call) => call[0] === "revoke"), [["revoke"]]);
-  assert.equal(byName.renew_refused_after_revoke.expected, "PUT offline-lease answered 403 offline_lease_revoked");
+  assert.deepEqual(world.vmCalls.filter((call) => call[0] === "revoke"), [["revoke"], ["revoke"]], "one revoke per window (the by-design regrant window, then the refused-regrant window)");
+  assert.equal(byName.renew_refused_after_revoke.expected, "first PUT offline-lease answered 403 offline_lease_revoked");
   assert.match(byName.renew_refused_after_revoke.actual, /403 offline_lease_revoked/);
 });
 

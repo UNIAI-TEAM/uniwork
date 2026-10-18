@@ -3368,6 +3368,25 @@
           }
         },
         {
+          "id": "refuse-regrant",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$",
+            "nth": 2
+          },
+          "action": {
+            "type": "status",
+            "code": 403,
+            "body": {
+              "error": {
+                "code": "offline_lease_revoked",
+                "message": "offline lease revoked",
+                "error_class": "permission"
+              }
+            }
+          }
+        },
+        {
           "id": "cut-network",
           "match": {
             "path": "^/api/"
@@ -3390,7 +3409,7 @@
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "ghim → ready; rule cut-network: proxy reset mọi request /api/; admin CLI `uniwork-admin revoke-offline-leases --org-id <org>` thu hồi lease trên D; khôi phục mạng → gia hạn nhận 403 offline_lease_revoked; rule cut-open để Mở chỉ còn đường offline → S11 permission_revoked"
+          "step": "ghim với short-lease → lease-expiring; rule cut-network: proxy reset mọi request /api/; admin CLI `uniwork-admin revoke-offline-leases --org-id <org>` thu hồi lease trên D (epoch N); chờ nửa TTL; khôi phục mạng → lượt online của lease manager gia hạn: PUT 1 nhận 403 offline_lease_revoked, PUT 2 (cấp lại một lần trong cùng lượt, THEO THIẾT KẾ) là 200 policy_epoch = N, hàng dùng lại được (cửa sổ A; không downloadNow, không ghim lần hai; không có PUT = BLOCKED fork did not renew); cửa sổ B: revoke lần nữa + chờ đến hạn, rule refuse-regrant từ chối lần cấp lại → hàng revoked; rule cut-open để Mở chỉ còn đường offline → S11 permission_revoked"
         }
       ],
       "expect": {
@@ -3415,9 +3434,9 @@
           "renewRefusalStatus": 403,
           "plaintextCopies": 0,
           "renewRefusalCode": "offline_lease_revoked",
-        "regrantStates": [
-          "ready"
-        ]
+          "regrantStates": [
+            "lease-expiring"
+          ]
         },
         "notes": {
           "client": [

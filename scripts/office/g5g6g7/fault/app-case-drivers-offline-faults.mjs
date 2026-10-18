@@ -431,19 +431,63 @@ async function fl05(ctx) {
   };
 }
 
-/** the 200 lease PUTs after a log position */
-function leaseGrantsSince(log, boundary) {
-  return log.slice(boundary).filter((entry) => entry.method === "PUT" && String(entry.path).endsWith("/office/offline-lease") && entry.status === 200);
+/** the lease PUTs that got an answer after a log position (a reset is a cut, not an answer) */
+function leasePutsSince(log, boundary) {
+  return log
+    .slice(boundary)
+    .filter((entry) => entry.method === "PUT" && String(entry.path).endsWith("/office/offline-lease") && entry.status !== "reset");
+}
+
+const PUT_STEP_MS = 2_000;
+/** How long the app's own online pass may take to renew a due lease once the network is back (the sync poll interval is far below it). */
+const RENEW_WAIT_MS = 90_000;
+
+/**
+ * Waits - never causing anything - for the lease manager's own online pass (`onOnlinePass` -> `renew()` on a DUE
+ * lease, fork lease/manager.ts:531-532, 818-854) to put its renewal on the wire. Returns the answered lease PUTs
+ * since `boundary` once `want` of them are there, or once the first one shows no further PUT is owed, or when the
+ * wait ran out (possibly empty: the caller names that BLOCKED "fork did not renew").
+ */
+async function awaitLeasePuts(ctx, boundary, want) {
+  const steps = Math.ceil(RENEW_WAIT_MS / PUT_STEP_MS);
+  for (let step = 0; step < steps; step += 1) {
+    const puts = leasePutsSince(await ctx.proxyLog(), boundary);
+    const revokedFirst = puts[0]?.status === 403;
+    if (puts.length >= want || (puts.length >= 1 && !revokedFirst)) return puts;
+    await ctx.sleep(PUT_STEP_MS);
+  }
+  return leasePutsSince(await ctx.proxyLog(), boundary);
+}
+
+const putLine = (entry) => `${entry.status}${entry.errorCode ? ` ${entry.errorCode}` : ""}${entry.policyEpoch !== undefined ? ` policy_epoch ${entry.policyEpoch}` : ""}`;
+
+/** Sleeps until the half of a short lease the fork's `shouldRenew` waits for is spent (+ 5 s margin). */
+async function waitRenewalDue(ctx, leaseUntil, ttlMs) {
+  const until = Date.parse(leaseUntil ?? "");
+  await ctx.sleep(Number.isFinite(until) ? Math.max(0, until - ttlMs / 2 - Date.now()) + 5_000 : ttlMs);
 }
 
 // ---- FL-06: the lease is revoked on D while the app is offline ------------------------
+//
+// The fork's real path (aae163aed), which this row drives and never shortcuts:
+//   - the due renewal is the lease manager's ONLINE pass (`onOnlinePass`/`renew()` of a lease with < 50 % TTL left);
+//     `downloadNow` of a same-head snapshot does not renew (offline-library/manager.ts:1036-1038) and `pin` of an
+//     existing row is `pinned` with no request (:893), so neither is used to cause anything here;
+//   - a live 403 `offline_lease_revoked` on that renewal re-grants ONCE in the same call (lease/manager.ts:653-674),
+//     which is BY DESIGN (D office_lease.go:294-355: the CLI bumps the org epoch and ends old-epoch leases, it does not
+//     ban new grants): window A asserts 403, then 200 under the NEW epoch, in that order, and a usable row again;
+//   - the refused copy (`revoked`, S11 `permission_revoked`) therefore exists only where the re-grant cannot succeed:
+//     window B refuses it at the proxy (`refuse-regrant`, the 2nd lease PUT of the window answers 403 again - the
+//     shape of a person whose access is gone), so grant() runs and is refused, and the row is revoked.
 async function fl06(ctx) {
   const faulted = ctx.expect.offline("faultedStates");
   const shortLeaseStates = ctx.expect.offline("shortLeaseStates");
+  const regrantStates = ctx.expect.offline("regrantStates");
+  const refusedStatus = ctx.expect.offline("renewRefusalStatus");
+  const refusedCode = ctx.expect.offline("renewRefusalCode");
   const blocker = await withOfflineCapability(ctx);
   if (blocker) return blocked(blocker);
-  // a SHORT lease (the row's rewrite rule, as FL-04a): once half of it is spent the next online pass
-  // owes a renewal, which is what meets the revoke - a fresh 24 h lease is never renewed in the wait
+  // a SHORT lease (the row's rewrite rule, as FL-04a): once half of it is spent the next online pass owes a renewal
   const shortLease = ctx.caseRules(["short-lease"]);
   const ttlMs = shortLease[0].action.patch.expires_at.now_plus_ms;
   const startedAt = Date.now();
@@ -452,23 +496,69 @@ async function fl06(ctx) {
   const granted = await awaitRowState(ctx, session, doc.id, shortLeaseStates);
   const grantedBy = Date.now();
   const before = collectOfflineState(storeArgs(ctx, [doc.id]));
-  // offline: the proxy resets every /api/ request, then the lease is revoked on D
+
+  // ---- window A: offline -> revoke -> network back -> the due renewal is refused, the live session re-grants once
+  const cutBoundary = (await ctx.proxyLog()).length;
   await ctx.setRules(ctx.caseRules(["cut-network"]));
   const revoke = await ctx.revokeOfflineLeases();
   if (revoke.failure) return blocked(revoke.failure);
-  // the renewal is due when half of the short lease is gone (fork lease/clock.ts shouldRenew): wait that out
-  const until = Date.parse(granted?.row?.leaseUntil ?? "");
-  const dueInMs = Number.isFinite(until) ? Math.max(0, until - ttlMs / 2 - Date.now()) + 5_000 : ttlMs;
-  await ctx.sleep(dueInMs);
-  const boundary = (await ctx.proxyLog()).length;
-  // back online: the due renewal meets the revoked lease
-  await ctx.clearRules();
-  const retry = await downloadNow(session, doc.id);
+  const evidence = revoke.evidence;
+  await waitRenewalDue(ctx, granted?.row?.leaseUntil, ttlMs);
+  // nothing got a lease while the app had no network - no session, no grant
+  const cutGrants = leasePutsSince(await ctx.proxyLog(), cutBoundary).filter((entry) => entry.status === 200);
+  const boundaryA = (await ctx.proxyLog()).length;
+  // network back (the short-lease rule stays so the re-granted lease is short again and window B can be caused the same way)
+  await ctx.setRules(shortLease);
+  const putsA = await awaitLeasePuts(ctx, boundaryA, 2);
+  if (putsA.length === 0) return blocked(`fork did not renew: no lease PUT reached the proxy within ${RENEW_WAIT_MS / 1000} s of the network coming back, so the due-renewal path was not exercised`);
+  const regrantedRow = await awaitRowState(ctx, session, doc.id, regrantStates);
+  const refusalIndex = putsA.findIndex((entry) => entry.status === refusedStatus && entry.errorCode === refusedCode);
+  const regrantIndex = putsA.findIndex((entry, index) => index > refusalIndex && entry.status === 200 && Number.isInteger(evidence?.epoch) && entry.policyEpoch === evidence.epoch);
+
+  // window A's verdicts, kept apart: a wrong answer there is a FAIL even when window B cannot run
+  const assertionsA = [
+    resultAssertion("pin_accepted", pinned),
+    assertion("short_lease_granted", shortLeaseStates.join("|"), granted?.state ?? "never", Boolean(granted)),
+    leaseRewriteAssertion(granted?.row, ttlMs, startedAt, grantedBy),
+    preStoreAssertion(before, doc.id),
+    // the revoke hit THIS run's organization and ended at least one live lease: the CLI's own stdout
+    assertion(
+      "revoke_cli_hit_this_org",
+      `${ctx.tenant.orgId}, >= 1 live lease revoked`,
+      evidence?.line ?? "no CLI line",
+      evidence?.orgId === ctx.tenant.orgId && Number.isInteger(evidence?.revoked) && evidence.revoked >= 1,
+    ),
+    // no grant without the live session: nothing answered 200 while the network was cut
+    assertion("regrant_needs_live_session", "no lease 200 while the network was cut", `${cutGrants.length} lease 200(s)`, cutGrants.length === 0),
+    // the FIRST lease PUT of the window is the due renewal of the old-epoch lease: refused with the EXACT code (a 200 or another 403 fails)
+    assertion(
+      "renew_refused_after_revoke",
+      `first PUT offline-lease answered ${refusedStatus} ${refusedCode}`,
+      putsA.map(putLine).join(", ") || "(no renew seen)",
+      refusalIndex === 0,
+    ),
+    // ... and the live session's single re-grant follows it in the same window, under the NEW epoch of the CLI line (the OLD epoch fails)
+    assertion(
+      "regrant_records_new_epoch",
+      `then a 200 lease grant with policy_epoch ${evidence?.epoch ?? "?"} (the CLI line's epoch), in that order`,
+      putsA.map(putLine).join(", ") || "(no grant seen)",
+      refusalIndex === 0 && regrantIndex === 1,
+    ),
+    assertion("regrant_row_usable", regrantStates.join("|"), regrantedRow?.state ?? "never", Boolean(regrantedRow)),
+  ];
+
+  // ---- window B: the same cause again, with the re-grant refused -> the revoked copy (S3 revoked, S11)
+  await ctx.setRules(ctx.caseRules(["cut-network"]));
+  const revokeB = await ctx.revokeOfflineLeases();
+  if (revokeB.failure) return blocked(revokeB.failure);
+  const regrantedReading = await rowReading(session, doc.id);
+  await waitRenewalDue(ctx, regrantedReading.leaseUntil, ttlMs);
+  const boundaryB = (await ctx.proxyLog()).length;
+  await ctx.setRules(ctx.caseRules(["refuse-regrant"]));
+  const putsB = await awaitLeasePuts(ctx, boundaryB, 2);
+  if (putsB.length === 0 && !assertionsA.every((entry) => entry.ok)) return { documentId: doc.id, assertions: assertionsA };
+  if (putsB.length === 0) return blocked(`fork did not renew: no lease PUT reached the proxy within ${RENEW_WAIT_MS / 1000} s in the second window, so the refused re-grant was not exercised`);
   const row = await awaitRowState(ctx, session, doc.id, faulted);
-  const window = (await ctx.proxyLog()).slice(boundary);
-  const renews = window.filter((entry) => entry.method === "PUT" && String(entry.path).endsWith("/office/offline-lease"));
-  const refusedStatus = ctx.expect.offline("renewRefusalStatus");
-  const refusedCode = ctx.expect.offline("renewRefusalCode");
   // a Mở can only reach the cache now, which is what raises S11
   await armOpenCut(ctx);
   const opened = await offlineOpen(session, doc.id);
@@ -476,61 +566,20 @@ async function fl06(ctx) {
   const faultedState = collectOfflineState(storeArgs(ctx, [doc.id]));
   const copies = listPlaintextCopies(ctx.userDataDir(), ctx.deploymentId(), { accountIds: [ctx.tenant.app.userId] });
   writeStoreEvidence(ctx.runDirOut(), { before, faulted: faultedState, after: faultedState });
-  const evidence = revoke.evidence;
-  // (b) the regrant is BY DESIGN: the CLI bumps the org policy epoch and ends every old-epoch lease, it does not ban new
-  // grants (D office_lease.go:294-355, fork lease/manager.ts:653-674). A fresh grant needs the live session: with the
-  // network cut a pin cannot take one, with it back the pin gets a lease under the NEW epoch (the CLI line's epoch)
-  const regrantStates = ctx.expect.offline("regrantStates");
-  await ctx.setRules(ctx.caseRules(["cut-network"]));
-  const offlineBoundary = (await ctx.proxyLog()).length;
-  await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
-  const offlineRow = await rowReading(session, doc.id);
-  const offlineGrants = leaseGrantsSince(await ctx.proxyLog(), offlineBoundary);
-  await ctx.clearRules();
-  const onlineBoundary = (await ctx.proxyLog()).length;
-  await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
-  const regranted = await awaitRowState(ctx, session, doc.id, regrantStates);
-  const onlineGrants = leaseGrantsSince(await ctx.proxyLog(), onlineBoundary);
   const log = await ctx.proxyLog();
   return {
     documentId: doc.id,
     assertions: [
-      resultAssertion("pin_accepted", pinned),
-      assertion("short_lease_granted", shortLeaseStates.join("|"), granted?.state ?? "never", Boolean(granted)),
-      leaseRewriteAssertion(granted?.row, ttlMs, startedAt, grantedBy),
-      preStoreAssertion(before, doc.id),
-      // the revoke hit THIS run's organization and ended at least one live lease: the CLI's own stdout
+      ...assertionsA,
+      // window B: the same renewal is refused again and the re-grant is refused too (proxy `refuse-regrant`): grant() cannot run
       assertion(
-        "revoke_cli_hit_this_org",
-        `${ctx.tenant.orgId}, >= 1 live lease revoked`,
-        evidence?.line ?? "no CLI line",
-        evidence?.orgId === ctx.tenant.orgId && Number.isInteger(evidence?.revoked) && evidence.revoked >= 1,
+        "s11_window_renew_refused",
+        `first PUT answered ${refusedStatus} ${refusedCode}, then the re-grant refused (rule refuse-regrant), no 200`,
+        putsB.map(putLine).join(", ") || "(no renew seen)",
+        putsB[0]?.status === refusedStatus && putsB[0]?.errorCode === refusedCode && putsB[1]?.status === "synthetic" && putsB[1]?.ruleId === "refuse-regrant" && !putsB.some((entry) => entry.status === 200),
       ),
-      // the renewal after the revoke was refused with the EXACT code (an unrelated 403 does not count)
-      assertion(
-        "renew_refused_after_revoke",
-        `PUT offline-lease answered ${refusedStatus} ${refusedCode}`,
-        renews.map((entry) => `${entry.status}${entry.errorCode ? ` ${entry.errorCode}` : ""}`).join(",") || "(no renew seen)",
-        renews.some((entry) => entry.status === refusedStatus && entry.errorCode === refusedCode),
-      ),
-      assertion("retry_answered", "an answer (a refusal is expected)", retry?.ok === true ? "ok" : retry?.code ?? "no answer", Boolean(retry)),
       assertion("row_revoked", faulted.join("|"), row?.state ?? "never", Boolean(row)),
       refusalAssertion(ctx, "open_refused_permission_revoked", opened),
-      // (b) no grant without the live session: the copy stays revoked while the network is cut
-      assertion(
-        "regrant_needs_live_session",
-        "no lease grant and the row still revoked while offline",
-        `${offlineGrants.length} grant(s), row ${offlineRow?.state ?? "unread"}`,
-        offlineGrants.length === 0 && offlineRow?.state !== undefined && !regrantStates.includes(offlineRow.state),
-      ),
-      // (b) with the live session the fresh grant lands under the NEW epoch the CLI reported, and the copy is usable again
-      assertion(
-        "regrant_records_new_epoch",
-        `a 200 lease grant with policy_epoch ${evidence?.epoch ?? "?"} (the CLI line's epoch)`,
-        onlineGrants.map((entry) => `${entry.status} policy_epoch ${entry.policyEpoch ?? "unread"}`).join(",") || "(no grant seen)",
-        Number.isInteger(evidence?.epoch) && onlineGrants.some((entry) => entry.policyEpoch === evidence.epoch),
-      ),
-      assertion("regrant_row_usable", regrantStates.join("|"), regranted?.state ?? "never", Boolean(regranted)),
       offlineCountAssertion(ctx, "no_plaintext_copy_left", "plaintextCopies", copies.length),
       ...shots,
       ...noWriteAssertions(ctx, log, doc.id),

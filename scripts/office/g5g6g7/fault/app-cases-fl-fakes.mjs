@@ -70,6 +70,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     // the org's offline policy epoch (the revoke CLI bumps it) and how many fresh grants a live session may still take under it
     policyEpoch: 1,
     regrantsLeft: 1,
+    // a test turns it on: D refuses every fresh grant (the person lost access), so the live re-grant after a 403 cannot succeed
+    regrantRefused: false,
     revokedSeen: new Set(),
     revokeFails: false,
     keyringLocked: false,
@@ -171,9 +173,14 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       world.log.push({ method: "PUT", path, status: "reset", ruleId: rule.id });
       return "cut";
     }
-    // a renewal of a lease from an older policy epoch is refused; a fresh grant (a pin, no lease token) is a new row under the new epoch
+    // a `status` rule answers for D (FL-06 window B: the re-grant is refused too), the logged shape of the proxy's synthetic answer
+    if (rule?.action.type === "status") {
+      world.log.push({ method: "PUT", path, status: "synthetic", ruleId: rule.id });
+      return "refused";
+    }
+    // a renewal of a lease from an older policy epoch is refused; a fresh grant (the manager's grant(), no lease token) is a new row under the new epoch
     const oldEpoch = (world.leases.get(documentId)?.epoch ?? 1) < world.policyEpoch;
-    if (world.revoked && ((!fresh && oldEpoch) || (fresh && world.regrantsLeft <= 0))) {
+    if (world.revoked && ((!fresh && oldEpoch) || (fresh && (world.regrantsLeft <= 0 || world.regrantRefused)))) {
       world.log.push({ method: "PUT", path, status: 403, ruleId: rule?.id ?? null, errorCode: world.revokeErrorCode ?? "offline_lease_revoked" });
       return "revoked";
     }
@@ -182,7 +189,7 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     world.revokedSeen.delete(documentId);
     const short = rule?.action.type === "rewrite_json";
     const ttlMs = short ? rule.action.patch.expires_at.now_plus_ms : FULL_LEASE_MS;
-    world.leases.set(documentId, { short, ttlMs, grantedAt: Date.now(), polls: 0, expired: false, epoch: world.policyEpoch });
+    world.leases.set(documentId, { short, ttlMs, grantedAt: Date.now(), grantedSlept: world.sleptMs, polls: 0, expired: false, epoch: world.policyEpoch });
     world.rollbackLatched = false;
     writeRecord(world.leaseDir(), `lease/${documentId}`, Buffer.from(`lease-${documentId}-${++world.leaseSeq}`));
     return "granted";
@@ -190,11 +197,33 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
   world.leasePut = leasePut;
   const leaseCut = () => world.rules.some((rule) => rule.id === "cut-lease" || rule.id === "cut-network");
   const keystoreDown = () => world.keyringLocked || world.keyringBroken;
-  /** the fork renews only a lease that is due: none yet, expired, latched, or half its TTL gone (the driver's sleeps are the clock) */
+  /** the lease manager renews only a lease that is due: none yet, expired, latched, or half its TTL gone (the driver's sleeps are the clock) */
   const leaseDue = (documentId) => {
     const lease = world.leases.get(documentId);
-    return !lease || lease.expired || world.rollbackLatched || (lease.short && world.sleptMs >= lease.ttlMs / 2);
+    return !lease || lease.expired || world.rollbackLatched || (lease.short && world.sleptMs - lease.grantedSlept >= lease.ttlMs / 2);
   };
+  /** what the library's ensureLease reacts to (offline-library/manager.ts:1025-1034): no lease or an expired one; a usable lease, due or not, is left to the manager's own pass */
+  const leaseGone = (documentId) => {
+    const lease = world.leases.get(documentId);
+    return !lease || lease.expired || world.rollbackLatched;
+  };
+  /**
+   * The lease manager's online pass (fork `onOnlinePass` -> `renew()`, lease/manager.ts:818-854): with the network up
+   * and a live session it renews every DUE lease. A 403 `offline_lease_revoked` on that renewal re-grants ONCE in the same
+   * call (:653-674); a refused re-grant (or any other 403 code) marks the copy revoked. The driver's sleeps are the
+   * poll interval: nothing else in the fake can cause a renewal.
+   */
+  const onlinePass = () => {
+    if (leaseCut() || keystoreDown() || !world.signedInAs) return;
+    for (const documentId of [...world.leases.keys()]) {
+      if (world.revokedSeen.has(documentId) || !world.rows.has(documentId) || !leaseDue(documentId)) continue;
+      if (leasePut(documentId) !== "revoked") continue;
+      const regrantable = (world.revokeErrorCode ?? "offline_lease_revoked") === "offline_lease_revoked";
+      if (regrantable && leasePut(documentId, true) === "granted") continue;
+      world.revokedSeen.add(documentId);
+    }
+  };
+  world.onlinePass = onlinePass;
 
   /** the row the product shows: the stored row with the lease / clock / revoke overlay (null while the keystore is down) */
   const viewOf = (documentId, row) => {
@@ -234,6 +263,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     /** pin: reservation first, then the download through the proxy; a cut one is `interrupted`, a full disk `disk-full`, else the copy is written and `ready` */
     pin: async ({ documentId }) => {
       if (keystoreDown()) return { ok: false, code: "keystore_locked", lockReason: "keystore_locked" };
+      // an already pinned document is `pinned` with no request at all (offline-library/manager.ts:893)
+      if (world.rows.has(documentId)) return { ok: true };
       // a disk that is already full refuses the reservation itself: that is store_full before any content moved
       if (world.diskFull) return { ok: false, code: "store_full" };
       reserve(documentId);
@@ -260,8 +291,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
         world.rows.set(documentId, { state: "disk-full", name: "doc" });
         return { ok: false, code: "store_full" };
       }
-      // only a due lease is renewed (a fresh one is left alone: the fork's online pass skips it)
-      if (leaseDue(documentId)) {
+      // a same-head refresh does not renew a usable lease, due or not (manager.ts:1036-1038): only a missing or expired one is granted again
+      if (leaseGone(documentId)) {
         const lease = leasePut(documentId);
         if (lease === "revoked") {
           world.revokedSeen.add(documentId);
@@ -506,7 +537,10 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     versionDelta: async () => 0,
     vm: world.vm,
     // the runner's own sleep: the fake advances its lease clock instead of waiting
-    sleep: async (ms) => { world.sleptMs += ms; },
+    sleep: async (ms) => {
+      world.sleptMs += ms;
+      world.onlinePass();
+    },
     // a `hold` rule: the request waits in the proxy until released
     waitHeld: async (id) => {
       for (let i = 0; i < 200; i += 1) {
@@ -524,10 +558,12 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       world.vmCalls.push(["revoke"]);
       if (world.revokeFails) return { failure: "uniwork-admin revoke-offline-leases exited 1: no organization", evidence: null };
       world.revoked = true;
-      world.policyEpoch = 2;
+      world.policyEpoch += 1;
+      world.regrantsLeft = 1;
       const revoked = world.revokedCount ?? world.leases.size;
       const orgId = world.revokeOrgId ?? ctx.tenant.orgId;
-      return { failure: null, evidence: { line: `${orgId} offline policy epoch now 2, ${revoked} live lease(s) revoked`, orgId, epoch: 2, revoked } };
+      const epoch = world.policyEpoch;
+      return { failure: null, evidence: { line: `${orgId} offline policy epoch now ${epoch}, ${revoked} live lease(s) revoked`, orgId, epoch, revoked } };
     },
   };
   world.ctx = ctx;
