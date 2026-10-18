@@ -99,6 +99,7 @@ describe("sourceOpenAction", () => {
       file({ extension: "pptx", can_open_in_app: true }),
       file({ extension: "pdf", can_open_in_app: true }),
       file({ extension: "md", can_open_in_app: true }),
+      file({ extension: "html", can_open_in_app: true }),
       // UNI-1813: the server marks .txt openable only while office_txt_open is on.
       file({ extension: "txt", can_open_in_app: true }),
       file({ name: "ghi-chu.txt", extension: "", mime_type: "text/plain", can_open_in_app: true }),
