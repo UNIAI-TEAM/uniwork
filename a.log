@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+1e42d04d6f43140bd116c2571bb124663b1920ab
+b5388f37d1c26d18fd0408f1bfc242e71b964fa0
+1e42d04d6 chore: merge G5-G7 root b5388f37d (ROW390) into the sharing lane
+b5388f37d chore: merge ROW390 library row meta line wraps below 34rem (UNI-1902, d0ba9fbcb) into the G5-G7 root
+d0ba9fbcb fix(documents): keep the row's editor on its own line until 34rem (UNI-1902)
+98445d12f chore: merge G5-G7 root 6f4ca157a into the sharing lane
+24135c07a fix(documents): keep the library row date and editor readable at 390 (UNI-1902)
+6f4ca157a chore: merge MYFOLDER-01 web My Folder as the default save destination (UNI-1850, 772e06fa7) into the G5-G7 root
+772e06fa7 fix(documents): show the resume hint for a Home-root upload saved under My Folder (UNI-1850)
+74de60298 fix(documents): ignore a root resume record for a Home-root chunked upload (UNI-1850)
