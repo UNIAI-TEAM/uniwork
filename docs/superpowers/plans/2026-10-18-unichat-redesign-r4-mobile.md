@@ -20,10 +20,18 @@ Danh bạ / Cài đặt, màn đăng nhập, chọn workspace, thông tin phòng
 ## Tasks
 
 - [x] **T0 — Token chat mobile** (global.css, lib/theme.ts, tailwind.config.js).
-- [ ] **M1 — Hội thoại**: `conversation`, `chat-header`, `message-list`, `message-row`, `composer`.
-- [ ] **M2 — Thẻ & sheet**: `message-cards`, `task-card`, `message-actions`, `expression-sheet`,
+- [x] **M1 — Hội thoại**: `conversation`, `chat-header`, `message-list`, `message-row`, `composer`.
+- [x] **M2 — Thẻ & sheet**: `message-cards`, `task-card`, `message-actions`, `expression-sheet`,
   `reminder-sheet`, `image-viewer`, `components/ui/action-sheet`.
-- [ ] **M3 — Danh sách & các màn khác**: tab Chat (`room-row`, `room-avatar`, header + nút workspace + chip
+- [x] **M3 — Danh sách & các màn khác**: tab Chat (`room-row`, `room-avatar`, header + nút workspace + chip
   lọc), tab Cuộc gọi / Danh bạ / Cài đặt, đăng nhập, chọn workspace, nhắn tin mới, duyệt kênh, thông tin phòng, thread.
-- [ ] **M4 — Cuộc gọi**: `call-overlay`, `call-room`, `call-button`.
-- [ ] **M5 — Kiểm**: typecheck, lint, test, rồi PR.
+- [x] **M4 — Cuộc gọi**: `call-overlay`, `call-room`, `call-button`.
+- [x] **M5 — Kiểm**: typecheck, lint, test, rồi PR.
+
+## Ghi chú khi xong (2026-10-18)
+
+- Kiểm: typecheck, lint, 59 file / 742 test vitest có ngưỡng coverage, knip, ranh giới import — xanh. Chưa chạy
+  trên máy thật / simulator.
+- Không làm vì thiếu dữ liệu hoặc gói: lưới chấm trên tường (không có react-native-svg), nền mờ sau menu nhấn giữ
+  (không có expo-blur), Tải xuống / Chia sẻ trong trình xem ảnh, bảng emoji cho cảm xúc, huy hiệu chưa đọc trên tab,
+  "Tạo nhóm" và mục ảnh / tệp đã chia sẻ trên mobile, số chưa đọc theo workspace (R3).
