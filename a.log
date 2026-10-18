@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; echo "HEAD_PROBE_DONE"
+140f7f0437a394df022c08e3d77d8389b3f1abad
+140f7f043 test(office): split the matrix-level wire tests and fail closed on a missed model route
+af8c704a7 refactor(office): let the wire observer keep only its own helpers
+bf8ff6490 fix(office): settle the real-run wire observer before reading usage
+babc7ec4c fix(office): observe every model call on a real G7-08 run and stop on unknown usage
+30d5a188f fix(office): treat a skipped second Save as lost and name a duplicate version first
+81b2e310d test(office): record host and server state between the two G7-08 Saves
+03a7989e5 fix(office): drive a real second Save, undo/redo and the old-version re-read in the G7-08 web driver
+c18b59a09 fix(office): fail closed on a model call that reports no usage
+HEAD_PROBE_DONE
