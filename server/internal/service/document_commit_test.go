@@ -6,8 +6,10 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
@@ -457,6 +459,44 @@ func TestDocumentCommitIdenticalBytesIsANoOp(t *testing.T) {
 				t.Fatalf("job not marked committed: %+v", got)
 			}
 		})
+
+		// Last in this function on purpose: it moves the env clock past
+		// files.ClaimTTL, which would expire the uploads the subtests above
+		// stage.
+		t.Run("R1-2 case 1: a no-op replay survives the staged upload's claim window", func(t *testing.T) {
+			// The no-op deliberately leaves its upload staged, so the staged
+			// file can pass its 24h claim window while the ledger still holds
+			// the 200 answer. The same key and upload_id must answer the
+			// stored 200, not the upload's own refusal: the intent lookup and
+			// the ledger would otherwise disagree (AC-4).
+			created := env.createFile(t, member, "r12a.pdf", pdfBody("r12a-v1"))
+			body := pdfBody("r12a-same")
+			upA := env.upload(t, member, created.Document.ID, "r12a-a.pdf", body)
+			a, err := env.commit(member, created.Document.ID, upA.UploadID, created.Document.Revision, util.NewID())
+			mustf(t, err, "commit A")
+			upNoop := env.upload(t, member, created.Document.ID, "r12a-noop.pdf", body)
+			key := util.NewID()
+			noop, err := env.commit(member, created.Document.ID, upNoop.UploadID, a.Document.Revision, key)
+			mustf(t, err, "no-op")
+			if noop.Version.ID != a.Version.ID || noop.Document.Revision != a.Document.Revision {
+				t.Fatalf("no-op = ver %s rev %d, want ver %s rev %d", noop.Version.ID, noop.Document.Revision, a.Version.ID, a.Document.Revision)
+			}
+			if env.real != nil {
+				if st := env.sessionStatus(t, upNoop.UploadID); st != "staged" {
+					t.Fatalf("no-op upload session = %s, want staged", st)
+				}
+			}
+			advanceClaimWindow(t, env)
+
+			replay, err := env.commit(member, created.Document.ID, upNoop.UploadID, a.Document.Revision, key)
+			mustf(t, err, "replay after the staged upload's window closed")
+			if replay.Version.ID != a.Version.ID || replay.Document.Revision != a.Document.Revision {
+				t.Fatalf("replay after the window = ver %s rev %d, want ver %s rev %d", replay.Version.ID, replay.Document.Revision, a.Version.ID, a.Document.Revision)
+			}
+			if vs := env.versions(t, created.Document); len(vs) != 2 {
+				t.Fatalf("versions after the replay = %d, want 2", len(vs))
+			}
+		})
 	})
 }
 
@@ -495,6 +535,20 @@ func assertFileCommitNoOp(t *testing.T, env *docStorageEnv, a, res DocumentFileR
 			t.Fatalf("upload session = %s, want staged", st)
 		}
 	}
+}
+
+// advanceClaimWindow moves whichever clock the env's FileService reads past
+// files.ClaimTTL, so a staged upload no longer resolves. The fake keeps its own
+// clock; the real service reads the harness clock, which the document service
+// also follows so both sides agree on "now".
+func advanceClaimWindow(t *testing.T, env *docStorageEnv) {
+	t.Helper()
+	if env.fake != nil {
+		env.fake.Advance(files.ClaimTTL + time.Minute)
+		return
+	}
+	env.clock.Advance(files.ClaimTTL + time.Minute)
+	env.svc.SetClock(env.clock.Now)
 }
 
 func containsString(got []string, want string) bool {
