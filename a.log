@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -5; node -p "require('./apps/web/platform/office-frame/docs.pin.json').version"
+eeb13731721b010e7a88158d1b4794a692e62588
+eeb137317 chore(merge): e6-server UN-02 309631d48 (root a605e291f) into UN-02 web
+9691cb0e8 test(office): fold the second detectDocumentFormat describe into the first
+dbf88e124 fix(office): unwrap only one wrapper directory of a frame release
+17cc8f3f9 test(documents): pin the workspace layout to the .txt flag gate
+309631d48 Merge commit 'a605e291f' into feature/UNI-1813-markdown-create-txt
+0.1.0-5932073

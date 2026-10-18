@@ -1,0 +1,89 @@
+$ node scripts/office/g5g6g7/g7-06/capture.mjs --host desktop --out .g7-06-captures; rc=$?; echo; echo "G706_CAPTURE_DESKTOP_EXIT=$rc"; cat .g7-06-captures/desktop/meta.json; true
+desktop: fx-xlsx-revenue-xyz -> sheets view open (theme+size, media)
+desktop: fx-docx-report-vi -> docs view open (theme+size, media)
+desktop: fx-pptx-deck-vi -> slides view open (theme+size, media)
+desktop: fx-pdf-invoice-vi -> pdf view open (theme+size, media)
+desktop: fx-md-notes-vi -> markdown view open (theme+size, media)
+desktop: fx-html-page-vi -> html view open (theme+size, media)
+  ok      desktop/fx-xlsx-revenue-xyz
+  ok      desktop/fx-docx-report-vi
+  ok      desktop/fx-pptx-deck-vi
+  ok      desktop/fx-pdf-invoice-vi
+  ok      desktop/fx-md-notes-vi
+  ok      desktop/fx-html-page-vi
+capture desktop: ok (exit 0), meta at /workspace/.g7-06-captures/desktop/meta.json
+
+G706_CAPTURE_DESKTOP_EXIT=0
+{
+  "host": "desktop",
+  "forkSha": "5932073",
+  "pinVersion": "0.1.0-5932073",
+  "viewport": {
+    "w": 1440,
+    "h": 900
+  },
+  "deviceScaleFactor": 1,
+  "capturedAt": "2026-10-18T18:41:42.140Z",
+  "fixtures": {
+    "fx-xlsx-revenue-xyz": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": true
+    },
+    "fx-docx-report-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": false
+    },
+    "fx-pptx-deck-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": true
+    },
+    "fx-pdf-invoice-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": true
+    },
+    "fx-md-notes-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": false
+    },
+    "fx-html-page-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": false
+    }
+  },
+  "settings": {
+    "locale": "vi-VN",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "colorScheme": "light",
+    "reducedMotion": "reduce"
+  }
+}

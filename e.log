@@ -1,0 +1,103 @@
+$ node scripts/office/g5g6g7/g7-06/capture.mjs --host web --out .g7-06-captures; rc=$?; echo; echo "G706_CAPTURE_WEB_EXIT=$rc"; cat .g7-06-captures/web/meta.json; true
+web: fx-xlsx-revenue-xyz -> /o-g706-mve69cez/w-g706-mve69cez/documents/<id>
+web: fx-docx-report-vi -> /o-g706-mve69cez/w-g706-mve69cez/documents/<id>
+web: fx-pptx-deck-vi -> /o-g706-mve69cez/w-g706-mve69cez/documents/<id>
+web: fx-pdf-invoice-vi -> /o-g706-mve69cez/w-g706-mve69cez/documents/<id>
+web: fx-md-notes-vi -> /o-g706-mve69cez/w-g706-mve69cez/documents/<id>
+web: fx-html-page-vi -> /o-g706-mve69cez/w-g706-mve69cez/documents/<id>
+web: cleanup done: stays: 6 document(s) archived into the trash (the API has no purge; kept until the organization is erased); organization 01M5853NB1YDB29GRFR14J7G2K (erasure queued, runs in 5 days; its workspace 01M5853NBB85PC06JG4R1V4W96 stays until then); owner account g7-06-capture-1792348902683@example.com (it cannot be deleted while it owns an organization)
+cleanup done: stays: 6 document(s) archived into the trash (the API has no purge; kept until the organization is erased); organization 01M5853NB1YDB29GRFR14J7G2K (erasure queued, runs in 5 days; its workspace 01M5853NBB85PC06JG4R1V4W96 stays until then); owner account g7-06-capture-1792348902683@example.com (it cannot be deleted while it owns an organization)
+  ok      web/fx-xlsx-revenue-xyz
+  ok      web/fx-docx-report-vi
+  ok      web/fx-pptx-deck-vi
+  ok      web/fx-pdf-invoice-vi
+  ok      web/fx-md-notes-vi
+  ok      web/fx-html-page-vi
+capture web: ok (exit 0), meta at /workspace/.g7-06-captures/web/meta.json
+
+G706_CAPTURE_WEB_EXIT=0
+{
+  "host": "web",
+  "forkSha": "5932073",
+  "pinVersion": "0.1.0-5932073",
+  "viewport": {
+    "w": 1720,
+    "h": 980
+  },
+  "deviceScaleFactor": 1,
+  "capturedAt": "2026-10-18T18:42:27.555Z",
+  "fixtures": {
+    "fx-xlsx-revenue-xyz": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true,
+      "ai": true,
+      "uniworkAi": false
+    },
+    "fx-docx-report-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false,
+      "ai": true,
+      "uniworkAi": false
+    },
+    "fx-pptx-deck-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true,
+      "ai": true,
+      "uniworkAi": false
+    },
+    "fx-pdf-invoice-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true,
+      "ai": true,
+      "uniworkAi": false
+    },
+    "fx-md-notes-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false,
+      "ai": true,
+      "uniworkAi": false
+    },
+    "fx-html-page-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false,
+      "ai": true,
+      "uniworkAi": false
+    }
+  },
+  "settings": {
+    "locale": "vi-VN",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "colorScheme": "light",
+    "reducedMotion": "reduce"
+  }
+}
