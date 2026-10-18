@@ -285,9 +285,9 @@ export async function installProtocolSniffer(page) {
 }
 
 export async function bindDryRunStubRoutes({
-  page, apiOrigin, fetchImpl = fetch, stub, documentId, rowId, wireResponses,
+  page, frameAiOrigin, fetchImpl = fetch, stub, documentId, rowId, wireResponses,
 }) {
-  const baseOrigin = new URL(apiOrigin).origin;
+  const baseOrigin = new URL(frameAiOrigin).origin;
   const regRes = await fetchImpl(`${stub.url}/api/v1/auth/register`, { method: 'POST', body: '{}' });
   const { access_token: stubAccess } = await regRes.json();
   const mintRes = await fetchImpl(`${stub.url}/api/v1/documents/${documentId}/office/frame-token`, {
@@ -322,7 +322,7 @@ export async function bindDryRunStubRoutes({
     await route.fulfill({ status: up.status, headers: { ...headers, 'Content-Type': 'application/json' }, body: await up.text() });
   });
 
-  // R4-1 + w2i: the dry-run stub intercepts only on the absolute API origin the harness started.
+  // R4-1 + w2j: the dry-run stub intercepts only on the origin the frame POSTs to (the app origin).
   for (const glob of modelCallRouteGlobs(baseOrigin)) {
     await page.route(glob, async (route) => {
       const req = route.request();

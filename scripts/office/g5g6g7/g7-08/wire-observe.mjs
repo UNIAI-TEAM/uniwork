@@ -107,11 +107,12 @@ function normalizeHttpOrigin(rawOrigin) {
 }
 
 /**
- * R4-1 + w2i: the four model-CALL routes as Playwright `page.route` globs on the harness's
- * absolute API origin, never `**`, so a frame-AI POST to any other origin is not intercepted.
+ * R4-1 + w2i + w2j: the four model-CALL routes as Playwright `page.route` globs on the origin the
+ * frame POSTs to - the app (web) origin, since the frame is same-origin (connect-src 'self') and
+ * the app proxies the route to the API. Never `**`, so a POST to any other origin is not intercepted.
  */
-export function modelCallRouteGlobs(apiOrigin) {
-  const base = normalizeHttpOrigin(apiOrigin);
+export function modelCallRouteGlobs(frameAiOrigin) {
+  const base = normalizeHttpOrigin(frameAiOrigin);
   if (!base) return Object.freeze([]);
   return Object.freeze(MODEL_CALL_ROUTES.map((route) => `${base}${route.globPath}`));
 }
@@ -315,9 +316,10 @@ export function toolCallNamesFromSseText(text, shape = null) {
  * An empty response collection is never a successful zero-token run.
  */
 export function evaluateWireObservation({
-  requests = [], responses = [], aiPaths = [], apiOrigin = null, sawTurnEffects = false,
+  requests = [], responses = [], aiPaths = [], frameAiOrigin = null, sawTurnEffects = false,
 } = {}) {
-  const expectedOrigin = normalizeHttpOrigin(apiOrigin);
+  // w2j: the frame POSTs to the app (web) origin; a direct API-origin POST is not the frame path.
+  const expectedOrigin = normalizeHttpOrigin(frameAiOrigin);
   if (expectedOrigin) {
     const wrong = [...aiPaths, ...requests].find((entry) => entry?.origin && entry.origin !== expectedOrigin);
     if (wrong) {

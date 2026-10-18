@@ -203,7 +203,7 @@ export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
 export async function runWebMatrixRow(runEntry, {
   runDir, repoRoot = DEFAULT_REPO_ROOT, dryRun = false, fetchImpl = fetch,
   env = process.env, timeoutMs = 45_000, observedOverride = null,
-  apiOrigin: injectedApiOrigin = null, injectedPage = null, injectedRowBody = null,
+  webOrigin: injectedWebOrigin = null, apiOrigin: injectedApiOrigin = null, injectedPage = null, injectedRowBody = null,
 } = {}) {
   const row = getRowById(runEntry?.rowId ?? runEntry?.id) ?? runEntry;
   if (!row) return blockedVerdict('unknown_matrix_row');
@@ -214,7 +214,7 @@ export async function runWebMatrixRow(runEntry, {
   if (row.mode === 'hitl') return evaluateRowObserved(row, {});
   const injected = typeof injectedRowBody === 'function';
   let apiOrigin = injectedApiOrigin;
-  let webOrigin;
+  let webOrigin = injectedWebOrigin;
   let fixture;
   if (!injected) {
     if (!dryRun && env.HARNESS_ALLOW_REAL_AI_UPSTREAM !== '1') return blockedVerdict(REAL_AI_BLOCKER, { owner: 'G6' });
@@ -244,7 +244,7 @@ export async function runWebMatrixRow(runEntry, {
       const { settle } = observeModelWire(injectedPage, { requests: wireRequests, responses: wireResponses, aiPaths });
       await injectedRowBody();
       await settle();
-      const usage = evaluateWireObservation({ requests: wireRequests, responses: wireResponses, aiPaths, apiOrigin });
+      const usage = evaluateWireObservation({ requests: wireRequests, responses: wireResponses, aiPaths, frameAiOrigin: webOrigin });
       if (usage.unobserved) return { ...blockedVerdict(usage.reason, { ...usage.detail, missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls }), usage };
       return blockedVerdict('injected_row_body_returned');
     }
@@ -289,7 +289,7 @@ export async function runWebMatrixRow(runEntry, {
     }).settle;
     if (dryRun && stub) {
       await bindDryRunStubRoutes({
-        page: web.page, apiOrigin, fetchImpl, stub, documentId, rowId: row.id, wireResponses,
+        page: web.page, frameAiOrigin: webOrigin, fetchImpl, stub, documentId, rowId: row.id, wireResponses,
       });
     }
     const sel = moduleFrameSelectors(row.module);
@@ -377,7 +377,7 @@ export async function runWebMatrixRow(runEntry, {
       || saveIntentsDuringAiTurn > 0
       || wireResponses.some((res) => (res?.toolCallNames?.length ?? 0) > 0);
     const usage = evaluateWireObservation({
-      requests: wireRequests, responses: wireResponses, aiPaths, apiOrigin, sawTurnEffects,
+      requests: wireRequests, responses: wireResponses, aiPaths, frameAiOrigin: webOrigin, sawTurnEffects,
     });
     if (usage.unobserved) {
       return {
