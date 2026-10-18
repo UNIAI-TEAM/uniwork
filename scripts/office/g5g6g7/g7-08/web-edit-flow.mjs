@@ -169,7 +169,7 @@ export async function runEditStage(ctx, io = realIo) {
   }
   if (!undoRedo.aiChangeVisibleBeforeSave) {
     // The AI turn left no edit to undo: that is the turn's result, not a broken undo.
-    return { stop: failVerdict('ai_change_not_visible_before_save', { undoRedo }) };
+    return { stop: failVerdict('ai_change_not_visible_before_save', { undoRedo, aiTurn: ctx.aiTurn ?? null }) };
   }
   if (!undoRedo.aiChangeUndoableBeforeSave) {
     // The change did not survive undo then redo; saving now would write the wrong document.

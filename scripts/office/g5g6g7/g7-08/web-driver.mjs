@@ -484,6 +484,7 @@ export async function runWebMatrixRow(runEntry, {
       editStage = await runEditStage({
         row, page: web.page, frame, sel, apiOrigin, fetchImpl, documentId, token,
         timeoutMs, textBeforeTurn, headAfterAiTurn, versionsAfterAiTurn, commitBases,
+        aiTurn: { executedTools, stepTitles, panelFootprintText, replyText },
       });
       if (editStage.stop?.missingSelector) {
         return { ...missingSelectorVerdict(editStage.stop.missingSelector, { rowId: row.id }), documentId, usage, preconditions, screenshotPath };
