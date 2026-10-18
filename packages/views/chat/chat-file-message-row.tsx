@@ -135,7 +135,13 @@ function ChatFileMessageRowImpl({
                     />
                   </div>
                 ) : null}
-                <ChatFileAttachment workspaceId={workspaceId} roomId={roomId} message={message} isOwn={isOwn} />
+                <ChatFileAttachment
+                  workspaceId={workspaceId}
+                  roomId={roomId}
+                  message={message}
+                  isOwn={isOwn}
+                  sender={{ userId: message.sender, name: senderLabel, avatarUrl: senderAvatarUrl, ts: message.ts }}
+                />
                 <div className={cn(edgeToEdge ? "px-2 pb-0.5" : undefined)}>
                   <ChatMessageMeta message={message} isOwn={isOwn} showTime />
                 </div>
