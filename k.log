@@ -1,0 +1,844 @@
+$ REQUIRE_XLSX_GATEWAY=1 pnpm test; rc=$?; echo; echo "CI_UNIT_EXIT=$rc"
+
+> uniwork@ test /workspace
+> turbo test --filter=!@uniwork/e2e
+
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running test in 10 packages
+   • Remote caching disabled
+
+@uniwork/core:test: cache miss, executing 37737233b9ee311a
+@uniwork/ui:test: cache miss, executing 95a22a18e999e016
+@uniwork/office-contracts:test: cache miss, executing 33cbffe7843cacbb
+@uniwork/office-engine-app:test: cache miss, executing 86cab0908c70606d
+@uniwork/views:test: cache miss, executing 9e11bb887fa8eee7
+@uniwork/office-engine:test: cache miss, executing 3d17438a4702c022
+@uniwork/web:test: cache miss, executing 27fbd753e88333f8
+@uniwork/ui:test: 
+@uniwork/ui:test: > @uniwork/ui@0.0.0 test /workspace/packages/ui
+@uniwork/ui:test: > vitest run --coverage
+@uniwork/ui:test: 
+@uniwork/views:test: 
+@uniwork/views:test: > @uniwork/views@0.0.0 test /workspace/packages/views
+@uniwork/views:test: > vitest run --coverage
+@uniwork/views:test: 
+@uniwork/office-contracts:test: 
+@uniwork/office-contracts:test: > @uniwork/office-contracts@0.0.0 test /workspace/packages/office-contracts
+@uniwork/office-contracts:test: > vitest run --passWithNoTests=false --coverage
+@uniwork/office-contracts:test: 
+@uniwork/core:test: 
+@uniwork/core:test: > @uniwork/core@0.0.0 test /workspace/packages/core
+@uniwork/core:test: > vitest run --coverage
+@uniwork/core:test: 
+@uniwork/web:test: 
+@uniwork/web:test: > @uniwork/web@0.0.0 test /workspace/apps/web
+@uniwork/web:test: > vitest run --passWithNoTests=false --coverage
+@uniwork/web:test: 
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test: > @uniwork/office-engine@0.0.0 test /workspace/packages/office-engine
+@uniwork/office-engine:test: > vitest run --passWithNoTests=false --coverage
+@uniwork/office-engine:test: 
+@uniwork/office-engine-app:test: 
+@uniwork/office-engine-app:test: > @uniwork/office-engine-app@0.0.0 test /workspace/apps/office-engine
+@uniwork/office-engine-app:test: > vitest run --passWithNoTests=false --coverage
+@uniwork/office-engine-app:test: 
+@uniwork/office-contracts:test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@uniwork/office-contracts:test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:2:36). Add the file extension
+@uniwork/office-contracts:test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:3:35). Add the file extension
+@uniwork/office-contracts:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/office-contracts:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/office-contracts:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@uniwork/office-engine:test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@uniwork/office-engine:test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:2:36). Add the file extension
+@uniwork/office-engine:test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:3:35). Add the file extension
+@uniwork/office-engine:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/office-engine:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/office-engine:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@uniwork/web:test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@uniwork/web:test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+@uniwork/web:test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+@uniwork/web:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/web:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/web:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@uniwork/office-engine-app:test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@uniwork/office-engine-app:test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:2:36). Add the file extension
+@uniwork/office-engine-app:test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:3:35). Add the file extension
+@uniwork/office-engine-app:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/office-engine-app:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/office-engine-app:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@uniwork/views:test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@uniwork/views:test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+@uniwork/views:test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+@uniwork/views:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/views:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/views:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@uniwork/ui:test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@uniwork/ui:test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+@uniwork/ui:test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+@uniwork/ui:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/ui:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/ui:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@uniwork/views:test: 
+@uniwork/views:test:  RUN  v4.1.11 /workspace/packages/views
+@uniwork/views:test:       Coverage enabled with v8
+@uniwork/views:test: 
+@uniwork/office-engine-app:test: 
+@uniwork/office-engine-app:test:  RUN  v4.1.11 /workspace/apps/office-engine
+@uniwork/office-engine-app:test:       Coverage enabled with v8
+@uniwork/office-engine-app:test: 
+@uniwork/office-contracts:test: 
+@uniwork/office-contracts:test:  RUN  v4.1.11 /workspace/packages/office-contracts
+@uniwork/office-contracts:test:       Coverage enabled with v8
+@uniwork/office-contracts:test: 
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  RUN  v4.1.11 /workspace/packages/office-engine
+@uniwork/office-engine:test:       Coverage enabled with v8
+@uniwork/office-engine:test: 
+@uniwork/ui:test: 
+@uniwork/ui:test:  RUN  v4.1.11 /workspace/packages/ui
+@uniwork/ui:test:       Coverage enabled with v8
+@uniwork/ui:test: 
+@uniwork/core:test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@uniwork/core:test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+@uniwork/core:test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+@uniwork/core:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/core:test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+@uniwork/core:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+@uniwork/web:test: 
+@uniwork/web:test:  RUN  v4.1.11 /workspace/apps/web
+@uniwork/web:test:       Coverage enabled with v8
+@uniwork/web:test: 
+@uniwork/core:test: 
+@uniwork/core:test:  RUN  v4.1.11 /workspace/packages/core
+@uniwork/core:test:       Coverage enabled with v8
+@uniwork/core:test: 
+@uniwork/office-contracts:test:  ✓ src/results.test.ts (16 tests) 36ms
+@uniwork/office-contracts:test:  ✓ src/host-adapter.test.ts (7 tests) 31ms
+@uniwork/office-engine-app:test: office-engine bundle written to dist/
+@uniwork/office-engine-app:test: {"fixture":"fresh-production-worker","revision":"212c49fb0bb47a879a2ff54f8af99dec528c6aaf","startedAt":"2026-10-18T12:05:31.303Z","finishedAt":"2026-10-18T12:05:32.367Z","node":"v22.14.0","artifacts":[{"path":"/workspace/apps/office-engine/dist/worker.mjs","bytes":1940,"sha256":"298fb362ee92f1b6293894664b306f6279b2cc18fc613023083575344e3c11c6"},{"path":"/workspace/apps/office-engine/dist/worker-run.mjs","bytes":2498202,"sha256":"7b00632032f34adb0e0794ae25c6cde909e637c4cf70d58b70962a24c9c3d53f"}]}
+@uniwork/office-contracts:test:  ✓ src/contract.test.ts (22 tests) 111ms
+@uniwork/office-contracts:test: 
+@uniwork/office-contracts:test:  Test Files  3 passed (3)
+@uniwork/office-contracts:test:       Tests  45 passed (45)
+@uniwork/office-contracts:test:    Start at  12:05:31
+@uniwork/office-contracts:test:    Duration  1.52s (transform 747ms, setup 0ms, import 1.95s, tests 179ms, environment 1ms)
+@uniwork/office-contracts:test: 
+@uniwork/office-contracts:test:  % Coverage report from v8
+@uniwork/office-contracts:test: 
+@uniwork/office-contracts:test: =============================== Coverage summary ===============================
+@uniwork/office-contracts:test: Statements   : 76.59% ( 252/329 )
+@uniwork/office-contracts:test: Branches     : 69.19% ( 164/237 )
+@uniwork/office-contracts:test: Functions    : 69.23% ( 27/39 )
+@uniwork/office-contracts:test: Lines        : 79.15% ( 243/307 )
+@uniwork/office-contracts:test: ================================================================================
+@uniwork/office-engine:test:  ✓ src/pdf/ops-parse.test.ts (39 tests) 131ms
+@uniwork/office-engine:test:  ✓ src/node/convert/xls-reading.test.ts (37 tests) 374ms
+@uniwork/ui:test:  ✓ lib/accent.contrast.test.ts (57 tests) 59ms
+@uniwork/ui:test:  ✓ styles/tokens.test.ts (35 tests) 192ms
+@uniwork/web:test: stderr | platform/office-frame/frame-install.test.ts > frame protocol pin (X-02 protocolSha256) > refuses a hand-edited pin hash, though the manifest digest still matches
+@uniwork/web:test: office-frame: 0.1.0-abc1234 is installed but does not verify (frame protocol differs from the pin (endpoint); re-pin deliberately with --pin); this frame is not offered
+@uniwork/web:test: 
+@uniwork/web:test: stderr | platform/office-frame/frame-install.test.ts > offerableFrameVersion > offers the pinned version only when it is installed and verifies
+@uniwork/web:test: office-frame: 0.1.0-abc1234 is installed but does not verify (index.html: sha256 differs from the manifest); this frame is not offered
+@uniwork/web:test: 
+@uniwork/web:test: tar: Removing leading `../' from member names
+@uniwork/ui:test:  ✓ brand/logo.test.tsx (15 tests) 617ms
+@uniwork/web:test:  ✓ platform/office-frame/frame-install.test.ts (29 tests) 569ms
+@uniwork/core:test:  ✓ documents/chunked-upload/engine.test.ts (19 tests) 321ms
+@uniwork/core:test:  ✓ office/docs-frame-api.test.ts (53 tests) 743ms
+@uniwork/office-engine:test:  ✓ test/xlsx-model.test.ts (26 tests) 1722ms
+@uniwork/office-engine:test:      ✓ persists value and OOXML style through fresh reopen: value_then_style  784ms
+@uniwork/office-engine:test:      ✓ persists value and OOXML style through fresh reopen: style_then_value  396ms
+@uniwork/office-engine:test:      ✓ persists a value plus the currency preset format through a fresh reopen  314ms
+@uniwork/ui:test:  ✓ styles/base.test.ts (8 tests) 33ms
+@uniwork/ui:test: 12:05:39 PM [vite] (client) warning: invalid import "./${name}". A file extension must be included in the static part of the import. For example: import(`./foo/${bar}.js`).
+@uniwork/ui:test:   Plugin: vite:dynamic-import-vars
+@uniwork/ui:test:   File: /workspace/packages/ui/components/ui/render-smoke.test.tsx
+@uniwork/office-engine:test:  ✓ test/xlsx-shared-formulas.test.ts (10 tests) 4335ms
+@uniwork/office-engine:test:      ✓ opens the fixture with followers as plain literals and masters as formulas  1733ms
+@uniwork/office-engine:test:      ✓ a. refreshes master and every follower on the plain-cell save path  380ms
+@uniwork/office-engine:test:      ✓ b. refreshes followers at their shifted coordinates after insert_rows  433ms
+@uniwork/office-engine:test:      ✓ c. refreshes followers under the new name after rename_sheet + an edit  360ms
+@uniwork/office-engine:test:      ✓ c2. refreshes followers after reorder_sheet  373ms
+@uniwork/web:test:  ✓ platform/office-frame/frame-bundle.test.ts (40 tests) 107ms
+@uniwork/ui:test:  ✓ components/ui/data-table-reorder.test.tsx (5 tests) 1637ms
+@uniwork/ui:test:      ✓ renders no grip when onColumnReorder is absent  356ms
+@uniwork/ui:test:      ✓ renders a grip only for reorderable columns  425ms
+@uniwork/ui:test:      ✓ reorders columns from the keyboard: pick up, move right, drop  540ms
+@uniwork/office-engine-app:test:  ✓ src/worker/docs-pdf.test.ts (30 tests | 1 skipped) 4618ms
+@uniwork/office-engine-app:test:      ✓ times out a renderer that never reports  332ms
+@uniwork/office-engine-app:test:      ✓ writes the rendered PDF and a result naming the renderer  2163ms
+@uniwork/core:test:  ✓ api/endpoints/documents-collections.test.ts (125 tests) 478ms
+@uniwork/office-engine:test:  ✓ test/xlsx-visuals-file.test.ts (19 tests) 6259ms
+@uniwork/office-engine:test:      ✓ lists the file's chart, picture, shape and oneCellAnchor picture in drawing order  1907ms
+@uniwork/office-engine:test:      ✓ moves and deletes file visuals with a session insert, and a visual that save wrote is edited by its next index  1015ms
+@uniwork/office-engine:test:      ✓ remove then restore keeps the picture at the restored anchor  458ms
+@uniwork/office-engine:test:      ✓ remove, restore, remove saves without the picture  402ms
+@uniwork/office-engine:test:      ✓ reads the chart, picture and shape Excel wrote  319ms
+@uniwork/office-engine:test:      ✓ moves, deletes and inserts on Excel's drawing, then edits the visual that save wrote  1094ms
+@uniwork/office-engine:test:      ✓ rows inserted above the chart move it in the saved file, and so do pending moves and inserts  926ms
+@uniwork/office-engine:test:  ✓ test/xlsx-visuals.test.ts (15 tests) 1811ms
+@uniwork/office-engine:test:      ✓ writes chart, picture and shape parts a re-read of the saved bytes finds  984ms
+@uniwork/office-engine:test:      ✓ keeps formulas and refreshes their cached values in a save that also carries a chart  430ms
+@uniwork/ui:test:  ✓ lib/accent.test.ts (6 tests) 90ms
+@uniwork/core:test:  ✓ api/endpoints/documents.test.ts (106 tests) 449ms
+@uniwork/core:test:  ✓ realtime/use-realtime-sync.test.tsx (127 tests) 1359ms
+@uniwork/web:test:  ✓ platform/office-frame/frame-headers.test.ts (12 tests) 61ms
+@uniwork/office-engine-app:test:  ✓ src/xlsx-jobs.test.ts (11 tests | 3 skipped) 7683ms
+@uniwork/office-engine-app:test:      ✓ open:xlsx probes kitchen-sink into a document-model summary  1344ms
+@uniwork/office-engine-app:test:      ✓ serialize:xlsx passes committed bytes through with a preserved-parts warning  1190ms
+@uniwork/office-engine-app:test:      ✓ edit:xlsx on a formula-free workbook completes without the sidecar  1350ms
+@uniwork/office-engine-app:test:      ✓ edit:xlsx on a formula-bearing workbook refuses typed — no sidecar staged  1057ms
+@uniwork/office-engine-app:test:      ✓ edit:xlsx with a corrupt zip fails typed, original untouched  891ms
+@uniwork/office-engine-app:test:      ✓ an unbound xlsx op vocabulary fails as unsupported_operation  1106ms
+@uniwork/ui:test:  ✓ components/ui/button.test.tsx (8 tests) 703ms
+@uniwork/ui:test:      ✓ renders children and respects variant class  389ms
+@uniwork/office-engine:test:  ✓ test/xlsx-cf-dv.test.ts (13 tests) 1700ms
+@uniwork/office-engine:test:      ✓ writes <conditionalFormatting> and <dataValidations> and the reopened model shows both  508ms
+@uniwork/ui:test:  ✓ hooks/use-text-size.test.ts (7 tests) 165ms
+@uniwork/office-engine:test:  ✓ src/pdf/text-edits.test.ts (32 tests) 1819ms
+@uniwork/office-engine:test:      ✓ re-encodes in place when every glyph already exists in the run's face  438ms
+@uniwork/office-engine:test:  ✓ test/xlsx-structural.test.ts (12 tests) 4268ms
+@uniwork/office-engine:test:      ✓ insert_rows shifts values, rewrites formulas and moves ranged features  988ms
+@uniwork/office-engine:test:      ✓ insert_cols shifts cells and formula references off the column axis  366ms
+@uniwork/office-engine:test:      ✓ remove_rows renumbers rows, drops the removed one and shrinks ranged features  335ms
+@uniwork/office-engine:test:      ✓ Nhóm over a file's row group, then its undo, keeps the file's groups through save and reopen (review-design F2)  557ms
+@uniwork/office-engine:test:      ✓ Hide Detail on a column group saves collapsed=1 on the column after it; Show Detail clears it  368ms
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > waits as long as the frame's conflict dialog stays open, and maps Overwrite to saved
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > pauses the watchdog while the frame runs api.save for this Save, however long it takes
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > reads Cancel in the frame's dialog as unsaved edits, not an error
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > reads Reload latest (ok without a new version) as ready
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/core:test:  ✓ documents/edit-lock-session.test.ts (42 tests) 251ms
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > reads a text module that reloads itself after Reload latest as ready, not unsaved
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > reports a unauthorized answer (HTTP 401) as an error
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > reports a forbidden answer (HTTP 403) as an error
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > reports a not_found answer (HTTP 410) as an error
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > reports a internal answer (HTTP 503) as an error
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/office-engine:test:  ✓ test/xlsx-ops.test.ts (17 tests) 128ms
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save the page sends to the frame > holds a navigate save through the frame's conflict dialog until the frame answers
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > settles the Save on a fatal frame error: failed with that error, one onError, no timer left
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > settles the Save when a new frame instance fails its handshake
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > does not re-arm the watchdog when the frame's api.save ends after the Save was answered
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/ui:test:  ✓ hooks/use-accent.test.ts (7 tests) 210ms
+@uniwork/core:test:  ✓ chat/realtime-cache.test.ts (35 tests) 289ms
+@uniwork/ui:test:  ✓ lib/text-size.test.ts (7 tests) 70ms
+@uniwork/office-engine:test:  ✓ src/pdf/text-edits-built.test.ts (14 tests) 1647ms
+@uniwork/office-engine:test:      ✓ re-edits the embedded subset (no system font involved)  666ms
+@uniwork/web:test:  ✓ platform/auth/connect-consent-page.test.tsx (14 tests) 403ms
+@uniwork/core:test:  ✓ documents/hooks-collections.test.tsx (29 tests) 1541ms
+@uniwork/office-engine:test:  ✓ test/xlsx-sheets.test.ts (14 tests) 2339ms
+@uniwork/office-engine:test:      ✓ renames a sheet and writes a cell into it in one envelope, rewriting cross-sheet refs  811ms
+@uniwork/office-engine:test:      ✓ duplicates a sheet with a session edit without losing the source content  310ms
+@uniwork/office-engine:test:      ✓ hides and unhides a sheet through two saves  353ms
+@uniwork/web:test: stderr | features/landing/office-page.test.tsx > the Office page > serves a light and a dark screenshot per editor and language, and drops a frame whose image fails
+@uniwork/web:test: An update to OfficeShot inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to OfficeEditorSummary inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to OfficeEditorTabs inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to OfficeConnection inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to Faq inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to VariantLabel inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to VariantLabel inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to VariantLabel inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to VariantLabel inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to OfficeDownloadColumns inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to OfficePage inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: 
+@uniwork/web:test:  ✓ features/landing/office-page.test.tsx (14 tests) 7420ms
+@uniwork/web:test:      ✓ keeps one editor selector and the selected example, without a second use-case grid  1045ms
+@uniwork/web:test:      ✓ offers every published variant in the catalogue, without guessed download links  495ms
+@uniwork/web:test:      ✓ keeps the page usable when no installers are published  302ms
+@uniwork/web:test:      ✓ degrades to the same state when the config answer drifts  370ms
+@uniwork/web:test:      ✓ changes the example, capabilities and media together when an editor is selected  540ms
+@uniwork/web:test:      ✓ keeps storage, connectivity and AI routing facts accessible in vi  665ms
+@uniwork/web:test:      ✓ keeps storage, connectivity and AI routing facts accessible in en  465ms
+@uniwork/web:test:      ✓ keeps the catalogue's loading shell until the config arrives  400ms
+@uniwork/web:test:      ✓ recovers the installer catalogue through its visible retry  355ms
+@uniwork/web:test:      ✓ keeps editor details available after a failed image, then recovers on tab change  440ms
+@uniwork/web:test:      ✓ leads with the promise, a trial button to the download block and a demo request, above the editor preview  339ms
+@uniwork/web:test:      ✓ lists every published Linux format and leaves out the one that is not published  588ms
+@uniwork/web:test:      ✓ serves a light and a dark screenshot per editor and language, and drops a frame whose image fails  1159ms
+@uniwork/core:test:  ✓ tasks/table-cache-patch.test.ts (35 tests) 127ms
+@uniwork/office-engine-app:test:  ✓ src/sandbox.test.ts (8 tests | 7 skipped) 8195ms
+@uniwork/office-engine-app:test:      ✓ serves a later job after N > maxWorkers consecutive failing jobs  8194ms
+@uniwork/office-engine:test:  ✓ test/xlsx-render-model.test.ts (11 tests | 1 skipped) 1123ms
+@uniwork/ui:test:  ✓ lib/utils.test.ts (13 tests) 53ms
+@uniwork/office-engine:test:  ✓ src/pdf/pipeline.test.ts (30 tests) 2498ms
+@uniwork/office-engine:test:      ✓ reports page count, text layer and the OCR refusal  369ms
+@uniwork/office-engine:test:      ✓ replaces text, verifies it, and leaves the original bytes untouched  508ms
+@uniwork/office-engine:test:      ✓ renders differently before and after a text edit  642ms
+@uniwork/office-engine:test:  ✓ src/pdf/page-ops.test.ts (28 tests) 950ms
+@uniwork/office-engine:test:      ✓ inserts a blank page that copies the neighbor's size and rotation  377ms
+@uniwork/web:test:  ✓ platform/office-frame/desktop-handoff.test.ts (11 tests) 81ms
+@uniwork/office-engine-app:test:  ✓ src/config.test.ts (11 tests) 67ms
+@uniwork/core:test:  ✓ api/endpoints/chat.test.ts (65 tests) 297ms
+@uniwork/core:test:  ✓ api/endpoints/email-hub.test.ts (36 tests) 323ms
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: close_requested (UNI-1876, UNI-1901) > ignores close_requested while a save, saveAs, saveCopy, or page Save is in flight, while the frame modal is open, or while saveBlocked is open
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: close_requested (UNI-1876, UNI-1901) > ignores close_requested while the first-save name dialog is open, and again while the named save is pending (UNI-1901)
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/office-engine:test:  ✓ src/pdf/page-box.test.ts (17 tests) 508ms
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: first-save naming (UNI-1847, SAVE-01) > a page Save with an answer of true asks the frame to save as usual, then skips the dialog
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/office-engine:test:  ✓ src/pdf/notes.test.ts (10 tests) 984ms
+@uniwork/office-engine:test:      ✓ writes a Text note with Contents and author without rewriting page content  451ms
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: first-save naming (UNI-1847, SAVE-01) > a page Save with an answer of true asks the frame to save as usual, then skips the dialog
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: first-save naming (UNI-1847, SAVE-01) > a frame api.save on a still-unnamed blank is declined at once (no wait on its 120 s timeout), then the submit re-issues the save
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/ui:test:  ✓ components/ui/radius-contract.test.tsx (3 tests) 891ms
+@uniwork/ui:test:      ✓ keeps default controls on the 10px control radius  730ms
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: first-save naming (UNI-1847, SAVE-01) > a header Save and a frame Ctrl+S sharing one dialog send exactly one save once it is named
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: first-save naming (UNI-1847, SAVE-01) > needsName false (named upload, version 2, page) never opens the dialog on either path
+@uniwork/views:test: The current testing environment is not configured to support act(...)
+@uniwork/views:test: 
+@uniwork/ui:test: Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+@uniwork/ui:test:     at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+@uniwork/ui:test:     at HTMLCanvasElementImpl.getContext (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+@uniwork/ui:test:     at HTMLCanvasElement.getContext (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+@uniwork/ui:test:     at /workspace/packages/ui/components/ui/dot-sphere.tsx:183:24
+@uniwork/ui:test:     at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+@uniwork/ui:test:     at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+@uniwork/ui:test:     at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+@uniwork/ui:test:     at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+@uniwork/ui:test:     at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+@uniwork/ui:test:     at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+@uniwork/views:test:  ✓ office/frame/use-docs-frame-session.test.tsx (66 tests) 10529ms
+@uniwork/views:test:      ✓ waits as long as the frame's conflict dialog stays open, and maps Overwrite to saved  393ms
+@uniwork/views:test:      ✓ grants saveCopy in init.capabilities for editable or locked-out docs with api.saveCopy, and omits it for source, readonly, viewer, or non-docs  590ms
+@uniwork/office-engine:test:  ✓ test/xlsx-cf-dv-x14.test.ts (11 tests) 2950ms
+@uniwork/office-engine:test:      ✓ counts every classic rule element, including the ones the parser and the loader skip  362ms
+@uniwork/office-engine:test:      ✓ keeps the data bar byte for byte through a cell edit, and moves both halves on a row insert  399ms
+@uniwork/office-engine:test:      ✓ names the dropped rule sets in the one-shot job reason, and the trimmed op list then saves  389ms
+@uniwork/office-engine:test:  ✓ src/pdf/image-edits.test.ts (20 tests) 937ms
+@uniwork/core:test:  ✓ documents/hooks-sharing.test.tsx (14 tests) 915ms
+@uniwork/ui:test:  ✓ components/ui/data-table-grid.test.tsx (2 tests) 411ms
+@uniwork/ui:test:      ✓ draws a vertical rule between every cell by default  343ms
+@uniwork/core:test:  ✓ api/endpoints/document-comments.test.ts (28 tests) 253ms
+@uniwork/office-engine:test:  ✓ src/pdf/font-resolve.test.ts (37 tests) 866ms
+@uniwork/office-engine:test:      ✓ refuses text no available font can draw  322ms
+@uniwork/ui:test:  ✓ components/ui/render-smoke.test.tsx (63 tests) 17312ms
+@uniwork/ui:test:      ✓ accordion  951ms
+@uniwork/ui:test:      ✓ alert-dialog  548ms
+@uniwork/ui:test:      ✓ calendar  9098ms
+@uniwork/ui:test:      ✓ chart  1721ms
+@uniwork/ui:test:      ✓ combobox  1786ms
+@uniwork/ui:test:      ✓ command  310ms
+@uniwork/ui:test:      ✓ slider  303ms
+@uniwork/ui:test:  ✓ components/ui/button.outline.test.tsx (4 tests) 372ms
+@uniwork/ui:test:      ✓ uses the input border token, not the panel hairline  370ms
+@uniwork/office-engine:test:  ✓ test/xlsx-recalc-after-assemble.test.ts (6 tests) 2970ms
+@uniwork/office-engine:test:      ✓ refreshes every formula cache after a sort, new formula, add + rename sheet save  1273ms
+@uniwork/office-engine:test:      ✓ gives a shifted formula the value of its NEW coordinate after insert_rows  456ms
+@uniwork/office-engine:test:      ✓ refreshes both saves of a chained session; the second takes the single pass  530ms
+@uniwork/office-engine:test:      ✓ keeps the file's cached value and warns when the engine leaves a formula unanswered  315ms
+@uniwork/web:test:  ✓ features/landing/office-header.test.tsx (5 tests) 2186ms
+@uniwork/web:test:      ✓ is a directory group between Solutions and Learn, followed by Pricing and Changelog  1066ms
+@uniwork/web:test:      ✓ is in the mobile menu in the same place, and closes the menu when followed  524ms
+@uniwork/core:test:  ✓ tasks/hooks-suite.test.tsx (20 tests) 2498ms
+@uniwork/core:test:        ✓ a refetch cancelled by a newer invalidate stops instead of asking for its remaining pages  406ms
+@uniwork/core:test:        ✓ a refetch cancelled by a newer invalidate stops instead of asking for its remaining pages  399ms
+@uniwork/ui:test:  ✓ components/ui/stepper.aria.test.tsx (4 tests) 417ms
+@uniwork/ui:test:      ✓ keeps the tablist and its orientation by default  345ms
+@uniwork/core:test:  ✓ api/endpoints/office-frame.test.ts (20 tests) 254ms
+@uniwork/office-engine:test:  ✓ test/xlsx-adapter.test.ts (17 tests) 178ms
+@uniwork/core:test:  ✓ api/endpoints/documents-sharing.test.ts (78 tests) 382ms
+@uniwork/office-engine:test:  ✓ test/xlsx-links-notes.test.ts (10 tests) 2107ms
+@uniwork/office-engine:test:      ✓ writes an external hyperlink and its rels, and the file reopens  778ms
+@uniwork/office-engine:test:      ✓ writes an internal anchor without a rel and removes a link with null  447ms
+@uniwork/office-engine:test:      ✓ writes a note set (comments + VML + legacyDrawing) and the file reopens  324ms
+@uniwork/office-engine:test:      ✓ removes every note with an empty snapshot (two-save chain)  470ms
+@uniwork/ui:test:  ✓ components/ui/alert.test.tsx (17 tests) 677ms
+@uniwork/ui:test:      ✓ is an alert by default and takes the role a caller passes  353ms
+@uniwork/office-engine:test:  ✓ test/xlsx-visuals-budget.test.ts (12 tests) 4304ms
+@uniwork/office-engine:test:      ✓ lists the first 1,000 anchors and one trailing slot that carries the last index  1786ms
+@uniwork/office-engine:test:      ✓ V1: readEntriesBase64 stops at the per-entry cap and the workbook budget, in order  806ms
+@uniwork/office-engine:test:      ✓ V4: a save that moves or deletes a one-cell anchor is refused  671ms
+@uniwork/office-engine:test:      ✓ V8: rows deleted over a whole visual collapse it to the band start on both paths, as Excel does  979ms
+@uniwork/office-engine:test:  ✓ src/node/convert/convert.test.ts (14 tests) 117ms
+@uniwork/ui:test:  ✓ components/ui/button.destructive.test.tsx (17 tests) 71ms
+@uniwork/web:test:  ✓ platform/office-frame/desktop-open-props.test.ts (4 tests) 146ms
+@uniwork/ui:test:  ✓ hooks/use-media-query.test.tsx (1 test) 216ms
+@uniwork/office-engine:test:  ✓ src/pdf/sfnt.test.ts (19 tests) 211ms
+@uniwork/core:test:  ✓ documents/save-state.test.ts (20 tests) 194ms
+@uniwork/core:test:  ✓ tasks/realtime-task-patch.test.ts (41 tests) 142ms
+@uniwork/web:test: stderr | platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > opens the module's frame on the organization's flag, with its version and the desktop wiring
+@uniwork/web:test: An update to NavigationProvider inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to NavigationProvider inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: 
+@uniwork/web:test: stderr | platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > opens a .docx in the Docs frame and follows Save as to the copy
+@uniwork/web:test: An update to NavigationProvider inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: An update to NavigationProvider inside a test was not wrapped in act(...).
+@uniwork/web:test: 
+@uniwork/web:test: When testing, code that causes React state updates should be wrapped into act(...):
+@uniwork/web:test: 
+@uniwork/web:test: act(() => {
+@uniwork/web:test:   /* fire events that update state */
+@uniwork/web:test: });
+@uniwork/web:test: /* assert on the output */
+@uniwork/web:test: 
+@uniwork/web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+@uniwork/web:test: 
+@uniwork/office-engine:test:  ✓ test/xlsx-filter.test.ts (7 tests) 1457ms
+@uniwork/office-engine:test:      ✓ set_filter writes the autoFilter and hidden rows, and the file reopens  492ms
+@uniwork/office-engine:test:      ✓ clear_filter removes the autoFilter and unhides its rows (two-save chain)  663ms
+@uniwork/core:test:  ✓ api/endpoints/documents-upload-sessions.test.ts (14 tests) 139ms
+@uniwork/ui:test:  ✓ markdown/sanitize.test.ts (6 tests) 29ms
+@uniwork/office-engine:test:  ✓ src/pdf/forms.test.ts (18 tests) 3560ms
+@uniwork/office-engine:test:      ✓ round-trips every WinAnsi field kind through edit → save → reopen  522ms
+@uniwork/office-engine:test:      ✓ unchecks a checked box and reports the capability in the probe  513ms
+@uniwork/office-engine:test:      ✓ preserves unrelated annotations when filling  307ms
+@uniwork/web:test:  ✓ features/landing/animation/mascot-renderer.test.ts (5 tests) 62ms
+@uniwork/office-engine-app:test:  ✓ src/pdf-jobs.test.ts (9 tests) 11093ms
+@uniwork/office-engine-app:test:      ✓ edit:pdf applies a text edit and delivers verified bytes to the target  2054ms
+@uniwork/office-engine-app:test:      ✓ serialize:pdf passes the committed bytes through unchanged  1402ms
+@uniwork/office-engine-app:test:      ✓ open:pdf returns a probe document with the OCR refusal  1407ms
+@uniwork/office-engine-app:test:      ✓ fails encrypted input with a typed engine error, original untouched  979ms
+@uniwork/office-engine-app:test:      ✓ fails a corrupt pdf with a typed engine error  985ms
+@uniwork/office-engine-app:test:      ✓ fails an unbound pdf op vocabulary as unsupported_operation  952ms
+@uniwork/office-engine-app:test:      ✓ fails a bound pdf op with a malformed payload as engine_result_invalid  1292ms
+@uniwork/office-engine-app:test:      ✓ reports a skipped (stale) text edit as a warning, not a failure  1120ms
+@uniwork/office-engine:test:  ✓ test/xlsx-render-model-tables.test.ts (7 tests) 87ms
+@uniwork/web:test:  ✓ platform/office-frame/module-frame-host.test.tsx (18 tests) 2006ms
+@uniwork/web:test:      ✓ says the web editor is not set up, with open-in-app and download, when the module has no installed bundle  469ms
+@uniwork/web:test:        ✓ keeps the primary button on the launch-ticket path, and the installer prompt when the app is missing  574ms
+@uniwork/office-engine:test:  ✓ test/xlsx-tables.test.ts (9 tests) 1332ms
+@uniwork/office-engine:test:      ✓ writes a table part, worksheet tableParts and the relationship, and the file reopens  821ms
+@uniwork/ui:test:  ✓ components/ui/data-table-scroll.test.tsx (2 tests) 379ms
+@uniwork/ui:test:      ✓ scrolls back to the top when the key changes  309ms
+@uniwork/office-engine:test:  ✓ src/pdf/text-match.test.ts (33 tests) 67ms
+@uniwork/office-engine:test:  ✓ test/xlsx-render-model-styles.test.ts (15 tests) 33ms
+@uniwork/core:test:  ✓ api/endpoints/meetings.test.ts (22 tests) 242ms
+@uniwork/ui:test:  ✓ components/common/icon-tile.test.tsx (4 tests) 250ms
+@uniwork/office-engine-app:test:  ✓ src/worker/handlers.test.ts (9 tests) 626ms
+@uniwork/office-engine-app:test:      ✓ fails typed as upload_bounds when the encoded model passes 16 MiB  474ms
+@uniwork/ui:test:  ✓ lib/motion.test.ts (2 tests) 20ms
+@uniwork/core:test:  ✓ documents/hooks-edit-lock.test.tsx (12 tests) 1357ms
+@uniwork/office-engine:test:  ✓ test/xlsx-page-setup.test.ts (9 tests) 1612ms
+@uniwork/office-engine:test:      ✓ writes orientation, margins, print area/titles and breaks, and the file reopens  610ms
+@uniwork/office-engine:test:      ✓ clears a print area and titles with null (two-save chain)  424ms
+@uniwork/web:test:  ✓ platform/office-frame/frame-source.test.ts (8 tests) 172ms
+@uniwork/web:test:  ✓ platform/office-frame/document-host.test.tsx (10 tests) 431ms
+@uniwork/office-engine:test:  ✓ test/xlsx-merge.test.ts (8 tests) 1850ms
+@uniwork/office-engine:test:      ✓ merge then unmerge round-trips through one file (two-save chain)  868ms
+@uniwork/office-engine:test:      ✓ shifts a merged range when a later insert moves the sheet, with formula caches kept  368ms
+@uniwork/core:test:  ✓ tasks/hooks.test.tsx (10 tests) 1144ms
+@uniwork/web:test:  ✓ platform/office-frame/module-frame-boot-failure.test.tsx (7 tests) 1641ms
+@uniwork/web:test:      ✓ docs shows the load failure with Retry and open-in-app instead of staying on the loading skeleton  548ms
+@uniwork/ui:test:  ✓ components/ui/button.inactive.test.tsx (3 tests) 419ms
+@uniwork/ui:test:      ✓ vẫn nhận được tiêu điểm  335ms
+@uniwork/office-engine:test:  ✓ src/pdf/font-locate.test.ts (13 tests) 517ms
+@uniwork/ui:test:  ✓ deps.test.ts (1 test) 3ms
+@uniwork/office-engine:test:  ✓ test/xlsx-sidecar.test.ts (9 tests) 2410ms
+@uniwork/office-engine:test:      ✓ a silent sidecar hits the request timeout  526ms
+@uniwork/office-engine:test:      ✓ a timeout kills the child AND the port — no wedged process survives  436ms
+@uniwork/office-engine:test:      ✓ a response line over the bound => engine_result_invalid, terminal  705ms
+@uniwork/office-engine:test:  ✓ test/xlsx-protect-names.test.ts (8 tests) 1435ms
+@uniwork/office-engine:test:      ✓ writes <sheetProtection> and reopens  775ms
+@uniwork/office-engine:test:      ✓ removes <sheetProtection> when unprotected (two-save chain)  434ms
+@uniwork/core:test:  ✓ office/docs-frame-protocol.test.ts (29 tests) 63ms
+@uniwork/office-engine:test:  ✓ test/xlsx-vendor.test.ts (8 tests) 41ms
+@uniwork/ui:test:  ✓ components/ui/command.dialog.test.tsx (2 tests) 805ms
+@uniwork/ui:test:      ✓ names the open palette  574ms
+@uniwork/core:test:  ✓ documents/hooks-library.test.tsx (13 tests) 512ms
+@uniwork/web:test:  ✓ platform/office-frame/frame-production.test.ts (7 tests) 24ms
+@uniwork/web:test:  ✓ platform/auth/desktop-consent-page.test.tsx (6 tests) 239ms
+@uniwork/office-engine:test:  ✓ src/pdf/stamps.test.ts (9 tests) 756ms
+@uniwork/web:test:  ✓ platform/search-proxy.test.ts (5 tests) 111ms
+@uniwork/ui:test:  ✓ components/ui/toggle.test.tsx (2 tests) 469ms
+@uniwork/ui:test:      ✓ keeps toolbar toggles quieter than standalone outline controls  351ms
+@uniwork/core:test:  ✓ email-hub/hooks.test.ts (18 tests) 493ms
+@uniwork/office-engine:test:  ✓ src/pdf/annots.test.ts (9 tests) 880ms
+@uniwork/office-engine:test:      ✓ removes a note by object number and identity, leaving the other annotations  510ms
+@uniwork/ui:test:  ✓ components/ui/sidebar.test.tsx (1 test) 203ms
+@uniwork/web:test:  ✓ platform/navigation.test.ts (4 tests) 99ms
+@uniwork/office-engine:test:  ✓ test/xlsx-render-model-hf-pictures.test.ts (8 tests) 98ms
+@uniwork/core:test:  ✓ permissions/rules.test.ts (35 tests) 54ms
+@uniwork/web:test:  ✓ platform/marketing-dictionary.test.ts (4 tests) 748ms
+@uniwork/web:test:      ✓ keeps vi product copy without unrelated application dictionaries  315ms
+@uniwork/core:test:  ✓ api/endpoints/workspaces.test.ts (22 tests) 216ms
+@uniwork/office-engine-app:test:  ✓ src/pool.test.ts (4 tests) 6864ms
+@uniwork/office-engine-app:test:      ✓ answers engine_overloaded (503) when every worker is busy and the queue is full  932ms
+@uniwork/office-engine-app:test:      ✓ runs queued work once a worker frees up  3513ms
+@uniwork/office-engine-app:test:      ✓ settles live jobs as crashed(shutdown), kills every tree and removes temp dirs  1573ms
+@uniwork/office-engine-app:test:      ✓ sweeps job dirs a crashed predecessor left behind on start  844ms
+@uniwork/office-engine:test:  ✓ src/pdf/font-subset.test.ts (14 tests) 209ms
+@uniwork/office-engine:test:  ✓ test/xlsx-cf-x14-linked.test.ts (8 tests) 2605ms
+@uniwork/office-engine:test:      ✓ keeps both linked data bars byte for byte while a preset is added and the cellIs rule is edited  380ms
+@uniwork/office-engine:test:      ✓ moves the base block and its x14 xm:sqref together on a row insert, with or without a snapshot  536ms
+@uniwork/core:test:  ✓ office/docs-frame-host.test.ts (13 tests) 204ms
+@uniwork/office-engine-app:test:  ✓ src/limits.test.ts (17 tests) 31805ms
+@uniwork/office-engine-app:test:      ✓ guard: an instantly-answered fault never degrades to a limit outcome  727ms
+@uniwork/office-engine-app:test:      ✓ deadline: a job past its deadline is timed_out  1542ms
+@uniwork/office-engine-app:test:      ✓ deadline: the grant's deadline caps a longer envelope deadline  1555ms
+@uniwork/office-engine-app:test:      ✓ cpu: a CPU-bound handler is stopped by the CPU budget before its deadline  13356ms
+@uniwork/office-engine-app:test:      ✓ memory: off-heap growth past the RSS cap fails with memory_limit  1352ms
+@uniwork/office-engine-app:test:      ✓ memory: JS heap growth dies at the V8 cap as memory_limit  1297ms
+@uniwork/office-engine-app:test:      ✓ temp: filling the job temp dir past its budget fails with temp_limit  924ms
+@uniwork/office-engine-app:test:      ✓ output: an output over the byte bound is refused and never uploaded  890ms
+@uniwork/office-engine-app:test:      ✓ output: the grant's max_bytes is tighter than the service bound  1002ms
+@uniwork/office-engine-app:test:      ✓ a worker cannot claim a code outside the handler allow-list  743ms
+@uniwork/office-engine-app:test:      ✓ crash: a worker that dies is reported crashed, not completed  752ms
+@uniwork/office-engine-app:test:      ✓ kills the whole tree on timeout: the grandchild does not survive  3071ms
+@uniwork/office-engine-app:test:      ✓ kills a detached (setsid) descendant that outlived the worker  1032ms
+@uniwork/office-engine-app:test:      ✓ removes the job temp dir after every outcome  1780ms
+@uniwork/office-engine-app:test:      ✓ cancel after completion answers completed, never a pretend cancel  821ms
+@uniwork/ui:test:  ✓ components/ui/tabs.touch.test.tsx (1 test) 196ms
+@uniwork/web:test: stderr | platform/navigation.notification-click.test.tsx > opens what a clicked browser banner points at
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: 
+@uniwork/web:test: stderr | platform/navigation.notification-click.test.tsx > opens what a clicked browser banner points at
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: 
+@uniwork/web:test: stderr | platform/navigation.notification-click.test.tsx > ignores a banner target that is not a same-origin path
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: 
+@uniwork/web:test: stderr | platform/navigation.notification-click.test.tsx > ignores a banner target that is not a same-origin path
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: 
+@uniwork/web:test:  ✓ platform/navigation.notification-click.test.tsx (2 tests) 93ms
+@uniwork/office-engine:test:  ✓ src/pdf/text-plan.test.ts (25 tests) 48ms
+@uniwork/office-engine:test:  ✓ src/pdf/font-cmap.test.ts (14 tests) 43ms
+@uniwork/views:test:  ✓ documents/document-chunked-upload.test.tsx (20 tests) 29291ms
+@uniwork/views:test:      ✓ routes a file above chunkedUploadThreshold through upload-sessions with progress UI and never calls /documents/files  3238ms
+@uniwork/views:test:      ✓ opens a Home-root chunked session under My Folder, ensuring it first when no parent is open  1226ms
+@uniwork/views:test:      ✓ ignores an old root resume record for a Home-root chunked upload and opens a fresh session under My Folder  980ms
+@uniwork/views:test:      ✓ keeps a file at or below threshold on the single-request /documents/files path  1787ms
+@uniwork/views:test:      ✓ supports Pause (Tạm dừng), Resume (Tiếp tục), and Cancel (Hủy) buttons during chunked upload  3428ms
+@uniwork/views:test:      ✓ resumes a Home-root pick from completed parts when the open resume record sits under My Folder  1703ms
+@uniwork/views:test:      ✓ stages a large new version via upload-sessions and commits with upload_id and held edit_lock_id  616ms
+@uniwork/views:test:      ✓ renders localized error copy in the dialog for upload session error codes  3541ms
+@uniwork/views:test:      ✓ cancels the paused upload when the dialog is closed while paused so reopening starts with clean state  3435ms
+@uniwork/views:test:      ✓ does not call onOpen when the view unmounts while a chunked upload is completing  1530ms
+@uniwork/views:test:      ✓ dismisses the drop loading toast when the library unmounts mid-upload, so no Cancel toast is left behind  983ms
+@uniwork/views:test:      ✓ shows a loading toast with a Cancel action when dropping a file above threshold and suppresses toast.error on cancel  1274ms
+@uniwork/views:test:      ✓ refuses a large new version before session create when another holder holds the edit lock, leaving any resume record untouched  364ms
+@uniwork/views:test:      ✓ refuses a large new version when held by me in another tab, mirroring checkDocumentEditLock in server/internal/service/document_edit_lock.go  526ms
+@uniwork/views:test:      ✓ passes the pre-check and commits with edit_lock_id when the lock is held in this tab  598ms
+@uniwork/views:test:      ✓ passes the pre-check when no edit lock is held  705ms
+@uniwork/views:test:      ✓ falls through to the server upload when the edit-lock pre-check read fails  498ms
+@uniwork/views:test:      ✓ surfaces a create-time 423 document_locked as the locked copy with no resume record, no progress bar in the dialog, and no spinner toast on the drop path  1522ms
+@uniwork/views:test:      ✓ surfaces a create-time 409 document_shelved as the shelved copy even with an open resume record (RAR-15)  625ms
+@uniwork/views:test:      ✓ takes no edit-lock pre-check for small files at or below the chunked threshold  457ms
+@uniwork/office-engine-app:test:  ✓ src/output.test.ts (2 tests) 784ms
+@uniwork/office-engine-app:test:      ✓ measures and returns a whole file larger than the 64 MiB read window  730ms
+@uniwork/office-engine-app:test:  ✓ src/grants.test.ts (3 tests) 54ms
+@uniwork/web:test: stderr | platform/office-frame/tab-title.test.tsx > document tab titles > names the library, then the document
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: 
+@uniwork/web:test: stderr | platform/office-frame/tab-title.test.tsx > document tab titles > names the library, then the document
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: 
+@uniwork/web:test: stderr | platform/office-frame/tab-title.test.tsx > document tab titles > says UniWork Office while an Office editor is open, even when both mount together
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: 
+@uniwork/web:test: stderr | platform/office-frame/tab-title.test.tsx > document tab titles > says UniWork Office while an Office editor is open, even when both mount together
+@uniwork/web:test: The current testing environment is not configured to support act(...)
+@uniwork/web:test: 
+@uniwork/web:test:  ✓ platform/office-frame/tab-title.test.tsx (2 tests) 144ms
+@uniwork/ui:test:  ✓ components/ui/spinner.test.tsx (3 tests) 241ms
+@uniwork/office-engine:test: stderr | test/xlsx-recalc-widthless-columns.test.ts
+@uniwork/office-engine:test: width-less columns save through the real recalc sidecar: skipping (no gateway bundle or sidecar binary; build-upstream --with-native, or REQUIRE_XLSX_SIDECAR=1 to fail)
+@uniwork/office-engine:test: 
+@uniwork/office-engine:test:  ↓ test/xlsx-recalc-widthless-columns.test.ts (4 tests | 4 skipped)
+@uniwork/core:test:  ✓ chat/room-bulletin-store.test.ts (23 tests) 38ms
+@uniwork/ui:test:  ✓ markdown/Markdown.test.tsx (3 tests) 634ms
+@uniwork/ui:test:      ✓ names the icon-only download button after the file  507ms
+@uniwork/web:test:  ✓ features/landing/animation/landing-motion.test.tsx (1 test) 197ms
+@uniwork/core:test:  ✓ api/endpoints/admin.test.ts (16 tests) 185ms
+@uniwork/office-engine:test:  ✓ src/pdf/text-insert.test.ts (16 tests) 1124ms
+@uniwork/office-engine:test:      ✓ adds a searchable run at the baseline origin  499ms
+@uniwork/office-engine:test:  ✓ test/xlsx-recalc.test.ts (8 tests) 48ms
+@uniwork/web:test:  ✓ platform/office-frame/frame-asset-rewrites.test.ts (3 tests) 15ms
+@uniwork/web:test:  ✓ platform/seo.test.ts (4 tests) 22ms
+@uniwork/office-engine-app:test:  ✓ src/server.test.ts (38 tests) 45354ms
+@uniwork/office-engine-app:test:      ✓ runs export:docx through the real job path; without the staged renderer it fails as engine_incompatible  1018ms
+@uniwork/office-engine-app:test:      ✓ converts F-LEGACY-XLS through the real job path and settles its change list  1034ms
+@uniwork/office-engine-app:test:      ✓ converts F-UNSUPPORTED-ODT through the real job path and settles its change list  903ms
+@uniwork/office-engine-app:test:      ✓ runs a job on a real worker and PUTs the exact bytes to the grant's target  904ms
+@uniwork/office-engine-app:test:      ✓ replays the same job for a retried submit and refuses a changed payload  1002ms
+@uniwork/office-engine-app:test:      ✓ refuses a second grant for a job id that already exists  960ms
+@uniwork/office-engine-app:test:      ✓ fails the job when the write target rejects the output  959ms
+@uniwork/office-engine-app:test:      ✓ fails invalid UTF-8 as a typed engine error  938ms
+@uniwork/office-engine-app:test:      ✓ accepts an input above the old 50 MiB bound and completes end to end  16625ms
+@uniwork/office-engine-app:test:      ✓ refuses decoded bytes over the configured cap as measured upload_bounds, no job  863ms
+@uniwork/office-engine-app:test:      ✓ refuses a body over the base64 envelope cap before buffering it  2380ms
+@uniwork/office-engine-app:test:      ✓ refuses a chunked body over the cap with 413 and destroys the request  5892ms
+@uniwork/office-engine-app:test:      ✓ holds at most maxWorkers submit bodies: the next answers 503 + Retry-After before reading it, then frees  2009ms
+@uniwork/office-engine-app:test:      ✓ keeps the body slot until the job hand-off: a submit parked in post-parse processing still refuses the next  1739ms
+@uniwork/office-engine-app:test:      ✓ still accepts a chunked submit whose body parses  857ms
+@uniwork/office-engine-app:test:      ✓ refuses to read a job with another job's grant  885ms
+@uniwork/ui:test:  ✓ components/common/actor-avatar.test.tsx (4 tests) 284ms
+@uniwork/core:test:  ✓ documents/hooks-comments.test.tsx (9 tests) 697ms
+@uniwork/ui:test:  ✓ lib/tint-from-color.test.ts (3 tests) 25ms
+@uniwork/office-engine-app:test: 
+@uniwork/office-engine-app:test:  Test Files  11 passed (11)
+@uniwork/office-engine-app:test:       Tests  128 passed | 11 skipped (142)
+@uniwork/office-engine-app:test:    Start at  12:05:31
+@uniwork/office-engine-app:test:    Duration  50.59s (transform 6.27s, setup 0ms, import 14.61s, tests 117.14s, environment 46ms)
+@uniwork/office-engine-app:test: 
+@uniwork/office-engine-app:test:  % Coverage report from v8
+@uniwork/office-engine-app:test: 
+@uniwork/office-engine-app:test: =============================== Coverage summary ===============================
+@uniwork/office-engine-app:test: Statements   : 76.96% ( 1059/1376 )
+@uniwork/office-engine-app:test: Branches     : 72% ( 607/843 )
+@uniwork/office-engine-app:test: Functions    : 79.91% ( 187/234 )
+@uniwork/office-engine-app:test: Lines        : 79.82% ( 938/1175 )
+@uniwork/office-engine-app:test: ================================================================================
+@uniwork/web:test:  ❯ features/landing/guide-product-facts.test.ts (3 tests | 2 failed) 73ms
+@uniwork/web:test:      × keeps en format limits aligned with the web host 46ms
+@uniwork/web:test:      × keeps vi format limits aligned with the web host 1ms
+@uniwork/web:test:      ✓ has matching bilingual article structure and labels sample data 1ms
+@uniwork/office-engine:test:  ✓ src/pdf/drawings.test.ts (6 tests) 671ms
+@uniwork/office-engine:test:      ✓ writes shape and ink annotations without rewriting text  493ms
+@uniwork/core:test:  ✓ api/endpoints/documents-edit-lock.test.ts (43 tests) 204ms
+@uniwork/ui:test:  ✓ components/ui/input.touch.test.tsx (2 tests) 391ms
+@uniwork/office-engine:test:  ✓ test/xlsx-cf-dv-followups.test.ts (5 tests) 1836ms
+@uniwork/office-engine:test:      ✓ writes the Unique values preset and reopens it  467ms
+@uniwork/office-engine:test:      ✓ duplicates a sheet with its CF and DV, and the copy reopens with both  307ms
+@uniwork/core:test:  ✓ documents/use-chunked-document-upload.test.tsx (4 tests) 265ms
+@uniwork/office-engine:test:  ✓ src/pdf/codec.test.ts (13 tests) 443ms
+@uniwork/office-engine:test:  ✓ src/pdf/text-fold.test.ts (28 tests) 41ms
+@uniwork/views:test:  ✓ documents/document-comments-panel.test.tsx (58 tests) 20293ms
+@uniwork/views:test:      ✓ gives a page the Discussion alone: no tablist, the composer at the bottom  701ms
+@uniwork/views:test:      ✓ gives a docx two tabs; the Comments tab explains anchored comments and has no composer  315ms
+@uniwork/views:test:      ✓ replaces the list with the error and Retry when the first load fails, without a composer  376ms
+@uniwork/views:test:      ✓ keeps the loaded list readable and blocks Send when a reload cannot reach the server  368ms
+@uniwork/views:test:      ✓ says the session ended after a write answers 401, and keeps the draft  315ms
+@uniwork/views:test:      ✓ labels each anchor by format and says stale and lost in words  375ms
+@uniwork/views:test:      ✓ opens on the tab and thread a ?comment= link names, and focuses that thread  400ms
+@uniwork/views:test:        ✓ scrolls to and tints the deep-linked thread but leaves focus where it is  327ms
+@uniwork/views:test:      ✓ opens a reply in a resolved, anchor-lost thread on its root, without reopening it or opening another  407ms
+@uniwork/views:test:      ✓ opens a resolved comment from a notification with its group expanded, its history readable and its status unchanged  402ms
+@uniwork/views:test:      ✓ deletes a post with replies after one confirmation and leaves the frame  1219ms
+@uniwork/views:test:      ✓ names each post's actions button after its author (N4)  427ms
+@uniwork/views:test:      ✓ resolves into the folded group and reopens back, focus staying on the button  862ms
+@uniwork/views:test:      ✓ replies under the thread and clears the reply box once the server has it  681ms
+@uniwork/views:test:      ✓ edits a post and shows the edit history, newest first under the current text  1204ms
+@uniwork/views:test:      ✓ says when the history is empty or cannot load  892ms
+@uniwork/views:test:      ✓ reads everything, writes nothing: no composer, no reply or resolve, badge and status line  469ms
+@uniwork/views:test:      ✓ announces once, politely, when a reload changes the list, without moving focus  324ms
+@uniwork/views:test:      ✓ clears the previous write's sentence when a new attempt starts  309ms
+@uniwork/views:test:      ✓ says the action did not go through under the thread, and leaves the thread as it was  352ms
+@uniwork/views:test:      ✓ reloads and shows the deleted frame when a reply lands on a post that was just deleted  405ms
+@uniwork/views:test:      ✓ reloads and drops the history when it answers that the post was deleted  699ms
+@uniwork/views:test:      ✓ removes a thread with no replies outright when it is deleted  769ms
+@uniwork/views:test:      ✓ tints the whole deep-linked thread, and names the panel after the tab it shows  401ms
+@uniwork/views:test:      ✓ W01: a comment-level person sees the composer, reply, and edits their own post, with no view-only badge  628ms
+@uniwork/views:test:      ✓ W01: a comment-level person cannot edit or delete someone else's post  446ms
+@uniwork/views:test:      ✓ W02: the comment-level root author resolves and the server is called  378ms
+@uniwork/web:test:  ✓ platform/locale.test.tsx (2 tests) 269ms
+@uniwork/ui:test:  ✓ components/ui/tabs.focus.test.tsx (1 test) 253ms
+@uniwork/core:test:  ✓ office/office-modules.test.ts (14 tests) 116ms
+@uniwork/web:test: 
+@uniwork/web:test: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+@uniwork/web:test: 
+@uniwork/web:test:  FAIL  features/landing/guide-product-facts.test.ts > public product claims > keeps en format limits aligned with the web host
+@uniwork/web:test:  FAIL  features/landing/guide-product-facts.test.ts > public product claims > keeps vi format limits aligned with the web host
+@uniwork/web:test: AssertionError: expected [ 'Docs', 'Slides' ] to deeply equal [ 'Docs' ]
+@uniwork/web:test: 
+@uniwork/web:test: - Expected
+@uniwork/web:test: + Received
+@uniwork/web:test: 
+@uniwork/web:test:   [
+@uniwork/web:test:     "Docs",
+@uniwork/web:test: +   "Slides",
+@uniwork/web:test:   ]
+@uniwork/web:test: 
+@uniwork/web:test:  ❯ features/landing/guide-product-facts.test.ts:10:119
+@uniwork/web:test:       8|     expect(table.rows.map(row => row[1])).toEqual([".docx", ".xlsx", "…
+@uniwork/web:test:       9|     expect(table.rows.find(row => row[0] === "Sheets")?.[2]).not.toCon…
+@uniwork/web:test:      10|     expect(table.rows.filter(row => row[2].includes(locale === "vi" ? …
+@uniwork/web:test:        |                                                                                                                       ^
+@uniwork/web:test:      11|     expect(guideContent("office-files-and-ai", locale).sections.find(s…
+@uniwork/web:test:      12|   });
+@uniwork/web:test: 
+@uniwork/web:test: 
+@uniwork/web:test: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+@uniwork/web:test:  Test Files  1 failed | 24 passed (25)
+@uniwork/web:test:       Tests  2 failed | 218 passed (220)
+@uniwork/web:test:    Start at  12:05:31
+@uniwork/web:test:    Duration  53.06s (transform 23.26s, setup 11.41s, import 61.67s, tests 17.32s, environment 40.08s)
+@uniwork/web:test: 
+@uniwork/web:test: 
+@uniwork/web:test:  ELIFECYCLE  Test failed. See above for more details.
+@uniwork/ui:test:  ✓ components/ui/field.test.tsx (1 test) 241ms
+@uniwork/core:test:  ELIFECYCLE  Test failed. See above for more details.
+@uniwork/ui:test:  ELIFECYCLE  Test failed. See above for more details.
+@uniwork/office-engine:test:  ELIFECYCLE  Test failed. See above for more details.
+@uniwork/views:test:  ELIFECYCLE  Test failed. See above for more details.
+@uniwork/web#test:  ERROR  command (/workspace/apps/web) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run test exited (1)
+
+ Tasks:    2 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    55.474s 
+Failed:    @uniwork/web#test
+
+ ERROR  run failed: command  exited (1)
+ ELIFECYCLE  Test failed. See above for more details.
+
+CI_UNIT_EXIT=1
