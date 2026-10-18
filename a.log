@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+eeb13731721b010e7a88158d1b4794a692e62588
+a605e291f64f0b3bce6b2e24df44cdcac899ed82
+eeb137317 chore(merge): e6-server UN-02 309631d48 (root a605e291f) into UN-02 web
+9691cb0e8 test(office): fold the second detectDocumentFormat describe into the first
+dbf88e124 fix(office): unwrap only one wrapper directory of a frame release
+17cc8f3f9 test(documents): pin the workspace layout to the .txt flag gate
+309631d48 Merge commit 'a605e291f' into feature/UNI-1813-markdown-create-txt
+11596ef40 test(documents): keep the html source open case beside the txt cases
+a605e291f chore: merge AI-PLAN-UW billing spec v0.5.3 + boards g-j (UNI-1910, 7dc9ec3a4) into the G5-G7 root
+a0ec87c5c fix(office): install frames from a release tarball wrapped in dist-web/ (UNI-1813)
+de68bbbff fix(documents): narrow the office_txt_open fix to text/plain engine versions
+4a55de90f chore: merge FU-SHARING P0 revoke fix (UNI-1914, 2d0b03889) into the G5-G7 root
