@@ -44,4 +44,18 @@ describe("DocumentUploadDialog", () => {
     expect(screen.getByTestId("document-upload-selected")).toHaveTextContent("báo-cáo.pdf");
     clickSpy.mockRestore();
   });
+
+  it("reads 100% on the label and the indicator together, with no final-step transition (D-4)", () => {
+    renderDialog({
+      chunkedProgress: { phase: "uploading", sentBytes: 100, totalBytes: 100 },
+    });
+
+    const bar = screen.getByRole("progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "100");
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    // The indicator's transition-all is suppressed on the last step so the
+    // label can never say 100% while the bar is still animating toward it.
+    expect(bar).toHaveClass("*:data-[slot=progress-indicator]:transition-none");
+  });
+
 });

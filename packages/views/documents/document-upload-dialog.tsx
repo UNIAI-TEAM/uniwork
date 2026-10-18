@@ -17,6 +17,7 @@ import {
 import { Progress, ProgressLabel } from "@uniwork/ui/components/ui/progress";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { CreateShareOptions } from "./documents-create";
 
 export interface DocumentUploadDialogProps {
@@ -229,7 +230,10 @@ export function DocumentUploadDialog({
             <div className="flex flex-col gap-1.5" data-testid="document-upload-progress">
               <Progress
                 value={percentage}
-                className="*:data-[slot=progress-track]:bg-border"
+                className={cn(
+                  "*:data-[slot=progress-track]:bg-border",
+                  percentage >= 100 && "*:data-[slot=progress-indicator]:transition-none",
+                )}
                 aria-label={t("documents.upload.progress_status", { name: file?.name ?? "" })}
               >
                 <ProgressLabel className="truncate text-caption">{file?.name}</ProgressLabel>
