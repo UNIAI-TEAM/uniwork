@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { DocumentAccessPreview, DocumentAccessUpdateItemInput, DocumentPrincipalType } from "@uniwork/core/api/endpoints/documents-sharing";
 import { useUpdateDocumentAccess } from "@uniwork/core/documents/hooks-sharing";
-import type { DocumentAccess, DocumentAccessLevel, DocumentAccessSource, DocumentAccessVia, DocumentShare } from "@uniwork/core/types/document";
+import { DOCUMENT_ACCESS_LEVELS, type DocumentAccess, type DocumentAccessLevel, type DocumentAccessSource, type DocumentAccessVia, type DocumentShare } from "@uniwork/core/types/document";
 import type { OrgMember } from "@uniwork/core/types/people";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -39,6 +39,12 @@ export interface ShareAccessListProps {
   organization?: { id: string; name: string } | null;
   orgMembers?: readonly OrgMember[];
   locale?: string;
+  /** The document is shelved (ARCHIVE-01 U-9): access can only be taken away —
+   *  revoke and a level LOWERING stay enabled; a raise, an owner transfer and
+   *  turning the home row on are off. */
+  shelved?: boolean;
+  /** The explanation line the locked controls point at. */
+  shelvedNoteId?: string;
 }
 
 interface PendingRowConfirm {
@@ -52,6 +58,11 @@ interface PendingRowConfirm {
 
 const FILTER_THRESHOLD = 20;
 
+/** Position of a level on the view→manage ladder; an unknown level ranks
+ *  lowest so on a shelved document any named level above it counts as a raise. */
+const levelRank = (level: DocumentAccessLevel | string | null): number =>
+  level === null ? -1 : DOCUMENT_ACCESS_LEVELS.indexOf(level as DocumentAccessLevel);
+
 function NameOrSkeleton({ name }: { name: string | null }) {
   return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="min-w-0 truncate" title={name}>{name}</span>;
 }
@@ -60,6 +71,7 @@ export function ShareAccessList({
   wsId, docId, docWorkspaceId, doc, access, canManage,
   adminScope = false, canTransfer = false, ownedByWorkProduct = false, onOpenTransfer,
   memberName, memberLabels, workspaceName, workspaceNames, organization, orgMembers,
+  shelved = false, shelvedNoteId,
 }: ShareAccessListProps) {
   const { t } = useTranslation();
   const updateAccess = useUpdateDocumentAccess(wsId, docId);
@@ -269,6 +281,9 @@ export function ShareAccessList({
     rowKey: string, principalType: DocumentPrincipalType, principalId: string,
     name: string, beforeLevel: DocumentAccessLevel | null, nextLevel: DocumentAccessLevel | null,
   ) => {
+    // ARCHIVE-01 U-9: a shelved document only lets access be taken away —
+    // revoke (null) and a lowering pass; a raise or a first grant is blocked.
+    if (shelved && nextLevel !== null && levelRank(nextLevel) > levelRank(beforeLevel)) return;
     if (updateAccess.isPending || inFlight.current) return;
     inFlight.current = true;
     setActionError(null);
@@ -370,12 +385,12 @@ export function ShareAccessList({
       <ul className="divide-y divide-border rounded-lg border border-border">
         {aclOwner && matchesFilter(resolveMemberName(aclOwner.user_id) ?? "") ? (
           <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
-            <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
+            <span className="flex min-w-0 flex-1 basis-full items-center gap-2 text-body text-foreground sm:basis-40">
               <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
               <NameOrSkeleton name={resolveMemberName(aclOwner.user_id)} />
               <span className="shrink-0 text-caption text-muted-foreground">{t("documents.share.acl_owner")}</span>
             </span>
-            <span className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
+            <span className="flex min-w-0 max-w-full shrink-0 items-center gap-2 text-caption text-muted-foreground">
               {doc && orgMembers ? (
                 <OwnerTransferAction
                   wsId={wsId}
@@ -383,6 +398,7 @@ export function ShareAccessList({
                   ownerId={aclOwner.user_id}
                   ownerName={resolveMemberName(aclOwner.user_id) ?? t("documents.share.person_unknown")}
                   orgMembers={orgMembers}
+                  lockedBy={shelved ? shelvedNoteId : undefined}
                 />
               ) : canTransfer ? (
                 <Button
@@ -423,7 +439,7 @@ export function ShareAccessList({
                         </SelectTrigger>
                         <SelectContent>
                           {allowedLevelsForPrincipal("workspace", true).map((lvl) => (
-                            <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
+                            <SelectItem key={lvl} value={lvl} disabled={shelved && levelRank(lvl) > levelRank(homeRow.level)}>{levelLabel(lvl)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -501,7 +517,7 @@ export function ShareAccessList({
                           </SelectTrigger>
                           <SelectContent>
                             {allowedLevels.map((lvl) => (
-                              <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
+                              <SelectItem key={lvl} value={lvl} disabled={shelved && levelRank(lvl) > levelRank(share.level)}>{levelLabel(lvl)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>

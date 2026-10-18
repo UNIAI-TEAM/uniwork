@@ -261,64 +261,6 @@ export function ShareDialog({
             />
           </div>
         )}
-              />
-            ) : null}
-
-            <ShareAddSection
-              wsId={wsId}
-              doc={doc}
-              open={open}
-              shares={access.data.shares ?? []}
-              homeWorkspace={access.data.home_workspace}
-              alreadySharedUserIds={[access.data.acl_owner?.user_id, user?.id]}
-              members={members}
-              orgWorkspaces={orgWorkspaces.data ?? []}
-              organization={organization}
-            />
-
-            <ShareAccessList
-              wsId={wsId}
-              docId={doc.id}
-              docWorkspaceId={doc.workspace_id}
-              doc={doc}
-              access={access.data}
-              canManage={canAdminister}
-              adminScope={adminOnly}
-              memberName={memberName}
-              workspaceName={workspaceName}
-              organization={organization}
-              orgMembers={members.rows}
-            />
-
-            <ShareDialogBreakGlassSection
-              wsId={wsId}
-              docId={doc.id}
-              grants={access.data.break_glass}
-              initialOpen={initialSection === "break_glass"}
-              resolveName={memberName}
-            />
-
-            {!doc.archived_at ? (
-              <AccessRequestsSection
-                wsId={wsId}
-                documentId={doc.id}
-                focusOnOpen={focusRequests}
-              />
-            ) : null}
-
-            <ShareLinksSection
-              wsId={wsId}
-              doc={doc}
-              onOpenSettings={() =>
-                push(
-                  `${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=documents`,
-                )
-              }
-              locale={i18n.language}
-              publicLinksEnabled={docSettings.data?.public_links_enabled}
-            />
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );

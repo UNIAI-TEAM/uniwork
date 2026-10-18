@@ -343,6 +343,30 @@ export function shelvedGuard<P, C, R>(run: (payload: P, context: C) => Promise<R
   };
 }
 
+/**
+ * The one-shot "went to Lưu trữ" latch of a live endpoint (ARCHIVE-01 §3): flips the session
+ * read-only, tells the page once, and re-reads the document. Every write path wraps itself in
+ * `shelvedGuard` with the lock this builds; a disposed endpoint answers nothing.
+ */
+export function createShelvedLock(deps: {
+  /** The endpoint's own life object: dead once it is retired or fails. */
+  life: { state: string };
+  shelvedRef: RefObject<boolean>;
+  setShelved: (value: boolean) => void;
+  latest: RefObject<{ options: DocsFrameSessionOptions; viewOnly: boolean }>;
+  queryClient: QueryClient;
+}): () => void {
+  return () => {
+    if (deps.life.state === "disposed" || deps.shelvedRef.current) return;
+    deps.shelvedRef.current = true;
+    deps.latest.current.viewOnly = true;
+    deps.setShelved(true);
+    const { wsId: ws, fileRef: pageFile, onShelved } = deps.latest.current.options;
+    void deps.queryClient.invalidateQueries({ queryKey: documentKeys.detail(ws, pageFile.id) });
+    onShelved?.();
+  };
+}
+
 export function toFrameLimits(limits: Pick<DocumentLimits, "upload_max_bytes" | "save_warn_ratio">): DocumentSizeLimits {
   return { max_bytes: limits.upload_max_bytes, warn_ratio: limits.save_warn_ratio };
 }

@@ -13,6 +13,7 @@ import { createDocsFrameHost, type DocsFrameHost } from "@uniwork/core/office/do
 import { DocsProtocolError, type FileMeta, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
 import {
   armWatchdog,
+  createShelvedLock,
   attachFrameBundleProbe,
   lockAwareSave,
   onSizeEvents,
@@ -40,7 +41,7 @@ import { composeFrameInit } from "./docs-frame-init";
 import { useShelvedFlag } from "./use-shelved-flag";
 import { deliverFrameDownload, frameDownloadMaxBytes } from "./frame-download";
 import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave } from "./frame-remote-version";
-import { createFrameApiProxy } from "./frame-api-proxy";
+import { createFrameApiProxy, createFrameTokenLoader } from "./frame-api-proxy";
 import { createFirstSaveGate } from "./first-save-gate";
 import { useFrameRemote } from "./use-frame-remote-source";
 
@@ -183,31 +184,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       });
     };
 
-    const currentToken = async (): Promise<TokenPayload> => {
-      const { options: { wsId: ws }, scopeId: doc, isSource: source } = latest.current;
-      // The cache may hold a token this render has not seen yet.
-      const cached = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
-        source ? officeFrameKeys.sourceToken(ws, doc) : officeFrameKeys.token(ws, doc),
-      );
-      if (cached) return docsFrameToken(cached);
-      // The first mint may still be in flight: join it rather than mint twice.
-      const { data } = await latest.current.refetch({ cancelRefetch: false });
-      if (!data) throw unauthorized();
-      return docsFrameToken(data);
-    };
+    const currentToken = createFrameTokenLoader(latest, queryClient);
     const proxy = createFrameApiProxy(latest, currentToken);
 
     // The document went to "Lưu trữ" under the open frame: read-only from now on, the frame and its content
     // stay as they are, the page reads the document again and says so once.
-    const lockShelved = () => {
-      if (life.state === "disposed" || shelvedRef.current) return;
-      shelvedRef.current = true;
-      latest.current.viewOnly = true;
-      setShelved(true);
-      const { wsId: ws, fileRef: pageFile, onShelved } = latest.current.options;
-      void queryClient.invalidateQueries({ queryKey: documentKeys.detail(ws, pageFile.id) });
-      onShelved?.();
-    };
+    const lockShelved = createShelvedLock({ life, shelvedRef, setShelved, latest, queryClient });
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
     const saveCopy = proxy("api.saveCopy", true, (api) => api.saveCopy);
     const open = proxy("api.open", false, (api) => api.open);

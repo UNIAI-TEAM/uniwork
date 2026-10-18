@@ -882,11 +882,13 @@ describe("shelved list copy and audience (F3, F4)", () => {
     });
     renderView();
     await openShelved();
+    // rowVisibilityLabelKey now maps to documents.scope.* (UNI-1785 rename):
+    // workspace → "Workspace", restricted → "Riêng tư" with the lock icon.
     const open = await rowOf("Cả nhóm xem");
-    expect(within(open).getByText(t("documents.home.visibility.workspace"))).toBeInTheDocument();
+    expect(within(open).getByText(t("documents.scope.workspace"))).toBeInTheDocument();
     expect(within(open).queryByText(t("documents.home.access.manage"))).toBeNull();
     const closed = await rowOf("Hồ sơ riêng");
-    const cell = within(closed).getByText(t("documents.home.visibility.restricted"));
+    const cell = within(closed).getByText(t("documents.scope.private"));
     expect(cell.parentElement?.querySelector("svg")).not.toBeNull();
   });
 });
