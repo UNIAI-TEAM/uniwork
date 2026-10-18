@@ -549,6 +549,7 @@ describe("Chunked document upload in views", () => {
       session_id: "sess-resume-1",
       expires_at: "2099-01-01T00:00:00Z",
       idempotency_key: "idem-resume-1",
+      completed_parts: 1,
     });
 
     const calls: string[] = [];

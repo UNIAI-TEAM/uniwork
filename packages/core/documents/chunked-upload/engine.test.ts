@@ -325,6 +325,7 @@ describe("chunked upload engine", () => {
       session_id: "sess-fail-4",
       expires_at: "2099-01-02T00:00:00Z",
       idempotency_key: "idem-fail-4",
+      completed_parts: 0,
     });
   });
 

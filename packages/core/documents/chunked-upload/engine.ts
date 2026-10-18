@@ -108,6 +108,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   const retryDelays = opts.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
 
   let sessionId: string | undefined;
+  let sessionExpiresAt = "";
   let partSize = 0;
   let totalParts = 0;
   let maxSentBytes = 0;
@@ -151,19 +152,27 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
     opts.onProgress?.({ phase, sentBytes, totalBytes, ...(sessionId ? { sessionId } : {}) });
   }
 
+  // The resume record carries how many parts the server has confirmed so a
+  // later page knows there is real progress behind it (R2-F2); refreshed on
+  // every snapshot and every completed part.
+  function persistResumeRecord(): void {
+    if (!opts.storage || !sessionId) return;
+    saveResumableUpload(opts.storage, fileKey, opts.target, {
+      session_id: sessionId,
+      expires_at: sessionExpiresAt,
+      idempotency_key: opts.idempotencyKey,
+      completed_parts: completedEtags.size,
+    });
+  }
+
   function applySessionSnapshot(session: UploadSession): void {
     sessionId = session.session_id;
+    sessionExpiresAt = session.expires_at;
     partSize = session.part_size;
     totalParts = session.total_parts;
     for (const cp of session.completed_parts) completedEtags.set(cp.part_number, cp.etag);
     for (const p of session.parts) partUrls.set(p.part_number, p);
-    if (opts.storage) {
-      saveResumableUpload(opts.storage, fileKey, opts.target, {
-        session_id: session.session_id,
-        expires_at: session.expires_at,
-        idempotency_key: opts.idempotencyKey,
-      });
-    }
+    persistResumeRecord();
   }
 
   async function waitWhilePaused(): Promise<void> {
@@ -312,6 +321,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
         }
         inFlightBytes.delete(partNumber);
         completedEtags.set(partNumber, etag);
+        persistResumeRecord();
         emit("uploading");
         return;
       } catch (err) {
