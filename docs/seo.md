@@ -3,7 +3,7 @@
 ## URL and indexing contract
 
 English keeps the existing public URLs. Vietnamese uses `/vi` and the same
-relative path, for example `/office` and `/vi/office`. The URL determines public
+relative path, for example `/apps/office` and `/vi/apps/office`. The URL determines public
 copy even when a language cookie has another value. Language links navigate to
 the corresponding URL; application pages retain their existing cookie preference.
 

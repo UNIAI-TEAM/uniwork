@@ -4,6 +4,7 @@ import { OFFICE_MODULES } from "./platform/office-frame/frame-bundle.mjs";
 import { officeFrameAssetRewrites } from "./platform/office-frame/frame-asset-rewrites.mjs";
 import { officeFrameHeaderRules, readPins } from "./platform/office-frame/frame-headers.mjs";
 import { offerableFrameVersion } from "./platform/office-frame/frame-install.mjs";
+import { APP_REDIRECTS } from "./platform/app-redirects.mjs";
 
 // The genoffice web frames (UNI-1013 docs, UNI-1014/1015/1016 the other modules)
 // are served from public/office-frame/<module>/<version>/; each module's pin names
@@ -27,6 +28,7 @@ const nextConfig = {
     ...officeFrameHeaderRules(framePins),
     { source: "/office-frame/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
   ],
+  redirects: async () => APP_REDIRECTS,
   // The Markdown/HTML frames load a document's relative pictures and files from
   // signed API byte routes; their CSP allows only 'self' (UNI-1232).
   rewrites: async () => officeFrameAssetRewrites(),

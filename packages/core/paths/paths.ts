@@ -60,10 +60,15 @@ export const paths = {
   pricing: () => "/pricing",
   enterprise: () => "/enterprise",
   requestDemo: () => "/request-demo",
-  /** Public page of the UniWork Office desktop app (landing menu "Office"). */
-  office: () => "/office",
-  /** Public page of the UniChat apps: desktop installers and mobile store links. */
-  unichat: () => "/unichat",
+  /**
+   * The ecosystem's apps (landing menu "Apps"): the hub with every download,
+   * and one page per app. /office and /unichat permanently redirect here.
+   */
+  apps: {
+    root: () => "/apps",
+    office: () => "/apps/office",
+    unichat: () => "/apps/unichat",
+  },
   about: () => "/about",
   security: () => "/security",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
@@ -167,6 +172,8 @@ export const GLOBAL_PREFIXES = [
   "/pricing",
   "/enterprise",
   "/request-demo",
+  "/apps",
+  // The pre-/apps URLs: permanent redirects, still global.
   "/office",
   "/unichat",
   "/vi",

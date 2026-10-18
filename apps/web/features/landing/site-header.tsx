@@ -18,8 +18,8 @@ import "./header-directory.css";
 
 const GROUPS = [
   { key: "products", label: "landing.productPages.product" },
+  { key: "apps", label: "landing.nav.apps" },
   { key: "solutions", label: "landing.nav.solutions" },
-  { key: "office", label: "landing.nav.office" },
   { key: "learn", label: "landing.productPages.learn" },
 ] as const;
 const LINKS = [
