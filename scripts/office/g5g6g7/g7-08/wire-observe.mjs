@@ -9,6 +9,34 @@
 // is either measured or BLOCKED, never defaulted (contract w1b). The Save /
 // version side of the same driver lives in `save-observe.mjs`.
 
+import { VERDICT, failVerdict } from './ooxml.mjs';
+
+/**
+ * w2p: the UniWork AI refusals that spend nothing - 409 with one of these error codes.
+ * real6 X-R1: the 10th POST was answered in 30 ms with 409 run_limit_reached (fields.limit =
+ * tool_rounds, run row 8/8) and was counted as a model call without usage. The server refuses
+ * before it reserves anything: `server/internal/ai/run_store_pg.go` `runTurnRefusal` ("a turn
+ * that reserved nothing"), `server/internal/ai/run_store.go:39-59` (`ErrRunExpired`,
+ * `RunLimitReached`, all 409), and `server/internal/handler/ai_uniwork.go:135` (the refusal's
+ * `fields` reach the `error` envelope). Matched on status AND the parsed `error.code`, never on
+ * timing; any other status, code or an unparseable body is not a refusal.
+ */
+const UNIWORK_REFUSAL_CODES = Object.freeze(['run_limit_reached', 'run_expired', 'conversation_expired']);
+
+export function uniworkRefusalFromResponse(status, text) {
+  if (status !== 409) return null;
+  let doc;
+  try {
+    doc = JSON.parse(String(text ?? ''));
+  } catch {
+    return null;
+  }
+  const code = doc?.error?.code;
+  if (!UNIWORK_REFUSAL_CODES.includes(code)) return null;
+  const limit = doc.error.fields?.limit;
+  return { status, code, limit: typeof limit === 'string' ? limit : null };
+}
+
 /**
  * R2-7: usage of every recorded model response. A response without both token
  * counts is an unknown, not a zero: it is counted in `missingUsageCalls` and
@@ -20,6 +48,7 @@ export function extractWireUsage(responses = []) {
   let outputTokens = 0;
   let missingUsageCalls = 0;
   for (const res of responses) {
+    if (res?.refusal) continue; // w2p: a refusal reserved nothing, so it is no model call
     modelCalls += 1;
     const input = res?.usage?.prompt_tokens ?? res?.usage?.input_tokens;
     const output = res?.usage?.completion_tokens ?? res?.usage?.output_tokens;
@@ -343,10 +372,14 @@ export function evaluateWireObservation({
     }
   }
   const usage = extractWireUsage(responses);
+  const refusals = responses.filter((res) => res?.refusal).map((res) => ({ ...res.refusal }));
+  const endedByRefusal = Boolean(responses[responses.length - 1]?.refusal);
   const missingResponses = Math.max(0, requests.length - responses.length);
   if (missingResponses > 0 || usage.missingUsageCalls > 0) {
     return {
       ...usage,
+      refusals,
+      endedByRefusal: false,
       unobserved: true,
       missingObservationCalls: 0,
       reason: 'missing_usage_on_model_call',
@@ -356,13 +389,37 @@ export function evaluateWireObservation({
   if (requests.length === 0) {
     return {
       ...usage,
+      refusals,
+      endedByRefusal: false,
       unobserved: true,
       missingObservationCalls: 1,
       reason: 'missing_model_call_observation',
       detail: { requests: 0, responses: responses.length, sawTurnEffects },
     };
   }
-  return { ...usage, unobserved: false, missingObservationCalls: 0, reason: null, detail: null };
+  return { ...usage, refusals, endedByRefusal, unobserved: false, missingObservationCalls: 0, reason: null, detail: null };
+}
+
+/** w2p: the reason a turn that ended on a refusal is scored with. */
+function refusalReason({ code, limit }) {
+  return code === 'run_limit_reached' ? `uniwork_run_limit_reached:${limit ?? 'unknown'}` : `uniwork_${code}`;
+}
+
+/** w2p: a turn that ended on a refusal and shows no final reply to judge is FAIL, not BLOCKED. */
+export function refusalFailVerdict({ refusals = [] } = {}, details = {}) {
+  const last = refusals[refusals.length - 1];
+  return failVerdict(refusalReason(last), { ...details, refusals });
+}
+
+/**
+ * w2p: a turn that ENDED on a refusal is scored: unless its oracle passed on the final reply
+ * (PASS stays PASS), a FAIL carries the refusal as its reason. BLOCKED is left alone - an
+ * unknown is still an unknown - and so is a turn that did not end on the refusal.
+ */
+export function scoreRefusalEnd(verdict, { endedByRefusal = false, refusals = [] } = {}) {
+  if (!endedByRefusal || refusals.length === 0 || verdict?.status !== VERDICT.FAIL) return verdict;
+  const scored = refusalFailVerdict({ refusals }, { ...verdict.details, oracleReason: verdict.reason });
+  return { ...verdict, ...scored, details: scored.details };
 }
 
 /**
@@ -440,15 +497,20 @@ export function observeModelWire(page, {
     }
   });
   if (!recordResponses || !Array.isArray(responses)) return { settle, ready };
-  const record = (origin, status, shape, text) => responses.push({
-    origin,
-    status,
-    shape,
-    // R4-1: the usage is read in the route's own response shape, so an Anthropic
-    // `/messages` stream and a Gemini `/generate` body are counted, not dropped.
-    usage: usageFromSseText(text, shape),
-    toolCallNames: toolCallNamesFromSseText(text, shape),
-  });
+  const record = (origin, status, shape, text) => {
+    // w2p: a 409 UniWork refusal reserved nothing; it carries no usage and is not a model call.
+    const refusal = uniworkRefusalFromResponse(status, text);
+    responses.push({
+      origin,
+      status,
+      shape,
+      ...(refusal ? { refusal } : {}),
+      // R4-1: the usage is read in the route's own response shape, so an Anthropic
+      // `/messages` stream and a Gemini `/generate` body are counted, not dropped.
+      usage: usageFromSseText(text, shape),
+      toolCallNames: toolCallNamesFromSseText(text, shape),
+    });
+  };
   const track = (task) => {
     pending.add(task);
     task.catch(fail).finally(() => pending.delete(task));

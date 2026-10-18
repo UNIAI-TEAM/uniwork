@@ -245,7 +245,7 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     });
     assert.deepEqual(counted, {
       modelCalls: 1, inputTokens: 100, outputTokens: 20, missingUsageCalls: 0,
-      unobserved: false, missingObservationCalls: 0, reason: null, detail: null,
+      unobserved: false, missingObservationCalls: 0, reason: null, detail: null, refusals: [], endedByRefusal: false,
     });
   });
 

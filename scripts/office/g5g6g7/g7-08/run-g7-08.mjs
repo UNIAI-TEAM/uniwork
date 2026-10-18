@@ -172,6 +172,8 @@ export function createBudgetTracker({
         outputTokens: Number(usage?.outputTokens ?? 0) || 0,
         missingUsageCalls: Number(usage?.missingUsageCalls ?? 0) || 0,
         missingObservationCalls: Number(usage?.missingObservationCalls ?? 0) || 0,
+        // w2p: UniWork refusals the turn ended with or passed; they spend nothing.
+        refusals: Array.isArray(usage?.refusals) ? usage.refusals.map((r) => ({ ...r })) : [],
       };
       missingUsageCalls += entry.missingUsageCalls;
       missingObservationCalls += entry.missingObservationCalls;
@@ -365,6 +367,7 @@ export async function runG708Matrix(
       details: outcome.details ?? {},
       verdicts: outcome.verdicts ?? {},
       usage: rowUsage,
+      refusals: rowUsage.refusals ?? [],
     };
 
     const resultFile = join(resultsDir, `${runEntry.rowId}-${runEntry.provider}-${runEntry.host}.json`);

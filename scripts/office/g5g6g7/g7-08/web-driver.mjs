@@ -29,7 +29,7 @@ import { DEFAULT_REPO_ROOT, getRowById } from './rows.mjs';
 import {
   isSaveIntentPath, parseCommitBaseRevision, readFrameHead, readVersionCount,
 } from './save-observe.mjs';
-import { InterruptedAiTurnError, evaluateWireObservation, extractWireToolCalls, interruptionFromTurn, observeModelWire } from './wire-observe.mjs';
+import { InterruptedAiTurnError, evaluateWireObservation, extractWireToolCalls, interruptionFromTurn, observeModelWire, refusalFailVerdict, scoreRefusalEnd } from './wire-observe.mjs';
 import { readEditorText, runEditStage } from './web-edit-flow.mjs';
 import {
   FRAME_SELECTOR_OWNER, HARNESS_PRECONDITION_OWNER, MODULE_AI_SELECTORS,
@@ -435,6 +435,8 @@ export async function runWebMatrixRow(runEntry, {
         documentId, usage, preconditions, screenshotPath,
       };
     }
+    // w2p: a turn that ended on a UniWork refusal with nothing to judge is scored, not BLOCKED.
+    if (!replyText && usage.endedByRefusal) return { ...refusalFailVerdict(usage, { rowId: row.id }), documentId, usage, preconditions, screenshotPath };
     if (!replyText) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.assistantAnswer, { rowId: row.id }), usage, preconditions, screenshotPath };
 
     const stepTitles = await frame.$$eval(FRAME_AI_SELECTORS.stepTitle, (els) => els.map((el) => el.getAttribute('data-tip') || (el.textContent ?? '').trim()).filter(Boolean)).catch(() => []);
@@ -494,7 +496,7 @@ export async function runWebMatrixRow(runEntry, {
       if (editStage.stop?.missingSelector) {
         return { ...missingSelectorVerdict(editStage.stop.missingSelector, { rowId: row.id }), documentId, usage, preconditions, screenshotPath };
       }
-      if (editStage.stop) return { ...editStage.stop, details: { ...editStage.stop.details, replyText }, documentId, usage, preconditions, screenshotPath };
+      if (editStage.stop) return { ...scoreRefusalEnd(editStage.stop, usage), details: { ...scoreRefusalEnd(editStage.stop, usage).details, replyText }, documentId, usage, preconditions, screenshotPath };
       Object.assign(rawObserved, editStage.observed);
       if (row.format === 'docx') {
         rawObserved.roundTrip = await runDocxRoundTrip(rawObserved.afterBytes);
@@ -511,7 +513,8 @@ export async function runWebMatrixRow(runEntry, {
       }
     }
 
-    const verdict = evaluateRowObserved(row, rawObserved);
+    // w2p: the oracle judged the final reply; a FAIL on a turn that ended on a refusal names the refusal.
+    const verdict = scoreRefusalEnd(evaluateRowObserved(row, rawObserved), usage);
     const details = row.operation === 'edit' && editStage ? {
       ...verdict.details, explicitSave: true, versionsBefore, versionsAfterAiTurn,
       versionsAfterSave: rawObserved.versionsAfterSave, versionDelta: (rawObserved.versionsAfterSave ?? 0) - versionsAfterAiTurn,
