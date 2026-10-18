@@ -1,0 +1,7 @@
+$ set -a; . ./.env; set +a; B="${DATABASE_URL%%\?*}"; B="${B%/*}"; Q="${DATABASE_URL#*\?}"; [ "$Q" = "$DATABASE_URL" ] && Q="sslmode=disable"; echo "TEST_DB_HOST=${B#*@}"; psql "$B/postgres?$Q" -c "DROP DATABASE IF EXISTS uniwork_uni1382_r3_test" -c "CREATE DATABASE uniwork_uni1382_r3_test"; rc=$?; echo "$B/uniwork_uni1382_r3_test?$Q" > /tmp/r3-testdb.url; echo; echo "TEST_DB_CREATE_EXIT=$rc"
+TEST_DB_HOST=uniwork-db:5432
+NOTICE:  database "uniwork_uni1382_r3_test" does not exist, skipping
+DROP DATABASE
+CREATE DATABASE
+
+TEST_DB_CREATE_EXIT=0

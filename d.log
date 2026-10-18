@@ -1,0 +1,20 @@
+$ (cd server && TEST_DATABASE_URL="$(cat /tmp/r3-testdb.url)" timeout -k 15 1500 go test ./internal/handler/ -run 'TestIsolationMatrix' -count=1 -timeout 24m -v 2>&1 | grep -E '^(--- |\s+--- |ok|FAIL|PASS|panic)|_test.go:' | tail -n 200; exit ${PIPESTATUS[0]}); rc=$?; echo; echo "GO_TEST_ISOLATION_MATRIX_EXIT=$rc"
+--- PASS: TestIsolationMatrix (519.46s)
+    --- PASS: TestIsolationMatrix/control (1.19s)
+    --- PASS: TestIsolationMatrix/cross-tenant (155.67s)
+    --- PASS: TestIsolationMatrix/anonymous (154.86s)
+    --- PASS: TestIsolationMatrix/self (1.47s)
+    --- PASS: TestIsolationMatrix/mixed (50.21s)
+    --- PASS: TestIsolationMatrix/frame-linked (0.01s)
+    --- PASS: TestIsolationMatrix/change-cursor (0.02s)
+    --- PASS: TestIsolationMatrix/shared-by-me (0.29s)
+    --- PASS: TestIsolationMatrix/references (42.12s)
+    --- PASS: TestIsolationMatrix/member-of-both (109.20s)
+    --- PASS: TestIsolationMatrix/listing (0.86s)
+    --- PASS: TestIsolationMatrix/uploads (0.00s)
+    --- PASS: TestIsolationMatrix/untouched (0.01s)
+    --- PASS: TestIsolationMatrix/write-control (1.66s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	519.493s
+
+GO_TEST_ISOLATION_MATRIX_EXIT=0

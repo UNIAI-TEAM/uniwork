@@ -1,0 +1,13 @@
+$ bash scripts/office/g5g6g7/harness/stop.sh || true; (sudo -n apt-get install -y --no-install-recommends postgresql-client || true); command -v psql go; go version; true
+harness: no pid file at /workspace/.harness-run/pids; nothing to stop
+Reading package lists...
+Building dependency tree...
+Reading state information...
+postgresql-client is already the newest version (16+257build1.1).
+The following package was automatically installed and is no longer required:
+  libwayland-server0
+Use 'sudo apt autoremove' to remove it.
+0 upgraded, 0 newly installed, 0 to remove and 32 not upgraded.
+/usr/bin/psql
+/usr/local/go/bin/go
+go version go1.27.0 linux/amd64

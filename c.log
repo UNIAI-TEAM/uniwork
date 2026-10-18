@@ -1,0 +1,23 @@
+$ (cd server && TEST_DATABASE_URL="$(cat /tmp/r3-testdb.url)" timeout -k 15 300 go test ./internal/handler/ -run 'TestPutOfficeOfflineLeaseBodyContract|TestEmptyBodyAsObject' -count=1 -v 2>&1 | grep -E '^(=== RUN|--- |\s+--- |ok|FAIL|PASS|panic)|_test.go:'; exit ${PIPESTATUS[0]}); rc=$?; echo; echo "GO_TEST_LEASE_BODY_EXIT=$rc"
+=== RUN   TestPutOfficeOfflineLeaseBodyContract
+=== RUN   TestPutOfficeOfflineLeaseBodyContract/no_body_and_no_content_type_grants
+=== RUN   TestPutOfficeOfflineLeaseBodyContract/empty_object_grants
+=== RUN   TestPutOfficeOfflineLeaseBodyContract/a_body_that_is_not_json_is_400
+=== RUN   TestPutOfficeOfflineLeaseBodyContract/a_body_over_the_cap_is_413
+--- PASS: TestPutOfficeOfflineLeaseBodyContract (1.85s)
+    --- PASS: TestPutOfficeOfflineLeaseBodyContract/no_body_and_no_content_type_grants (0.00s)
+    --- PASS: TestPutOfficeOfflineLeaseBodyContract/empty_object_grants (0.00s)
+    --- PASS: TestPutOfficeOfflineLeaseBodyContract/a_body_that_is_not_json_is_400 (0.00s)
+    --- PASS: TestPutOfficeOfflineLeaseBodyContract/a_body_over_the_cap_is_413 (0.01s)
+=== RUN   TestEmptyBodyAsObject
+=== RUN   TestEmptyBodyAsObject/empty
+=== RUN   TestEmptyBodyAsObject/object
+=== RUN   TestEmptyBodyAsObject/garbage
+--- PASS: TestEmptyBodyAsObject (0.00s)
+    --- PASS: TestEmptyBodyAsObject/empty (0.00s)
+    --- PASS: TestEmptyBodyAsObject/object (0.00s)
+    --- PASS: TestEmptyBodyAsObject/garbage (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	1.878s
+
+GO_TEST_LEASE_BODY_EXIT=0

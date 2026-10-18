@@ -1,0 +1,2 @@
+$ set -a; . ./.env; set +a; B="${DATABASE_URL%%\?*}"; B="${B%/*}"; Q="${DATABASE_URL#*\?}"; [ "$Q" = "$DATABASE_URL" ] && Q="sslmode=disable"; psql "$B/postgres?$Q" -c "DROP DATABASE IF EXISTS uniwork_uni1382_r3_test"; true
+DROP DATABASE
