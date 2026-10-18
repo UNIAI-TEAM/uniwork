@@ -32,7 +32,7 @@ test("guides render without JavaScript and expose related localized destinations
   await expect(page.locator("h1")).toContainText("Hướng dẫn UniWork Office");
   await expect(page.locator('.public-guide-related a[href="/vi/office"]')).toBeVisible();
   await expect(page.locator(".public-guide-table tbody tr")).toHaveCount(6);
-  await expect(page.locator(".public-guide-table")).toContainText("10 MiB");
+  await expect(page.locator(".public-guide-table")).toContainText(".xlsx");
   await expect(page.locator("article")).toContainText("yêu cầu dùng khóa API riêng đi qua máy chủ UniWork");
   await expect(page.locator('link[hreflang="en"]')).toHaveAttribute("href", /\/learn\/office-files-and-ai$/);
   await context.close();
@@ -48,7 +48,7 @@ test("Office guide facts, example images and tables work on mobile in both langu
       await page.goto(`${prefix}/learn/office-files-and-ai`);
       await landingReady(page);
       await expect(page.locator(".public-guide-table tbody tr")).toHaveCount(6);
-      await expect(page.locator(".public-guide-table")).toContainText("10 MiB");
+      await expect(page.locator(".public-guide-table")).toContainText(".xlsx");
       const figure = page.locator(".public-guide-illustration");
       await figure.scrollIntoViewIfNeeded();
       const selected = figure.locator(`.public-guide-image-${theme}`);

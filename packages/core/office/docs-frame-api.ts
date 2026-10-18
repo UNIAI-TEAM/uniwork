@@ -10,6 +10,13 @@ import {
   type OfficeFrameDocument,
   type OfficeFrameToken,
 } from "../api/endpoints/office-frame";
+import {
+  ChunkedUploadError,
+  chunkedUploadThreshold,
+  startChunkedUpload,
+  type ChunkedUploadOptions,
+  type ChunkedUploadResult,
+} from "../documents/chunked-upload";
 import { runtimeConfig } from "../runtime-config";
 import {
   DocsProtocolError,
@@ -48,6 +55,8 @@ export interface DocsFrameCall {
    *  session through R2 — never through the frame token. A save commits with
    *  it; absent means the host holds no lock. */
   editLockId?: string;
+  /** Bytes above which `save` and `saveAs` route through chunked upload sessions (UNI-1863); null or absent = single-request upload. */
+  chunkedUploadThresholdBytes?: number | null;
 }
 
 /**
@@ -98,6 +107,12 @@ export function docsFrameToken(token: Pick<OfficeFrameToken, "token" | "expires_
 
 /** An API failure (ApiError, network, thrown shape) as the protocol error the frame understands. */
 export function docsFrameError(error: unknown): DocsProtocolError {
+  if (error instanceof ChunkedUploadError) {
+    if (error.code === "upload_canceled") {
+      return new DocsProtocolError({ code: "cancelled", message: error.message });
+    }
+    return new DocsProtocolError({ code: "internal", message: error.message, retryable: true });
+  }
   if (error instanceof ApiError) {
     // 501 or 503 office_not_configured (no PDF renderer here) tells the frame to fall back to its own print;
     // 504 is the server giving up on a slow render. Both are not "internal".
@@ -106,12 +121,19 @@ export function docsFrameError(error: unknown): DocsProtocolError {
     // The server words its message in the ACCOUNT language, which is not the page's: the frame
     // gets the stable code (`details.apiCode`, plus this English developer text) and maps it to
     // page-language copy itself. The sentence never travels.
-    const message = error.code ? `${error.code} (HTTP ${error.status})` : `HTTP ${error.status}`;
+    const message =
+      error.status === 423
+        ? `${error.code || "document_locked"} (HTTP 423)`
+        : error.code
+          ? `${error.code} (HTTP ${error.status})`
+          : `HTTP ${error.status}`;
     const shape = noRenderer
       ? { code: "unsupported" as const, message, status: error.status }
       : error.status === 504
         ? { code: "timeout" as const, message, status: 504, retryable: true }
-        : errorFromHttpStatus(error.status, message).toShape();
+        : error.status === 423
+          ? { code: "forbidden" as const, message, status: 423 }
+          : errorFromHttpStatus(error.status, message).toShape();
     const rawMax = error.fields?.["max_bytes"];
     const maxBytes = typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : undefined;
     return new DocsProtocolError({
@@ -190,7 +212,35 @@ async function operationKey(kind: string, scope: readonly string[], bytes?: Arra
   return `frame-${kind}-${Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
-export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fetch">;
+export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fetch"> & {
+  /** Default byte threshold above which `save` and `saveAs` use chunked upload sessions when the call does not specify one; null or absent = single-request upload. */
+  chunkedUploadThresholdBytes?: number | null;
+};
+
+function resolveThreshold(call: DocsFrameCall, options: DocsFrameApiOptions): number | null {
+  const raw = call.chunkedUploadThresholdBytes !== undefined
+    ? call.chunkedUploadThresholdBytes
+    : options.chunkedUploadThresholdBytes;
+  return chunkedUploadThreshold({ chunked_upload_threshold_bytes: raw });
+}
+
+async function runChunkedUpload(opts: ChunkedUploadOptions, signal: AbortSignal): Promise<ChunkedUploadResult> {
+  if (signal.aborted) {
+    throw new DocsProtocolError({ code: "cancelled", message: "The operation was aborted." });
+  }
+  const upload = startChunkedUpload(opts);
+  let canceling: Promise<void> | null = null;
+  const onAbort = () => {
+    canceling = upload.cancel().catch(() => undefined);
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  try {
+    return await upload.result;
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+    if (canceling) await canceling;
+  }
+}
 
 /**
  * The DocsFrameApi on the UniWork office-frame routes (W6): every call is made
@@ -223,6 +273,15 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
   const { mimeType, extension } = officeModuleSpec(module);
   const ext = new RegExp(`\\.${extension}$`, "i");
   const clientFor = (call: DocsFrameCall): OfficeFrameClient => createOfficeFrameClient({ ...options, getToken: () => call.token });
+  const sessionFetch: typeof fetch | undefined = options.fetch
+    ? (input, init) => {
+        const defaultBase = runtimeConfig().apiUrl;
+        const url = typeof input === "string" && options.apiUrl && input.startsWith(`${defaultBase}/`)
+          ? `${options.apiUrl}${input.slice(defaultBase.length)}`
+          : input;
+        return options.fetch!(url, init);
+      }
+    : undefined;
   const run = async <T>(work: () => Promise<T>): Promise<T> => {
     try {
       return await work();
@@ -255,7 +314,20 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       // The stored file keeps its own name: the upload is named after what open answered.
       const current = await client.open(payload.fileId);
       if (!current || "source_id" in current) throw malformed("office-frame open");
-      const upload = await client.upload(payload.fileId, new Blob([payload.data], { type: mimeType }), current.file.filename, `${key}:upload`);
+      const blob = new Blob([payload.data], { type: mimeType });
+      const threshold = resolveThreshold(call, options);
+      const upload = threshold !== null && payload.data.byteLength > threshold
+        ? await runChunkedUpload(
+            {
+              file: blob,
+              filename: current.file.filename,
+              target: { kind: "frame", documentId: payload.fileId, frameToken: call.token },
+              idempotencyKey: `${key}:upload`,
+              fetch: sessionFetch,
+            },
+            call.signal,
+          ).then((out) => (out.kind === "upload" ? out.upload : null))
+        : await client.upload(payload.fileId, blob, current.file.filename, `${key}:upload`);
       if (!upload) throw malformed("office-frame upload");
       try {
         const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);
@@ -264,27 +336,36 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       } catch (error) {
         // A stale base is an answer, not a failure: the frame offers to reload.
         if (error instanceof ApiError && error.status === 409) return { ok: false, error: docsFrameError(error).toShape() };
-        // 423 document_locked (UNI-1645, addendum §11.1) is never {ok:false}: the frame would read
-        // it as a stale base and offer "Overwrite". It is a read-only refusal the host turns into
-        // its lost-lock state; the holder the server named rides in details.fields.
-        if (error instanceof ApiError && error.status === 423) {
-          throw new DocsProtocolError({
-            code: "forbidden", message: `${error.code || "document_locked"} (HTTP 423)`, status: 423,
-            details: { apiCode: error.code, ...(error.fields ? { fields: error.fields } : {}) },
-          });
-        }
+        // 423 document_locked (UNI-1645, addendum §11.1; UNI-1890 at session create) is never
+        // {ok:false}: the frame would read it as a stale base and offer "Overwrite". docsFrameError
+        // maps it to a 423 forbidden refusal so the host turns it into its lost-lock state.
         throw error;
       }
     }),
 
     saveAs: (payload, call) => run(async () => {
       const name = ext.test(payload.name) ? payload.name : `${payload.name}.${extension}`;
-      const created = await createDocumentFile(
-        call.workspaceId,
-        new File([payload.data], name, { type: mimeType }),
-        { title: name.replace(ext, ""), parent_id: payload.folderId },
-        { idempotencyKey: await operationKey("saveas", [call.workspaceId, name, payload.folderId ?? ""], payload.data), signal: call.signal },
-      );
+      const title = name.replace(ext, "");
+      const file = new File([payload.data], name, { type: mimeType });
+      const key = await operationKey("saveas", [call.workspaceId, name, payload.folderId ?? ""], payload.data);
+      const threshold = resolveThreshold(call, options);
+      const created = threshold !== null && payload.data.byteLength > threshold
+        ? await runChunkedUpload(
+            {
+              file,
+              filename: name,
+              target: { kind: "workspace", workspaceId: call.workspaceId, parentId: payload.folderId, title },
+              idempotencyKey: `${key}:upload`,
+              fetch: sessionFetch,
+            },
+            call.signal,
+          ).then((out) => (out.kind === "document" ? out.document : null))
+        : await createDocumentFile(
+            call.workspaceId,
+            file,
+            { title, parent_id: payload.folderId },
+            { idempotencyKey: key, signal: call.signal },
+          );
       if (!created) throw malformed("documents/files");
       const token = await mintOfficeFrameToken(created.id, { signal: call.signal });
       if (!token) throw malformed("office frame-token");

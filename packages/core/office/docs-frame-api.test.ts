@@ -350,6 +350,175 @@ describe("createDocsFrameApi saveAs", () => {
   });
 });
 
+describe("createDocsFrameApi chunked upload sessions above threshold (UNI-1863)", () => {
+  const THRESHOLD = 8;
+  const OVER_BYTES = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).buffer;
+  const AT_BYTES = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]).buffer;
+  const COPY = {
+    id: "doc-2", organization_id: "org-1", workspace_id: "ws-1", parent_id: "folder-9", kind: "file", title: "Copy",
+    visibility: "workspace", revision: "1", current_version: 1, position: 0, created_by: "u1", created_by_kind: "human",
+    updated_by: "u1", updated_by_kind: "human", created_at: "2026-10-08T10:00:00Z", updated_at: "2026-10-08T10:00:00Z",
+  };
+  const COPY_TOKEN = {
+    token: "copy-tok", token_type: "Bearer", expires_at: "2026-10-08T10:10:00Z", expires_in: 600,
+    document_id: "doc-2", workspace_id: "ws-1", organization_id: "org-1", can_edit: true,
+  };
+  const OPENED = { ...DOC, document_id: "doc-2", title: "Copy", revision: "1", file: { ...DOC.file, filename: "Copy.docx", version_id: "v-c1" } };
+  const sessionBody = (sessionId: string, prefix: string) => ({
+    session_id: sessionId, part_size: 8, total_parts: 2, completed_parts: [], expires_at: "2099-01-01T00:00:00Z",
+    parts: [
+      { part_number: 1, method: "PUT", url: `${API}/s3/${prefix}-1`, headers: {}, expires_at: "2099-01-01T00:00:00Z" },
+      { part_number: 2, method: "PUT", url: `${API}/s3/${prefix}-2`, headers: {}, expires_at: "2099-01-01T00:00:00Z" },
+    ],
+  });
+  const partOk = (etag: string) => () => new Response(null, { status: 200, headers: { ETag: etag } });
+
+  it("routes a save above the threshold through the frame upload-session routes and commits with upload_id, base_revision and edit_lock_id", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions": () => json(sessionBody("sess-f1", "fpart"), 201),
+      "PUT /s3/fpart-1": partOk('"e1"'),
+      "PUT /s3/fpart-2": partOk('"e2"'),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions/sess-f1/complete": () =>
+        json({ upload_id: "up-sess-1", checksum_sha256: "abc", size_bytes: 12, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: OVER_BYTES, etag: "7" },
+      { ...call(), editLockId: "lock-1", chunkedUploadThresholdBytes: THRESHOLD },
+    );
+    expect(result).toMatchObject({ ok: true, versionId: "v-4", file: { etag: "8", versionId: "v-4" } });
+    expect(calls.some((c) => c.path.endsWith("/uploads"))).toBe(false);
+    const createSess = calls.find((c) => c.path === "/api/v1/office-frame/documents/doc-1/upload-sessions")!;
+    expect(header(createSess.init, "Authorization")).toBe("Bearer frame-tok");
+    expect(header(createSess.init, "Idempotency-Key")).toMatch(/^frame-save-.*:upload$/);
+    expect(JSON.parse(String(createSess.init.body))).toMatchObject({ filename: "Plan.docx", size_bytes: 12 });
+    const completeSess = calls.find((c) => c.path.endsWith("/upload-sessions/sess-f1/complete"))!;
+    expect(JSON.parse(String(completeSess.init.body))).toEqual({ parts: [{ part_number: 1, etag: '"e1"' }, { part_number: 2, etag: '"e2"' }] });
+    const commit = calls.find((c) => c.path.endsWith("/versions/commit"))!;
+    expect(JSON.parse(String(commit.init.body))).toEqual({ upload_id: "up-sess-1", base_revision: "7", edit_lock_id: "lock-1" });
+    expect(header(commit.init, "Idempotency-Key")).toBe(header(createSess.init, "Idempotency-Key")?.replace(/:upload$/, ":commit"));
+  });
+
+  it("keeps a save at or below the threshold on the single-request frame upload route", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        json({ upload_id: "up-direct", checksum_sha256: "x", size_bytes: 8, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: AT_BYTES, etag: "7" }, { ...call(), chunkedUploadThresholdBytes: THRESHOLD });
+    expect(result).toMatchObject({ ok: true, versionId: "v-4" });
+    expect(calls.some((c) => c.path.includes("/upload-sessions"))).toBe(false);
+    expect(calls.some((c) => c.path === "/api/v1/office-frame/documents/doc-1/uploads")).toBe(true);
+  });
+
+  it("answers {ok:false} when commit returns 409 after a frame upload session", async () => {
+    const { fetch } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions": () => json(sessionBody("sess-f2", "fpart"), 201),
+      "PUT /s3/fpart-1": partOk('"e1"'),
+      "PUT /s3/fpart-2": partOk('"e2"'),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions/sess-f2/complete": () =>
+        json({ upload_id: "up-sess-2", checksum_sha256: "abc", size_bytes: 12, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () =>
+        json({ error: { code: "document_version_conflict", message: "stale" } }, 409),
+    });
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: OVER_BYTES, etag: "6" }, { ...call(), chunkedUploadThresholdBytes: THRESHOLD });
+    expect(result).toMatchObject({ ok: false, error: { code: "conflict", status: 409, details: { apiCode: "document_version_conflict" } } });
+  });
+
+  it("routes a saveAs above the threshold through the workspace upload-session route and rebinds to the created document", async () => {
+    configureRuntime({ apiUrl: API });
+    setAccessToken("session-tok");
+    const { fetch, calls } = fakeFetch({
+      "POST /api/v1/workspaces/ws-1/documents/upload-sessions": () => json(sessionBody("sess-w1", "wpart"), 201),
+      "PUT /s3/wpart-1": partOk('"we1"'),
+      "PUT /s3/wpart-2": partOk('"we2"'),
+      "POST /api/v1/upload-sessions/sess-w1/complete": () => json({ document: COPY }),
+      "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
+      "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
+    });
+    vi.stubGlobal("fetch", fetch);
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).saveAs!({ name: "Copy", folderId: "folder-9", data: OVER_BYTES }, { ...call(), chunkedUploadThresholdBytes: THRESHOLD });
+    expect(result.save).toEqual({
+      ok: true, versionId: "v-c1",
+      file: expect.objectContaining({ fileId: "doc-2", name: "Copy.docx", etag: "1", writable: true }),
+    });
+    expect(result.rebind).toEqual({ documentId: "doc-2", token: COPY_TOKEN });
+    expect(calls.some((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")).toBe(false);
+    const createSess = calls.find((c) => c.path === "/api/v1/workspaces/ws-1/documents/upload-sessions")!;
+    expect(header(createSess.init, "Authorization")).toBe("Bearer session-tok");
+    expect(header(createSess.init, "Idempotency-Key")).toMatch(/^frame-saveas-.*:upload$/);
+    expect(JSON.parse(String(createSess.init.body))).toMatchObject({ filename: "Copy.docx", size_bytes: 12, parent_id: "folder-9", title: "Copy" });
+  });
+
+  it("uses the single-request routes for both save and saveAs when threshold is null", async () => {
+    configureRuntime({ apiUrl: API });
+    setAccessToken("session-tok");
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 12, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+      "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
+      "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
+      "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
+    });
+    vi.stubGlobal("fetch", fetch);
+    const api = createDocsFrameApi({ apiUrl: API, fetch });
+    const saved = await api.save({ fileId: "doc-1", data: OVER_BYTES, etag: "7" }, { ...call(), chunkedUploadThresholdBytes: null });
+    expect(saved).toMatchObject({ ok: true, versionId: "v-4" });
+    const savedAs = await api.saveAs!({ name: "Copy", data: OVER_BYTES }, { ...call(), chunkedUploadThresholdBytes: null });
+    expect(savedAs.rebind.documentId).toBe("doc-2");
+    expect(calls.some((c) => c.path.includes("upload-sessions"))).toBe(false);
+  });
+
+  it("cancels the upload session (DELETE) when the call signal aborts during a chunked save", async () => {
+    const controller = new AbortController();
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions": () => json(sessionBody("sess-abort", "fpart"), 201),
+      "PUT /s3/fpart-1": () => { controller.abort(); return new Response(null, { status: 200, headers: { ETag: '"e1"' } }); },
+      "PUT /s3/fpart-2": partOk('"e2"'),
+      "DELETE /api/v1/office-frame/documents/doc-1/upload-sessions/sess-abort": () => new Response(null, { status: 204 }),
+    });
+    const saving = createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: OVER_BYTES, etag: "7" }, { ...call(), signal: controller.signal, chunkedUploadThresholdBytes: THRESHOLD });
+    await expect(saving).rejects.toMatchObject({ code: "cancelled" });
+    expect(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/upload-sessions/sess-abort"))).toBe(true);
+  });
+
+  it("maps a 423 document_locked on frame upload-session create to the lock-refused protocol error without uploading parts (UNI-1890)", async () => {
+    const fields = {
+      holder_id: "u2",
+      holder_name: "An",
+      since: "2026-10-15T03:12:00Z",
+      expires_at: "2026-10-15T03:14:00Z",
+      held_by_me: false,
+      current_revision: "8",
+    };
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions": () =>
+        json({ error: { code: "document_locked", message: "đang sửa", fields } }, 423),
+    });
+    const saving = createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: OVER_BYTES, etag: "7" },
+      { ...call(), editLockId: "lock-1", chunkedUploadThresholdBytes: THRESHOLD },
+    );
+    await expect(saving).rejects.toMatchObject({
+      code: "forbidden",
+      status: 423,
+      message: "document_locked (HTTP 423)",
+      details: { apiCode: "document_locked", fields },
+    });
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      "GET /api/v1/office-frame/documents/doc-1",
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions",
+    ]);
+  });
+});
+
 describe("createDocsFrameApi saveCopy (UNI-1872)", () => {
   const COPY = {
     id: "doc-copy-1", organization_id: "org-1", workspace_id: "ws-1", parent_id: null, kind: "file", title: "Plan (copy)",
