@@ -99,6 +99,7 @@ export function useDropUpload({
             label: t("documents.upload.cancel"),
             onClick: () => {
               entry.canceled = true;
+              if (entry.toastId !== undefined) toast.dismiss(entry.toastId);
             },
           },
         });
