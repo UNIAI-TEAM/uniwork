@@ -218,11 +218,11 @@ export function CreateMenu({
               if (parentShared || pending) return;
               setShareWithWorkspace(next);
             }}
-            className="gap-2 px-2 py-2 pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+            className="group/share gap-2 px-2 py-2 pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:[&_svg]:opacity-60"
           >
             {/* TV2-04: pr-6 keeps the hint line clear of the check indicator at the item's right edge. */}
             <span className="flex flex-1 flex-col pr-6">
-              <span>{t("documents.home.create.share_workspace_toggle")}</span>
+              <span className="group-aria-disabled/share:opacity-60">{t("documents.home.create.share_workspace_toggle")}</span>
               {/* Inside the item so aria-describedby resolves within it; a live region so the change is announced. */}
               <span id={hintId} role="status" className="text-caption font-normal text-muted-foreground">
                 {hintText}
