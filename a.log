@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1645c-el1b-desktop; git log --oneline -3
+a3e609940009f56329dd9c3f52fbac663867dff5
+a3e609940009f56329dd9c3f52fbac663867dff5
+a3e60994 test(shell): exclude the EL-1(b) edit-lock acquire from open call counts
+a0b45dfd fix(shell): push doc-state changes, explain read-only save, and keep phase on editHere failure
+568203a8 test(shell): add EL-1(b) fix6 BE red pins for VEL-1, VEL-2, VEL-3
