@@ -175,7 +175,10 @@ fails on drift. One flat namespace, keys nested by section:
 | transfer ownership | **chuyển quyền sở hữu** | Transfer ownership | `org.transfer.*`; immediate, no acceptance step; the former owner becomes `admin` |
 | document owner (ACL) | **chủ sở hữu** (tài liệu) | Owner | `documents.share.acl_owner`; người giữ `acl_owner_id` — quản lý tài liệu khi còn là thành viên hiệu lực của workspace; khác vai trò `owner` của tổ chức/workspace |
 | transfer document ownership | **chuyển quyền sở hữu** (tài liệu) | Transfer ownership | `documents.share.owner.*`; ngay lập tức, không có bước chấp nhận; chủ cũ giữ mức đã chọn (mặc định Chỉnh sửa) hoặc không giữ gì — khác `org.transfer.*` |
-| document access level | **Chỉ xem** / **Bình luận** / **Chỉnh sửa** / **Quản lý** | View / Comment / Edit / Manage | `documents.share.level_*`, `documents.accessReport.level_*`, `documents.home.access.*` |
+| document home workspace row | **Workspace "{{name}}"** + nhãn phụ **"Nơi lưu"** | Workspace "{{name}}" · "Home" | `documents.share.home_badge`; nguồn quyền của mọi thành viên workspace chứa tài liệu; lưu ở `visibility` + `workspace_level` |
+| private (document share state) | **Riêng tư** | Private | trạng thái hiển thị, **không** phải cấu hình: không có dòng Workspace gốc, không share sống, không link sống (BR-10). Thay chữ "Hạn chế"/"Restricted" ở mọi bề mặt người dùng; giá trị wire `restricted` giữ nguyên |
+| document access level | **Chỉ xem** / **Nhận xét** / **Chỉnh sửa** / **Quản lý** | View / Comment / Edit / Manage | `documents.share.level_*`, `documents.accessReport.level_*`, `documents.home.access.*` |
+| document access source | **Trực tiếp** / **Qua Workspace "X"** / **Qua tổ chức** / **Chủ sở hữu** / **Quản trị viên** / **Truy cập khẩn cấp** / **Theo kết quả công việc** | Direct / Via workspace "X" / Via organization / Owner / Admin / Emergency access / Via work product | `documents.share.via_*`, `documents.share.source_item` |
 | close organization | **đóng tổ chức** | Close organization | `org.close.*`; archives the organization, deletes nothing (ADR 0032) — never "xóa tổ chức", which is the 5-day privacy deletion |
 | switch organization | **chuyển tổ chức** | Switch organization | `invitations.switch.*`; leave, transfer or close the current one and join another in one step — never "đổi tổ chức" |
 | comment | **bình luận** | Comment | |

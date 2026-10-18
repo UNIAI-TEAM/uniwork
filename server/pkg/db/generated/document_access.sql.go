@@ -209,6 +209,52 @@ func (q *Queries) GetDocumentSettings(ctx context.Context, organizationID string
 	return i, err
 }
 
+const getDocumentShareByID = `-- name: GetDocumentShareByID :one
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
+FROM document_shares
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND document_id = $4
+`
+
+type GetDocumentShareByIDParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+// The grant a share_id names, INCLUDING a revoked one: the notification
+// consumer recovers the level a delayed document.shared event originally
+// granted when the share was revoked before delivery (SH-S3 R1-09). Keyed by
+// the id the event carries and bound to the document's tenant pair, so it can
+// never recover another recipient's row.
+func (q *Queries) GetDocumentShareByID(ctx context.Context, arg GetDocumentShareByIDParams) (DocumentShare, error) {
+	row := q.db.QueryRow(ctx, getDocumentShareByID,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+	)
+	var i DocumentShare
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.PrincipalType,
+		&i.PrincipalID,
+		&i.Level,
+		&i.GrantedBy,
+		&i.GrantedByKind,
+		&i.RevokedAt,
+		&i.RevokedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getDocumentShareLink = `-- name: GetDocumentShareLink :one
 SELECT id, organization_id, workspace_id, document_id, token_hash, expires_at, view_count, last_viewed_at, created_by, created_by_kind, revoked_at, revoked_by, created_at
 FROM document_share_links
