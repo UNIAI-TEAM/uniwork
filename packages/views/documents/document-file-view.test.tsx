@@ -551,8 +551,9 @@ describe("DocumentFileView", () => {
       expect(officeHost).not.toHaveBeenCalled();
     });
 
-    it("keeps the download card while the organization's answer is loading, and after it fails", async () => {
-      // In-flight answer: the card stands, no editor, no "turned off" claim.
+    it("says it is checking while the organization's answer is loading, and keeps the card after it fails", async () => {
+      // In-flight answer: the same checking copy other Office formats show in
+      // that window, never the premature "no web editor" claim.
       let answer!: (body: unknown) => void;
       requestMock.mockImplementation((path: string) => path.startsWith("/api/v1/config")
         ? new Promise((resolve) => { answer = resolve; })
@@ -561,7 +562,8 @@ describe("DocumentFileView", () => {
       const view = render(wrap(<DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={officeHost} />));
 
       expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
-      expect(screen.getByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+      expect(screen.getByText(t("documents.file.office_checking", { format: "Markdown" }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.file.no_web_editor_title"))).toBeNull();
       expect(officeHost).not.toHaveBeenCalled();
 
       // The settled on answer then mounts the editor.
@@ -569,13 +571,14 @@ describe("DocumentFileView", () => {
       expect(await screen.findByTestId("office-host")).toBeInTheDocument();
       view.unmount();
 
-      // A rejected read leaves the card, unchanged.
+      // A rejected read leaves the card and drops the checking claim.
       const qc2 = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
       requestMock.mockImplementation((path: string) => (path.startsWith("/api/v1/config") ? Promise.reject(new Error("offline")) : Promise.resolve({ versions: [], next_cursor: null })));
       const failingHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
       render(wrap(<DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={failingHost} />, qc2));
       expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
-      expect(screen.getByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+      // findByText waits past the checking state for the failed read to settle.
+      expect(await screen.findByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
       expect(screen.queryByTestId("office-host")).toBeNull();
       expect(failingHost).not.toHaveBeenCalled();
     });

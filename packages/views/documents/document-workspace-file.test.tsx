@@ -120,7 +120,7 @@ describe("DocumentWorkspace on a file document", () => {
     // The card: filename, download command and the no-web-editor notice; no host.
     expect(await screen.findByText("ghi-chu.txt")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
-    expect(screen.getByText(t("documents.file.no_web_editor_title"), { exact: false })).toBeInTheDocument();
+    expect(await screen.findByText(t("documents.file.no_web_editor_title"), { exact: false })).toBeInTheDocument();
     expect(screen.queryByTestId("office-host")).toBeNull();
     // And the workspace wraps it in the card layout, not the editor's.
     const cardWrapper = screen.getByText("ghi-chu.txt").closest("div.flex.flex-col.gap-4")?.parentElement;

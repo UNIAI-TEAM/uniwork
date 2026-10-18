@@ -3,7 +3,6 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { Download, FileText, RotateCcwClock, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
 import { useOfficeEnabled, useOfficeTxtOpenEnabled, type OfficeEnabledState } from "@uniwork/core/documents/office-enabled";
@@ -208,9 +207,13 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
 
   const rows = versions.data?.pages.flatMap((page) => page.versions) ?? [];
   // A host is mounted and the format is an Office one, so the card stands in for
-  // the editor and says why: checking, could not check, or turned off.
-  const officeCardState = Boolean(OfficeEditorHost) && officeFormatId !== null ? office.state : null;
-  const format = formatName(officeFormatId ?? "");
+  // the editor and says why: checking, could not check, or turned off. A .txt
+  // whose office_txt_open answer is still loading is treated as a "md" that is
+  // checking, so it shows the same copy other formats show in that window and
+  // claims "no web editor" only once the answer settled off (UNI-1813).
+  const txtPending = officeFormatId === null && gate.txtState === "loading" && officeFormat(doc, true) === "md";
+  const officeCardState = Boolean(OfficeEditorHost) && (officeFormatId !== null || txtPending) ? office.state : null;
+  const format = formatName(officeFormatId ?? (txtPending ? "md" : ""));
 
   return (
     <div className="flex flex-col gap-4">
