@@ -24,6 +24,11 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { ChatMemberProfileTrigger } from "./chat-member-profile";
 import { ChatRoomPhoto } from "./chat-room-mark";
+import { usePresenceStore } from "@uniwork/core/chat/presence-store";
+import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
+import { initialsOf } from "./chat-initials";
+import { chatPersonFaceClass } from "./chat-person-card";
+import { ChatPresenceAvatar } from "./chat-presence-avatar";
 
 /** A 44px ghost icon button on a settings row or header (close, rename, nickname, member menu). */
 export const chatSettingsIconButtonClass = "size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground";
@@ -50,6 +55,21 @@ export function ChatSettingsHeader({ title, leading }: { title: string; leading?
         <X className="size-5" aria-hidden />
       </SheetClose>
     </div>
+  );
+}
+
+/** A member's 40px face on a settings list: photo or two letters in their tint, and the dot while they are online. */
+export function ChatMemberFace({ userId, name, avatarUrl }: { userId: string; name: string; avatarUrl?: string | null }) {
+  const online = usePresenceStore((state) => Boolean(state.onlineUserIds[normalizeTypingUserId(userId)]));
+  return (
+    <ChatPresenceAvatar
+      name={name}
+      initials={initialsOf(name)}
+      avatarUrl={avatarUrl}
+      size="xl"
+      avatarClassName={chatPersonFaceClass(userId)}
+      online={online}
+    />
   );
 }
 

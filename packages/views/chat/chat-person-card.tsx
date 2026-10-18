@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from "@uniwork/ui/components/ui/dialog";
 import { identityTint } from "../people/identity-tint";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
 import { PersonSharedSection } from "./chat-person-shared-panel";
 
 type ChatPersonCall = (userId: string, options?: { withCamera?: boolean }) => void;
@@ -96,7 +96,7 @@ function PersonCardProfile({
         <span className="relative inline-flex">
           <ActorAvatar
             name={name}
-            initials={initialOf(name)}
+            initials={initialsOf(name)}
             avatarUrl={avatarUrl}
             size="fluid"
             className={cn("size-24 text-display-sm ring-4 ring-surface-raised", faceClass)}
@@ -215,7 +215,7 @@ export function ChatPersonCard({
       </DialogTrigger>
       <DialogContent
         closeLabel={t("common.close")}
-        className="flex max-h-[min(40rem,85vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm"
+        className="flex max-h-[min(46rem,90vh)] flex-col gap-0 overflow-y-auto p-0 sm:max-w-sm"
       >
         {open && userId && !isSelf ? (
           <PersonSharedSection

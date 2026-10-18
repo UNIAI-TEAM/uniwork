@@ -44,8 +44,6 @@ import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { WorkspaceRoomMemberList } from "./workspace-room-member-list";
-import { ChatConversationToolbar } from "./chat-conversation-toolbar";
-import { ChatRoomMark } from "./chat-room-mark";
 import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 
 export function WorkspaceSettingsSheet({
@@ -83,7 +81,8 @@ export function WorkspaceSettingsSheet({
   const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, roomId);
   const currentMember = useCurrentMember(workspaceId);
   const manageId = useId();
-  const [membersOpen, setMembersOpen] = useState(false);
+  // The canvas opens the sheet on its member list.
+  const [membersOpen, setMembersOpen] = useState(true);
   const [manageOpen, setManageOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [bulletinOpen, setBulletinOpen] = useState(false);
@@ -229,45 +228,5 @@ export function WorkspaceSettingsSheet({
         ) : null}
       </SheetContent>
     </Sheet>
-  );
-}
-
-export function WorkspaceChatToolbar({
-  title,
-  memberCount,
-  backAriaLabel,
-  onBack,
-  sidebarCollapsed,
-  onToggleSidebar,
-  onOpenSettings,
-  onCatchUp,
-  catchUpDisabled,
-}: {
-  title: string;
-  memberCount: number;
-  backAriaLabel?: string;
-  onBack?: () => void;
-  sidebarCollapsed?: boolean;
-  onToggleSidebar?: () => void;
-  onOpenSettings: () => void;
-  onCatchUp?: () => void;
-  catchUpDisabled?: boolean;
-}) {
-  const { t } = useTranslation();
-  return (
-    <ChatConversationToolbar
-      avatar={<ChatRoomMark icon={House} size="header" tint="blue" />}
-      title={title}
-      subtitle={t("chat.group_member_count", { count: memberCount })}
-      backAriaLabel={backAriaLabel}
-      onBack={onBack}
-      sidebarCollapsed={sidebarCollapsed}
-      onToggleSidebar={onToggleSidebar}
-      settingsAriaLabel={t("chat.workspace_room_settings")}
-      onOpenSettings={onOpenSettings}
-      catchUpAriaLabel={t("chat.ai.catch_up")}
-      onCatchUp={onCatchUp}
-      catchUpDisabled={catchUpDisabled}
-    />
   );
 }

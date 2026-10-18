@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatComposerHandle, ComposerAttachAction } from "./chat-composer";
@@ -8,6 +8,7 @@ import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import { ChatSidebar, type ChatSidebarTarget } from "./chat-sidebar";
 import { ChatPageConversation } from "./chat-page-conversation";
 import { ChatThreadSidePanel } from "./chat-thread-side-panel";
+import { ChatPageInfoPanel } from "./chat-page-content-info";
 import { ChatRealtimeStatusBanner } from "./chat-realtime-status-banner";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPageContentDialogs } from "./chat-page-content-dialogs";
@@ -99,6 +100,9 @@ export function ChatPageContent(props: ChatPageContentProps) {
     threadBeside,
     sideThread,
     setSideThread,
+    infoOpen,
+    infoDocked,
+    setInfoOpen,
   } = useChatPagePanels({
     setTarget,
     activeRoomId,
@@ -132,6 +136,15 @@ export function ChatPageContent(props: ChatPageContentProps) {
     setSideThread(null);
     focusComposer();
   }, [focusComposer, setSideThread]);
+  // The info panel and a side thread share the right column: the toggle brings the panel back over a thread.
+  const panelShown = infoOpen && !sideThread;
+  const togglePanel = useCallback(() => {
+    if (sideThread) setSideThread(null);
+    setInfoOpen(!panelShown);
+  }, [panelShown, setInfoOpen, setSideThread, sideThread]);
+  const closePanel = useCallback(() => setInfoOpen(false), [setInfoOpen]);
+  const workspaceMemberIds = useMemo(() => props.workspaceMembers.map((member) => member.user_id), [props.workspaceMembers]);
+  const channelMemberIds = useMemo(() => Object.keys(props.groupMemberProfiles), [props.groupMemberProfiles]);
 
   // ⌘/Ctrl+F searches the room only while focus is inside the conversation;
   // anywhere else the browser keeps its own find.
@@ -149,6 +162,25 @@ export function ChatPageContent(props: ChatPageContentProps) {
   }, [activeRoomId, conversationRef, onMessageSearchOpenChange]);
 
   const showListToggleInFrame = sidebarCollapsed && (showLoading || !activeRoomId);
+  // With a room open the strips sit under its header (canvas); without one, at the top of the pane.
+  const roomOpen = Boolean(activeRoomId) && !showLoading;
+  const notices = (
+    <>
+      <ChatRealtimeStatusBanner pendingOutboxCount={pendingOutboxCount} />
+      <ChatConversationNotices
+        workspaceLoadFailed={isWorkspaceError && target.kind === "workspace"}
+        onRetryWorkspace={onRefetchWorkspace}
+        connectError={target.kind === "workspace" ? null : connectError}
+        blockedNotice={
+          target.kind === "dm" && dmBlocked
+            ? dmBlockedByMe
+              ? t("chat.block_active_banner")
+              : t("chat.blocked_me_banner")
+            : null
+        }
+      />
+    </>
+  );
   const blockProps = chatComposerBlockProps(t, { dmBlocked, chatSendMutedByModerator, chatSendRestricted });
 
   const handleAttachAction = (action: ComposerAttachAction) => {
@@ -225,7 +257,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
             "flex min-h-0 w-full flex-1 overflow-hidden bg-surface",
             sidebarCollapsed
               ? "lg:grid lg:grid-cols-[minmax(0,1fr)]"
-              : "lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)]",
+              : "lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[23.75rem_minmax(0,1fr)]",
           )}
         >
           <div
@@ -270,26 +302,14 @@ export function ChatPageContent(props: ChatPageContentProps) {
           <div
             ref={conversationRef}
             className={cn(
-              "min-h-0 min-w-0 overflow-hidden bg-background",
+              "relative min-h-0 min-w-0 overflow-hidden bg-background",
               showMobileChat ? "flex flex-1" : "hidden",
               "lg:flex lg:flex-1",
             )}
           >
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {showListToggleInFrame ? <ChatFrameListToggle t={t} onShowList={handleToggleSidebar} /> : null}
-              <ChatRealtimeStatusBanner pendingOutboxCount={pendingOutboxCount} />
-              <ChatConversationNotices
-                workspaceLoadFailed={isWorkspaceError && target.kind === "workspace"}
-                onRetryWorkspace={onRefetchWorkspace}
-                connectError={target.kind === "workspace" ? null : connectError}
-                blockedNotice={
-                  target.kind === "dm" && dmBlocked
-                    ? dmBlockedByMe
-                      ? t("chat.block_active_banner")
-                      : t("chat.blocked_me_banner")
-                    : null
-                }
-              />
+              {roomOpen ? null : notices}
               {showLoading ? (
                 <ChatConversationSkeleton />
               ) : activeRoomId ? (
@@ -302,11 +322,15 @@ export function ChatPageContent(props: ChatPageContentProps) {
                   onBack={handleBackToConversationList}
                   onToggleSidebar={handleToggleSidebar}
                   onAttachAction={handleAttachAction}
-                  onOpenRecordings={target.kind === "workspace" ? undefined : () => setRecordingsOpen(true)}
                   composerRef={composerRef}
                   focusComposer={focusComposer}
                   onOpenSideThread={threadBeside ? setSideThread : undefined}
                   sideThreadRootId={sideThread?.id ?? null}
+                  panelOpen={panelShown}
+                  onTogglePanel={togglePanel}
+                  workspaceMemberIds={workspaceMemberIds}
+                  channelMemberIds={channelMemberIds}
+                  notices={notices}
                 />
               ) : (
                 <ChatPageEmptyConversation
@@ -339,6 +363,18 @@ export function ChatPageContent(props: ChatPageContentProps) {
                 readOnlyPlaceholder={blockProps.placeholder}
                 mentionCandidates={mentionCandidates}
                 memberAvatarByUserId={memberAvatarByUserId}
+              />
+            ) : panelShown && activeRoomId && !showLoading ? (
+              <ChatPageInfoPanel
+                props={props}
+                roomId={activeRoomId}
+                docked={infoDocked}
+                onClose={closePanel}
+                workspaceMemberIds={workspaceMemberIds}
+                channelMemberIds={channelMemberIds}
+                onCatchUp={catchUpUi.onCatchUp}
+                catchUpDisabled={catchUpUi.loading}
+                onOpenRecordings={target.kind === "workspace" ? undefined : () => setRecordingsOpen(true)}
               />
             ) : null}
           </div>

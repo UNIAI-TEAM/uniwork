@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, BellOff, Pin, Search, StickyNote, Tag } from "lucide-react";
+import { Bell, BellOff, Phone, Pin, Search, StickyNote, Tag, Video } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@uniwork/core/auth";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import { usePresenceStore } from "@uniwork/core/chat/presence-store";
@@ -17,7 +18,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
-import { ChatConversationToolbar } from "./chat-conversation-toolbar";
 import { BlockConversationSection } from "./block-conversation-section";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import {
@@ -39,7 +39,7 @@ import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
 
 export function DmSettingsSheet({
   open,
@@ -61,6 +61,10 @@ export function DmSettingsSheet({
   unblocking,
   onOpenSearch,
   memberAvatarByUserId = {},
+  onVoiceCall,
+  voiceCallDisabled,
+  onVideoCall,
+  videoCallDisabled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -81,6 +85,11 @@ export function DmSettingsSheet({
   blocking?: boolean;
   unblocking?: boolean;
   onOpenSearch?: () => void;
+  /** Calls from the sheet's quick actions (canvas: mute, pin, call, video, search). */
+  onVoiceCall?: () => void;
+  voiceCallDisabled?: boolean;
+  onVideoCall?: () => void;
+  videoCallDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
@@ -93,6 +102,7 @@ export function DmSettingsSheet({
   const legalName = displayLabelForChatContact(contact);
   const selfNickname = resolveChatNicknameForUser(nicknamesByUserId, currentUserId);
   const selfLabel = selfNickname || youLabel;
+  const selfName = useAuthStore((state) => (state.status === "authed" ? (state.user?.display_name ?? "") : ""));
 
   const participants = [
     { key: "self", userId: currentUserId, label: selfLabel, legalLabel: youLabel, email: undefined as string | undefined },
@@ -121,7 +131,7 @@ export function DmSettingsSheet({
               <span className="relative inline-flex">
                 <ActorAvatar
                   name={contactLabel}
-                  initials={initialOf(contactLabel)}
+                  initials={initialsOf(contactLabel)}
                   avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, contact.user_id)}
                   size="fluid"
                   className={cn("size-17 text-display-sm", chatPersonFaceClass(contact.user_id))}
@@ -164,6 +174,22 @@ export function DmSettingsSheet({
               onClick={onTogglePin}
               active={pinned}
             />
+            {onVoiceCall ? (
+              <ChatSettingsQuickAction
+                icon={Phone}
+                label={t("chat.info_panel.tile_call")}
+                onClick={onVoiceCall}
+                disabled={voiceCallDisabled}
+              />
+            ) : null}
+            {onVideoCall ? (
+              <ChatSettingsQuickAction
+                icon={Video}
+                label={t("chat.info_panel.tile_video")}
+                onClick={onVideoCall}
+                disabled={videoCallDisabled}
+              />
+            ) : null}
             {onOpenSearch ? (
               <ChatSettingsQuickAction
                 icon={Search}
@@ -179,6 +205,7 @@ export function DmSettingsSheet({
           <ChatSettingsCollapsibleSection
             title={t("chat.dm_participants_title")}
             summary={t("chat.group_member_count", { count: participants.length })}
+            defaultOpen
             flush
           >
             <ul>
@@ -189,7 +216,7 @@ export function DmSettingsSheet({
                     participant.key === "self" ? (
                       <ActorAvatar
                         name={participant.label}
-                        initials={initialOf(participant.label)}
+                        initials={initialsOf(participant.key === "self" ? selfName || youLabel : participant.legalLabel)}
                         avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, currentUserId)}
                         size="xl"
                         className={chatPersonFaceClass(currentUserId)}
@@ -197,7 +224,7 @@ export function DmSettingsSheet({
                     ) : (
                       <ChatPresenceAvatar
                         name={participant.label}
-                        initials={initialOf(participant.label)}
+                        initials={initialsOf(participant.key === "self" ? selfName || youLabel : participant.legalLabel)}
                         avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, contact.user_id)}
                         size="xl"
                         avatarClassName={chatPersonFaceClass(contact.user_id)}
@@ -310,83 +337,5 @@ export function DmSettingsSheet({
         />
       </SheetContent>
     </Sheet>
-  );
-}
-
-export function DmChatToolbar({
-  contact,
-  nicknamesByUserId = {},
-  backAriaLabel,
-  onBack,
-  sidebarCollapsed,
-  onToggleSidebar,
-  onOpenSettings,
-  onCatchUp,
-  catchUpDisabled,
-  onOpenRecordings,
-  onVoiceCall,
-  voiceCallDisabled,
-  onVideoCall,
-  videoCallDisabled,
-  memberAvatarByUserId = {},
-}: {
-  contact: ChatContact;
-  nicknamesByUserId?: Record<string, string>;
-  memberAvatarByUserId?: MemberAvatarUrlMap;
-  backAriaLabel?: string;
-  onBack?: () => void;
-  sidebarCollapsed?: boolean;
-  onToggleSidebar?: () => void;
-  onOpenSettings: () => void;
-  onCatchUp?: () => void;
-  catchUpDisabled?: boolean;
-  onOpenRecordings?: () => void;
-  onVoiceCall?: () => void;
-  voiceCallDisabled?: boolean;
-  onVideoCall?: () => void;
-  videoCallDisabled?: boolean;
-}) {
-  const { t } = useTranslation();
-  const contactLabel = displayLabelForChatContact(contact, nicknamesByUserId);
-  const online = usePresenceStore((state) =>
-    Boolean(state.onlineUserIds[normalizeTypingUserId(contact.user_id)]),
-  );
-
-  return (
-    <ChatConversationToolbar
-      avatar={
-        <ChatPresenceAvatar
-          name={contactLabel}
-          initials={initialOf(contactLabel)}
-          avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, contact.user_id)}
-          size="xl"
-          avatarClassName={chatPersonFaceClass(contact.user_id)}
-          online={online}
-        />
-      }
-      title={contactLabel}
-      subtitle={
-        online
-          ? t("chat.presence_online")
-          : contact.email || t("chat.dm_direct_message")
-      }
-      backAriaLabel={backAriaLabel}
-      onBack={onBack}
-      sidebarCollapsed={sidebarCollapsed}
-      onToggleSidebar={onToggleSidebar}
-      settingsAriaLabel={t("chat.dm_settings")}
-      onOpenSettings={onOpenSettings}
-      catchUpAriaLabel={t("chat.ai.catch_up")}
-      onCatchUp={onCatchUp}
-      catchUpDisabled={catchUpDisabled}
-      recordingsAriaLabel={t("chat.voice_recordings_open")}
-      onOpenRecordings={onOpenRecordings}
-      voiceCallAriaLabel={t("chat.voice_call_start")}
-      onVoiceCall={onVoiceCall}
-      voiceCallDisabled={voiceCallDisabled}
-      videoCallAriaLabel={t("chat.video_call_start")}
-      onVideoCall={onVideoCall}
-      videoCallDisabled={videoCallDisabled}
-    />
   );
 }

@@ -65,7 +65,8 @@ describe("ChatPinnedMessagesBar", () => {
     expect(screen.getByText(/second/i)).toBeInTheDocument();
     expect(screen.queryByText(/hello pinned/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Xem thêm 1|Show 1 more/i }));
+    expect(screen.getByText("Tin ghim 1/2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Xem tất cả tin ghim" }));
     expect(screen.getByText(/hello pinned/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Thu gọn|Show less/i }));
@@ -86,6 +87,10 @@ describe("ChatPinnedMessagesBar", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /second/i }));
     expect(onJump).toHaveBeenCalledWith("m2");
+    // The bar moves on to the next older pin, as "Tin ghim 2/2" says.
+    expect(screen.getByText("Tin ghim 2/2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /hello pinned/i }));
+    expect(onJump).toHaveBeenLastCalledWith("m1");
   });
 
   it("unpins from the pinned bar when allowed", () => {
@@ -100,7 +105,8 @@ describe("ChatPinnedMessagesBar", () => {
         />,
       ),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Bỏ ghim" }));
+    fireEvent.click(screen.getByRole("button", { name: "Xem tất cả tin ghim" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Bỏ ghim" })[0]!);
     expect(mutateAsync).toHaveBeenCalledWith({ roomId: "room1", messageId: "m2" });
   });
 });

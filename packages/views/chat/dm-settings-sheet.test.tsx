@@ -88,7 +88,8 @@ describe("DmSettingsSheet", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Bạn Binh" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Người tham gia/i }));
+    // The participants open with the sheet (canvas).
+    expect(screen.getByRole("button", { name: /Người tham gia/i })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Tên gốc: Binh")).toBeInTheDocument();
   });
 

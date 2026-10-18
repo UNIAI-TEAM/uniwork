@@ -16,7 +16,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toastChatError } from "./chat-error-message";
-import { ChatSettingsRoomMark } from "./chat-settings-ui";
+import { ChatRoomFace } from "./chat-info-panel-mark";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
@@ -134,12 +134,15 @@ function GroupAvatarBadge({
 export function ChatGroupAvatarEditor({
   workspaceId,
   roomId,
+  name,
   tint,
   imageUrl,
   canEdit,
 }: {
   workspaceId: string;
   roomId: string;
+  /** The group's name: its initials stand in until a photo is set, as in the list. */
+  name: string;
   tint: Tint;
   imageUrl?: string;
   canEdit: boolean;
@@ -147,7 +150,7 @@ export function ChatGroupAvatarEditor({
   const { t } = useTranslation();
   const setAvatar = useSetChatRoomAvatar(workspaceId);
   const pending = setAvatar.isPending;
-  const mark = <ChatSettingsRoomMark icon={Users} tint={tint} imageUrl={imageUrl} />;
+  const mark = <ChatRoomFace name={name} tint={tint} imageUrl={imageUrl} size="sheet" />;
   if (!canEdit) return mark;
 
   const send = (file: File | null) =>
@@ -170,7 +173,16 @@ export function ChatGroupAvatarEditor({
  * The create-group dialog's photo: chosen and previewed here, uploaded by the
  * caller once the group exists (it has no room id before).
  */
-export function ChatGroupAvatarPicker({ file, onFileChange }: { file: File | null; onFileChange: (file: File | null) => void }) {
+export function ChatGroupAvatarPicker({
+  file,
+  onFileChange,
+  name = "",
+}: {
+  file: File | null;
+  onFileChange: (file: File | null) => void;
+  /** The name being typed: its initials fill the tile until a photo is chosen (canvas). */
+  name?: string;
+}) {
   const [previewUrl, setPreviewUrl] = useState<string | undefined>();
   useEffect(() => {
     if (!file) return;
@@ -183,7 +195,7 @@ export function ChatGroupAvatarPicker({ file, onFileChange }: { file: File | nul
   }, [file]);
   return (
     <div className="relative shrink-0">
-      <ChatSettingsRoomMark icon={Users} tint="violet" imageUrl={previewUrl} />
+      <ChatRoomFace name={name} icon={name.trim() ? undefined : Users} tint="violet" imageUrl={previewUrl} size="create" />
       <GroupAvatarBadge hasPhoto={Boolean(file)} onFile={onFileChange} onRemove={() => onFileChange(null)} />
     </div>
   );

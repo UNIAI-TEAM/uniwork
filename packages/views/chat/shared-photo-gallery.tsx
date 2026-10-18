@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Image } from "lucide-react";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { isChatMediaUrlFresh, useRefreshChatMessageMedia } from "@uniwork/core/chat";
 import { parseChatMediaMessageBody } from "./chat-expression-utils";
@@ -57,16 +58,22 @@ function signedThumb(item: PersonSharedItem): string {
   return item.thumbUrl || item.url || "";
 }
 
-function SharedPhotoCell({
+/** One square thumbnail; its signed URL is re-signed when it has expired. */
+export function SharedPhotoCell({
   item,
   workspaceId,
   roomId,
   onOpen,
+  className,
+  children,
 }: {
   item: PersonSharedItem;
   workspaceId: string;
   roomId: string;
   onOpen: (image: { url: string; alt: string }) => void;
+  className?: string;
+  /** Drawn over the photo (the info panel's "+42"). */
+  children?: ReactNode;
 }) {
   const refresh = useRefreshChatMessageMedia(workspaceId, roomId);
   const initial = signedThumb(item);
@@ -92,7 +99,10 @@ function SharedPhotoCell({
   return (
     <button
       type="button"
-      className="flex aspect-square cursor-zoom-in items-center justify-center overflow-hidden bg-muted"
+      className={cn(
+        "relative flex aspect-square cursor-zoom-in items-center justify-center overflow-hidden bg-muted",
+        className,
+      )}
       aria-label={item.title}
       onClick={() => src && onOpen({ url: src, alt: item.title })}
     >
@@ -101,6 +111,7 @@ function SharedPhotoCell({
       ) : (
         <Image className="size-5 text-muted-foreground" aria-hidden />
       )}
+      {children}
     </button>
   );
 }

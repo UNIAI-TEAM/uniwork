@@ -1,12 +1,18 @@
 "use client";
 
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
+import { useChatRooms } from "@uniwork/core/chat";
 import { ChatRoomComposer, type ChatComposerHandle, type ComposerAttachAction } from "./chat-composer";
 import { chatComposerBlockProps } from "./chat-composer-placeholder";
 import { ChatUnreadProvider } from "./chat-day-separator";
 import { ChatMessageSearchBar } from "./chat-message-search-bar";
 import type { ChatMessage } from "./chat-messages";
-import { ChatPageConversationIntro, ChatPageConversationToolbar, chatPageEmptyLabel } from "./chat-page-conversation-toolbar";
+import {
+  CHAT_WAVE,
+  ChatPageConversationIntro,
+  ChatPageConversationToolbar,
+  chatPageEmptyLabel,
+} from "./chat-page-conversation-toolbar";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPinnedMessagesBar } from "./chat-pinned-messages-bar";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
@@ -27,11 +33,15 @@ export function ChatPageConversation({
   onBack,
   onToggleSidebar,
   onAttachAction,
-  onOpenRecordings,
   composerRef,
   focusComposer,
   onOpenSideThread,
   sideThreadRootId,
+  panelOpen,
+  onTogglePanel,
+  workspaceMemberIds,
+  channelMemberIds,
+  notices,
 }: {
   props: ChatPageContentProps;
   activeRoomId: string;
@@ -41,12 +51,18 @@ export function ChatPageConversation({
   onBack: () => void;
   onToggleSidebar: () => void;
   onAttachAction: (action: ComposerAttachAction) => void;
-  onOpenRecordings?: () => void;
   composerRef: RefObject<ChatComposerHandle | null>;
   focusComposer: () => void;
   /** Set from lg: threads open in the side panel instead of in the timeline. */
   onOpenSideThread?: (message: ChatMessage) => void;
   sideThreadRootId: string | null;
+  /** The info panel shows; the header's last action toggles it. */
+  panelOpen: boolean;
+  onTogglePanel: () => void;
+  workspaceMemberIds: readonly string[];
+  channelMemberIds: readonly string[];
+  /** Connection, outbox and room notices: under the header, over the pins (canvas). */
+  notices: ReactNode;
 }) {
   const {
     t,
@@ -66,6 +82,8 @@ export function ChatPageConversation({
     chatSendRestricted,
   } = props;
   const edit = useChatInlineEdit({ workspaceId, roomId: activeRoomId, nameContext });
+  const { data: rooms } = useChatRooms(workspaceId);
+  const roomWorkspaceId = rooms?.find((room) => room.id === activeRoomId)?.workspace_id;
   // Threads, mentions and sender names belong to rooms with more than two people.
   const many = target.kind !== "dm";
 
@@ -78,26 +96,28 @@ export function ChatPageConversation({
         activeContact={props.activeContact}
         activeGroup={props.activeGroup}
         activeChannel={props.activeChannel}
-        workspaceMembersCount={workspaceMembers.length}
+        workspaceMemberIds={workspaceMemberIds}
+        channelMemberIds={channelMemberIds}
+        roomWorkspaceId={roomWorkspaceId}
         nicknamesByUserId={nicknamesByUserId}
         memberAvatarByUserId={memberAvatarByUserId}
-        backToListLabel={t("chat.back_to_conversations")}
+        typingLabel={props.typingLabel}
+        backAriaLabel={t("chat.back_to_conversations")}
         sidebarCollapsed={sidebarCollapsed}
         onBack={onBack}
         onToggleSidebar={onToggleSidebar}
-        onOpenWorkspaceSettings={() => props.onWorkspaceSettingsOpenChange(true)}
-        onOpenGroupSettings={() => props.onGroupSettingsOpenChange(true)}
-        onOpenChannelSettings={() => props.onChannelSettingsOpenChange(true)}
-        onOpenDmSettings={() => props.onDmSettingsOpenChange(true)}
+        panelOpen={panelOpen}
+        onTogglePanel={onTogglePanel}
         onCatchUp={catchUp.onCatchUp}
         catchUpDisabled={catchUp.loading}
-        onOpenRecordings={onOpenRecordings}
         onVoiceCall={props.onVoiceCall}
         voiceCallDisabled={props.voiceCallDisabled}
         onVideoCall={props.onVideoCall}
         videoCallDisabled={props.videoCallDisabled}
-        onSearch={() => onMessageSearchOpenChange(true)}
+        onSearch={() => onMessageSearchOpenChange((open) => !open)}
+        searchOpen={messageSearchOpen}
       />
+      {notices}
       {messageSearchOpen ? (
         <ChatMessageSearchBar
           workspaceId={workspaceId}
@@ -117,50 +137,55 @@ export function ChatPageConversation({
         />
       )}
 
-      {/* The room's unread count and brief; a thread open in place keeps the plain "Tin mới". */}
-      <ChatUnreadProvider
-        value={props.activeThreadRootId ? { count: null } : { count: catchUp.unreadCount, onCatchUp: catchUp.onCatchUpRoom }}
-      >
-        <NativeChatMessagePanel
-          workspaceId={workspaceId}
-          roomId={activeRoomId}
-          currentUserId={currentUserId}
-          nameContext={nameContext}
-          youLabel={t("chat.you")}
-          emptyLabel={chatPageEmptyLabel(t, target, headerTitle, nicknamesByUserId)}
-          intro={
-            <ChatPageConversationIntro
-              target={target}
-              headerTitle={headerTitle}
-              activeChannel={props.activeChannel}
-              nicknamesByUserId={nicknamesByUserId}
-              t={t}
-              onViewMembers={() => props.onWorkspaceSettingsOpenChange(true)}
-              onAddMembers={() => props.onAddMembersOpenChange(true)}
-              workspaceMemberCount={workspaceMembers.length}
-            />
-          }
-          replyTo={props.replyTo}
-          onReplyToChange={props.onReplyToChange}
-          threadsEnabled={many}
-          onFollowUp={onFollowUp}
-          onActiveThreadRootIdChange={props.onActiveThreadRootIdChange}
-          onOpenThread={onOpenSideThread}
-          openThreadRootId={sideThreadRootId}
-          unreadSince={catchUp.unreadSince}
-          refreshKey={props.messageRefreshKey}
-          showSenderName={many}
-          embedded
-          anchorMessageId={props.jumpToMessageId}
-          onClearAnchor={() => onJumpToMessageIdChange(null)}
-          canPinMessages={canPinMessages}
-          canModerate={props.canModerate}
-          canSendMessages={!dmBlocked && !chatSendRestricted}
-          onFocusComposer={focusComposer}
-          onEditMessage={edit.start}
-          peerLastReadAt={props.peerLastReadAt}
-        />
-      </ChatUnreadProvider>
+      {/* The room's unread count and brief; a thread open in place keeps the plain "Tin mới".
+          The box is the anchor the cross-workspace toast sits in (12px down, 16px in). */}
+      <div data-chat-toast-anchor="" className="relative flex min-h-0 flex-1 flex-col">
+        <ChatUnreadProvider
+          value={props.activeThreadRootId ? { count: null } : { count: catchUp.unreadCount, onCatchUp: catchUp.onCatchUpRoom }}
+        >
+          <NativeChatMessagePanel
+            workspaceId={workspaceId}
+            roomId={activeRoomId}
+            currentUserId={currentUserId}
+            nameContext={nameContext}
+            youLabel={t("chat.you")}
+            emptyLabel={chatPageEmptyLabel(t, target, headerTitle, nicknamesByUserId)}
+            intro={
+              <ChatPageConversationIntro
+                target={target}
+                headerTitle={headerTitle}
+                activeChannel={props.activeChannel}
+                nicknamesByUserId={nicknamesByUserId}
+                t={t}
+                onViewMembers={() => props.onWorkspaceSettingsOpenChange(true)}
+                onAddMembers={() => props.onAddMembersOpenChange(true)}
+                workspaceMemberCount={workspaceMembers.length}
+                memberAvatarByUserId={memberAvatarByUserId}
+                onWave={dmBlocked || chatSendRestricted ? undefined : () => void props.onSendMedia(CHAT_WAVE)}
+              />
+            }
+            replyTo={props.replyTo}
+            onReplyToChange={props.onReplyToChange}
+            threadsEnabled={many}
+            onFollowUp={onFollowUp}
+            onActiveThreadRootIdChange={props.onActiveThreadRootIdChange}
+            onOpenThread={onOpenSideThread}
+            openThreadRootId={sideThreadRootId}
+            unreadSince={catchUp.unreadSince}
+            refreshKey={props.messageRefreshKey}
+            showSenderName={many}
+            embedded
+            anchorMessageId={props.jumpToMessageId}
+            onClearAnchor={() => onJumpToMessageIdChange(null)}
+            canPinMessages={canPinMessages}
+            canModerate={props.canModerate}
+            canSendMessages={!dmBlocked && !chatSendRestricted}
+            onFocusComposer={focusComposer}
+            onEditMessage={edit.start}
+            peerLastReadAt={props.peerLastReadAt}
+          />
+        </ChatUnreadProvider>
+      </div>
 
       <ChatRoomComposer
         ref={composerRef}

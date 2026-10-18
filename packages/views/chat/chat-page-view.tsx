@@ -39,7 +39,6 @@ import { useChatMessageDeepLink } from "./use-chat-message-deep-link";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatMessage } from "./chat-messages";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
-import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import { useChatReminderNotifications } from "./use-chat-reminder-notify";
 import { chatErrorMessage } from "./chat-error-message";
 import {
@@ -52,9 +51,11 @@ import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";
+import { givenNameOf } from "./chat-initials";
 import { ChatPageContent } from "./chat-page-content";
 import { ChatSeenByProvider, useChatSeenBy } from "./chat-seen-by";
 import { useChatPageActions } from "./use-chat-page-actions";
+import { useUrlRoomPending } from "./use-chat-page-panels";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
 import { useChatBlockActions } from "./use-chat-block-actions";
 import { useChatMediaSend } from "./use-chat-media-send";
@@ -150,13 +151,8 @@ export function ChatPageView({
   }, [channels, target]);
   const dmPeerUserId = activeContact?.user_id ?? null;
   const dmContactRoomId = activeContact?.dm_room_id ?? null;
-  const { data: blockStatus } = useChatBlockStatus(
-    workspaceId,
-    dmPeerUserId ?? "",
-    target.kind === "dm" && Boolean(dmPeerUserId),
-  );
-  const dmBlocked =
-    Boolean(blockStatus?.blocked_by_me) || Boolean(blockStatus?.blocked_me);
+  const { data: blockStatus } = useChatBlockStatus(workspaceId, dmPeerUserId ?? "", target.kind === "dm" && Boolean(dmPeerUserId));
+  const dmBlocked = Boolean(blockStatus?.blocked_by_me) || Boolean(blockStatus?.blocked_me);
 
   const contacts = useMemo(
     () => mergeActiveDmContact(roomContacts, activeContact, resolvedDmRoomId),
@@ -195,8 +191,11 @@ export function ChatPageView({
     };
   }, [dmPeerUserId, dmContactRoomId, t]);
 
-  const activeRoomId =
-    target.kind === "workspace"
+  // `?room=` from a reload or a link: no room opens (or is marked read) until that one does.
+  const urlRoomPending = useUrlRoomPending({ targetKind: target.kind, workspaceRoomId, roomsLoaded, channels, groups, contacts: roomContacts });
+  const activeRoomId = urlRoomPending
+    ? null
+    : target.kind === "workspace"
       ? workspaceRoomId
       : target.kind === "dm"
         ? (resolvedDmRoomId ?? activeContact?.dm_room_id ?? null)
@@ -230,11 +229,7 @@ export function ChatPageView({
 
   useChatMentionNotify({ workspaceId, currentUserId, activeRoomId });
 
-  const { data: activeRoomMembers = [] } = useChatRoomMembers(
-    workspaceId,
-    activeRoomId ?? "",
-    Boolean(activeRoomId),
-  );
+  const { data: activeRoomMembers = [] } = useChatRoomMembers(workspaceId, activeRoomId ?? "", Boolean(activeRoomId));
   const activeRoomRecord = useMemo(
     () => (activeRoomId ? rooms.find((room) => room.id === activeRoomId) : undefined),
     [activeRoomId, rooms],
@@ -265,6 +260,7 @@ export function ChatPageView({
 
   const showLoading =
     !authReady ||
+    urlRoomPending ||
     (target.kind === "workspace" && ensureRoom.isPending && !workspaceRoomId) ||
     (target.kind === "dm" && !activeRoomId && (resolveDM.isPending || !roomsLoaded)) ||
     (target.kind === "group" && !activeRoomId) ||
@@ -389,11 +385,16 @@ export function ChatPageView({
     acceptCall,
     declineCall,
   });
+  // "Minh đang nhập…": who types goes by the given name, as the list says it (canvas).
+  const typingNames = useMemo(
+    () => nameContext.map((entry) => ({ ...entry, display_name: givenNameOf(entry.display_name) })),
+    [nameContext],
+  );
   const typingLabel = useNativeTyping({
     workspaceId,
     roomId: activeRoomId,
     currentUserId,
-    nameContext,
+    nameContext: typingNames,
     draftKey: composerDraftKey,
     enabled: Boolean(activeRoomId) && !showLoading && !dmBlocked,
   });

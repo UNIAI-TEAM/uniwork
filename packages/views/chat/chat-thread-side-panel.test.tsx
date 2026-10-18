@@ -31,6 +31,7 @@ vi.mock("@uniwork/core/chat", async (orig) => ({
 
 vi.mock("./virtual-chat-message-list", () => ({
   updateStickToBottomFromScroll: () => true,
+  useReaderScrollAt: () => ({ current: 0 }),
   VirtualChatMessageList: ({ messages, renderMessage }: { messages: unknown[]; renderMessage: (i: number) => unknown }) => (
     <>{messages.map((_, index) => renderMessage(index))}</>
   ),

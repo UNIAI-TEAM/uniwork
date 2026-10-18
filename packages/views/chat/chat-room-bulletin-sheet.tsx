@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import {
   CircleAlert,
   ChartColumn,
@@ -40,7 +42,9 @@ import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { CHAT_PILL_SM_CLASS } from "./chat-dialog-look";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
+import { stripInlineMarkdown } from "./chat-info-panel-utils";
+import { chatPersonFaceClass } from "./chat-person-card";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import {
   bulletinMessagePreview,
@@ -229,12 +233,17 @@ function BulletinTabPanel({
                         "font-display font-bold",
                     )}
                   >
-                    {preview}
+                    {stripInlineMarkdown(preview)}
                   </span>
                   <span className="mt-1 flex min-w-0 items-center gap-1.5 text-label text-muted-foreground">
                     {sender ? (
                       <>
-                        <ActorAvatar name={sender} initials={initialOf(sender)} size="sm" />
+                        <ActorAvatar
+                          name={sender}
+                          initials={initialsOf(sender)}
+                          size="sm"
+                          className={chatPersonFaceClass(item.sender_id)}
+                        />
                         <span className="truncate">{sender}</span>
                         <span aria-hidden>·</span>
                       </>
@@ -266,6 +275,8 @@ export function ChatRoomBulletinSheet({
   workspaceId,
   roomId,
   title,
+  subtitle,
+  mark,
   canCreateNotes = true,
   canCreatePolls = true,
   canPinMessages = false,
@@ -279,6 +290,9 @@ export function ChatRoomBulletinSheet({
   workspaceId: string;
   roomId: string;
   title: string;
+  /** The room's name under the title, beside its mark (canvas "Bảng tin nhóm · Ra mắt UniWork Q4"). */
+  subtitle?: string;
+  mark?: ReactNode;
   canCreateNotes?: boolean;
   canCreatePolls?: boolean;
   canPinMessages?: boolean;
@@ -365,9 +379,11 @@ export function ChatRoomBulletinSheet({
             >
               <ChevronLeft className="size-5" aria-hidden />
             </Button>
-            <DialogTitle className="min-w-0 flex-1 truncate font-display text-title font-bold text-foreground">
-              {title}
-            </DialogTitle>
+            {mark}
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate font-display text-title font-bold text-foreground">{title}</DialogTitle>
+              {subtitle ? <p className="truncate text-label text-muted-foreground">{subtitle}</p> : null}
+            </div>
           </div>
 
           <Tabs

@@ -6,13 +6,10 @@ import { useTranslation } from "react-i18next";
 import type { ChatRoomMemberRecord } from "@uniwork/core/api/endpoints/chat";
 import { useCurrentMember, useWorkspacePermissions } from "@uniwork/core/permissions";
 import type { Member } from "@uniwork/core/types/workspace";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { memberAvatarUrl } from "./chat-member-avatar";
-import { chatPersonFaceClass } from "./chat-person-card";
-import { initialOf } from "./chat-initials";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
   canDemoteChatMember,
@@ -22,7 +19,7 @@ import {
 } from "./chat-room-moderation-utils";
 import { foldedIncludes } from "./chat-search-fold";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
-import { ChatMemberRow, type ChatMemberDetailTone } from "./chat-settings-ui";
+import { ChatMemberFace, ChatMemberRow, type ChatMemberDetailTone } from "./chat-settings-ui";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 
 /** Rows rendered per step: a 1,000-person workspace never mounts 1,000 menus at once. */
@@ -136,12 +133,10 @@ export function WorkspaceRoomMemberList({
               <ChatMemberRow
                 key={member.user_id}
                 avatar={
-                  <ActorAvatar
-                    name={label}
-                    initials={initialOf(label)}
+                  <ChatMemberFace
+                    userId={member.user_id}
+                    name={member.display_name?.trim() || label}
                     avatarUrl={memberAvatarUrl(wsMember?.avatar_url)}
-                    size="xl"
-                    className={chatPersonFaceClass(member.user_id)}
                   />
                 }
                 name={label}

@@ -10,7 +10,6 @@ import {
   useChatRooms,
 } from "@uniwork/core/chat";
 import { useCurrentMember } from "@uniwork/core/permissions";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Sheet,
@@ -23,6 +22,7 @@ import { identityTint } from "../people/identity-tint";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
+  ChatMemberFace,
   chatSettingsIconButtonClass,
   ChatMemberListError,
   ChatMemberListSkeleton,
@@ -37,6 +37,7 @@ import {
 } from "./chat-settings-ui";
 import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatGroupAvatarEditor } from "./chat-group-avatar-editor";
+import { ChatRoomFace } from "./chat-info-panel-mark";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
@@ -52,8 +53,6 @@ import {
 } from "./chat-room-moderation-utils";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
-import { chatPersonFaceClass } from "./chat-person-card";
-import { initialOf } from "./chat-initials";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 
 type MemberProfile = {
@@ -111,7 +110,8 @@ export function GroupSettingsSheet({
   const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, group.room_id);
   const currentMember = useCurrentMember(workspaceId);
   const moderation = useRoomMemberModeration({ workspaceId, roomId: group.room_id });
-  const [membersOpen, setMembersOpen] = useState(false);
+  // The canvas opens the sheet on its member list.
+  const [membersOpen, setMembersOpen] = useState(true);
   const [manageOpen, setManageOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [bulletinOpen, setBulletinOpen] = useState(false);
@@ -187,6 +187,7 @@ export function GroupSettingsSheet({
               <ChatGroupAvatarEditor
                 workspaceId={workspaceId}
                 roomId={group.room_id}
+                name={displayName}
                 tint={identityTint(group.id)}
                 imageUrl={roomRecord?.avatar_url}
                 canEdit={roomPermissions.canChangeProfile}
@@ -279,12 +280,10 @@ export function GroupSettingsSheet({
                   <ChatMemberRow
                     key={member.key}
                     avatar={
-                      <ActorAvatar
-                        name={member.label}
-                        initials={initialOf(member.label)}
+                      <ChatMemberFace
+                        userId={member.key}
+                        name={member.legalLabel}
                         avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.key)}
-                        size="xl"
-                        className={chatPersonFaceClass(member.key)}
                       />
                     }
                     name={member.label}
@@ -395,6 +394,8 @@ export function GroupSettingsSheet({
             workspaceId={workspaceId}
             roomId={group.room_id}
             title={t("chat.settings_group_bulletin")}
+            subtitle={displayName}
+            mark={<ChatRoomFace name={displayName} tint={identityTint(group.id)} imageUrl={roomRecord?.avatar_url} size="header" />}
             canCreateNotes={roomPermissions.canCreateNotes}
             canCreatePolls={roomPermissions.canCreatePolls}
             canPinMessages={roomPermissions.canPinContent}

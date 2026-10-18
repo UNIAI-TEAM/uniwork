@@ -19,7 +19,7 @@ const png = (bytes = 10) => new File([new Uint8Array(bytes)], "nhom.png", { type
 
 function renderEditor(props: Partial<{ imageUrl: string; canEdit: boolean }> = {}) {
   const { container } = render(
-    wrap(<ChatGroupAvatarEditor workspaceId="ws1" roomId="g1" tint="violet" canEdit {...props} />),
+    wrap(<ChatGroupAvatarEditor workspaceId="ws1" roomId="g1" name="Ra mắt UniWork Q4" tint="violet" canEdit {...props} />),
   );
   return container.querySelector<HTMLInputElement>('input[type="file"]');
 }

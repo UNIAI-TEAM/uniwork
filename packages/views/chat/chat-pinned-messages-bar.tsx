@@ -2,9 +2,9 @@
 
 import {
   ChartColumn,
-  ChevronDown,
   ChevronUp,
   Clock,
+  List,
   Megaphone,
   Phone,
   Pin,
@@ -23,6 +23,7 @@ import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
+import { stripInlineMarkdown } from "./chat-info-panel-utils";
 
 function pinnedPreviewText(
   row: ChatMessageRecord,
@@ -45,7 +46,7 @@ function pinnedPreviewText(
   }
   const media = describeChatMediaBody(row.body, mediaLabels);
   if (media) return media;
-  const text = deserializeMessageBodyToComposerDraft(row.body).replace(/\s+/g, " ").trim();
+  const text = stripInlineMarkdown(deserializeMessageBodyToComposerDraft(row.body)).replace(/\s+/g, " ").trim();
   if (text.length === 0) return "…";
   return [...text].length > 80 ? `${[...text].slice(0, 80).join("")}…` : text;
 }
@@ -87,6 +88,8 @@ export function ChatPinnedMessagesBar({
     [t],
   );
   const [expanded, setExpanded] = useState(false);
+  // Which pin the collapsed bar shows; a tap jumps to it and moves on to the next older one.
+  const [cursor, setCursor] = useState(0);
 
   const pinned = useMemo(
     () =>
@@ -101,13 +104,12 @@ export function ChatPinnedMessagesBar({
     [rows, voiceCallLabel, mediaLabels],
   );
 
-  const item = pinned[0];
+  const position = pinned.length > 0 ? cursor % pinned.length : 0;
+  const item = pinned[position];
   if (!item) return null;
   // Pins are read from the latest page only (no pinned-messages endpoint
   // yet); when that page is full, say how far back the bar looked.
   const windowFull = rows.length >= CHAT_MESSAGE_INITIAL;
-
-  const hiddenCount = pinned.length - 1;
 
   // Unpinning is one tap away from a mistake, so it says it happened and
   // offers the way back; a failure says so instead of leaving the pin as is.
@@ -153,7 +155,7 @@ export function ChatPinnedMessagesBar({
     </span>
   );
 
-  if (expanded && pinned.length > 1) {
+  if (expanded) {
     return (
       <section
         className="shrink-0 border-b border-border bg-surface shadow-surface"
@@ -196,11 +198,11 @@ export function ChatPinnedMessagesBar({
     );
   }
 
-  // Collapsed: the newest pin, with one segment per pin on the left marking
-  // which of them the bar is showing.
+  // Collapsed (canvas): one segment per pin on the left marking which one the
+  // bar shows, "Tin ghim 2/3" over its preview, and the list of all of them.
   return (
     <section className="shrink-0 border-b border-border bg-surface" aria-label={t("chat.pinned_bar_aria")}>
-      <div className="flex h-13 items-center gap-2.5 pr-2 pl-3 sm:pr-3 sm:pl-5">
+      <div className="flex h-13 items-center gap-3 pr-3 pl-5">
         <span aria-hidden className="flex h-9 w-0.75 shrink-0 flex-col gap-0.5">
           {pinned.map((pin) => (
             <span
@@ -211,39 +213,35 @@ export function ChatPinnedMessagesBar({
         </span>
         <button
           type="button"
-          className={jumpClass}
+          className={cn(jumpClass, "-ml-1 pl-1")}
           aria-label={t("chat.pinned_bar_jump", { preview: item.preview })}
           title={jumpTitle}
-          onClick={() => onJumpToMessage(item.id)}
+          onClick={() => {
+            onJumpToMessage(item.id);
+            setCursor(position + 1);
+          }}
         >
-          {kindTile(item)}
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-label font-semibold text-brand">
+            <span className="text-label font-semibold text-brand tabular-nums">
               {pinned.length > 1
-                ? t("chat.pinned_bar_position", {
-                    current: pinned.findIndex((pin) => pin.id === item.id) + 1,
-                    total: pinned.length,
-                  })
+                ? t("chat.pinned_bar_position", { current: position + 1, total: pinned.length })
                 : t("chat.bulletin_tab_pinned")}
             </span>
             <span className="truncate text-body text-foreground">{item.preview}</span>
           </span>
         </button>
-        {unpinButton(item.id)}
-        {pinned.length > 1 ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="h-8.5 shrink-0 gap-1 rounded-full pr-2 pl-3 font-semibold tabular-nums"
-            aria-expanded={false}
-            aria-label={t("chat.pinned_bar_show_more", { count: hiddenCount })}
-            onClick={() => setExpanded(true)}
-          >
-            +{hiddenCount}
-            <ChevronDown className="size-4" aria-hidden />
-          </Button>
-        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={ROW_ICON_BUTTON}
+          aria-expanded={false}
+          aria-label={t("chat.pinned_bar_view_all")}
+          title={t("chat.pinned_bar_view_all")}
+          onClick={() => setExpanded(true)}
+        >
+          <List className="size-4.75" aria-hidden />
+        </Button>
       </div>
     </section>
   );

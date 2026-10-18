@@ -5,10 +5,10 @@ import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useTranslation } from "react-i18next";
 import { useChatRoomMembers } from "@uniwork/core/chat";
 import { useCurrentMember } from "@uniwork/core/permissions";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
+  ChatMemberFace,
   ChatMemberListError,
   ChatMemberListSkeleton,
   ChatMemberRow,
@@ -17,8 +17,6 @@ import {
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
-import { chatPersonFaceClass } from "./chat-person-card";
-import { initialOf } from "./chat-initials";
 
 export function ChannelSettingsMembers({
   open,
@@ -70,12 +68,10 @@ export function ChannelSettingsMembers({
               <ChatMemberRow
                 key={member.user_id}
                 avatar={
-                  <ActorAvatar
-                    name={label}
-                    initials={initialOf(label)}
+                  <ChatMemberFace
+                    userId={member.user_id}
+                    name={member.display_name.trim() || label}
                     avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.user_id)}
-                    size="xl"
-                    className={chatPersonFaceClass(member.user_id)}
                   />
                 }
                 name={label}
