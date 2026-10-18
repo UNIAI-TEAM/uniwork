@@ -190,7 +190,9 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     return (
       <SidebarNavItem
         {...shared}
-        avatar={<ChatRoomMark icon={Users} size="list" tint={identityTint(entry.group.id)} />}
+        avatar={
+          <ChatRoomMark icon={Users} size="list" tint={identityTint(entry.group.id)} imageUrl={entry.group.avatar_url} />
+        }
         title={entry.group.name}
         contacts={contacts}
       />

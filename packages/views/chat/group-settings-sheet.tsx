@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, Pin, Search, Settings, StickyNote, Tag, UserPlus, Users } from "lucide-react";
+import { Bell, BellOff, Pin, Search, Settings, StickyNote, Tag, UserPlus } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
@@ -33,10 +33,10 @@ import {
   ChatSettingsMenuRow,
   ChatSettingsQuickAction,
   ChatSettingsQuickActions,
-  ChatSettingsRoomMark,
   ChatSettingsSection,
 } from "./chat-settings-ui";
 import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
+import { ChatGroupAvatarEditor } from "./chat-group-avatar-editor";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
@@ -183,7 +183,15 @@ export function GroupSettingsSheet({
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <ChatSettingsHero
-            mark={<ChatSettingsRoomMark icon={Users} tint={identityTint(group.id)} />}
+            mark={
+              <ChatGroupAvatarEditor
+                workspaceId={workspaceId}
+                roomId={group.room_id}
+                tint={identityTint(group.id)}
+                imageUrl={roomRecord?.avatar_url}
+                canEdit={roomPermissions.canChangeProfile}
+              />
+            }
             name={displayName}
             subtitle={
               membersPending || membersError ? undefined : t("chat.group_member_count", { count: members.length })

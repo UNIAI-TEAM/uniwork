@@ -48,6 +48,7 @@ export function chatRoomToGroup(room: ChatRoomRecord): GroupChat {
     name: room.name,
     room_id: room.id,
     member_user_ids: room.member_user_ids,
+    avatar_url: room.avatar_url,
   };
 }
 

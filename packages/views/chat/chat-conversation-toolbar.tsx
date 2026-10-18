@@ -87,6 +87,7 @@ export function ChatConversationToolbar({
 export function GroupChatToolbar({
   icon = Users,
   tint,
+  imageUrl,
   title,
   memberCount,
   backAriaLabel,
@@ -107,6 +108,8 @@ export function GroupChatToolbar({
   icon?: LucideIcon;
   /** The room's identity colour, so the header mark matches its row in the list. */
   tint?: Tint;
+  /** A group's uploaded photo, in the mark's place. */
+  imageUrl?: string;
   title: string;
   memberCount: number;
   backAriaLabel?: string;
@@ -127,7 +130,7 @@ export function GroupChatToolbar({
 
   return (
     <ChatConversationToolbar
-      avatar={<ChatRoomMark icon={icon} size="header" tint={tint} />}
+      avatar={<ChatRoomMark icon={icon} size="header" tint={tint} imageUrl={imageUrl} />}
       title={title}
       subtitle={t("chat.group_member_count", { count: memberCount })}
       backAriaLabel={backAriaLabel}

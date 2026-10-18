@@ -94,6 +94,7 @@ export function ChatPageConversationToolbar({
     return (
       <GroupChatToolbar
         tint={identityTint(activeGroup.id)}
+        imageUrl={activeGroup.avatar_url}
         title={headerTitle}
         memberCount={activeGroup.member_user_ids.length + 1}
         backAriaLabel={backToListLabel}

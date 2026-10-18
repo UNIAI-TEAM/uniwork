@@ -23,6 +23,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { ChatMemberProfileTrigger } from "./chat-member-profile";
+import { ChatRoomPhoto } from "./chat-room-mark";
 
 /** A 44px ghost icon button on a settings row or header (close, rename, nickname, member menu). */
 export const chatSettingsIconButtonClass = "size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground";
@@ -52,9 +53,13 @@ export function ChatSettingsHeader({ title, leading }: { title: string; leading?
   );
 }
 
-/** The room's 68px squircle on a settings hero, in the colour its sidebar row wears. */
-export function ChatSettingsRoomMark({ icon, tint }: { icon: LucideIcon; tint: Tint }) {
-  return <IconTile icon={icon} tone={tint} variant="solid" size="lg" className="size-17 rounded-2xl [&_svg]:size-8" />;
+/** The room's 68px squircle on a settings hero, in the colour its sidebar row wears (or a group's photo). */
+export function ChatSettingsRoomMark({ icon, tint, imageUrl }: { icon: LucideIcon; tint: Tint; imageUrl?: string }) {
+  return (
+    <ChatRoomPhoto src={imageUrl} className="size-17 rounded-2xl">
+      <IconTile icon={icon} tone={tint} variant="solid" size="lg" className="size-17 rounded-2xl [&_svg]:size-8" />
+    </ChatRoomPhoto>
+  );
 }
 
 /** Who or what the sheet is about: big mark, name (with its rename pencil), one or two lines under it. */

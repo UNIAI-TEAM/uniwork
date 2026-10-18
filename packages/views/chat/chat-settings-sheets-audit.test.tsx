@@ -26,6 +26,7 @@ vi.mock("@uniwork/core/chat", () => ({
   // The sidebar list always carries the workspace room the sheet is opened on.
   useChatRooms: () => ({ data: [{ id: "room-ws", kind: "workspace", name: "Chung", workspace_id: "ws1", member_user_ids: [] }] }),
   useSetChatRoomMuted: () => ({ mutate: vi.fn() }),
+  useSetChatRoomAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useRemoveChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useUpdateChatRoomSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
