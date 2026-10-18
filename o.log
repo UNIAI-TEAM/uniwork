@@ -1,0 +1,5 @@
+$ npm run lint
+
+> genoffice@0.1.0 lint
+> eslint .
+
