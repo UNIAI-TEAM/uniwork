@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; echo "HEAD_PROBE_DONE"
+a928d0decd230b96060b2e9739ce526dabf78ee8
+a928d0dec test(office): pin a driver-level plain throw after a model request
+b2f8c8c8c test(office): observe broad-net AI POSTs through the fake page
+3a6edba4f fix(office): count a stream only with its terminal marker
+049d90249 test(office): pin fail-closed stream terminal markers
+048b38b24 docs(office): point the split modules' cross-references at each other
+e98eb4c88 fix(office): treat any throw after the wire observer as unknown usage
+947f1b782 refactor(office): split the wire observation out of save-observe and align the dry-run stub
+61fd9fa1c fix(office): match every frame model route the router registers
+HEAD_PROBE_DONE

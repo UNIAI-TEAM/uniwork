@@ -1,0 +1,15 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/g7-04/*.test.mjs scripts/office/g5g6g7/harness/*.test.mjs > /tmp/g704.tap 2>&1; rc=$?; grep -nE -A25 "^\s*not ok" /tmp/g704.tap | head -80; tail -12 /tmp/g704.tap; echo; echo "G704_HARNESS_EXIT=$rc"
+  ---
+  duration_ms: 29.267672
+  ...
+1..268
+# tests 399
+# suites 27
+# pass 397
+# fail 0
+# cancelled 0
+# skipped 2
+# todo 0
+# duration_ms 124867.289215
+
+G704_HARNESS_EXIT=0

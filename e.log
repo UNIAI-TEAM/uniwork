@@ -1,0 +1,15 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/g7-10/tracer.test.mjs scripts/office/g5g6g7/g8-19/*.test.mjs > /tmp/g7x.tap 2>&1; rc=$?; grep -nE -A25 "^\s*not ok" /tmp/g7x.tap | head -80; tail -12 /tmp/g7x.tap; echo; echo "G710_G819_EXIT=$rc"
+  ---
+  duration_ms: 0.032721
+  ...
+1..269
+# tests 334
+# suites 14
+# pass 319
+# fail 0
+# cancelled 0
+# skipped 15
+# todo 0
+# duration_ms 36429.81136
+
+G710_G819_EXIT=0

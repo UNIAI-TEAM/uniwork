@@ -1,0 +1,43 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/g7-08/*.test.mjs 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "G708_EXIT=$rc"
+    # Subtest: G708-R5-1 (a): Anthropic message_start only is unknown usage
+    ok 11 - G708-R5-1 (a): Anthropic message_start only is unknown usage
+      ---
+      duration_ms: 0.234785
+      ...
+    # Subtest: G708-R5-1 (b): Anthropic start + partial message_delta is unknown usage
+    ok 12 - G708-R5-1 (b): Anthropic start + partial message_delta is unknown usage
+      ---
+      duration_ms: 0.449198
+      ...
+    # Subtest: G708-R5-1 (c): Anthropic start + delta + stop is counted
+    ok 13 - G708-R5-1 (c): Anthropic start + delta + stop is counted
+      ---
+      duration_ms: 0.200096
+      ...
+    # Subtest: G708-R5-1 (d): OpenAI usage is counted only from a complete chunk before [DONE]
+    ok 14 - G708-R5-1 (d): OpenAI usage is counted only from a complete chunk before [DONE]
+      ---
+      duration_ms: 0.525312
+      ...
+    # Subtest: G708-R5-1 (e): Gemini usage counts only when the last usage chunk has finishReason
+    ok 15 - G708-R5-1 (e): Gemini usage counts only when the last usage chunk has finishReason
+      ---
+      duration_ms: 0.243339
+      ...
+    1..15
+ok 23 - G7-08 w2g wire-observe pure helpers
+  ---
+  duration_ms: 10.118391
+  type: 'suite'
+  ...
+1..23
+# tests 71
+# suites 7
+# pass 71
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 509.760558
+
+G708_EXIT=0
