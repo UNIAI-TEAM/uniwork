@@ -174,8 +174,8 @@ export interface DocsFrameSession {
   /** Still booting after `slowAfterMs`: the page explains the wait instead of showing a bare skeleton. */
   slow: boolean;
   /**
-   * The page's readonly, or (a module other than Docs) a minted token that
-   * cannot edit: writes are refused in the host and desktop-open is hidden.
+   * The page's readonly, a source file, a minted token that cannot edit, or
+   * not holding the edit lock: writes are refused in the host and desktop-open is hidden.
    */
   viewOnly: boolean;
   /** Why the session failed: a token that could not be minted, or a fatal frame error. */

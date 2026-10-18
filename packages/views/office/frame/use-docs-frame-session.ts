@@ -65,13 +65,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const sourceTokenQuery = useOfficeFrameSourceToken(wsId, scopeId, { enabled: isSource });
   const tokenQuery = isSource ? sourceTokenQuery : docTokenQuery;
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
-  // A module other than Docs also honours the minted token's can_edit, so a view-only user is
-  // treated as readonly even when the page did not say so (Docs keeps the page's readonly).
-  // Not holding the page's edit lock (acquiring, someone else, lost) is view-only too (UNI-1645).
-  // A source has no lock to hold: it is view-only already and never reads one.
+  // Every module honours the minted token's can_edit, so a view-only user is treated as
+  // readonly even when the page did not say so. Not holding the page's edit lock (acquiring,
+  // someone else, lost) is view-only too (UNI-1645). A source has no lock to hold.
   const editLock = isSource ? null : options.editLock;
   const lockedOut = editLock != null && !editLock.held;
-  const viewOnly = isSource || options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false) || lockedOut;
+  const viewOnly = isSource || options.readonly || tokenQuery.data?.can_edit === false || lockedOut;
   const copyRefused = isSource || options.readonly || tokenQuery.data?.can_edit === false;
   const editLockId = editLock?.held ? editLock.lockId : undefined;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
