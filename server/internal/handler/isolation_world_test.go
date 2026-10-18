@@ -703,6 +703,18 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	})
 	tn.ids["archivedFolder"] = isoID(t, out, "document")
 	w.call(t, "POST", "/api/v1/documents/"+tn.ids["archivedFolder"]+"/archive", tn.token, nil)
+	// ARCHIVE-01 (UNI-1845): dedicated pages for the shelve pair - shelving
+	// "document" would read-lock it under every later control, so shelve gets
+	// its own live page and unshelve one already shelved.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Shelve page", "kind": "page",
+	})
+	tn.ids["shelveDocument"] = isoID(t, out, "document")
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Shelved page", "kind": "page",
+	})
+	tn.ids["unshelveDocument"] = isoID(t, out, "document")
+	w.call(t, "POST", "/api/v1/documents/"+tn.ids["unshelveDocument"]+"/shelve", tn.token, nil)
 	dp := "/api/v1/documents/" + tn.ids["document"]
 	out = w.call(t, "POST", dp+"/comments", tn.token, map[string]any{"body": m + " doc comment", "type": "comment"})
 	tn.ids["docComment"] = isoID(t, out, "comment")

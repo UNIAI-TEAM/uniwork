@@ -1294,6 +1294,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// ARCHIVE-01 (UNI-1845): the shelve pair.
+		audit.ActionDocumentShelved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ShelveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUnshelved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ShelveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnshelveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentDeleted: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
 			svc.SetFiles(filesfake.New(filesfake.Options{}))
@@ -1866,6 +1882,8 @@ func auditActions() []string {
 		audit.ActionDocumentMoved,
 		audit.ActionDocumentArchived,
 		audit.ActionDocumentRestored,
+		audit.ActionDocumentShelved,
+		audit.ActionDocumentUnshelved,
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
 		audit.ActionDocumentAssetPurged,

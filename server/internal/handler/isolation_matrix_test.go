@@ -632,6 +632,15 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if pattern == "/api/v1/documents/{documentID}/restore" || pattern == "/api/v1/documents/{documentID}/purge" {
 			return tn.get(t, "archivedFolder")
 		}
+		// ARCHIVE-01 (UNI-1845): shelve acts on a live page, unshelve on one
+		// already shelved - shelving "document" would read-lock it for every
+		// later control pass.
+		if pattern == "/api/v1/documents/{documentID}/shelve" {
+			return tn.get(t, "shelveDocument")
+		}
+		if pattern == "/api/v1/documents/{documentID}/unshelve" {
+			return tn.get(t, "unshelveDocument")
+		}
 		// The large-upload session routes (BIGUP-S1): a markdown document on
 		// the frame family (the module its token opens) and the file document
 		// whose new version the session route stages.

@@ -27,8 +27,10 @@ import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { LibraryToolbar } from "./documents-library-toolbar";
 import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-folders-grid";
+import { DocumentsShelvedView } from "./documents-shelved-view";
 import { DocumentsTrashView } from "./documents-trash-view";
-import { DocumentsSidebar, DocumentsSidebarSheet, SOURCE_KINDS, type LibraryView } from "./documents-sidebar";
+import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
+import { downloadSourceFile } from "./download-source-file";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
@@ -43,32 +45,8 @@ import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
 import { useTrashActions } from "./use-trash-actions";
-
-function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
-  if (searchParams.get("folder")) return { kind: "home" };
-  const rawView = searchParams.get("view");
-  if (rawView === "recent" || rawView === "starred" || rawView === "shared" || rawView === "archived") return { kind: rawView };
-  if (rawView === "shared-by-me") return { kind: "sharedByMe" };
-  if (rawView === "sources") {
-    const rawSource = searchParams.get("source");
-    const source = rawSource && (SOURCE_KINDS as readonly string[]).includes(rawSource) ? (rawSource as (typeof SOURCE_KINDS)[number]) : null;
-    return { kind: "sources", source };
-  }
-  return { kind: "home" };
-}
-
-function buildDocumentsViewUrl(
-  wsPaths: { documents: () => string; documentsFolder: (folderId: string) => string },
-  next: LibraryView,
-  nextFolder: string | null,
-): string {
-  const targetFolder = next.kind === "home" ? nextFolder : null;
-  if (targetFolder) return wsPaths.documentsFolder(targetFolder);
-  const base = wsPaths.documents();
-  if (next.kind === "home") return base;
-  if (next.kind === "sources") return next.source ? `${base}?view=sources&source=${encodeURIComponent(next.source)}` : `${base}?view=sources`;
-  return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
-}
+import { useShelvedActions } from "./use-shelved-actions";
+import { buildDocumentsViewUrl, viewFromSearchParams } from "./documents-view-url";
 
 export interface DocumentsPageViewProps {
   wsId: string;
@@ -145,28 +123,22 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const sourcePreview = useSourcePreview(downloadSource);
   // The row-menu download (and the viewer's fallback when no module frame can
   // host the file): one code path for both, named for the file.
-  const downloadSourceFile = (sourceId: string) => {
-    void downloadSource.mutateAsync({ sourceId }).then(
-      (blob) => {
-        const name = library.state.rows.find((row) => row.type === "source" && row.source.id === sourceId);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = name?.type === "source" ? name.source.name : "";
-        document.body.append(link);
-        link.click();
-        link.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const downloadFile = (sourceId: string) =>
+    downloadSourceFile({
+      sourceId,
+      fetchBlob: (id) => downloadSource.mutateAsync({ sourceId: id }),
+      fileName: (id) => {
+        const name = library.state.rows.find((row) => row.type === "source" && row.source.id === id);
+        return name?.type === "source" ? name.source.name : "";
       },
-      (error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.row.download_failed")),
-    );
-  };
+      failedCopy: t("documents.home.row.download_failed"),
+    });
 
   const officeViewer = useSourceOfficeViewer({
     wsId,
     organizationId: context?.workspace.organization_id,
     frameVersion: officeFrameVersion ?? (() => ""),
-    onDownload: (source) => downloadSourceFile(source.id),
+    onDownload: (source) => downloadFile(source.id),
   });
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
@@ -213,8 +185,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, parentShared });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
+  const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
+  // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
   const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "sharedByMe");
 
   const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
@@ -230,6 +204,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       // Each view has its own filter controls; none carries over unseen.
       setChip("all");
       library.setAccess("all");
+      library.setShelvedBy(null);
     }
     setView(next);
     setNavOpen(false);
@@ -272,13 +247,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onPreviewSource: sourcePreview.open,
     // UNI-1869: an Office source opens view-only in its module frame; no module
     // or no installed build takes the download the click always offered.
-    onViewSource: (source) => { if (!officeViewer.open(source)) downloadSourceFile(source.id); },
-    onDownloadSource: downloadSourceFile,
+    onViewSource: (source) => { if (!officeViewer.open(source)) downloadFile(source.id); },
+    onDownloadSource: downloadFile,
     onSaveSource: rowDialogs.onSaveSource,
     onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
     onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
+    onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {
           const op = starred ? unfavorite : favorite;
@@ -492,6 +468,23 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   }}
                 />
               </div>
+            ) : view.kind === "shelved" ? (
+              <DocumentsShelvedView
+                library={library}
+                chip={chip}
+                onChip={setChip}
+                members={members.data}
+                memberIndex={memberIndex}
+                handlers={handlers}
+                actions={{
+                  onUnshelve: shelvedActions.onUnshelve,
+                  onTrash: (doc) => rowDialogs.onArchive(doc),
+                  isUnshelving: shelvedActions.isUnshelving,
+                  onToggleStar: handlers.onToggleStar,
+                  isStarred: handlers.isStarred,
+                }}
+                navButton={navButton}
+              />
             ) : homeView ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 {canCreate ? <DocumentsHomeNote folderTitle={openFolderTitle ?? null} create={folderId ? null : createProps} /> : null}
@@ -541,6 +534,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       {officeViewer.dialog}
 
       {trashActions.dialog}
+
+      {shelvedActions.dialog}
 
       {rowDialogs.dialogs}
     </div>

@@ -96,8 +96,12 @@ export function useTrashActions({ wsId, rows }: { wsId: string; rows: LibraryRow
             ? t("documents.trash.toast.restored_folder", { title, folder: dest.folder })
             : t("documents.trash.toast.restored", { title });
         const partial = [...left].filter((id) => !result.affected.includes(id)).length > 0;
-        if (partial) toast.success(base, { description: t("documents.trash.toast.left_in_trash") });
-        else toast.success(base);
+        // U-6: restoring a shelved row keeps it shelved — the toast says the
+        // item went back to Lưu trữ (the row reappears with its badge).
+        const stillShelved = Boolean(result.document.shelved_at);
+        const text = stillShelved ? t("documents.shelved_list.toast.restored_to_shelved", { title }) : base;
+        if (partial) toast.success(text, { description: t("documents.trash.toast.left_in_trash") });
+        else toast.success(text);
       },
       (failure: unknown) => {
         toast.error(trashErrorMessage(failure, t, "documents.trash.restore_failed"));

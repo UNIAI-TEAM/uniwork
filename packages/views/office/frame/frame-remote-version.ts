@@ -28,6 +28,12 @@ export interface RemoteHead {
   versionId: string | null;
   /** ISO 8601 of the head. */
   savedAt: string;
+  /**
+   * `author_name` of the `doc.remoteVersion` event: the page-language word for the session
+   * user when they saved this head themselves (UNI-1907, D-3). Absent = the frame's
+   * "a member" fallback.
+   */
+  authorName?: string;
 }
 
 /** Why the host refuses every Save of this frame (EXPERIENCE.md › Lý do bị chặn). */
@@ -161,7 +167,7 @@ export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): Fr
     if (head.versionId === openVersion) return false;
     announced = revision;
     known.add(head.versionId);
-    options.notify({ document_id: documentId, revision: head.revision, version_id: head.versionId, saved_at: head.savedAt });
+    options.notify({ document_id: documentId, revision: head.revision, version_id: head.versionId, saved_at: head.savedAt, ...(head.authorName ? { author_name: head.authorName } : {}) });
     return true;
   };
 

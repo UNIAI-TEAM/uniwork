@@ -212,6 +212,12 @@ const (
 	ActionDocumentEditRequestAnswered = "document.edit_request_answered"
 	ActionDocumentEditRequestCanceled = "document.edit_request_cancelled"
 
+	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, kept forever
+	// and read-only - "archived" is the trash. One row per document of the
+	// batch, the batch id in metadata and in the event payload.
+	ActionDocumentShelved   = "document.shelved"
+	ActionDocumentUnshelved = "document.unshelved"
+
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit
 	// trail for create, atomic redeem and explicit revoke.

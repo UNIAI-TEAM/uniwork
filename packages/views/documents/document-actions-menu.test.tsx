@@ -10,9 +10,19 @@ import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwo
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsFill, HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DocumentActionsMenu } from "./document-actions-menu";
+import { DocumentFileMenuItems, type DocumentFileActions } from "./document-file-actions";
 import { DocumentCommentsHeaderActions, DocumentCommentsProvider, documentCommentsTitleKey } from "./document-comments-context";
 
 const { t } = initI18n();
+
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
+
+/** The labelled action a sonner toast option carries (our shelve undo). */
+interface ToastAction {
+  label: string;
+  onClick?: () => void;
+}
 const WS = "ws1";
 const ORG = "o1";
 
@@ -244,7 +254,8 @@ describe("DocumentActionsMenu", () => {
     await openMenu();
 
     fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.archive") }));
-    expect(await screen.findByText(t("documents.archive.archive_title"))).toBeInTheDocument();
+    // The title and the confirm button share the trash wording since the rename, so ask for the heading.
+    expect(await screen.findByRole("heading", { name: t("documents.archive.archive_title") })).toBeInTheDocument();
   });
 
   it("drops the copy entry once the deployment answers 404", async () => {
@@ -267,6 +278,108 @@ describe("DocumentActionsMenu", () => {
 
     await openMenu();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.copy") })).toBeNull();
+  });
+
+  // ARCHIVE-01 (UNI-1845) U-4: the header menu's "Lưu trữ" and the pruned set
+  // a shelved document keeps.
+  it("offers Lưu trữ to a manager on a live document and hides it from an editor, My Folder and a shelved document", async () => {
+    const first = renderMenu();
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    first.unmount();
+
+    const second = renderMenu(documentFixture({ my_level: "edit" }));
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    second.unmount();
+
+    const third = renderMenu(documentFixture({ system_kind: "my_folder" }));
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
+    third.unmount();
+
+    renderMenu(documentFixture({ shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u2" }));
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
+  });
+  it("shelves a live document at once and the toast's undo unshelves it", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1/shelve" && opts?.method === "POST") {
+        return Promise.resolve({ document: documentFixture({ shelved_at: "2026-10-10T03:00:00Z" }), affected: ["d1"] });
+      }
+      if (path === "/api/v1/documents/d1/unshelve" && opts?.method === "POST") {
+        return Promise.resolve({ document: documentFixture(), affected: ["d1"] });
+      }
+      return Promise.resolve({});
+    });
+    renderMenu();
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.shelved_list.shelve") }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        t("documents.shelved_list.toast.shelved", { title: "Báo cáo Q4" }),
+        expect.objectContaining({ action: expect.objectContaining({ label: t("documents.shelved_list.undo") }) }),
+      ),
+    );
+    // ExternalToast.action's runtime shape is our ToastAction; the click is the undo.
+    const action = vi.mocked(toast.success).mock.calls.at(-1)?.[1]?.action as ToastAction | undefined;
+    action?.onClick?.();
+    await waitFor(() =>
+      expect(requestMock.mock.calls.some(([path, opts]) => path === "/api/v1/documents/d1/unshelve" && (opts as { method?: string })?.method === "POST")).toBe(true),
+    );
+  });
+
+  it("keeps only open-adjacent, read and manage actions on a shelved document (U-4 keep-list)", async () => {
+    renderMenu(documentFixture({ shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u2" }));
+    await openMenu();
+
+    // Kept: version history (a read), Share (the revoke surface, U-9), copy,
+    // Bỏ lưu trữ and Chuyển vào thùng rác (both manage).
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.versions") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.share") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.copy") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.shelved_list.unshelve") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.archive") })).toBeInTheDocument();
+    // Hidden: the access log is a manage surface the keep-list does not name,
+    // and "Lưu trữ" no longer applies.
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.access_log") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeNull();
+  });
+  // RAR-04: the header's Lưu trữ / Bỏ lưu trữ follow canManageTrashed (manage or admin_scope), like the banner and the shelf row.
+  it("offers Lưu trữ and Bỏ lưu trữ to a break-glass admin (view + admin_scope)", async () => {
+    const live = renderMenu(documentFixture({ my_level: "view", admin_scope: true }));
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.shelved_list.shelve") })).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    live.unmount();
+
+    renderMenu(documentFixture({ my_level: "view", admin_scope: true, shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u2" }));
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.shelved_list.unshelve") })).toBeInTheDocument();
+  });
+
+  // F6: a shelved file keeps the editor slot's Tải xuống bản gốc and Sao chép (same gates as live); only the upload goes.
+  it("keeps download and copy on a shelved file whose editor fills the menu read-only", async () => {
+    const doc = documentFixture({ my_level: "edit", shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u2" });
+    const actions: DocumentFileActions = { download: vi.fn(() => Promise.resolve()), downloading: null, openUpload: vi.fn(), uploadDialog: null };
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <HeaderActionsSlotProvider>
+            <HeaderActionsFill menuItems={<DocumentFileMenuItems actions={actions} readonly />} />
+            <DocumentActionsMenu wsId={WS} doc={doc} />
+          </HeaderActionsSlotProvider>
+        </WorkspaceProvider>,
+      ),
+    );
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.copy") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.upload_version") })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.download_original") }));
+    expect(actions.download).toHaveBeenCalled();
   });
 });
 

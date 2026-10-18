@@ -621,6 +621,10 @@ type Document struct {
 	ContentRevision      int64              `json:"content_revision"`
 	WorkspaceLevel       string             `json:"workspace_level"`
 	SystemKind           pgtype.Text        `json:"system_kind"`
+	ShelvedAt            pgtype.Timestamptz `json:"shelved_at"`
+	ShelvedBy            pgtype.Text        `json:"shelved_by"`
+	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
+	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
 }
 
 type DocumentAccessLog struct {

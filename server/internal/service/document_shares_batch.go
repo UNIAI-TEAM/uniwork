@@ -33,7 +33,7 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 		return nil, err
 	}
 	var out []db.DocumentShare
-	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}

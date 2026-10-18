@@ -76,6 +76,9 @@ export const DOCUMENT_ERROR_CLASSES = [
   "incompatible",
   "session",
   "locked",
+  // ARCHIVE-01 (UNI-1845): every write on a shelved document refuses with 409
+  // document_shelved, class read_only (addendum §0, §3).
+  "read_only",
 ] as const;
 export type DocumentErrorClass = (typeof DOCUMENT_ERROR_CLASSES)[number];
 
@@ -130,6 +133,11 @@ export const DocumentSchema = z.object({
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
   archived_by: z.string().nullable().optional().catch(undefined),
+  // ARCHIVE-01 (UNI-1845): the "Lưu trữ" state, separate from trash (§0). A
+  // shelved row can also be trashed, so the two pairs coexist; drifted values
+  // read as absent like archived_at/archived_by.
+  shelved_at: z.string().nullable().optional().catch(undefined),
+  shelved_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
@@ -178,6 +186,16 @@ export function canManageTrashed(
     default:
       return false;
   }
+}
+
+/** True when a document or list row sits in "Lưu trữ" (ARCHIVE-01): shelved
+ *  at any time, including while it also sits in the trash - trashing a shelved
+ *  item keeps its shelved pair. `shelved_at` is the marker the server always
+ *  sends on a shelved row; a row missing it is simply not shelved. */
+export function isShelved(
+  doc: { shelved_at?: string | null } | null | undefined,
+): boolean {
+  return !!doc?.shelved_at;
 }
 
 export const DocumentVersionSchema = z.object({
@@ -354,6 +372,10 @@ export const DocumentSummarySchema = z.object({
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
   archived_by: z.string().nullable().optional().catch(undefined),
+  // ARCHIVE-01: the shelved pair rides every list row (trash rows too, so a
+  // restored row can keep its shelved badge - addendum §4, Q-UI3).
+  shelved_at: z.string().nullable().optional().catch(undefined),
+  shelved_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
@@ -574,26 +596,3 @@ export {
   type DocumentCommentListEnvelope,
   type DocumentCommentMentionWithoutAccess,
 } from "./document-access";
-
-// ---- Favorites (G1-07; UNI-681 lane 07b) ------------------------------------
-
-/** One favorited document in the caller's list: what a favorites panel needs
- *  to open the document, not the full payload (GET /documents/{id} has it). */
-export const DocumentFavoriteSchema = z.object({
-  document_id: z.string(),
-  favorite_id: z.string().optional().default(""),
-  workspace_id: z.string().optional().default(""),
-  title: z.string().optional().default(""),
-  kind: z.string().optional().default("page"),
-  icon: z.string().nullish(),
-  parent_id: z.string().nullish(),
-  favorited_at: z.string().optional().default(""),
-});
-export type DocumentFavorite = Omit<z.infer<typeof DocumentFavoriteSchema>, "kind"> & {
-  kind: DocumentKind;
-};
-
-export const DocumentFavoriteEnvelopeSchema = z.object({ favorite: DocumentFavoriteSchema });
-export const DocumentFavoriteListEnvelopeSchema = z.object({
-  favorites: z.array(DocumentFavoriteSchema),
-});
