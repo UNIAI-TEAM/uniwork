@@ -69,6 +69,7 @@ export function renderCaseRules(caseRow, { documentId, exit, exitIndex } = {}) {
         ...(rawAction.code !== undefined ? { code: rawAction.code } : {}),
         ...(rawAction.body !== undefined ? { body: structuredClone(rawAction.body) } : {}),
         ...(rawAction.until !== undefined ? { until: rawAction.until } : {}),
+        ...(rawAction.patch !== undefined ? { patch: structuredClone(rawAction.patch) } : {}),
       };
     }
     return {

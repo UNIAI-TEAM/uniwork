@@ -2882,15 +2882,15 @@
         "G5-A04"
       ],
       "fixture": "fx-html-page-vi",
-      "dependency": "W2",
-      "status": "pending W2",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "disk full khi tải lần đầu: giữ bản cũ, hiện lỗi",
       "source": "spec §5.1 (\"Disk full giữ bản cũ\"); S3 › disk-full",
       "proxyRules": [],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "W2: tmpfs/loop mount làm userData của app (không mount được thì fill 1 GiB sparse = store_full — báo cái nào đã chạy)"
+          "step": "tmpfs nhỏ làm userData (sudo mount -t tmpfs); lấp đầy còn diskLeaveBytes rồi ghim tài liệu thứ hai = ENOSPC thật; không mount được thì file sparse chạm ngân sách của store thư viện = store_full; báo cơ chế nào đã chạy; giải phóng chỗ rồi Thử lại"
         }
       ],
       "expect": {
@@ -2898,16 +2898,24 @@
           "versionDelta": 0
         },
         "proxyLog": {
-          "downloadRequestsMin": 1
+          "commitPosts": 0,
+          "uploadPosts": 0,
+          "downloadRequestsMin": 2
         },
         "offline": {
+          "firstLaunchStates": [
+            "ready"
+          ],
           "faultedStates": [
             "disk-full"
           ],
           "recoveredStates": [
             "ready"
           ],
-          "keptOldCopy": true
+          "keptOldCopy": true,
+          "diskMountMb": 512,
+          "diskLeaveBytes": 1024,
+          "layerBudgetBytes": 2415919104
         },
         "notes": {
           "client": [
@@ -2933,9 +2941,10 @@
         "proxy-log.jsonl",
         "case-result.json",
         "offline-store-before.json",
+        "offline-store-faulted.json",
+        "offline-disk-mechanism.json",
         "offline-store-after.json",
-        "s3-offline-tab.png",
-        "s11-lock-panel.png"
+        "s3-offline-tab.png"
       ]
     },
     {
@@ -3028,27 +3037,72 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "W2",
-      "status": "pending W2",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "lease hết hạn khi bản đọc offline đang mở: khóa cloud payload, giữ ciphertext, mở lại khi gia hạn",
       "source": "spec §5.1; EXPERIENCE Lý do bị chặn › lease_expired",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "short-lease",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$"
+          },
+          "action": {
+            "type": "rewrite_json",
+            "patch": {
+              "expires_at": {
+                "now_plus_ms": 120000
+              }
+            }
+          }
+        },
+        {
+          "id": "cut-lease",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        },
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "W2: proxy ghi lại JSON trả lời PUT …/office/offline-lease với expires_at = now + N phút (action additive), hoặc DB-seed expires_at + gia hạn"
+          "step": "rule short-lease: proxy ghi lại expires_at của JSON trả lời PUT …/office/offline-lease thành now + 120 s (action rewrite_json, không chờ 24 h) trong lúc ghim; rồi cut-lease + cut-open (offline), mở bản đọc offline, chờ hết hạn"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
-        "proxyLog": {},
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
         "offline": {
+          "firstLaunchStates": [
+            "ready"
+          ],
           "faultedStates": [
             "lease-expired"
           ],
           "lockReason": "lease_expired",
+          "openRefusalCodes": [
+            "lease_unusable"
+          ],
           "contentNotServed": true,
           "draftKept": true,
           "recoveredStates": [
@@ -3076,6 +3130,7 @@
         "proxy-log.jsonl",
         "case-result.json",
         "offline-store-before.json",
+        "offline-store-faulted.json",
         "offline-store-after.json",
         "s3-offline-tab.png",
         "s11-lock-panel.png"
@@ -3185,28 +3240,62 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "W2",
-      "status": "pending W2",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "lùi đồng hồ: không kéo dài quyền offline",
       "source": "spec §5.1; EXPERIENCE › clock_rollback",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "cut-lease",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        },
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "W2: libfaketime (FAKETIME) quanh Electron trên VM, rồi khởi động lại"
+          "step": "ghim → ready; tắt app; khởi động lại với LD_PRELOAD=libfaketime FAKETIME=-<clockSkewMinutes>m (không giả monotonic) cùng userData; cut-lease + cut-open; Mở bị từ chối clock_rollback; rồi trả đồng hồ thật + gỡ rule + Thử lại"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
-        "proxyLog": {},
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
         "offline": {
+          "firstLaunchStates": [
+            "ready"
+          ],
           "faultedStates": [
-            "lease-expired"
+            "lease-expired",
+            "locked"
           ],
           "lockReason": "clock_rollback",
+          "openRefusalCodes": [
+            "lease_unusable"
+          ],
+          "contentNotServed": true,
           "neverExtendsLease": true,
+          "plaintextCopies": 0,
+          "clockSkewMinutes": 10,
           "recoveredStates": [
             "ready"
           ]
@@ -3232,6 +3321,7 @@
         "proxy-log.jsonl",
         "case-result.json",
         "offline-store-before.json",
+        "offline-store-faulted.json",
         "offline-store-after.json",
         "s3-offline-tab.png",
         "s11-lock-panel.png"
@@ -3244,26 +3334,57 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "W2",
-      "status": "pending W2",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa",
       "source": "spec §5.1; S3 › revoked",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "cut-network",
+          "match": {
+            "path": "^/api/"
+          },
+          "action": {
+            "type": "reset"
+          }
+        },
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "W2: revoke per-lease qua admin CLI hoặc outbox event + cắt/khôi phục proxy; đường realtime chỉ khi client user-scope có trên fork main"
+          "step": "ghim → ready; rule cut-network: proxy reset mọi request /api/; admin CLI `uniwork-admin revoke-offline-leases --org-id <org>` thu hồi lease trên D; khôi phục mạng → gia hạn nhận 403 offline_lease_revoked; rule cut-open để Mở chỉ còn đường offline → S11 permission_revoked"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
-        "proxyLog": {},
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
         "offline": {
+          "firstLaunchStates": [
+            "ready"
+          ],
           "faultedStates": [
             "revoked"
           ],
+          "lockReason": "permission_revoked",
+          "openRefusalCodes": [
+            "revoked"
+          ],
+          "renewRefusalStatus": 403,
           "plaintextCopies": 0,
           "draftKept": true
         },
@@ -3288,6 +3409,7 @@
         "proxy-log.jsonl",
         "case-result.json",
         "offline-store-before.json",
+        "offline-store-faulted.json",
         "offline-store-after.json",
         "s3-offline-tab.png",
         "s11-lock-panel.png"
@@ -3422,27 +3544,45 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "W2",
-      "status": "pending W2",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling)",
       "source": "EXPERIENCE Lý do bị chặn › keystore_locked; spec §5.1",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "W2: mode additive trong fault/app-keyring.sh — khóa/giết gnome-keyring trước khi khởi động app, rồi mở khóa"
+          "step": "ghim → ready; tắt app; khóa gnome-keyring qua kênh điều khiển của app-keyring.sh (APP_KEYRING_CONTROL=1); khởi động lại; Mở bị từ chối keystore_locked; mở khóa rồi Thử lại"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
-        "proxyLog": {},
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
         "offline": {
-          "faultedStates": [
-            "locked"
+          "firstLaunchStates": [
+            "ready"
           ],
           "lockReason": "keystore_locked",
+          "openRefusalCodes": [
+            "keystore_locked",
+            "keyring_unavailable"
+          ],
           "nothingDecrypted": true,
           "recoveredStates": [
             "ready"
@@ -3469,6 +3609,7 @@
         "proxy-log.jsonl",
         "case-result.json",
         "offline-store-before.json",
+        "offline-store-faulted.json",
         "offline-store-after.json",
         "s3-offline-tab.png",
         "s11-lock-panel.png"

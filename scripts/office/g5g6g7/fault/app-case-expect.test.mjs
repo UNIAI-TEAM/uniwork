@@ -13,7 +13,7 @@ import { OFFLINE_EXPECT_KEYS, PROXY_LOG_KEYS, caseExpect, validateExpect } from 
 import { loadFaultCases } from "./server-cases-lib.mjs";
 
 const here = (name) => fileURLToPath(new URL(name, import.meta.url));
-const DRIVER_SOURCE = ["app-case-drivers.mjs", "app-case-drivers-blocked.mjs", "app-case-drivers-offline.mjs"].map((f) => readFileSync(here(f), "utf8")).join("\n");
+const DRIVER_SOURCE = ["app-case-drivers.mjs", "app-case-drivers-blocked.mjs", "app-case-drivers-offline.mjs", "app-case-drivers-offline-faults.mjs"].map((f) => readFileSync(here(f), "utf8")).join("\n");
 const selected = selectAppCases(loadFaultCases());
 const rows = selected.runnable;
 // every app row, ready or pending: a pending row's expectation must be readable the day it becomes runnable (review r2 R2-2)

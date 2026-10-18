@@ -13,6 +13,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { AppBlocked } from "./app-session.mjs";
 import { OFFLINE_DRIVERS } from "./app-case-drivers-offline.mjs";
+import { OFFLINE_FAULT_DRIVERS } from "./app-case-drivers-offline-faults.mjs";
 import {
   FL08_DEPLOYMENT_B, INDEX_RECORD_NAME, OFFLINE_STATE_TIMEOUT_MS, S3_PANEL_SELECTOR, S3_TAB_ID, S3_TAB_SELECTOR, S11_LOCK_SELECTOR,
   awaitRowState, collectOfflineState, copiesRootDir, leaseStoreDir, libraryStoreDir, listPlaintextCopies, listStoreRecords, offlineCountAssertion,
@@ -45,15 +46,14 @@ const DOC = "01JDOCAAAAAAAAAAAAAAAAAAAA";
 
 // ---- the row table ---------------------------------------------------------------
 
-test("the four W1 FL rows are ready, carry a driver, and every other FL row is reported not run", () => {
+test("the nine runnable FL rows are ready and carry a driver; FL-04b and FL-04c are reported not run with their reason", () => {
   const { runnable, blocked } = selectAppCases(loadFaultCases());
   const readyFl = runnable.filter((row) => row.id.startsWith("FL-")).map((row) => row.id).sort();
-  assert.deepEqual(readyFl, ["FL-01", "FL-03", "FL-07", "FL-08"]);
-  assert.deepEqual(Object.keys(OFFLINE_DRIVERS).sort(), readyFl);
-  // the W2 rows and the two retired FL-04 letters are reported with a reason, never run
+  assert.deepEqual(readyFl, ["FL-01", "FL-02", "FL-03", "FL-04a", "FL-05", "FL-06", "FL-07", "FL-08", "FL-09"]);
+  assert.deepEqual([...Object.keys(OFFLINE_DRIVERS), ...Object.keys(OFFLINE_FAULT_DRIVERS)].sort(), readyFl);
+  // the two retired FL-04 letters are reported with a reason, never run
   const reasons = new Map(blocked.filter(({ row }) => row.id.startsWith("FL-")).map(({ row, reason }) => [row.id, reason]));
-  assert.equal(reasons.get("FL-02"), "pending W2");
-  assert.equal(reasons.get("FL-09"), "pending W2");
+  assert.deepEqual([...reasons.keys()].sort(), ["FL-04b", "FL-04c"]);
   assert.match(reasons.get("FL-04b"), /^SUPERSEDED: D1 /);
   assert.match(reasons.get("FL-04c"), /^BLOCKED\(G5-08d\): /);
   assert.equal(reasons.has("FL-01"), false, "a ready row is never reported as blocked");

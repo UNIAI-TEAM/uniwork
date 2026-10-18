@@ -120,7 +120,7 @@ test('a row runs on a fixture every one of its AC rows declares', () => {
 });
 
 test('proxy rules follow the proxy contract', () => {
-  const actions = ['delay', 'drop_request', 'drop_response_after_forward', 'status', 'reset', 'hold'];
+  const actions = ['delay', 'drop_request', 'drop_response_after_forward', 'status', 'reset', 'hold', 'rewrite_json'];
   for (const c of cases) {
     const ids = c.proxyRules.map((r) => r.id);
     assert.equal(new Set(ids).size, ids.length, `${c.id}: duplicate rule id`);

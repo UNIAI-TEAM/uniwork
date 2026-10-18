@@ -33,6 +33,8 @@ import { DEFAULT_FORK_SHA, HARNESS_DEPLOYMENT_ID, harnessPaths, isMainModule, re
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
 import { OFFLINE_DRIVERS } from "./app-case-drivers-offline.mjs";
+import { OFFLINE_FAULT_DRIVERS } from "./app-case-drivers-offline-faults.mjs";
+import { REAL_VM } from "./app-offline-env.mjs";
 import { liftBlocker, createOfflineFlagGuard } from "./app-offline-flag.mjs";
 import {
   BLOCKED_EXIT_CODE, appTraceArtifacts, blockedAfterFailure, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
@@ -43,7 +45,7 @@ import { guardCaseResult, harnessDownReason, seedBehindGuard } from "./app-proce
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
   clearOfflineLibrary, clearSyncWrite, createFileDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, readOfflineLibraryOverride, runnerApiOrigin,
-  seedAppTenant, setOfflineLibrary, setSyncWrite,
+  revokeOrgOfflineLeases, seedAppTenant, setOfflineLibrary, setSyncWrite,
 } from "./app-tenant.mjs";
 import { caseExpect } from "./case-expect.mjs";
 import { EMPTY_SERVER_VERSIONS, collectServerVersions } from "./collect.mjs";
@@ -53,7 +55,7 @@ import { DEFAULT_CASES_PATH, REPO_ROOT, loadFaultCases, renderCaseRules } from "
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 const FIXTURES_MANIFEST = resolve(REPO_ROOT, "docs", "office", "g5g6g7", "fixtures", "manifest.json");
-const DRIVERS = { ...QUEUE_DRIVERS, ...BLOCKED_DRIVERS, ...OFFLINE_DRIVERS };
+const DRIVERS = { ...QUEUE_DRIVERS, ...BLOCKED_DRIVERS, ...OFFLINE_DRIVERS, ...OFFLINE_FAULT_DRIVERS };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** One run per exit of a row: its own `exits` array, then the driver's extra exits. */
@@ -227,10 +229,10 @@ async function runOne({ row, run, runs, caseDir, shared }) {
       docs.set(doc.id, await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: doc.id }));
       return doc;
     },
-    launch: async ({ stuckAfterMs, recheckMs, deploymentId = null, requireSignIn = true } = {}) => {
+    launch: async ({ stuckAfterMs, recheckMs, deploymentId = null, requireSignIn = true, extraEnv = {} } = {}) => {
       const session = await launchApp({
         playwright, ports, proxyOrigin: proxy.origin, userDataDir: join(appDir, "userdata"), traceFile,
-        stuckAfterMs, recheckMs, deploymentId, logFile: join(appDir, "app.log"), harnessPidFile: harnessPaths(runDir).pidFile,
+        stuckAfterMs, recheckMs, deploymentId, extraEnv, logFile: join(appDir, "app.log"), harnessPidFile: harnessPaths(runDir).pidFile,
       });
       sessions.push(session);
       if (!requireSignIn) return session;
@@ -239,8 +241,12 @@ async function runOne({ row, run, runs, caseDir, shared }) {
       return session;
     },
     waitSignedIn: (session) => waitSignedIn(session),
+    /** the runner VM's tmpfs / libfaketime / keyring control (app-offline-env.mjs); tests pass fakes */
+    vm: REAL_VM,
     /** sign the running app in as another seeded account (FL-07's B) */
     signInAs: (session, account) => signIn(session, tenant.apiOrigin, account),
+    /** FL-06: `uniwork-admin revoke-offline-leases` for this run's organization; null on success, else the reason (BLOCKED) */
+    revokeOfflineLeases: () => revokeOrgOfflineLeases({ repoRoot: REPO_ROOT, databaseUrl, orgId: tenant.orgId }),
     caseRules: (ids) => {
       const missing = ids.filter((id) => !row.proxyRules.some((r) => r.id === id));
       if (missing.length) throw new Error(`${row.id} has no proxy rule ${missing.join(", ")} in cases.json`);
