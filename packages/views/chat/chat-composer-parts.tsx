@@ -130,8 +130,8 @@ export function ComposerEditBar({ preview, onCancel }: { preview: string; onCanc
         variant="ghost"
         size="icon"
         className="size-10 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
-        aria-label={t("chat.edit_dialog_cancel")}
-        title={t("chat.edit_dialog_cancel")}
+        aria-label={t("chat.editing_cancel")}
+        title={t("chat.editing_cancel")}
         onClick={onCancel}
       >
         <X className="size-4.5" aria-hidden />

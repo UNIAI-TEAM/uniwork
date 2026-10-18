@@ -88,7 +88,7 @@ export function SidebarCatchUpCard({
         {top ? (
           <span className="flex min-w-0 items-center gap-1 text-label font-semibold text-brand">
             <ArrowRight aria-hidden className="size-3.5 shrink-0" />
-            <span className="truncate">{top.title}</span>
+            <span className="truncate">{t("chat.sidebar_catch_up_target", { name: top.title })}</span>
           </span>
         ) : null}
       </span>

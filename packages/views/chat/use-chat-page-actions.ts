@@ -9,7 +9,7 @@ import {
   type ChatTextSendPayload,
 } from "@uniwork/core/chat/deliver-chat-text-message";
 import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages-store";
-import { isChatSendRateLimited, isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
+import { isChatSendNetworkError, isChatSendRateLimited, isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -145,11 +145,14 @@ export function useChatPageActions({
         ...(sendingInThread && threadRootId ? { thread_root_id: threadRootId } : {}),
       };
 
-      const queueForLater = () => {
+      // A send the server refused for a passing reason (5xx, 408…) while the
+      // network is up stays in the timeline as failed with "Thử lại"; only a
+      // real network loss waits quietly for the reconnect.
+      const queueForLater = (failed = false) => {
         usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, currentUserId, payload));
+        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, currentUserId, payload, { failed }));
         clearComposerExtras();
-        setConnectError(t("chat.send_queued_offline"));
+        setConnectError(failed ? null : t("chat.send_queued_offline"));
       };
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -193,7 +196,7 @@ export function useChatPageActions({
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
           setConnectError(t("chat.send_rate_limited"));
         } else if (isRetriableChatSendError(err)) {
-          queueForLater();
+          queueForLater(!isChatSendNetworkError(err));
           return true;
         } else {
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);

@@ -379,8 +379,25 @@ describe("useChatPageActions", () => {
 
     const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
     expect(useChatSendOutboxStore.getState().entries).toEqual([
-      expect.objectContaining({ roomId: "room1", body: "hello", thread_root_id: "root1" }),
+      // A 503 while online keeps the bubble as failed, with "Thử lại".
+      expect.objectContaining({ roomId: "room1", body: "hello", thread_root_id: "root1", failed_at: expect.any(String) }),
     ]);
+  });
+
+  it("queues a send lost to the network quietly, without marking it failed", async () => {
+    const deps = buildDeps({
+      sendRoomMessage: { mutateAsync: vi.fn().mockRejectedValue(new TypeError("Failed to fetch")) },
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend();
+    });
+
+    const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
+    const [entry] = useChatSendOutboxStore.getState().entries;
+    expect(entry).toEqual(expect.objectContaining({ roomId: "room1", body: "hello" }));
+    expect(entry?.failed_at).toBeUndefined();
   });
 
   it("sends the side thread's own draft into its thread and leaves the main composer's reply and priority alone", async () => {

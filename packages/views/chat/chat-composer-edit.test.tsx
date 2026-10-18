@@ -77,7 +77,7 @@ describe("ChatComposer edit mode", () => {
 
     fireEvent.keyDown(field, { key: "Escape" });
     expect(editing.onCancel).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hủy sửa" }));
     expect(editing.onCancel).toHaveBeenCalledTimes(2);
 
     rerender(wrap(<Harness editing={null} />));
