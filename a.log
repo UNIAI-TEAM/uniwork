@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+dd4092468df9b79e08eb63f6a9bfb6ce5b77de2c
+923e42c99b5530d0a5577f4df45f3f447d943b6c
+dd4092468 chore: merge G5-G7 root b5388f37d into FRAME-RO-HOST (UNI-1901)
+75c0ba74e fix(office): keep the comment level out of the readOnly profile on a readonly host (SVH-1)
+0f062304c test(e2e): keep the office-module edit marker from starting with 0
+87d325195 test(office): add red tests for SVH-1 readonly-host comment level
+923e42c99 chore: merge G7-12 PACK3 instruction pack v3 (UNI-1875, e8ae54a7c) into the G5-G7 root
+c93d87327 chore: merge MYFOLDER-SEARCH keep My Folder private in search and lists (UNI-1891, 1df39a531) into the G5-G7 root
+
+SYNCED_EXIT=0
