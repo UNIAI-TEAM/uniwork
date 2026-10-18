@@ -1003,7 +1003,7 @@ describe("OfficeDocsFrame", () => {
   });
 
   describe("close_requested from the frame (UNI-1876, UNI-1901)", () => {
-    it("leaves a clean document view (editor or read-only viewer) on close_requested and ignores a second event while leaving", async () => {
+    it("leaves a clean document view (editor or read-only viewer) on close_requested and leaves again when the first push kept it mounted", async () => {
       mount({ libraryHref: "/acme/ops/documents", readonly: true });
       const frame = fakeFrame();
       await boot(frame);
@@ -1012,9 +1012,10 @@ describe("OfficeDocsFrame", () => {
       await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(1));
       expect(navigation.push).toHaveBeenCalledWith("/acme/ops/documents");
 
-      // A second event after the first close does nothing.
+      // A push that did not unmount the frame (same href, an adapter that refused): the next
+      // Esc is not swallowed, it leaves again.
       await frame.event("close_requested", { reason: "escape" });
-      expect(navigation.push).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(2));
     });
 
     it("runs the existing leave guard (showing the leave dialog) when dirty, ignores a second event while the leave dialog is open, and allows another close after Stay", async () => {
@@ -1044,8 +1045,12 @@ describe("OfficeDocsFrame", () => {
       await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(1));
       expect(navigation.push).toHaveBeenCalledWith("/acme/ops/documents");
 
-      // After leaving is decided, a second close_requested does nothing.
+      // A push that left the frame mounted does not latch the leave: another close_requested
+      // runs the guard again, so the still-dirty document shows the leave dialog once more.
       await frame.event("close_requested", { reason: "escape" });
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
       expect(navigation.push).toHaveBeenCalledTimes(1);
     });
 

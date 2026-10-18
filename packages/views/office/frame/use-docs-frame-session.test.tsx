@@ -951,5 +951,40 @@ describe("useDocsFrameSession: close_requested (UNI-1876, UNI-1901)", () => {
     await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v3" });
     await expect(saving).resolves.toBe("saved");
   });
-});
 
+  it("still ignores close_requested while the new session's save is in flight when the disposed session's saveCopy settles (RFH-4)", async () => {
+    let finishSaveCopy!: (v: { documentId: string; title: string }) => void;
+    let finishSave!: (v: { ok: true; file: typeof FILE; versionId: string }) => void;
+    const onCloseRequested = vi.fn();
+    const frame = setup({
+      onCloseRequested,
+      api: {
+        save: vi.fn(() => ({ then: (onFulfilled: (v: { ok: true; file: typeof FILE; versionId: string }) => void) => { finishSave = onFulfilled; } } as unknown as Promise<{ ok: true; file: typeof FILE; versionId: string }>)),
+        saveCopy: vi.fn(() => ({ then: (onFulfilled: (v: { documentId: string; title: string }) => void) => { finishSaveCopy = onFulfilled; } } as unknown as Promise<{ documentId: string; title: string }>)),
+      },
+    });
+    await frame.boot("i-1");
+
+    // A save the disposed session started, still open when retry replaces it.
+    frame.request("api.saveCopy", { name: "Copy", data: new ArrayBuffer(4) });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    act(() => { frame.hook.result.current.retry(); });
+    await frame.boot("i-2");
+
+    // The new session's own save is in flight when the old saveCopy settles: its counter must
+    // not absorb the late decrement, so Esc still does not leave mid-save.
+    frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saving"));
+    await act(async () => { finishSaveCopy({ documentId: "doc-copy-1", title: "Copy" }); });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+
+    // Once the new save settles, close_requested leaves again.
+    await act(async () => { finishSave({ ok: true, file: FILE, versionId: "v2" }); });
+    await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saved"));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+  });
+
+});
