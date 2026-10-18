@@ -299,10 +299,14 @@ describe("candidate list (F-W1-03, F-W1-04, F-W1-13)", () => {
     const retryBtn = await screen.findByRole("button", { name: t("documents.share.retry") });
     expect(screen.getByRole("option", { name: /Bình/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Người Cục Bộ/ })).toBeNull();
+    // TV1-10: the failed row says what failed, next to its Retry button.
+    expect(screen.getByText(t("documents.share.candidates_error"))).toBeInTheDocument();
 
     failNext = false;
     fireEvent.click(retryBtn);
     expect(await screen.findByRole("option", { name: /Design/ })).toBeInTheDocument();
+    // TV1-10: the listbox stayed open while the page retried and loaded.
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Bình/ })).toBeInTheDocument();
   });
 

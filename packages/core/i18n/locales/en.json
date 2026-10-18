@@ -9149,8 +9149,6 @@
       "members_error_limit": "Only part of a very large member list is shown.",
       "people_already_shared": "Has access",
       "people_chosen": "Selected people",
-      "people_selected_one": "{{count}} person selected",
-      "people_selected_other": "{{count}} people selected",
       "people_limit": "Up to {{max}} people per share. Remove someone to add another.",
       "people_remove": "Remove {{name}}",
       "people_removed": "Removed {{name}}",

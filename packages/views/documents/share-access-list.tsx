@@ -187,12 +187,11 @@ export function ShareAccessList({
     const mySources = access?.my_sources ?? [];
     return (
       <section aria-labelledby="share-access-title" className="flex min-w-0 flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <h3 id="share-access-title" className="text-label font-medium text-foreground">{t("documents.share.access_title")}</h3>
-          {myLevel ? <span className="text-caption text-muted-foreground">{t("documents.share.my_level", { level: levelLabel(myLevel) })}</span> : null}
-        </div>
+        <h3 id="share-access-title" className="text-label font-medium text-foreground">
+          {myLevel ? t("documents.share.my_level", { level: levelLabel(myLevel) }) : t("documents.share.access_title")}
+        </h3>
         {mySources.length > 0 ? (
-          <ul className="flex flex-col gap-1 rounded-lg border border-border p-3 text-caption text-muted-foreground">
+          <ul className="flex flex-col gap-0.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-caption text-muted-foreground">
             {mySources.map((src, idx) => (
               <li key={`${src.via}-${src.principal_id ?? idx}`} className="break-words">
                 {t("documents.share.source_item", { level: levelLabel(src.level), source: formatSourceOrigin(src) })}
@@ -200,7 +199,7 @@ export function ShareAccessList({
             ))}
           </ul>
         ) : null}
-        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground">{t("documents.share.manage_only")}</p>
+        <p className="text-caption text-muted-foreground">{t("documents.share.manage_only")}</p>
       </section>
     );
   }

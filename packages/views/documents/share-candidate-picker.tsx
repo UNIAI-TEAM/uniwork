@@ -198,6 +198,7 @@ export function ShareCandidatePicker({
 }: ShareCandidatePickerProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const alreadySharedSet = new Set((alreadySharedUserIds ?? []).filter((id): id is string => Boolean(id)));
@@ -282,6 +283,7 @@ export function ShareCandidatePicker({
 
       <div className="relative">
         <Input
+          ref={inputRef}
           id={inputId}
           role="combobox"
           aria-autocomplete="list"
@@ -424,7 +426,10 @@ export function ShareCandidatePicker({
               })
             )}
             {hasMore || loadingMore || loadMoreError ? (
-              <div role="presentation" className="flex justify-center py-1">
+              <div role="presentation" className="flex items-center justify-center gap-2 py-1">
+                {loadMoreError && !loadingMore ? (
+                  <span className="text-caption text-destructive">{t("documents.share.candidates_error")}</span>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"
@@ -432,7 +437,11 @@ export function ShareCandidatePicker({
                   aria-disabled={loadingMore || undefined}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
-                    if (!loadingMore) onLoadMore();
+                    if (loadingMore) return;
+                    onLoadMore();
+                    // The retry can steal focus; hand it back so its unmount
+                    // after a successful page cannot blur-close the listbox.
+                    inputRef.current?.focus();
                   }}
                 >
                   {loadingMore ? <Spinner aria-hidden role="presentation" /> : null}
