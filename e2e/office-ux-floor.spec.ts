@@ -35,6 +35,10 @@ import {
  * (a timeout, a selector that slipped) is a real failure. (`expect.soft` under test.fail would absorb the same.)
  *
  * Run with OFFICE_UX_FLOOR_E2E=1 (server with AI_PROVIDER=fake for S7/S9).
+ * S9 also needs AI_CONVERSATION_KEY on that server: without it there is no transcript store, so the first
+ * UniWork AI turn answers 503 ai_disabled (ConversationStorePG.Create refuses, uniworkStoreErr maps it) and the
+ * frame shows an error line instead of an answer. Give each run its own key (`openssl rand -base64 32`), never a
+ * committed one.
  */
 test.describe.configure({ timeout: 240_000 });
 test.skip(process.env.OFFICE_UX_FLOOR_E2E !== "1", "Set OFFICE_UX_FLOOR_E2E=1 to run the G7-09 UX floor checks.");
@@ -446,8 +450,14 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
         const sendBtn = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
         await expect(sendBtn, "S9: Send is enabled after the disclosure acknowledgement").not.toHaveAttribute("aria-disabled", "true");
         await sendBtn.click();
-        await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
-        await audit(frame, ".ai-chat", "S9 result/error", mode);
+        // S9: the turn reached its end, then the error line is checked explicitly. The pinned frame's action toolbar
+        // also appears on a failed turn (its `showToolbar` accepts `entry.error`), so the toolbar alone does not prove
+        // an answer; the assertion below is what does. `.ai-msg-error` is exactly what a frame whose same-origin AI
+        // POST never reached the API shows (split-origin, before the app proxied the frame AI routes).
+        await frame.locator(".ai-chat .ai-msg-toolbar").first().waitFor({ state: "visible", timeout: 90_000 });
+        const errorLine = await frame.locator(".ai-chat .ai-msg-error").first().isVisible().catch(() => false);
+        expect(errorLine, "S9: the UniWork AI turn rendered an error line, not an answer — the frame's AI POST must reach the API (on a split-origin setup the app rewrites /api/v1/office-frame/documents/{id}/ai/... to NEXT_PUBLIC_API_URL)").toBe(false);
+        await audit(frame, ".ai-chat", "S9 result", mode);
         await shot(frame, `s9-result-${mode}-${locale}`);
       });
     }

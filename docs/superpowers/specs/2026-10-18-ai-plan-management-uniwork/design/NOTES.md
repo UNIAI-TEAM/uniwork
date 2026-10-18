@@ -249,3 +249,87 @@ Sửa FE-B23, B25…B30; FE-B24 giữ nguyên bảng vẽ (nhãn "Đã hoàn m�
 | FE-B30 | j13 thêm dòng "Cấp tay US$ 50,00 · 18/10/2026 · Đã cộng" ở đầu danh sách đơn; ghi chú j13 cập nhật | j13 |
 
 Ánh xạ spec → khung: chỉ đổi i4 (thêm i6b, xem bảng ánh xạ ở trên). Khung đã chụp lại: g4, g4b, g10b; h1, h2, h4, h9, h10; i1–i6, i6b; j1, j3, j6, j10–j15.
+
+## Round 3 (2026-10-19, UNI-1910, W2 design r3)
+
+Quyết định của người dùng (01:15, 01:30, 01:35 ngày 19/10) được gấp vào bản vẽ; mọi khung khác giữ nguyên. Mỗi khung đổi hoặc mới có đủ 1280 + 390, sáng + tối (`shots/<id>-<desktop|mobile>-<light|dark>.png`). Chạy lại: `DESIGN_OUT=<thư mục> node _build/<board>.mjs`, rồi `node _build/shots-r3.mjs` (một trình duyệt) và `node _build/contrast-r3.mjs` (272 khung, 0 lỗi). Kiểm tràn ngang theo khung và theo trang: không có.
+
+### Khung đổi hoặc thêm
+- **G** (17 trạng thái, 68 ảnh): g1 (gói đọc từ danh mục; thẻ có giá VND / kỳ và "US$ y credit AI / kỳ"), g1b mới (admin thêm "Business năm", bốn thẻ), g3 (Starter nạp được), g4, g4b, g5 (hạ gói "Áp dụng từ dd/mm", "Hủy lịch hạ gói"), g6 (gia hạn sớm: kỳ mới bắt đầu từ ngày hết kỳ, credit cộng khi kỳ bắt đầu), g6b mới (hộp xác nhận gia hạn), g6c mới (đã gia hạn, dòng "Kỳ tiếp theo"), g8 (quản trị viên tổ chức có nút nạp). Dòng thẻ gói đổi ở mọi khung có thẻ (g2, g7, g10, g10b, g12); dòng Credit AI đổi "không hết hạn" ở g10b và h4.
+- **H** (16, 64): h1 (một ô số US$ nguyên, thành tiền = ceil(số × tỷ giá), tỷ giá hiện một lần, không dòng hạn dùng, ghi credit gói tiêu trước), h1b mới (dưới tối thiểu), h1c mới (trên tối đa), h2, h4, h9, h10 (đơn chờ giữ giá lúc tạo), h11 (bảng câu chữ).
+- **I** viết lại (11, 44): i1 danh sách (bỏ "Đã hoàn một phần"), i2 đơn chưa dùng "Liên hệ hỗ trợ để hoàn tiền", i3 đơn đã dùng "Không hoàn tiền: đã dùng", i4, i5, i6, i6b; mới ở /admin: i7 danh sách (cột Credit, nút Hoàn tiền chỉ sáng cho đơn chưa dùng), i8 hộp hoàn tiền (lý do thiếu), i8b (đủ ≥ 10 ký tự), i9 (đơn đã dùng, nút mờ kèm chú thích). Bỏ các khung hoàn một phần và thu hồi credit đã tiêu của vòng 2.
+- **J** (15, 60): j7, j8, j9 (thành viên liên hệ quản trị viên, quản trị viên và chủ sở hữu có nút nạp), j15 (hộp hoàn tiền của /admin, dùng chung với i8). Sửa theo hệ quả, không nằm trong danh sách hợp đồng: j1, j3 (bỏ "hạn dùng 12 tháng", thêm người nạp; thông báo nạp đến người nạp và chủ sở hữu), j6 (hoàn đơn chưa dùng: "sẽ được thu hồi"), j10…j14 (nhãn "Nạp credit" thay "Gói nạp").
+- **D**: d2d (thành viên, chú thích khớp D-10), d2e mới (quản trị viên có nút "Nạp thêm credit").
+- **K** mới (8, 32; đã đổi ở fix 1, xem dưới): k1 /admin › Gói dịch vụ (gói do admin tạo, sửa ngay trên dòng bảng, thẻ "Giá nạp credit"), k1b lưu một dòng (hộp lý do), k2 tạo gói (mặc định ẩn), k3 xóa gói chưa ai mua, k3b xóa gói đã có người mua bị chặn, k4 sửa giá nạp ("đơn đang chờ giữ giá cũ"), k4b lỗi tối thiểu > tối đa, k5 đã lưu (còn 2 đơn giữ giá cũ).
+- `index.html`: thêm board K, mục "Vòng 3 đổi gì", cập nhật các hàng Q-AIP-12, 15, 16, 17, 19, 20, B-3 và thêm D-8, D-10 cùng dòng "Gói và giá nạp do admin đặt".
+
+### Số liệu ví dụ (chỉ minh họa; admin đặt thật)
+Tỷ giá 5.300 ₫ cho US$ 1; mỗi đơn US$ 10 – 1.000 (US$ 100 = 530.000 ₫; US$ 50 = 265.000 ₫; US$ 20 = 106.000 ₫); Starter US$ 5 credit / tháng, Team 499.000 ₫ + US$ 100, Business 1.499.000 ₫ + US$ 500, "Business năm" 14.990.000 ₫ / năm + US$ 6.000 / năm. Tỷ giá cao hơn giá mỗi US$ của gói Team (4.990 ₫) để nạp không đọc thành rẻ hơn gói. `fmt` nhóm hàng nghìn bằng dấu chấm (US$ 6.000,00).
+
+### Giả định cần lead/spec xác nhận
+1. Quản trị viên tổ chức nạp được trên mọi gói nhưng không mua, nâng, hạ gói (D-10 chỉ nói nạp); g8, j8 vẽ như vậy.
+2. Nạp ở gói `past_due` vẫn khóa (g7, giữ như vòng 2); Starter nạp được (Q-AIP-19 b).
+3. "Đơn chưa dùng" áp cho cả đơn gói chưa dùng đồng credit nào (không chỉ đơn nạp); i3 vẽ đơn gói đã dùng.
+4. Hộp /admin "Tạo gói" bỏ mô tả và thứ tự sắp xếp của hộp hiện có, đổi "Đang bán" thành công tắc "Ẩn khỏi khách hàng"; "Xóa gói" là hành vi mới (chỉ gói chưa ai dùng, không phải Starter).
+5. Đổi giá hoặc credit của gói chỉ áp dụng từ kỳ kế tiếp của tổ chức đang dùng (k3b nói ngay dưới tiêu đề).
+6. ~~Ma trận thông báo của quản trị viên~~ — đã quyết ở fix 1 (FE3-4): j2b.
+
+### Fix 1 (2026-10-19, W2 fix1, theo `review-r3-fe-r1.md` FE3-1…FE3-14 và quyết định của lead)
+Chạy lại: `node _build/{g,h,i,j,k,d,index}.mjs`, `node _build/shots-r3.mjs`, `node _build/contrast-r3.mjs` (296 khung, 0 lỗi; không tràn ngang). Số khung: G 17, H 18, I 13, J 16, K 8, D d2d + d2e = 74 trạng thái ở các board đổi (296 ảnh).
+
+**Khung mới:** h9b (409 `topup_quote_changed`), h9c (409 `billing_past_due` trong ngăn), i4b (kết quả hoàn hóa đơn gói cho chủ sở hữu), i8c (hộp /admin hoàn hóa đơn gói), j2b (cài đặt thông báo của quản trị viên tổ chức), k1b (lưu một dòng + hộp lý do). **Đổi nội dung:** g1b, g5 (và ghi chú g4, g4b); h2 (ghi chú), h11 (hai hàng câu chữ mới), h1 (bỏ chữ "gói nạp"); i4, i5 (ghi chú), i7, i8, i1-i9 (hóa đơn mẫu); j2, j7, j10, j15; d2d, d2e; k1, k2, k3 (nay là xóa gói chưa ai mua), k3b (nay là xóa gói đã có người mua bị chặn), k5 (ghi chú), k4 (ghi chú); ngăn Hỏi UNI của j7, j8, j9.
+
+| Finding | Cách xử lý |
+|---|---|
+| FE3-1 | Gói mới **ẩn mặc định** khi tạo (k2 công tắc BẬT). k1/k5 giữ nhãn "Ẩn"; g1b thành "sau khi admin bỏ ẩn", ghi gói ẩn không bao giờ hiện thẻ/nút Nâng cấp. |
+| FE3-2 | h9b: máy khách gửi giá đã hiện; máy chủ tính lại khi tạo đơn, đổi tỷ giá/min/max thì 409 `topup_quote_changed` + báo giá mới; ngăn so sánh giá cũ (gạch) và giá mới, nút "Thanh toán với giá mới"; chưa chuyển VNPay. |
+| FE3-3 | i8c (hộp /admin cho hóa đơn gói, dải vàng: kỳ kết thúc, về Starter ngay, credit kỳ thu hồi) và i4b (kết quả cho chủ sở hữu). Hàng mẫu /admin đổi thành hóa đơn gói của kỳ đang chạy (số `UW-2026-6C2N8W5J`, Công ty An Phát); i4b dựng với chrome của An Phát. |
+| FE3-4 | j2b: quản trị viên thấy nhóm "Thanh toán" một hàng ("Đã nạp credit AI"), chỉ cho lần nạp họ mua; j2 ghi chủ sở hữu có đủ bốn hàng. |
+| FE3-5 | Một nơi sửa: dòng bảng với "Lưu" riêng + hộp lý do (≥ 10 ký tự), như `FeatureRow` thật. Bảng có thêm dòng "Giá và kỳ" và công tắc "Ẩn khỏi khách hàng"; `PlanEditDialog` bỏ. Hộp chỉ để tạo (k2) và bỏ hạn mức thành viên/workspace khỏi hộp (sửa ở bảng sau khi tạo). Câu "áp dụng từ kỳ kế tiếp" ở chú thích đầu bảng và trong hộp lưu (k1b), áp cho mọi dòng kể cả Starter. k3 sửa Starter bỏ (khóa nằm ở k1). |
+| FE3-6 | k3 xóa được gói chưa ai mua (hộp lý do, "không hoàn tác"); k3b chặn gói đã có người mua: "Đã có tổ chức mua gói này. Ẩn gói để ngừng bán." (luật "đã từng mua"). |
+| FE3-7 | Starter: giá và kỳ đọc-only (khóa), công tắc Ẩn khóa; chỉ credit và hạn mức sửa được. |
+| FE3-8 | g4 (28 / 30), g4b (38 vượt), g5 (28 / 30) khớp nhau; g5 có câu "Việc chuyển được kiểm lại vào 01/11/2026 …" (chi tiết thuộc AIP-BILL-15). |
+| FE3-9 | i5 (ghi chú): nhân viên kiểm lại "chưa dùng" lúc thực hiện, nếu đã dùng thì từ chối "Đã dùng, không hoàn tiền" (i8 ghi chú cũng nói). i4: chỉ credit của đơn này bị thu hồi, không gì khác. |
+| FE3-10 | Một khung ngăn Hỏi UNI (kiểu d: có nút cuộc trò chuyện mới và xóa) ở d2d, d2e, j7, j8, j9; một cách gọi "chủ sở hữu hoặc quản trị viên tổ chức" ở d2d (kể cả nhãn danh sách liên hệ) và j7. Các khung d khác (d2…) giữ nhãn cũ "Quản trị viên tổ chức" vì ngoài phạm vi. |
+| FE3-11 | Mô tả hộp hoàn tiền: "Thanh toán qua VNPay thì hệ thống gửi lệnh hoàn tới VNPay; ghi nhận thủ công thì hóa đơn đổi trạng thái ngay. Lý do tối thiểu 10 ký tự." (**`vi.json` phải đổi cùng, owner thẻ AIP-BILL**); ô mã cổng "Mã hoàn tiền hoặc giao dịch VNPay"; gợi ý lý do "Khách hàng yêu cầu hoàn, chưa dùng credit"; bỏ dấu gạch thừa ở di động i7/j15. |
+| FE3-12 | "gói nạp" → "Nạp credit" ở j10 (và h1: "ba mức nạp cố định"). Còn lại trong `index.html` là tên câu hỏi Q-AIP-12 (tên gốc của spec). |
+| FE3-13 | k2: danh sách phía sau có ba gói. |
+| FE3-14 | h9c. |
+
+**Câu hỏi mở cho lead/spec:** (1) ~~hoàn hóa đơn gói của kỳ đã kết thúc~~ — đã chốt ở fix 2 (kỳ đã kết thúc = đã dùng); (2) k2 bỏ thành viên/workspace khỏi hộp tạo: xác nhận; (3) các khung d2… khác còn nhãn "Quản trị viên tổ chức" cho danh sách liên hệ.
+
+
+### Fix 2 (2026-10-19, W2 fix2, theo `review-r3-fe-r2.md` NEW-1…NEW-8 và quyết định của lead)
+Chạy lại: `node _build/{g,h,i,k,index}.mjs`, `node _build/shots-r3.mjs`, `node _build/contrast-r3.mjs` (324 khung, 0 lỗi; không tràn ngang). Số khung: G 18, H 19, I 18, J 16, K 8, D d2d + d2e = **81 trạng thái** ở các board đổi (324 ảnh).
+
+**Khung mới:** g7b, h9d, i3b, i8d, i8e, i8f, i9b. **Đổi nội dung:** h9b (ghi chú), h9c (ghi chú, h11 thêm hàng), i1 (lede), i4b, i7 (ba hàng mới), i8, i8c, j15 (tiêu đề hộp), k1, k1b, k5.
+
+| Finding | Cách xử lý |
+|---|---|
+| NEW-1 | Kỳ đã kết thúc = đã dùng. i7 thêm hàng hóa đơn 01/09 của Minh Long: nút "Hoàn tiền" mờ, nhãn Credit "Kỳ đã kết thúc"; i9b là chú thích nút mờ; i3b là ngăn chi tiết của chủ sở hữu "Không hoàn tiền: kỳ đã kết thúc". Hóa đơn của kỳ chưa bắt đầu (g6c) hoàn được: hàng "Chưa bắt đầu" sáng nút (i7, i8f). **Câu hỏi mở 1 của fix 1 đóng: đã chốt.** |
+| NEW-2 a | Hoàn kỳ đang chạy bị từ chối khi còn kỳ tiếp theo đã trả: i8e (Công ty Thái Bình, dải đỏ "Hoàn kỳ tiếp theo trước", Xác nhận mờ). Nhân viên hoàn kỳ tiếp theo trước (i8f: kỳ đó bị bỏ, kỳ đang chạy giữ nguyên), rồi hoàn kỳ đang chạy. Ghi chú: i8c nay là nhánh "đi tiếp", từ chối nằm ở i8e. |
+| NEW-2 b | Tổ chức vượt giới hạn Starter vẫn được hoàn: i8c thêm một dòng vàng "Tổ chức sẽ về Starter; đang vượt giới hạn: 12 thành viên / 4 workspace — không thêm mới được cho tới khi giảm", i4b thêm dòng "Vượt giới hạn Starter". |
+| NEW-3 | k5: toast một dòng, 296 px, chuyển lên góc trên phải trong thanh trên; không còn che nút "Lưu" hay "Tạo gói". |
+| NEW-4 | Ẩn/hiện áp dụng ngay (chú "Ẩn/hiện áp dụng ngay." cạnh công tắc và ở dòng chú thích đầu bảng); giá và credit sửa ở bảng áp dụng từ kỳ kế tiếp của từng tổ chức (k1, k1b, k5). |
+| NEW-5 | h9b: ghi chú nói min/max đổi có thể đẩy số đã nhập ra ngoài khoảng; ô nhập hiện lỗi h1b/h1c với mức mới, nút thanh toán mờ. |
+| NEW-6 | i8d: lỗi nội tuyến "Đã dùng, không hoàn tiền" trong hộp, Xác nhận mờ, hóa đơn không đổi. |
+| NEW-7 | Mua gói chỉ chủ sở hữu (D-10): h9d (ngăn nạp của quản trị viên, dải vàng "Liên hệ chủ sở hữu tổ chức để thanh toán gói.", không nút Thanh toán gói) và g7b (trang past_due của quản trị viên, không nút "Thanh toán ngay"). h11 thêm hàng câu chữ. |
+| NEW-8 | `docs/conventions.md` không có mục "HĐ" nên đổi thành "hóa đơn": tiêu đề hộp hoàn tiền "Hoàn tiền hóa đơn UW-…" (i8, i8b, i8c, i8d, i8e, i8f, j15). **`vi.json` đổi cùng, owner thẻ AIP-BILL.** |
+
+**Dữ liệu mẫu mới:** Công ty Thái Bình (gia hạn sớm như g6c): hóa đơn kỳ 01/10 `UW-2026-1M7D4X8K` và kỳ tiếp theo 01/11 `UW-2026-8F3L6T1R`, cả hai chưa dùng. An Phát đang có 12 thành viên / 4 workspace (Starter: 5 / 2).
+
+**Còn mở cho lead/spec:** (1) k2 bỏ thành viên/workspace khỏi hộp tạo: xác nhận; (2) các khung d2… khác còn nhãn "Quản trị viên tổ chức" cho danh sách liên hệ; (3) i4b/i8f chỉ vẽ kết quả phía chủ sở hữu cho kỳ đang chạy; kết quả của kỳ tiếp theo bị bỏ chưa có khung riêng (cùng ngăn i4b, chỉ khác dòng "Kỳ Business 01/11 – 01/12: Đã bỏ").
+
+
+### Fix 3 (2026-10-19, W2 fix3, theo `contract-R3-W2-fix3.md`)
+Chạy lại: `node _build/{i,k,index}.mjs`, `node _build/shots-r3.mjs`, `node _build/contrast-r3.mjs` (324 khung, 0 lỗi; không tràn ngang). Không thêm khung: vẫn **81 trạng thái** ở các board đổi.
+
+**Khung đổi:** k2, k5 (K); i1, i2…i6b (nền danh sách đổi theo hàng mới), i7 (I).
+
+| Mục | Cách xử lý |
+|---|---|
+| 1 | k2: bỏ công tắc "Ẩn khỏi khách hàng" và mô tả hộp; còn **một dòng chú thích** "Gói mới luôn ẩn. Hiện gói ở bảng sau khi kiểm tra." k1 vẫn có nhãn "Ẩn" và lưu dòng kèm lý do để bỏ ẩn. |
+| 2 | i1: thêm hàng loại **"Thanh toán chưa áp dụng"** (`UW-2026-4W6H2R9Y`, 15/10/2026, 499.000 ₫, đã thanh toán, nhãn "Hỗ trợ sẽ liên hệ hoàn tiền"). Danh sách 7 hóa đơn, tổng 5.367.000 ₫. i7 (/admin): hàng đó có Credit "Chưa áp dụng" và nút "Hoàn tiền" **sáng, hoàn được bất cứ lúc nào**. |
+| 3 | Ba mục thấp của `review-r3-fe-r3.md`: **N-1** làm (i7: hàng Thái Bình đang chạy ghi "Chưa dùng · có kỳ tiếp theo đã trả"); **N-2** làm (k5: toast 284 px, một dòng, cách tab "Hệ thống" ~15 px); **N-3** để lại (cần khung mới, không phải một dòng; vẫn ở "Còn mở" của fix 2). |
+
+**Còn mở cho lead/spec:** hàng "Thanh toán chưa áp dụng" chưa có ngăn chi tiết riêng (i2…i6 không vẽ nó); nếu cần, dùng cùng ngăn i2 với dòng "Hỗ trợ sẽ liên hệ hoàn tiền".

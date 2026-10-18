@@ -169,7 +169,7 @@ test("AC03 three people at Edit and seven at View: per-person levels with a live
   await dialog.getByRole("button", { name: "Thiết lập quyền riêng" }).click();
   const summary = dialog.getByRole("status").filter({ hasText: /Chỉ xem|Chỉnh sửa/ });
   await expect(summary).toHaveText("3 Chỉ xem");
-  await dialog.getByRole("combobox", { name: new RegExp(`^Mức quyền ${escapeRegExp(s.other.name)}: `) }).click();
+  await dialog.getByRole("combobox", { name: `Mức quyền của ${s.other.name}` }).click();
   await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Chỉnh sửa" }).click();
   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
 

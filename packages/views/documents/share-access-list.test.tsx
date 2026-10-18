@@ -110,9 +110,10 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     expect(screen.getByText("Chỉ xem qua chia sẻ trực tiếp")).toBeInTheDocument();
     expect(screen.getByText("Chỉnh sửa qua Workspace Kinh doanh")).toBeInTheDocument();
 
-    // TV1-01: the trigger shows the level word only; R4-01 names it
-    // "Mức quyền <name>: <level>" so screen readers hear the current level.
-    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền Kinh doanh: Chỉnh sửa" });
+    // F3: the accessible name names the principal only ("Mức quyền của <name>");
+    // the trigger's value already speaks the level, so a screen reader must not
+    // read it twice.
+    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền của Kinh doanh" });
     expect(levelTrigger).not.toHaveTextContent("Mức quyền:");
     expect(levelTrigger).toHaveTextContent("Chỉnh sửa");
     const homeLi = levelTrigger.closest("li")!;
@@ -410,7 +411,7 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
       ],
     });
 
-    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền Nguyễn An (an@acme.vn): Chỉnh sửa" });
+    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền của Nguyễn An (an@acme.vn)" });
     await user.click(levelTrigger);
     await user.click(await screen.findByRole("option", { name: "Chỉ xem" }));
     const confirmBox = await screen.findByTestId("share-access-confirm");
