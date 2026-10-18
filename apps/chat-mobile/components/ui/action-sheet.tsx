@@ -4,7 +4,7 @@
 // title, then 48pt rows with an icon, or round tinted tiles four to a row
 // (`layout="tiles"`, the attach sheet), and a "Hủy" pill.
 import { Ionicons } from "@expo/vector-icons";
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal, Platform, Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,6 +30,10 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   title?: string;
+  /** Read out for the sheet when it shows no title (the room menu names its room this way). */
+  label?: string;
+  /** Lifted over the dimmed screen above the sheet, such as the room a list row's menu acts on. */
+  above?: ReactNode;
   actions: SheetAction[];
   layout?: "list" | "tiles";
 }
@@ -58,18 +62,20 @@ export function SheetGrabber() {
   return <View className="mx-auto mb-3 mt-2 h-[5px] w-9 rounded-full bg-muted-foreground/30" />;
 }
 
-export function ActionSheet({ visible, onClose, title, actions, layout = "list" }: Props) {
+export function ActionSheet({ visible, onClose, title, label, above, actions, layout = "list" }: Props) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const { choose, onDismiss } = useAfterDismiss(onClose);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
-      <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
-      <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card pb-2" style={continuousCorners}>
+      <Pressable className="flex-1 justify-end bg-black/40 pb-4" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")}>
+        {above}
+      </Pressable>
+      <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityLabel={label}>
         <SheetGrabber />
         {title ? (
-          <Text className="px-5 pb-3 text-lg font-bold text-foreground" numberOfLines={2} accessibilityRole="header">
+          <Text className="px-5 pb-3 text-lg font-display font-bold text-foreground" numberOfLines={2} accessibilityRole="header">
             {title}
           </Text>
         ) : null}
@@ -95,10 +101,10 @@ export function ActionSheet({ visible, onClose, title, actions, layout = "list" 
               <Pressable
                 key={action.key}
                 accessibilityRole="button"
-                className={cn("min-h-12 flex-row items-center gap-3.5 px-5 active:bg-secondary", index > 0 && "border-t border-border")}
+                className={cn("min-h-[52px] flex-row items-center gap-3.5 px-5 active:bg-secondary", index > 0 && "border-t border-border")}
                 onPress={() => choose(action.onPress)}
               >
-                {action.icon ? <Ionicons name={action.icon} size={22} color={action.destructive ? theme.destructive : theme.mutedForeground} /> : null}
+                {action.icon ? <Ionicons name={action.icon} size={20} color={action.destructive ? theme.destructive : theme.mutedForeground} /> : null}
                 <Text className={cn("flex-1 text-base", action.destructive ? "text-destructive" : "text-foreground")}>{action.label}</Text>
               </Pressable>
             ))}

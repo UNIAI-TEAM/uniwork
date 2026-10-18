@@ -21,8 +21,13 @@ export interface RoomRowProps {
   mark: RoomMark;
   /** The room id the mark's tint is hashed from. */
   seed: string;
+  prefix?: string | null;
   subtitle: string | null;
   typing: boolean;
+  missed?: boolean;
+  seen?: boolean;
+  /** A message of this room waits in the send queue for the network. */
+  queued?: boolean;
   time: string | null;
   unread: number;
   mentionUnread: number;
@@ -35,15 +40,16 @@ export interface RoomRowProps {
 }
 
 export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
-  const { title, mark, seed, subtitle, typing, time, unread, mentionUnread, muted, pinned, onPress, onLongPress, testID } = props;
+  const { title, mark, seed, prefix, subtitle, typing, missed, seen, queued, time, unread, mentionUnread, muted, pinned, onPress, onLongPress, testID } = props;
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const hasUnread = unread > 0 || mentionUnread > 0;
   const label = [
     title,
-    subtitle,
+    queued ? t("chat.mobile.send_queued") : `${prefix ?? ""}${subtitle ?? ""}`,
     time,
+    seen ? t("chat.sidebar_seen_aria") : null,
     mentionUnread > 0 ? t("chat.mention_unread_badge_aria", { count: mentionUnread }) : null,
     unread > 0 ? t("chat.unread_badge_aria", { count: unread }) : null,
     muted ? t("chat.sidebar_conversation_muted_aria") : null,
@@ -66,10 +72,11 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
       <RoomAvatar mark={mark} seed={seed} />
       <View className="min-w-0 flex-1 self-stretch justify-center gap-[3px] border-b-hairline border-border py-2.5 pr-4">
         <View className="flex-row items-center gap-1.5">
-          <Text className="flex-1 text-base font-bold text-foreground" numberOfLines={1}>
+          <Text className="flex-1 text-base font-display font-bold text-foreground" numberOfLines={1}>
             {title}
           </Text>
           {muted ? <Ionicons name="notifications-off" size={14} color={theme.mutedForeground} /> : null}
+          {seen ? <Ionicons name="checkmark-done" size={16} color={theme.primary} /> : null}
           {time ? (
             <Text className={cn("text-[13px]", hasUnread && !muted ? "font-semibold text-primary" : "text-muted-foreground")} style={TABULAR}>
               {time}
@@ -77,15 +84,25 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
           ) : null}
         </View>
         <View className="flex-row items-center gap-1.5">
-          <Text
-            className={cn("flex-1 text-[15px] leading-5", typing ? "font-medium text-primary" : "text-muted-foreground")}
-            numberOfLines={1}
-          >
-            {subtitle ?? " "}
-          </Text>
+          {queued ? (
+            <View className="flex-1 flex-row items-center gap-1.5">
+              <Ionicons name="time-outline" size={14} color={theme.tintOrangeForeground} />
+              <Text className="flex-1 text-[15px] leading-5 text-tint-orange-foreground" numberOfLines={1}>
+                {t("chat.mobile.send_queued")}
+              </Text>
+            </View>
+          ) : (
+            <Text
+              className={cn("flex-1 text-[15px] leading-5", typing ? "font-medium text-primary" : missed ? "text-destructive" : "text-muted-foreground")}
+              numberOfLines={1}
+            >
+              {prefix ? <Text className="text-[15px] font-medium text-foreground">{prefix}</Text> : null}
+              {subtitle ?? " "}
+            </Text>
+          )}
           {mentionUnread > 0 ? (
             <View className="h-[22px] w-[22px] items-center justify-center rounded-full bg-primary">
-              <Text className="text-[13px] font-bold text-primary-foreground">@</Text>
+              <Text className="text-[13px] font-display font-bold text-primary-foreground">@</Text>
             </View>
           ) : null}
           {unread > 0 ? (

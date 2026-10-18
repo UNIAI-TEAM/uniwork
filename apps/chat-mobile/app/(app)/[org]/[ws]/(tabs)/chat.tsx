@@ -6,28 +6,35 @@
 // and `?dm=` opens (or creates) the DM with that person — the params
 // lib/deep-link.ts › deepLinkHref writes.
 import { Ionicons } from "@expo/vector-icons";
+import { useNetInfo } from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, FlatList, Pressable, RefreshControl, View } from "react-native";
+import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
 import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, WorkspacePill } from "@/components/chat/room-list-parts";
+import { RoomPreview } from "@/components/chat/room-preview";
 import { RoomRow } from "@/components/chat/room-row";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { ActionSheet, type SheetAction } from "@/components/ui/action-sheet";
 import { Header } from "@/components/ui/header";
 import { SearchField } from "@/components/ui/search-field";
+import { Text } from "@/components/ui/text";
+import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
 import { callEngine } from "@/data/calls/call-store";
 import { resolveDMRoom, setRoomMuted } from "@/data/chat-actions";
-import { nicknamesOptions, roomsOptions, workspaceMembersOptions } from "@/data/queries/chat";
+import { nicknamesOptions, roomsOptions, unreadSummaryOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
+import { useChatSendStore } from "@/data/stores/chat-send-store";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { useSidebarTypingStore } from "@/data/stores/chat-typing-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import { buildRoomList, filterRoomList, type RoomListFilter, type RoomListRow } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
+import { unreadInOtherWorkspaces } from "@/lib/workspace-unread";
 
 /** Opens the room a deep link names, once per link. */
 function useDeepLinkTarget(chat: ChatWorkspace | null) {
@@ -81,6 +88,13 @@ export default function ChatTab() {
   const nicknames = useQuery({ ...nicknamesOptions(wsId), enabled: Boolean(chat) });
   const members = useQuery({ ...workspaceMembersOptions(wsId), enabled: Boolean(chat) });
   const workspace = useQuery(workspaceListOptions()).data?.find((w) => w.id === wsId);
+  const summary = useQuery({ ...unreadSummaryOptions(), enabled: Boolean(chat) });
+  const otherUnread = unreadInOtherWorkspaces(summary.data, wsId);
+  const offline = useNetInfo().isConnected === false;
+  const sends = useChatSendStore((s) => s.entries);
+  const queuedRooms = useMemo(() => new Set(sends.filter((entry) => entry.status === "queued" && entry.workspaceId === wsId).map((entry) => entry.roomId)), [sends, wsId]);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [catchUp, setCatchUp] = useState<CatchUpTarget | null>(null);
   const pinnedByRoomId = useChatPinsStore((s) => s.byRoomId);
   const typingByRoomId = useSidebarTypingStore((s) => s.byRoomId);
   const online = usePresenceStore((s) => s.onlineUserIds);
@@ -110,6 +124,19 @@ export default function ChatTab() {
   );
   const shown = useMemo(() => filterRoomList(rows, filter), [rows, filter]);
   const mentionRooms = useMemo(() => filterRoomList(rows, "mentions").length, [rows]);
+  // "Bắt kịp nhanh" sums the list's unread and opens the room holding the most of it (chat-sidebar-catch-up.tsx › pickQuickCatchUp).
+  const quickCatchUp = useMemo(() => {
+    let total = 0;
+    let withUnread = 0;
+    let top: RoomListRow | null = null;
+    for (const row of rows) {
+      if (row.unread <= 0 || !row.roomId) continue;
+      total += row.unread;
+      withUnread += 1;
+      if (!top || row.unread > top.unread) top = row;
+    }
+    return { total, rooms: withUnread, top };
+  }, [rows]);
 
   const open = useCallback(
     (row: RoomListRow) => {
@@ -132,6 +159,7 @@ export default function ChatTab() {
     menuActions.push({
       key: "pin",
       label: menuRow.pinned ? t("chat.mobile.unpin_conversation") : t("chat.settings_pin_conversation"),
+      icon: menuRow.pinned ? "pin" : "pin-outline",
       onPress: () => void useChatPinsStore.getState().toggle(roomId),
     });
     if (menuRow.room) {
@@ -139,13 +167,14 @@ export default function ChatTab() {
       menuActions.push({
         key: "mute",
         label: muted ? t("chat.mobile.unmute_notifications") : t("chat.settings_mute_notifications"),
+        icon: muted ? "notifications-outline" : "notifications-off-outline",
         onPress: () => void setRoomMuted(qc, chat.wsId, roomId, !muted).catch(() => Alert.alert(t("common.error"))),
       });
     }
   }
 
   const pill = chat ? (
-    <WorkspacePill name={chat.workspaceName} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} onPress={() => router.push("/select-workspace")} />
+    <WorkspacePill name={chat.workspaceName} seed={wsId} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} otherUnread={otherUnread} onPress={() => setSwitchOpen(true)} />
   ) : null;
   const newChat = chat ? (
     <Pressable
@@ -164,22 +193,37 @@ export default function ChatTab() {
         <SearchField
           value={filterText}
           onChangeText={setFilterText}
-          placeholder={t("chat.search_conversations")}
+          placeholder={t("chat.mobile.search_placeholder")}
           accessibilityLabel={t("chat.search_conversations_label")}
           className="mt-2.5 h-10"
         />
       </Header>
+      {offline ? (
+        <View accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-center gap-2 bg-tint-yellow px-4 py-2">
+          <Ionicons name="cloud-offline-outline" size={16} color={theme.tintYellowForeground} />
+          <Text className="text-[13px] font-medium text-tint-yellow-foreground">{t("chat.mobile.offline_banner")}</Text>
+        </View>
+      ) : null}
       {!chat || rooms.isPending ? (
         <RoomListSkeleton />
       ) : rooms.isError && !rooms.data ? (
         <RoomListError onRetry={() => void rooms.refetch()} />
       ) : (
         <>
-          <FilterChips value={filter} onChange={setFilter} mentionRooms={mentionRooms} />
+          <FilterChips value={filter} onChange={setFilter} mentionRooms={mentionRooms} total={rows.length} />
           <FlatList
             data={shown}
             keyExtractor={(row) => row.key}
             keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              quickCatchUp.top && filter === "all" && filterText.trim() === "" ? (
+                <CatchUpBanner
+                  total={quickCatchUp.total}
+                  rooms={quickCatchUp.rooms}
+                  onPress={() => quickCatchUp.top?.roomId && setCatchUp({ roomId: quickCatchUp.top.roomId, title: quickCatchUp.top.title, unread: quickCatchUp.top.unread })}
+                />
+              ) : null
+            }
             refreshControl={
               <RefreshControl
                 refreshing={pulling}
@@ -202,8 +246,12 @@ export default function ChatTab() {
                 title={item.title}
                 mark={item.mark}
                 seed={item.roomId ?? item.key}
+                prefix={item.prefix}
                 subtitle={item.subtitle}
                 typing={item.typing}
+                missed={item.missed}
+                seen={item.seen}
+                queued={item.roomId ? queuedRooms.has(item.roomId) : false}
                 time={item.time}
                 unread={item.unread}
                 mentionUnread={item.mentionUnread}
@@ -217,7 +265,25 @@ export default function ChatTab() {
           />
         </>
       )}
-      <ActionSheet visible={menuRow !== null && menuActions.length > 0} onClose={() => setMenuRow(null)} title={menuRow?.title} actions={menuActions} />
+      <ActionSheet
+        visible={menuRow !== null && menuActions.length > 0}
+        onClose={() => setMenuRow(null)}
+        label={menuRow ? t("chat.sidebar_list_menu_aria", { name: menuRow.title }) : undefined}
+        above={menuRow && chat ? <RoomPreview wsId={wsId} row={menuRow} userId={chat.userId} /> : null}
+        actions={menuActions}
+      />
+      <WorkspaceSwitchSheet visible={switchOpen} onClose={() => setSwitchOpen(false)} currentWsId={wsId} />
+      {chat ? (
+        <CatchUpSheet
+          wsId={wsId}
+          target={catchUp}
+          onClose={() => setCatchUp(null)}
+          onOpenRoom={(roomId) => {
+            setCatchUp(null);
+            router.push(chatRoutes.room(chat, roomId));
+          }}
+        />
+      ) : null}
     </View>
   );
 }
