@@ -1624,6 +1624,143 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
     }
   });
 
+  it("shows a neutral no-change toast when the commit answers the version the page already had", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "same-bytes.pdf");
+    const messageSpy = vi.spyOn(toast, "message").mockReturnValue("no-change-toast");
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-no-change",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-no-change/complete" && method === "POST") {
+        return {
+          upload_id: "up-no-change",
+          checksum_sha256: "a".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        // UNI-1900: identical bytes answer 200 with the version the document
+        // already carries (createdFileDoc's file.version_id is "v1").
+        return {
+          document: createdFileDoc(DOC_ID),
+          version: {
+            id: "v1",
+            document_id: DOC_ID,
+            version: 1,
+            kind: "file",
+            reason: "upload",
+            size_bytes: THRESHOLD + 1024,
+            checksum_sha256: "a".repeat(64),
+            created_at: "2026-10-18T01:05:00Z",
+          },
+        };
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const partNum = Number(/part-(\d+)/.exec(String(input))?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    await openDialogAndSubmit(bigFile);
+    await waitFor(() =>
+      expect(messageSpy).toHaveBeenCalledWith(t("documents.upload.no_change")),
+    );
+    expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`);
+    // The dialog closed as it does for a real new version.
+    expect(screen.queryByRole("button", { name: t("documents.upload.submit") })).not.toBeInTheDocument();
+  });
+
+  it("shows no toast when the commit answers a real new version", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "new-bytes.pdf");
+    const messageSpy = vi.spyOn(toast, "message").mockReturnValue("no-change-toast");
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-new-version",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-new-version/complete" && method === "POST") {
+        return {
+          upload_id: "up-new-version",
+          checksum_sha256: "b".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        return {
+          document: createdFileDoc(DOC_ID),
+          version: {
+            id: "v2",
+            document_id: DOC_ID,
+            version: 2,
+            kind: "file",
+            reason: "upload",
+            size_bytes: THRESHOLD + 1024,
+            checksum_sha256: "b".repeat(64),
+            created_at: "2026-10-18T01:05:00Z",
+          },
+        };
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const partNum = Number(/part-(\d+)/.exec(String(input))?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    await openDialogAndSubmit(bigFile);
+    await waitFor(() =>
+      expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: t("documents.upload.submit") })).not.toBeInTheDocument(),
+    );
+    expect(messageSpy).not.toHaveBeenCalled();
+  });
+
   it("takes no edit-lock pre-check for small files at or below the chunked threshold", async () => {
     const calls: string[] = [];
     const smallFile = makePdfFile(THRESHOLD, "at-threshold.pdf");
