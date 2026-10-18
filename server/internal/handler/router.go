@@ -670,6 +670,8 @@ func New(d Deps) http.Handler {
 		ListChatRoomMembers:              h.listChatRoomMembers,
 		PatchChatRoomMember:              h.patchChatRoomMember,
 		PatchChatRoom:                    h.patchChatRoom,
+		UploadChatRoomAvatar:             h.uploadChatRoomAvatar,
+		RemoveChatRoomAvatar:             h.removeChatRoomAvatar,
 		RemoveChatRoomMember:             h.removeWorkspaceChatRoomMember,
 		LeaveChatRoom:                    h.leaveChatRoom,
 		MarkChatRoomRead:                 h.markChatRoomRead,

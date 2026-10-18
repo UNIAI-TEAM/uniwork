@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -57,6 +58,8 @@ type ChatRoomSummary struct {
 	IsDefault             bool
 	// NotificationsMuted is the caller's own mute of this room (UNI-1697).
 	NotificationsMuted bool
+	// AvatarURL is a group's uploaded avatar, signed; "" shows its members.
+	AvatarURL string
 }
 
 type CreateGroupInput struct {
@@ -105,6 +108,8 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 	if err != nil {
 		return nil, err
 	}
+	// shortcut: one presign per group with an avatar on list reads, bounded
+	// by the caller's rooms; batch per anchor workspace if lists grow.
 	for _, row := range rows {
 		if row.Kind == chatRoomKindDM && !s.userInVoiceRoomMemberSet(db.ChatRoom{
 			Kind: row.Kind, MemberSetKey: row.MemberSetKey,
@@ -140,6 +145,11 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 			row.LastMessageSenderName, row.LastMessageAt,
 		))
 		summary.LastReadAt = timePtr(row.MyLastReadAt)
+		if row.Kind == chatRoomKindGroup {
+			summary.AvatarURL = s.roomAvatarURL(ctx, row.ID, files.Scope{
+				OrganizationID: w.OrganizationID, WorkspaceID: textOrEmpty(row.WorkspaceID),
+			}, row.AvatarFileID)
+		}
 		out = append(out, summary)
 	}
 
@@ -302,7 +312,7 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	} else if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	return s.roomSummaryWithPreview(ctx, userID, roomAnchorWorkspaceID(room), room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)
+	return s.roomSummaryWithAvatar(ctx, userID, room)
 }
 
 // chatInviteMaxIDs caps the people one invite request names.
@@ -403,7 +413,7 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	s.publishChatRoomMembersEvent(ctx, roomID, Event{
 		Type: "chat.room.updated", Payload: map[string]string{"room_id": roomID},
 	})
-	return s.roomSummaryWithPreview(ctx, userID, anchorWS, room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)
+	return s.roomSummaryWithAvatar(ctx, userID, room)
 }
 
 // RemoveWorkspaceRoomMember removes a workspace member from the workspace and

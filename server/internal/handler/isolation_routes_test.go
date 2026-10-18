@@ -506,6 +506,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages":                       {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/file":                  {body: isoFile("note.pdf", "application/pdf", tinyPDF, map[string]string{"client_msg_id": ""})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/voice":                 {body: isoFile("voice.webm", "audio/webm", tinyWebM, map[string]string{"client_msg_id": "", "duration_ms": "4000"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar":                         {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}":          {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote": {body: isoWith(map[string]string{"option_id": "pollOption"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages":   {body: isoJSON(map[string]any{"body": "hello"})},

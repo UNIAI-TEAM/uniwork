@@ -15,7 +15,7 @@ const archiveChatChannel = `-- name: ArchiveChatChannel :one
 UPDATE chat_rooms
 SET archived_at = now(), archived_by = $2, updated_at = now()
 WHERE id = $1 AND kind = 'channel' AND is_default = false AND archived_at IS NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
 `
 
 type ArchiveChatChannelParams struct {
@@ -46,6 +46,7 @@ func (q *Queries) ArchiveChatChannel(ctx context.Context, arg ArchiveChatChannel
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -319,7 +320,7 @@ INSERT INTO chat_rooms (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12, $13, now(), now()
-) RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
+) RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
 `
 
 type CreateChatRoomParams struct {
@@ -374,6 +375,7 @@ func (q *Queries) CreateChatRoom(ctx context.Context, arg CreateChatRoomParams) 
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -720,8 +722,26 @@ func (q *Queries) GetChatMessageInRoomForUpdate(ctx context.Context, arg GetChat
 	return i, err
 }
 
+const getChatRoomAvatarFileIDForUpdate = `-- name: GetChatRoomAvatarFileIDForUpdate :one
+SELECT avatar_file_id FROM chat_rooms
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type GetChatRoomAvatarFileIDForUpdateParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GetChatRoomAvatarFileIDForUpdate(ctx context.Context, arg GetChatRoomAvatarFileIDForUpdateParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getChatRoomAvatarFileIDForUpdate, arg.ID, arg.OrganizationID)
+	var avatar_file_id pgtype.Text
+	err := row.Scan(&avatar_file_id)
+	return avatar_file_id, err
+}
+
 const getChatRoomByID = `-- name: GetChatRoomByID :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms WHERE id = $1
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms WHERE id = $1
 `
 
 // tenant: by-id
@@ -747,12 +767,13 @@ func (q *Queries) GetChatRoomByID(ctx context.Context, id string) (ChatRoom, err
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
 
 const getChatRoomByKindAndMemberSet = `-- name: GetChatRoomByKindAndMemberSet :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms
 WHERE organization_id = $1 AND kind = $2 AND member_set_key = $3
 LIMIT 1
 `
@@ -785,6 +806,7 @@ func (q *Queries) GetChatRoomByKindAndMemberSet(ctx context.Context, arg GetChat
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -862,7 +884,7 @@ func (q *Queries) GetLatestChatMessageByRoom(ctx context.Context, arg GetLatestC
 }
 
 const getWorkspaceChatRoom = `-- name: GetWorkspaceChatRoom :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms
 WHERE workspace_id = $1 AND is_default = true AND archived_at IS NULL
 LIMIT 1
 `
@@ -890,6 +912,7 @@ func (q *Queries) GetWorkspaceChatRoom(ctx context.Context, workspaceID pgtype.T
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -1694,6 +1717,33 @@ func (q *Queries) ListChatMessagesInRoomBetween(ctx context.Context, arg ListCha
 	return items, nil
 }
 
+const listChatRoomAvatarFileIDs = `-- name: ListChatRoomAvatarFileIDs :many
+SELECT avatar_file_id FROM chat_rooms
+WHERE avatar_file_id = ANY($1::text[])
+`
+
+// tenant: system
+// FileService asks which of these files a group still shows.
+func (q *Queries) ListChatRoomAvatarFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listChatRoomAvatarFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var avatar_file_id pgtype.Text
+		if err := rows.Scan(&avatar_file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, avatar_file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatRoomMemberUserIDs = `-- name: ListChatRoomMemberUserIDs :many
 SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active')
@@ -1776,6 +1826,7 @@ SELECT
   r.workspace_id,
   r.member_set_key,
   r.member_permissions,
+  r.avatar_file_id,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
   mem.notifications_muted,
@@ -1884,6 +1935,7 @@ type ListChatRoomsForMemberRow struct {
 	WorkspaceID           pgtype.Text        `json:"workspace_id"`
 	MemberSetKey          pgtype.Text        `json:"member_set_key"`
 	MemberPermissions     []byte             `json:"member_permissions"`
+	AvatarFileID          pgtype.Text        `json:"avatar_file_id"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
 	NotificationsMuted    bool               `json:"notifications_muted"`
@@ -1917,6 +1969,7 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.WorkspaceID,
 			&i.MemberSetKey,
 			&i.MemberPermissions,
+			&i.AvatarFileID,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
 			&i.NotificationsMuted,
@@ -2392,6 +2445,23 @@ func (q *Queries) SearchChatMessagesByRoom(ctx context.Context, arg SearchChatMe
 	return items, nil
 }
 
+const setChatRoomAvatar = `-- name: SetChatRoomAvatar :exec
+UPDATE chat_rooms SET avatar_file_id = $1, updated_at = now()
+WHERE id = $2 AND organization_id = $3
+`
+
+type SetChatRoomAvatarParams struct {
+	AvatarFileID   pgtype.Text `json:"avatar_file_id"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// NULL drops the group avatar; the caller holds the row FOR UPDATE.
+func (q *Queries) SetChatRoomAvatar(ctx context.Context, arg SetChatRoomAvatarParams) error {
+	_, err := q.db.Exec(ctx, setChatRoomAvatar, arg.AvatarFileID, arg.ID, arg.OrganizationID)
+	return err
+}
+
 const setChatRoomMemberNotificationsMuted = `-- name: SetChatRoomMemberNotificationsMuted :execrows
 UPDATE chat_room_members SET notifications_muted = $3, updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
@@ -2547,7 +2617,7 @@ const unarchiveChatChannel = `-- name: UnarchiveChatChannel :one
 UPDATE chat_rooms
 SET archived_at = NULL, archived_by = NULL, updated_at = now()
 WHERE id = $1 AND kind = 'channel' AND archived_at IS NOT NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
 `
 
 // tenant: by-id
@@ -2573,6 +2643,7 @@ func (q *Queries) UnarchiveChatChannel(ctx context.Context, id string) (ChatRoom
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -2609,7 +2680,7 @@ SET
 WHERE id = $6
   AND kind = 'channel'
   AND archived_at IS NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
 `
 
 type UpdateChatChannelParams struct {
@@ -2651,6 +2722,7 @@ func (q *Queries) UpdateChatChannel(ctx context.Context, arg UpdateChatChannelPa
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
