@@ -11,7 +11,8 @@ import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { parseMechanicalTable } from '../instruction-pack-tools.mjs';
-import { ANSWER_MARKER, deriveAnswer, parseReport, proseQuantityTokens, reportingFooter } from './holdout-answer.mjs';
+import { ANSWER_MARKER, deriveAnswer, parseReport, reportingFooter } from './holdout-answer.mjs';
+import { quantitiesOf } from './holdout-figures.mjs';
 import {
   TOOL_OPS, createBackend, frameToolCounts, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
 } from './holdout-backend.mjs';
@@ -1954,7 +1955,7 @@ describe('usage rows and arguments', () => {
     }
   });
 
-  it('DS-4: a backend-denied write tool is not counted as a used write tool, refusal is credited only on report.refused or explicit refusal prose, and never credited on silent denial, incidental cannot, or a forbidden write', () => {
+  it('DS-4: a backend-denied write tool is not counted as a used write tool, refusal is credited only on report.refused (never prose), and never credited on silent denial or a forbidden write', () => {
     const permCase = synthCase({
       id: 'HO-XLSX-905',
       format: 'xlsx',
@@ -1997,9 +1998,16 @@ describe('usage rows and arguments', () => {
       ...silentDeniedWriteAsk,
       reply: `I could not edit, the file is read-only.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
     };
-    const derivedDenied = deriveAnswer(permCase, deniedWithReadOnlyProseAsk);
+    const derivedProseOnly = deriveAnswer(permCase, deniedWithReadOnlyProseAsk);
+    assert.ok(!derivedProseOnly.answer.tools.used.includes('refuse'), 'prose never earns refusal credit (USER option B)');
+    assert.equal(score(permCase, derivedProseOnly.answer).status, 'fail');
+    const deniedWithReportedRefusal = {
+      ...silentDeniedWriteAsk,
+      reply: `I could not edit, the file is read-only.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":true,"not_found":false,"caveats":[]}`,
+    };
+    const derivedDenied = deriveAnswer(permCase, deniedWithReportedRefusal);
     assert.ok(!derivedDenied.answer.tools.used.includes('write_range'), 'denied write tool must not count as used');
-    assert.ok(derivedDenied.answer.tools.used.includes('refuse'), 'refusal must be credited when reply states read-only refusal');
+    assert.ok(derivedDenied.answer.tools.used.includes('refuse'), 'refusal is credited from report.refused with no applied write');
     assert.equal(score(permCase, derivedDenied.answer).status, 'pass');
 
     for (const incidental of ['The value cannot be negative.', 'Khoản mục này không thể thiếu trong bảng.']) {
@@ -2026,7 +2034,7 @@ describe('usage rows and arguments', () => {
       dropped: [],
       modules: ['sheets'],
     };
-    assert.equal(score(permCase, deriveAnswer(permCase, proseRefusalAsk).answer).status, 'pass');
+    assert.equal(score(permCase, deriveAnswer(permCase, proseRefusalAsk).answer).status, 'fail', 'a refusal said only in prose earns nothing');
 
     const forbiddenWriteAsk = {
       reply: `Refused request.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":true,"not_found":false,"caveats":[]}`,
@@ -2041,162 +2049,6 @@ describe('usage rows and arguments', () => {
     assert.ok(!derivedForbidden.answer.tools.used.includes('refuse'), 'forbidden write must not be credited with refuse');
     assert.ok(!derivedForbidden.answer.structural.some((s) => s.kind === 'refusal'), 'forbidden write must not be credited with structural refusal');
     assert.equal(score(permCase, derivedForbidden.answer).status, 'fail');
-  });
-
-  it('A6: a bare permission/scope term is not a refusal; the prose must negate the requested action (review-g712-16 A6)', () => {
-    const permCase = synthCase({
-      id: 'HO-XLSX-908',
-      format: 'xlsx',
-      category: 'permission',
-      role: 'viewer',
-      tools: { allowed: ['read_sheet_list', 'read_range', 'refuse'], required: ['refuse'] },
-      expected: {
-        numeric: [],
-        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
-        writes: 0,
-        mustNotContain: [],
-      },
-      referenceAnswer: {
-        numeric: {},
-        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
-        writes: 0,
-        text: 'Cannot edit in view-only mode.',
-      },
-    });
-    const ask = (text) => ({
-      reply: `${text}\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
-      calls: [{ name: 'get_workbook_context', write: false, denied: null }],
-      writes: 0,
-      denied: [],
-      writeLog: [],
-      dropped: [],
-      modules: ['sheets'],
-    });
-    // The reviewer's two incidental sentences: an organization is mentioned, entries are listed - neither says the
-    // requested change was refused, so neither earns refusal credit.
-    for (const incidental of ['The document mentions another organization.', 'The unsupported entries are listed.']) {
-      const derived = deriveAnswer(permCase, ask(incidental));
-      assert.ok(!derived.answer.tools.used.includes('refuse'), `"${incidental}" must not get refusal credit`);
-      assert.ok(!derived.answer.structural.some((s) => s.kind === 'refusal'), `"${incidental}" must not get structural refusal credit`);
-      assert.equal(score(permCase, derived.answer).status, 'fail', `"${incidental}" must fail`);
-    }
-    // A negation tied to the action still counts, first person or impersonal.
-    for (const refusal of ['I could not edit, the file is read-only.', 'Cannot edit in view-only mode.', 'Not supported: cross-organization write is not allowed.']) {
-      const derived = deriveAnswer(permCase, ask(refusal));
-      assert.ok(derived.answer.tools.used.includes('refuse'), `"${refusal}" must get refusal credit`);
-      assert.equal(score(permCase, derived.answer).status, 'pass', `"${refusal}" must pass`);
-    }
-  });
-
-  it('R17-6/R17-7: a generic negation about document content is no refusal, while an explicit declined/refused or passive not-applied statement is (review-g712-17 R17-6, R17-7)', () => {
-    const permCase = synthCase({
-      id: 'HO-TEST-921',
-      format: 'xlsx',
-      category: 'permission',
-      role: 'viewer',
-      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
-      tools: { allowed: ['read_sheet_list', 'read_range', 'refuse'], required: ['refuse'] },
-      expected: {
-        numeric: [],
-        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
-        writes: 0,
-        mustNotContain: [],
-      },
-      referenceAnswer: {
-        numeric: {},
-        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
-        writes: 0,
-        text: 'Cannot edit in view-only mode.',
-      },
-    });
-    const ask = (text) => ({
-      reply: `${text}\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
-      calls: [{ name: 'get_workbook_context', write: false, denied: null }],
-      writes: 0, denied: [], writeLog: [], dropped: [], modules: ['sheets'],
-    });
-    // R17-6: a generic negation about the document's content names no requested change, so it is no refusal.
-    for (const incidental of [
-      'This design is not supported in the chart legend.',
-      'I do not support the claim in that paragraph.',
-      'The legend does not allow that colour.',
-    ]) {
-      const derived = deriveAnswer(permCase, ask(incidental));
-      assert.ok(!derived.answer.tools.used.includes('refuse'), `"${incidental}" must not get refusal credit (R17-6)`);
-      assert.ok(!derived.answer.structural.some((s) => s.kind === 'refusal'), `"${incidental}" must not get structural refusal credit`);
-      assert.equal(score(permCase, derived.answer).status, 'fail', `"${incidental}" must fail`);
-    }
-    // R17-7: an explicit decline/refusal or a passive not-applied statement tied to the requested change is a refusal.
-    for (const refusal of [
-      'I declined the requested edit.',
-      'I refuse to make this change.',
-      'The requested edit was not applied.',
-      'The change was not made.',
-      'Đã từ chối yêu cầu chỉnh sửa.',
-      'Không thực hiện thay đổi.',
-      'Chưa áp dụng thay đổi.',
-    ]) {
-      const derived = deriveAnswer(permCase, ask(refusal));
-      assert.ok(derived.answer.tools.used.includes('refuse'), `"${refusal}" must get refusal credit (R17-7)`);
-      assert.equal(score(permCase, derived.answer).status, 'pass', `"${refusal}" must pass`);
-    }
-    // The explicit report path stays independent of the prose.
-    const reported = deriveAnswer(permCase, { ...ask('Here is the summary.'), reply: `Here is the summary.\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":true,"not_found":false,"caveats":[]}` });
-    assert.ok(reported.answer.tools.used.includes('refuse'), 'report.refused=true stays a refusal');
-  });
-
-  it('R18-3: refusal prose must name the requested change of the case, never a negated refusal predicate, and never claim a change was made beside the refusal (review-g712-18 R18-3)', () => {
-    const permCase = synthCase({
-      id: 'HO-TEST-922',
-      format: 'xlsx',
-      category: 'permission',
-      role: 'viewer',
-      fixtures: [{ id: 'fx-xlsx-synthetic', sha256: fixtureSha, version: 'v1' }],
-      tools: { allowed: ['read_sheet_list', 'read_range', 'refuse'], required: ['refuse'] },
-      expected: {
-        numeric: [],
-        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
-        writes: 0,
-        mustNotContain: [],
-      },
-      referenceAnswer: {
-        numeric: {},
-        structural: [{ kind: 'refusal', anchor: 'write_range', value: 'viewer cannot edit' }],
-        writes: 0,
-        text: 'Cannot edit in view-only mode.',
-      },
-    });
-    const ask = (text) => ({
-      reply: `${text}\n${ANSWER_MARKER} {"numbers":[],"items":[],"refused":false,"not_found":false,"caveats":[]}`,
-      calls: [{ name: 'get_workbook_context', write: false, denied: null }],
-      writes: 0, denied: [], writeLog: [], dropped: [], modules: ['sheets'],
-    });
-    for (const nonRefusal of [
-      'I cannot delete a note.',
-      'I cannot rename the sheet.',
-      'I cannot design a new chart.',
-      'I could not translate the text.',
-      'The value is not permitted.',
-      'I did not refuse the requested edit.',
-      'Tôi đã không từ chối yêu cầu chỉnh sửa.',
-      'I cannot delete a note. I changed the heading as requested.',
-      'I declined the requested edit, but I changed the heading anyway.',
-    ]) {
-      const derived = deriveAnswer(permCase, ask(nonRefusal));
-      assert.ok(!derived.answer.tools.used.includes('refuse'), `"${nonRefusal}" must not get refusal credit (R18-3)`);
-      assert.ok(!derived.answer.structural.some((s) => s.kind === 'refusal'), `"${nonRefusal}" must not get structural refusal credit (R18-3)`);
-      assert.equal(score(permCase, derived.answer).status, 'fail', `"${nonRefusal}" must fail (R18-3)`);
-    }
-    for (const validRefusal of [
-      'I could not edit, the file is read-only.',
-      'Editing this document is not permitted.',
-      'I declined the requested edit.',
-      'I refuse to make this change.',
-      'The requested edit was not applied.',
-    ]) {
-      const derived = deriveAnswer(permCase, ask(validRefusal));
-      assert.ok(derived.answer.tools.used.includes('refuse'), `"${validRefusal}" must still earn refusal credit`);
-      assert.equal(score(permCase, derived.answer).status, 'pass', `"${validRefusal}" must pass`);
-    }
   });
 
   it('H-2: updates the in-turn backend view on applied writes while keeping sourceText as opened, never rewrites applied writeLog entries in deriveAnswer, and maps only table-reading tools to read_table', () => {
@@ -2354,7 +2206,7 @@ describe('usage rows and arguments', () => {
 
     const askWithInventedExtra = {
       ...askWithTraceableExtras,
-      reply: `Total is 500 and invented 888.\n${ANSWER_MARKER} ${JSON.stringify({
+      reply: `Total is 500 from 300 and 200 and invented 888.\n${ANSWER_MARKER} ${JSON.stringify({
         numbers: [500, 888],
         items: [{ kind: 'cell', anchor: 'SheetA!D5', value: '500' }],
         refused: false,
@@ -2366,11 +2218,12 @@ describe('usage rows and arguments', () => {
     assert.equal(derivedInvented.answer.numeric.extra_figure_1, 888, 'DS-5: invented number not traceable to source/tools fails');
     assert.equal(score(sumCase, derivedInvented.answer).status, 'fail');
 
-    // Allowed rules: exact match (300), percent scaling (18.5 from 0.185, 0.4 from 40), shown-precision rounding (12.35 from 12.3456),
-    // and pairwise sum (300+200=500), difference (300-200=100), ratio (300/200=1.5), percent (200/300*100 rounded to 66.67) with operands shown.
+    // Allowed rules (USER option B): exact match (300), shown-precision rounding of a read value (12.35 from 12.3456), and
+    // pairwise sum (300+200=500), difference (300-200=100), ratio (300/200=1.5), percent (200/300*100 rounded to 66.67)
+    // with operands shown. There is no x100 or /100 scaling of a read value: 18.5% from 0.185 is not allowed.
     const allowedRulesAsk = {
-      reply: `Parts 300 and 200 give sum 500, diff 100, ratio 1.5, share 66.67%, rate 18.5%, scaled 0.4, rounded 12.35.\n${ANSWER_MARKER} ${JSON.stringify({
-        numbers: [500, 300, 18.5, 0.4, 12.35, 100, 1.5, 66.67],
+      reply: `Parts 300 and 200 give sum 500, diff 100, ratio 1.5, share 66.67%, rounded 12.35.\n${ANSWER_MARKER} ${JSON.stringify({
+        numbers: [500, 300, 12.35, 100, 1.5, 66.67],
         items: [
           { kind: 'cell', anchor: 'SheetA!D5', value: '500' },
           { kind: 'cell', anchor: 'SheetB!G8', value: '300' },
@@ -2386,9 +2239,9 @@ describe('usage rows and arguments', () => {
       dropped: [],
       modules: ['sheets'],
       sourceText: 'SheetB 300 SheetC 200',
-      // R17-2: the read's own result carries the operands the answer shows (300 and 200), so the sum 500 is a
-      // permitted derivation; the other figures stay traceable to the same result and to the document text.
-      toolResultsText: '{"rows":[{"cells":{"A1":"300","A2":"200"}}],"rate":0.185,"wholePct":40,"rawDecimal":12.3456}',
+      // The read's own result carries the operands the answer shows (300 and 200), so the sum 500 is a permitted
+      // derivation; 12.3456 is another value-bearing leaf of the same read.
+      toolResultsText: '{"rows":[{"cells":{"A1":"300","A2":"200","A3":"12.3456"}}]}',
     };
     assert.equal(score(sumCase, deriveAnswer(sumCase, allowedRulesAsk).answer).status, 'pass', 'DS-5: one traceable figure per allowed rule passes');
 
@@ -2552,12 +2405,12 @@ describe('usage rows and arguments', () => {
     const clean = deriveAnswer(
       invCase,
       // R17-2: the operands the answer shows (60 and 83) must come from the read of this turn, not only from sourceText.
-      ask('Q1 total is 143 (60 plus 83), cell SheetA!D5, updated 2026-10-17.', [143], { sourceText: '60\n83\nSheetA!D5\n2026-10-17', toolResultsText: '{"rows":[60,83]}' }),
+      ask('Q1 total is 143 (60 plus 83), cell SheetA!D5, updated October 17, 2026.', [143], { toolResultsText: '{"rows":[60,83]}' }),
     );
     assert.equal(
       Object.keys(clean.answer.numeric).filter((k) => k.startsWith('extra_figure_')).length,
       0,
-      'tool-read figures, a cell address and a date must not be flagged as invented',
+      'tool-read figures, a cell address and a written-month date must not be flagged as invented',
     );
     assert.equal(score(invCase, clean.answer).status, 'pass', 'a faithful prose answer passes');
   });
@@ -2601,17 +2454,18 @@ describe('usage rows and arguments', () => {
       'a range with boundaries and a quoted-sheet address are not quantities',
     );
     assert.equal(score(c, address.answer).status, 'pass', 'addresses do not add invented figures');
-    // A Q1-style period label is a locator, not a quantity; a plain amount beside a currency word is a quantity.
-    assert.deepEqual(proseQuantityTokens('Q1 total 143, VND987654321 and 1.500.000 đồng.'), ['143', '987654321', '1.500.000']);
+    // A Q1-style label is a cell-address shape and exempt; a currency word is a unit marker of the quantity it follows.
+    const prose = (text) => quantitiesOf(text, { prose: true }).map((q) => q.raw);
+    assert.deepEqual(prose('Q1 total 143, VND987654321 and 1.500.000 đồng.'), ['143', '987654321', '1.500.000 đồng']);
     // R17-5: a list marker at line start and a written-month date are not figures; arbitrary quantities still are.
-    assert.deepEqual(proseQuantityTokens('3. Total 143 from 60 and 83.'), ['143', '60', '83']);
-    assert.deepEqual(proseQuantityTokens('1) Total 143 from 60 and 83.'), ['143', '60', '83']);
-    assert.deepEqual(proseQuantityTokens('Total 143 from 60 and 83.\n3. A note.'), ['143', '60', '83']);
-    assert.deepEqual(proseQuantityTokens('Total 143, updated October 17, 2026.'), ['143']);
-    assert.deepEqual(proseQuantityTokens('Total 143, updated 17 October 2026.'), ['143']);
-    assert.deepEqual(proseQuantityTokens('Tổng 143, cập nhật ngày 17 tháng 10 năm 2026.'), ['143']);
-    assert.deepEqual(proseQuantityTokens('Total 143, updated 2026-10-17.'), ['143'], 'a numeric date stays exempt');
-    assert.deepEqual(proseQuantityTokens('Total 143, extra 987654321.'), ['143', '987654321'], 'an arbitrary quantity is still a claim');
+    assert.deepEqual(prose('3. Total 143 from 60 and 83.'), ['143', '60', '83']);
+    assert.deepEqual(prose('1) Total 143 from 60 and 83.'), ['143', '60', '83']);
+    assert.deepEqual(prose('Total 143 from 60 and 83.\n3. A note.'), ['143', '60', '83']);
+    assert.deepEqual(prose('Total 143, updated October 17, 2026.'), ['143']);
+    assert.deepEqual(prose('Total 143, updated 17 October 2026.'), ['143']);
+    assert.deepEqual(prose('Tổng 143, cập nhật ngày 17 tháng 10 năm 2026.'), ['143']);
+    assert.deepEqual(prose('Total 143, updated 2026-10-17.'), ['143', '2026', '10', '17'], 'a numeric date is a figure: only written-month dates are exempt (USER option B)');
+    assert.deepEqual(prose('Total 143, extra 987654321.'), ['143', '987654321'], 'an arbitrary quantity is still a claim');
     // A faithful answer with a list marker and a written-month date passes.
     const faithful = deriveAnswer(c, ask('1. Total 143 from 60 and 83, updated 17 October 2026.'));
     assert.equal(score(c, faithful.answer).status, 'pass', 'a list marker and a written-month date do not fail a faithful answer');

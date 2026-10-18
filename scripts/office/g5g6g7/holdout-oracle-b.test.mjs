@@ -129,8 +129,11 @@ describe('item 2: counts and structural items come only from report.items (USER 
     assert.equal(verdict(lookup, docAsk('Counted.', [{ kind: 'count', anchor: 'paragraphs', value: 'five' }])), 'pass');
   });
 
-  it('has no synonym map for credit: a synonym anchor earns nothing', () => {
-    assert.equal(verdict(lookup, docAsk('Counted.', [{ kind: 'count', anchor: 'đoạn văn', value: 5 }])), 'fail');
+  it('has no synonym map for credit: a reordered or synonym topic earns nothing', () => {
+    const topical = countCase('table rows', 4);
+    assert.equal(verdict(topical, docAsk('Counted.', [{ kind: 'count', anchor: 'table rows', value: 4 }])), 'pass');
+    assert.equal(verdict(topical, docAsk('Counted.', [{ kind: 'count', anchor: 'rows table', value: 4 }])), 'fail');
+    assert.equal(verdict(topical, docAsk('Counted.', [{ kind: 'count', anchor: 'số dòng của bảng', value: 4 }])), 'fail');
   });
 
   it('measures a preserved count from the write log, never from the model', () => {
@@ -210,6 +213,7 @@ describe('item 3: every figure is traceable to a successful read, a compute resu
   it('accepts vi and en grouping and decimal styles, and an ambiguous token when either reading is traceable', () => {
     const dec = mkCase({
       id: 'HO-XLSX-994',
+      tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
       expected: { numeric: [{ name: 'v', value: 1234.5, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
       referenceAnswer: { numeric: { v: 1234.5 }, structural: [], writes: 0, text: 'x' },
     });
@@ -219,6 +223,7 @@ describe('item 3: every figure is traceable to a successful read, a compute resu
     }
     const amb = mkCase({
       id: 'HO-XLSX-995',
+      tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
       expected: { numeric: [{ name: 'v', value: 1234, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
       referenceAnswer: { numeric: { v: 1234 }, structural: [], writes: 0, text: 'x' },
     });
