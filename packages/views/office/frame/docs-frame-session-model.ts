@@ -224,6 +224,18 @@ export interface DocsFrameSession {
    * own dialog; the answer says how the user resolved it.
    */
   save: (reason: "user" | "navigate") => Promise<DocsFrameSaveOutcome>;
+  /**
+   * The granted capabilities of the live handshake include `print` (UNI-1911): the page may
+   * offer Print (menu entry, Ctrl+P). Read-only sessions keep it; a print-less module or a
+   * session that never got ready reads false.
+   */
+  canPrint: boolean;
+  /** A `host.print` request is still open: every entry point must not start a second one. */
+  printing: boolean;
+  /**
+   * Ask the frame to print (`host.print`, dialog mode). Already-printing calls return false at
+   * once so a page and a frame entry point cannot stack two dialogs; the answer is the frame's.
+   */
   print: () => Promise<boolean>;
   /** Tell the frame the document's display name changed (UNI-1847, after the first-save rename). */
   notifyRenamed: (file: FileMeta) => void;

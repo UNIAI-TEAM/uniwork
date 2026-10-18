@@ -217,9 +217,7 @@ describe("OfficeModuleFrame", () => {
     expect(frame.sent("print")[0]?.payload).toMatchObject({ mode: "dialog" });
     await waitFor(() => expect(screen.getByRole("menuitem", { name: "In" })).toHaveAttribute("aria-disabled", "true"));
     fireEvent.click(screen.getByRole("menuitem", { name: "In" }));
-    const tick = Promise.withResolvers<void>();
-    setTimeout(tick.resolve, 50);
-    await tick.promise;
+    await new Promise<void>((resolve) => { setTimeout(resolve, 50); });
     expect(frame.sent("print")).toHaveLength(1);
 
     await frame.respond(frame.sent("print")[0]!, { printed: true });
@@ -236,9 +234,7 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(frame.sent("print")).toHaveLength(1));
     fireEvent.keyDown(window, { key: "p", ctrlKey: true });
     // Let a second request post if one is coming: the dedupe must hold past a macrotask.
-    const tick = Promise.withResolvers<void>();
-    setTimeout(tick.resolve, 50);
-    await tick.promise;
+    await new Promise<void>((resolve) => { setTimeout(resolve, 50); });
     expect(frame.sent("print")).toHaveLength(1);
 
     // A next press after the answer prints again: the dedupe is only for the open print.

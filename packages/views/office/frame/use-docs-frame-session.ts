@@ -82,6 +82,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [saveState, setSaveState] = useState<DocsFrameSaveState>("ready");
   const [modal, setModal] = useState(false);
   const [height, setHeight] = useState<number | null>(null);
+  const [canPrint, setCanPrint] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [host, setHost] = useState<DocsFrameHost | null>(null);
   const [aiRunning, setAiRunning] = useState(false);
   const [sizeWarning, setSizeWarning] = useState<DocsFrameSizeWarning | null>(null);
@@ -114,6 +116,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const sizeWarnedDoc = useRef<string | null>(null);
   const saveBlockedOpen = useRef(false);
   const downloadPending = useRef(false);
+  /** The print a `host.print` call has open: a second caller gets refused instead of a second dialog. */
+  const printingRef = useRef(false);
+  /** Whether the init the current handshake carries granted `print` (read once per handshake). */
+  const printGrant = useRef(false);
   const initDownloadMaxBytes = useRef<number>(frameDownloadMaxBytes(documentLimits.upload_max_bytes));
 
   useEffect(() => {
@@ -123,6 +129,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     setDirty(false);
     setSaveState("ready");
     setModal(false);
+    setCanPrint(false);
+    setPrinting(false);
     setAiRunning(false);
     if (sizeWarnedDoc.current !== latest.current.scopeId) {
       sizeWarnedDoc.current = null;
@@ -130,6 +138,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     }
     saveBlockedOpen.current = false;
     downloadPending.current = false;
+    printingRef.current = false;
+    printGrant.current = false;
     setSaveBlocked(null);
     initDownloadMaxBytes.current = frameDownloadMaxBytes(latest.current.documentLimits.upload_max_bytes);
     modalOpen.current = false;
@@ -286,6 +296,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
         );
         const { init, lockedOut, downloadMaxBytes } = await composeFrameInit({ module, frameToken, current, doc, name, uid, minted, limits, source, editLock: lock });
+        printGrant.current = init.capabilities.print === true;
         initLockedOut.current = lockedOut;
         initDownloadMaxBytes.current = downloadMaxBytes;
         return init;
@@ -398,6 +409,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         setModal(false);
         setAiRunning(false);
         setSlow(false);
+        setCanPrint(printGrant.current);
         setStatus((now) => (now === "failed" ? now : "ready"));
       },
       onHandshakeError: (error) => {
@@ -523,12 +535,19 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   pageSave.current = save;
 
   const print = useCallback(async () => {
-    if (!host) return false;
+    // One print at a time (UNI-1911): the menu entry and Ctrl+P share this, and a second
+    // `host.print` while the frame's dialog is already open would stack a second one.
+    if (!host || printingRef.current) return false;
+    printingRef.current = true;
+    setPrinting(true);
     try {
       return (await host.print({ mode: "dialog" }, { timeoutMs: 10 * 60_000 })).printed;
     } catch (error) {
       latest.current.options.onError(shapeOf(error), { fatal: false });
       return false;
+    } finally {
+      printingRef.current = false;
+      setPrinting(false);
     }
   }, [host]);
 
@@ -567,6 +586,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
     modal: modal && status === "ready" && !failure,
+    canPrint: status === "ready" && !failure && canPrint,
+    printing,
     height, aiRunning: aiRunning && status === "ready" && !failure, blocked,
     sizeWarning: status === "ready" && !failure ? sizeWarning : null,
     saveBlocked: status === "ready" && !failure ? saveBlocked : null,
