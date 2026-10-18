@@ -1,0 +1,28 @@
+$ /exec-daemon/node /workspace/scripts/office/g5g6g7/fault/app-cases.mjs --case FL-06 --run-dir /workspace/.harness-run-r2-6 --verify-result
+
+{
+  "case": "FL-06",
+  "ac": [
+    "G5-A07"
+  ],
+  "fixture": "fx-docx-report-vi",
+  "layer": "app",
+  "result": "BLOCKED",
+  "blocker": "revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa: fork did not renew: no lease PUT reached the proxy within 90 s of the network coming back, so the due-renewal path was not exercised",
+  "exits": [
+    {
+      "n": 0,
+      "label": "revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa",
+      "result": "BLOCKED",
+      "assertions": [],
+      "blocker": "fork did not renew: no lease PUT reached the proxy within 90 s of the network coming back, so the due-renewal path was not exercised",
+      "evidence": {
+        "documentId": "01M57482A2FCA72G0XT6YXWZYP",
+        "trace": [],
+        "requests": []
+      }
+    }
+  ],
+  "assertions": []
+}
+/workspace/.harness-run-r2-6/fault/FL-06

@@ -1,0 +1,13 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r2-6" OFFICE_FORK_SHA=aae163aed timeout -k 15 900 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FL-06 --run-dir .harness-run-r2-6; rc=$?; f=.harness-run-r2-6/fault/FL-06/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.blocker||"");for(const a of r.assertions||[])console.log((a.ok?"ok  ":"FAIL")+" "+a.name+(a.ok?"":" expected="+JSON.stringify(a.expected)+" actual="+JSON.stringify(a.actual)))' "$PWD/$f"; echo; echo "APP_CASE_FL_06_EXIT=$rc"
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:43083 app_api=http://127.0.0.1:33641 proxy_upstream=http://127.0.0.1:43083
+FL-06: running
+dbus-daemon[44167]: [session uid=1000 pid=44167] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=44245 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[44167]: [session uid=1000 pid=44167] Successfully activated service 'org.a11y.Bus'
+FL-06: BLOCKED
+FL-06 (G5-A07): BLOCKED — revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa: fork did not renew: no lease PUT reached the proxy within 90 s of the network coming back, so the due-renewal path was not exercised
+/workspace/.harness-run-r2-6/fault
+APP_CASES_EXIT=77
+FL-06 BLOCKED revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa: fork did not renew: no lease PUT reached the proxy within 90 s of the network coming back, so the due-renewal path was not exercised
+
+APP_CASE_FL_06_EXIT=77
