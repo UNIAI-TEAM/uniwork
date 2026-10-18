@@ -56,32 +56,38 @@ describe("officeModuleCapabilities and composeFrameInit saveCopy grant (UNI-1872
     expect(caps.saveCopy).toBe(true);
   });
 
-  it("keeps saveCopy: true in composeFrameInit when a docs tab is view-only only because it is lockedOut", async () => {
+  it("keeps saveCopy: true in composeFrameInit when a docs tab is view-only only because it is lockedOut or shelved", async () => {
     const { init, lockedOut } = await composeFrameInit({
       module: "docs", frameToken, current: editableOptions, doc: "doc-1", name: "An", uid: "u-1",
-      minted: mintedEditable, source: false, editLock: { held: false, lockId: undefined, onLocked: vi.fn() }, limits,
+      minted: mintedEditable, source: false, editLock: { held: false, lockId: undefined, onLocked: vi.fn() }, limits, shelved: false,
     });
     expect(lockedOut).toBe(true);
     expect(init.capabilities).toMatchObject({ save: false, saveAs: false, download: false, saveCopy: true });
+
+    const fromShelved = await composeFrameInit({
+      module: "docs", frameToken, current: editableOptions, doc: "doc-1", name: "An", uid: "u-1",
+      minted: mintedEditable, source: false, editLock: null, limits, shelved: true,
+    });
+    expect(fromShelved.init.capabilities).toMatchObject({ save: false, saveAs: false, download: false, saveCopy: true });
   });
 
   it("omits saveCopy for source sessions, readonly pages, viewers (can_edit: false), absent api.saveCopy, or non-docs modules", async () => {
     const fromSource = await composeFrameInit({
       module: "docs", frameToken, current: editableOptions, doc: "chat:s-1", name: "An", uid: "u-1",
       minted: { ...mintedEditable, can_edit: false, source_id: "chat:s-1", parent_kind: "chat_channel", parent_id: "c-1", readonly: true },
-      source: true, editLock: null, limits,
+      source: true, editLock: null, limits, shelved: false,
     });
     expect("saveCopy" in fromSource.init.capabilities).toBe(false);
 
     const fromReadonly = await composeFrameInit({
       module: "docs", frameToken, current: { ...editableOptions, readonly: true }, doc: "doc-1", name: "An", uid: "u-1",
-      minted: mintedEditable, source: false, editLock: null, limits,
+      minted: mintedEditable, source: false, editLock: null, limits, shelved: false,
     });
     expect("saveCopy" in fromReadonly.init.capabilities).toBe(false);
 
     const fromViewer = await composeFrameInit({
       module: "docs", frameToken, current: editableOptions, doc: "doc-1", name: "An", uid: "u-1",
-      minted: { ...mintedEditable, can_edit: false }, source: false, editLock: null, limits,
+      minted: { ...mintedEditable, can_edit: false }, source: false, editLock: null, limits, shelved: false,
     });
     expect("saveCopy" in fromViewer.init.capabilities).toBe(false);
 
