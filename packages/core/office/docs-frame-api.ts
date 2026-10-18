@@ -259,6 +259,7 @@ export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrame
 export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApiOptions = {}): DocsFrameApi {
   const { mimeType, extension } = officeModuleSpec(module);
   const ext = new RegExp(`\\.${extension}$`, "i");
+  const txtExt = /\.txt$/i;
   const clientFor = (call: DocsFrameCall): OfficeFrameClient => createOfficeFrameClient({ ...options, getToken: () => call.token });
   const sessionFetch: typeof fetch | undefined = options.fetch
     ? (input, init) => {
@@ -303,9 +304,10 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       // renames the stored file to the document's name on this save.
       const current = await client.open(payload.fileId);
       if (!current || "source_id" in current) throw malformed("office-frame open");
-      const blob = new Blob([payload.data], { type: mimeType });
-      const threshold = resolveThreshold(call, options);
       const uploadName = call.filename?.trim() ? call.filename.trim() : current.file.filename;
+      const saveMime = module === "markdown" && txtExt.test(uploadName) ? "text/plain" : mimeType;
+      const blob = new Blob([payload.data], { type: saveMime });
+      const threshold = resolveThreshold(call, options);
       const leg = async (uploadKey: string): Promise<SaveResult> => {
         const upload = threshold !== null && payload.data.byteLength > threshold
           ? await runChunkedUpload(
@@ -342,9 +344,10 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
     }),
 
     saveAs: (payload, call) => run(async () => {
-      const name = ext.test(payload.name) ? payload.name : `${payload.name}.${extension}`;
-      const title = name.replace(ext, "");
-      const file = new File([payload.data], name, { type: mimeType });
+      const isTxtCopy = module === "markdown" && txtExt.test(payload.name);
+      const name = isTxtCopy || ext.test(payload.name) ? payload.name : `${payload.name}.${extension}`;
+      const title = name.replace(isTxtCopy ? txtExt : ext, "");
+      const file = new File([payload.data], name, { type: isTxtCopy ? "text/plain" : mimeType });
       const key = await operationKey("saveas", [call.workspaceId, name, payload.folderId ?? ""], payload.data);
       // UNI-1847 (D6): the copy lands beside its source - never at the workspace root. A
       // folder the frame's picker chose wins; else the source's own parent; a root document's
