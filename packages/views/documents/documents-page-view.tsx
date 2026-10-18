@@ -378,6 +378,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         library.setUpdated("any");
       }}
       handlers={handlers}
+      sharedByMe={view.kind === "sharedByMe"}
       empty={emptyCopy}
     />
   );

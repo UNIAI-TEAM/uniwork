@@ -44,6 +44,8 @@ export interface DocumentsLibraryListProps {
   onRetry: () => void;
   onClearFilters: () => void;
   handlers: LibraryRowHandlers;
+  /** "Shared by me" (SW-V1/V2): Truy cập joins at the editor's rung and the plain home-workspace scope stays on the narrow line. */
+  sharedByMe?: boolean;
   /** The empty state's copy and actions, which depend on the open view. */
   empty: { title: string; description: string; actions?: ReactNode };
 }
@@ -68,6 +70,7 @@ export function DocumentsLibraryList({
   onRetry,
   onClearFilters,
   handlers,
+  sharedByMe = false,
   empty,
 }: DocumentsLibraryListProps) {
   const { t } = useTranslation();
@@ -155,7 +158,7 @@ export function DocumentsLibraryList({
     return "";
   };
 
-  const ladder = libraryLadder();
+  const ladder = libraryLadder({ sharedByMe });
   const groupSpans = libraryGroupSpans(ladder);
 
   return (
@@ -199,7 +202,7 @@ export function DocumentsLibraryList({
                 </tr>
               ) : null}
               {group.rows.map((row) => (
-                <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} />
+                <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} sharedByMe={sharedByMe} />
               ))}
             </tbody>
           ))}
