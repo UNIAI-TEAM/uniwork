@@ -3662,7 +3662,7 @@
         "offline-store-faulted.json",
         "offline-store-after.json",
         "keyring-prompt-injected.json",
-        "s3-offline-tab.png",
+        "s3-keystore-locked-pane.png",
         "s11-lock-panel.png"
       ]
     }

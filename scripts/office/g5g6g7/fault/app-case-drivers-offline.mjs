@@ -702,18 +702,21 @@ export async function dismissLockPanels(session, { timeoutMs = 15_000 } = {}) {
  *
  * `s3Hidden` (G7-03b fix4 CL1-3) is the S3 shot of a row whose session is gone:
  * the product hides the offline tab there BY DESIGN (see `signedOutPaneReading`),
- * so the row asserts the tab is absent and keeps the pane as the shot.
+ * so the row asserts the tab is absent and keeps the pane as the shot. FL-09 (fix13) takes
+ * it too, after its S11 shot: with the keystore locked the pin index cannot be decrypted,
+ * so the count is 0 and the capability off (EXPERIENCE.md:300).
  */
 export async function captureRowShots(ctx, session, { s3 = false, s11 = false, s3Hidden = null } = {}) {
   const shots = [];
-  if (s3Hidden) shots.push(...(await captureSignedOutPane(ctx, session, s3Hidden)));
   // the lock panel is what a refused open just raised: it is grabbed before the
   // settings pane is opened over it
   if (s11) shots.push(await captureDeclaredShot(ctx, session, "s11_shot", "s11-lock-panel.png", S11_LOCK_SELECTOR));
   // CL3-2: the lock layer makes the Home subtree (the settings modal with it) inert and a
   // retry-action lock has no Close button, so S3 cannot be opened behind it: S11 is shot
-  // first, then the lock is dismissed the way the product forgets one
-  if (s11 && s3) await dismissLockPanels(session);
+  // first, then the lock is dismissed the way the product forgets one. Fix13: the same for
+  // the hidden-tab pane of a keystore-locked row (FL-09), read behind the same layer.
+  if (s11 && (s3 || s3Hidden)) await dismissLockPanels(session);
+  if (s3Hidden) shots.push(...(await captureSignedOutPane(ctx, session, s3Hidden)));
   if (s3) {
     // the selection is the shot's precondition (review r2 R2-3): a tab that never
     // came up, or a panel that is not showing right before the capture, is no S3
@@ -1060,7 +1063,7 @@ async function fl03(ctx) {
 }
 
 /** the names A's document goes by in the pane: the title the runner created it with and the fixture's file name */
-const documentNamesOf = (ctx) => [`${ctx.row.id} run ${ctx.run?.index ?? 1}`, ctx.fixture?.path ? basename(ctx.fixture.path) : ""];
+export const documentNamesOf = (ctx) => [`${ctx.row.id} run ${ctx.run?.index ?? 1}`, ctx.fixture?.path ? basename(ctx.fixture.path) : ""];
 
 /** `N row(s)` plus the sha256 of each row's name - never a name (R2-10). */
 const nameDigest = (rows) =>

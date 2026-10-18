@@ -452,9 +452,11 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
   /**
    * The fork's rule (CL1-3): the offline tab shows signed in, and not signed out - an explicit sign-out
    * wipes the library scope and a signed-out session has no org, so no capability (view.ts:186-189) -
-   * nor on a deployment nobody signed in on. `world.signedOutTab` is a product that kept the tab.
+   * nor on a deployment nobody signed in on - nor while the OS keystore is locked: the pin index cannot be
+   * decrypted, so the count is 0 and the capability off (G7-03b fix13). `world.signedOutTab` is a product that
+   * kept the tab.
    */
-  const tabShown = () => world.tabAvailable !== false && (world.signedOutTab === true || (Boolean(world.signedInAs) && currentDeployment === world.deployment));
+  const tabShown = () => world.tabAvailable !== false && (world.signedOutTab === true || (Boolean(world.signedInAs) && currentDeployment === world.deployment && !keystoreDown()));
 
   /** runs a page function against the fake window (and the fake DOM the S3 helpers poll) */
   const inPage = async (fn, arg) => {

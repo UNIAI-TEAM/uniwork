@@ -32,7 +32,7 @@ import { AppBlocked } from "./app-session.mjs";
 import { assertion } from "./app-cases-lib.mjs";
 import { countAssertion } from "./app-case-drivers.mjs";
 import {
-  INDEX_RECORD_NAME, OFFLINE_DOWNLOAD_TIMEOUT_MS, OFFLINE_STATE_TIMEOUT_MS, S11_LOCK_SELECTOR, armOpenCut, awaitRowState, captureRowShots, collectOfflineState, downloadNow, downloadRequests,
+  INDEX_RECORD_NAME, OFFLINE_DOWNLOAD_TIMEOUT_MS, OFFLINE_STATE_TIMEOUT_MS, S11_LOCK_SELECTOR, armOpenCut, awaitRowState, captureRowShots, collectOfflineState, downloadNow, documentNamesOf, downloadRequests,
   libraryBlobs, libraryStoreDir, listPlaintextCopies, noWriteAssertions, offlineBoolAssertion, offlineCountAssertion, offlineFresh, offlineOpen, offlineSnapshot,
   pinDocument, pinRecordNames, preStoreAssertion, resultAssertion, rowOf, ruleHitAssertion, runGuarded, storeArgs, storeDelta, upstreamDownloads,
   watchRowStatesOrBlocked, withOfflineCapability, writeStoreEvidence,
@@ -633,7 +633,11 @@ async function fl09(ctx) {
     const boundary = (await ctx.proxyLog()).length;
     const opened = await offlineOpen(second, doc.id);
     const reading = await rowReading(second, doc.id);
-    const shots = await captureRowShots(ctx, second, { s11: true, s3: true });
+    // fix13: with the keystore locked the pin index cannot be decrypted, so the fork shows NO offline tab (like FL-07/08)
+    const shots = await captureRowShots(ctx, second, {
+      s11: true,
+      s3Hidden: { name: "s3_tab_hidden_keystore_locked", artifact: "s3-keystore-locked-pane.png", names: documentNamesOf(ctx) },
+    });
     const faultedState = collectOfflineState(storeArgs(ctx, [doc.id]));
     const window = (await ctx.proxyLog()).slice(boundary);
     const copies = listPlaintextCopies(ctx.userDataDir(), ctx.deploymentId(), { accountIds: [ctx.tenant.app.userId] });
