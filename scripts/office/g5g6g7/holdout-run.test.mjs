@@ -30,6 +30,49 @@ const { cases } = loadCases(DEFAULT_CASES_DIR);
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'g712-run-test-'));
 after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 
+// References that do NOT pass the trace-only oracle (USER option B, lead answers Q1/Q2, 2026-10-18) when the stub façade runs
+// the model as a correct run would: it calls the required tools once and answers with the reference text. The reference
+// text of these cases states figures its operands do not show, or a result of an arithmetic outside the permitted
+// derivations (reference-text issue; the lead takes it to the Advisor and the user; editing a case would change the case
+// hash). The runner tests below that need a PASSING reference pick a case outside this set. The list is pinned both ways:
+// the reference-grading test fails when a case leaves it or joins it, so it cannot go stale.
+const KNOWN_REFERENCE_GAPS = new Set([
+  'HO-CROSS-009',
+  'HO-CROSS-010',
+  'HO-CROSS-011',
+  'HO-CROSS-014',
+  'HO-PPTX-001',
+  'HO-PPTX-002',
+  'HO-MD-001',
+  'HO-MD-002',
+  'HO-XLSX-001',
+  'HO-XLSX-002',
+  'HO-XLSX-003',
+  'HO-XLSX-004',
+  'HO-XLSX-005',
+  'HO-XLSX-006',
+  'HO-XLSX-007',
+  'HO-XLSX-008',
+  'HO-XLSX-009',
+  'HO-XLSX-010',
+  'HO-XLSX-012',
+  'HO-XLSX-014',
+  'HO-XLSX-015',
+  'HO-XLSX-016',
+  'HO-XLSX-018',
+  'HO-XLSX-019',
+  'HO-XLSX-020',
+  'HO-XLSX-023',
+  'HO-XLSX-026',
+  'HO-XLSX-027',
+  'HO-XLSX-031',
+  'HO-XLSX-035',
+  'HO-XLSX-036',
+  'HO-XLSX-037',
+  'HO-XLSX-039',
+  'HO-XLSX-040',
+]);
+
 const needsReviewer = (c) => c.oracle.type === 'rubric' || c.expected.structural.some((s) => s.kind === 'caveat');
 const fixtureSha = '0'.repeat(64);
 
@@ -787,11 +830,12 @@ describe('runner against a stub façade', () => {
     assert.equal(ref.facade.stats.maxInflight, 2);
   });
 
-  it('grades the reference model: nothing fails, exactly the reviewer cases wait, no run is marked best', () => {
+  it('grades the reference model: only the known reference gaps fail, exactly the reviewer cases wait, no run is marked best', () => {
     for (const doc of ref.docs) {
-      assert.equal(doc.asks.filter((a) => a.status === 'fail').length, 0, doc.asks.filter((a) => a.status === 'fail').map((a) => `${a.id}/${a.lang}: ${a.checks.filter((c) => c.status === 'fail').map((c) => c.id).join(',')}`).join(' | '));
+      const failing = [...new Set(doc.asks.filter((a) => a.status === 'fail').map((a) => a.id))].sort();
+      assert.deepEqual(failing, [...KNOWN_REFERENCE_GAPS].sort(), 'a reference joined or left the gap list: update KNOWN_REFERENCE_GAPS and the report');
       const waiting = new Set(doc.asks.filter((a) => a.status === 'needs_reviewer').map((a) => a.id));
-      assert.deepEqual([...waiting].sort(), cases.filter(needsReviewer).map((c) => c.id).sort());
+      assert.deepEqual([...waiting].sort(), cases.filter((c) => needsReviewer(c) && !KNOWN_REFERENCE_GAPS.has(c.id)).map((c) => c.id).sort(), 'a reviewer case waits unless its reference fails an automatic check first');
       assert.equal(doc.status, 'completed');
       assert.equal(doc.partial, false);
     }
@@ -832,11 +876,13 @@ describe('runner against a stub façade', () => {
 
 describe('runner faults and failures', () => {
   const pick = (pred) => cases.find(pred);
-  const readOnlyNumeric = pick((c) => c.format === 'xlsx' && c.expected.numeric.length === 1 && c.expected.writes === 0 && c.oracle.type === 'deterministic' && c.expected.structural.length === 0 && c.expected.mustNotContain.length === 0 && !c.setup);
+  const pickPassing = (pred) => pick((c) => !KNOWN_REFERENCE_GAPS.has(c.id) && pred(c));
+  // A read-only numeric xlsx case whose own reference passes the trace-only oracle (the gap cases are skipped, see KNOWN_REFERENCE_GAPS).
+  const readOnlyNumeric = pickPassing((c) => c.format === 'xlsx' && c.role === 'editor' && c.expected.numeric.length === 1 && c.expected.writes === 0 && c.oracle.type === 'deterministic' && c.expected.mustNotContain.length === 0 && !c.setup);
   // The write case every fault test drives must prove a cell from the write arguments (G712-5), so it is chosen by that
   // property, not by being the first write case: a configuration-only edit (A2) carries no cell value to prove.
   const provableCell = (c) => c.expected.structural.some((s) => s.kind === 'cell' && String(s.value).trim() && !s.anchor.includes('#'));
-  const oneWrite = pick((c) => c.expected.writes === 1 && c.tools.required.some((op) => op === 'write_range') && c.oracle.type === 'deterministic' && Object.keys(c.setup ?? {}).every((k) => k === 'selection') && provableCell(c));
+  const oneWrite = pickPassing((c) => c.expected.writes === 1 && c.tools.required.some((op) => op === 'write_range') && c.oracle.type === 'deterministic' && Object.keys(c.setup ?? {}).every((k) => k === 'selection') && provableCell(c));
   const only = (c) => ({ onlyIds: [c.id], subset: cases });
   const mutate = (fn) => { const base = scriptedModel(cases); return (ctx) => fn(base(ctx), ctx); };
   const verdicts = (doc) => doc.asks.map((a) => a.status);
@@ -1059,7 +1105,10 @@ describe('runner faults and failures', () => {
     assert.match(text, /\[redacted:ipv4\]/);
     assert.deepEqual(docs[0].asks[0].redactions.map((h) => h.kind).sort(), ['host_port_url', 'ipv4', 'key']);
     assert.deepEqual(docs[0].redactions.map((r) => r.ask), docs[0].asks.map((a) => `${a.id}/${a.lang}`));
-    assert.deepEqual(docs[0].asks.map((a) => a.status), ['pass', 'pass'], 'redaction happens after grading and never changes a verdict');
+    // The leaked digits are figures the reply states that no read returned, so the ask fails; the verdict is the one of the
+    // UNREDACTED reply (the written run shows [redacted:...] instead), which is what "graded before redaction" means here.
+    assert.deepEqual(docs[0].asks.map((a) => a.status), ['fail', 'fail'], 'redaction happens after grading and never changes a verdict');
+    assert.ok(docs[0].asks.every((a) => a.checks.filter((c) => c.status === 'fail').every((c) => c.id.startsWith('numeric_unexpected'))));
   });
 
   it('does not flag Vietnamese money as an address, and flags a bare look-alike (G712-9)', () => {
@@ -1193,7 +1242,7 @@ describe('runner faults and failures', () => {
     const text = fs.readFileSync(files[0], 'utf8');
     assert.doesNotMatch(text, /pw12345678|gw\.corp\.example|abcdefghijklmnop1234/);
     assert.ok(docs[0].asks[0].redactions.length > 0);
-    assert.deepEqual(docs[0].asks.map((a) => a.status), ['pass', 'pass']);
+    assert.deepEqual(docs[0].asks.map((a) => a.status), ['fail', 'fail'], 'graded on the unredacted reply: its leaked digits are untraceable figures');
   });
 
   it('turns a transport that always throws into error asks, not a crash', async () => {
@@ -2572,7 +2621,9 @@ describe('usage rows and arguments', () => {
     const ratio = deriveAnswer(ratioCase, ask('Share 138.33% from 83 and 60.', [138.33]));
     assert.ok(ratio.answer.tools.used.includes('compute'), 'a ratio of two shown operands is a permitted derivation');
     const product = deriveAnswer(synthCase({ ...ratioCase, expected: { ...ratioCase.expected, numeric: [{ name: 'share', value: 4980, tolerance: 0, rounding: 'none', unit: 'VND' }] }, referenceAnswer: { ...ratioCase.referenceAnswer, numeric: { share: 4980 }, text: 'Product 4980 from 60 and 83.' } }), ask('Product 4980 from 60 and 83.', [4980]));
-    assert.ok(!product.answer.tools.used.includes('compute'), 'a product of two shown operands is not a permitted derivation');
+    assert.ok(product.answer.tools.used.includes('compute'), 'a product of two shown operands is a permitted derivation (lead answer Q2b)');
+    const hiddenProduct = deriveAnswer(synthCase({ ...ratioCase, expected: { ...ratioCase.expected, numeric: [{ name: 'share', value: 4980, tolerance: 0, rounding: 'none', unit: 'VND' }] }, referenceAnswer: { ...ratioCase.referenceAnswer, numeric: { share: 4980 }, text: 'The product is 4980.' } }), ask('The product is 4980.', [4980]));
+    assert.ok(!hiddenProduct.answer.tools.used.includes('compute'), 'the same product with operands the reply does not show is not credited');
   });
 
   it('R18-1/R18-8: operand evidence comes only from value-bearing leaves of successful data-read results paired per call, never from error text or row/range metadata (review-g712-18 R18-1, R18-8)', () => {

@@ -312,11 +312,19 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
 3. **Mọi con số trong lời văn và mọi giá trị của `report.numbers`** phải truy về một trong ba nguồn: (a) lá của một lần đọc
    thành công, tính theo từng lần gọi và theo số lần xuất hiện; (b) kết quả của một lần `compute` thành công; (c) một phép suy
    ra được phép (tổng, hiệu, tỷ lệ hoặc phần trăm của hai toán hạng đã hiện trong câu trả lời, hoặc tổng của mọi toán hạng cùng
-   đơn vị đã hiện). Số không truy được là số bịa và làm trượt lượt hỏi (`numeric_unexpected:extra_figure_N`).
+   đơn vị đã hiện), mở rộng theo trả lời của lead (Q2b) chỉ trên các toán hạng mà câu trả lời **hiện** và một lần đọc thành công
+   xác nhận (theo từng lần gọi, có tính số lần): phần trăm thay đổi `((b-a)/a)*100` của hai toán hạng (chỉ đơn vị phần trăm),
+   trung bình của **mọi** toán hạng đã hiện, tổng có dấu (+/-) trên **mọi** toán hạng đã hiện khi có từ 3 đến 6 toán hạng, và
+   tích của hai toán hạng. Không bao giờ dò tập con của các toán hạng chỉ được đọc mà không được hiện. Số không truy được là số bịa và làm trượt lượt hỏi (`numeric_unexpected:extra_figure_N`).
    - Kiểu vi và en (`1.234,5` / `1,234.5`) đều được nhận; token mơ hồ khớp nếu một trong hai cách đọc truy được.
-   - Đơn vị và bậc độ lớn được giữ nguyên, không quy đổi: `k`, `m`, `bn`, `tr`, `triệu`, `tỷ`, `nghìn`, `ngàn`, `%` và ký hiệu tiền
-     tệ. Số trần không khớp nguồn có đơn vị và ngược lại (`60k` không phải `60000`). `UNIT_POLICY.currencyIsMarker` (mặc định
-     `true`) cho phép lead tắt riêng ký hiệu tiền tệ nếu cần coi nó là trình bày.
+   - Phần trăm và bậc độ lớn được giữ nguyên là đơn vị, không quy đổi: `%`, `k`, `m`, `bn`, `tr`, `triệu`, `tỷ`, `nghìn`, `ngàn`.
+     Số trần không khớp nguồn có đơn vị và ngược lại (`60k` không phải `60000`).
+   - **Tiền tệ là cách trình bày, không phải đơn vị** (trả lời của lead, Q1): nhãn tiền tệ trên một số trần của nguồn thì đạt
+     (`1.234.000 đồng`, `1.234.000 VND` với ô `1234000`). Nhãn tiền tệ **mâu thuẫn** với tiền tệ mà chính nguồn cho thấy
+     (định dạng số của ô, tiêu đề, văn bản đọc được hoặc văn bản tài liệu) thì trượt, lý do `currency` (ví dụ `USD60` khi tài
+     liệu là VND). Tên trong `UNIT_POLICY`: `currencyIsMarker: false` và `currencyMustNotContradict: true`;
+     `currencyIsMarker: true` là cách đọc nguyên văn hợp đồng (tiền tệ là đơn vị), bộ chấm lại chạy cả hai.
+     **Phần dư đã biết**: khi nguồn không cho thấy tiền tệ nào, mọi nhãn tiền tệ đều đạt.
    - Chỉ miễn cho: địa chỉ ô có ranh giới thật, số thứ tự đầu dòng của danh sách, ngày có tháng viết bằng chữ, và chữ số nằm trong
      một URL/email nguyên vẹn. Ngoài ra, giá trị của đối số lần ghi đã áp và văn bản yêu cầu của người dùng cũng là nguồn
      (`EXTRA_SOURCES`).
