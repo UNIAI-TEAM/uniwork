@@ -1306,6 +1306,57 @@ describe("chunked upload engine", () => {
     });
   });
 
+  it("does not bank a failed attempt's bytes when the part is retried, so the bar stays behind real progress (R1-1)", async () => {
+    const file = makeFile(10);
+    const progressEvents: ChunkedUploadProgress[] = [];
+    const xhrs: FakeUploadXhr[] = [];
+    vi.stubGlobal("XMLHttpRequest", FakeUploadXhr.install(xhrs));
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(makeSessionBody("sess-retry-progress", 1), 201);
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        return json({ document: createdDoc }, 200);
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target: { kind: "workspace", workspaceId: "ws-1" },
+      idempotencyKey: "idem-retry-progress",
+      onProgress: (p) => progressEvents.push({ ...p }),
+    });
+
+    for (let i = 0; i < 50 && xhrs.length < 1; i += 1) await Promise.resolve();
+    expect(xhrs.length).toBe(1);
+    xhrs[0]!.progress(8);
+    expect(progressEvents.at(-1)).toMatchObject({ sentBytes: 8 });
+    xhrs[0]!.respond(503);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    for (let i = 0; i < 50 && xhrs.length < 2; i += 1) await Promise.resolve();
+    expect(xhrs.length).toBe(2);
+
+    // The retry sends from byte 0: 3 bytes in must not read as 8 + 3.
+    xhrs[1]!.progress(3);
+    expect(progressEvents.at(-1)!.sentBytes).toBeLessThanOrEqual(8);
+    xhrs[1]!.progress(9);
+    expect(progressEvents.at(-1)).toMatchObject({ sentBytes: 9 });
+
+    xhrs[1]!.respond(200, { ETag: '"etag-1"' });
+    const res = await upload.result;
+    expect(res.kind).toBe("document");
+    for (let i = 1; i < progressEvents.length; i += 1) {
+      expect(progressEvents[i]!.sentBytes).toBeGreaterThanOrEqual(progressEvents[i - 1]!.sentBytes);
+    }
+  });
+
   it("keeps the bar moving from the first byte of a restarted part after pause and resume (R2-F1)", async () => {
     const file = makeFile(25);
     const storage = createFakeStorage();

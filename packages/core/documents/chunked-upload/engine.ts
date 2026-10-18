@@ -351,9 +351,17 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
         emit("uploading");
         return;
       } catch (err) {
-        bankAbandonedBytes(partNumber);
-        if (canceled) throw new ChunkedUploadError("upload_canceled", "Upload was canceled");
-        if (paused || pauseGeneration !== gen || signal.aborted) return;
+        if (canceled) {
+          inFlightBytes.delete(partNumber);
+          throw new ChunkedUploadError("upload_canceled", "Upload was canceled");
+        }
+        if (paused || pauseGeneration !== gen || signal.aborted) {
+          bankAbandonedBytes(partNumber);
+          return;
+        }
+        // A retry sends the part from byte 0 again, so the failed attempt's
+        // bytes must not be banked or the bar would run ahead of real progress.
+        inFlightBytes.delete(partNumber);
         if (isClearedSessionError(err)) {
           if (opts.storage) clearResumableUpload(opts.storage, fileKey, opts.target);
           throw err;
