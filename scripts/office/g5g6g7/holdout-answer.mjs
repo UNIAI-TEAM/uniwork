@@ -36,7 +36,7 @@
 
 import { anchorMatches, countTopicKey, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
-import { EXTRA_SOURCES, argumentLeaves, derivesFrom, figureQuantity, operandsOf, quantitiesOf, readLeaves, tracedFigure } from './holdout-figures.mjs';
+import { EXTRA_SOURCES, argumentLeaves, currenciesIn, derivesFrom, figureQuantity, operandsOf, quantitiesOf, readLeaves, tracedFigure } from './holdout-figures.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
@@ -254,7 +254,11 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const successfulReads = callStates.filter((c) => c.isRead && !c.denied);
   const attributed = Array.isArray(ask.toolResults) ? ask.toolResults : null;
   const reads = [];
-  const pushLeaves = (text, compute) => { for (const q of readLeaves(text)) reads.push({ q, compute }); };
+  const sourceCurrencies = currenciesIn(sourceText);
+  const pushLeaves = (text, compute) => {
+    for (const q of readLeaves(text)) reads.push({ q, compute });
+    for (const c of currenciesIn(text)) sourceCurrencies.add(c);
+  };
   if (attributed) {
     const resultIdxByName = new Map();
     for (const r of attributed) {
@@ -277,7 +281,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const itemQs = items.flatMap((it) => quantitiesOf(String(it.value ?? '')));
   const reportQs = figures.map(figureQuantity);
   const operands = operandsOf(reads.map((r) => r.q), [proseQs, itemQs, reportQs.filter(Boolean)]);
-  const ctx = { reads, extra, operands };
+  const ctx = { reads, extra, operands, sourceCurrencies };
   const tracedReport = reportQs.map((q) => (q ? tracedFigure(q, ctx) : null));
   const tracedProse = proseQs.map((q) => ({ q, ...tracedFigure(q, ctx) }));
   // A4/R19-1: compute credit needs a figure of the report that equals a result of a SUCCESSFUL compute call, or a permitted
@@ -306,12 +310,12 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       const t = tracedReport[i];
       const bad = t !== null && !t.by;
       const extraByPolicy = extraIdx.includes(i) && (caseDoc.expected.forbidExtraNumbers === true || !allExpectedNumericMatched);
-      if (bad) untraceable.push({ where: 'numbers', value: String(value), why: t.unitOnly ? 'unit' : 'no_source' });
+      if (bad) untraceable.push({ where: 'numbers', value: String(value), why: t.currency ? 'currency' : t.unitOnly ? 'unit' : 'no_source' });
       if (bad || extraByPolicy) strictExtras.push(value);
     });
     for (const t of tracedProse) {
       if (t.by) continue;
-      untraceable.push({ where: 'prose', value: t.q.raw, why: t.unitOnly ? 'unit' : 'no_source' });
+      untraceable.push({ where: 'prose', value: t.q.raw, why: t.currency ? 'currency' : t.unitOnly ? 'unit' : 'no_source' });
       strictExtras.push(t.q.raw);
     }
   }

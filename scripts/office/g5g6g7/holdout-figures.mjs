@@ -20,10 +20,13 @@
 import { UNIT_TOKENS } from './holdout-score.mjs';
 
 export const EXTRA_SOURCES = { request: true, appliedWrites: true };
-// The contract (USER option B, item 3) names a currency among the unit markers: a figure written with one matches only a
-// source value written with the same one. `false` reads a currency word or sign as presentation and drops it from the
-// quantity (the percent and magnitude markers stay); the rescore and the reference scan measure both settings.
-export const UNIT_POLICY = { currencyIsMarker: true };
+// Currency (lead answer Q1, 2026-10-18): a currency word or sign is PRESENTATION on an amount, not a unit. With
+// `currencyIsMarker: false` (the default) it is dropped from the unit, so "1.234.000 đồng" matches a bare cell 1234000, and
+// it is kept on the quantity as `currency`. `currencyMustNotContradict` then fails a figure whose currency is not one the
+// source itself shows (read text, number format, header, document text): "USD60" against a VND document. When the source
+// shows no currency anywhere any label passes (documented residual). Percent and magnitude markers stay strict markers.
+// `currencyIsMarker: true` is the literal contract reading (a currency is a unit); the rescore measures both.
+export const UNIT_POLICY = { currencyIsMarker: false, currencyMustNotContradict: true };
 
 const foldAscii = (s) => String(s).toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/đ/g, 'd');
 
@@ -150,6 +153,7 @@ export function quantitiesOf(text, { prose = false } = {}) {
     }
     let end = match.index + match[0].length;
     const markers = [];
+    let currency = null;
     const mag = MAG_AFTER_RE.exec(source.slice(end));
     if (mag) {
       markers.push(MAGNITUDE.get(foldAscii(mag[1] ?? mag[2])));
@@ -159,24 +163,42 @@ export function quantitiesOf(text, { prose = false } = {}) {
     if (suffix) {
       if (suffix[1]) markers.push('%');
       else if (UNIT_POLICY.currencyIsMarker) markers.push(currencyKey(suffix[2]));
+      else currency = currencyKey(suffix[2]) ?? null;
       end += suffix[0].length;
     } else {
       const prefix = PREFIX_UNIT_RE.exec(source.slice(0, start));
       // A currency word between two quantities belongs to the one before it when that one already took it as a suffix.
-      if (prefix && currencyKey(prefix[1]) && start - (prefix[0].length - prefix[0].trimEnd().length) - prefix[1].length >= consumedTo && UNIT_POLICY.currencyIsMarker) markers.push(currencyKey(prefix[1]));
+      if (prefix && currencyKey(prefix[1]) && start - (prefix[0].length - prefix[0].trimEnd().length) - prefix[1].length >= consumedTo) {
+        if (UNIT_POLICY.currencyIsMarker) markers.push(currencyKey(prefix[1]));
+        else currency = currencyKey(prefix[1]);
+      }
     }
     const unit = markers.length > 0 ? markers.join('+') : null;
     consumedTo = end;
-    if (prose && unit === null) {
+    if (prose && unit === null && currency === null) {
       if (isAddressAt(source, start, end) || isListMarkerAt(source, start, end) || isWrittenDateAt(source, start, end)) continue;
     }
-    out.push({ raw: source.slice(start, end), unit, readings: readingsOf(digits), start, end });
+    out.push({ raw: source.slice(start, end), unit, currency, readings: readingsOf(digits), start, end });
   }
   return out;
 }
 
+// Unambiguous currency spellings only: the bare letter "d" and a "$" inside a cell address are not currency evidence.
+const SOURCE_CURRENCY_RE = /(?<![\p{L}\d])(vnđ|vnd|đồng|dong|usd|eur|jpy|cny|yên|nhân dân tệ)(?![\p{L}\d])|₫|€|(?<![\p{L}\d$])\$(?=[\d\s"\]\-]|$)|(?<=\d)\$(?![\p{L}\d])/giu;
+
+/** The currency families a source text shows anywhere (cells, number formats, headers, document text). */
+export function currenciesIn(text) {
+  const found = new Set();
+  const plain = String(text ?? '').replace(/\s*\[formula\s*=[^\]]*\]/gi, '');
+  for (const m of plain.matchAll(SOURCE_CURRENCY_RE)) {
+    const key = currencyKey(m[1] ?? m[0]);
+    if (key) found.add(key);
+  }
+  return found;
+}
+
 /** A JSON number is a bare quantity. */
-export const quantityOfNumber = (n) => ({ raw: String(n), unit: null, readings: Number.isFinite(n) ? [{ n, dp: exactDp(String(n)) }] : [] });
+export const quantityOfNumber = (n) => ({ raw: String(n), unit: null, currency: null, readings: Number.isFinite(n) ? [{ n, dp: exactDp(String(n)) }] : [] });
 
 /** A figure of report.numbers: a JSON number is bare; a string carries whatever unit it is written with. */
 export function figureQuantity(value) {
@@ -347,7 +369,16 @@ function derivationCandidates(operands) {
   for (const op of operands) byUnit.set(op.unit ?? '', [...(byUnit.get(op.unit ?? '') ?? []), op.n]);
   for (const [unit, values] of byUnit) {
     const u = unit === '' ? null : unit;
-    if (values.length >= 2) out.push({ n: values.reduce((a, b) => a + b, 0), unit: u, kind: 'sum' });
+    if (values.length >= 2) {
+      out.push({ n: values.reduce((a, b) => a + b, 0), unit: u, kind: 'sum' });
+      out.push({ n: values.reduce((a, b) => a + b, 0) / values.length, unit: u, kind: 'average' });
+    }
+    // The signed sum over ALL shown operands (each + or -), only for 3..6 operands; never a subset of them.
+    if (values.length >= 3 && values.length <= 6) {
+      for (let mask = 1; mask < 2 ** values.length; mask += 1) {
+        out.push({ n: values.reduce((acc, v, i) => acc + (mask & (1 << i) ? -v : v), 0), unit: u, kind: 'sum' });
+      }
+    }
     for (let i = 0; i < values.length; i += 1) {
       for (let j = i + 1; j < values.length; j += 1) {
         const a = values[i];
@@ -355,7 +386,19 @@ function derivationCandidates(operands) {
         out.push({ n: a + b, unit: u, kind: 'sum' }, { n: a - b, unit: u, kind: 'sum' }, { n: b - a, unit: u, kind: 'sum' });
         if (b !== 0) out.push({ n: a / b, unit: null, kind: 'ratio' }, { n: (a / b) * 100, unit: null, kind: 'percent' });
         if (a !== 0) out.push({ n: b / a, unit: null, kind: 'ratio' }, { n: (b / a) * 100, unit: null, kind: 'percent' });
+        // Percent change, in percent units only: ((b - a) / a) * 100 of two shown operands, either order.
+        if (a !== 0) out.push({ n: ((b - a) / a) * 100, unit: null, kind: 'percent' });
+        if (b !== 0) out.push({ n: ((a - b) / b) * 100, unit: null, kind: 'percent' });
       }
+    }
+  }
+  // The product of two shown operands: bare x bare, or a marked amount x a bare count; two marked amounts never multiply.
+  for (let i = 0; i < operands.length; i += 1) {
+    for (let j = i + 1; j < operands.length; j += 1) {
+      const a = operands[i];
+      const b = operands[j];
+      if (a.unit !== null && b.unit !== null) continue;
+      out.push({ n: a.n * b.n, unit: a.unit ?? b.unit ?? null, kind: 'product' });
     }
   }
   return out;
@@ -392,6 +435,14 @@ export function traceClaim(claim, ctx, { ignoreUnit = false } = {}) {
 /** Traceable-or-not with the loss reason: { by, unitOnly }. */
 export function tracedFigure(claim, ctx) {
   const strict = traceClaim(claim, ctx);
+  if (strict.by && contradictsSourceCurrency(claim, ctx)) return { by: null, unitOnly: true, currency: true };
   if (strict.by) return strict;
   return { by: null, unitOnly: traceClaim(claim, ctx, { ignoreUnit: true }).by !== null };
+}
+
+/** A currency written on a figure that is not one the source shows; false when the source shows none (documented residual). */
+function contradictsSourceCurrency(claim, ctx) {
+  if (UNIT_POLICY.currencyIsMarker || !UNIT_POLICY.currencyMustNotContradict) return false;
+  const shown = ctx.sourceCurrencies;
+  return Boolean(claim.currency) && shown instanceof Set && shown.size > 0 && !shown.has(claim.currency);
 }

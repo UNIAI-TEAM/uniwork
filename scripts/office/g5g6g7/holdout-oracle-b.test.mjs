@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { ANSWER_MARKER, deriveAnswer } from './holdout-answer.mjs';
+import { UNIT_POLICY } from './holdout-figures.mjs';
 import { score, validateCase } from './holdout-score.mjs';
 
 const FX = 'f'.repeat(64);
@@ -181,7 +182,7 @@ describe('item 3: every figure is traceable to a successful read, a compute resu
 
   it('keeps the unit part of a figure: a percent or magnitude never matches a bare source, nor the reverse', () => {
     const bare = (tail) => sumAsk(`Total 143 from 60 and 83. ${tail}`, [143]);
-    for (const tail of ['It is 60%.', 'Forecast 60k.', 'Forecast 60 k.', 'Forecast 60 triệu.', 'Forecast 60 VND.', 'Forecast 60 đồng.', 'Forecast $60.', 'Forecast 60 tr.']) {
+    for (const tail of ['It is 60%.', 'Forecast 60k.', 'Forecast 60 k.', 'Forecast 60 triệu.', 'Forecast 60 tr.', 'Forecast 60 bn.', 'Forecast 60 tỷ.']) {
       assert.equal(verdict(c, bare(tail)), 'fail', tail);
     }
     const marked = (cells, tail, numbers = [143]) => mkAsk(`Total 143 from 60 and 83. ${tail}`, { numbers }, { toolResults: [{ name: 'read_range', text: readResult(cells) }] });
@@ -308,5 +309,100 @@ describe('item 4: a denied or failed compute call never adds compute credit (R19
 
   it('still credits a permitted derivation of shown read operands without a compute call', () => {
     assert.equal(verdict(aggCase, mkAsk('Total 143 from 60 and 83.', { numbers: [143] })), 'pass');
+  });
+});
+
+describe('item 3 (Q1): a currency is presentation on an amount, a contradicting currency fails', () => {
+  const c = mkCase();
+  const vndSource = (extra = {}) => ({ toolResults: [{ name: 'read_range', text: readResult({ A1: '60', B1: '83', ...extra }) }], sourceText: 'Doanh thu (VND)' });
+  const sumPlain = (tail, over = {}) => mkAsk(`Total 143 from 60 and 83. ${tail}`, { numbers: [143] }, over);
+
+  it('passes a vi or en currency label on a bare source amount', () => {
+    for (const tail of ['Revenue 60 VND.', 'Revenue 60 đồng.', 'Doanh thu ₫60.', 'Revenue 83 vnđ.']) {
+      assert.equal(verdict(c, sumPlain(tail, vndSource())), 'pass', tail);
+    }
+    const grouped = mkAsk('Total 1.234.000 đồng.', { numbers: [1234000] }, { toolResults: [{ name: 'read_range', text: readResult({ A1: 1234000 }) }], sourceText: 'VND' });
+    assert.equal(verdict(mkCase({ tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] }, expected: { numeric: [{ name: 'total', value: 1234000, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] }, referenceAnswer: { numeric: { total: 1234000 }, structural: [], writes: 0, text: 'x' } }), grouped), 'pass');
+  });
+
+  it('fails a currency the source itself contradicts, whether the source shows it in a cell, a header or the document text', () => {
+    for (const tail of ['Revenue USD60.', 'Revenue $60.', 'Revenue 60 EUR.', 'Revenue 60 USD.']) {
+      assert.equal(verdict(c, sumPlain(tail, vndSource())), 'fail', tail);
+      assert.ok(failIds(c, sumPlain(tail, vndSource())).some((id) => id.startsWith('numeric_unexpected')), tail);
+    }
+    const inCell = { toolResults: [{ name: 'read_range', text: readResult({ A1: '60 VND', B1: '83 VND' }) }] };
+    assert.equal(verdict(c, sumPlain('Revenue 60 USD.', inCell)), 'fail', 'cell text carries the VND');
+    assert.equal(verdict(c, sumPlain('Revenue 60 đồng.', inCell)), 'pass', 'the matching label is fine');
+    const inFormat = { toolResults: [{ name: 'read_range', text: JSON.stringify({ rows: [{ row: 1, cells: { A1: 60, B1: 83 } }], numberFormat: '#,##0 "₫"' }) }] };
+    assert.equal(verdict(c, sumPlain('Revenue 60 EUR.', inFormat)), 'fail', 'the number format carries the VND');
+  });
+
+  it('records the currency as the reason code and never as a unit', () => {
+    const d = deriveAnswer(c, sumPlain('Revenue USD60.', vndSource()));
+    assert.deepEqual(d.adapter.untraceable.map((x) => x.why), ['currency']);
+  });
+
+  it('lets any label pass when the source shows no currency anywhere (documented residual)', () => {
+    assert.equal(verdict(c, sumPlain('Revenue USD60.')), 'pass');
+    assert.equal(verdict(c, sumPlain('Revenue 60 VND.')), 'pass');
+  });
+
+  it('keeps percent and magnitude markers strict beside a currency', () => {
+    for (const tail of ['Revenue 60 k VND.', 'Revenue 60 triệu đồng.', 'It is 60%.']) {
+      assert.equal(verdict(c, sumPlain(tail, vndSource())), 'fail', tail);
+    }
+  });
+
+  it('reads a currency as a unit again when the policy is switched to the literal contract', () => {
+    const was = { ...UNIT_POLICY };
+    try {
+      UNIT_POLICY.currencyIsMarker = true;
+      assert.equal(verdict(c, sumPlain('Revenue 60 VND.', vndSource())), 'fail', 'a bare source never matches a marked figure');
+    } finally {
+      Object.assign(UNIT_POLICY, was);
+    }
+  });
+});
+
+describe('item 3 (Q2b): the extended derivations hold only over operands the reply shows and a read backs', () => {
+  const mk = (value, rounding = 'none') => mkCase({
+    expected: { numeric: [{ name: 'v', value, tolerance: 0, rounding, unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: value }, structural: [], writes: 0, text: 'x' },
+  });
+  const reads = (cells) => ({ toolResults: [{ name: 'read_range', text: readResult(cells) }] });
+  const ask = (text, value, cells) => mkAsk(text, { numbers: [value] }, reads(cells));
+
+  it('credits the percent change of two shown operands in percent units, and not the same value from hidden operands', () => {
+    assert.equal(verdict(mk(40), ask('Change 40% from 50 to 70.', 40, { A1: 50, B1: 70 })), 'pass');
+    assert.equal(verdict(mk(40), ask('Change 40 from 50 to 70.', 40, { A1: 50, B1: 70 })), 'pass');
+    assert.equal(verdict(mk(40), ask('Change 40% since last year.', 40, { A1: 50, B1: 70 })), 'fail', 'operands not shown');
+    assert.equal(verdict(mk(40.1, '2dp'), ask('Change 40.1% from 50 to 70.', 40.1, { A1: 50, B1: 70 })), 'fail', 'one rounding step beyond the shown precision');
+    assert.equal(verdict(mk(0.4), ask('Change 0.4 from 50 to 70.', 0.4, { A1: 50, B1: 70 })), 'fail', 'the ratio form is not percent units');
+  });
+
+  it('credits the average of all shown operands, and not of hidden ones or a subset', () => {
+    assert.equal(verdict(mk(20), ask('Average 20 from 10, 20 and 30.', 20, { A1: 10, B1: 20, C1: 30 })), 'pass');
+    assert.equal(verdict(mk(20), ask('Average 20 over the quarter.', 20, { A1: 10, B1: 20, C1: 30 })), 'fail', 'operands not shown');
+    assert.equal(verdict(mk(15), ask('Average 15 from 10 and 20, with 30 also read.', 15, { A1: 10, B1: 20, C1: 30 })), 'fail', 'a subset of the shown operands: 30 is shown');
+    assert.equal(verdict(mk(20.5, '2dp'), ask('Average 20.5 from 10, 20 and 30.', 20.5, { A1: 10, B1: 20, C1: 30 })), 'fail', 'off by one rounding step');
+  });
+
+  it('credits the signed sum over ALL shown operands for 3 to 6 operands, never a subset and never a hidden operand', () => {
+    const cells = { A1: 100, B1: 80, C1: 20 };
+    assert.equal(verdict(mk(40), ask('Net 40 from 100, 80 and 20.', 40, cells)), 'pass', '100 - 80 + 20');
+    assert.equal(verdict(mk(160), ask('Net 160 from 100, 80 and 20.', 160, cells)), 'pass', '100 + 80 - 20');
+    assert.equal(verdict(mk(41), ask('Net 41 from 100, 80 and 20.', 41, cells)), 'fail', 'off by one');
+    assert.equal(verdict(mk(40), ask('Net 40 from 100 and 20.', 40, cells)), 'fail', 'the 80 is read but not shown: no hidden operand');
+    assert.equal(verdict(mk(187), ask('Net 187 from 100, 80, 20 and 7.', 187, { ...cells, D1: 7 })), 'fail', 'three of four shown operands is a subset');
+    assert.equal(verdict(mk(33), ask('Net 33 from 100, 80, 20 and 7.', 33, { ...cells, D1: 7 })), 'pass', '100 - 80 + 20 - 7');
+    const seven = { A1: 1, B1: 2, C1: 4, D1: 8, E1: 16, F1: 32, G1: 64 };
+    assert.equal(verdict(mk(-125), ask('Net -125 from 1, 2, 4, 8, 16, 32 and 64.', -125, seven)), 'fail', 'seven operands: the signed sum of all is not offered (a sum of two is)');
+  });
+
+  it('credits the product of two shown operands, and not of hidden ones or a marked amount times a marked amount', () => {
+    assert.equal(verdict(mk(300), ask('Cost 300 from 60 and 5.', 300, { A1: 60, B1: 5 })), 'pass');
+    assert.equal(verdict(mk(300), ask('Cost 300 for the order.', 300, { A1: 60, B1: 5 })), 'fail', 'operands not shown');
+    assert.equal(verdict(mk(301), ask('Cost 301 from 60 and 5.', 301, { A1: 60, B1: 5 })), 'fail', 'off by one rounding step');
+    assert.equal(verdict(mk(3600), ask('Area 3600 from 60% and 60%.', 3600, { A1: '60%', B1: '60%' })), 'fail', 'two marked operands never multiply');
   });
 });
