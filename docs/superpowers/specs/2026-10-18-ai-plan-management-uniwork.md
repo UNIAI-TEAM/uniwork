@@ -1,10 +1,11 @@
 # Quản lý gói AI và hạn mức trên UniWork (qua UniAI Hub v0.2.0)
 
-> **Trạng thái:** draft — v0.4 (2026-10-18, UNI-1910, lane ai-plan-uw; v0.3 + sửa theo review BE vòng 3: BE-23/24 webhook dual-crossing, BE-25 đếm chưa đọc, BE-26 kênh thư/digest, BE-27 trạng thái Office cloud), chưa có dòng code nào; chờ người dùng duyệt §13 (Q-AIP-1…10, D-1…D-7) và các board thiết kế (§11).
+> **Trạng thái:** draft — v0.5 (2026-10-18, UNI-1910, lane ai-plan-uw vòng 2 billing; v0.4 + thêm §16 Thanh toán AI: đơn thanh toán → grant Hub, nạp credit, gia hạn theo kỳ, đổi gói, hoàn tiền → revoke, đối soát, audit/outbox, isolation, console `/admin`; cập nhật §1.4, §2, §4, §10, §11, §12, §13, §14, §15), chưa có dòng code nào. Người dùng đã chốt Q-AIP-1…10 và D-1…D-7 theo khuyến nghị (2026-10-18 22:00; Q-AIP-1 đổi thành "(c) một epic gồm cả billing", 22:05); chờ người dùng chọn Q-AIP-11…20 (§13; Q-AIP-17…20 theo "Shared billing terms baseline" của lead) và duyệt board g–j (§11). Triển khai thẻ AIP-00…15 và AIP-BILL-00…15: **chờ** (người dùng).
 
 **Quan hệ:** [ADR 0010](../../adr/0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) (mọi call qua `ai.Gateway`), [0029](../../adr/0029-ai-cua-office-tren-web-qua-ai-gateway.md) + [0034](../../adr/0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) (BYOK), [0008](../../adr/0008-cach-ly-tenant-o-tang-service.md), [0009](../../adr/0009-audit-va-outbox-cung-transaction.md), [0012](../../adr/0012-audit-bat-bien-bang-quyen-db-va-trigger.md), [0015](../../adr/0015-va-cache-tu-frame-realtime-theo-catalogue.md), [0031](../../adr/0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md), [0033](../../adr/0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md).
 **Nguồn phía Hub** (repo `llm-system`, đọc ở working tree 2026-10-18; trích dẫn dạng `hub:<đường dẫn>:<dòng>`): `docs/SPEC.md` (final, cập nhật S-P2), `docs/connect.md`, `docs/plans/2026-10-17-p2-plan.md` mục "Phía UniWork" (dòng 198–211), mã `internal/admin`, `internal/usage`, `internal/surface`, `internal/webhook`, `internal/admission`, `internal/auth`, `internal/httpx`.
-**Nguồn thiết kế:** card `briefs/card-AI-PLAN-UW.md`; board HTML ở `reports/ai-plan-uw/design/` (§11).
+**Nguồn phía Hub cho billing (§16)** (đọc ở working tree 2026-10-18): `internal/admin/{grants,plans,accounts,perm,audit}.go`, `internal/ledger/ledger.go`, `internal/meter/meter.go`, `internal/store/queries/{ledger,accounts}.sql`, `docs/SPEC.md` §8, §18, `docs/connect.md` §8.2–8.3, `scripts/provision-uniwork.sh`, test `internal/admin/ac2_plan_app_db_test.go`.
+**Nguồn thiết kế:** card `briefs/card-AI-PLAN-UW.md` và `briefs/card-AI-PLAN-UW-BILL.md` (vòng 2); board HTML ở `reports/ai-plan-uw/design/` (§11).
 **Quy ước đọc:** "đã kiểm" = đọc trong mã và có `file:dòng`; "giả định" = chưa kiểm được trong mã, nằm trong danh sách kiểm ở §13.3 hoặc thẻ kiểm tương ứng ở §14. Không có host, IP hay khóa nào trong tài liệu này.
 
 ---
@@ -57,7 +58,7 @@ P2 phía Hub đã có trong mã ở working tree: policy theo nhãn có `period_
 
 ### 1.4 Phạm vi của tài liệu này
 
-Gồm: cấu hình hạn mức và model list theo tổ chức/workspace/người dùng; xem ví và mức dùng; chặn và cảnh báo; nối Office AI + Ask UNI + các capability khác qua Hub; webhook; cô lập tenant; cờ và rollout. **Không gồm** (§12): mua gói → `grant`, hoàn tiền → `revoke`, đặt plan Hub (đây là việc của billing, thẻ `AIP-BILL` riêng), P3/P4 của Hub.
+Gồm: cấu hình hạn mức và model list theo tổ chức/workspace/người dùng; xem ví và mức dùng; chặn và cảnh báo; nối Office AI + Ask UNI + các capability khác qua Hub; webhook; cô lập tenant; cờ và rollout. Từ v0.5 **gồm cả billing** (người dùng chốt Q-AIP-1 = (c), 22:05): mua gói và nạp credit ngay trong UniWork (VNPay hiện có) → `grant`, hoàn tiền → `revoke`, đặt plan Hub — toàn bộ ở §16, các thẻ `AIP-BILL-00…14` ở §14. Quy tắc người dùng đặt (22:06): khách chỉ trả tiền **trong UniWork**; Hub không thu tiền và không có màn Hub/Console nào cho khách. **Không gồm** (§12): P3/P4 của Hub, tự gia hạn thu thẻ, chia tỉ lệ (proration) tiền VND, v.v.
 
 ---
 
@@ -71,7 +72,9 @@ UniWork có hai tầng thành viên; mỗi quy tắc dưới đây nêu `Permiss
 | Đặt, đổi, xóa hạn mức và model list của tổ chức / một workspace / một người dùng | owner/admin tổ chức | `canManageAiQuota`: cùng điều kiện `canViewAiPlan` | như trên; workspace đích đi qua `WorkspaceService.RequireMember(ws, actor)` (trả vai trò hiệu lực `admin` cho org owner/admin, và từ chối workspace của tổ chức khác); với **đặt/đổi** (PUT) người dùng đích đi qua `OrganizationService.RequireMember(org, target)` (người không còn hoạt động bị từ chối); với **xóa** (DELETE) **chỉ** kiểm actor (`RequireMember(org, actor)` + `adminLikeRole`) và tìm dòng theo `(organization_id, subject_kind, subject_id)` — không gọi cổng thành viên cho đích, để dọn được policy của người đã rời (§8.2) |
 | Xem hạn mức và mức dùng của workspace mình | owner/admin **workspace** (gồm org owner/admin ngầm) | `canViewWorkspaceAiQuota`: `wsRole ∈ {owner, admin}` (khuôn `canUpdateWorkspaceSettings`, `rules.ts:97-102`) | `WorkspaceService.RequireMember` + `adminLikeRole(m.Role)` (khuôn `WorkspaceUsage`, `askuni.go:377-390`) |
 | Xem trạng thái của chính mình (còn dùng được / sắp hết / hết hạn mức, model đang dùng) | mọi thành viên workspace | `wsRole !== null` | `WorkspaceService.RequireMember`; mở rộng `GET /workspaces/{workspaceID}/ai/capabilities` (`askuni.go:126`) |
-| Mua/đổi gói, nạp credit, hoàn tiền | owner tổ chức | `canManageBilling` (`rules.ts:138-143`) | `BillingService.requireOwner` (`billing.go:112`) — **ngoài phạm vi** |
+| Mua/đổi gói, nạp credit (mua gói nạp), xem lịch sử đơn credit | owner tổ chức mua; owner/admin xem | mua: `canManageBilling` (`rules.ts:138-143`); xem: `canViewBilling` (`rules.ts:126-131`) | `BillingService.requireOwner` (`billing.go:112`) cho mua; `OrganizationService.RequireMember` + `adminLikeRole` cho xem — chi tiết §16.10 |
+| Hoàn tiền hóa đơn (kéo theo thu hồi credit) | nhân viên nền tảng (như hôm nay; owner không tự hoàn) | — | `POST /admin/invoices/{invoiceID}/refund` (`handler/router/admin.go:60`), `middleware.RequirePlatformRole`; §16.8 |
+| Cộng credit tay cho hỗ trợ | nhân viên nền tảng `admin` (ghi); `support` chỉ đọc | — | route `/admin/organizations/{orgID}/ai-credit`, `reason ≥ 10`, `admin_actions` — §16.11 |
 | Bật/tắt cờ `ai_hub_routing`, `ai_plan_ui` theo tổ chức | nhân viên nền tảng | — | console `/admin` flags (`middleware.RequirePlatformRole`, ghi `admin_actions` + `audit_events`); không thêm route `/admin` mới |
 | Agent | **không** cấu hình hạn mức (ADR 0010: agent không ghi bảng nghiệp vụ). Lệnh gọi AI do agent chạy vẫn bị đếm: nhãn `user` = `agent:<id>` (§5.3) | — | `RequireAgentMember` chỉ cho việc agent làm, không cho quản lý hạn mức |
 
@@ -159,7 +162,7 @@ Mọi lệnh ghi gửi thêm `X-Hub-Reason: <đã audit id UniWork>` — Hub ghi
 | Idempotency | Không có khóa. Link `(app, external_id)` đã tồn tại → `409 conflict` "link already exists", và cả transaction (kể cả account) bị hủy (`accounts.go` khối `InsertAccountLink`) — không có account mồ côi. **Phục hồi** khi UniWork mất `id` (sập giữa Hub trả lời và lưu): `GET /admin/v1/accounts?limit=200&after=<id>` (app chỉ thấy account đã link: `accounts.go:180-201`; `maxListLimit` = 200, `:19`) và khớp `name == "uniwork:<organization_id>"`. **Lặp** với `after=<id cuối của trang trước>` cho tới khi trang rỗng (không dừng ở 200 account đầu); không có account nào khớp (ví dụ tên bị đổi trong Console) → lỗi vận hành `ai_hub_account_unrecoverable` + metric, không tạo account thứ hai. Đề nghị Hub thêm lọc `external_id` (H-2) |
 | Lỗi | 409 → phục hồi như trên; 400 `invalid_request`; 401/403 → cấu hình sai (cảnh báo vận hành, không lộ cho người dùng) |
 
-Account mới **chưa có plan** và gọi AI nhận `402 insufficient_credit` (`hub:docs/connect.md:627`). Việc đặt plan và nạp credit thuộc `AIP-BILL`; ở pilot hub_admin nạp tay.
+Account mới **chưa có plan** và gọi AI nhận `402 insufficient_credit` (`hub:docs/connect.md:627`). Việc đặt plan và nạp credit là billing: §16 (đặt plan Hub ngay sau khi liên kết, §16.4; credit từ đơn thanh toán, §16.6); khi cờ `ai_billing_sync` còn tắt (R2/R3) hub_admin nạp tay.
 
 ### C2. Đọc ví
 
@@ -224,7 +227,7 @@ Account mới **chưa có plan** và gọi AI nhận `402 insufficient_credit` (
 
 ### C9. Các lệnh gọi Hub **không** thuộc spec này (tham chiếu)
 
-`POST /admin/v1/grants` (idempotent theo `idempotency_key`, body `grantWrite`: `hub:internal/admin/grants.go:27-36`), `POST /admin/v1/grants/{id}/revoke` (`:38-42`), `PUT /admin/v1/accounts/{id}/plan` (app chỉ đặt plan có price book cho channel mình, nếu không 403: `plans.go:449-500`), thuộc `AIP-BILL`.
+`POST /admin/v1/grants` (idempotent theo `idempotency_key`, body `grantWrite`: `hub:internal/admin/grants.go:27-36`), `GET /admin/v1/grants?account=` (`:263-293`), `POST /admin/v1/grants/{id}/revoke` (`:38-42`, `:295-337`), `PUT /admin/v1/accounts/{id}/plan` (app chỉ đặt plan có price book cho channel mình, nếu không 403: `plans.go:449-500`): từ v0.5 được đặc tả đầy đủ ở §16.3 (route, payload, idempotency, `file:dòng`), thuộc các thẻ `AIP-BILL-*`.
 
 ---
 
@@ -517,16 +520,17 @@ Quy tắc (CLAUDE.md "Database and Migration Rules", ADR 0008): mọi truy vấn
 
 ## 10. Cờ và rollout
 
-**Hai cờ** trong `server/internal/featureflags/keys.go`, mỗi cờ có `ReviewAt` (`TestFlagsAreReviewed`), override user > tổ chức > toàn cục; cờ chỉ **ẩn** capability, không cấp quyền (khuôn `office_ai_uniwork`, `keys.go:61`):
+**Ba cờ** (v0.5 thêm `ai_billing_sync`) trong `server/internal/featureflags/keys.go`, mỗi cờ có `ReviewAt` (`TestFlagsAreReviewed`), override user > tổ chức > toàn cục; cờ chỉ **ẩn** capability, không cấp quyền (khuôn `office_ai_uniwork`, `keys.go:61`):
 
 | Key | Mặc định | Public | Owner | `ReviewAt` | Tác dụng |
 |---|---|---|---|---|---|
 | `ai_hub_routing` | `false` | không | `ai` | 2027-03-31 | tổ chức này gọi AI qua provider `hub` (cổng quota cũ tắt, §5.9); nơi tạo account Hub |
 | `ai_plan_ui` | `false` | không (hiệu lực đi qua API có phạm vi, xem dưới) | `ai` | 2027-03-31 | hiện tab "Gói AI", trình sửa hạn mức, trạng thái hạn mức ở end-user; chỉ có hiệu lực khi `ai_hub_routing && ai_plan_ui` (hai cờ cùng đánh giá **theo tổ chức**, không `UserID`; xem §5.9) |
+| `ai_billing_sync` | `false` | không (hiệu lực đi qua `GET /orgs/{orgID}/billing/ai-credit`, §16.10) | `ai` | 2027-03-31 | đơn thanh toán/kỳ của tổ chức này tạo grant ở Hub, bán gói nạp, hiện khối credit ở tab Billing, thu hồi credit khi hoàn tiền (§16); chỉ có hiệu lực khi `ai_hub_routing && ai_billing_sync` (đánh giá **theo tổ chức**, không `UserID`, cùng lý do §5.9). Tách khỏi `ai_plan_ui` để pilot R2/R3 có hạn mức mà chưa tự cấp credit (hub_admin nạp tay) |
 
 **Đưa cờ `ai_plan_ui` tới giao diện (BE-20).** `GET /api/v1/config` hiện đánh giá mọi cờ public **kèm `UserID`** (`handler/config.go:23-25,48`) và `usePublicConfig` gọi nó không có tổ chức rồi cache toàn cục (`packages/core/feature-flags/use-public-config.ts:4-17`); `ai_hub_routing` thì không public. Công bố nguyên trạng không cho ra "hiệu lực = `ai_hub_routing && ai_plan_ui` theo tổ chức": một override `user` của `ai_plan_ui` sẽ tách quyết định giao diện khỏi quyết định định tuyến. Vì vậy **trạng thái hiệu lực do server tính theo tổ chức** (`EvalContext{OrganizationID}`, không `UserID`, cùng cách §5.9) và **trả trong chính API Gói AI có phạm vi**: trường `available` (đã gộp cả hai cờ) trong `GET /workspaces/{workspaceID}/ai/capabilities` (khối `plan`, §9) và trong `GET /orgs/{orgID}/ai/plan`; giao diện chỉ hiện tab/trạng thái khi `available` đúng. Phương án tương đương (nếu cần biết trước khi gọi API có phạm vi, ví dụ để ẩn mục điều hướng): truy vấn cấu hình **khóa theo tổ chức** theo tiền lệ `packages/core/graph/use-graph-ui.ts:12-25` (`getPublicConfig(organizationId)`, khóa truy vấn có `organizationId`), nhưng khi đó `ai_plan_ui` vẫn chỉ là một nửa của điều kiện và nửa kia (`ai_hub_routing`) do API có phạm vi trả. Chủ sở hữu: `AIP-09` (cờ + phép tính hiệu lực phía server dùng chung với §5.9) và `AIP-11` (hook `useAiPlanAvailable(orgId)` trong `packages/core/ai/`, đọc `available`; không dùng `usePublicConfig` toàn cục cho cờ này).
 
-**Hoàn tác** = tắt `ai_hub_routing` cho tổ chức; giữa kỳ, meter `ai.tokens` bắt đầu lại từ số đã ghi trước lúc chuyển (§5.9, chấp nhận ở pilot R2/R3). Cờ **không** cấp quyền: quyền vẫn do cổng ở §2. Hai cờ này **không** đi qua `GET /api/v1/config` (đoạn trên).
+**Hoàn tác** = tắt `ai_hub_routing` cho tổ chức; giữa kỳ, meter `ai.tokens` bắt đầu lại từ số đã ghi trước lúc chuyển (§5.9, chấp nhận ở pilot R2/R3). Cờ **không** cấp quyền: quyền vẫn do cổng ở §2. Cả ba cờ **không** đi qua `GET /api/v1/config` (đoạn trên). Tắt `ai_billing_sync` giữa chừng **không** hủy đơn credit đã ghi: đơn và thu hồi đã tạo vẫn được đẩy tiếp tới Hub (không có đường nào để một đơn đã thanh toán bị bỏ rơi), chỉ ngừng tạo đơn mới và ẩn nút nạp (§16.12).
 
 **Giai đoạn:**
 
@@ -535,11 +539,12 @@ Quy tắc (CLAUDE.md "Database and Migration Rules", ADR 0008): mọi truy vấn
 | R0 | Migration + mã với hai cờ tắt; ADR `AIP-00` merge trước | CI xanh; tổ chức hiện tại không đổi hành vi |
 | R1 | Vận hành Hub: provision channel `uniwork` bằng `scripts/provision-uniwork.sh` (nhãn `user`,`feature` bắt buộc, `workspace` tùy chọn; `hub:docs/connect.md:400-439`), đặt env, hub_admin đăng ký webhook (C8) | `GET /v1/models` và một lượt chat thử OK; webhook thử nhận 200 |
 | R2 | Bật hai cờ cho **tổ chức nội bộ UniWork**; hub_admin nạp credit tay | kịch bản AC: org admin chia hạn mức ws/user và bị chặn đúng (`hub:docs/SPEC.md:759` mục (b)) |
-| R3 | Pilot vài tổ chức (override theo tổ chức) | không lỗi `ai_hub_*` kéo dài; số liệu ví khớp; thông báo đúng người |
-| R4 | Mặc định bật | `AIP-BILL` đã chạy (grant khi mua gói) |
+| R2b | Bật `ai_billing_sync` cho tổ chức nội bộ, VNPay sandbox: mua gói nạp, gia hạn kỳ, hoàn tiền (§16) | mỗi đơn thành đúng một grant (không trùng), hoàn tiền thu hồi đúng phần chưa dùng, `ai_credit_orders` không kẹt `pending/failed` > 15 phút (§16.7) |
+| R3 | Pilot vài tổ chức (override theo tổ chức) | không lỗi `ai_hub_*` kéo dài; số liệu ví khớp; thông báo đúng người; với tổ chức có `ai_billing_sync`: ví khớp tổng grant − đã dùng |
+| R4 | Mặc định bật | `AIP-BILL-*` đã chạy ≥ 1 chu kỳ đầy đủ ở R3 (mua → dùng → kỳ mới → hoàn tiền thử) và 7 ngày liên tục không đơn kẹt (cảnh báo `AICreditOrderStuck` im lặng, §16.7) |
 | R5 | Gỡ cờ + gỡ meter `ai.tokens`, `Quota.Record`, `usage_reconcile.go` | ADR cutover đóng; ghi một ADR gỡ |
 
-**Thứ tự migration:** (1) bảng + index `CONCURRENTLY` (mỗi index một tệp) cho ba bảng, (2) không có migration dữ liệu. `EnsureAccount` chạy theo yêu cầu khi tổ chức được bật cờ (và có thể gọi bằng lệnh vận hành `cmd/ai-hub-link --org`), nên **backfill = không có** cho cấu hình; tổ chức chưa bật không có dòng nào.
+**Thứ tự migration:** (1) bảng + index `CONCURRENTLY` (mỗi index một tệp) cho ba bảng, (2) không có migration dữ liệu. Billing (§16.5) thêm các migration riêng ở `AIP-BILL-02` sau `AIP-02`. `EnsureAccount` chạy theo yêu cầu khi tổ chức được bật cờ (và có thể gọi bằng lệnh vận hành `cmd/ai-hub-link --org`), nên **backfill = không có** cho cấu hình; tổ chức chưa bật không có dòng nào.
 
 ---
 
@@ -547,7 +552,7 @@ Quy tắc (CLAUDE.md "Database and Migration Rules", ADR 0008): mọi truy vấn
 
 **Kiểu** (người dùng chốt 2026-10-18 17:35 và 17:50): mọi màn nhìn như **app UniWork đang chạy** — vỏ ứng dụng thật, trang Cài đặt thật (`SettingsTab/Section/Card/Row`, `QuotaMeterRow`), Inter + token ngữ nghĩa của `tokens.css` (cỡ chữ `--text-*`, không màu cứng), Ngăn Hỏi UNI; không dựng một ngôn ngữ thị giác mới và không theo canvas Documents. Mọi text trong `packages/views/` qua `t()` (`i18next/no-literal-string`); biểu tượng theo `docs/conventions.md` › Icons, module qua `MODULE_ICONS`, đang tải là `<Spinner />`. Giữ "workspace" nguyên tiếng Anh (glossary, `docs/conventions.md:169`, `:228-230`).
 
-**Quy tắc rút gọn** (người dùng chốt, bắt buộc): một dòng chỉ ở lại nếu người dùng **làm gì đó trên nó hoặc cần nó để quyết**; một con số cho một ý; không dòng giải thích cho thứ người quản trị không đổi được. Vì vậy các hàng dưới đây **không** có: hạn mức nợ cho phép của ví, "còn dùng được" tính sẵn, số lượt chạy cùng lúc tối đa, "cảnh báo gần đây", "xem trước ảnh hưởng" của hạn mức, "người dùng nhiều nhất" và model đang dùng trên màn workspace, xuất CSV, số lượt/token của khóa riêng (UniWork không đo). Các số tương ứng vẫn nằm ở Hub/API (§4: `credit_limit_micro` ở C2…) nhưng **không có màn nào hiện chúng ở v1**; DTO không cần mang chúng. Mỗi board có sáng/tối, máy tính 1280 + di động 390, ở `reports/ai-plan-uw/design/<board>.html` (chỉ mục `index.html`, ghi chú `NOTES.md`; đã qua hai vòng sửa).
+**Quy tắc rút gọn** (người dùng chốt, bắt buộc): một dòng chỉ ở lại nếu người dùng **làm gì đó trên nó hoặc cần nó để quyết**; một con số cho một ý; không dòng giải thích cho thứ người quản trị không đổi được. Vì vậy các hàng dưới đây **không** có: hạn mức nợ cho phép của ví, "còn dùng được" tính sẵn, số lượt chạy cùng lúc tối đa, "cảnh báo gần đây", "xem trước ảnh hưởng" của hạn mức, "người dùng nhiều nhất" và model đang dùng trên màn workspace, xuất CSV, số lượt/token của khóa riêng (UniWork không đo). Các số tương ứng vẫn nằm ở Hub/API (§4: `credit_limit_micro` ở C2…) nhưng **không có màn nào hiện chúng ở v1**; DTO không cần mang chúng. Mỗi board có sáng/tối, máy tính 1280 + di động 390, ở `reports/ai-plan-uw/design/<board>.html` (chỉ mục `index.html`, ghi chú `NOTES.md`; a–f đã qua hai vòng sửa; **g–j là của vòng 2 billing, đang được thợ thiết kế dựng song song với v0.5** — danh sách trạng thái ở bảng dưới là hợp đồng để dựng, chưa phải bản đã duyệt).
 
 | Board | Màn hình (trạng thái đã vẽ) | Route / path builder | View package |
 |---|---|---|---|
@@ -557,12 +562,16 @@ Quy tắc (CLAUDE.md "Database and Migration Rules", ADR 0008): mọi truy vấn
 | `d-end-user-states.html` | **Trạng thái người dùng cuối** (d1–d6): dải vàng ≥ 80% trên ô nhập — thành viên chỉ thấy **trạng thái + ngày đặt lại**, số tiền chỉ cho hạn mức **cá nhân** của chính họ (d1, d1b); **hết hạn mức** nêu chủ thể (workspace/bạn/tổ chức) + ngày đặt lại + tên người liên hệ, không nút thử lại (d2–d2c); tổ chức hết credit 402 (d2d); Office AI cùng nội dung (d3); "AI đang bận" tự thử rồi nút Thử lại (d4, d4b); "AI tạm thời không dùng được" (d4c); nhãn chỉ đọc "Mô hình đang dùng" + "Bị giới hạn bởi gói" (d5a); bộ chọn model chỉ là **phương án b chưa chọn** (d5, Q-AIP-4); bảng câu chữ d6 = §8.1 nguyên văn | Ask UNI (`packages/views/ai/ask-uni-panel.tsx`), Office AI qua mã lỗi ở lớp host (`apps/web/platform/office-frame/`); frame genoffice ở fork cần map mã mới (`AIP-F`, rủi ro §14); **khung Office (d3, f1–f5) là sơ đồ dựng tay, không phải ảnh app thật** (FE-23, chưa có ảnh nguồn) | `ai-limit-notice.tsx` dùng chung |
 | `e-notifications.html` | **Thông báo + email** (e1–e6): dòng Hộp việc cho `ai_quota_threshold`, `ai_credit_low`, `ai_credit_depleted` (board vẽ thêm một dòng "đã hết" như kind riêng `ai_quota_exhausted`; spec chưa tách: mức 100% là `threshold ≥ 100` của `ai_quota_threshold`, §6.4; `AIP-08` chốt có tách kind không) (dựng lại theo Hộp việc thật, có hàng chip loại; **dòng cấp tổ chức không có workspace và hiện ở mọi workspace của quản trị tổ chức, dòng cấp workspace chỉ ở workspace đó**, §6.4, FE-36); toast; nhóm **"Gói AI"** trong ma trận Thông báo — ma trận thật hai cột **Hộp việc | Email** bằng `Switch`, công tắc email chỉ ở hai loại có thể gửi thư (FE-19) và **chỉ trong góc nhìn owner/admin tổ chức (e3)**; thành viên / admin workspace thấy một hàng, chỉ Hộp việc (e3b, §6.4, FE-38); **hai** thư `ai_quota_alert` (tổ chức đạt 100%, tổ chức hết credit; chỉ tên + liên kết, không số tiền); bảng tham chiếu người nhận (§6.4) | Hộp thư thông báo (`packages/views/notifications`), `notifications-matrix.tsx` | + mẫu thư `server/internal/mail/templates` |
 | `f-byok-vs-plan.html` | **BYOK so với gói** (f1–f5): chọn nguồn gói/khóa riêng (mặc định gói, D-5), chỉ có gói (f2), chỉ có khóa riêng khi tổ chức chưa mở Gói AI (f3), hết hạn mức gói nhưng có khóa riêng — gợi ý chuyển, người dùng tự bấm (f4, D-6), nhãn nguồn dưới câu trả lời (f5). Quản trị không thấy số của khóa riêng (UniWork không đo; đã bỏ khung f6) | Cài đặt → AI (`ai-tab.tsx`), nơi lưu khóa BYOK, chip Office | `ai-source-explainer.tsx` |
+| `g-billing-plan.html` *(v0.5, billing)* | **Tab Billing có credit AI** (g1–g8), mở rộng tab đang chạy chứ không dựng mới (`billing-tab.tsx:105-204`, `plan-cards.tsx:20-71`): g1 tổ chức Starter — thẻ gói hiện tại kèm dòng "Credit AI mỗi tháng US$ x" (Q-AIP-11) và thẻ nâng cấp ghi **giá VND mỗi kỳ** + **"gồm US$ y credit AI"** (hai con số độc lập, không quy đổi, Q-AIP-2); g2 gói trả phí — thẻ gói + hàng **"Credit AI"** (một số "Còn US$ z", ví Hub, `as_of`; "Kỳ này cấp US$ y, hết hạn dd/mm") + nút **"Nạp thêm credit"** (chỉ owner) + bảng **lịch sử nạp** (đơn credit: loại, US$, ngày, trạng thái, liên kết hóa đơn); g3 nâng cấp Team → Business (ghi: "Kỳ mới tính từ lúc thanh toán; credit còn lại của kỳ hiện tại vẫn dùng đến khi hết hạn", Q-AIP-14); g4 hạ gói: hôm nay bị từ chối / hủy cuối kỳ, hoặc **lên lịch từ kỳ sau nếu Q-AIP-20 = (a)** ("Hạ xuống Team từ dd/mm; thanh toán gói Team khi hết kỳ", nút "Hủy lịch hạ gói") — ghi "credit của kỳ hết hạn cùng kỳ; credit đã nạp thêm giữ nguyên" (Q-AIP-13); g5 **"Đang cộng credit"** (đơn `pending`, tự làm mới); g6 admin tổ chức (không phải owner): chỉ đọc, không nút; g7 cờ tắt (`available=false`): tab y như hôm nay (meter Token AI, không khối credit); g8 Hub không phản hồi: số dư cũ kèm "Số liệu cũ · giờ", nút nạp vẫn dùng được (thanh toán không phụ thuộc Hub, §16.7). Trạng thái không có: tỉ giá, đơn vị token cho tổ chức đã qua Hub | `paths.workspace(org, ws).settings()` + `?tab=billing` (không đổi) | `billing-tab.tsx` + `billing-ai-credit.tsx`, `ai-credit-history.tsx`, `plan-cards.tsx` |
+| `h-topup-vnpay.html` *(v0.5)* | **Nạp credit qua VNPay** (h1–h8): h1 chọn gói nạp (Sheet bên phải như b; ≤ 3 gói: "US$ x — y ₫", ghi "credit đã nạp dùng được tới dd/mm/yyyy" = 12 tháng, Q-AIP-17, và "được tiêu sau credit của kỳ", Q-AIP-18; Q-AIP-12); h2 đang chuyển sang VNPay; h3 trở về **thành công** (xác nhận đang chạy → "Đã nạp US$ x", toast, dòng mới ở lịch sử); h4 trở về **chờ**: VNPay đã trừ tiền nhưng chưa có credit ("Đã nhận thanh toán, credit sẽ vào trong ít phút", tự làm mới, không nút trả tiền lại); h5 trở về **thất bại/hủy** (không bị trừ tiền; nút "Thử lại"); h6 **quá thời gian xác nhận** (không biết kết quả: "Kiểm tra lại sau vài phút — nếu đã bị trừ tiền, liên hệ hỗ trợ kèm mã giao dịch"; hiện mã giao dịch); h7 đã có một giao dịch nạp đang chờ thanh toán (dùng lại link, không mở hai đơn); h8 người không phải owner / cờ tắt / **tổ chức đang ở gói miễn phí hoặc `past_due`** (Q-AIP-19: nút ẩn hoặc vô hiệu kèm lý do, ví dụ "Nâng cấp gói để nạp thêm") | cùng tab Billing; trở về qua `?checkout=success\|cancel&credit=1` | `ai-credit-pack-sheet.tsx`, `use-ai-credit-return.ts` |
+| `i-refund-reversal.html` *(v0.5)* | **Hoàn tiền và thu hồi credit, phía owner** (i1–i5): i1 hóa đơn gói nạp **đã hoàn toàn bộ**: dòng "Đã hoàn tiền" + "Credit đã thu hồi US$ a · phần đã dùng US$ b không thu hồi"; i2 **hoàn một phần** (hóa đơn vẫn "Đã thanh toán", phần đã hoàn ghi rõ); i3 `refund_pending` ("Đang xử lý hoàn tiền; credit chỉ điều chỉnh khi hoàn tiền xong"); i4 thu hồi **đang xử lý/cần hỗ trợ** (Hub chưa trả lời; không hiện thuật ngữ Hub, "đội hỗ trợ đang xử lý"); i5 hoàn tiền hóa đơn **gói** → tổ chức về Starter (nhắc lại g1) và credit chưa dùng của kỳ đó bị thu hồi. Owner **không** tự hoàn tiền (không nút), chỉ xem kết quả (Q-AIP-16) | tab Billing → lịch sử hóa đơn (`invoices-panel.tsx`) | `invoices-panel.tsx`, `ai-credit-history.tsx` |
+| `j-billing-notices.html` *(v0.5)* | **Trạng thái phụ billing** (j1–j6): j1 bốn dòng Hộp việc `billing_credit_added` ("Đã nạp US$ x credit AI"), `billing_renewed` ("Đã thanh toán gói X, kỳ đến dd/mm"), `billing_payment_failed` ("Thanh toán chưa thành công") và `billing_refunded` ("Đã hoàn tiền hóa đơn #…") — **chỉ owner tổ chức**, cấp tổ chức, hiện ở mọi workspace của owner (§16.9, §6.4 FE-36), kèm mẫu **thư giao dịch** tương ứng; j2 toast khi trở về; j3 **hộp thoại cộng credit tay** ở `/admin` (chi tiết tổ chức; số tiền US$, hạn dùng tùy chọn, lý do ≥ 10 ký tự, xác nhận); j4 khối **"Credit AI"** ở chi tiết tổ chức `/admin` (ví, danh sách đơn kèm trạng thái, đơn `failed` nổi bật); j5 hộp thoại **hoàn tiền hóa đơn** hiện thêm dòng "Credit liên quan: đã cấp US$ x · còn US$ y · đã dùng US$ z; sẽ thu hồi tối đa US$ y" (nhân viên quyết số tiền hoàn, Q-AIP-15); j6 nhóm mới "Thanh toán" trong ma trận Thông báo (bốn hàng, hai cột Hộp việc | Email bằng `Switch`, chỉ góc nhìn owner) | Hộp thư thông báo; `/admin` chi tiết tổ chức; `invoice-refund-dialogs.tsx` | `packages/views/admin/admin-ai-credit-*.tsx` + `invoice-refund-dialogs.tsx` |
 
 ---
 
 ## 12. Ngoài phạm vi
 
-- **Billing**: mua gói → `POST /admin/v1/grants` idempotent theo `order_id`, hoàn tiền → `revoke`, `PUT /admin/v1/accounts/{id}/plan` (thẻ `AIP-BILL`, `hub:docs/SPEC.md:610-613`, `connect.md:629-670`).
+- ~~**Billing**~~ — **đã vào phạm vi từ v0.5** (Q-AIP-1 = (c)): §16 và thẻ `AIP-BILL-00…14`. Phần billing **vẫn ngoài phạm vi**: (a) **tự gia hạn thu tiền định kỳ** — VNPay ở UniWork là thanh toán một lần mỗi đơn, không có token thẻ lưu sẵn (`server/internal/service/billing_checkout.go:126-143`, `billing_lapse.go:121-163`: hết kỳ → `past_due`, owner trả lại); (b) **chia tỉ lệ (proration) tiền VND** khi đổi gói giữa kỳ (hôm nay không có, §16.6.4); (c) **owner tự hoàn tiền** (hôm nay chỉ nhân viên nền tảng, `handler/router/admin.go:60`); (d) tỉ giá/đa tiền tệ (Q-AIP-2: không quy đổi); (e) hóa đơn điện tử/thuế VAT; (f) thanh toán `direct` ở Hub (P4); (g) màn `/admin` sửa catalog gói nạp (v1 gói nạp gieo bằng migration; sửa giá = migration có review) và thu hồi tay đơn `adjust` (hub_admin thu hồi ở Hub Console nếu cần); (h) **Hub plan riêng theo từng gói UniWork** (khác model/đồng thời theo hạng): v1 dùng một Hub plan chung, mở rộng ở thẻ `AIP-BILL-14` khi chủ sản phẩm yêu cầu (§16.4); (i) BYOK **không bao giờ** thu tiền hay cấp credit (§16.1).
 - **P3 Hub**: status model realtime, đối soát provider, API key + khách mời, token ngắn hạn cho client, Gemini native, batch/video/realtime, `model.status_changed`.
 - **P4 Hub**: Hub Console công khai, OIDC, thanh toán `direct`, **link ví có sẵn + consent**, app thứ hai (D14, `SPEC.md:761`).
 - BYOK đi qua Hub (`SPEC.md:771`); web search qua Hub; rerank/image edits ở UniWork (item 6 "chưa có yêu cầu": `hub:docs/plans/2026-10-17-p2-plan.md:209`).
@@ -575,13 +584,22 @@ Quy tắc (CLAUDE.md "Database and Migration Rules", ADR 0008): mọi truy vấn
 
 ## 13. D3 — Quyết định cần người dùng
 
-Chỉ những gì người dùng phải chọn. Khuyến nghị đứng đầu, kèm lý do. Mọi quyết định còn lại (tên bảng, tên route, thứ tự migration…) đã nằm trong §3–§10 theo khuôn của repo.
+Chỉ những gì người dùng phải chọn. Khuyến nghị đứng đầu, kèm lý do. Mọi quyết định còn lại (tên bảng, tên route, thứ tự migration…) đã nằm trong §3–§10 và §16 theo khuôn của repo.
 
-**Q-AIP-1 — Phạm vi epic này.**
+### 13.0 Trạng thái các câu hỏi (v0.5)
+
+| Câu | Trạng thái | Chốt |
+|---|---|---|
+| Q-AIP-1 | **Đã quyết** — người dùng 2026-10-18 22:05 (đổi so với khuyến nghị của v0.4) | **(c)** một epic gồm cả billing (§16, thẻ `AIP-BILL-00…14`) |
+| Q-AIP-2…10 | **Đã quyết** — người dùng 2026-10-18 22:00 | đúng khuyến nghị đứng đầu từng câu: 2 (a) hiển thị US$, 3 (a) không mặc định, 4 (a) UniWork chọn model, 5 (a) không công tắc cấm BYOK, 6 (a) chỉ thông báo, 7 (b) thư giao dịch `ai_quota_alert`, 8 (a) lỗi rõ ràng khi Hub sập, 9 (a) cutover theo tổ chức bằng cờ, 10 (a) làm vòng (mở rộng tới H-9, H-10 ở v0.5) |
+| D-1…D-7 | **Đã quyết** — người dùng 2026-10-18 22:00 | đúng khuyến nghị của index (§13.4) |
+| Q-AIP-11…20 | **Chờ người dùng** (v0.5, billing) | xem dưới; mỗi câu có khuyến nghị đứng đầu. Q-AIP-13 (không rollover) và Q-AIP-17…20 (hạn credit nạp, thứ tự tiêu, nạp chỉ cho gói trả phí, hạ gói lên lịch) lấy **"Shared billing terms baseline" của lead làm khuyến nghị** (board g–j đang được vẽ theo đó); chỗ mã/Hub không khớp baseline được ghi ngay trong câu |
+
+**Q-AIP-1 — Phạm vi epic này.** *(Đã quyết: (c), 22:05; giữ nguyên nội dung v0.4 để lưu vết.)*
 (a) Chỉ phần quản lý hạn mức, *giả sử* P1 đã tích hợp. — Không khả thi: UniWork **chưa có** tích hợp Hub (§1.1).
-(b) **Nền + hạn mức** (tạo account, provider `hub`, cutover `Quota`, hạn mức, webhook, màn hình); **billing (grant khi mua gói) tách `AIP-BILL`**, pilot hub_admin nạp tay. *(khuyến nghị)*
-(c) Tất cả cùng một epic, gồm grant/revoke/đặt plan.
-Lý do: (b) đưa được tới R2 (kịch bản AC của §22 P2) mà không kéo luồng thanh toán VNPay (`billing_*.go`) vào; billing có lịch và rủi ro riêng.
+(b) **Nền + hạn mức** (tạo account, provider `hub`, cutover `Quota`, hạn mức, webhook, màn hình); **billing (grant khi mua gói) tách `AIP-BILL`**, pilot hub_admin nạp tay. *(khuyến nghị của v0.4)*
+(c) Tất cả cùng một epic, gồm grant/revoke/đặt plan. **← người dùng chọn**
+Lý do (v0.4): (b) đưa được tới R2 (kịch bản AC của §22 P2) mà không kéo luồng thanh toán VNPay (`billing_*.go`) vào; billing có lịch và rủi ro riêng. Hệ quả của (c): billing có spec riêng ở §16 cùng đợt, nhưng vẫn đi **sau** nền (cờ `ai_billing_sync` tách khỏi `ai_hub_routing`, R2 chạy trước R2b, §10) nên rủi ro billing không chặn pilot hạn mức.
 
 **Q-AIP-2 — Đơn vị hiển thị hạn mức.** Hub tính bằng **credit (1 credit = US$1)**, không có tỉ giá (`hub:docs/SPEC.md:211-215`).
 (a) **Hiển thị US$** với 2 chữ số (ví dụ "US$ 3,20 / 10,00"), không quy đổi. *(khuyến nghị)*
@@ -626,9 +644,69 @@ Lý do: (b) tính tiền hai nơi và làm hạn mức mất ý nghĩa. Tổ ch�
 Lý do: (a) không tính trùng, hoàn tác bằng cách tắt cờ, tương thích tiền lệ `mcp_connector`/`office_ai_uniwork`. Lưu ý hoàn tác giữa kỳ (§5.9): meter `ai.tokens` cũ chỉ giữ số đã ghi trước lúc chuyển, nên tổ chức hoàn tác có thể dùng thêm phần token còn lại của kỳ; đã chấp nhận cho pilot R2/R3 (quyết định cấp lane), xem lại trước R4.
 
 **Q-AIP-10 — Phụ thuộc Hub: chờ hay làm vòng.**
-(a) **Ra mắt bằng cách làm vòng** (§13.2); xin Hub bổ sung H-1…H-8 như cải tiến sau (H-7: tới khi có, bộ chọn model chỉ hiện model được phép, D-4). *(khuyến nghị)*
+(a) **Ra mắt bằng cách làm vòng** (§13.2); xin Hub bổ sung H-1…H-10 như cải tiến sau (H-7: tới khi có, bộ chọn model chỉ hiện model được phép, D-4; H-9, H-10 của billing: §16.3). *(khuyến nghị; đã chọn 22:00, áp cho H-1…H-8; H-9/H-10 thêm ở v0.5 theo cùng khuôn)*
 (b) Chờ Hub thêm H-1 (chủ thể trong lỗi 429), H-2 (lọc `external_id`), H-5 (nhãn trong webhook) rồi mới ra mắt.
 Lý do: mọi mục đều có cách làm vòng nhỏ, và chủ Hub đã nói phía UniWork không chặn v0.2.0.
+
+---
+
+#### Câu hỏi mới của billing (v0.5) — **chờ người dùng**
+
+Chỉ những điều người dùng phải chọn: giá/kích thước là quyết định của chủ sản phẩm và không suy ra được từ mã. Mọi con số tiền dưới đây là **tham số do chủ sản phẩm đặt**, spec không bịa số.
+
+**Q-AIP-11 — Credit AI mỗi kỳ của từng gói (và gói Starter miễn phí có credit không).** Hôm nay hạn mức AI của gói là token (`ai.tokens`: Starter 100.000, Team 2.000.000, Business 10.000.000 mỗi kỳ: `server/migrations/9991790921000000_billing_tiers_b1.up.sql:25-26,51,72`); sau cutover đơn vị là **US$ credit** (Q-AIP-2) và Hub không tự cấp credit theo plan (§16.3).
+(a) **Chủ sản phẩm đặt `ai.credit_micro` cho từng gói trong ma trận gói hiện có** (`/admin` → Gói, route đã có `PUT /admin/plans/{code}/features/{key}`, `handler/router/admin.go:59`) **trước R3**; **Starter có credit nhỏ khác 0 mỗi tháng** để AI không biến mất ở gói miễn phí. *(khuyến nghị)*
+(b) Như (a) nhưng Starter = 0 (AI chỉ cho gói trả phí hoặc có nạp thêm).
+(c) Suy credit từ giá VND bằng một công thức — **không**: cần tỉ giá, trái Q-AIP-2.
+Lý do: (a) dùng đúng bảng entitlement đã có, owner đổi số không cần deploy, và đổi theo từng tổ chức bằng `subscription.overrides` (đối tác/pilot); (b) làm tổ chức đang dùng AI ở Starter mất tính năng ngay ở R4 — nếu chọn (b), thêm ghi chú đối ngoại trước R4.
+
+**Q-AIP-12 — Gói nạp credit (top-up): có bán không, kích thước, hạn dùng.** Hôm nay không có hàng hóa nào ngoài gói đăng ký (§16.2).
+(a) **Bán 3 gói nạp cố định** (tên, giá VND, credit US$ do chủ sản phẩm chọn), gieo bằng migration; hạn dùng của credit nạp ở Q-AIP-17, thứ tự tiêu ở Q-AIP-18, điều kiện mua ở Q-AIP-19. *(khuyến nghị)*
+(b) Cho nhập số tiền tùy ý (cần mức tối thiểu/tối đa, làm tròn VND, hóa đơn lẻ — nhiều rủi ro sai số hơn).
+(c) Không bán nạp ở v1: chỉ credit theo kỳ; hub_admin/hỗ trợ cộng tay (§16.11).
+Lý do: (a) nhỏ nhất mà tổ chức hết credit giữa kỳ vẫn có đường tự cứu; hạn dùng và thứ tự trừ của phần đã nạp nằm ở Q-AIP-17/18 (Hub trừ grant hết hạn sớm nhất trước: `hub:internal/store/queries/ledger.sql:17-22`, `SPEC.md:223-224`).
+
+**Q-AIP-13 — Credit chưa dùng của kỳ có chuyển sang kỳ sau (rollover) không.**
+(a) **Không**: credit theo kỳ hết hạn cuối kỳ (cộng thời gian ân hạn 7 ngày của gói trả phí, §16.6.5); credit nạp thêm giữ nguyên. *(khuyến nghị)*
+(b) Có: cần thu hồi phần còn lại rồi cấp lại ở kỳ sau — Hub không cho gia hạn `expires_at` của grant cũ (grant bất biến, `hub:internal/admin/grants.go:27-36`), nên mỗi kỳ thêm hai lệnh Hub có thể lệch nhau.
+Lý do: (a) là mặc định của chính Hub (`hub:docs/SPEC.md:222` "mặc định không rollover") và không cần luồng đối soát phụ; ai muốn dư thì mua gói nạp.
+
+**Q-AIP-14 — Nâng gói giữa kỳ.** Hôm nay thanh toán nâng gói **mở kỳ mới từ lúc trả tiền** và không trừ tiền phần kỳ cũ còn lại (`billing_provider_event.go:188-189`).
+(a) **Giữ nguyên hành vi billing hiện có**: kỳ mới + credit kỳ mới đầy đủ; credit còn lại của kỳ cũ vẫn dùng tới hạn của nó (Hub trừ grant hết hạn sớm nhất trước); **không** chia tỉ lệ tiền VND. *(khuyến nghị)*
+(b) Chia tỉ lệ (trừ tiền kỳ cũ còn lại, cấp credit tương ứng) — cần đổi luật tính tiền của billing, ngoài epic này (§12).
+Lý do: (a) không thay luật thu tiền đang chạy và không bao giờ làm mất credit đã trả.
+
+**Q-AIP-15 — Hoàn tiền khi credit đã tiêu.** Hub chỉ thu hồi được **phần chưa tiêu** của grant, không bao giờ âm số dư (`hub:internal/ledger/ledger.go:101-134`).
+(a) **Thu hồi phần chưa tiêu, tối đa bằng tỉ lệ số tiền được hoàn; phần đã tiêu không thu hồi**; hộp thoại hoàn tiền ở `/admin` hiện "đã cấp / còn / đã dùng" để nhân viên **tự chọn số tiền hoàn** (hoàn một phần theo phần chưa dùng); không chặn cứng. *(khuyến nghị)*
+(b) **Chặn hoàn tiền** nếu đã dùng bất kỳ phần nào của đơn đó.
+(c) Cho Hub ghi nợ (đặt `credit_limit_micro` > 0 cho plan UniWork, `hub:docs/SPEC.md:316-317`) để thu hồi đủ — **không**: làm số dư âm và nuốt đơn nạp sau (`ledger.go:88-96`: grant kế tiếp trả nợ trước), rối cho khách.
+Lý do: (a) khớp đúng khả năng của Hub (`hub:docs/connect.md:670`: "phần đã tiêu không thu hồi; chuyện tiền với khách UniWork tự xử lý") và giữ quyền quyết cho nhân viên; (b) kẹt các ca hoàn tiền chính đáng (lỗi dịch vụ).
+
+**Q-AIP-16 — Ai được yêu cầu hoàn tiền.**
+(a) **Chỉ nhân viên nền tảng** như hôm nay (`POST /admin/invoices/{invoiceID}/refund`, `handler/router/admin.go:60`); owner chỉ xem kết quả. *(khuyến nghị)*
+(b) Owner tự yêu cầu hoàn tiền trong N ngày đầu — thêm route, luật chính sách và màn hình; ngoài epic này.
+Lý do: không đổi luật hoàn tiền đang chạy; (b) cần chủ sản phẩm quyết N và điều kiện.
+
+**Q-AIP-17 — Hạn dùng của credit nạp.** *(khuyến nghị = baseline của lead; thay cho "không hết hạn" ở bản nháp đầu của v0.5)*
+(a) **12 tháng kể từ lúc trả** (giờ Việt Nam), với `expires_at = max(trả + 12 tháng, hạn muộn nhất của mọi grant `plan_period` còn hiệu lực + 1 ngày)`. Vế `max` bảo đảm credit nạp luôn hết hạn **sau** credit kỳ kể cả khi một gói có kỳ dài (mã hỗ trợ `billing_period='year'`: `billing_provider_event.go:241-256`; hôm nay chỉ Team và Business, cả hai theo tháng: `9991790921000000_billing_tiers_b1.up.sql:5,9`). *(khuyến nghị)*
+(b) Không hết hạn (`expires_at` rỗng): đơn giản nhất, nhưng mỗi lần nạp là một khoản credit tồn vô thời hạn.
+(c) Hạn khác (3/6/24 tháng): chỉ đổi một hằng số.
+Lý do: (a) khớp baseline, Hub nhận `expires_at` tùy ý cho grant `order` (`hub:internal/admin/grants.go:27-36`) và job `ExpireGrants` đưa phần còn lại về 0 (`hub:internal/meter/meter.go:312-345`). **Hệ quả cần chấp nhận:** credit nạp hết hạn mà chưa dùng thì mất, không hoàn tiền (luật hoàn tiền không đổi, Q-AIP-16); màn hình ghi hạn ở h1 và g2.
+
+**Q-AIP-18 — Thứ tự tiêu credit.** *(baseline của lead)*
+(a) **Credit kỳ trước, credit nạp sau.** Không cần việc nào ở Hub: Hub trừ grant hết hạn sớm nhất trước (`hub:internal/store/queries/ledger.sql:17-22`), và Q-AIP-17 (a) làm credit nạp luôn hết hạn muộn hơn credit kỳ. *(khuyến nghị)*
+(b) Credit nạp trước: chỉ làm được nếu credit nạp hết hạn **sớm hơn** credit kỳ (Hub không có "ưu tiên theo loại": `priority` chỉ phá thế hòa khi cùng `expires_at`), mâu thuẫn với Q-AIP-17 (a).
+Lý do: (a) giữ phần khách đã trả thêm tới cuối cùng, và là hành vi mặc định của Hub.
+
+**Q-AIP-19 — Gói nạp có bán cho gói miễn phí không.** *(baseline của lead)*
+(a) **Chỉ bán khi tổ chức đang ở gói trả phí và đang `active`**: `planIsPaid(plan)` của gói hiện tại (đã có ở `billing.go:168`); tổ chức Starter thấy "Nâng cấp gói để nạp thêm" (h8), đã có credit nhỏ hằng tháng (Q-AIP-11); tổ chức `past_due` phải gia hạn trước. *(khuyến nghị)*
+(b) Bán cho mọi gói, kể cả Starter.
+Lý do: (a) không để gói nạp thay cho gói đăng ký và giữ giá trị của việc nâng cấp; chỉ là một điều kiện ở `AICreditService`/handler checkout, không thêm bảng.
+
+**Q-AIP-20 — Hạ gói lên lịch từ kỳ sau.** *(baseline của lead; **là khả năng billing mới**, không phải thứ AI cần thiết phải có)* Hôm nay hạ gói trả phí bị từ chối ở cả đổi gói lẫn checkout (`downgrade_not_allowed`: `billing.go:203-207`, `billing_checkout.go:71-75`); đường duy nhất là `Cancel` về gói miễn phí. Không có hạ từ Business xuống Team. Và vì không có tự gia hạn, khi hết kỳ mà gói còn là `past_due` thì owner **cũng không mua được gói rẻ hơn** (checkout vẫn từ chối).
+(a) **Cho hạ gói lên lịch**: thêm `subscriptions.scheduled_plan_id`; `PATCH /orgs/{orgID}/billing/plan` sang gói trả phí **rẻ hơn** ghi lịch thay vì trả `403`; quyền lợi và credit giữ nguyên tới `current_period_end` (cộng ân hạn như hôm nay); `Checkout` chỉ cho gói **đã lên lịch** và **chỉ khi kỳ đã hết** (mua sớm sẽ mất phần kỳ còn lại: luật không cộng dồn, `billing_provider_event.go:188-189`); owner hủy lịch được; credit kỳ mới tính theo gói mới lúc trả (§16.6.1). Vẫn không tự thu tiền. Thẻ riêng `AIP-BILL-15`. *(khuyến nghị)*
+(b) Giữ hôm nay: hạ gói bị từ chối, đường hạ là hủy cuối kỳ; board g4 vẽ theo phương án này.
+Lý do: (a) khớp baseline và sửa lỗ hổng nêu trên, nhưng chạm lõi billing đang chạy tiền thật (migration cột, hai luật mới ở `changePlan`/`Checkout`, lapse đọc lịch) nên tách thẻ, sau chuỗi `AIP-BILL-03…09`, không chặn R2b.
 
 ### 13.2 Phụ thuộc Hub (nếu Hub thiếu thứ UniWork cần, ghi ở đây, không bịa)
 
@@ -642,14 +720,18 @@ Lý do: mọi mục đều có cách làm vòng nhỏ, và chủ Hub đã nói p
 | H-6 | Không có "danh mục model của gói" cho form sửa | gọi `/v1/models` với `user=_catalog` | giá trị tổng hợp không khớp policy | endpoint danh mục theo account (guide theo plan, SPEC §23) |
 | H-7 | `GET /v1/models` chỉ trả model **được phép** (giao plan ∩ account ∩ policy), không trả model bị loại hay lý do (`hub:internal/surface/endpoints.go:412-431`); nhãn tổng hợp không đổi điều đó | bản vẽ b2/b3 cần hàng "ngoài gói" mờ kèm lý do (D-4) nhưng không có nguồn dữ liệu | **UniWork chỉ hiện model được phép** (không hàng mờ) cho tới khi H-7 có | Hub trả danh mục gói (model + mô tả lý do loại) hoặc danh sách model bị loại theo account/policy |
 | H-8 | Loại event webhook nằm ở header `X-Hub-Event`, **không được ký** (`hub:internal/webhook/sign.go:10-22`), và thân `credit.low`/`credit.depleted` có cùng trường | UniWork suy loại từ thân đã ký (`balance_micro + credit_limit_micro ≤ 0` ⇒ depleted) và đối chiếu header (§7) | đủ cho v1; lượt cắt cả hai ngưỡng cùng lúc bị xếp depleted, cả hai header credit hợp lệ được nhận và chỉ emit một lần (§7 bước 4) | ký luôn loại event: thêm `type` vào payload (hoặc đưa `X-Hub-Event` vào chuỗi ký) |
+| H-9 *(billing, §16.3)* | `PUT /admin/v1/accounts/{id}/plan` **không idempotent và không có khóa**: mỗi lần gọi **thêm một dòng** `account_plans`, plan hiện hành = dòng có `id` mới nhất (`hub:internal/admin/plans.go:485-489`, `hub:internal/store/db/accounts.sql.go:173-182,268-281`; test khẳng định "append-only", `hub:internal/admin/ac2_plan_app_db_test.go:56-61`); app **không đọc được** plan hiện hành (`GET …/plan` chỉ `hub_admin`, = H-4) | UniWork lưu `hub_plan_id_synced` và **chỉ PUT khi plan mong muốn ≠ đã đồng bộ**; mỗi lần PUT đọc trạng thái mong muốn lúc chạy (không lấy từ payload sự kiện) nên PUT chạy lại hay chạy trễ hội tụ về đúng plan; lịch sử Hub dài hơn là vô hại | PUT là no-op (200, không thêm dòng) khi plan đã là hiện hành, hoặc nhận `Idempotency-Key`/`If-Match`; kèm H-4 (app đọc plan của account đã link) |
+| H-10 *(billing, §16.3)* | Không có `GET /admin/v1/grants/{id}`; `GET /admin/v1/grants?account=` trả tối đa **200** grant mới nhất, **không phân trang** (`after` bị bỏ qua: `hub:internal/admin/grants.go:270`; `maxListLimit` = 200: `hub:internal/admin/accounts.go:18-19`); `revoke` > phần chưa tiêu bị `409` mà không cho biết còn bao nhiêu (`hub:internal/ledger/ledger.go:117-119`, `grants.go:111-127`) | UniWork lưu `hub_grant_id` từ response grant; để thu hồi: đọc `GET grants` (200 mới nhất) lấy `remaining_micro` rồi `revoke` min(mục tiêu, còn lại); bị `409` do chạy đua thì đọc lại và thử với **khóa mới** (§16.8); grant ngoài 200 mới nhất → đơn thu hồi `needs_support` | thêm `GET /admin/v1/grants/{id}` (app, chỉ grant của mình) và/hoặc `revoke` với `"mode":"unused"` (thu hồi tối đa phần chưa tiêu, trả số đã thu hồi) |
 
 ### 13.3 Điều *giả định* cần kiểm bằng test với Hub thật (đã đưa vào thẻ)
 
 (1) `user=_catalog` trả đúng **tập model gói cho phép** (H-6; không trả model bị loại, H-7) và `label_key=""` cho policy cấp tổ chức; (2) trạng thái dòng request của lượt `provider_unavailable` (id có tái dùng được không, §5.4); (3) `PUT` lặp cùng version và cùng body trả cùng `id` (đã thấy trong mã `policies.go:246-249`; kiểm thêm bằng e2e); (4) thứ tự chữ ký khi retry (đã thấy trong mã `deliver.go:361-374`).
 
+**Giả định của billing (§16) cần kiểm bằng test với Hub thật, đưa vào thẻ `AIP-BILL-01`/`-04`/`-07`:** (5) `POST /admin/v1/grants` gửi lại cùng khóa **sau khi** UniWork mất response trả `200` cùng `id` (đã thấy trong mã `ledger.go:62-73`, `grants.go:155-172`; kiểm bằng e2e có Hub thật); (6) hai `POST` song song cùng khóa chỉ tạo **một** grant (đã có test phía Hub `ac3_grants_db_test.go:13`; UniWork kiểm lại đầu-cuối); (7) `revoke` cùng khóa, cùng số, cùng lý do trả `200` y hệt, **khác lý do hoặc số** trả `409` (`grants.go:177-207`) — UniWork luôn gửi `reason` cố định theo bản ghi thu hồi; (8) grant hết hạn bị job Hub zero **trong vòng ~1 phút** sau `expires_at` (`hub:internal/meter/meter.go:312-345`, chu kỳ 1 phút) và số dư ví giảm theo — UniWork hiển thị ví qua cache 30 giây nên không hứa chính xác tới giây; (9) plan UniWork của Hub được hub_admin tạo với `credit_limit_micro = 0` (mặc định của `provision-uniwork.sh:164`; mặc định của chính Hub cho channel nội bộ là 5% giá gói: `hub:docs/SPEC.md:316-317`) — nếu khác 0, số dư có thể âm và đơn nạp kế tiếp bị trừ nợ trước (`ledger.go:88-96`); R1 kiểm giá trị này.
+
 ### 13.4 Câu hỏi design D-1…D-7 (từ `reports/ai-plan-uw/design/index.html`)
 
-Mười câu Q-AIP ở trên là quyết định về **hành vi và phạm vi**; bảy câu D-n là quyết định về **bản vẽ** mà index đã liệt kê. Cả bảy đều cần người dùng chọn (không câu nào tự quyết được từ mã), trừ ghi chú ở D-3. Khuyến nghị theo index; bản vẽ hiện vẽ theo khuyến nghị trừ khi ghi khác.
+Mười câu Q-AIP ở trên là quyết định về **hành vi và phạm vi**; bảy câu D-n là quyết định về **bản vẽ** mà index đã liệt kê. **Cả bảy đã được người dùng chọn theo khuyến nghị (2026-10-18 22:00)**; bảng giữ nguyên để lưu vết. Khuyến nghị theo index; bản vẽ vẽ theo khuyến nghị trừ khi ghi khác.
 
 | # | Câu hỏi | Khuyến nghị (index) | Ai quyết | Ghi chú đối chiếu spec |
 |---|---|---|---|---|
@@ -686,15 +768,32 @@ Kích thước S ≤ nửa ngày, M ≈ 1–2 ngày, L ≈ 3–5 ngày. Cột "H
 | **AIP-14** | E2E Playwright + Hub giả: admin đặt hạn mức → người dùng bị chặn với đúng chủ thể; cảnh báo 80% tới đúng người; hai admin xung đột; Hub sập | `e2e/ai-plan.spec.ts` | M | AIP-12, 13 | v0.2.0 thật ở bước R2 |
 | **AIP-15** | Hoàn tất cutover: ẩn hàng `ai.tokens` ở Billing cho tổ chức đã bật; `usage_reconcile.go` chỉ còn phục vụ tổ chức chưa bật; chốt đường cũ. **Không** đụng `service/ai_quota.go` và ghi `cost_micros` (của `AIP-04`) | `ai/usage_reconcile.go`, `packages/views/settings/components/{billing-tab,quota-meter}.tsx` | M | AIP-04 | — |
 | **AIP-F** | (ngoài worktree) map mã lỗi mới trong frame genoffice | repo office | S | AIP-04 | — |
-| **AIP-BILL** | (epic riêng, Q-AIP-1) grant khi thanh toán, revoke khi hoàn tiền, đặt plan | `service/billing_*.go` | L | AIP-03 | grants/plan |
+| **AIP-BILL-00** | ADR "Thanh toán AI: đơn thanh toán là nguồn duy nhất của credit; grant khóa theo id đơn; hoàn tiền → thu hồi phần chưa tiêu; Hub không thu tiền" (quy tắc mới phải có ADR trước, `docs/adr/README.md`, `scripts/governance.test.mjs`); chốt §16.1 | `docs/adr/0036-*.md` | S | AIP-00; Q-AIP-11, 13, 14, 15, 17, 18 | — |
+| **AIP-BILL-01** | Mở rộng client Hub `server/internal/aihub`: `Grant` (idempotent theo khóa), `ListGrants`, `Revoke`, `PutAccountPlan`; kiểu lỗi `409 idempotency_mismatch` / `409 revoke_exceeds_unused`; **Hub giả có sổ grant** (khóa lặp → `200` cùng id; khác thân → `409`; `remaining_micro`; revoke ≤ chưa tiêu; plan append-only; hết hạn); mở rộng `TestAIHubClientAlwaysScopesToLinkedAccount` cho `Grant/Revoke/PutAccountPlan` (§16.10) | `server/internal/aihub/**`, `server/internal/arch_test.go` | M | AIP-01 | C9: grants, revoke, plan (§16.3) |
+| **AIP-BILL-02** | **Dữ liệu + từ vựng (đi trước mọi thẻ dùng chúng)**: migration `ai_credit_orders`, `ai_credit_reversals`, `ai_credit_packs`, cột mới của `billing_payment_intents`/`invoices`/`ai_hub_accounts`, feature `ai.credit_micro` (§16.5); sqlc + `-- tenant:`; cờ `ai_billing_sync` (+ `ReviewAt`); bảy topic ở §16.9 vào catalogue (hai topic có khán giả vào đủ ba nơi, năm topic hạ tầng chỉ hai nơi, như §6.1); hằng audit; `tenantExemptTables` thêm `ai_credit_packs`; **cùng thẻ** gieo dòng của tổ chức A cho hai bảng tenant mới trong `isolation_world_test.go` (như BE-19) | `server/migrations/999*_ai_credit_*`, `server/pkg/db/queries/ai_credit.sql`, `featureflags/keys.go`, `docs/events/CATALOGUE.md`, `outbox/catalogue.go`, `packages/core/types/events.ts`, `audit/actions.go`, `migrations/lint_test.go`, `handler/isolation_world_test.go`, `.env.example` | M | AIP-02, 09, 10; BILL-00 | — |
+| **AIP-BILL-03** | **Đơn credit từ thanh toán gói**: `AICreditService.createOrderTx(ctx, q, in)` gọi **trong cùng transaction** với `applyProviderEvent` (`billing_provider_event.go:205-238`) khi `ai_hub_routing && ai_billing_sync`; chụp `amount_micro`/`expires_at`/`source_ref` vào đơn (không tính lại khi thử lại); audit `ai.credit.ordered` + outbox `ai_credit.sync_requested` cùng tx; ràng buộc duy nhất `payment_intent_id` và `(subscription_id, period_start)`; test `audit_coverage` chạy `ApplyProviderEvent` thật | `server/internal/service/ai_credit.go`, `billing_provider_event.go`, `audit_coverage_test.go` | L | BILL-02 | — |
+| **AIP-BILL-04** | **Đẩy grant sang Hub + đối soát**: `AICreditSyncConsumer` (LaneSlow, khuôn `HubPolicySyncConsumer`); trạng thái đơn `pending → granted \| failed`; thử lại không bao giờ trùng (khóa `uw-ord-<order_id>`, thân bất biến, claim có lease); `ProcessAICreditReconcile` gắn vào `BillingService.RunWorkers` (khuôn `ProcessStalePaymentIntentReconcile`, `billing_intent_reconcile.go:17-52`); `ai.credit.granted`/`ai.credit.grant_failed` + `ai_credit.granted`; metric, cảnh báo `AICreditOrderStuck`, runbook 4 mục; xóa cache ví của tổ chức (§5.5) | `server/internal/service/ai_credit_sync.go`, `ai_credit_reconcile.go`, `server/cmd/server/main.go`, `deploy/alerts.yml`, `docs/runbooks/` | L | BILL-01, 03; AIP-03 | grants (C9) |
+| **AIP-BILL-05** | **Grant theo kỳ cho gói miễn phí/thủ công/bù** (`EnsurePeriodGrants`, §16.6.3) và **đặt plan Hub ngay khi liên kết** (mở rộng `EnsureAccount` của `AIP-03`, §16.4): bảo đảm mỗi tổ chức đi Hub có đúng một đơn `plan_period` cho mỗi `(subscription, kỳ)`; kỳ gói trả phí hết thì không cấp thêm | `server/internal/service/ai_credit_period.go`, `ai_hub_account.go` | M | BILL-04 | PUT plan, grants |
+| **AIP-BILL-06** | **Bán gói nạp (top-up)**: `POST /orgs/{orgID}/billing/ai-credit/checkout` (SDI/SDO, `decode()`), intent loại `ai_credit_pack` dùng lại hạ tầng VNPay; `ExpirePendingBillingPaymentIntents` chỉ hết hạn cùng loại; chỉ bán khi gói hiện tại trả phí và `active` (Q-AIP-19; mã `ai_credit_pack_requires_paid_plan`); nhánh gói nạp trong `applyProviderEvent` (hóa đơn `kind='ai_credit_pack'`, đơn `topup` hết hạn sau 12 tháng theo Q-AIP-17); **chặn** `revertSubscriptionAfterFullInvoiceRefund` cho hóa đơn không phải đăng ký (`billing_subscription_refund.go:17`); `isoRoutes` + thân; test IPN lặp không tạo hai đơn | `service/billing_checkout.go`, `billing_provider_event.go`, `billing_subscription_refund.go`, `handler/billing_ai_credit.go`, `router/billing.go`, `dto/{sdi,sdo}/billing.go`, `pkg/db/queries/billing.sql`, `arch_test.go` (regex query billing, `:212`; §16.10), `handler/isolation_routes_test.go` | M | BILL-03 | — |
+| **AIP-BILL-07** | **Hoàn tiền → thu hồi credit**: tạo `ai_credit_reversals` **trong cùng tx** với ba chỗ hoàn tiền thành công (`admin_billing_refund.go:104`, `:163`, `billing_refund_reconcile.go:96`); consumer thu hồi theo §16.8 (đọc `remaining_micro`, khóa thu hồi cố định cho lần gọi, `409` do chạy đua → khóa mới); trạng thái `needs_support`; số liệu "đã cấp/còn/đã dùng" cho hộp thoại hoàn tiền | `service/admin_billing_refund*.go`, `billing_refund_reconcile.go`, `ai_credit_reversal.go`, `ai_credit_sync.go` | L | BILL-04, 06 | revoke, list grants (H-10) |
+| **AIP-BILL-08** | **Console `/admin`**: `GET`/`POST /admin/organizations/{orgID}/ai-credit` (đọc: `support`; ghi: `admin`, `reason ≥ 10`, `admin_actions` + `audit_events` cùng tx, khóa `client_ref` chống bấm đúp); thêm tệp vào danh sách cho phép của `TestAdminQueriesStayInAdminService` (`arch_test.go:325`); `isoRoutes` `isoPlatform` | `service/admin_ai_credit.go`, `handler/admin_ai_credit.go`, `router/admin.go`, `arch_test.go`, `handler/isolation_routes_test.go` | M | BILL-03 | — |
+| **AIP-BILL-09** | **API đọc billing credit + core**: `GET /orgs/{orgID}/billing/ai-credit` (`available`, ví C2 cache 30 giây, gói nạp, đơn gần đây, giao dịch nạp đang chờ); `packages/core` endpoint + schema khoan dung + ca malformed (`billing.test.ts`), khóa truy vấn, hook `useAiCredit(orgId)`, `useAiCreditReturn`, làm mới realtime cho `ai_credit.granted/reversed`, quy tắc quyền | `service/ai_credit_read.go`, `handler/billing_ai_credit.go`, `packages/core/api/endpoints/billing.ts(+test)`, `packages/core/billing/`, `core/realtime/use-realtime-sync.ts` | M | BILL-02; AIP-07, 11 | C2 |
+| **AIP-BILL-10** | **Thông báo + thư billing** (§16.9): kind `billing_credit_added`, `billing_renewed`, `billing_payment_failed`, `billing_refunded` (chỉ owner tổ chức, cấp tổ chức `workspace_id` NULL, Hộp việc + thư giao dịch, loại khỏi digest); **phát** ba topic `invoice.paid`, `payment_intent.failed`, `invoice.refunded` (catalogue đã ở BILL-02) tại `applyProviderEvent` và ba chỗ hoàn tiền, cùng tx; quy tắc + tiêu đề; 4 mẫu thư × vi/en × html/txt; nhóm "Thanh toán" của ma trận (board j6) | `server/internal/notification/{kinds,rules,titles,prefs,digest,service}.go`, `server/internal/mail/templates/billing_*`, `service/billing_provider_event.go`, `service/admin_billing_refund.go`, `service/billing_refund_reconcile.go`, `packages/views/settings/components/notifications-matrix.tsx` | M | BILL-04, 07; AIP-08 | — |
+| **AIP-BILL-11** | **Màn hình owner**: tab Billing có credit (g), chọn gói nạp + trở về VNPay (h), trạng thái hoàn tiền/thu hồi (i); i18n vi/en; test view; **`docs/conventions.md`** › glossary thêm `gói nạp`, `credit AI`, `thu hồi credit` | `packages/views/settings/components/{billing-tab,plan-cards,billing-ai-credit,ai-credit-history,ai-credit-pack-sheet,invoices-panel}.tsx`, `packages/core/i18n/locales/*.json`, `docs/conventions.md` | L | BILL-06, 09; board g, h, i | — |
+| **AIP-BILL-12** | **Màn hình phụ**: hộp thoại cộng credit tay + khối "Credit AI" ở `/admin`, dòng credit trong hộp thoại hoàn tiền, thông báo (board j) | `packages/views/admin/admin-ai-credit-*.tsx`, `invoice-refund-dialogs.tsx`, `packages/core/api/endpoints/admin.ts(+test)`, `packages/views/notifications*` | M | BILL-08, 10; board j | — |
+| **AIP-BILL-13** | **E2E + Hub giả**: mua gói VNPay giả → đúng một grant; gửi IPN hai lần → một grant; Hub sập lúc IPN → đơn `pending` rồi `granted` sau khi Hub lên; hoàn tiền một phần → thu hồi phần chưa dùng; hoàn tiền khi đã tiêu hết → không gọi Hub, đơn thu hồi `nothing_to_reverse` | `e2e/ai-credit.spec.ts` | M | BILL-11, 12 | Hub thật ở R2b |
+| **AIP-BILL-14** | *(sau, chỉ khi chủ sản phẩm yêu cầu khác biệt model/đồng thời theo hạng)* **Hub plan riêng theo gói UniWork**: bảng ánh xạ, consumer `ai_plan.sync_requested`, đồng bộ theo trạng thái mong muốn (H-9), kiểm theo thời gian khi hết ân hạn `past_due` | `server/internal/service/ai_plan_sync.go`, `billing.go` (`recordChange`) | M | BILL-05 | PUT plan, H-9 |
+| **AIP-BILL-15** | *(sau, chỉ khi Q-AIP-20 = (a))* **Hạ gói lên lịch từ kỳ sau**: migration `subscriptions.scheduled_plan_id` (cột có mặc định, không khóa bảng dài), `changePlan` ghi lịch thay vì `downgrade_not_allowed` cho gói trả phí rẻ hơn, `Checkout` chỉ cho gói đã lên lịch và chỉ khi kỳ đã hết, hủy lịch, lapse đọc lịch; board g4 đổi sang "Hạ xuống X từ dd/mm"; audit + `subscription.changed` cùng tx; test hạ → trả sau hết kỳ → credit của gói thấp hơn | `server/migrations/999*_subscription_scheduled_plan.*`, `service/billing.go`, `service/billing_checkout.go`, `service/billing_lapse.go`, `pkg/db/queries/billing.sql`, `packages/views/settings/components/{billing-tab,plan-cards}.tsx` | M | BILL-03, 11; Q-AIP-20 | — |
 
-**Thứ tự:** `AIP-00` → (`AIP-01` ∥ `AIP-02` ∥ `AIP-09` ∥ `AIP-10`) → `AIP-03` → (`AIP-05` ∥ `AIP-04`) → (`AIP-06` ∥ `AIP-07` ∥ `AIP-08`) → `AIP-11` → (`AIP-12` ∥ `AIP-13`) → `AIP-14` → `AIP-15`; `AIP-BILL` song song từ sau `AIP-03`, trước R4.
+**Thứ tự:** `AIP-00` → (`AIP-01` ∥ `AIP-02` ∥ `AIP-09` ∥ `AIP-10`) → `AIP-03` → (`AIP-05` ∥ `AIP-04`) → (`AIP-06` ∥ `AIP-07` ∥ `AIP-08`) → `AIP-11` → (`AIP-12` ∥ `AIP-13`) → `AIP-14` → `AIP-15`. **Billing** (`AIP-BILL-*`, Q-AIP-1 = (c)) đi song song sau nền: `AIP-BILL-00` → (`AIP-BILL-01` ∥ `AIP-BILL-02`) → `AIP-BILL-03` → (`AIP-BILL-04` ∥ `AIP-BILL-06`) → (`AIP-BILL-05` ∥ `AIP-BILL-07` ∥ `AIP-BILL-08` ∥ `AIP-BILL-09`) → `AIP-BILL-10` → (`AIP-BILL-11` ∥ `AIP-BILL-12`) → `AIP-BILL-13`; điểm vào: `AIP-BILL-01` cần `AIP-01`, `AIP-BILL-02` cần `AIP-02/09/10`, `AIP-BILL-04` cần `AIP-03`, `AIP-BILL-09` cần `AIP-07/11`, `AIP-BILL-10` cần `AIP-08` và `AIP-BILL-07` (phát `invoice.refunded` ở ba chỗ hoàn tiền). Cả chuỗi `00…13` phải xong trước **R2b/R4** (§10); `AIP-BILL-14` (Hub plan theo gói) và `AIP-BILL-15` (hạ gói lên lịch, Q-AIP-20) là **sau** và không chặn R4.
 
-**Rủi ro chính:** (1) `AIP-04` chạm lõi Gateway và mọi capability — chia nhỏ theo capability, giữ đường cũ bằng cờ tổ chức; (2) frame genoffice ở fork hiển thị lỗi theo `code`, không sửa được từ worktree này (`AIP-F`); (3) id yêu cầu thử lại — kiểm giả định (2) (429 của Hub được thử lại theo backoff outbox, không theo `Retry-After`); (3b) H-7 chưa có thì D-4 "hiện mờ" chưa làm được, dùng phương án dự phòng chỉ-model-được-phép; (4) lệch múi giờ giữa nhóm `day` của usage (UTC) và kỳ policy (UTC+7) — chỉ dùng `spent_micro` cho thước hạn mức (C5); (5) Hub chưa tag v0.2.0 — mọi thẻ code kiểm lại hợp đồng ở §4 khi có tag.
+**Rủi ro chính:** (1) `AIP-04` chạm lõi Gateway và mọi capability — chia nhỏ theo capability, giữ đường cũ bằng cờ tổ chức; (2) frame genoffice ở fork hiển thị lỗi theo `code`, không sửa được từ worktree này (`AIP-F`); (3) id yêu cầu thử lại — kiểm giả định (2) (429 của Hub được thử lại theo backoff outbox, không theo `Retry-After`); (3b) H-7 chưa có thì D-4 "hiện mờ" chưa làm được, dùng phương án dự phòng chỉ-model-được-phép; (4) lệch múi giờ giữa nhóm `day` của usage (UTC) và kỳ policy (UTC+7) — chỉ dùng `spent_micro` cho thước hạn mức (C5); (5) Hub chưa tag v0.2.0 — mọi thẻ code kiểm lại hợp đồng ở §4 và §16.3 khi có tag; (6) **billing là đường tiền thật**: lỗi trùng grant là mất tiền, lỗi thiếu grant là khách trả mà không có credit — `AIP-BILL-03/04` có test chạy lại/đua cho mọi đường (§16.7) và R2b chỉ qua khi không đơn kẹt; (7) `AIP-BILL-06` đổi `billing_payment_intents.plan_id` thành nullable và thêm `invoices.kind` trên bảng đang chạy thanh toán thật — migration thêm cột có mặc định, không khóa bảng dài, và mọi đường đọc `invoices` hiện có (`billing_subscription_refund.go:17`) phải xử lý loại mới trước khi bán gói nạp (§16.5); (8) H-9/H-10 chưa có ở Hub: cách làm vòng ở §13.2 đủ cho v1 nhưng thu hồi grant ngoài 200 grant mới nhất phải qua hỗ trợ. (9) baseline của lead kéo billing nói chung vào epic: ba topic `invoice.paid`/`payment_intent.failed`/`invoice.refunded`, bốn mẫu thư billing (hôm nay chưa có) ở `AIP-BILL-10`, và hạ gói lên lịch (Q-AIP-20) sửa luật `changePlan`/`Checkout` đang chạy tiền thật nên tách `AIP-BILL-15`, không chặn R4; nếu người dùng chọn (b) ở Q-AIP-20, board g4 giữ như hôm nay.
 
 ---
 
 ## 15. Bảng truy vết AC-1
+
+### 15.1 Quản lý hạn mức (vòng 1)
 
 Mỗi mục "Phía UniWork" 1–7 của `hub:docs/plans/2026-10-17-p2-plan.md:198-211` → mục của spec → thẻ.
 
@@ -707,3 +806,371 @@ Mỗi mục "Phía UniWork" 1–7 của `hub:docs/plans/2026-10-17-p2-plan.md:19
 | 5 | Xử lý 429 `policy_exceeded` ("hết hạn mức của workspace/user", không thử lại) khác `concurrency_limit` | §8.1 (bảng lỗi, suy ra chủ thể, thử lại có giới hạn), §5.4 (id), §8.3 (client), §11 (d) | AIP-04, 13 |
 | 6 | Dùng rerank/image edits nếu UniWork cần (chưa có yêu cầu) | §12 (ngoài phạm vi, không có yêu cầu) | — (không thẻ; Hub item 6 ghi "chưa có yêu cầu") |
 | 7 | Kiểm tiêu chí UniWork của §22 P2: org admin chia hạn mức trên UniWork, bị chặn đúng | §10 (R2), §14 `AIP-14` | AIP-14 (e2e + Hub thật ở R2) |
+
+
+### 15.2 Thanh toán AI (vòng 2, billing)
+
+Mỗi luồng billing → mục của spec → thẻ → ý tưởng test (test viết trước khi code, chạy hẹp khi làm, cả bộ ở MR; Hub giả là `aihub` có sổ grant ở `AIP-BILL-01`).
+
+| # | Luồng | Mục spec | Thẻ | Ý tưởng test |
+|---|---|---|---|---|
+| 1 | Mua gói trả phí qua VNPay (IPN thành công) | §16.6.1, §16.5, §16.7 | AIP-BILL-03, 04 | chạy `ApplyProviderEvent` thật: đúng một `ai_credit_orders` (`plan_period`), consumer gọi Hub giả đúng một lần, ví tăng đúng `ai.credit_micro` |
+| 2 | Mua gói nạp (top-up) | §16.6.2, §16.5, §16.10 | AIP-BILL-06, 04 | checkout loại `ai_credit_pack` → IPN → hóa đơn `kind='ai_credit_pack'` + đơn `topup` + grant hết hạn sau 12 tháng (Q-AIP-17); gói Starter bị từ chối `ai_credit_pack_requires_paid_plan` (Q-AIP-19); gói đăng ký của tổ chức không đổi |
+| 3 | Gia hạn kỳ (owner trả lại, không có tự gia hạn) | §16.6.1, §16.6.5 | AIP-BILL-03 | hai thanh toán hai kỳ → hai đơn, hai grant khác khóa; **IPN lặp** → không thêm đơn (`errIntentAlreadyCompleted`, `billing_provider_event.go:156-161`) |
+| 3b | Gói miễn phí/thủ công hàng tháng, kỳ trả phí chưa có đơn (cờ bật muộn) | §16.6.3 | AIP-BILL-05 | `EnsurePeriodGrants` chạy hai lần cùng kỳ → một đơn (`ON CONFLICT DO NOTHING` trên `(subscription_id, period_start)`); đổi tháng → đơn mới |
+| 4 | Nâng gói giữa kỳ | §16.6.4 | AIP-BILL-03, 13 | Team → Business: kỳ mới + đơn mới đầy đủ; grant kỳ cũ còn dùng được tới hạn của nó (Hub giả trừ hết hạn sớm nhất trước) |
+| 5 | Hạ gói / hủy cuối kỳ | §16.6.4, §16.6.5, Q-AIP-20 | AIP-BILL-05; AIP-BILL-15 nếu Q-AIP-20 (a) | hạ gói giữa kỳ không tạo đơn (hôm nay bị từ chối: `billing.go:203-207`; theo Q-AIP-20 (a): lịch được ghi, entitlement và credit không đổi, kỳ mới sau khi trả cấp credit của gói thấp hơn); `cancel_at` → lapse → gói mặc định → đơn tháng miễn phí; credit trả phí hết hạn đúng `expires_at` |
+| 6 | Reset kỳ, không rollover | §16.6.5 | AIP-BILL-05; kiểm giả định (8) ở R2b | Hub giả hết hạn grant → ví giảm; credit nạp giữ tới hạn 12 tháng và được tiêu **sau** credit kỳ (Q-AIP-18); Hub thật ở R2b |
+| 7 | Thanh toán OK nhưng Hub sập / grant lỗi | §16.7 | AIP-BILL-04, 13 | Hub giả trả 5xx/timeout → đơn `pending`, IPN vẫn thành công; Hub lên → reconcile → `granted`, một grant; test nhìn số đơn kẹt > 15 phút kích `AICreditOrderStuck` |
+| 8 | Hub trả 409 / 403 / 400 / 404 | §16.7, §13.2 H-9/H-10 | AIP-BILL-01, 04 | 409 `idempotency_mismatch` → `failed` loại `conflict`, không thử lại; 403/400 → `failed` loại `config`, thử lại chậm; 404 → `EnsureAccount` rồi thử lại |
+| 9 | Hai worker / hai node đua một đơn; mất response sau khi Hub đã tạo | §16.7 | AIP-BILL-04 | hai consumer song song → claim lease chỉ cho một; response bị rớt → lần sau cùng khóa trả `200` cùng `id` (giả định (5), (6)) |
+| 10 | Hoàn toàn bộ hóa đơn gói / gói nạp, credit chưa dùng | §16.8 | AIP-BILL-07 | cả ba chỗ hoàn thành công (`admin_billing_refund.go:104`, `:163`, `billing_refund_reconcile.go:96`) tạo đúng một `ai_credit_reversals`; Hub giả bị `revoke` đúng phần chưa tiêu |
+| 11 | Hoàn một phần | §16.8 | AIP-BILL-07 | hoàn 30% → mục tiêu = 30% credit đơn, `min(mục tiêu, còn lại)`; hoàn thêm lần hai → chỉ phần chênh (khóa theo `refunded_minor` tích lũy) |
+| 12 | Hoàn khi credit đã tiêu hết | §16.8 | AIP-BILL-07, 13 | `remaining = 0` → trạng thái `nothing_to_reverse`, **không gọi Hub**; không bao giờ ví âm |
+| 13 | Hoàn khi grant chưa tạo xong / Hub sập / grant ngoài 200 mới nhất | §16.8, H-10 | AIP-BILL-07 | đơn `pending` → thu hồi chờ (`waiting_grant`); grant không có trong 200 mới nhất → `needs_support`; revoke `409` do đua → khóa mới, số mới |
+| 14 | Hoàn hóa đơn **gói nạp** không đưa tổ chức về Starter | §16.5, §16.8 | AIP-BILL-06 | `revertSubscriptionAfterFullInvoiceRefund` thoát sớm với hóa đơn không phải đăng ký (`billing_subscription_refund.go:17`) |
+| 15 | Cộng credit tay (hỗ trợ) | §16.11 | AIP-BILL-08, 12 | `support` bị 403 ghi, `admin` cần `reason ≥ 10`; bấm đúp cùng `client_ref` → một đơn; `admin_actions` + `audit_events` cùng tx |
+| 16 | Cờ tắt giữa chừng / chưa bật | §16.12, §10 | AIP-BILL-02, 04, 09 | `ai_billing_sync` tắt: không đơn mới, đơn đã có vẫn được đẩy; `available=false` ở API đọc; tab Billing như hôm nay (g7) |
+| 17 | Cô lập tenant | §16.10 | AIP-BILL-06, 08, 09 | `isoRoutes` cho bốn route mới; hàng A của `ai_credit_orders`/`ai_credit_reversals` hash không đổi khi B tấn công; `TestIsolationRealtime` cho hai topic cấp tổ chức |
+| 18 | Thông báo + thư: `billing_credit_added`, `billing_renewed`, `billing_payment_failed`, `billing_refunded` | §16.9 | AIP-BILL-10, 12 | chỉ owner tổ chức nhận (admin và thành viên thì không); dòng không có workspace hiện ở mọi workspace của owner (FE-36); Hộp việc + thư giao dịch, không vào digest; IPN thất bại → đúng một `billing_payment_failed`; hoàn tiền → `billing_refunded` không nêu số US$ |
+| 18b | Điều kiện bán gói nạp và hạn dùng | §16.6.2, Q-AIP-17, 19 | AIP-BILL-06 | tổ chức Starter / `past_due` bị `ai_credit_pack_requires_paid_plan`; đơn `topup` có `expires_at` = trả + 12 tháng, luôn muộn hơn grant `plan_period` còn hiệu lực |
+| 19 | Màn hình g, h, i, j | §11, §16.10 | AIP-BILL-11, 12, 13 | e2e: g2/g5/g8, h3–h6, i1–i4, j3–j5 trên Hub giả |
+
+---
+
+## 16. Thanh toán AI
+
+> Từ v0.5 (Q-AIP-1 = (c)). Mọi dòng "đã kiểm" có `file:dòng` ở UniWork (không tiền tố) hoặc `hub:file:dòng` ở Hub (đọc working tree 2026-10-18); "giả định" nằm ở §16.13 và §13.3 (5)–(9). Không có host, IP, khóa nào trong mục này; credential app của Hub đi qua `AI_HUB_*` (§5, `AIP-01`, `.env.example`).
+
+### 16.1 Nguyên tắc
+
+1. **Khách chỉ trả tiền trong UniWork** (checkout VNPay hiện có). Hub không thu tiền, không có màn Hub/Console nào cho khách; UniWork biến *đơn đã thanh toán* thành lệnh gọi Hub (người dùng chốt 2026-10-18 22:06).
+2. **Đơn credit (`ai_credit_orders`) là nguồn duy nhất của mọi grant do billing tạo.** Đơn được ghi **cùng transaction** với sự kiện gây ra nó (IPN đã thanh toán, thao tác hỗ trợ, sweep kỳ) kèm audit + outbox (ADR 0009); việc gọi Hub chạy sau, ở lane chậm. Không có lệnh gọi Hub nào nằm trong request của người dùng hay trong transaction thanh toán.
+3. **Thanh toán không phụ thuộc Hub.** IPN vẫn thành công, hóa đơn vẫn xuất khi Hub sập; credit đến sau (§16.7). Thanh toán không bao giờ bị từ chối vì Hub.
+4. **Không bao giờ cấp trùng.** Ba lớp: ràng buộc duy nhất ở DB (một đơn cho mỗi thanh toán / mỗi kỳ), khóa idempotency của Hub (`uw-ord-<order_id>`, thân bất biến chụp lúc tạo đơn), và claim có lease + ghi trạng thái có điều kiện.
+5. **Không thu hồi dưới 0.** Hoàn tiền chỉ thu hồi **phần chưa tiêu** của grant (Hub không cho thu hồi hơn thế: `hub:internal/ledger/ledger.go:101-134`); phần đã tiêu không đòi lại (Q-AIP-15).
+6. **VND và US$ là hai con số độc lập.** Giá niêm yết và hóa đơn là VND; credit là US$ (1 credit = US$1, Hub không có tỉ giá: `hub:docs/SPEC.md:211-215`). Không quy đổi ở bất kỳ đâu (Q-AIP-2, §16.6.6).
+7. **BYOK không tạo đơn, không cấp credit.** Khóa riêng đi ngoài Hub (§5.7); billing không biết đến chúng.
+8. **Cờ chỉ ẩn, không bỏ rơi tiền đã nhận.** Tắt `ai_billing_sync` ngừng *tạo* đơn mới; đơn và thu hồi đã ghi vẫn được đẩy tiếp (§16.12).
+9. **Agent không mua, không hoàn, không cộng credit** (ADR 0010, 0007): mọi lệnh ở §16 là người (`service.Human`) hoặc hệ thống (`audit.System`).
+
+### 16.2 Billing của UniWork hôm nay (đã kiểm)
+
+| Chủ đề | Hiện trạng | Nguồn |
+|---|---|---|
+| Catalog | `plans` (mã, giá VND `price_amount`, chu kỳ `billing_period` month/year, `is_active`), `features`, `plan_features` (giá trị theo gói); `ai.tokens` là meter hôm nay (Starter 100.000, Team 2.000.000, Business 10.000.000/kỳ); ghi đè theo tổ chức bằng `subscriptions.overrides` | `server/migrations/069_billing_catalog.up.sql:4,19,29`; `9991790921000000_billing_tiers_b1.up.sql:25-26,51,72`; `entitlement.go:545` (`Snapshot`) |
+| Thanh toán | Một lần mỗi đơn (không có thẻ lưu sẵn, không tự gia hạn): `Checkout` chỉ owner, tạo `billing_payment_intents`, gọi `provider.CreateCheckout` (VNPay) | `billing_checkout.go:33-60`, `:120-143`; `billing.go:112` (`requireOwner`); `migrations/9991790920000000_billing_payment_intents.up.sql:3` |
+| IPN → trạng thái | webhook vào `webhook_inbox`, worker `ProcessBillingWebhookInbox` mỗi giây → `ApplyProviderEvent` → `applyProviderEvent`: khóa intent bằng `MarkBillingPaymentIntentCompleted`, `ApplyPaidSubscriptionFromProvider` (kỳ **mới tính từ lúc trả**, không cộng dồn thời gian còn lại), `InsertInvoice`, `recordChange`, **một transaction** | `billing_webhook.go:19-79`; `billing_provider_event.go:113-239` (`:188-189` kỳ, `:199-204` khóa intent, `:205-211` subscription, `:225-232` invoice, `:236-238` audit) |
+| Lặp IPN | intent đã `completed` → `errIntentAlreadyCompleted` → commit rỗng; lệch số tiền/tiền tệ → intent `failed`, không áp | `billing_provider_event.go:156-161`, `:167-178` |
+| Hết kỳ | không có tự gia hạn: quét hủy-lapse (`cancel_at` → gói mặc định) và `past_due` (hết kỳ → `past_due`, owner trả lại); `past_due` vẫn dùng được 7 ngày | `billing_lapse.go:21-34`, `:58-80`, `:121`; `entitlement.go:52-54`, `:125` |
+| Kỳ của meter | `meterPeriodStart`: đầu kỳ đã trả nếu có, không thì tháng dương lịch giờ Việt Nam | `entitlement.go:239-246` |
+| Đổi gói | owner chỉ đổi thẳng sang gói **không có giá** (gói có giá phải qua checkout: `checkout_required`); từ gói trả phí xuống gói rẻ hơn, kể cả gói miễn phí, bị từ chối (`downgrade_not_allowed`), ở cả `Checkout`; đường hạ là `Cancel` (hủy cuối kỳ). Đổi tay/miễn phí gọi `ChangeSubscriptionPlan`: `current_period_start = now()`, **`current_period_end = NULL`** (kỳ meter quay về tháng dương lịch) | `billing.go:143-155`, `:168-171`, `:203-207`, `:286-300`; `billing_checkout.go:71-75`; `billing.sql:83-97` |
+| Hoàn tiền | chỉ nhân viên nền tảng: `POST /admin/invoices/{invoiceID}/refund`; VNPay hoàn qua API rồi `refund_pending`/`partial_refund_pending` chờ xác nhận, **một lần hoàn mỗi hóa đơn**; thủ công chỉ hoàn toàn bộ; hoàn toàn bộ đưa tổ chức về gói mặc định nếu hóa đơn là của kỳ hiện tại | `admin_billing_refund.go:17-60`, `:67-112`, `:114-170`; `admin_billing_refund_vnpay.go:29-70`; `billing_subscription_refund.go:12-63` (`:37-39` điều kiện cùng kỳ); `handler/router/admin.go:60` |
+| Xác nhận hoàn tiền | ba nơi hoàn **thành công**, mỗi nơi gọi `revertSubscriptionAfterFullInvoiceRefund` trong cùng transaction: hoàn thủ công (`:104`), `ConfirmInvoiceRefund` (`:163`, gồm cả hoàn một phần: hóa đơn quay lại `paid`, `amount_refunded` tăng), đối soát VNPay (`:96`) | `admin_billing_refund.go:104`, `:163`; `billing_refund_reconcile.go:60-110` (`:96`); `pkg/db/queries/billing.sql:328-349`, `admin.sql:293-315` |
+| Đối soát hiện có | `RunWorkers` chạy webhook inbox, lapse, refund-pending reconcile, stale-intent reconcile, backfill meta; khuôn cho `ProcessAICreditReconcile` | `billing_webhook.go:19-50`; `billing_intent_reconcile.go:17-52`; `billing_refund_reconcile.go:22-58` |
+| Hàng hóa ngoài gói | **không có**: không có gói nạp, không có hóa đơn lẻ; `billing_payment_intents.plan_id` luôn có | `billing_provider_event.go:180`; `billing.sql` (intent) |
+
+### 16.3 Hợp đồng Hub dùng cho billing (đã kiểm trong mã Hub)
+
+Người gọi: **app UniWork** (principal `KindApp`, credential của channel `uniwork`), chỉ từ `internal/service` qua `server/internal/aihub` (§5.1, §16.10); không bao giờ từ client, không bao giờ bằng `hub_admin`. App chỉ chạm account/grant của chính mình (`hub:internal/admin/perm.go:31`, `hub:internal/admin/grants.go:131-143`).
+
+| Lệnh | Route / payload | Idempotency, lỗi | Nguồn |
+|---|---|---|---|
+| Cấp credit | `POST /admin/v1/grants` `{account_id, amount_micro, source ∈ order\|subscription\|promo\|adjust, source_ref, expires_at?, priority, idempotency_key}` (app: `app_id` bị ép thành chính nó; khác thì 403) | **idempotent theo `(app, idempotency_key)`**: lặp cùng thân → `200` cùng `id`; lặp khác một trong `{account, amount, source, source_ref, expires_at, priority}` → `409`; lần đầu `201`. Grant **bất biến**, không có `valid_from` | `hub:internal/admin/grants.go:27-36`, `:44-50`, `:66-80`, `:155-172`, `:209-262`; `hub:internal/ledger/ledger.go:53-99` |
+| Thu hồi | `POST /admin/v1/grants/{id}/revoke` `{amount_micro, idempotency_key, reason}` | tối đa **phần chưa tiêu**; vượt → `409`; lặp cùng `(grant, amount, reason)` → `200` y hệt, khác một trong ba → `409` | `hub:internal/admin/grants.go:38-42`, `:111-127`, `:177-207`, `:295-337`; `hub:internal/ledger/ledger.go:101-134` |
+| Liệt kê grant | `GET /admin/v1/grants?account=` | **200 grant mới nhất, không phân trang, không get-by-id** (H-10); mỗi dòng có `remaining_micro` | `hub:internal/admin/grants.go:263-293`; `hub:internal/admin/accounts.go:18-19` |
+| Đặt plan | `PUT /admin/v1/accounts/{id}/plan` `{plan_id}` | **không idempotent, append-only**: mỗi lần thêm một dòng `account_plans`, plan hiện hành = dòng mới nhất (H-9); app chỉ đặt được plan **có price book cho app mình**, nếu không `403` | `hub:internal/admin/plans.go:449-500` (`:485-489`); `hub:internal/store/db/accounts.sql.go:173-182,268-281`; `hub:internal/admin/ac2_plan_app_db_test.go:56-61` |
+| Ví | `GET /admin/v1/wallets/{account}` (C2) | chỉ đọc | `hub:internal/admin/grants.go:339` |
+
+Hành vi của sổ cái cần nhớ: (a) **thứ tự trừ**: grant hết hạn sớm nhất trước, grant không hạn trừ sau cùng, đồng hạng thì `priority` lớn trước (`hub:internal/store/queries/ledger.sql:17-22`); (b) grant theo kỳ mặc định không rollover và job `ExpireGrants` (~1 phút) đưa phần còn lại về 0 khi qua `expires_at` (`hub:docs/SPEC.md:222-224`, `hub:internal/meter/meter.go:312-345`); (c) ví cho phép âm tới `-credit_limit_micro`, mặc định provisioning là 0 (`hub:scripts/provision-uniwork.sh:164`, `hub:docs/SPEC.md:316-317`) và grant kế tiếp trả nợ trước (`hub:internal/ledger/ledger.go:88-96`); (d) `plan.credit_micro` của Hub **không tự cấp credit** — `putAccountPlan` chỉ chèn dòng plan và ghi audit (`hub:internal/admin/plans.go:485-489`) — nên mọi credit phải là một `grant` tường minh; (e) Hub **không có webhook** cho grant hết hạn hay bị thu hồi (§12), nên số dư hiển thị lấy qua ví (cache 30 giây, §5.5) chứ không nhờ sự kiện.
+
+**Phụ thuộc Hub ghi ở §13.2: H-9** (PUT plan không idempotent, app không đọc được plan) và **H-10** (không get-by-id, danh sách tối đa 200, `revoke` quá số bị `409` không kèm số còn lại). Cả hai có cách làm vòng ở §16.4 và §16.8; không cái nào chặn v1.
+
+### 16.4 Ánh xạ gói UniWork → Hub
+
+**Quyết định v1: một Hub plan chung cho mọi tổ chức đi Hub; khác biệt giữa các gói UniWork nằm ở *lượng credit mỗi kỳ*, không ở model hay độ đồng thời.** Lý do: UniWork chưa có yêu cầu khác biệt model/đồng thời theo hạng (§12 (h)); một plan nghĩa là lệnh `PUT plan` chạy **đúng một lần cho mỗi account** (lúc liên kết), nên tính append-only và không idempotent của H-9 vô hại. Thẻ `AIP-BILL-14` mở rộng thành bảng ánh xạ khi chủ sản phẩm yêu cầu.
+
+- **Hub plan**: id lấy từ env `AI_HUB_PLAN_ID` (thêm vào `.env.example`, `scripts/env-example.test.mjs`), do hub_admin tạo ở R1 với price book cho app `uniwork` và `credit_limit_micro = 0` (giả định (9)). R1 kiểm hai điều: `PUT` với app credential trả `200`, và `credit_limit_micro` đúng 0.
+- **Khi nào PUT**: trong `EnsureAccount` (AIP-03, mở rộng ở `AIP-BILL-05`), ngay sau khi tạo/phục hồi account. UniWork lưu `ai_hub_accounts.hub_plan_id_synced`; **chỉ PUT khi giá trị mong muốn ≠ đã đồng bộ**. Mỗi lần PUT đọc trạng thái mong muốn **lúc chạy** (không lấy từ payload sự kiện), nên chạy lại hay chạy trễ đều hội tụ về cùng plan. Audit `ai.hub.plan_set`.
+- **Credit mỗi kỳ** = giá trị feature `ai.credit_micro` của tổ chức tính bằng cùng hàm entitlement hiện có (`effective()` gộp plan features và `subscriptions.overrides`: `entitlement.go:545`); Q-AIP-11 (a): chủ sản phẩm đặt số cho từng gói qua `PUT /admin/plans/{code}/features/{key}` (`handler/router/admin.go:59`). Số này được **chụp vào đơn lúc tạo** và không bao giờ tính lại.
+- **Không dùng `plan.credit_micro` của Hub** để cấp credit (§16.3 (d)).
+- **Hạn dùng** của grant `plan_period`: gói trả phí = `current_period_end` + `pastDueGrace` (7 ngày, khớp thời gian `past_due` vẫn dùng được: `entitlement.go:52-54`); gói miễn phí/không có kỳ trả = đầu tháng sau giờ Việt Nam (khớp `meterPeriodStart`: `entitlement.go:239-246`). `topup` hết hạn theo Q-AIP-17 (a): `expires_at = max(trả + 12 tháng, hạn muộn nhất của mọi grant `plan_period` còn hiệu lực + 1 ngày)`, tính **lúc tạo đơn** rồi chụp (không tính lại khi thử lại).
+
+### 16.5 Dữ liệu
+
+Mọi bảng mới theo luật migration của repo (`server/migrations/lint_test.go`): không `FOREIGN KEY`/`REFERENCES`, id ULID `TEXT` (`util.NewID()`), `organization_id TEXT NOT NULL` (ADR 0008), cặp `created_by` + `created_by_kind` (ADR 0007), mỗi index là `CREATE [UNIQUE] INDEX CONCURRENTLY` **một tệp riêng**, tiền tố `999<unix-ms>_*`. Thẻ sở hữu: `AIP-BILL-02` (sqlc `server/pkg/db/queries/ai_credit.sql`, query tên `AiCredit*`, mỗi query có điều kiện tenant hoặc dòng `-- tenant:` thuộc tập đóng; `TestEveryQueryNamesItsTenant`).
+
+**`ai_credit_orders`** — một dòng cho mỗi lần UniWork phải cấp credit.
+
+| Cột | Ghi chú |
+|---|---|
+| `id`, `organization_id`, `created_by`, `created_by_kind`, `created_at` | khuôn chung; người tạo là `system` (IPN, sweep), `human` (hỗ trợ) |
+| `kind` | `plan_period` \| `topup` \| `admin_adjust` |
+| `amount_micro`, `expires_at`, `source`, `source_ref`, `priority` | **chụp lúc tạo, bất biến** — là toàn bộ thân grant (§16.7) |
+| `subscription_id`, `period_start` | cho `plan_period`; duy nhất `(subscription_id, period_start)` |
+| `payment_intent_id`, `invoice_id`, `pack_code` | liên kết thanh toán (duy nhất `payment_intent_id` khi có) |
+| `client_ref` | chống bấm đúp của `admin_adjust`; duy nhất `(organization_id, client_ref)` khi có |
+| `status` | `pending` \| `granted` \| `failed` |
+| `failed_kind` | `config` (400/401/403: sửa cấu hình rồi tự khỏi) \| `conflict` (409 `idempotency_mismatch`: chỉ người xử lý) \| `expired` (tới lúc đẩy thì `expires_at` đã qua, ví dụ Hub sập quá lâu: chỉ người xử lý, §16.7) |
+| `hub_account_id` | chụp lần đẩy đầu tiên, giữ nguyên cho mọi lần thử lại |
+| `hub_grant_id`, `granted_at` | từ response Hub |
+| `attempt_count`, `next_attempt_at`, `lease_until`, `last_error_code` | claim + backoff |
+
+**`ai_credit_reversals`** — một dòng cho mỗi lần hoàn tiền xác nhận thành công của hóa đơn có đơn credit.
+
+| Cột | Ghi chú |
+|---|---|
+| `id`, `organization_id`, `created_by`, `created_by_kind`, `created_at` | khuôn chung |
+| `order_id`, `invoice_id` | duy nhất `(order_id, refunded_minor)` — khóa chống lặp |
+| `refunded_minor` | `invoices.amount_refunded` **tích lũy** sau lần hoàn này (đơn vị nhỏ nhất của hóa đơn) |
+| `cum_target_micro`, `target_micro` | mục tiêu tích lũy và phần của riêng lần này |
+| `status` | `waiting_grant` \| `pending` \| `reversed` \| `nothing_to_reverse` \| `needs_support` |
+| `revoke_key`, `revoke_micro`, `revoke_attempt`, `reason_ref` | **ghi trước khi gọi Hub** (§16.8) |
+| `revoked_micro`, `reversed_at`, `attempt_count`, `next_attempt_at`, `lease_until`, `last_error_code` | kết quả + claim |
+
+**`ai_credit_packs`** — catalog gói nạp: `code`, `name`, `price_amount` (VND), `credit_micro`, `is_active`, `sort`. **Không có `organization_id`**: catalog toàn cục như `plans`, nên vào `tenantExemptTables` kèm lý do (`migrations/lint_test.go`); gieo bằng migration (Q-AIP-12 (a), ≤ 3 gói; giá và số credit do chủ sản phẩm đặt, spec không bịa số). Sửa giá = migration có review (§12 (g)).
+
+**Cột mới trên bảng đang chạy thanh toán thật** (rủi ro §14 (7); migration thêm cột có mặc định, không khóa bảng dài):
+
+- `billing_payment_intents`: `kind` (`plan` mặc định \| `ai_credit_pack`), `pack_code`, `plan_id` **thành nullable**.
+- `invoices`: `kind` (`subscription` mặc định \| `ai_credit_pack`). **Mọi đường đọc hóa đơn hiện có phải xử lý loại mới trước khi bán gói nạp**: `revertSubscriptionAfterFullInvoiceRefund` thoát sớm khi `kind != 'subscription'` (`billing_subscription_refund.go:17`); nếu không, hóa đơn gói nạp có `period_end` trùng kỳ hiện tại sẽ **đưa tổ chức trả phí về Starter** khi hoàn (`:37-39`). Hóa đơn gói nạp ghi `period_start = period_end = thời điểm trả` như một lớp bảo vệ thứ hai.
+- `ai_hub_accounts`: `hub_plan_id_synced` (§16.4).
+- Feature `ai.credit_micro` trong `features` + `plan_features` (kiểu số nguyên như `ai.tokens`), gieo trong cùng thẻ; **giá trị theo gói là của chủ sản phẩm** (Q-AIP-11).
+
+**Cô lập:** hai bảng có tenant (`ai_credit_orders`, `ai_credit_reversals`) được gieo một dòng của tổ chức A trong `isolation_world_test.go` ở chính thẻ `AIP-BILL-02` (như BE-19), nếu không `TestIsolationMatrix` đỏ ngay khi bảng tồn tại.
+
+### 16.6 Luồng
+
+#### 16.6.1 Mua gói và gia hạn
+
+Gia hạn **là mua lại**: không có tự gia hạn (§12 (a)); hết kỳ → `past_due` rồi lapse (§16.2); owner trả lại gói đó hoặc gói khác. Cả mua mới, nâng gói và gia hạn đi cùng một đường:
+
+1. Owner chọn gói → `Checkout` hiện có (không đổi) → VNPay → IPN → `applyProviderEvent`.
+2. **Trong cùng transaction** với `InsertInvoice` (`billing_provider_event.go:225-238`), khi `ai_hub_routing && ai_billing_sync` của tổ chức đúng: `AICreditService.createOrderTx(ctx, q, in)` chèn `ai_credit_orders` (`kind='plan_period'`, `source='subscription'`, `source_ref='uw-sub-<subscription_id>-<period_start_unix>'`, `amount_micro` = `ai.credit_micro` của gói **vừa mua** (đọc cùng transaction), `expires_at` = `periodEnd` + 7 ngày, `payment_intent_id`, `invoice_id`), audit `ai.credit.ordered` và outbox `ai_credit.sync_requested`.
+3. IPN lặp không thể tạo đơn thứ hai: intent đã `completed` thì dừng trước khi tới bước 2 (`billing_provider_event.go:156-161`, `:199-204`); và `(subscription_id, period_start)`, `payment_intent_id` là duy nhất.
+4. Sau commit, `AICreditSyncConsumer` đẩy grant (§16.7). Tổ chức chưa có account Hub: `EnsureAccount` chạy trước (§16.4); `hub_account_id` chụp vào đơn ở lần đẩy đầu.
+
+**Cờ bật muộn:** nếu cờ tắt lúc thanh toán thì không có đơn; sweep `EnsurePeriodGrants` (§16.6.3) bù đơn cho kỳ hiện tại khi cờ bật, nên khách trả tiền lúc cờ tắt không mất credit của kỳ đang chạy.
+
+#### 16.6.2 Mua gói nạp (top-up)
+
+- **Catalog**: `ai_credit_packs` (§16.5), kind hàng hóa mới; không có gói → nút ẩn (board h8).
+- `POST /orgs/{orgID}/billing/ai-credit/checkout` (§16.10): chỉ owner (`requireOwner`), `ai_hub_routing && ai_billing_sync`, tổ chức đã có account Hub; tạo intent `kind='ai_credit_pack'` với `Amount` = giá gói (chụp), `plan_id` rỗng; dùng nguyên hạ tầng `provider.CreateCheckout` (`billing_checkout.go:120-143`). Trở về `?checkout=success|cancel&credit=1`.
+- Hôm nay `Checkout` tái dùng intent chờ **cùng gói** (`GetPendingBillingPaymentIntentForPlan`) và dựng lại link VNPay từ chính intent (`IntentID`, `CreatedAt`, `ExpiresAt`), còn khi không có thì `ExpirePendingBillingPaymentIntents` hết hạn **mọi** intent đang chờ của tổ chức, không phân loại (`billing_checkout.go:76-97`, `billing.sql:123-132`). Với gói nạp: thêm query tái dùng `…ForPack` (cùng `pack_code`) cho board h7, và đổi `ExpirePendingBillingPaymentIntents` thành chỉ hết hạn intent **cùng loại** — nếu không, mở checkout gói nạp sẽ làm hết hạn checkout gói đăng ký đang chờ và ngược lại (intent hết hạn vẫn trả được: `billing_provider_event.go:162-166`, nên không mất tiền, nhưng trạng thái màn hình sai).
+- `applyProviderEvent` rẽ nhánh theo `intent.kind`: gói nạp **không** đụng `subscriptions`; ghi `invoices.kind='ai_credit_pack'`, đơn `topup` (`source='order'`, `source_ref='uw-int-<intent_id>'`, `expires_at` theo §16.4, `amount_micro` = credit của gói chụp lúc tạo intent), audit + outbox cùng transaction.
+- **Điều kiện mua (Q-AIP-19 (a))**: gói hiện tại của tổ chức có giá (`planIsPaid`, `billing.go:168`) và subscription đang `active`; ngược lại `403 ai_credit_pack_requires_paid_plan` (UI h8: "Nâng cấp gói để nạp thêm"). Kiểm trong `AICreditService`, trong cùng transaction khóa `LockLiveSubscription` như `Checkout` (`billing_checkout.go:55-59`).
+- **Thứ tự tiêu (Q-AIP-18 (a))**: Hub trừ grant hết hạn sớm nhất trước (`hub:internal/store/queries/ledger.sql:17-22`); vì `expires_at` của credit nạp luôn muộn hơn credit kỳ (§16.4), credit kỳ được tiêu trước và phần đã nạp được giữ tới cùng. Credit nạp chưa dùng mà hết hạn thì mất (Hub zero ở `ExpireGrants`), không hoàn tiền.
+
+#### 16.6.3 Grant theo kỳ khi không có thanh toán (gói miễn phí, thủ công, bù)
+
+`EnsurePeriodGrants` (`AIP-BILL-05`) chạy trong `BillingService.RunWorkers` (mỗi vài phút) và ngay sau `EnsureAccount`; với từng tổ chức **đã liên kết** có `ai_hub_routing && ai_billing_sync` và subscription sống:
+
+- kỳ hiện tại = `meterPeriodStart` (`entitlement.go:239-246`): kỳ đã trả nếu có, không thì tháng dương lịch giờ Việt Nam;
+- nếu chưa có đơn `plan_period` cho `(subscription_id, period_start)` và `ai.credit_micro > 0` → tạo đơn (`ON CONFLICT DO NOTHING`), `source_ref` như §16.6.1; gói trả phí hết kỳ **và** qua ân hạn thì không tạo (không cấp cho kỳ đã hết);
+- phạm vi: gói miễn phí (Q-AIP-11: Starter có credit nhỏ), kỳ trả phí mà IPN không tạo đơn (cờ bật muộn, đơn bù), và gói do nhân viên đổi tay (`POST /admin/organizations/{orgID}/plan`, `handler/router/admin.go:20`) — ca cuối chỉ được grant ở lần quét kế tiếp, nhân viên có thể cộng tay (§16.11).
+
+Gói miễn phí không thể được cấp hai lần trong một tháng: khóa là `(subscription_id, period_start)` với `period_start` = đầu tháng giờ Việt Nam (không phải `current_period_start` của subscription). Đổi gói tay nhiều lần trong tháng không sinh đơn thêm, vì `ChangeSubscriptionPlan` xóa kỳ trả (`current_period_end = NULL`, `billing.sql:83-97`) nên khóa vẫn là đầu tháng đó.
+
+#### 16.6.4 Đổi gói giữa kỳ
+
+Quyết định Q-AIP-14 (a): **giữ nguyên luật billing hiện có, không chia tỉ lệ tiền VND** (§12 (b)).
+
+| Tình huống | Hành vi billing hôm nay | Credit |
+|---|---|---|
+| Nâng gói (Starter → Team → Business) | thanh toán mở **kỳ mới từ lúc trả**, không trừ phần kỳ cũ (`billing_provider_event.go:188-189`) | đơn `plan_period` **mới đầy đủ** theo gói mới; grant kỳ cũ vẫn dùng tới `expires_at` của nó (Hub trừ hết hạn sớm nhất trước) — khách không mất credit đã trả, và hai kỳ chồng nhau là hệ quả của việc luật hiện có tính kỳ mới từ lúc trả |
+| Hạ gói trả phí (Team ← Business) | hôm nay **bị từ chối** (`downgrade_not_allowed`, `billing.go:203-207`, `billing_checkout.go:71-75`); owner chỉ có hủy cuối kỳ. **Q-AIP-20 (a)** (khuyến nghị theo baseline, thẻ `AIP-BILL-15`): lên lịch từ kỳ sau, quyền lợi giữ tới hết kỳ, owner trả gói thấp hơn khi kỳ hết | không đổi giữa kỳ; kỳ mới (sau khi trả) cấp credit **của gói thấp hơn** theo §16.6.1; không có đơn nào được tạo lúc *lên lịch* |
+| Hủy cuối kỳ (`cancel_at`) → lapse | `Cancel` (`billing.go:286-300`) → hết kỳ → gói mặc định (`billing_lapse.go:35-57`, `:81`) | grant kỳ trả phí hết hạn tại `expires_at` (kỳ + 7 ngày); từ lúc về Starter, tháng dương lịch kế tiếp có đơn miễn phí nếu Starter có credit (§16.6.3); credit nạp (`topup`) **giữ tới hạn của nó** (Q-AIP-17) |
+| `past_due` | dùng được 7 ngày (`entitlement.go:125`) | không đơn mới; credit cũ hết đúng cùng lúc ân hạn (§16.4) |
+
+#### 16.6.5 Reset kỳ và rollover
+
+**Khuyến nghị (Q-AIP-13 (a)): không rollover.** Credit kỳ hết hạn cuối kỳ cộng ân hạn; grant mới cho kỳ mới; credit nạp thêm giữ tới hạn của nó (12 tháng, Q-AIP-17). Lý do: (1) là mặc định của chính Hub (`hub:docs/SPEC.md:222-224`); (2) rollover phải thu hồi phần còn lại rồi cấp lại ở kỳ sau — Hub **không cho đổi `expires_at`** của grant cũ (bất biến: `hub:internal/admin/grants.go:27-36`), nên mỗi kỳ thêm hai lệnh Hub có thể lệch nhau và cần luồng đối soát phụ; (3) ai muốn dư thì mua gói nạp.
+
+- "Reset" **không phải một lệnh Hub**: kỳ mới = một đơn mới (IPN hoặc sweep); credit cũ tự hết hạn ở Hub (`ExpireGrants` ~1 phút, giả định (8)). Số dư hiển thị lấy từ ví nên không hứa chính xác tới giây (§5.5).
+- Hạn mức policy (workspace/người) có chu kỳ tính theo tháng UTC+7 của §3, **không** trùng chu kỳ trả của từng tổ chức; ví là trần của tổ chức, policy là trần con. Màn hình ghi rõ ngày hết hạn của credit kỳ (g2) và ngày đặt lại hạn mức (c, §11), hai ngày này có thể khác nhau.
+
+#### 16.6.6 Giá VND và credit US$
+
+- Hiển thị: giá VND mỗi kỳ **và** "gồm US$ y credit AI" là hai con số riêng (g1); gói nạp "US$ x — y ₫" (h1); ví "Còn US$ z". **Không quy đổi, không tỉ giá, không "≈"** (Q-AIP-2).
+- Định dạng US$ 2 chữ số theo locale; giá trị `> 0` mà làm tròn ra 0,00 hiển thị "< US$ 0,01".
+- Hóa đơn, VAT, số tiền VNPay giữ nguyên VND, không đổi (§12 (e)). Credit nằm trong mô tả hóa đơn gói nạp như tên gói, không như một dòng tiền.
+
+### 16.7 Lỗi và đối soát
+
+**Nguyên tắc: tiền đã nhận thì credit phải tới, đúng một lần.** Đơn `pending` không bao giờ bị bỏ; thân grant không bao giờ đổi.
+
+**Đẩy grant** (`AICreditSyncConsumer`, **LaneSlow**, khuôn `HubPolicySyncConsumer` ở §6.3; topic `ai_credit.sync_requested`):
+
+1. **Claim**: `UPDATE ai_credit_orders SET lease_until = now() + 60s, attempt_count = attempt_count + 1 WHERE id = $1 AND status IN ('pending','failed') AND next_attempt_at <= now() AND (lease_until IS NULL OR lease_until < now()) RETURNING *`. Không có dòng → bỏ (node khác đang làm hoặc chưa tới giờ). Reconcile dùng **cùng** câu claim nên hai đường không giẫm nhau.
+2. `hub_account_id`: dùng giá trị đã chụp; chưa có thì lấy từ `ai_hub_accounts`, **chưa liên kết thì `EnsureAccount` trước** (§16.4), rồi ghi vào đơn (một lần, không đổi nữa).
+3. Nếu `expires_at <= now()` → `status='failed'`, `failed_kind='expired'`, audit `ai.credit.grant_failed`, **không gọi Hub** (không cấp credit đã hết hạn; người xử lý cộng tay ở §16.11 nếu khách xứng đáng).
+4. `POST /admin/v1/grants` với **thân dựng chỉ từ cột bất biến của đơn**: `account_id = hub_account_id`, `amount_micro`, `source`, `source_ref`, `expires_at`, `priority`, `idempotency_key = "uw-ord-" + order_id`.
+5. Kết quả:
+
+| Hub trả | Hành động |
+|---|---|
+| `201` hoặc `200` | một transaction: `UPDATE … SET status='granted', hub_grant_id=$, granted_at=now() WHERE id=$ AND status <> 'granted'`, audit `ai.credit.granted`, outbox `ai_credit.granted`; xóa cache ví của tổ chức (§5.5) |
+| `409` (khóa dùng với thân khác) | `failed`, `failed_kind='conflict'`, **không bao giờ tự thử lại** (cùng khóa cùng thân vẫn 409); audit `ai.credit.grant_failed`; cảnh báo. Chỉ xảy ra nếu có lỗi lập trình làm đổi cột bất biến — test chặn (dưới) |
+| `400`/`401`/`403` | `failed`, `failed_kind='config'` (credential sai/thu hồi, plan không có price book, account không thuộc app); cảnh báo vận hành (`ai_hub_misconfigured`, §8.1); reconcile thử lại chậm (1 giờ/lần) nên **tự khỏi** khi sửa cấu hình, không cần nút "thử lại" |
+| `404` (account chưa có ở Hub) | `EnsureAccount` rồi thử lại ngay một lần |
+| `429`, `5xx`, hết thời gian, mạch ngắt mở | giữ `pending`, `next_attempt_at` theo `outbox.RetryAt` (trần 5 phút, `server/internal/outbox/outbox.go:311-350`); không tính là `failed` |
+
+**Vì sao không cấp trùng được:** (1) DB: duy nhất `payment_intent_id`, `(subscription_id, period_start)`, `(organization_id, client_ref)` — không đường nào tạo hai đơn cho một khoản tiền; (2) Hub: khóa cố định theo `order_id` + thân bất biến: gửi lại sau khi mất response trả `200` cùng `id` (giả định (5)), hai lệnh song song cùng khóa chỉ tạo một grant (giả định (6)); (3) UniWork: claim có lease nên hai node không cùng đẩy, và ghi `granted` có điều kiện `status <> 'granted'`. Kịch bản xấu nhất — Hub đã tạo grant nhưng UniWork mất response hoặc chết trước khi ghi — hồi phục bằng chính lần thử sau (cùng khóa).
+
+**Chống đổi thân.** Câu SQL `UPDATE` của sqlc chỉ có cột trạng thái (`status`, `failed_kind`, `hub_grant_id`, `granted_at`, `attempt_count`, `next_attempt_at`, `lease_until`, `last_error_code`, `hub_account_id` một lần); **không có query nào cập nhật `amount_micro`, `expires_at`, `source`, `source_ref`, `priority`**. Test: `TestAICreditOrderBodyIsImmutable` dựng thân từ đơn ở hai thời điểm khác nhau (đổi `ai.credit_micro` của gói giữa hai lần) và so bằng nhau; `TestAICreditOrderNeverGrantsTwice` chạy IPN lặp, hai consumer song song, mất response sau khi Hub đã tạo, và kiểm Hub giả có đúng một grant.
+
+**Đối soát** (`ProcessAICreditReconcile`, gắn vào `BillingService.RunWorkers`, nhịp như `ProcessRefundPendingReconcile`: `billing_webhook.go:19-50`; khuôn `ProcessStalePaymentIntentReconcile`: `billing_intent_reconcile.go:17-52`):
+
+- nhặt đơn `pending` quá hạn lease (consumer chết giữa chừng) và đơn `failed/config` quá 1 giờ, claim, đẩy lại theo cùng đường trên;
+- tương tự cho `ai_credit_reversals` (§16.8);
+- **chỉ số** `uniwork_ai_credit_orders{status}`, `uniwork_ai_credit_pending_age_seconds` (đơn cũ nhất đang `pending`/`failed`), `uniwork_ai_credit_push_total{result}`; **cảnh báo `AICreditOrderStuck`** khi có đơn hoặc thu hồi `pending`/`failed` quá **15 phút** (nhãn `kind`), kèm runbook 4 mục ở `docs/runbooks/` (`scripts/alerts-runbooks.test.mjs`). Ngưỡng này là điều kiện qua R2b và R4 (§10).
+
+**Hub sập** (mạch ngắt mở, 5xx kéo dài): thanh toán, hóa đơn, gia hạn **không bị ảnh hưởng** (§16.1 (3)); đơn nằm `pending`; màn Billing hiện "Đang cộng credit" (g5, h4) và ví "Số liệu cũ" (g8); sau khi Hub lên, reconcile đẩy hết theo thứ tự `created_at`. Không có chuyển hướng sang nhà cung cấp khác (Q-AIP-8).
+
+**`409` ở các chỗ khác**: `revoke` quá phần chưa tiêu (§16.8), `PUT policy` (§6.3, không thuộc billing), `PUT plan` không có `409` (H-9). Phiên bản/đua ở phía UniWork (`row_version` của subscription) không đổi.
+
+### 16.8 Hoàn tiền và thu hồi credit
+
+**Phạm vi:** hoàn tiền vẫn **chỉ do nhân viên nền tảng** làm (Q-AIP-16 (a)); owner chỉ xem (board i). Hoàn thành công của một hóa đơn **có đơn credit** (`ai_credit_orders.payment_intent_id = invoices.payment_intent_id`) kéo theo một dòng `ai_credit_reversals`. Hóa đơn của đơn do sweep hoặc cộng tay (không có hóa đơn) không có thu hồi.
+
+**Điểm móc.** Đúng ba chỗ hoàn thành công, mỗi chỗ đã gọi `revertSubscriptionAfterFullInvoiceRefund` trong transaction của mình; ngay cạnh đó gọi `AICreditService.requestReversalTx(ctx, q, invoice, actor)` **cùng transaction** (bao gồm audit + outbox, ADR 0009):
+
+- `admin_billing_refund.go:104` — hoàn thủ công (toàn bộ);
+- `admin_billing_refund.go:163` — `ConfirmInvoiceRefund` (toàn bộ **hoặc một phần**, hóa đơn có thể quay về `paid`);
+- `billing_refund_reconcile.go:96` — đối soát VNPay (`confirmInvoiceRefundFromProvider`).
+
+`refund_pending`, `partial_refund_pending` và hoàn bị từ chối (`revertRejectedInvoiceRefund`) **không** tạo thu hồi: credit chỉ động khi tiền đã hoàn thật (board i3).
+
+**Tính mục tiêu.** `refunded_minor` = `invoices.amount_refunded` **tích lũy** sau lần hoàn này; `cum_target_micro = floor(order.amount_micro × refunded_minor / invoice.amount_paid)`; `target_micro = cum_target_micro − (cum_target_micro của thu hồi liền trước của đơn, hoặc 0)`. Khóa duy nhất `(order_id, refunded_minor)` làm hook **idempotent** (ba chỗ có thể chạy lại, đối soát có thể thấy cùng hóa đơn hai lần: chèn thứ hai bị chặn, không tạo thêm). Hoàn hai lần cho cùng hóa đơn (một phần rồi phần còn lại) chỉ thu hồi phần chênh.
+
+**Thực thi** (cùng `AICreditSyncConsumer`, topic `ai_credit.reversal_requested`, claim lease như §16.7):
+
+1. Đơn chưa `granted` (Hub sập hoặc đang đẩy): thu hồi ở `waiting_grant`; khi đơn `granted` thì tiếp tục. Không hủy giữa chừng vì lệnh grant có thể đang bay ở Hub (đua); credit tới rồi bị thu hồi ngay, hội tụ cùng kết quả. Đơn kẹt `failed/conflict` thì thu hồi kẹt theo (cảnh báo chung, §16.7).
+2. Lấy `remaining_micro` của `hub_grant_id` từ `GET /admin/v1/grants?account=` (200 mới nhất, H-10). **Không thấy grant** (cũ hơn 200 grant) → `needs_support` (không đoán).
+3. `revoke_micro = min(target_micro, remaining_micro)`. Bằng 0 → `nothing_to_reverse`, **không gọi Hub** (credit đã tiêu hết; không bao giờ ví âm).
+4. **Ghi trước, gọi sau**: một transaction ngắn ghi `revoke_attempt`, `revoke_key = "uw-rev-<reversal_id>-<attempt>"`, `revoke_micro`, `reason_ref = "uw-refund-<reversal_id>"`; rồi mới `POST /admin/v1/grants/{id}/revoke {amount_micro, idempotency_key, reason}`. Lặp lại sau khi mất response dùng **đúng** khóa/số/lý do đã ghi → `200` y hệt (giả định (7)), không thu hồi hai lần.
+5. `200` → `reversed` (`revoked_micro = revoke_micro`), audit `ai.credit.reversed`, outbox `ai_credit.reversed`; xóa cache ví.
+6. `409 revoke_exceeds_unused` (đua: khách vừa tiêu thêm) → đọc lại `remaining_micro`, tăng `revoke_attempt` (**khóa mới**), tính lại số, thử tối đa 3 lần mỗi lượt; vẫn đua thì để `pending` cho lượt sau. `409` do `idempotency_mismatch` là lỗi lập trình (cùng khóa khác số): `needs_support`.
+7. `5xx/429/mạng` → `pending` + `RetryAt`; `400/401/403` → `needs_support` kèm `last_error_code`, cảnh báo.
+
+**Ví dụ.** Gói Team 1 tháng, `amount_micro` = US$ 10: tiêu US$ 4, hoàn 50% → mục tiêu US$ 5, còn US$ 6 → thu hồi US$ 5, ví còn US$ 1. Cùng ví dụ nhưng tiêu US$ 8 → còn US$ 2, thu hồi US$ 2, **phần US$ 3 còn lại của mục tiêu không đòi lại** (i1 ghi "phần đã dùng không thu hồi"). Tiêu hết → không gọi Hub.
+
+**Số cho nhân viên quyết** (Q-AIP-15 (a), không chặn cứng): hộp thoại hoàn tiền ở `/admin` (j5) hiện "đã cấp / còn / đã dùng; sẽ thu hồi tối đa" cho đơn của hóa đơn đó, lấy từ `GET /admin/organizations/{orgID}/ai-credit` (§16.11, `remaining_micro` từ Hub qua `aihub`). Nhân viên tự chọn số tiền hoàn, chẳng hạn hoàn theo phần chưa dùng.
+
+**Hoàn hóa đơn gói đăng ký toàn bộ** (i5): luật cũ vẫn chạy (về gói mặc định nếu cùng kỳ, `billing_subscription_refund.go:37-39`), cộng thu hồi credit chưa dùng của kỳ đó; credit nạp thêm (`topup`) **không** bị động tới trừ khi chính hóa đơn nạp được hoàn. **Hoàn hóa đơn gói nạp** không đổi gói đăng ký (§16.5).
+
+**Hậu quả khi hoàn xong và ví đã chạm 0:** AI của tổ chức trả `402 insufficient_credit` theo luồng bình thường (§8.1); thông báo `ai_credit.depleted` đi theo webhook của Hub (§7) như mọi lần hết credit.
+
+### 16.9 Sự kiện, audit, thông báo
+
+**Bảy topic mới** (ADR 0009: `<entity>.<verb>`, payload chỉ id; hằng audit và dòng catalogue thêm ở **`AIP-BILL-02`**, đi trước các thẻ phát chúng, như `AIP-10`):
+
+| Topic | v | Payload | Phạm vi | Giao | Phát bởi (cùng tx với audit) | Nghe bởi |
+|---|---|---|---|---|---|---|
+| `ai_credit.sync_requested` | 1 | `organization_id`, `order_id` | `-` | outbox | `createOrderTx`, `EnsurePeriodGrants`, cộng tay | `AICreditSyncConsumer` (**LaneSlow**) |
+| `ai_credit.reversal_requested` | 1 | `organization_id`, `reversal_id` | `-` | outbox | `requestReversalTx` | `AICreditSyncConsumer` |
+| `ai_credit.granted` | 1 | `organization_id`, `order_id` | organization | outbox | consumer sau khi Hub nhận | realtime làm mới `aiCreditKeys` + quy tắc thông báo |
+| `ai_credit.reversed` | 1 | `organization_id`, `reversal_id` | organization | outbox | consumer sau khi Hub nhận | realtime làm mới (không có thông báo riêng, xem dưới) |
+| `invoice.paid` | 1 | `organization_id`, `invoice_id` | `-` | outbox | `applyProviderEvent` sau `InsertInvoice` (`billing_provider_event.go:225-238`), cùng tx; chỉ hóa đơn `kind='subscription'` | quy tắc thông báo `billing_renewed` (lane notify) |
+| `payment_intent.failed` | 1 | `organization_id`, `intent_id` | `-` | outbox | nhánh IPN không thành công hoặc sai số tiền/tiền tệ (`billing_provider_event.go:148-155`, `:167-178`), qua `Recorder.Emit` (đường hẹp cho topic hạ tầng chưa có lệnh nghiệp vụ, `CLAUDE.md`) | quy tắc thông báo `billing_payment_failed` |
+| `invoice.refunded` | 1 | `organization_id`, `invoice_id` | `-` | outbox | ba chỗ hoàn thành công (§16.8), cùng tx | quy tắc thông báo `billing_refunded` |
+
+Năm topic hạ tầng (phạm vi `-`) chỉ vào `CATALOGUE.md` và `catalogue.go`, **không** vào `events.ts` (cùng lý do `ai_quota.sync_requested`, §6.1: `scripts/events-catalogue.test.mjs` đòi danh sách client bằng đúng các dòng có `scope !== "-"`); hai topic cấp tổ chức vào đủ ba nơi và `TestIsolationRealtime` kiểm chúng. Con số (số tiền, còn lại) **không** ở payload: client đọc lại qua API. Hai topic đẩy chia riêng để consumer phân biệt đường grant/thu hồi mà vẫn một lane chậm. Ba topic `invoice.*`/`payment_intent.failed` **không riêng của AI** (billing hôm nay chưa phát sự kiện nào cho thanh toán: chỉ có `subscription.changed` theo người, không mang loại thay đổi, `billing.go:262-283`, `outbox/catalogue.go:319`): chúng được thêm vì baseline đòi thông báo gia hạn/thất bại/hoàn tiền, và chạy ở lane thông báo (không gọi bên thứ ba), nên không làm chậm IPN.
+
+**Audit** (hằng ở `server/internal/audit/actions.go` — `AIP-BILL-02`; phủ `audit_coverage_test.go` do thẻ sở hữu lệnh, §6.2):
+
+| Action | Lệnh sở hữu / thẻ | Phủ |
+|---|---|---|
+| `ai.credit.ordered` | `createOrderTx` qua `ApplyProviderEvent` (BILL-03), `EnsurePeriodGrants` (BILL-05), checkout nạp (BILL-06), cộng tay (BILL-08) | closure `cases` chạy lệnh thật (IPN thật, sweep, v.v.) |
+| `ai.credit.granted`, `ai.credit.grant_failed` | `AICreditSyncConsumer` (BILL-04) | `actionsWithoutCommands`: "covered by ai_credit_sync_test.go" |
+| `ai.credit.reversal_requested` | `requestReversalTx` (BILL-07) | closure chạy ba đường hoàn thật |
+| `ai.credit.reversed`, `ai.credit.reversal_failed` | consumer (BILL-07) | `actionsWithoutCommands`: "covered by ai_credit_sync_test.go" |
+| `ai.credit.admin_granted` | cộng tay (BILL-08) | closure chạy `POST /admin/organizations/{orgID}/ai-credit` |
+| `ai.hub.plan_set` | `EnsureAccount` đặt plan (BILL-05) | closure chạy `EnsureAccount` thật với Hub giả |
+
+Người thực hiện: IPN/consumer/sweep là `audit.System("billing")` hoặc `audit.System("ai_credit")`, hỗ trợ là `audit.User(adminID)`; mọi dòng audit đều mang `correlation_id` (`middleware.Correlation`). Cộng tay còn ghi `admin_actions` (§16.11).
+
+**Thông báo** (`server/internal/notification`, cùng khuôn §6.4; `AIP-BILL-10`). Bốn kind theo baseline của lead (board j được vẽ theo đó); mã/Hub không mâu thuẫn, nhưng ba kind sau **là billing nói chung chứ không riêng AI**, và hôm nay UniWork chưa có kind hay thư billing nào (`server/internal/mail/templates` không có mẫu billing):
+
+| Kind | Khi nào | Nguồn | Nội dung (dựng ở server từ dòng, đọc theo id) |
+|---|---|---|---|
+| `billing_credit_added` | credit nạp hoặc cộng tay vào ví | `ai_credit.granted` của đơn `topup`, `admin_adjust` | "Đã nạp US$ x credit AI" |
+| `billing_renewed` | một kỳ trả phí mới bắt đầu (mua mới, nâng gói hoặc gia hạn) | `invoice.paid` | "Đã thanh toán gói X, kỳ đến dd/mm" (kèm số hóa đơn; credit của kỳ nằm trong khối ví, không lặp thành thông báo thứ hai) |
+| `billing_payment_failed` | VNPay báo không thành công hoặc sai số tiền (gói **hoặc** gói nạp) | `payment_intent.failed` | "Thanh toán chưa thành công" + liên kết thử lại; không bao giờ gửi cho intent hết hạn do hệ thống (`ExpirePending…`) |
+| `billing_refunded` | hoàn tiền (một phần hoặc toàn bộ) đã xác nhận thành công | `invoice.refunded` | "Đã hoàn tiền hóa đơn #… (số tiền VND)"; nếu hóa đơn có credit: "Credit chưa dùng của hóa đơn sẽ được điều chỉnh" — **không** nêu số US$ vì thu hồi chạy sau (§16.8); kết quả thu hồi hiện ở lịch sử (board i), qua `ai_credit.reversed` làm mới |
+
+- **Người nhận: chỉ owner tổ chức** (người trả tiền; một owner mỗi lúc, `idx_org_members_single_owner`), **không** admin tổ chức và **không** admin workspace. Dòng cấp tổ chức, không có workspace, hiện ở mọi workspace của owner (FE-36, §6.4).
+- **Kênh: Hộp việc + email giao dịch** (tiền lệ `ai_quota_alert`, Q-AIP-7: thư giao dịch không đi qua digest); mẫu mới `billing_credit_added`, `billing_renewed`, `billing_payment_failed`, `billing_refunded` × `vi/en` × `html/txt` trong `server/internal/mail/templates` (`AIP-BILL-10`). Bốn kind **loại khỏi digest ngày** và `Prefs.Email` của chúng nghĩa là "nhận thư giao dịch" (cùng sửa như BE-26, §6.4); nhóm mới "Thanh toán" trong ma trận Thông báo, hai cột Hộp việc | Email bằng `Switch`, chỉ hiện ở góc nhìn owner (board j6).
+- **Không thông báo** cho đơn do sweep tạo (tháng miễn phí, bù kỳ) và không có thông báo riêng cho kết quả thu hồi; tránh một dòng mỗi tháng cho mọi tổ chức.
+
+### 16.10 API, kiểu dữ liệu, cô lập
+
+**Nơi đặt mã và quy tắc kiến trúc.**
+
+- Client Hub (`Grant`, `ListGrants`, `Revoke`, `PutAccountPlan`) nằm trong `server/internal/aihub` (`AIP-BILL-01`). Chỉ `internal/service` được import gói này; `internal/ai` **không** import nó và **không** chứa logic billing (quy tắc `TestAIPackageOnlyCallsAiQueries`, `TestAIPackageHasNoHubOrServiceImport`, `CLAUDE.md` › Audit and Events). `AICreditService` ở `server/internal/service/ai_credit*.go`; query là `AiCredit*` trong `server/pkg/db/queries/ai_credit.sql`.
+- **`TestAIHubClientAlwaysScopesToLinkedAccount`** (`AIP-01`) mở rộng cho `Grant/Revoke/PutAccountPlan`: mọi lệnh nhận `organizationID` từ dòng `ai_hub_accounts` của tổ chức đó, không bao giờ từ input người dùng (cùng khuôn nhãn tenant của §5.3).
+- Các query billing hiện có bị khóa theo tệp bởi `arch_test.go:212-232` (chỉ `billing.go`, `billing_catalog.go`, `billing_*.go` được gọi): query mới của nhánh gói nạp (`GetPendingBillingPaymentIntentForPack`, bản đổi của `ExpirePendingBillingPaymentIntents`) **thêm vào regex ở `arch_test.go:212`** và chỉ được gọi từ `billing_*.go`; `AICreditService` đạt đơn qua `createOrderTx` (gọi **từ** `billing_provider_event.go`) chứ không gọi query billing.
+- Console: `service/admin_ai_credit.go` thêm vào danh sách cho phép của `TestAdminQueriesStayInAdminService` (`arch_test.go:325`) vì gọi `InsertAdminAction` của `admin.sql` qua `recordAdmin` (`service/admin.go:419`).
+
+**Route mới** (router `server/internal/handler/router/billing.go`, `admin.go`; SDI/SDO ở `handler/dto/{sdi,sdo}/` có `description`/`example`, theo `docs/api-sdi-sdo.md`; `{orgID}` đã có `pathParamSDI`, không cần case mới):
+
+| Route | Ai | Việc |
+|---|---|---|
+| `GET /api/v1/orgs/{orgID}/billing/ai-credit` | owner/admin tổ chức (`canViewBilling`) | `available` (= `ai_hub_routing && ai_billing_sync` **theo tổ chức**, không `UserID`, §10), ví (C2, cache RAM `singleflight` 30 giây, §5.5), credit kỳ này (`granted_micro`, `expires_at`), gói nạp, 20 đơn gần nhất, giao dịch nạp đang chờ; `available=false` → phần còn lại rỗng (board g7) |
+| `POST /api/v1/orgs/{orgID}/billing/ai-credit/checkout` | owner (`requireOwner`) | thân `{pack_code, success_path, cancel_path}`; `success_path`/`cancel_path` qua `ValidateCheckoutPath` (`billing_checkout.go:21`) như checkout gói; trả phiên VNPay như `CreateCheckout` |
+| `GET /api/v1/admin/organizations/{orgID}/ai-credit` | `support` đọc | ví, đơn, thu hồi, với `granted/remaining/spent` mỗi đơn (§16.8) |
+| `POST /api/v1/admin/organizations/{orgID}/ai-credit` | `admin` ghi | cộng tay (§16.11) |
+
+**`decode()` và giới hạn thân.** Thân của hai `POST` đi qua `decode(w, r, &in, limit)` (`handler/json.go`, `maxJSONBody` 1 MiB); handler không truy vấn DB và để service quyết khả năng nhìn thấy (`authorize()`/`RequireMember` → 403/404, `mapServiceError`).
+
+**Client.** `packages/core/api/endpoints/billing.ts` thêm hai hàm (đọc credit, tạo checkout nạp), mỗi hàm qua `parseWithFallback(raw, schema, fallback, { endpoint })` với **schema khoan dung** (`status`, `kind`, `failed_kind` là `z.string()`; mọi số có mặc định 0; kiểu export thu hẹp) và một ca **malformed-response** trong `billing.test.ts` chứng minh suy giảm thay vì ném lỗi; hook `useAiCredit(orgId)` (khóa `aiCreditKeys` có `orgId`; hook cần workspace nhận `wsId`) và `useAiCreditReturn` (khuôn `packages/core/billing/use-checkout-return.ts`: đọc `?checkout=…&credit=1`, **không tin** tham số này làm bằng chứng — sự thật là IPN → đơn; hook thăm dò `GET …/ai-credit` mỗi 3 giây tối đa 90 giây rồi hiện h6). Sự kiện `ai_credit.granted/reversed` làm mới khóa qua `use-realtime-sync.ts`; không ghi payload vào store. Mỗi `switch` trên enum máy chủ có `default`; UI optional-chain trường máy chủ. Mọi text qua `t()`; icon theo `docs/conventions.md` › Icons; đang tải là `<Spinner />`.
+
+**Cô lập tenant.**
+
+- `TestIsolationMatrix`: hai route tenant ở trên đi qua `isoRoutes` (route có `{orgID}` tự được phủ ngày đăng ký; kiểm có đối chứng — owner của chính tổ chức đọc/ghi qua cùng route không bị từ chối); hai route `/admin/…` là `isoPlatform` kèm lý do. Hàng của tổ chức A trong `ai_credit_orders` và `ai_credit_reversals` được gieo ở `AIP-BILL-02` và hash không đổi trước/sau khi B tấn công; `ai_credit_packs` miễn qua `tenantExemptTables` (catalog toàn cục).
+- Trường thân kết thúc `_id`/`_ids` đòi `isoReferences` hoặc miễn kèm lý do (`TestEveryBodyIDFieldHasAReferenceCase`): thân của `POST …/checkout` dùng `pack_code` (mã, không phải id tenant) nên không có trường như vậy; thân cộng tay có `client_ref` (chuỗi của quản trị viên), cũng không.
+- Câu hỏi riêng của billing: owner của B gửi `pack_code` đúng nhưng đến `{orgID}` của A → 403/404 từ `requireOwner`, không rò dữ liệu; đơn/ví của A không xuất hiện trong phản hồi của B.
+- `TestIsolationRealtime`: B không nhận `ai_credit.granted/reversed` của A.
+- Người bị vô hiệu hóa và tổ chức bị khóa bị cả hai cổng từ chối trước mọi vai trò (§2); `403 organization_suspended` áp cho cả ví và checkout nạp.
+
+### 16.11 Console `/admin` — cộng credit tay
+
+Cho nhân viên nền tảng (không UI cấp vai trò; `users.platform_role` chỉ do `server/cmd/uniwork-admin` cấp, `CLAUDE.md` › Platform Admin).
+
+- `GET /api/v1/admin/organizations/{orgID}/ai-credit` (`support` đọc) và `POST` cùng đường (`admin` ghi) bảo vệ **chỉ bằng** `middleware.RequirePlatformRole`; không bao giờ đi qua `RequireMember`, không bao giờ trả nội dung tổ chức (chỉ số tiền, trạng thái, id).
+- **Ghi:** thân `{amount_micro, expires_at?, reason, client_ref}`; `reason ≥ 10` ký tự; `amount_micro > 0` và không quá `AI_CREDIT_ADMIN_GRANT_MAX_MICRO` (env mới, vào `.env.example`, mặc định do chủ sản phẩm đặt); tổ chức phải đã có account Hub (cộng tay **không** phụ thuộc `ai_billing_sync`: đây là đường nạp tay của pilot R2/R3, §10). Một transaction: chèn `ai_credit_orders` (`kind='admin_adjust'`, `source='adjust'`, `source_ref='uw-adj-<order_id>'`, `client_ref`), ghi `admin_actions` + `audit_events` (cùng trace id, `ai.credit.admin_granted`) và outbox `ai_credit.sync_requested`. `client_ref` trùng trong cùng tổ chức → trả đơn cũ (bấm đúp không cấp hai lần).
+- **Không có nút thu hồi tay hay "thử lại" ở v1** (§12 (g)): thu hồi ngoài luồng hoàn tiền do hub_admin ở Hub Console; đơn `failed/config` tự thử lại (§16.7).
+- Khối "Credit AI" ở chi tiết tổ chức (board j4): ví, đơn (`failed` nổi bật), thu hồi, và số "đã cấp/còn/đã dùng" cho hộp thoại hoàn tiền (j5, §16.8).
+
+### 16.12 Cờ và rollout
+
+Cờ `ai_billing_sync` ở §10. Phép tính hiệu lực **theo tổ chức**, không `UserID`, cùng hàm `available` dùng chung với §5.9/§10:
+
+| Thao tác | Điều kiện |
+|---|---|
+| Tạo đơn `plan_period` từ IPN; sweep `EnsurePeriodGrants`; bán gói nạp; hiện khối credit ở tab Billing | `ai_hub_routing && ai_billing_sync` |
+| Đẩy grant/thu hồi **đã có** trong DB; reconcile | **không phụ thuộc cờ** (không bỏ rơi tiền đã nhận) |
+| Cộng tay `/admin` | tổ chức đã có account Hub |
+| Hóa đơn, IPN, gia hạn, hoàn tiền VNPay | không phụ thuộc cờ hay Hub |
+| Tạo thu hồi khi hoàn tiền | khi **có đơn credit** cho hóa đơn đó, kể cả cờ đã tắt sau đó |
+
+**Giai đoạn** (đã ở §10): R2 hub_admin nạp tay; **R2b** bật `ai_billing_sync` cho tổ chức nội bộ trên VNPay sandbox — mua gói nạp, gia hạn, hoàn tiền; **R3** pilot; **R4** mặc định bật khi `AIP-BILL-*` đã chạy ≥ 1 chu kỳ đầy đủ (mua → dùng → kỳ mới → hoàn thử) và 7 ngày không có `AICreditOrderStuck`. Hoàn tác = tắt `ai_billing_sync` (ngừng tạo đơn mới, đơn cũ vẫn đẩy tiếp).
+
+**Việc vận hành trước R1:** hub_admin tạo Hub plan có price book cho app `uniwork`, `credit_limit_micro = 0`, ghi id vào `AI_HUB_PLAN_ID`; chủ sản phẩm đặt `ai.credit_micro` theo gói (Q-AIP-11) và gói nạp (Q-AIP-12) — **R2b không qua nếu hai thứ này chưa có số**.
+
+**Env mới** (cả hai vào `.env.example`, `scripts/env-example.test.mjs`): `AI_HUB_PLAN_ID`, `AI_CREDIT_ADMIN_GRANT_MAX_MICRO`. Cảnh báo `AICreditOrderStuck` + runbook 4 mục (`deploy/alerts.yml`, `docs/runbooks/`, `scripts/alerts-runbooks.test.mjs`) thuộc `AIP-BILL-04`.
+
+### 16.13 Giả định billing cần kiểm với Hub thật
+
+Đã đưa vào §13.3 (5)–(9) và thẻ `AIP-BILL-01`, `-04`, `-07`; bổ sung:
+
+(10) Một grant có `expires_at` ở **quá khứ** bị Hub từ chối hay vẫn tạo (đã tránh bằng bước 3 của §16.7: UniWork không bao giờ gửi grant đã hết hạn); (11) `GET /admin/v1/grants?account=` trả `remaining_micro` đúng sau khi `ExpireGrants` zero phần còn lại (cơ sở của §16.8 bước 2; kiểm cùng giả định (8)); (12) app credential của UniWork được phép `POST /admin/v1/grants` và `PUT …/plan` cho account của chính nó và bị `403` cho account khác (`hub:internal/admin/perm.go:31`, `grants.go:131-143`; kiểm bằng e2e ở R1/R2b, cùng với (9): `credit_limit_micro = 0`); (13) giá trị `ai.credit_micro` đi qua `effective()` đúng như số nguyên của một feature (không phải cờ/boolean) — kiểm bằng test của `AIP-BILL-02`; (14) `ApplyPaidSubscriptionFromProvider` và `InsertInvoice` chịu cột `kind` mới mà không đổi hành vi cho dữ liệu cũ (mặc định `subscription`) — kiểm bằng migration test và `billing_*_test.go` hiện có trước khi bán gói nạp.
+
+---
+
+## Lịch sử phiên bản
+
+| Phiên bản | Ngày | Thay đổi |
+|---|---|---|
+| v0.5 | 2026-10-18 | **Billing (Q-AIP-1 = (c)).** Thêm §16 Thanh toán AI (nguyên tắc, billing hôm nay, hợp đồng Hub đã kiểm, ánh xạ gói → Hub, dữ liệu, luồng mua/nạp/gia hạn/đổi gói/reset, lỗi và đối soát, hoàn tiền và thu hồi, sự kiện/audit/thông báo, API và cô lập, console `/admin`, cờ và rollout, giả định); cập nhật §1.4, §2 (ba hàng quyền), §4 C9, §10 (cờ `ai_billing_sync`, R2b, R4), §11 (board g–j), §12 (billing vào phạm vi, phần còn ngoài), §13 (Q-AIP-1…10 và D-1…7 đã quyết; Q-AIP-11…16 mới; H-9, H-10; giả định (5)–(9)), §14 (`AIP-BILL-00…14`, thứ tự, rủi ro (6)–(8)), §15.2 (truy vết AC-1 cho billing). Không đổi số mục §1–§15. **Theo "Shared billing terms baseline" của lead:** bốn kind thông báo billing chỉ cho owner (Hộp việc + thư giao dịch), Q-AIP-17 (credit nạp 12 tháng, thay "không hết hạn"), Q-AIP-18 (tiêu credit kỳ trước, nạp sau), Q-AIP-19 (gói nạp chỉ cho gói trả phí), Q-AIP-20 (hạ gói lên lịch, thẻ `AIP-BILL-15`); Q-AIP-13 (không rollover) giữ nguyên. |
+| v0.4 | 2026-10-18 | Vòng 1 (quản lý hạn mức): sửa theo review BE vòng 3 (commit `627bae666`); §1–§15 gồm board a–f, H-1…H-8, thẻ `AIP-00…15` và `AIP-F`; lịch sử vòng 1 ở `reports/ai-plan-uw/PACKET.md`. |
