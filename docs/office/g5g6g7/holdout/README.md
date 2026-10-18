@@ -299,7 +299,7 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm;
   `report.md` in nguyên văn đoạn này cùng sha256, chính sách chấm, danh sách mô phỏng và bộ công cụ ở mục 0.
 
-### Chấm theo vết (UNI-1874 vòng f, lựa chọn B của người dùng: lời văn không bao giờ được cộng điểm, chỉ có thể làm trượt)
+### Chấm theo vết (UNI-1874 vòng f và g, lựa chọn B của người dùng: lời văn không bao giờ được cộng điểm, chỉ có thể làm trượt)
 
 Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn chỉ dùng để **trừ** (`holdout-answer.mjs`, `holdout-figures.mjs`):
 
@@ -309,6 +309,14 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
 2. **Số đếm và mục cấu trúc**: chỉ lấy từ `report.items`. Số đếm giữ nguyên/bất biến được **đo** từ nhật ký ghi; một mục báo cáo
    mâu thuẫn với giá trị đo được thì trượt. Không có bảng đồng nghĩa để cộng điểm (bảng chủ đề chỉ còn dùng để phát hiện mâu
    thuẫn) và không có số đếm nào được suy ra từ lời văn.
+   - **Vết (d), số phần tử của một loại có tên** (review-g712-20 R20-1, vòng g): số phần tử của một loại có tên trong **một** kết quả
+     đọc thành công là một con số truy được, nhưng chỉ khi câu trả lời hoặc `report.items` nêu tên loại đó; trường đếm có tên của
+     cùng kết quả (`slideCount`, `paragraphCount`, `lineCount`, `pageCount`, số trang tính của kết quả danh sách trang tính) là cùng
+     một con số. Một bảng duy nhất ánh xạ tên vi/en: slides, tiêu đề theo cấp (`heading_level_N`, "mục cấp N" chỉ khi có chữ cấp),
+     paragraphs, rows, sheets, pages, lines. Không cộng qua các lần đọc, không suy loại; lần đọc bị từ chối hay lỗi không cho số đếm.
+     Một con số mà `report.items` đánh dấu là số đếm của một loại trong bảng chỉ truy được qua vết (d), không bao giờ như một lá
+     văn bản trùng chữ số. Một câu trả lời cấu trúc chỉ có `items` mà (d) xác nhận thì số nguyên đó không cần xuất hiện lần hai trong
+     `report.numbers`: ô số đếm (đơn vị `count` hoặc `sheets`) lấy giá trị của mục đếm được (d) xác nhận.
 3. **Mọi con số trong lời văn và mọi giá trị của `report.numbers`** phải truy về một trong ba nguồn: (a) lá của một lần đọc
    thành công, tính theo từng lần gọi và theo số lần xuất hiện; (b) kết quả của một lần `compute` thành công; (c) một phép suy
    ra được phép (tổng, hiệu, tỷ lệ hoặc phần trăm của hai toán hạng đã hiện trong câu trả lời, hoặc tổng của mọi toán hạng cùng
@@ -326,8 +334,9 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
      `currencyIsMarker: true` là cách đọc nguyên văn hợp đồng (tiền tệ là đơn vị), bộ chấm lại chạy cả hai.
      **Phần dư đã biết**: khi nguồn không cho thấy tiền tệ nào, mọi nhãn tiền tệ đều đạt.
    - Chỉ miễn cho: địa chỉ ô có ranh giới thật, số thứ tự đầu dòng của danh sách, ngày có tháng viết bằng chữ, và chữ số nằm trong
-     một URL/email nguyên vẹn. Ngoài ra, giá trị của đối số lần ghi đã áp và văn bản yêu cầu của người dùng cũng là nguồn
-     (`EXTRA_SOURCES`).
+     một URL/email nguyên vẹn. Ngoài ra, giá trị của đối số lần ghi đã áp cũng là nguồn (`EXTRA_SOURCES.appliedWrites`). **Văn bản
+     yêu cầu của người dùng không còn là nguồn** (R20-2, `EXTRA_SOURCES.request` mặc định `false`): một con số chỉ có trong câu hỏi
+     không phải số liệu, kể cả khi lời văn nhắc lại nó. Phần trăm thay đổi chỉ khớp một con số viết bằng đơn vị phần trăm (R20-3).
    - **Giới hạn đã biết**: số viết bằng chữ ("hai mươi", "twenty") không được tách thành token nên không bị kiểm tra.
 4. **Lần gọi `compute` bị từ chối hay lỗi** (`error`, `denied`, `ok:false`, `partial`, trạng thái lỗi) không cộng điểm compute
    (R19-1); lần đọc lỗi cũng không cho lá nào.
