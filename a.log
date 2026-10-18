@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+c86c3565db6a2a2b13688f629998a9a8c3ff0946
+fb4587ca5456b3f86d5d1c410ea7714b5b808736
+c86c3565d feat(documents): open .txt through the markdown lane behind office_txt_open
+e220ab56b docs(documents): update UNI-1813 addendum to v0.2 with narrowed .txt mapping and office_txt_open gate
+a310a0c5b chore: merge the G5-G7 root (fb4587ca5) into UN-02
+fb4587ca5 test(e2e): read the voice duration at the start of its line (UNI-1908)
+a7b1cccda test(e2e): confirm the organization revoke in its row (UNI-1784)
+57a6ce311 test(web): the guide's formats table lists Slides with export PDF (UNI-1901)

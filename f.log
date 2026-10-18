@@ -1,0 +1,5 @@
+$ (node --test scripts/*.test.mjs > /tmp/scripts.log 2>&1); rc=$?; grep -E "^# (pass|fail)" /tmp/scripts.log; grep -E "^not ok" /tmp/scripts.log | head -10; echo; echo "SCRIPTS_EXIT=$rc"
+# pass 121
+# fail 0
+
+SCRIPTS_EXIT=0
