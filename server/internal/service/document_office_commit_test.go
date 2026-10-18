@@ -293,6 +293,36 @@ func TestDocumentOfficeCommit(t *testing.T) {
 				t.Fatalf("opened frame after .txt commit = %+v", opened)
 			}
 		})
+
+		// A non-txt engine output resolves by its version mime, so nothing
+		// renames it: the document keeps the provider output's placeholder
+		// name ("file", FS-C1 §4) exactly as before the .txt fix.
+		t.Run("a markdown engine output keeps the provider placeholder name", func(t *testing.T) {
+			created := env.createFile(t, member, "ghi-chu.md", []byte("# Ghi chu\n"))
+			eng := newScriptedEngine()
+			eng.fake = env.fake
+			jobs := NewDocumentOfficeService(DocumentOfficeOptions{
+				Pool: env.f.pool, Queries: env.f.q, Files: env.fs, Engine: eng, Documents: env.svc,
+				MaxDeadline: time.Minute,
+			})
+			row, err := jobs.StartOfficeJobForDocument(context.Background(), member, created.Document.ID, OfficeJobRequest{
+				Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "start md job")
+			eng.finish(t, row.ID, []byte("# Ghi chu engine\n"), "text/markdown")
+			done, err := jobs.GetOfficeJob(context.Background(), member, created.Document.OrganizationID, created.Document.WorkspaceID, row.ID)
+			mustf(t, err, "refresh md job")
+			res, err := env.commit(member, created.Document.ID, done.OutputFileID.String, done.BaseRevision, util.NewID())
+			mustf(t, err, "commit md job output")
+			if res.File.MimeType != "text/markdown" || res.File.Filename != "file" {
+				t.Fatalf("committed md file = %+v, want the placeholder name", res.File)
+			}
+			view, err := env.svc.GetDocument(context.Background(), member, created.Document.ID)
+			mustf(t, err, "read md document")
+			if view.File == nil || view.File.Filename != "file" {
+				t.Fatalf("md document file = %+v, want the placeholder name", view.File)
+			}
+		})
 	})
 }
 

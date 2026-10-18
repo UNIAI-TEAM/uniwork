@@ -549,12 +549,18 @@ func (s *DocumentService) currentFileInfo(ctx context.Context, doc db.Document) 
 }
 
 // versionFilename returns name unless it is an extensionless provider-output
-// placeholder on an engine-produced version, in which case it walks the
-// document's versions newest-first and returns the most recent version's
-// stored filename that carries an extension (falling back to doc.Title or
-// name).
+// placeholder on an engine-produced version whose own mime is text/plain, in
+// which case it walks the document's versions newest-first and returns the
+// most recent version's stored filename that carries an extension. Only a
+// .txt document needs that walk: text/plain is deliberately never mapped to
+// an engine format, so the name is the only thing that tells a .txt from the
+// nameless provider output. Every other engine output resolves by its version
+// mime and keeps the provider output's placeholder name untouched.
 func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, v db.DocumentVersion, name string) string {
 	if path.Ext(name) != "" || !v.EngineName.Valid || v.EngineName.String == "" || s.files == nil {
+		return name
+	}
+	if files.NormalizeContentType(v.MimeType.String) != "text/plain" {
 		return name
 	}
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
@@ -569,9 +575,6 @@ func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, 
 				return pf.Filename
 			}
 		}
-	}
-	if path.Ext(doc.Title) != "" {
-		return doc.Title
 	}
 	return name
 }
