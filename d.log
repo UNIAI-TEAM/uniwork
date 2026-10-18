@@ -1,0 +1,11 @@
+$ pnpm install --frozen-lockfile > /tmp/pnpm.log 2>&1; (pnpm --filter @uniwork/core exec vitest run office/ > /tmp/core.log 2>&1); rc=$?; tail -8 /tmp/core.log; echo; echo "TEST_CORE_EXIT=$rc"
+ RUN  v4.1.11 /workspace/packages/core
+
+
+ Test Files  10 passed (10)
+      Tests  181 passed (181)
+   Start at  17:31:49
+   Duration  2.26s (transform 522ms, setup 1.21s, import 1.02s, tests 249ms, environment 2.81s)
+
+
+TEST_CORE_EXIT=0
