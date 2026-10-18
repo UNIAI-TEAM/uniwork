@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; (redis-cli -u redis://localhost:6379/1 ping || docker ps --format '{{.Names}}' | grep -i redis); echo "REDIS_PROBE_DONE"
+e8ae54a7c481c1063f5b16700021dc3b247445fc
+e8ae54a7c test(office): audit office_uniwork_ai@3 tool names in pack goldens
+a7f49340f fix(ai): exempt rule-1 arithmetic from @3 facts-only rule
+d7a5b3f06 fix(office): tighten grader brief instructions for invented facts, injection location and caveats
+b84d273f3 test(office): require D2 grader brief rules on invented facts, injection location and caveats (red)
+8da4f11a0 feat(ai): register office_uniwork_ai@3 instruction pack
+777378874 test(ai): expect office_uniwork_ai@3 goldens, rule checks, token caps and pin (red)
+bf693b001 chore: merge TRASH-01 documents layout (UNI-1841, c49fc5aad) into the G5-G7 root
+c49fc5aad fix(documents): name the chat source Trò chuyện like the rest of the app
+PONG
+REDIS_PROBE_DONE

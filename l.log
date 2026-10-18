@@ -1,0 +1,4 @@
+$ cd server && go test -count=1 ./internal -run 'TestProviderSDKOnlyInAIProvider|TestAIPackageOnlyCallsAiQueries|TestActorConstructedOnlyInService|TestArch|Membership' 2>&1 | tail -20; rc=${PIPESTATUS[0]}; echo; echo "GO_ARCH_EXIT=$rc"
+ok  	github.com/unicomhub/uniwork/server/internal	0.243s
+
+GO_ARCH_EXIT=0

@@ -1,0 +1,4 @@
+$ cd server && out=$(gofmt -l ./internal/ai ./internal/service ./internal/handler); echo "$out"; test -z "$out"; rc=$?; echo; echo "GOFMT_EXIT=$rc"
+
+
+GOFMT_EXIT=0
