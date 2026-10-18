@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
@@ -29,16 +30,21 @@ const adapter: NavigationAdapter = {
   push: vi.fn(), replace: vi.fn(), back: vi.fn(), pathname: "/acme/doi/documents/d1", searchParams: new URLSearchParams(), getShareableUrl: (path) => path,
 };
 
-function renderWorkspace(qc: QueryClient, doc: Document, withHost = true) {
+function renderWorkspace(qc: QueryClient, doc: Document, withHost = true, flags: Record<string, boolean> = {}) {
   const officeHost = () => <div data-testid="office-host">Office host</div>;
+  const service = new FeatureFlagService(new StaticProvider(
+    Object.fromEntries(Object.entries(flags).map(([key, on]) => [key, { default: on }])),
+  ));
   return render(
     <QueryClientProvider client={qc}>
-      <LocaleAdapterProvider adapter={localeAdapter}>
-        <NavigationProvider value={adapter}>
-          <DocumentWorkspace wsId={WS} doc={doc} libraryHref="/acme/doi/documents" refetch={vi.fn(() => Promise.resolve({}))}
-            officeEditorHost={withHost ? officeHost : undefined} />
-        </NavigationProvider>
-      </LocaleAdapterProvider>
+      <FeatureFlagsProvider service={service}>
+        <LocaleAdapterProvider adapter={localeAdapter}>
+          <NavigationProvider value={adapter}>
+            <DocumentWorkspace wsId={WS} doc={doc} libraryHref="/acme/doi/documents" refetch={vi.fn(() => Promise.resolve({}))}
+              officeEditorHost={withHost ? officeHost : undefined} />
+          </NavigationProvider>
+        </LocaleAdapterProvider>
+      </FeatureFlagsProvider>
     </QueryClientProvider>,
   );
 }
@@ -91,5 +97,33 @@ describe("DocumentWorkspace on a file document", () => {
     const title = screen.getByText("Báo cáo");
     expect(title).toHaveAttribute("title", "Báo cáo");
     expect(screen.getByRole("link", { name: t("documents.detail.breadcrumb_library") })).toHaveClass("hidden", "sm:inline");
+  });
+
+  it("mounts the editor layout for a .txt file only while office_txt_open is on (UNI-1813)", async () => {
+    orgConfig({ office_engine: true });
+    const txt = fileDocument({ file: { file_id: "f1", version_id: "v2", version: 2, filename: "ghi-chu.txt", mime_type: "text/plain", size_bytes: 128, checksum_sha256: "b".repeat(64) } });
+
+    // The workspace's own usesOfficeEditor answer mounts the editor layout.
+    renderWorkspace(testClient(), txt, true, { office_txt_open: true });
+    expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    expect(container()).toHaveClass("overflow-hidden");
+    expect(container()).not.toHaveClass("overflow-y-auto");
+    expect(screen.queryByRole("button", { name: t("documents.file.download") })).toBeNull();
+  });
+
+  it("keeps the file-card layout for the same .txt file while office_txt_open is off (UNI-1813)", async () => {
+    orgConfig({ office_engine: true });
+    const txt = fileDocument({ file: { file_id: "f1", version_id: "v2", version: 2, filename: "ghi-chu.txt", mime_type: "text/plain", size_bytes: 128, checksum_sha256: "b".repeat(64) } });
+
+    renderWorkspace(testClient(), txt, true, { office_txt_open: false });
+    // The card: filename, download command and the no-web-editor notice; no host.
+    expect(await screen.findByText("ghi-chu.txt")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+    expect(screen.getByText(t("documents.file.no_web_editor_title"), { exact: false })).toBeInTheDocument();
+    expect(screen.queryByTestId("office-host")).toBeNull();
+    // And the workspace wraps it in the card layout, not the editor's.
+    const cardWrapper = screen.getByText("ghi-chu.txt").closest("div.flex.flex-col.gap-4")?.parentElement;
+    expect(cardWrapper).toHaveClass("overflow-y-auto");
+    expect(cardWrapper).not.toHaveClass("overflow-hidden");
   });
 });
