@@ -58,6 +58,14 @@
     --tint-red: 0 81% 95.9%;
     --tint-red-foreground: 0 73.9% 39%;
     --destructive-solid: 358.1 65.9% 48.2%;
+    --chat-sender-1: 261.3 49.3% 47.8%;
+    --chat-sender-2: 303.8 39.7% 38%;
+    --chat-sender-3: 126.7 54.4% 25.8%;
+    --chat-sender-4: 29.1 100% 30.1%;
+    --chat-sender-5: 184.2 100% 22.4%;
+    --chat-sender-6: 219.6 57.1% 42.8%;
+    --chat-sender-7: 1.1 51.3% 40.8%;
+    --chat-sender-8: 163.7 100% 20.4%;
   }
 
   .dark:root {
@@ -103,5 +111,13 @@
     --tint-red: 0 40.2% 17.1%;
     --tint-red-foreground: 0 90.6% 70.8%;
     --destructive-solid: 358.1 65.9% 48.2%;
+    --chat-sender-1: 257.1 100% 82.2%;
+    --chat-sender-2: 305.2 54.2% 69.9%;
+    --chat-sender-3: 121.9 38% 63.5%;
+    --chat-sender-4: 25 90.2% 67.5%;
+    --chat-sender-5: 182.8 62.5% 50%;
+    --chat-sender-6: 218.4 100% 73.8%;
+    --chat-sender-7: 3.9 97.7% 75.5%;
+    --chat-sender-8: 161 48.7% 57.7%;
   }
 }

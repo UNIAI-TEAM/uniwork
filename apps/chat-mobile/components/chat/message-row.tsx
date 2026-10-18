@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { bubbleCorners } from "@/lib/conversation-display";
+import { senderNameClass } from "@/lib/sender-colors";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText, messageView } from "@/lib/message-display";
 import { THEME } from "@/lib/theme";
@@ -109,7 +110,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         style={[bubbleCorners(own, !compactTop, !continued), lift]}
       >
         {showSender ? (
-          <Text className="text-[13px] font-semibold text-primary" numberOfLines={1}>
+          <Text className={cn("text-[13px] font-semibold", senderNameClass(message.sender))} numberOfLines={1}>
             {senderName}
           </Text>
         ) : null}

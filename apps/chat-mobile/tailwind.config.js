@@ -50,6 +50,14 @@ module.exports = {
         "tint-red": "hsl(var(--tint-red))",
         "tint-red-foreground": "hsl(var(--tint-red-foreground))",
         "destructive-solid": "hsl(var(--destructive-solid))",
+        "chat-sender-1": "hsl(var(--chat-sender-1))",
+        "chat-sender-2": "hsl(var(--chat-sender-2))",
+        "chat-sender-3": "hsl(var(--chat-sender-3))",
+        "chat-sender-4": "hsl(var(--chat-sender-4))",
+        "chat-sender-5": "hsl(var(--chat-sender-5))",
+        "chat-sender-6": "hsl(var(--chat-sender-6))",
+        "chat-sender-7": "hsl(var(--chat-sender-7))",
+        "chat-sender-8": "hsl(var(--chat-sender-8))",
       },
       // React Native cannot read the web package's CSS custom properties, so
       // one mobile JSON feeds both NativeWind classes and inline styles.
