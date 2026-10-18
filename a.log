@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+53d606179b719507b5b5595e83604b47b0902db1
+b5388f37d1c26d18fd0408f1bfc242e71b964fa0
+53d606179 chore: merge G5-G7 root 6f4ca157a into FRAME-RO-HOST (UNI-1901)
+8ec35a476 feat(office): handle close_requested from office frames (UNI-1901)
+561af585d test(office): add red tests for close_requested frame event (UNI-1901)
+9afd09f3c fix(office): keep comments for a comment-level viewer (RFH-1) + fix exportPdf docstring (RFH-2)
+ea0c54942 test(office): add red tests for comment-level init profile (RFH-1)
+63681e1e7 test(office): re-bless the G7-06 goldens at frame pin 0.1.0-f6395d8 (UNI-1901)
+
+SYNCED_EXIT=1
