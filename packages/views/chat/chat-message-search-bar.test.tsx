@@ -71,6 +71,8 @@ describe("ChatMessageSearchBar", () => {
     await vi.waitFor(() => expect(screen.getByText("báo cáo")).toBeInTheDocument());
     expect(screen.getByText("báo cáo").tagName).toBe("MARK");
     expect(document.body.textContent).not.toContain("mention://");
+    // Day/month with a slash, then the time (canvas "16/10 10:05").
+    expect(screen.getByText(/^01\/09 \d{2}:\d{2}$/)).toBeInTheDocument();
 
     fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
     expect(onJump).not.toHaveBeenCalled();

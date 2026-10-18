@@ -1,36 +1,25 @@
 // The call screen (spec M3 §2): one full-screen layer over the app, drawn
-// from the call engine's state, so a call outlives any screen under it.
+// from the call engine's state, so a call outlives any screen under it. Dark
+// in both app themes (canvas MobileCall / MobCallStates, call-surface.tsx).
 // Incoming: answer or decline. Ringing and connecting: hang up. Active: the
 // LiveKit room (call-room.tsx). Ended: why, then close or call again, as the
 // web's voice-call-ended-panel.tsx. Mounted once in (app)/_layout.tsx. A plain
 // view, not a Modal: iOS will not present a modal over one already open (an
 // action sheet, the picker), and a call must show whatever is open.
+import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { BackHandler, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { PersonAvatar } from "@/components/people/person-avatar";
-import { Text } from "@/components/ui/text";
 import { callEngine, useVoiceCall } from "@/data/calls/call-store";
 import { ringtoneFor } from "@/lib/call-ringtone";
 import { isMultiPartyVoiceCall, voiceCallEndedMessage, type VoiceCallState } from "@/lib/voice-call";
-import { CallButton, CallRoom } from "./call-room";
+import { CallRoom } from "./call-room";
+import { CALL, CallButton, CallerHero } from "./call-surface";
 import { useCallRingtone } from "./use-call-ringtone";
 
 const RETRY_REASONS = new Set(["connect_failed", "start_failed"]);
 const CALL_BACK_REASONS = new Set(["no_answer", "missed", "declined"]);
-
-function Caller({ name, line }: { name: string; line: string }) {
-  return (
-    <View className="flex-1 items-center justify-center gap-3 px-6">
-      <PersonAvatar name={name} size={96} />
-      <Text className="text-center text-2xl font-semibold text-white" numberOfLines={2}>
-        {name}
-      </Text>
-      <Text className="text-center text-base text-white/80">{line}</Text>
-    </View>
-  );
-}
 
 function CallBody({ call }: { call: Exclude<VoiceCallState, { status: "idle" }> }) {
   const { t } = useTranslation();
@@ -38,12 +27,13 @@ function CallBody({ call }: { call: Exclude<VoiceCallState, { status: "idle" }> 
     case "incoming":
       return (
         <View className="flex-1" testID="call-incoming">
-          <Caller
+          <CallerHero
             name={call.peerName}
             line={isMultiPartyVoiceCall(call.callKind) ? t("chat.voice_call_incoming_group", { caller: call.callerName, group: call.peerName }) : t("chat.voice_call_incoming_label")}
+            rings={CALL.ringIncoming}
           />
-          <View className="flex-row justify-evenly pb-12">
-            <CallButton icon="close" label={t("chat.voice_call_decline")} tone="danger" testID="call-decline" onPress={() => void callEngine.hangUp()} />
+          <View className="flex-row justify-evenly px-6 pb-14">
+            <CallButton icon="call" label={t("chat.voice_call_decline")} tone="danger" testID="call-decline" onPress={() => void callEngine.hangUp()} />
             <CallButton icon="call" label={t("chat.voice_call_accept")} tone="accept" testID="call-accept" onPress={() => void callEngine.acceptCall()} />
           </View>
         </View>
@@ -52,8 +42,12 @@ function CallBody({ call }: { call: Exclude<VoiceCallState, { status: "idle" }> 
     case "connecting":
       return (
         <View className="flex-1" testID={`call-${call.status}`}>
-          <Caller name={call.peerName} line={t(call.status === "ringing" ? "chat.voice_call_calling" : "chat.voice_call_connecting")} />
-          <View className="items-center pb-12">
+          <CallerHero
+            name={call.peerName}
+            line={t(call.status === "ringing" ? "chat.voice_call_calling" : "chat.voice_call_connecting")}
+            rings={call.status === "ringing" ? CALL.ringOutgoing : undefined}
+          />
+          <View className="items-center px-6 pb-14">
             <CallButton icon="call" label={t("chat.voice_call_end")} tone="danger" testID="call-hangup" onPress={() => void callEngine.hangUp()} />
           </View>
         </View>
@@ -64,8 +58,8 @@ function CallBody({ call }: { call: Exclude<VoiceCallState, { status: "idle" }> 
       const again = RETRY_REASONS.has(call.reason) ? t("common.retry") : CALL_BACK_REASONS.has(call.reason) ? t("chat.voice_call_call_back") : null;
       return (
         <View className="flex-1" testID="call-ended">
-          <Caller name={call.peerName} line={voiceCallEndedMessage(call, t)} />
-          <View className="flex-row justify-evenly pb-12">
+          <CallerHero name={call.peerName} line={voiceCallEndedMessage(call, t)} ended />
+          <View className="flex-row justify-evenly px-6 pb-14">
             <CallButton icon="close" label={t("common.close")} testID="call-dismiss" onPress={() => callEngine.dismissEnded()} />
             {again ? (
               <CallButton
@@ -103,7 +97,9 @@ export function CallOverlay() {
 
   if (call.status === "idle") return null;
   return (
-    <SafeAreaView style={StyleSheet.absoluteFill} className="bg-black" accessibilityViewIsModal>
+    <SafeAreaView style={[StyleSheet.absoluteFill, { backgroundColor: CALL.surface }]} accessibilityViewIsModal>
+      {/* Light status-bar glyphs over the dark call, whatever the app theme; unmounting hands back the root's. */}
+      <StatusBar style="light" />
       <CallBody call={call} />
     </SafeAreaView>
   );

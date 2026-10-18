@@ -24,6 +24,9 @@ describe("BlockConversationSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Chặn nhắn tin" }));
     const dialog = screen.getByRole("alertdialog");
+    // Irreversible: the red tile above the title and the solid red action.
+    expect(dialog.querySelector('[data-slot="icon-tile"]')).toHaveAttribute("data-tone", "destructive");
+    expect(within(dialog).getByRole("button", { name: "Chặn nhắn tin" })).toHaveClass("bg-destructive-solid");
     fireEvent.click(within(dialog).getByRole("button", { name: "Chặn nhắn tin" }));
     expect(onBlock).toHaveBeenCalledTimes(1);
   });

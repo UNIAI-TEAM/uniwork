@@ -57,3 +57,49 @@ export function latestSeenOwnMessageIndex(
   }
   return -1;
 }
+
+type ReadPointer = { user_id: string; last_read_at?: string | null };
+
+/**
+ * The members of a group or channel whose read cursor has reached this
+ * message ("N người đã xem"), the sender excluded. Same comparison as a DM's
+ * receipt: an unparsable time counts as not seen.
+ * shortcut: created_at arrives in whole seconds, so a cursor on an earlier
+ * message of the same second counts as seen; compare at the cursor's
+ * microseconds if that ever shows.
+ */
+export function seenByMembers<M extends ReadPointer>(
+  message: { created_at: string },
+  members: readonly M[],
+  senderId: string,
+): M[] {
+  const ts = Date.parse(message.created_at);
+  return members.filter((m) => m.user_id !== senderId && isMessageSeenByPeer(ts, m.last_read_at));
+}
+
+export function seenByCount(
+  message: { created_at: string },
+  members: readonly ReadPointer[],
+  senderId: string,
+): number {
+  return seenByMembers(message, members, senderId).length;
+}
+
+/**
+ * The furthest read cursor among the members other than `selfId`, or null. A
+ * group's one "Đã xem" mark sits on the latest own message it reached, the
+ * way a DM's sits on the peer's (latestSeenOwnMessageIndex).
+ */
+export function furthestReadAt(members: readonly ReadPointer[], selfId: string): string | null {
+  let best: string | null = null;
+  let bestTs = -Infinity;
+  for (const member of members) {
+    if (member.user_id === selfId || !member.last_read_at) continue;
+    const ts = Date.parse(member.last_read_at);
+    if (ts > bestTs) {
+      bestTs = ts;
+      best = member.last_read_at;
+    }
+  }
+  return best;
+}

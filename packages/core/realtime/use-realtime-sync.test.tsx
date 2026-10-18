@@ -342,6 +342,7 @@ describe("useRealtimeSync", () => {
       expect.arrayContaining([
         JSON.stringify(["notifications", "list"]),
         JSON.stringify(["notifications", "unread-count"]),
+        JSON.stringify(["chat", "unread-summary"]),
       ]),
     );
   });
@@ -861,6 +862,18 @@ describe("useRealtimeSync", () => {
     const called = keysCalled(invalidate);
     expect(called).toContain(JSON.stringify(chatKeys.rooms("ws1")));
     expect(called).toContain(JSON.stringify(chatKeys.roomMembers("ws1", "g1")));
+    vi.useRealTimers();
+  });
+
+  // "N người đã xem": a member's read refreshes that room's members, nothing else.
+  it("refreshes only the room's members on chat.room.member_read", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.member_read", payload: { room_id: "g1", user_id: "u2" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomMembers("ws1", "g1"))]);
     vi.useRealTimers();
   });
 

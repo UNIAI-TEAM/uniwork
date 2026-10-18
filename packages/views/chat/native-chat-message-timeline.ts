@@ -73,3 +73,10 @@ export function buildThreadViewMessages(input: {
       message.id === threadRoot.id || message.replyToEventId === threadRoot.id,
   );
 }
+
+/** Messages from others after `sinceId`: what arrived while the reader was scrolled away. */
+export function countNewSince(messages: ChatMessage[], sinceId: string | null, currentUserId: string): number {
+  const since = sinceId ? messages.findIndex((message) => message.id === sinceId) : -1;
+  if (since < 0) return 0;
+  return messages.slice(since + 1).filter((message) => message.sender !== currentUserId).length;
+}

@@ -35,6 +35,29 @@ WHERE room_id = $1
   AND message_id = ANY(sqlc.arg(message_ids)::text[])
 ORDER BY created_at ASC;
 
+-- name: ListChatRoomLinkedTasks :many
+-- The info panel's "tasks from this conversation": each task linked from one
+-- room's messages once, most recently linked first, with the full count.
+-- Only tasks of the workspace the service admitted the caller to.
+SELECT
+  t.id, t.workspace_id, t.number, t.title, t.status, t.priority,
+  t.assignee_id, t.assignee_kind,
+  COALESCE(NULLIF(u.display_name, ''), u.email, a.name, '')::text AS assignee_name,
+  t.due_date,
+  l.linked_at,
+  (COUNT(*) OVER ())::int AS total
+FROM (
+  SELECT target_id, MAX(created_at)::timestamptz AS linked_at
+  FROM chat_message_links
+  WHERE room_id = sqlc.arg(room_id) AND target_type = 'task'
+  GROUP BY target_id
+) l
+JOIN tasks t ON t.id = l.target_id AND t.workspace_id = sqlc.arg(workspace_id)
+LEFT JOIN users u ON t.assignee_kind = 'human' AND u.id = t.assignee_id
+LEFT JOIN agents a ON t.assignee_kind = 'agent' AND a.id = t.assignee_id
+ORDER BY l.linked_at DESC, t.id DESC
+LIMIT sqlc.arg(row_limit);
+
 -- name: DeleteChatMessageLink :one
 -- tenant: by-id
 -- Scoped by room, not workspace, for the same reason as the room batch above.

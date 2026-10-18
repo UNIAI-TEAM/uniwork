@@ -280,7 +280,7 @@ func (q *Queries) GraphSourceChatMessageRoom(ctx context.Context, arg GraphSourc
 }
 
 const graphSourceChatRoom = `-- name: GraphSourceChatRoom :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms WHERE organization_id = $1 AND id = $2
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms WHERE organization_id = $1 AND id = $2
 `
 
 type GraphSourceChatRoomParams struct {
@@ -310,6 +310,7 @@ func (q *Queries) GraphSourceChatRoom(ctx context.Context, arg GraphSourceChatRo
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }

@@ -280,7 +280,10 @@ test.describe.serial("chat file and voice messages", () => {
       timeout: 20_000,
     });
 
-    // The DM settings sheet carries the block action.
+    // The DM settings sheet carries the block action; it opens from the info panel,
+    // which docks open on a wide pane and is opened from the header otherwise.
+    const panelToggle = member.getByRole("button", { name: "Thông tin cuộc trò chuyện" });
+    if ((await panelToggle.getAttribute("aria-pressed")) !== "true") await panelToggle.click();
     await member.getByRole("button", { name: "Cài đặt cuộc trò chuyện" }).click();
     await member.getByRole("button", { name: "Chặn nhắn tin" }).click();
     await member.getByRole("alertdialog").getByRole("button", { name: "Chặn nhắn tin" }).click();

@@ -1,12 +1,13 @@
 "use client";
 
-import { Search, UserPlus, X } from "lucide-react";
+import { Check, Search, UserPlus, X, type LucideIcon } from "lucide-react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toChatContactFromLookup, useLookupChatUser } from "@uniwork/core/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
+import { selectIsUserOnline, usePresenceStore } from "@uniwork/core/chat/presence-store";
 import type { Member } from "@uniwork/core/types/workspace";
 import { useMembers } from "@uniwork/core/workspaces";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
@@ -24,7 +25,41 @@ import {
   shouldLookupEmailOutsideWorkspace,
 } from "./workspace-member-picker-utils";
 import { memberAvatarUrl } from "./chat-member-avatar";
-import { initialOf } from "./chat-initials";
+import { CHAT_FIELD_CLASS, CHAT_PILL_SM_CLASS, CHAT_SECTION_LABEL_CLASS } from "./chat-dialog-look";
+import { initialsOf } from "./chat-initials";
+import { chatPersonFaceClass } from "./chat-person-card";
+
+/** A person's face in the pickers: two letters on their colour, and the presence dot. */
+function MemberFace({
+  userId,
+  label,
+  avatarUrl,
+  small = false,
+}: {
+  userId: string;
+  label: string;
+  avatarUrl?: string;
+  small?: boolean;
+}) {
+  const online = usePresenceStore((state) => selectIsUserOnline(state, userId));
+  return (
+    <span className="relative inline-flex shrink-0">
+      <ActorAvatar
+        name={label}
+        initials={initialsOf(label)}
+        avatarUrl={avatarUrl}
+        size="fluid"
+        className={cn(small ? "size-9 text-caption" : "size-10 text-label", chatPersonFaceClass(userId))}
+      />
+      {online ? (
+        <span
+          aria-hidden
+          className="absolute -right-px -bottom-px size-3 rounded-full border-2 border-(--row-fill,var(--surface)) bg-success-solid"
+        />
+      ) : null}
+    </span>
+  );
+}
 
 /**
  * The search box every "add people" flow shares. Enter runs the search
@@ -62,7 +97,7 @@ export function WorkspaceMemberSearchField({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={id} className="text-label font-medium text-foreground">
+      <Label htmlFor={id} className="text-label font-semibold text-foreground">
         {label}
       </Label>
       <form
@@ -74,7 +109,7 @@ export function WorkspaceMemberSearchField({
       >
         <Search
           aria-hidden
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           ref={ref}
@@ -95,14 +130,15 @@ export function WorkspaceMemberSearchField({
           type="search"
           autoComplete="off"
           aria-describedby={hint ? hintId : undefined}
-          className={cn("pl-9", hasQuery ? "pr-10" : "pr-3")}
+          // Our own clear button replaces the browser's search ×.
+          className={cn(CHAT_FIELD_CLASS, "pl-10.5 [&::-webkit-search-cancel-button]:appearance-none", hasQuery ? "pr-12" : "pr-3.5")}
         />
         {hasQuery ? (
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
-            className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            size="icon-lg"
+            className="absolute right-0 top-1/2 size-11 -translate-y-1/2 rounded-lg text-muted-foreground hover:text-foreground"
             aria-label={t("chat.clear_search")}
             onClick={() => {
               onQueryChange("");
@@ -157,13 +193,25 @@ function moveRowFocus(event: KeyboardEvent<HTMLUListElement>): number | null {
 
 function MemberRowSkeleton() {
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5" aria-hidden>
-      <Skeleton className="size-8 shrink-0 rounded-full" />
+    <li className="flex min-h-14 items-center gap-3 px-3.5 py-2" aria-hidden>
+      <Skeleton className="size-10 shrink-0 rounded-full" />
       <span className="min-w-0 flex-1 space-y-1.5">
         <Skeleton className="h-3.5 w-2/5" />
         <Skeleton className="h-3 w-3/5" />
       </span>
     </li>
+  );
+}
+
+/** A row's trailing action mark: it takes the brand wash while the row is hovered or focused. */
+export function MemberRowActionMark({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <span
+      aria-hidden
+      className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors group-hover:bg-brand-subtle group-hover:text-brand-subtle-foreground group-focus-visible:bg-brand-subtle group-focus-visible:text-brand-subtle-foreground"
+    >
+      <Icon className="size-5" />
+    </span>
   );
 }
 
@@ -177,6 +225,9 @@ export function WorkspaceMemberPickerList({
   allPickedLabel,
   actionIcon,
   nameOnly = false,
+  selectedUserIds,
+  lockedUserIds,
+  lockedLabel,
   onPick,
   listRef,
 }: {
@@ -194,6 +245,11 @@ export function WorkspaceMemberPickerList({
   actionIcon?: ReactNode;
   /** Avatar and name only: for a screen that never shows an email (the access report). */
   nameOnly?: boolean;
+  /** Checkbox rows (canvas create-group/channel): a pick toggles, and picked rows stay, ticked. */
+  selectedUserIds?: ReadonlySet<string>;
+  /** Checkbox rows already in the room: ticked, greyed, not pickable, with `lockedLabel` at the end. */
+  lockedUserIds?: ReadonlySet<string>;
+  lockedLabel?: string;
   onPick: (contact: ChatContact) => void;
   /** From useMemberPickerFocus: lets ↓ in the search field reach the rows. */
   listRef?: RefObject<HTMLDivElement | null>;
@@ -209,7 +265,7 @@ export function WorkspaceMemberPickerList({
     body = (
       <div role="status">
         <span className="sr-only">{t("chat.loading_members")}</span>
-        <ul className="divide-y divide-border rounded-lg border border-border" aria-hidden>
+        <ul className="divide-y divide-border rounded-xl border border-border" aria-hidden>
           <MemberRowSkeleton />
           <MemberRowSkeleton />
           <MemberRowSkeleton />
@@ -231,7 +287,7 @@ export function WorkspaceMemberPickerList({
       // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
       <ul
         aria-labelledby={headingId}
-        className="divide-y divide-border rounded-lg border border-border"
+        className="divide-y divide-border rounded-[14px] border border-border"
         onKeyDown={(event) => {
           const next = moveRowFocus(event);
           if (next !== null) setFocusIndex(next);
@@ -241,34 +297,72 @@ export function WorkspaceMemberPickerList({
           const contact = memberToChatContact(member);
           // A names-only screen never falls back to the email local part.
           const label = nameOnly ? member.display_name.trim() || t("chat.workspace_member_unnamed") : memberDisplayLabel(member);
+          const locked = Boolean(lockedUserIds?.has(member.user_id));
+          const checked = locked || selectedUserIds?.has(member.user_id);
           return (
-            <li key={member.user_id} className="first:*:rounded-t-lg last:*:rounded-b-lg">
+            <li key={member.user_id} className="first:*:rounded-t-[14px] last:*:rounded-b-[14px]">
               <button
                 type="button"
                 data-member-picker-row=""
+                role={selectedUserIds ? "checkbox" : undefined}
+                aria-checked={selectedUserIds ? Boolean(checked) : undefined}
+                aria-disabled={locked || undefined}
                 tabIndex={index === tabStop ? 0 : -1}
                 onFocus={() => setFocusIndex(index)}
-                className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-hover pointer-coarse:min-h-11"
-                onClick={() => onPick(contact)}
+                className={cn(
+                  "group flex w-full items-center gap-3 py-2 text-left transition-colors hover:bg-surface-hover [--row-fill:var(--surface)] hover:[--row-fill:var(--surface-hover)]",
+                  selectedUserIds ? "min-h-14 px-3.5" : "min-h-15 pr-2 pl-3.5",
+                  checked &&
+                    !locked &&
+                    "bg-brand-subtle/40 [--row-fill:color-mix(in_srgb,var(--brand-subtle)_40%,var(--surface))]",
+                  locked && "cursor-default hover:bg-surface hover:[--row-fill:var(--surface)]",
+                )}
+                onClick={() => {
+                  if (!locked) onPick(contact);
+                }}
               >
-                <ActorAvatar
-                  name={label}
-                  initials={initialOf(label)}
-                  avatarUrl={memberAvatarUrl(member.avatar_url)}
-                  size="lg"
-                />
+                {selectedUserIds ? (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-5.5 shrink-0 items-center justify-center rounded-[7px] border-2",
+                      locked
+                        ? "border-transparent bg-input/40 text-primary-foreground"
+                        : checked
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input bg-surface text-transparent",
+                    )}
+                  >
+                    <Check strokeWidth={3.2} className="size-3.5" />
+                  </span>
+                ) : null}
+                <span className={cn("inline-flex shrink-0", locked && "opacity-50")}>
+                  <MemberFace
+                    userId={member.user_id}
+                    label={label}
+                    avatarUrl={memberAvatarUrl(member.avatar_url)}
+                    small={Boolean(selectedUserIds)}
+                  />
+                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body font-medium text-foreground">{label}</span>
+                  <span
+                    className={cn(
+                      "block truncate text-body-lg font-medium",
+                      locked ? "text-muted-foreground" : "text-foreground",
+                    )}
+                  >
+                    {label}
+                  </span>
                   {nameOnly ? null : (
-                    <span className="block truncate text-caption text-muted-foreground">{member.email}</span>
+                    <span className="block truncate text-label text-muted-foreground">{member.email}</span>
                   )}
                 </span>
-                {actionIcon ?? (
-                  <UserPlus
-                    className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
-                    aria-hidden
-                  />
-                )}
+                {locked && lockedLabel ? (
+                  <span className="shrink-0 rounded-full bg-muted px-2.5 text-caption leading-6 font-semibold text-muted-foreground">
+                    {lockedLabel}
+                  </span>
+                ) : null}
+                {selectedUserIds ? null : (actionIcon ?? <MemberRowActionMark icon={UserPlus} />)}
               </button>
             </li>
           );
@@ -279,7 +373,7 @@ export function WorkspaceMemberPickerList({
 
   return (
     <div ref={listRef} className="space-y-2">
-      <p id={headingId} className="text-overline uppercase text-muted-foreground">
+      <p id={headingId} className={CHAT_SECTION_LABEL_CLASS}>
         {heading ?? t("chat.workspace_members")}
       </p>
       {body}
@@ -358,17 +452,19 @@ export function ExternalMemberLookupRow({
 
   return (
     <div className="space-y-2">
-      <p className="text-overline uppercase text-muted-foreground">{hint}</p>
-      <div className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
-        <ActorAvatar name={label} initials={initialOf(label)} size="lg" />
+      <p className={CHAT_SECTION_LABEL_CLASS}>{hint}</p>
+      <div className="flex items-center gap-3 rounded-[14px] border border-border py-3 pr-3 pl-3.5">
+        <MemberFace userId={contact.user_id} label={label} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-body font-medium text-foreground">{label}</p>
-          <p className="truncate text-caption text-muted-foreground">{lookup.email}</p>
+          <p className="truncate text-body-lg font-semibold text-foreground">{label}</p>
+          <p className="truncate text-label text-muted-foreground">{lookup.email}</p>
         </div>
         {unavailableLabel ? (
-          <span className="shrink-0 text-caption text-muted-foreground">{unavailableLabel}</span>
+          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-caption font-semibold text-muted-foreground">
+            {unavailableLabel}
+          </span>
         ) : (
-          <Button type="button" size="sm" variant="secondary" onClick={() => onPick(contact)}>
+          <Button type="button" size="sm" variant="secondary" className={CHAT_PILL_SM_CLASS} onClick={() => onPick(contact)}>
             {actionLabel}
           </Button>
         )}
@@ -400,9 +496,9 @@ export function WorkspaceMemberLookupResult({
 
   if (lookup.isFetching) {
     return (
-      <div role="status" className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
+      <div role="status" className="flex items-center gap-3 rounded-xl border border-border py-3 pr-3 pl-3.5">
         <span className="sr-only">{t("chat.searching")}</span>
-        <Skeleton className="size-8 shrink-0 rounded-full" aria-hidden />
+        <Skeleton className="size-10 shrink-0 rounded-full" aria-hidden />
         <span className="min-w-0 flex-1 space-y-1.5" aria-hidden>
           <Skeleton className="h-3.5 w-2/5" />
           <Skeleton className="h-3 w-3/5" />

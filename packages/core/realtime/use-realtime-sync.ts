@@ -110,6 +110,8 @@ function keysFor(
     // lifecycle event can change it.
     if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
       push(homeKeys.summary(wsId));
+      // A linked task's title, status or due date shows in the chat info panel.
+      push(chatKeys.roomLinkedTasksRoot(wsId));
     }
     pushCalendar();
     return keys;
@@ -148,6 +150,7 @@ function keysFor(
       // comes back from the API.
       push(notificationKeys.lists());
       push(notificationKeys.unreadCount());
+      push(chatKeys.unreadSummary());
       push(homeKeys.summary(wsId));
       break;
     }
@@ -182,6 +185,11 @@ function keysFor(
       if (payload.room_id) {
         push(chatKeys.roomMembers(wsId, payload.room_id));
       }
+      break;
+    }
+    case "chat.room.member_read": {
+      // Someone's read cursor moved: only this room's "N người đã xem" changes.
+      if (payload.room_id) push(chatKeys.roomMembers(wsId, payload.room_id));
       break;
     }
     case "chat.channel.created":

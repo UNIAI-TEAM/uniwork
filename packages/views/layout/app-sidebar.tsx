@@ -75,7 +75,7 @@ function initialOf(name: string) {
  * padded sidebar rail. PRODUCT.md keeps the nav to built surfaces only —
  * tasks, meetings, members — but the chrome matches the reference layout.
  */
-export function AppSidebar({ variant = "full" }: { variant?: "full" | "chat-only" }) {
+export function AppSidebar() {
   const { t } = useTranslation();
   const { workspace, user } = useWorkspace();
   const { pathname, replace } = useNavigation();
@@ -100,10 +100,7 @@ export function AppSidebar({ variant = "full" }: { variant?: "full" | "chat-only
         </SidebarMenu>
       </SidebarHeader>
 
-      {/* The UniChat shell is one module: switcher above, account below, no nav
-          between. A child component keeps the nav's badge and pin queries from
-          running (and refetching on every notification) where nothing shows them. */}
-      {variant === "chat-only" ? null : <ModuleNav ws={ws} pathname={pathname} onNavigate={dismissSheet} />}
+      <ModuleNav ws={ws} pathname={pathname} onNavigate={dismissSheet} />
 
       <SidebarFooter className="px-2 pt-1 pb-2 group-data-[collapsible=icon]:px-0">
         <SidebarMenu>

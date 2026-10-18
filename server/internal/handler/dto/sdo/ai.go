@@ -90,13 +90,20 @@ type ChatCatchUpActionItemDTO struct {
 	SourceMessageID string `json:"source_message_id,omitempty" example:"01J8XMSG0000000000000001"`
 }
 
+// ChatCatchUpHighlightDTO is one key point of a CatchUp brief and the message it came from.
+type ChatCatchUpHighlightDTO struct {
+	Text            string `json:"text" description:"Ý chính" example:"An chốt demo thứ Sáu"`
+	SourceMessageID string `json:"source_message_id,omitempty" description:"Tin gốc của ý chính; trống khi mô hình không chỉ ra" example:"01J8XMSG0000000000000001"`
+}
+
 // ChatCatchUpSDO is POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up.
 type ChatCatchUpSDO struct {
-	Summary      string                     `json:"summary" example:"An nhắc hạn spec F-09; Bình hỏi trạng thái PR."`
-	Highlights   []string                   `json:"highlights"`
-	ActionItems  []ChatCatchUpActionItemDTO `json:"action_items"`
-	MessageCount int                        `json:"message_count" example:"12"`
-	Mode         string                     `json:"mode" description:"unread sau last_read; recent khi cửa sổ 48h (chưa join)" example:"unread"`
-	Since        string                     `json:"since" example:"2026-09-11T08:00:00Z"`
-	Usage        AiUsageDTO                 `json:"usage"`
+	Summary        string                     `json:"summary" example:"An nhắc hạn spec F-09; Bình hỏi trạng thái PR."`
+	Highlights     []string                   `json:"highlights" description:"Ý chính dạng chuỗi (client cũ); cùng thứ tự với highlight_items"`
+	HighlightItems []ChatCatchUpHighlightDTO  `json:"highlight_items" description:"Ý chính kèm tin gốc"`
+	ActionItems    []ChatCatchUpActionItemDTO `json:"action_items"`
+	MessageCount   int                        `json:"message_count" example:"12"`
+	Mode           string                     `json:"mode" description:"unread sau last_read; recent khi cửa sổ 48h (chưa join)" example:"unread"`
+	Since          string                     `json:"since" example:"2026-09-11T08:00:00Z"`
+	Usage          AiUsageDTO                 `json:"usage"`
 }

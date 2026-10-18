@@ -1,8 +1,9 @@
 // A conversation's messages, newest at the bottom: an inverted FlatList (no
 // FlashList dependency) that keeps what the reader is looking at in place
 // while older pages load above and new messages arrive below
-// (maintainVisibleContentPosition), with day separators, the typing line at
-// the bottom, and a scroll to the message a deep link or a quote points at.
+// (maintainVisibleContentPosition), with day separators as chips on the chat
+// wall, the typing line at the bottom, and a scroll to the message a deep link
+// or a quote points at.
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, View } from "react-native";
@@ -28,8 +29,10 @@ function DayRow({ ts }: { ts: number }) {
   const { t, i18n } = useTranslation();
   const label = formatMessageDay(ts, i18n.language, { today: t("chat.day_today"), yesterday: t("chat.sidebar_yesterday") });
   return (
-    <View className="items-center py-3" accessibilityRole="header">
-      <Text className="rounded-full bg-secondary px-3 py-1 text-xs text-muted-foreground">{label}</Text>
+    <View className="items-center py-2.5" accessibilityRole="header">
+      <View className="rounded-full bg-chat-chip px-3 py-[3px]">
+        <Text className="text-[13px] font-semibold text-chat-chip-foreground">{label}</Text>
+      </View>
     </View>
   );
 }

@@ -6,7 +6,9 @@ import type { ChatRoomMemberPermissions } from "@uniwork/core/api/endpoints/chat
 import { useUpdateChatRoomSettings } from "@uniwork/core/chat";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { CHAT_SWITCH_CLASS } from "./chat-dialog-look";
 import { toastChatError } from "./chat-error-message";
+import { ChatSettingsNote } from "./chat-settings-ui";
 
 const defaultPermissions = (): ChatRoomMemberPermissions => ({
   allow_change_profile: true,
@@ -62,12 +64,15 @@ export function ChatGroupManageSection({
   // Each permission applies the moment it is flipped, so it is a switch, not
   // a checkbox waiting for a Save that does not exist.
   return (
-    <section id={id} className="border-b border-border px-4 py-3">
-      <p className="mb-2 text-label font-semibold text-foreground">{t("chat.settings_group_permissions_title")}</p>
+    <section id={id} className="border-t-8 border-muted px-5 pt-3.5 pb-4">
+      <p className="mb-1 text-body font-semibold text-foreground">{t("chat.settings_group_permissions_title")}</p>
       <ul className="divide-y divide-border">
         {permissionKeys.map((key) => (
-          <li key={key} className="flex items-center justify-between gap-3 py-2">
-            <Label htmlFor={`chat-perm-${roomId}-${key}`} className="flex-1 cursor-pointer text-body text-foreground">
+          <li key={key} className="flex min-h-13 items-center justify-between gap-4 py-1.5">
+            <Label
+              htmlFor={`chat-perm-${roomId}-${key}`}
+              className="flex-1 cursor-pointer text-body-lg leading-snug font-normal text-foreground"
+            >
               {t(`chat.settings_perm_${key}`)}
             </Label>
             <Switch
@@ -75,12 +80,13 @@ export function ChatGroupManageSection({
               checked={current[key]}
               disabled={!canManage || updateSettings.isPending}
               onCheckedChange={(value) => toggle(key, value === true)}
+              className={CHAT_SWITCH_CLASS}
             />
           </li>
         ))}
       </ul>
       {!canManage ? (
-        <p className="mt-2 text-caption text-muted-foreground">{t("chat.settings_permissions_admin_only")}</p>
+        <ChatSettingsNote className="mt-2.5">{t("chat.settings_permissions_admin_only")}</ChatSettingsNote>
       ) : null}
     </section>
   );

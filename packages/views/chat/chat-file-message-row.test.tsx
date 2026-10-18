@@ -68,7 +68,7 @@ describe("ChatFileMessageRow", () => {
     renderRow(fileMessage("message1", { filename: "sprint.pdf", content_type: "application/pdf", size_bytes: 2048 }));
 
     expect(screen.getByText("sprint.pdf")).toBeInTheDocument();
-    expect(screen.getByText("2,0 KB")).toBeInTheDocument();
+    expect(screen.getByText("2 KB · PDF")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tải sprint.pdf xuống" })).toBeInTheDocument();
     // Nothing loads for a PDF nobody opened.
     expect(screen.queryByTitle("Xem trước PDF")).not.toBeInTheDocument();

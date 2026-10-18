@@ -1,11 +1,12 @@
 "use client";
 
-import { CloudOff, RefreshCw } from "lucide-react";
+import { Clock, RefreshCw, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useWSConnectionState } from "@uniwork/core/realtime";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
+import { CHAT_NOTICE_STRIP, ChatNoticeRetryButton } from "./chat-notice";
 
 /** A socket that drops and returns within this window is not worth a sentence. */
 export const REALTIME_ANNOUNCE_DELAY_MS = 2000;
@@ -29,6 +30,7 @@ export function ChatRealtimeStatusBanner({
   const showReconnectBanner =
     state === "disconnected" || (state === "connecting" && hasEverConnected);
   const disconnected = state === "disconnected";
+  const reconnecting = showReconnectBanner && state === "connecting";
   const connectionLine = showReconnectBanner
     ? state === "connecting"
       ? t("chat.ws_reconnecting")
@@ -56,18 +58,20 @@ export function ChatRealtimeStatusBanner({
       {showReconnectBanner || outboxLine ? (
         <Notice
           tone={disconnected ? "warning" : "info"}
-          icon={disconnected ? CloudOff : RefreshCw}
+          icon={disconnected ? WifiOff : reconnecting ? RefreshCw : Clock}
           live="off"
-          action={
-            disconnected ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => reconnectNow()}>
-                {t("chat.retry")}
-              </Button>
-            ) : null
-          }
+          // The reconnecting arrows turn while the socket retries; still under reduced motion.
+          className={cn(CHAT_NOTICE_STRIP, reconnecting && "[&>svg]:motion-safe:animate-spin")}
+          action={disconnected ? <ChatNoticeRetryButton onClick={() => reconnectNow()} /> : null}
         >
-          {connectionLine ? <p>{connectionLine}</p> : null}
-          {outboxLine ? <p>{outboxLine}</p> : null}
+          {connectionLine ? (
+            <p className={cn("text-body", disconnected ? "font-semibold" : "font-medium")}>{connectionLine}</p>
+          ) : null}
+          {outboxLine ? (
+            <p className={cn("tabular-nums", connectionLine ? "text-label font-normal" : "text-body font-medium")}>
+              {outboxLine}
+            </p>
+          ) : null}
         </Notice>
       ) : null}
     </>

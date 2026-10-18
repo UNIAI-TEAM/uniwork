@@ -11,6 +11,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./chat-dialog-look";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberLookupResult,
@@ -23,8 +24,8 @@ import { memberToChatContact } from "./workspace-member-picker-utils";
 
 /*
  * Same picker as creating a group: workspace members by name or email, and
- * an exact email reaches people outside the workspace. People already in the
- * room never appear in the list.
+ * an exact email reaches people outside the workspace. The list is checkbox
+ * rows (canvas): people already in the room stay in it, ticked and greyed.
  */
 export function AddGroupMembersDialog({
   open,
@@ -57,10 +58,7 @@ export function AddGroupMembersDialog({
 
   const pickerFocus = useMemberPickerFocus();
   const existingMemberIds = useMemo(() => new Set(group.member_user_ids), [group.member_user_ids]);
-  const excludeUserIds = useMemo(
-    () => new Set([...group.member_user_ids, ...pendingMembers.map((member) => member.user_id)]),
-    [group.member_user_ids, pendingMembers],
-  );
+  const pickedUserIds = useMemo(() => new Set(pendingMembers.map((member) => member.user_id)), [pendingMembers]);
 
   const { filteredMembers, hasOtherMembers, isLoading, lookup, lookupEnabled, workspaceEmailMatch } =
     useWorkspaceMemberPicker({
@@ -69,7 +67,6 @@ export function AddGroupMembersDialog({
       open,
       query: memberQuery,
       searchSubmitted,
-      excludeUserIds,
     });
 
   const resetForm = () => {
@@ -89,15 +86,27 @@ export function AddGroupMembersDialog({
     setPendingMembers((prev) =>
       prev.some((member) => member.user_id === contact.user_id) ? prev : [...prev, contact],
     );
-    setMemberQuery("");
-    setSearchSubmitted(false);
-    // The picked row leaves the list; the search field is where the next pick starts.
-    pickerFocus.focusInput();
+    // A search found them: clear it and start the next one from the field.
+    if (memberQuery.trim()) {
+      setMemberQuery("");
+      setSearchSubmitted(false);
+      pickerFocus.focusInput();
+    }
+  };
+
+  const removeMember = (userId: string) => {
+    setPendingMembers((prev) => prev.filter((entry) => entry.user_id !== userId));
+  };
+
+  /* A picked row stays, ticked, and unticks. */
+  const toggleMember = (contact: ChatContact) => {
+    if (pickedUserIds.has(contact.user_id)) removeMember(contact.user_id);
+    else addMember(contact);
   };
 
   const submitMemberSearch = () => {
     setSearchSubmitted(true);
-    if (workspaceEmailMatch && !excludeUserIds.has(workspaceEmailMatch.user_id)) {
+    if (workspaceEmailMatch && !existingMemberIds.has(workspaceEmailMatch.user_id)) {
       addMember(memberToChatContact(workspaceEmailMatch));
     }
   };
@@ -106,7 +115,7 @@ export function AddGroupMembersDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.form}`}>
         <FormDialogHeader
           title={isChannel ? t("chat.channel.add_members_title") : t("chat.add_group_members_title")}
           description={
@@ -115,7 +124,7 @@ export function AddGroupMembersDialog({
               : t("chat.add_group_members_description", { name: group.name })
           }
         />
-        <FormDialogBody>
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
           <WorkspaceMemberSearchField
             id="add-group-member-search"
             label={t("chat.group_members_label")}
@@ -134,9 +143,7 @@ export function AddGroupMembersDialog({
           {pendingMembers.length > 0 ? (
             <SelectedMemberChips
               members={pendingMembers}
-              onRemove={(userId) =>
-                setPendingMembers((prev) => prev.filter((entry) => entry.user_id !== userId))
-              }
+              onRemove={removeMember}
               onRemovedLast={pickerFocus.focusInput}
             />
           ) : null}
@@ -154,21 +161,26 @@ export function AddGroupMembersDialog({
             loading={isLoading}
             query={memberQuery}
             hasOtherMembers={hasOtherMembers}
-            allPickedLabel={
-              isChannel ? t("chat.channel.add_members_all_in") : t("chat.add_group_members_all_in")
-            }
-            onPick={addMember}
+            selectedUserIds={pickedUserIds}
+            lockedUserIds={existingMemberIds}
+            lockedLabel={alreadyInLabel}
+            onPick={toggleMember}
             listRef={pickerFocus.listRef}
           />
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={isChannel ? t("chat.channel.invite_members") : t("chat.invite_members")}
           submittingLabel={t("chat.inviting_members")}
           submitting={inviting}
           submitDisabled={pendingMembers.length === 0}
           onSubmit={() => onInvite(pendingMembers)}
-          leading={pendingMembers.length === 0 ? t("chat.add_group_members_hint") : undefined}
+          leading={
+            pendingMembers.length === 0
+              ? t("chat.add_group_members_hint")
+              : t("chat.group_member_selected", { count: pendingMembers.length })
+          }
         />
       </FormDialogContent>
     </Dialog>

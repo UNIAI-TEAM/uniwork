@@ -78,6 +78,8 @@ const MOBILE_ONLY = {
         empty: "Chưa có cuộc gọi nào. Cuộc gọi trong các cuộc trò chuyện của bạn sẽ hiện ở đây.",
         outgoing: "Gọi đi",
         incoming: "Gọi đến",
+        filter_missed: "Cuộc gọi nhỡ",
+        no_missed: "Không có cuộc gọi nhỡ nào.",
       },
       contacts: {
         empty: "Chưa có ai khác trong workspace này.",
@@ -112,6 +114,8 @@ const MOBILE_ONLY = {
         empty: "No calls yet. Calls in your conversations show up here.",
         outgoing: "Outgoing",
         incoming: "Incoming",
+        filter_missed: "Missed",
+        no_missed: "No missed calls.",
       },
       contacts: {
         empty: "No one else is in this workspace yet.",

@@ -12,6 +12,7 @@ import { Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { ChatHeader, HeaderIconButton } from "@/components/chat/chat-header";
 import { Conversation } from "@/components/chat/conversation";
+import { RoomAvatar } from "@/components/chat/room-avatar";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useRoomReadMarking } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
@@ -21,6 +22,7 @@ import { refreshRoomTimelineOnOpen } from "@/data/chat-timeline";
 import { roomAroundOptions, roomTimelineOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
 import { chatRoutes } from "@/lib/chat-routes";
+import { roomHeaderMark } from "@/lib/conversation-display";
 import { buildMainTimelineMessages } from "@/lib/timeline-display";
 import { voiceCallKindFromServer } from "@/lib/voice-call";
 
@@ -75,6 +77,8 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
         <ChatHeader
           title={room.title}
           subtitle={room.typingLabel ?? (room.peerOnline ? t("chat.presence_online") : null)}
+          typing={Boolean(room.typingLabel)}
+          avatar={room.room ? <RoomAvatar mark={roomHeaderMark(room.room, room.title, room.peerOnline)} size={40} /> : null}
           right={
             <View className="flex-row">
               {callable ? (

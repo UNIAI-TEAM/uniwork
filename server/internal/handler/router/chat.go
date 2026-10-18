@@ -15,6 +15,7 @@ import (
 //	GET  /api/v1/workspaces/{workspaceID}/chat/room
 //	POST /api/v1/workspaces/{workspaceID}/chat/room
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms
+//	GET  /api/v1/me/chat/unread-summary
 //	POST /api/v1/workspaces/{workspaceID}/chat/dm
 //	POST /api/v1/workspaces/{workspaceID}/chat/groups
 //	POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/leave
@@ -152,6 +153,13 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
+	r.Get("/me/chat/unread-summary", h.ChatUnreadSummary, apiOp{
+		summary:     "Chat unread summary",
+		description: "Chưa đọc chat của người gọi theo từng workspace mở được, cho bộ chuyển workspace: DM và nhóm đếm một lần (direct), kênh theo workspace; phòng tắt thông báo chỉ tính nhắc tên.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatUnreadSummarySDO{},
+		auth:        true,
+	})
 	r.Post("/workspaces/{workspaceID}/chat/dm", h.ResolveDM, apiOp{
 		summary:     "Resolve DM room",
 		description: "Tìm hoặc tạo phòng DM 1:1 trong tổ chức (có thể khác workspace).",
@@ -217,6 +225,21 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		tags:        []string{"chat"},
 		sdi:         sdi.PatchChatRoomSDI{},
 		sdo:         sdo.ChatRoomMemberPermissionsDTO{},
+		auth:        true,
+	})
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar", h.UploadChatRoomAvatar, apiOp{
+		summary:     "Upload group avatar",
+		description: "Đặt ảnh nhóm chat. Tên field multipart là file. PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB. Quyền như đổi tên nhóm: admin phòng, người tạo, hoặc thành viên khi allow_change_profile bật. Chỉ cho nhóm.",
+		tags:        []string{"chat"},
+		sdi:         sdi.UploadChatRoomAvatarSDI{},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
+	r.With(chatRoomLimit).Delete("/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar", h.RemoveChatRoomAvatar, apiOp{
+		summary:     "Remove group avatar",
+		description: "Bỏ ảnh nhóm chat; nhóm hiện lại ảnh các thành viên. Quyền như đổi tên nhóm.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
 	r.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{

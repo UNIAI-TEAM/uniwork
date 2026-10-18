@@ -10,7 +10,6 @@ import {
   useChatRooms,
 } from "@uniwork/core/chat";
 import { useCurrentMember } from "@uniwork/core/permissions";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Sheet,
@@ -19,20 +18,30 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
+import { identityTint } from "../people/identity-tint";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
+  ChatMemberFace,
+  chatSettingsIconButtonClass,
   ChatMemberListError,
   ChatMemberListSkeleton,
   ChatMemberRow,
   ChatSettingsCollapsibleSection,
+  ChatSettingsHeader,
+  ChatSettingsHero,
   ChatSettingsMenuRow,
   ChatSettingsQuickAction,
   ChatSettingsQuickActions,
-  ChatSettingsTitleRow,
+  ChatSettingsSection,
 } from "./chat-settings-ui";
+import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
+import { settingsMemberOrder } from "./chat-info-panel-utils";
+import { ChatGroupAvatarEditor } from "./chat-group-avatar-editor";
+import { ChatRoomFace } from "./chat-info-panel-mark";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
+import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
 import { ChatRoomRenameDialog } from "./chat-room-rename-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
@@ -45,7 +54,6 @@ import {
 } from "./chat-room-moderation-utils";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
-import { initialOf } from "./chat-initials";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 
 type MemberProfile = {
@@ -103,7 +111,8 @@ export function GroupSettingsSheet({
   const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, group.room_id);
   const currentMember = useCurrentMember(workspaceId);
   const moderation = useRoomMemberModeration({ workspaceId, roomId: group.room_id });
-  const [membersOpen, setMembersOpen] = useState(false);
+  // The canvas opens the sheet on its member list.
+  const [membersOpen, setMembersOpen] = useState(true);
   const [manageOpen, setManageOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [bulletinOpen, setBulletinOpen] = useState(false);
@@ -160,20 +169,38 @@ export function GroupSettingsSheet({
         },
       });
     }
-    return ordered;
+    return settingsMemberOrder(
+      ordered.map((entry) => ({ ...entry, user_id: entry.key, role: entry.chat.role })),
+      currentUserId,
+    );
   }, [chatMembers, currentUserId, youLabel, memberProfiles, nicknamesByUserId]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className={CHAT_SHEET_CLASS}>
         <SheetHeader className="sr-only">
           <SheetTitle>{displayName}</SheetTitle>
           <SheetDescription>{t("chat.group_settings_description")}</SheetDescription>
         </SheetHeader>
 
+        <ChatSettingsHeader title={t("chat.group_settings")} />
+
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <ChatSettingsTitleRow
-            title={displayName}
+          <ChatSettingsHero
+            mark={
+              <ChatGroupAvatarEditor
+                workspaceId={workspaceId}
+                roomId={group.room_id}
+                name={displayName}
+                tint={identityTint(group.id)}
+                imageUrl={roomRecord?.avatar_url}
+                canEdit={roomPermissions.canChangeProfile}
+              />
+            }
+            name={displayName}
+            subtitle={
+              membersPending || membersError ? undefined : t("chat.group_member_count", { count: members.length })
+            }
             editAriaLabel={t("chat.settings_edit_name")}
             onEdit={roomPermissions.canChangeProfile ? () => setRenameOpen(true) : undefined}
           />
@@ -218,6 +245,26 @@ export function GroupSettingsSheet({
             />
           ) : null}
 
+          <ChatSettingsSection className="py-1">
+            <ChatSettingsMenuRow
+              icon={StickyNote}
+              label={t("chat.settings_notes_pins_polls")}
+              onClick={() => setBulletinOpen(true)}
+            />
+            {onOpenSearch ? (
+              <ChatSettingsMenuRow
+                icon={Search}
+                label={t("chat.search_messages")}
+                onClick={() => {
+                  onOpenChange(false);
+                  onOpenSearch();
+                }}
+              />
+            ) : null}
+          </ChatSettingsSection>
+
+          <ChatRoomSharedTotals workspaceId={workspaceId} roomId={group.room_id} open={open} />
+
           <ChatSettingsCollapsibleSection
             title={t("chat.settings_group_members")}
             summary={
@@ -237,11 +284,10 @@ export function GroupSettingsSheet({
                   <ChatMemberRow
                     key={member.key}
                     avatar={
-                      <ActorAvatar
-                        name={member.label}
-                        initials={initialOf(member.label)}
+                      <ChatMemberFace
+                        userId={member.key}
+                        name={member.legalLabel}
                         avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.key)}
-                        size="lg"
                       />
                     }
                     name={member.label}
@@ -253,6 +299,15 @@ export function GroupSettingsSheet({
                           : member.chat.send_restricted
                             ? t("chat.room_role_muted")
                             : member.email
+                    }
+                    detailTone={
+                      member.label !== member.legalLabel
+                        ? undefined
+                        : member.chat.role === "admin"
+                          ? "admin"
+                          : member.chat.send_restricted
+                            ? "restricted"
+                            : undefined
                     }
                     profile={{
                       userId: member.key,
@@ -273,13 +328,13 @@ export function GroupSettingsSheet({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-foreground"
+                          size="icon"
+                          className={chatSettingsIconButtonClass}
                           aria-label={t("chat.nickname_action_for", { name: member.label })}
                           title={t("chat.nickname_action")}
                           onClick={() => setNicknameTarget({ userId: member.key, label: member.legalLabel })}
                         >
-                          <Tag aria-hidden />
+                          <Tag className="size-4.5" aria-hidden />
                         </Button>
                         {!member.isSelf && isModerator ? (
                           <ChatRoomMemberActions
@@ -317,32 +372,14 @@ export function GroupSettingsSheet({
             )}
           </ChatSettingsCollapsibleSection>
 
-          <section className="border-b border-border py-1">
-            <ChatSettingsMenuRow
-              icon={StickyNote}
-              label={t("chat.settings_notes_pins_polls")}
-              onClick={() => setBulletinOpen(true)}
-            />
-            {onOpenSearch ? (
-              <ChatSettingsMenuRow
-                icon={Search}
-                label={t("chat.search_messages")}
-                onClick={() => {
-                  onOpenChange(false);
-                  onOpenSearch();
-                }}
-              />
-            ) : null}
-          </section>
-
-          <div className="px-4 py-4">
+          <ChatSettingsSection className="mt-auto px-5 pt-4 pb-5">
             <LeaveConversationSection
               variant="group"
               disabled={leaveDisabled}
               leaving={leaving}
               onLeave={onLeave}
             />
-          </div>
+          </ChatSettingsSection>
         </div>
 
         {renameOpen ? (
@@ -361,6 +398,8 @@ export function GroupSettingsSheet({
             workspaceId={workspaceId}
             roomId={group.room_id}
             title={t("chat.settings_group_bulletin")}
+            subtitle={displayName}
+            mark={<ChatRoomFace name={displayName} tint={identityTint(group.id)} imageUrl={roomRecord?.avatar_url} size="header" />}
             canCreateNotes={roomPermissions.canCreateNotes}
             canCreatePolls={roomPermissions.canCreatePolls}
             canPinMessages={roomPermissions.canPinContent}
