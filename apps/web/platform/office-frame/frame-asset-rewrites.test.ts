@@ -73,7 +73,8 @@ describe("officeFrameAssetRewrites", () => {
     // returned the quoted boolean; Next's `getPathMatch` is authoritative.
     // old: false — `(.*)` could not match without the `/` after `ai`.
     expect(matcher(`/api/v1/office-frame/documents/${DOC}/ai`)).toEqual({ documentId: DOC });
-    // old: true — `(.*)` matched the empty tail; `strict: true` rejects it.
+    // old: true — `(.*)` matched the empty tail; `strict: true` rejects it. End to end Next first
+    // 308-redirects a trailing-slash path to the slashless one, which then matches the rule.
     expect(matcher(`/api/v1/office-frame/documents/${DOC}/ai/`)).toBe(false);
     expect(matcher(`/api/v1/office-frame/documents/${DOC}/ai/cloud/`)).toBe(false);
     // old: false — the hand regex was case-sensitive; Next routes it (caseSensitiveRoutes unset).
