@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+88813567575862c304c1256386dd0b6997ca2b69
+888135675 fix(documents): restage an upload key whose previous staged file expired (UNI-1900)
+a4aea8cee fix(documents): replay the stored save answer when the upload no longer resolves (UNI-1900)
+14b2dc146 fix(alerts): exclude unchanged saves from the Office conflict ratio
+1332d57a4 fix(documents): refuse a consumed upload before the identical-bytes no-op
+5afd5a0d6 test(documents): commit changed bytes where a test expects a new file version
+ff75a5a78 docs(documents): note identical-byte Save is 200 with the current version (UNI-1900)
+612f07ee6 test(documents): pin identical-byte file Save as a 200 no-op (UNI-1900)
+54d16a18e feat(documents): skip a new file version when Save bytes match the current checksum (UNI-1900)
