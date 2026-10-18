@@ -60,7 +60,7 @@ WHERE id = $5
   AND workspace_id = $7
   AND kind = 'file'
   AND revision = $8
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 `
 
 type SetDocumentFileVersionParams struct {
@@ -137,6 +137,10 @@ func (q *Queries) SetDocumentFileVersion(ctx context.Context, arg SetDocumentFil
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
 		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
 	)
 	return i, err
 }

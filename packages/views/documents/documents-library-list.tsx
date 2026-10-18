@@ -3,37 +3,35 @@
 import type { ReactNode } from "react";
 import { FolderOpen, Search, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { Member } from "@uniwork/core/types/workspace";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
+import type { Member } from "@uniwork/core/types/workspace";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { TrashRowView, type TrashRowActions } from "./documents-trash-row";
-import { libraryGroupSpans, libraryLadder, trashLadder, type LibraryColumnId } from "./library-columns";
-import { rowTypeKey, type RowGroup } from "./library-rows";
+import { ShelvedRowView, type ShelvedRowActions } from "./documents-shelved-row";
+import { libraryGroupSpans, libraryLadder, shelvedLadder, type LibraryColumnId } from "./library-columns";
+import type { RowGroup } from "./library-rows";
 
 const COLUMN_LABEL: Record<LibraryColumnId, string> = {
   name: "documents.home.columns.name",
-  type: "documents.home.columns.type",
-  source: "documents.home.columns.source",
+  access: "documents.home.columns.access",
   editor: "documents.home.columns.editor",
   updated: "documents.home.columns.updated",
   size: "documents.home.columns.size",
-  access: "documents.home.columns.my_access",
-  visibility: "documents.home.columns.visibility",
   actions: "documents.home.columns.actions",
-  deleted_by: "documents.trash.columns.deleted_by",
-  deleted_at: "documents.trash.columns.deleted_at",
-  purge_in: "documents.trash.columns.purge_in",
+  // Shelved-only columns: the base map must still satisfy Record<LibraryColumnId, string>.
+  shelved_by: "documents.shelved_list.columns.shelved_by",
+  shelved_at: "documents.shelved_list.columns.shelved_at",
 };
 
-// The trash table reads its own header keys (documents.trash.columns.*) for
-// every column; it shares the shell, the group spanners and the states only.
-const TRASH_COLUMN_LABEL: Record<LibraryColumnId, string> = {
+// The Lưu trữ table reads its own header keys (documents.shelved_list.columns.*)
+// for every column; it shares the shell, the group spanners and the states only.
+const SHELVED_COLUMN_LABEL: Record<LibraryColumnId, string> = {
   ...COLUMN_LABEL,
-  name: "documents.trash.columns.name",
-  actions: "documents.trash.columns.actions",
+  name: "documents.shelved_list.columns.name",
+  access: "documents.shelved_list.columns.access",
+  actions: "documents.shelved_list.columns.actions",
 };
 
 export interface DocumentsLibraryListProps {
@@ -54,23 +52,25 @@ export interface DocumentsLibraryListProps {
   typeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
-  /** The Thùng rác layout (RESTORE-01): the trash ladder and TrashRowView
-   *  with its own columns and per-row commands instead of the library cells. */
-  trash?: {
-    actions: TrashRowActions;
-    /** The workspace member list by user id, feeding the Xóa bởi column. */
+  /** The Lưu trữ layout (ARCHIVE-01 U-2): the shelved ladder and
+   *  ShelvedRowView with its own columns and per-row commands. */
+  shelved?: {
+    actions: ShelvedRowActions;
+    /** The workspace member list by user id, feeding the Lưu trữ bởi column. */
     members: ReadonlyMap<string, Member>;
-    /** True once the members query has answered; until then an unknown id is "still loading", not "former member". */
     membersReady: boolean;
   };
-  /** Show the Type column (`documents.home.columns.type`) when an open folder is displayed. */
-  showType?: boolean;
+  /** The no-matches copy of the open view when it is not the generic library
+   *  wording (the shelved list names its own empty-filtered line). */
+  emptyFiltered?: { title: string; description: string };
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
   onRetry: () => void;
   onClearFilters: () => void;
   handlers: LibraryRowHandlers;
+  /** "Shared by me" (SW-V1/V2): Truy cập joins at the editor's rung and the plain home-workspace scope stays on the narrow line. */
+  sharedByMe?: boolean;
   /** The empty state's copy and actions, which depend on the open view. */
   empty: { title: string; description: string; actions?: ReactNode };
 }
@@ -89,14 +89,15 @@ export function DocumentsLibraryList({
   accessFiltered = false,
   typeFiltered = false,
   cardsShown = false,
-  trash,
-  showType = false,
+  shelved,
+  emptyFiltered,
   hasMore,
   loadingMore,
   onLoadMore,
   onRetry,
   onClearFilters,
   handlers,
+  sharedByMe = false,
   empty,
 }: DocumentsLibraryListProps) {
   const { t } = useTranslation();
@@ -139,22 +140,25 @@ export function DocumentsLibraryList({
       return (
         <CollectionPageState
           icon={Search}
-          title={t("documents.library.no_matches_title")}
-          description={t(
-            accessFiltered && typeFiltered
-              ? clientFiltered && hasMore
-                ? "documents.home.no_matches_filters_more_description"
-                : "documents.home.no_matches_filters_description"
-              : accessFiltered
+          title={emptyFiltered?.title ?? t("documents.library.no_matches_title")}
+          description={
+            emptyFiltered?.description ??
+            t(
+              accessFiltered && typeFiltered
                 ? clientFiltered && hasMore
-                  ? "documents.home.no_matches_access_more_description"
-                  : "documents.home.no_matches_access_description"
-                : clientFiltered && hasMore
-                  ? "documents.home.no_matches_more_description"
-                  : cardsShown
-                    ? "documents.home.no_matches_description"
-                    : "documents.home.no_matches_plain_description",
-          )}
+                  ? "documents.home.no_matches_filters_more_description"
+                  : "documents.home.no_matches_filters_description"
+                : accessFiltered
+                  ? clientFiltered && hasMore
+                    ? "documents.home.no_matches_access_more_description"
+                    : "documents.home.no_matches_access_description"
+                  : clientFiltered && hasMore
+                    ? "documents.home.no_matches_more_description"
+                    : cardsShown
+                      ? "documents.home.no_matches_description"
+                      : "documents.home.no_matches_plain_description",
+            )
+          }
           role="status"
           actions={
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -184,14 +188,9 @@ export function DocumentsLibraryList({
     return "";
   };
 
-  const ladder = trash ? trashLadder() : libraryLadder(showType);
+  const ladder = shelved ? shelvedLadder() : libraryLadder({ sharedByMe });
   const groupSpans = libraryGroupSpans(ladder);
-  const columnLabel = trash ? TRASH_COLUMN_LABEL : COLUMN_LABEL;
-  // A trash row names its parent folder when the parent is itself a listed
-  // trash row; the row titles by id are enough for that lookup.
-  const trashTitles = trash
-    ? new Map(groups.flatMap((group) => group.rows.flatMap((row) => (row.type === "document" ? [[row.id, row.doc.title] as const] : []))))
-    : null;
+  const columnLabel = shelved ? SHELVED_COLUMN_LABEL : COLUMN_LABEL;
 
   return (
     <div className="@container/library flex flex-col">
@@ -233,28 +232,21 @@ export function DocumentsLibraryList({
                   ))}
                 </tr>
               ) : null}
-              {group.rows.map((row) =>
-                trash ? (
-                  <TrashRowView
+              {group.rows.map((row) => (
+                shelved ? (
+                  <ShelvedRowView
                     key={row.id}
                     row={row}
-                    members={trash.members}
-                    membersReady={trash.membersReady}
-                    parentTitle={row.type === "document" && row.doc.parent_id ? (trashTitles?.get(row.doc.parent_id) ?? null) : null}
+                    members={shelved.members}
+                    membersReady={shelved.membersReady}
                     ladder={ladder}
-                    trash={trash.actions}
+                    shelved={shelved.actions}
                     onOpen={handlers.onOpen}
                   />
                 ) : (
-                  <LibraryRowView
-                    key={row.id}
-                    row={row}
-                    handlers={handlers}
-                    ladder={ladder}
-                    typeCell={showType ? t(rowTypeKey(row)) : undefined}
-                  />
-                ),
-              )}
+                  <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} sharedByMe={sharedByMe} />
+                )
+              ))}
             </tbody>
           ))}
         </table>

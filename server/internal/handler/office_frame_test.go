@@ -381,3 +381,37 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 		t.Fatalf("org A after org B was switched off = %d %v", res.StatusCode, out)
 	}
 }
+
+// TestOfficeFrameCommitIdenticalBytesNoOp is UNI-1900 on the frame commit
+// route: saving the same bytes answers 200 with the open revision, so the
+// host already treats it as saved.
+func TestOfficeFrameCommitIdenticalBytesNoOp(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	enableOfficeDocsWeb(t, w.q)
+	original := frameDocx(t, "same-bytes")
+	documentID := w.createDocx(t, "same.docx", original)
+	minted := w.mintFrameToken(t, documentID)
+	token, _ := minted["token"].(string)
+	base := "/api/v1/office-frame/documents/" + documentID
+
+	res, opened := doJSON(t, w.srv, "GET", base, token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("open = %d %v", res.StatusCode, opened)
+	}
+	revision, _ := opened["revision"].(string)
+	download, _ := opened["download_url"].(string)
+
+	res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", token, nil, "same.docx", original, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("upload = %d %s", res.StatusCode, raw)
+	}
+	var up struct {
+		UploadID string `json:"upload_id"`
+	}
+	_ = json.Unmarshal(raw, &up)
+	res, saved := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token, map[string]string{"Idempotency-Key": "frame-same-1"},
+		map[string]string{"upload_id": up.UploadID, "base_revision": revision})
+	if res.StatusCode != 200 || saved["revision"] != revision || saved["download_url"] != download {
+		t.Fatalf("identical frame commit = %d %v, want revision %s url %s", res.StatusCode, saved, revision, download)
+	}
+}

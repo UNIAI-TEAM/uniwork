@@ -92,6 +92,10 @@ type UploadInput struct {
 	IdempotencyKey string
 	Filename       string
 	Body           io.Reader
+	// Check, when set, validates the spooled body after it is typed and before
+	// any byte reaches storage. An error refuses the upload: nothing is stored,
+	// no quota stays reserved, and the error is returned to the caller as is.
+	Check func(ctx context.Context, body io.ReaderAt, size int64, contentType string) error
 }
 
 // Upload is what a successful upload returns. ClaimExpiresAt is the 24 hour

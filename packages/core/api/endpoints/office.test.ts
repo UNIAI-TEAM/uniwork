@@ -61,4 +61,12 @@ describe("office endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "copy_consent_required", message: "consent" } }, 400));
     await expect(copyDocument("d1", { consent: "copy" })).rejects.toThrow();
   });
+
+  it("copyDocument forwards upload_id alongside consent and title when saving a conflict copy", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ id: "d4", title: "Bản sao (2)" }) }));
+    const copy = await copyDocument("d1", { consent: "copy", upload_id: "up-1", title: "Bản sao (2)" }, { idempotencyKey: "k2" });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({ consent: "copy", upload_id: "up-1", title: "Bản sao (2)" });
+    expect(copy?.id).toBe("d4");
+  });
 });

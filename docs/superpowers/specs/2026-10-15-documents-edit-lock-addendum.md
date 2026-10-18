@@ -137,7 +137,7 @@ CREATE TABLE document_edit_locks (
     CHECK (end_reason IS NULL OR end_reason IN (
       'released', 'expired', 'taken_over', 'handed_over', 'moved_here',
       'session_revoked', 'access_lost', 'member_deactivated', 'organization_suspended',
-      'document_archived', 'document_deleted'))
+      'document_archived', 'document_deleted', 'document_shelved'))
 );
 ```
 
@@ -223,7 +223,8 @@ Một lệnh ghi bị kiểm khóa khi nó đổi **nội dung** tài liệu. Lu
 | `POST /documents/{documentID}/versions/{versionNo}/restore` | **Có** | edge 11: khôi phục thay nội dung; người khác giữ khóa → 423 |
 | `POST /documents/{documentID}/versions` (tạo phiên bản thủ công) | Không | chỉ chụp nội dung hiện có |
 | `POST /documents/{documentID}/move` | Không | edge 11: không đụng nội dung; sang workspace khác thì người giữ được kiểm lại quyền (mục 3.5) |
-| `POST /documents/{documentID}/archive` | Không cần, **nhả** khóa | edge 4: lưu trữ nhả khóa trong cùng transaction (`end_reason='document_archived'`) |
+| `POST /documents/{documentID}/archive` | Không cần, **nhả** khóa | edge 4: lưu trữ (thùng rác) nhả khóa trong cùng transaction (`end_reason='document_archived'`) |
+| `POST /documents/{documentID}/shelve` | Không cần, **nhả** khóa | edge 4: lưu trữ thật (ARCHIVE-01) nhả khóa trong cùng transaction (`end_reason='document_shelved'`) |
 | Bình luận, chia sẻ, liên kết, yêu thích | Không | không phải nội dung |
 
 ## 3. Route, SDI/SDO, mã lỗi
@@ -468,7 +469,7 @@ Tên test Go là tên đề xuất cho thẻ (a); vitest/e2e cho thẻ (b); `app
 | 1 | Hold hết hạn khi người giữ còn offline: app (thẻ c) đặt editor chỉ đọc theo `offline_hold_until` và đồng hồ G5-08c; thay đổi chưa lưu ở lại thành nháp mã hóa (store của G5-04, như Lock-while-open). Khi online: nếu R1 cho thấy trống và `documents.revision == base` của nháp → R2 rồi Lưu (intent mới); ngược lại → đường conflict (S5) hoặc `blocked document_locked`. Không bỏ nháp | Go `TestEditHoldExpiryFreesTheLockForOthers`; fork `apps/shell/src/main/uniwork-sync/edit-hold.test.ts` "hold expires offline → read-only, draft kept; reconnect free+same base → reacquire; else conflict" |
 | 2 | Manager lấy quyền khi người giữ offline (R5 hợp lệ cả khi hold còn): nhiệm kỳ cũ `taken_over`. Khi online lại, lần dispatch intent nhận 423 → queue `blocked` lý do `document_locked` (thẻ c), byte giữ nguyên, "Tải bản của tôi về máy" (`saveMyCopy`); thông báo `document_edit_taken_over` chờ ở Inbox | Go `TestTakeOverDuringOfflineHold` (R5 thành công, audit `previous_offline_hold=true`, commit sau với `edit_lock_id` cũ → 423); fork `queue/machine.test.ts` "423 document_locked → blocked, bytes kept" |
 | 3 | Người giữ mất `edit`, bị vô hiệu hóa, tổ chức bị tạm ngưng khi offline: consumer kết thúc khóa server-side (`access_lost` / `member_deactivated` / `organization_suspended`); khi online, Lưu gặp 403 → queue `blocked` với lý do hiện có (`permission_revoked` / `member_deactivated` / `organization_suspended`) | Go `TestEditLockReleasedOnAccessLoss` (bảng: share revoke, gỡ khỏi workspace, vô hiệu hóa, rời tổ chức, tạm ngưng; có và không có hold); `TestEditLockHeartbeatRechecksLevel` |
-| 4 | Lưu trữ/xóa/di chuyển khi đang giữ offline: lưu trữ nhả trong transaction (`document_archived`), xóa qua consumer (`document_deleted`), di chuyển → kiểm lại mức; tombstone dừng replay theo luật G5 (§4.1, §5.3) | Go `TestArchiveReleasesEditLock`, `TestDeleteReleasesEditLock`, `TestMoveKeepsLockUnlessAccessLost`; fork queue test hiện có cho tombstone (không đổi) |
+| 4 | Lưu trữ (thùng rác)/lưu trữ thật/xóa/di chuyển khi đang giữ offline: thùng rác nhả trong transaction (`document_archived`), lưu trữ thật nhả trong transaction (`document_shelved`), xóa qua consumer (`document_deleted`), di chuyển → kiểm lại mức; tombstone dừng replay theo luật G5 (§4.1, §5.3) | Go `TestArchiveReleasesEditLock`, `TestShelveReleasesEditLock`, `TestDeleteReleasesEditLock`, `TestMoveKeepsLockUnlessAccessLost`; fork queue test hiện có cho tombstone (không đổi) |
 | 5 | Lùi đồng hồ: hạn hold do server cấp (`offline_hold_until`, giờ Postgres); app tính hạn hiệu dụng bằng `server_time` + đồng hồ đơn điệu như lease (`lease/clock.ts:61-77`), lùi > 5 phút → coi như hết hạn (chỉ đọc) tới khi online | fork `edit-hold.test.ts` "clock rollback > 5 min → read-only" (dùng lại `computeEffectiveNow`/`isClockRollback`); Go không cần: server không đọc giờ client (ghi rõ trong test `TestEditLockUsesServerClock` chỉ kiểm `expires_at` từ `now()` của DB) |
 | 6 | Mất mạng không có hold: server hết TTL, người khác sửa được. Editor tự chuyển chỉ đọc khi quá TTL kể từ heartbeat thành công cuối (đồng hồ đơn điệu phía client); gõ trong khoảng đó → nháp (web: bộ nhớ editor + draft recovery hiện có; desktop: checkpoint) → khi online đi edge 1 | vitest `packages/core/documents/edit-lock-session.test.ts` "heartbeat fails past TTL → read-only, local content kept"; fork `edit-hold.test.ts` "no hold → read-only after TTL" |
 | 7 | Gia hạn hold chỉ qua R6 (cần online); trần chuỗi 24 h → 409 `edit_hold_cap_reached`; người khác thấy `offline_hold_until` ("A giữ quyền sửa offline đến <giờ>") | Go `TestEditHoldRenewIsCapped`, `TestEditHoldVisibleToOthers` |

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
-import { greetingPart } from "./documents-home-create";
 import {
   byUpdatedDesc,
   DEFAULT_FOLDER_SORT,
@@ -167,13 +166,6 @@ describe("library rows", () => {
     expect(formatBytes(-1, "en")).toBe("");
   });
 
-  it("greets by the time of day", () => {
-    expect(greetingPart(8)).toBe("morning");
-    expect(greetingPart(14)).toBe("afternoon");
-    expect(greetingPart(21)).toBe("evening");
-    expect(greetingPart(2)).toBe("evening");
-  });
-
   it("places folders before documents in both sorts", () => {
     const rows = [
       documentRow(doc({ id: "doc-new", kind: "page", title: "An", updated_at: "2026-10-10T00:00:00Z" })),
@@ -305,8 +297,8 @@ describe("access columns and filter (UNI-1642)", () => {
   });
 
   it("maps visibility and leaves an unknown value or a source row blank", () => {
-    expect(rowVisibilityLabelKey(lvl("view", "workspace"))).toBe("documents.home.visibility.workspace");
-    expect(rowVisibilityLabelKey(lvl("view", "restricted"))).toBe("documents.home.visibility.restricted");
+    expect(rowVisibilityLabelKey(lvl("view", "workspace"))).toBe("documents.scope.workspace");
+    expect(rowVisibilityLabelKey(lvl("view", "restricted"))).toBe("documents.scope.private");
     expect(rowVisibilityLabelKey(lvl("view", "public"))).toBeNull();
     expect(rowVisibilityLabelKey(lvl("view", ""))).toBeNull();
     expect(rowVisibilityLabelKey(src())).toBeNull();

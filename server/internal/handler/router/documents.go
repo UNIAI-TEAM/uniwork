@@ -31,6 +31,9 @@ import (
 //	POST   /api/v1/documents/{documentID}/archive                 (G1-05b)
 //	GET    /api/v1/documents/{documentID}/archive-impact          (FD-04)
 //	POST   /api/v1/documents/{documentID}/restore                 (G1-05b)
+//	POST   /api/v1/documents/{documentID}/purge                   (RESTORE-01)
+//	POST   /api/v1/documents/{documentID}/shelve                  (ARCHIVE-01)
+//	POST   /api/v1/documents/{documentID}/unshelve                (ARCHIVE-01)
 //	GET    /api/v1/documents/{documentID}/shares                  (G1-05b)
 //	POST   /api/v1/documents/{documentID}/shares                  (G1-05b)
 //	POST   /api/v1/documents/{documentID}/shares/batch            (UNI-1641)
@@ -55,6 +58,11 @@ import (
 //	DELETE /api/v1/documents/{documentID}/edit-requests/{requestID}         (R10)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
+//	POST   /api/v1/workspaces/{workspaceID}/documents/upload-sessions   (BIGUP-S1)
+//	POST   /api/v1/documents/{documentID}/upload-sessions               (BIGUP-S1)
+//	GET    /api/v1/upload-sessions/{sessionID}                          (BIGUP-S1)
+//	POST   /api/v1/upload-sessions/{sessionID}/complete                 (BIGUP-S1)
+//	DELETE /api/v1/upload-sessions/{sessionID}                          (BIGUP-S1)
 //	POST   /api/v1/documents/{documentID}/versions/commit
 //	GET    /api/v1/documents/{documentID}/versions/commit       (G5-07, Idempotency-Key header)
 //	GET    /api/v1/documents/{documentID}/versions
@@ -160,6 +168,53 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		sdo:    sdo.DocumentUploadSDO{},
 		status: http.StatusCreated,
 		auth:   true,
+	})
+	d.Post("/workspaces/{workspaceID}/documents/upload-sessions", h.CreateWorkspaceUploadSession, apiOp{
+		summary: "Open a large upload session for a new file",
+		description: "Tệp lớn hơn ngưỡng một lượt (chunked_upload_threshold_bytes trong /api/v1/config) mở phiên tải lên nhiều phần: 201 kèm session_id, part_size, total_parts, expires_at (24 giờ) và URL PUT đã ký cho từng phần (1 giờ). " +
+			"Body {filename, size_bytes, parent_id, title, visibility, probe{head_b64, central_dir_b64, cd_offset, cd_size}} + header Idempotency-Key (bắt buộc; cùng key cùng payload trả lại đúng phiên đó). Thứ tự từ chối: ≥ 20 MiB là điều kiện (> cap -> 413 file_too_large + fields.max_bytes), ≤ 20 MiB -> 422 upload_session_too_small; đuôi tệp ngoài allowlist -> 415; probe sai -> 415 + fields.reason; vượt quota -> 403 quota_exceeded; quá 4 phiên mở mỗi người -> 429 upload_sessions_exhausted + Retry-After: 60; cùng key khác payload -> 409 idempotency_payload_mismatch. " +
+			"Backend lưu trữ không có multipart + presign (local) -> 503 storage_unavailable.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateUploadSessionSDI{},
+		sdo:    sdo.UploadSessionSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	d.Post("/documents/{documentID}/upload-sessions", h.CreateDocumentUploadSession, apiOp{
+		summary: "Open a large upload session for a new version",
+		description: "Như route workspace nhưng cho phiên bản mới của tài liệu file trên path: body {filename, size_bytes, probe} + Idempotency-Key. " +
+			"Quyền sửa như POST /documents/{id}/uploads; hoàn tất trả DocumentUploadSDO để commit qua /versions/commit. Cùng ngưỡng, mã lỗi và thứ tự từ chối như route workspace; parent_id/title/visibility không nhận ở đây. " +
+			"Tài liệu đang bị người khác giữ khóa sửa (hoặc một agent) -> 423 document_locked trước mọi giữ chỗ quota và trước khi mở phiên, với cùng fields như cổng commit (holder_id, holder_name, since, expires_at, held_by_me, current_revision; không có lock_id); người gọi đang giữ khóa (bất kỳ tab nào) hoặc không có khóa sống thì qua.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateUploadSessionSDI{},
+		sdo:    sdo.UploadSessionSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	d.Get("/upload-sessions/{sessionID}", h.GetUploadSession, apiOp{
+		summary: "Read a large upload session",
+		description: "Phiên tải lên theo id: status (open | validating | completed), completed_parts lấy từ ListParts của storage, và URL PUT mới cho các phần còn thiếu (phần đã có không ký lại). parts chỉ có khi phiên đang open. " +
+			"Chỉ chủ thể đã mở phiên đọc được: người khác, phiên mở bằng frame token, hoặc id không tồn tại đều trả cùng 404 not_found. Phiên hết hạn, đã huỷ hoặc đã bị GC -> 410 upload_session_expired.",
+		tags: []string{"documents"},
+		sdo:  sdo.UploadSessionSDO{},
+		auth: true,
+	})
+	d.Post("/upload-sessions/{sessionID}/complete", h.CompleteUploadSession, apiOp{
+		summary: "Complete a large upload session",
+		description: "Body {parts:[{part_number, etag}]}: server ghép các phần, so kích thước đối tượng với size_bytes đã khai, đọc lại đầu + central directory và so với probe, rồi chạy kiểm tra đầy đủ trên đối tượng. " +
+			"Route workspace: tạo tài liệu và trả 200 DocumentSDO. Route tài liệu: stage upload và trả 200 DocumentUploadSDO để commit như hiện có. " +
+			"Thiếu phần / số phần sai / ETag khác ListParts -> 422 upload_parts_invalid (phiên vẫn open); kích thước sai -> 422 upload_size_mismatch; probe khác -> 422 upload_probe_mismatch; nội dung hỏng -> 415, object bị xoá và quota được nhả; một complete khác đang giữ lease -> 409 upload_session_busy + Retry-After: 5. Gọi lại khi đã xong trả cùng kết quả.",
+		tags: []string{"documents"},
+		sdi:  sdi.CompleteUploadSessionSDI{},
+		sdo:  sdo.UploadSessionCompleteSDO{},
+		auth: true,
+	})
+	d.Delete("/upload-sessions/{sessionID}", h.AbortUploadSession, apiOp{
+		summary:     "Abort a large upload session",
+		description: "Huỷ phiên đang mở: AbortMultipart tại storage, phiên FileService chuyển canceled (nhả quota giữ chỗ), audit document.upload_session_aborted, trả 204. Phiên đã huỷ/hết hạn -> 204 (idempotent); phiên đã hoàn tất -> 409 upload_session_completed; một complete đang giữ lease -> 409 upload_session_busy + Retry-After: 5.",
+		tags:        []string{"documents"},
+		status:      http.StatusNoContent,
+		auth:        true,
 	})
 	d.Post("/documents/{documentID}/versions/commit", h.CommitDocumentVersion, apiOp{
 		summary: "Commit a staged file version",
@@ -328,7 +383,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		description: "Bản sao standalone: consent phải là \"copy\" (thiếu -> 409 copy_consent_required). Cần quyền sửa nguồn. Bản sao giữ acl_owner_id/visibility/share của nguồn " +
 			"và ghi provenance (source_document_id/version/revision/checksum/format); bytes dùng lại đúng file_id nên không tính dung lượng lần hai. Tài liệu thuộc sở hữu C-14 -> 409 owner_requires_copy. " +
 			"Bản sao là một lần tạo trong workspace của nguồn nên cần chỗ thành viên ở đó: người chỉ sửa được nguồn qua chia sẻ/liên kết -> 403 workspace_seat_required (kể cả khi chấp nhận job); không sửa được thư mục cha -> 403 forbidden; tổ chức tạm ngưng/thành viên bị vô hiệu hóa giữ organization_suspended/member_deactivated. " +
-			"Có job_id: chấp nhận job convert đã completed (chỉ người tạo job) - bản sao là output OOXML, provenance ghi checksum nguồn + engine; job huỷ/đã chấp nhận -> 409 conversion_not_accepted; nguồn và lịch sử không đổi.",
+			"Có job_id: chấp nhận job convert đã completed (chỉ người tạo job) - bản sao là output OOXML, provenance ghi checksum nguồn + engine; job huỷ/đã chấp nhận -> 409 conversion_not_accepted; nguồn và lịch sử không đổi. " +
+			"Có upload_id (loại trừ lẫn nhau với job_id -> 400 invalid_request): phiên bản đầu của bản sao lấy từ bản tải lên đã stage của chính tài liệu này bởi cùng người gọi (khác tài liệu/người gọi/tổ chức -> 404 not_found; đã dùng -> 409 upload_already_committed; vượt DOCUMENT_MAX_BYTES -> 413 file_too_large).",
 		tags:   []string{"documents"},
 		sdi:    sdi.CopyDocumentSDI{},
 		sdo:    sdo.DocumentSDO{},
@@ -554,6 +610,20 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		status:      http.StatusNoContent,
 		auth:        true,
 	})
+	d.Post("/documents/{documentID}/shelve", h.ShelveDocument, apiOp{
+		summary:     "Shelve a document subtree",
+		description: "Lưu trữ tài liệu (hoặc thư mục) và cả cây con đang sống chưa lưu trữ trong một transaction sau khi kiểm manage trên từng node (ARCHIVE-01): mục lưu trữ chỉ đọc, giữ mãi, KHÔNG vào thùng rác và không bị dọn. Node restricted không manage được chặn cả lệnh; quá 1000 nút -> 400 folder_too_large; gốc My Folder -> 409 my_folder_locked; mục thuộc Work Product -> 409 document_owned_by_work_product. Gọi lại trên mục đã lưu trữ = 200 không đổi; Idempotency-Key replay trả kết quả đã lưu.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentArchiveSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/unshelve", h.UnshelveDocument, apiOp{
+		summary:     "Unshelve a document",
+		description: "Bỏ lưu trữ mục và các hậu duệ cùng shelve_batch_id còn lưu trữ mà người gọi quản lý (ARCHIVE-01 §2 S-2); hậu duệ không quản lý ở lại trong kho lưu trữ. Vị trí trong cây không đổi. Mục chưa lưu trữ = 200 không đổi gì; Idempotency-Key replay trả kết quả đã lưu.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentArchiveSDO{},
+		auth:        true,
+	})
 	d.Get("/documents/{documentID}/shares", h.ListDocumentShares, apiOp{
 		summary:     "List document access",
 		description: "Người gọi luôn thấy my_level/via của mình (rỗng khi admin_scope và chưa có quyền đọc); chỉ người quản trị (manage hoặc admin_scope) thấy acl_owner, danh sách grant sống (kèm effective_level), liên kết công khai sống và break_glass[] (truy cập khẩn cấp còn hiệu lực, mới nhất trước). Grant đã thu hồi không xuất hiện.",
@@ -581,6 +651,25 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		sdo:    sdo.DocumentShareBatchSDO{},
 		status: http.StatusCreated,
 		auth:   true,
+	})
+	d.Get("/documents/{documentID}/share-candidates", h.ListDocumentShareCandidates, apiOp{
+		summary: "List share candidates for a document",
+		description: "Danh sách thành viên đang hoạt động, workspace của tổ chức và chính tổ chức để chọn phân quyền (SH-S2, UNI-1781). " +
+			"Tìm kiếm không phân biệt hoa thường và dấu (uw_fold_search) theo tên, email, slug; phân trang bằng cursor; mỗi mục kèm direct_level hiện tại và is_home_workspace. Cần quyền quản trị tài liệu (manage hoặc AdminScope).",
+		tags: []string{"documents"},
+		sdi:  sdi.ListDocumentShareCandidatesSDI{},
+		sdo:  sdo.DocumentShareCandidateListSDO{},
+		auth: true,
+	})
+	d.Put("/documents/{documentID}/access", h.UpdateDocumentAccess, apiOp{
+		summary: "Batch update document access with dry-run preview",
+		description: "Cấp, cập nhật, giữ nguyên (on_existing=keep) hoặc thu hồi (level=null) quyền cho 1–100 mục hỗn hợp (user, workspace, organization) trong một transaction (SH-S2, UNI-1781). " +
+			"Mục nhắm vào workspace gốc của tài liệu được ghi vào dòng Workspace gốc (visibility/workspace_level), không tạo dòng document_shares. " +
+			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB.",
+		tags: []string{"documents"},
+		sdi:  sdi.UpdateDocumentAccessSDI{},
+		sdo:  sdo.DocumentAccessBatchSDO{},
+		auth: true,
 	})
 	d.Delete("/documents/{documentID}/shares/{shareID}", h.RevokeDocumentShare, apiOp{
 		summary:     "Revoke a document share",

@@ -119,6 +119,7 @@ const (
 	DocumentEditEndOrganizationSuspended = "organization_suspended"
 	DocumentEditEndDocumentArchived      = "document_archived"
 	DocumentEditEndDocumentDeleted       = "document_deleted"
+	DocumentEditEndDocumentShelved       = "document_shelved"
 )
 
 // Request statuses (§1.3).
@@ -170,6 +171,7 @@ func (s *DocumentService) countEditLockRefused(route string, err error) {
 // editLockOpForEnd maps an end reason onto the closed op vocabulary of
 // uniwork_document_edit_lock_ops_total. Take-over, handover and move here are
 // counted by the command that replaced the tenure, never here.
+// document_archived and document_shelved fall through to "release".
 func editLockOpForEnd(reason string) string {
 	switch reason {
 	case DocumentEditEndExpired:
@@ -444,9 +446,57 @@ func (s *DocumentService) checkDocumentEditLock(ctx context.Context, q *db.Queri
 	return errDocumentLocked(live, name, human && live.UserID == actor.ID, doc.Revision)
 }
 
+// checkVersionUploadLock is the BIGUP-LOCKCHECK S-1 rule: a version upload
+// session is refused up front while a live tenure exists that the calling
+// human does not hold, so a locked document never uploads 200 MiB of parts
+// that the commit gate would then discard.
+//
+// Read-only, unlike checkDocumentEditLock: it reads the unended tenure
+// without FOR UPDATE, refreshes no heartbeat and writes nothing (no audit, no
+// outbox, no ending of a stale row). The commit gate stays the authority; a
+// tenure that ran out reads as no lock here too.
+//
+// A create carries no edit_lock_id (adding one would change the
+// Idempotency-Key fingerprint), so the caller's own tenure - in any tab - is
+// the only way to pass: held_by_me is always false in this 423. An agent is
+// refused whenever a live tenure exists (§1.6), the same as the gate.
+func (s *DocumentService) checkVersionUploadLock(ctx context.Context, actor Actor, doc db.Document) error {
+	live, err := s.q.GetLiveDocumentEditLock(ctx, db.GetLiveDocumentEditLockParams{
+		OrganizationID: doc.OrganizationID, DocumentID: doc.ID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	now, err := editLockClock(ctx, s.q)
+	if err != nil {
+		return err
+	}
+	if !editLockLive(live, now) {
+		return nil
+	}
+	if actor.Kind == audit.KindHuman && live.UserID == actor.ID {
+		return nil
+	}
+	name, err := userDisplayName(ctx, s.q, live.UserID)
+	if err != nil {
+		return err
+	}
+	return errDocumentLocked(live, name, false, doc.Revision)
+}
+
 // releaseEditLocksOnArchive ends the live tenures of every archived document
 // in the archive's own transaction (end_reason document_archived, §2).
 func (s *DocumentService) releaseEditLocksOnArchive(ctx context.Context, q *db.Queries, actor Actor, root db.Document, ids []string) (*editLockOps, error) {
+	return s.releaseLiveEditLocks(ctx, q, actor, root, ids, DocumentEditEndDocumentArchived)
+}
+
+// releaseLiveEditLocks ends the live tenures of every named document in the
+// caller's transaction. document_shelved maps to op "release" the same way
+// document_archived does (editLockOpForEnd default).
+func (s *DocumentService) releaseLiveEditLocks(ctx context.Context, q *db.Queries, actor Actor, root db.Document, ids []string, reason string) (*editLockOps, error) {
 	ops := &editLockOps{}
 	if len(ids) == 0 {
 		return ops, nil
@@ -472,7 +522,7 @@ func (s *DocumentService) releaseEditLocksOnArchive(ctx context.Context, q *db.Q
 			// id differs, which is all the audit row and frame name.
 			doc.ID = l.DocumentID
 		}
-		if _, err := s.releaseTenure(ctx, q, doc, l, DocumentEditEndDocumentArchived, by, now, ops); err != nil {
+		if _, err := s.releaseTenure(ctx, q, doc, l, reason, by, now, ops); err != nil {
 			return ops, err
 		}
 	}

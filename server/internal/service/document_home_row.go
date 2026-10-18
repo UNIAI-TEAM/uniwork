@@ -90,7 +90,7 @@ func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc d
 		return db.Document{}, err
 	}
 	for _, sh := range legacy {
-		if err := revokeDocumentShareRow(ctx, q, actor, updated, sh); err != nil {
+		if err := revokeDocumentShareRowWithBatch(ctx, q, actor, updated, sh, move.BatchID); err != nil {
 			return db.Document{}, err
 		}
 	}

@@ -268,14 +268,14 @@ describe("DocumentLockedCard variant=admin", () => {
       />,
     );
 
-    expect(screen.getByText("Tài liệu này ở chế độ hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Tài liệu này là riêng tư")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Quản trị viên quản lý được tài liệu nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
+        "Quản trị viên quản lý được tài liệu riêng tư này nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Báo cáo lương Q4")).toBeInTheDocument();
-    expect(screen.getByText("Hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Riêng tư")).toBeInTheDocument();
     expect(screen.getByText("Chủ sở hữu: Nguyễn Văn A")).toBeInTheDocument();
     expect(screen.getByText("2.0 KB")).toBeInTheDocument();
 
@@ -336,7 +336,7 @@ describe("DocumentLockedCard variant=admin", () => {
       />,
     );
 
-    expect(screen.getByText("Tài liệu này ở chế độ hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Tài liệu này là riêng tư")).toBeInTheDocument();
     expect(screen.getByText("Biên bản họp HĐQT")).toBeInTheDocument();
     expect(screen.queryByLabelText("Lý do truy cập khẩn cấp")).not.toBeInTheDocument();
     expect(

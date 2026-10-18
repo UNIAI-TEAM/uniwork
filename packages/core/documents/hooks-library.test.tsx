@@ -8,6 +8,7 @@ import {
   useCreateDocument,
   useCreateDocumentFile,
   useEnsureMyFolder as useEnsureMyFolderFromHooks,
+  useUpdateDocument,
   type CreateDocumentFileInput,
   type CreateDocumentInput,
 } from "./hooks";
@@ -298,6 +299,29 @@ describe("documents library hooks", () => {
       meta: { destination: "my_folder" },
     };
     expect([badDocInput, badFileInput, badBlankInput, badFolderInput, crossA, crossB]).toHaveLength(6);
+  });
+
+  it("useUpdateDocument invalidates the shared-by-me root after a visibility patch", async () => {
+    // The share dialog's workspace/restricted switch rides this hook; a flip
+    // adds or drops the row in the caller's Shared by me list, so its root
+    // refreshes without waiting for document.workspace_access_changed
+    // (UNI-1851 F2).
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ visibility: "restricted", revision: "2" }) }),
+    );
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.sharedByMe("w1"), { pages: [], pageParams: [] });
+    qc.setQueryData(documentKeys.sharedByMe("w1", "format=page"), { pages: [], pageParams: [] });
+    const { result } = renderHook(() => useUpdateDocument("w1", "d1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ patch: { visibility: "restricted", revision: "1" } });
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1");
+    expect((init as RequestInit).method).toBe("PATCH");
+    expect(qc.getQueryData(documentKeys.detail("w1", "d1"))).toMatchObject({ visibility: "restricted" });
+    expect(qc.getQueryState(documentKeys.sharedByMe("w1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.sharedByMe("w1", "format=page"))?.isInvalidated).toBe(true);
   });
 
   it("useCreateDocumentFile refuses a destination plus a parent before any request", async () => {

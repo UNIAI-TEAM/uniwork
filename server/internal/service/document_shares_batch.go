@@ -33,7 +33,7 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 		return nil, err
 	}
 	var out []db.DocumentShare
-	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
@@ -61,9 +61,21 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 				return err
 			}
 		}
+		sharesBefore, err := q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
+			OrganizationID: doc.OrganizationID,
+			WorkspaceID:    doc.WorkspaceID,
+			DocumentID:     doc.ID,
+		})
+		if err != nil {
+			return err
+		}
 		shares := make([]db.DocumentShare, 0, len(ids))
 		for _, id := range ids {
-			sh, err := applyDocumentShare(ctx, q, actor, doc, access, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: id, Level: level})
+			notifyUserID, err := s.notifyOnUserShare(ctx, q, actor, doc, sharesBefore, id, level)
+			if err != nil {
+				return err
+			}
+			sh, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: id, Level: level}, "", notifyUserID)
 			if err != nil {
 				return err
 			}

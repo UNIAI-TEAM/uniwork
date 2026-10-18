@@ -1,142 +1,169 @@
 "use client";
 
+import { useId, useState } from "react";
 import { ChevronDown, Plus, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Switch } from "@uniwork/ui/components/ui/switch";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DocumentTypeIcon } from "./document-type-icon";
-import { CREATE_MENU_TYPES, CREATE_TYPES, type CreateMenuType, type CreateType } from "./documents-create";
+import {
+  CREATE_MENU_TYPES,
+  CREATE_TYPES,
+  type CreateMenuType,
+  type CreateShareOptions,
+  type CreateType,
+} from "./documents-create";
 
-/** Which greeting the hour gets: morning until 11, afternoon until 18, evening after. */
-export function greetingPart(hour: number): "morning" | "afternoon" | "evening" {
-  if (hour >= 4 && hour < 11) return "morning";
-  if (hour >= 11 && hour < 18) return "afternoon";
-  return "evening";
-}
-
-export interface DocumentsGreetingProps {
-  name: string | null;
-  /** The open folder's title; null at the workspace root. */
-  folderTitle: string | null;
-  /** The viewer cannot create here (a view-only folder): no "what to create" line. */
-  readOnly?: boolean;
-  /** Injected in tests; defaults to the current hour. */
-  now?: Date;
-}
-
-/** "Good morning, An. What would you like to create today?" (user decision 5). */
-export function DocumentsGreeting({ name, folderTitle, readOnly = false, now }: DocumentsGreetingProps) {
-  const { t } = useTranslation();
-  const part = greetingPart((now ?? new Date()).getHours());
-  return (
-    <div className="flex flex-col gap-1">
-      <h2 className="text-title font-semibold text-foreground">
-        {readOnly
-          ? t(name ? `documents.home.greeting.${part}_read_only_named` : `documents.home.greeting.${part}_read_only`, { name })
-          : name
-            ? t(`documents.home.greeting.${part}_named`, { name })
-            : t(`documents.home.greeting.${part}`)}
-      </h2>
-      <p className="text-body text-muted-foreground">
-        {readOnly
-          ? folderTitle
-            ? t("documents.home.greeting.hint_read_only", { folder: folderTitle })
-            : t("documents.home.greeting.hint_read_only_plain")
-          : folderTitle
-            ? t("documents.home.greeting.hint_folder", { folder: folderTitle })
-            : t("documents.home.greeting.hint_root")}
-      </p>
-    </div>
-  );
+export interface CreateShareToggleState {
+  shareWithWorkspace: boolean;
+  setShareWithWorkspace: (next: boolean) => void;
 }
 
 export interface CreateChoicesProps {
   pending: boolean;
   unavailable: ReadonlySet<CreateType>;
-  onCreate: (type: CreateType) => void;
+  /** True when the open folder already shares with its home workspace. */
+  parentShared?: boolean;
+  /**
+   * One shared toggle state for the strip and the menu (TV1-15). When the
+   * caller renders both controls it passes the same pair, so the "Chia sẻ
+   * với workspace" label never shows two different states at once; a caller
+   * that renders a lone control leaves it undefined and the control keeps
+   * its own default-off state.
+   */
+  shareToggle?: CreateShareToggleState;
+  /** Always called with the share options the toggle resolved, so a wrapped or bound handler still gets them. */
+  onCreate: (type: CreateType, options: CreateShareOptions) => void;
   onUpload: () => void;
-  /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). */
-  onNewFolder?: () => void;
-}
-
-function cardTitle(type: CreateType, t: (key: string) => string): string {
-  return t(`documents.home.create.${type}.card`);
+  /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). The menu's toggle state rides along. */
+  onNewFolder?: (options: CreateShareOptions) => void;
 }
 
 /**
- * The create cards: one per type plus "Upload file". On a phone they are one
- * horizontal strip (390 px design); from `sm` up a grid of four columns.
+ * The "Tạo nhanh" pill strip under the home header (Main.dc): one pill per
+ * create type, only at the workspace root. A type the server cannot create
+ * yet stays visible, disabled with the availability hint.
  */
-export function CreateCards({ pending, unavailable, onCreate, onUpload }: CreateChoicesProps) {
+export function QuickCreateRow({
+  pending,
+  unavailable,
+  parentShared = false,
+  shareToggle,
+  onCreate,
+}: Pick<CreateChoicesProps, "pending" | "unavailable" | "parentShared" | "shareToggle" | "onCreate">) {
   const { t } = useTranslation();
-  const card =
-    "group flex min-h-24 w-36 shrink-0 flex-col items-start gap-2 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 sm:w-auto sm:p-4";
+  const [localShare, setLocalShare] = useState(false);
+  const shareWithWorkspace = shareToggle?.shareWithWorkspace ?? localShare;
+  const setShareWithWorkspace = shareToggle?.setShareWithWorkspace ?? setLocalShare;
+  const hintId = useId();
+  const effectiveShare = parentShared || shareWithWorkspace;
+  const sendShare = effectiveShare && !parentShared;
+  const hintText = parentShared
+    ? t("documents.home.create.share_workspace_inherited")
+    : effectiveShare
+      ? t("documents.home.create.share_workspace_hint", {
+          level: t("documents.home.create.share_workspace_level_view"),
+        })
+      : null;
+
   return (
-    <ul
-      aria-label={t("documents.home.create.label")}
-      className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4"
-    >
+    <section aria-label={t("documents.home.quick_create.label")} className="flex flex-wrap items-center gap-2">
+      <span className="mr-1 text-caption text-muted-foreground">{t("documents.home.quick_create.label")}</span>
       {CREATE_TYPES.map((type) => {
         const off = unavailable.has(type);
+        const hint = off ? t("documents.home.create.unavailable_hint") : t(`documents.home.create.${type}.hint`);
         return (
-          <li key={type} className="flex">
-            <button
-              type="button"
-              className={cn(card, "w-36 sm:w-full")}
-              aria-disabled={pending || off || undefined}
-              onClick={() => {
-                if (pending || off) return;
-                onCreate(type);
-              }}
-            >
-              <DocumentTypeIcon format={type} className="size-8" decorative />
-              <span className="flex items-center gap-1.5 text-body font-medium text-foreground">
-                {cardTitle(type, t)}
-                {type === "page" ? null : (
-                  <Badge variant="secondary" className="px-1.5 text-caption">
-                    {t("documents.home.create.ai_badge")}
-                  </Badge>
-                )}
-              </span>
-              <span className="text-caption text-muted-foreground">
-                {off ? t("documents.home.create.unavailable_hint") : t(`documents.home.create.${type}.hint`)}
-              </span>
-            </button>
-          </li>
+          <button
+            key={type}
+            type="button"
+            aria-disabled={pending || off || undefined}
+            title={hint}
+            onClick={() => {
+              if (pending || off) return;
+              setShareWithWorkspace(false);
+              onCreate(type, { shareWithWorkspace: sendShare });
+            }}
+            className={cn(
+              "flex h-9 items-center gap-2 rounded-full border border-border bg-card pl-1.5 pr-3 text-caption text-foreground transition-colors hover:bg-accent/40 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:h-11",
+            )}
+          >
+            <DocumentTypeIcon format={type} className="size-6" decorative />
+            {t(`documents.home.create.${type}.chip`)}
+            {off ? <span className="sr-only">— {hint}</span> : null}
+          </button>
         );
       })}
-      <li className="flex">
-        <button type="button" className={cn(card, "w-36 sm:w-full")} onClick={onUpload}>
-          <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Upload aria-hidden className="size-4" />
-          </span>
-          <span className="text-body font-medium text-foreground">{t("documents.home.create.upload.card")}</span>
-          <span className="text-caption text-muted-foreground">{t("documents.home.create.upload.hint")}</span>
-        </button>
-      </li>
-    </ul>
+      <label className="ml-1 inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-3 text-caption text-foreground pointer-coarse:min-h-11">
+        <Switch
+          size="sm"
+          checked={effectiveShare}
+          aria-disabled={parentShared || pending || undefined}
+          aria-describedby={hintText ? hintId : undefined}
+          onCheckedChange={(next) => {
+            if (parentShared || pending) return;
+            setShareWithWorkspace(next);
+          }}
+          className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+        />
+        <span>{t("documents.home.create.share_workspace_toggle")}</span>
+      </label>
+      {/* Always mounted and one line tall, so switching the toggle neither moves the pills nor goes unannounced. */}
+      <p id={hintId} role="status" className="min-h-4 w-full text-caption text-muted-foreground">
+        {hintText}
+      </p>
+    </section>
   );
 }
 
-/** The header "New ▾" button with the same list as the cards, plus Folder inside an open folder. */
-export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFolder }: CreateChoicesProps) {
+/** The header "Tải lên" button plus the "Tạo mới ▾" menu with the same types, and Folder inside an open folder. */
+export function CreateMenu({
+  pending,
+  unavailable,
+  parentShared = false,
+  shareToggle,
+  onCreate,
+  onUpload,
+  onNewFolder,
+}: CreateChoicesProps) {
   const { t } = useTranslation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [localShare, setLocalShare] = useState(false);
+  const shareWithWorkspace = shareToggle?.shareWithWorkspace ?? localShare;
+  const setShareWithWorkspace = shareToggle?.setShareWithWorkspace ?? setLocalShare;
+  const hintId = useId();
+  const effectiveShare = parentShared || shareWithWorkspace;
+  const sendShare = effectiveShare && !parentShared;
+  const hintText = parentShared
+    ? t("documents.home.create.share_workspace_inherited")
+    : effectiveShare
+      ? t("documents.home.create.share_workspace_hint", {
+          level: t("documents.home.create.share_workspace_level_view"),
+        })
+      : null;
   const menuTypes: readonly CreateMenuType[] = onNewFolder ? CREATE_MENU_TYPES : CREATE_TYPES;
   return (
     <>
       <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={onUpload}>
         <Upload aria-hidden className="size-3.5" />
-        {t("documents.home.create.upload.card")}
+        {t("documents.home.create.upload.button")}
       </Button>
-      <DropdownMenu>
+      <DropdownMenu
+        open={menuOpen}
+        onOpenChange={(next) => {
+          setMenuOpen(next);
+          // A lone menu (no shared state) keeps the default-off-per-open rule.
+          if (next && !shareToggle) setShareWithWorkspace(false);
+        }}
+      >
         <DropdownMenuTrigger
           render={<Button type="button" size="sm" aria-disabled={pending || undefined} />}
         >
@@ -151,7 +178,7 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
                 <DropdownMenuItem
                   className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending}
-                  onClick={() => onNewFolder?.()}
+                  onClick={() => onNewFolder?.({ shareWithWorkspace: sendShare })}
                 >
                   <DocumentTypeIcon format="folder" className="size-4" decorative />
                   <span className="flex-1">{t("documents.home.create.folder.menu")}</span>
@@ -163,7 +190,7 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
                 <DropdownMenuItem
                   className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending || unavailable.has(type)}
-                  onClick={() => onCreate(type)}
+                  onClick={() => onCreate(type, { shareWithWorkspace: sendShare })}
                 >
                   <DocumentTypeIcon format={type} className="size-4" decorative />
                   <span className="flex-1">{t(`documents.home.create.${type}.menu`)}</span>
@@ -178,8 +205,30 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
           <DropdownMenuSeparator className="sm:hidden" />
           <DropdownMenuItem className="gap-2 px-2 py-2 pointer-coarse:min-h-11 sm:hidden" onClick={onUpload}>
             <Upload aria-hidden className="size-4" />
-            {t("documents.home.create.upload.card")}
+            {t("documents.home.create.upload.button")}
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem
+            closeOnClick={false}
+            checked={effectiveShare}
+            aria-disabled={parentShared || pending || undefined}
+            aria-label={t("documents.home.create.share_workspace_toggle")}
+            aria-describedby={hintId}
+            onCheckedChange={(next) => {
+              if (parentShared || pending) return;
+              setShareWithWorkspace(next);
+            }}
+            className="group/share gap-2 px-2 py-2 pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:[&_svg]:opacity-60"
+          >
+            {/* TV2-04: pr-6 keeps the hint line clear of the check indicator at the item's right edge. */}
+            <span className="flex flex-1 flex-col pr-6">
+              <span className="group-aria-disabled/share:opacity-60">{t("documents.home.create.share_workspace_toggle")}</span>
+              {/* Inside the item so aria-describedby resolves within it; a live region so the change is announced. */}
+              <span id={hintId} role="status" className="text-caption font-normal text-muted-foreground">
+                {hintText}
+              </span>
+            </span>
+          </DropdownMenuCheckboxItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </>

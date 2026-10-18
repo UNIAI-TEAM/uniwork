@@ -55,6 +55,14 @@ export const documentKeys = {
     filterKey
       ? ([...documentKeys.workspace(wsId), "shared-by-me", filterKey] as const)
       : ([...documentKeys.workspace(wsId), "shared-by-me"] as const),
+  // ARCHIVE-01 (UNI-1845): the shelved list ("Lưu trữ"), a flat keyset-paged
+  // view of GET .../documents?shelved=true. Under the workspace root like
+  // `recent`/`shared` so `document.*` frames and shelve/unshelve refreshes
+  // reach it; the chip filters join the key when set.
+  shelved: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "shelved", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "shelved"] as const),
   // The folders-only tree appends a segment, so the full tree's key stays
   // its prefix and one tree invalidation refreshes both.
   tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>
@@ -76,6 +84,8 @@ export const documentKeys = {
     [...documentKeys.workspace(wsId), "archive-impact", documentId] as const,
   shares: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "shares"] as const,
+  shareCandidates: (wsId: string, documentId: string, query: string = "") =>
+    [...documentKeys.detail(wsId, documentId), "share-candidates", query.trim()] as const,
   // Pending access requests (W-DOC07); a child of the detail key like
   // `shares`, so approve/decline invalidate both from one document.
   accessRequests: (wsId: string, documentId: string) =>

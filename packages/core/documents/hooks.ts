@@ -17,7 +17,11 @@ import {
   type DocumentCreateDestination,
   type PatchDocumentBody,
 } from "../api/endpoints/documents";
-import { DocumentNotVerifiableError, type Document } from "../types/document";
+import {
+  DocumentNotVerifiableError,
+  type Document,
+  type DocumentVisibility,
+} from "../types/document";
 import { documentKeys } from "./keys";
 import {
   createDocumentPatchTransport,
@@ -31,6 +35,7 @@ import {
   requireVerifiableUpload,
 } from "./verify";
 export { useDocumentLimits } from "./limits";
+export { useChunkedDocumentUpload } from "./use-chunked-document-upload";
 
 // TanStack Query owns documents server state. Mutations return null when the
 // response cannot prove the write; the guards in ./verify turn that into
@@ -45,7 +50,12 @@ export type CreateDocumentInput = Omit<CreateDocumentBody, "parent_id" | "destin
   idempotencyKey?: string;
 } & CreateDocumentPlacementInput;
 
-type CreateDocumentFileBase = { file: Blob; title?: string; idempotencyKey?: string };
+type CreateDocumentFileBase = {
+  file: Blob;
+  title?: string;
+  visibility?: DocumentVisibility;
+  idempotencyKey?: string;
+};
 
 // Placement is one choice across the whole input: the top level and `meta`
 // must agree, so a destination never sits beside a parent at either level.
@@ -54,13 +64,25 @@ export type CreateDocumentFileInput =
       parent_id?: string;
       parentId?: string;
       destination?: never;
-      meta?: { title?: string; parent_id?: string; parentId?: string; destination?: never };
+      meta?: {
+        title?: string;
+        visibility?: DocumentVisibility;
+        parent_id?: string;
+        parentId?: string;
+        destination?: never;
+      };
     })
   | (CreateDocumentFileBase & {
       destination?: DocumentCreateDestination;
       parent_id?: never;
       parentId?: never;
-      meta?: { title?: string; destination?: DocumentCreateDestination; parent_id?: never; parentId?: never };
+      meta?: {
+        title?: string;
+        visibility?: DocumentVisibility;
+        destination?: DocumentCreateDestination;
+        parent_id?: never;
+        parentId?: never;
+      };
     });
 
 export function useDocument(
@@ -127,11 +149,16 @@ export function useCreateDocumentFile(wsId: string) {
         throw new Error("createDocumentFile: destination and parent are mutually exclusive");
       }
       const title = input.meta?.title ?? input.title;
+      const visibility = input.meta?.visibility ?? input.visibility;
+      const extraMeta = {
+        ...(title !== undefined ? { title } : {}),
+        ...(visibility !== undefined ? { visibility } : {}),
+      };
       const meta: CreateDocumentFileMeta | undefined =
         destination !== undefined
-          ? { ...(title !== undefined ? { title } : {}), destination }
-          : parent_id !== undefined || title !== undefined
-            ? { ...(title !== undefined ? { title } : {}), ...(parent_id !== undefined ? { parent_id } : {}) }
+          ? { ...extraMeta, destination }
+          : parent_id !== undefined || Object.keys(extraMeta).length > 0
+            ? { ...extraMeta, ...(parent_id !== undefined ? { parent_id } : {}) }
             : input.meta;
       const doc = await createDocumentFile(wsId, input.file, meta, {
         idempotencyKey: input.idempotencyKey,
@@ -164,6 +191,11 @@ export function useUpdateDocument(wsId: string, documentId: string) {
       ),
     onSuccess: (doc) => {
       qc.setQueryData(documentKeys.detail(wsId, documentId), doc);
+      // UNI-1851 F2: the share dialog's workspace/restricted switch rides this
+      // hook; a visibility flip adds or drops the row in the caller's Shared
+      // by me list, so refresh its root without waiting for
+      // document.workspace_access_changed.
+      void qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) });
       return doc;
     },
   });

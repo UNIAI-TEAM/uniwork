@@ -141,6 +141,12 @@ func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, d
 	if err := decideFileSave(doc, access); err != nil {
 		return DocumentUpload{}, err
 	}
+	// A shelved document is read-only (addendum §3): the upload that stages
+	// bytes for a commit is refused before any byte leaves the client, and
+	// the commit's own gate answers the same if it raced the shelve.
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentUpload{}, err
+	}
 	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, documentScope(doc.OrganizationID, doc.WorkspaceID),
 		fileUploadKey("documents.upload", doc.ID, in.IdempotencyKey), in)
 	if err != nil {
@@ -157,14 +163,17 @@ func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, d
 }
 
 // uploadChecked streams one upload into FileService and runs the editor
-// format check on the stored bytes. A file that fails the check is canceled
-// so it can never be committed, and the refusal names the reason.
+// format check on FileService's local spool before any byte is stored. An
+// idempotent replay does not spool, so Check does not run; uploadChecked then
+// falls back to checkStoredFile so facts stay accurate for the caller.
 func (s *DocumentService) uploadChecked(
 	ctx context.Context, fs files.Service, actor Actor, purpose files.UploadPurpose, scope files.Scope, key string, in DocumentUploadInput,
 ) (files.Upload, document.FileFacts, error) {
 	if in.Body == nil {
 		return files.Upload{}, document.FileFacts{}, Invalid("thiếu nội dung tệp")
 	}
+	var facts document.FileFacts
+	checked := false
 	up, err := fs.Upload(ctx, files.UploadInput{
 		Actor:          actor,
 		Purpose:        purpose,
@@ -172,21 +181,26 @@ func (s *DocumentService) uploadChecked(
 		IdempotencyKey: key,
 		Filename:       in.Filename,
 		Body:           in.Body,
+		Check: func(_ context.Context, body io.ReaderAt, size int64, contentType string) error {
+			var err error
+			facts, err = document.ValidateFile(body, size, contentType, s.fileLimits())
+			if err != nil {
+				return documentValidationError(err)
+			}
+			checked = true
+			return nil
+		},
 	})
 	if err != nil {
 		err = documentFileError(err)
 		s.recordDocumentUploadQuota(purpose, err)
 		return files.Upload{}, document.FileFacts{}, err
 	}
-	facts, err := s.checkStoredFile(ctx, fs, scope, up.File)
-	if err != nil {
-		if codedIs(err, document.ErrCodeUnsupportedMedia) {
-			if cerr := fs.CancelUpload(ctx, files.CancelInput{Actor: actor, Scope: scope, FileID: up.File.ID}); cerr != nil &&
-				!errors.Is(filesError(cerr), ErrConflict) {
-				return files.Upload{}, document.FileFacts{}, documentFileError(cerr)
-			}
+	if !checked {
+		facts, err = s.checkStoredFile(ctx, fs, scope, up.File)
+		if err != nil {
+			return files.Upload{}, document.FileFacts{}, err
 		}
-		return files.Upload{}, document.FileFacts{}, err
 	}
 	return up, facts, nil
 }
@@ -616,6 +630,11 @@ func (s *DocumentService) uploadDocumentAsset(ctx context.Context, actor Actor, 
 	}
 	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
 	if err != nil {
+		return db.DocumentAsset{}, err
+	}
+	// A shelved document is read-only (addendum §3): refuse before the bytes
+	// are stored; the mutation gate answers the same for a raced shelve.
+	if err := requireNotShelved(doc); err != nil {
 		return db.DocumentAsset{}, err
 	}
 	if err := refuseFolder(doc); err != nil {

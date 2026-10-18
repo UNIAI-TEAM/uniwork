@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
-import { officeFrameKeys, officeFrameRefetchInterval, useOfficeFrameToken } from "./office-frame-hooks";
+import { officeFrameKeys, officeFrameRefetchInterval, useOfficeFrameSourceToken, useOfficeFrameToken } from "./office-frame-hooks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -60,6 +60,54 @@ describe("useOfficeFrameToken", () => {
   it("stays idle when disabled or missing ids", () => {
     renderHook(() => useOfficeFrameToken("ws1", "d1", { enabled: false }), { wrapper: wrapper() });
     renderHook(() => useOfficeFrameToken("", "d1"), { wrapper: wrapper() });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("useOfficeFrameSourceToken", () => {
+  const sourceToken = {
+    token: "ofs1.payload.sig",
+    token_type: "Bearer",
+    expires_at: "2026-10-17T09:10:00Z",
+    expires_in: 600,
+    source_id: "chat:m1",
+    parent_kind: "chat_channel",
+    parent_id: "c1",
+    workspace_id: "ws1",
+    organization_id: "o1",
+    can_edit: false,
+    module: "docs",
+    readonly: true,
+  };
+  beforeEach(() => {
+    setAccessToken("tok");
+    configureRuntime({ apiUrl: "http://api.test" });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    setAccessToken(null);
+    resetRuntimeConfig();
+  });
+
+  it("keys the token by workspace and source, apart from a document's", () => {
+    expect(officeFrameKeys.sourceToken("ws1", "chat:m1")).toEqual(["office", "ws1", "source", "chat:m1", "frame-token"]);
+    expect(officeFrameKeys.sourceToken("ws1", "chat:m1")).not.toEqual(officeFrameKeys.token("ws1", "chat:m1"));
+  });
+
+  it("mints on the source frame-token route of the workspace", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(sourceToken, 201));
+    const { result } = renderHook(() => useOfficeFrameSourceToken("ws1", "chat:m1"), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.data).toEqual(sourceToken));
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/ws1/documents/sources/chat%3Am1/office/frame-token");
+    expect(init?.method).toBe("POST");
+  });
+
+  it("stays idle when disabled or missing ids", () => {
+    renderHook(() => useOfficeFrameSourceToken("ws1", "chat:m1", { enabled: false }), { wrapper: wrapper() });
+    renderHook(() => useOfficeFrameSourceToken("", "chat:m1"), { wrapper: wrapper() });
+    renderHook(() => useOfficeFrameSourceToken("ws1", ""), { wrapper: wrapper() });
     expect(fetch).not.toHaveBeenCalled();
   });
 });

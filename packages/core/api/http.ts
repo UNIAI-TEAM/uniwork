@@ -29,6 +29,9 @@ const API_ERROR_CLASSES = [
   "missing",
   "incompatible",
   "session",
+  // ARCHIVE-01 (UNI-1845): the server stamps read_only on document_shelved
+  // (409) so every shelve-blocked write fails with the same class.
+  "read_only",
 ] as const;
 
 export type ApiErrorClass = (typeof API_ERROR_CLASSES)[number];
@@ -212,22 +215,28 @@ function parseRetryAfter(value: string | null): number | undefined {
   return Math.max(0, Math.ceil((at - Date.now()) / 1000));
 }
 
-async function throwFromFailedResponse(res: Response): Promise<never> {
+export async function throwFromFailedResponse(res: Response): Promise<never> {
   let code = "internal";
+  // No `HTTP ${res.status}` fallback: a body-less failure (a proxy 502 with an
+  // HTML body, an empty statusText over HTTP/2) must leave the message empty so
+  // `apiErrorMessage` answers undefined and the caller renders its own
+  // localized sentence instead of a raw English "HTTP 502". Callers that need
+  // the status read `err.status` / `err.code`, never the message.
   let message = res.statusText;
   let fields: Record<string, unknown> | undefined;
   let errorClass: ApiErrorClass | undefined;
   try {
     const body = (await res.json()) as {
       error?: {
-        code: string;
-        message: string;
+        code?: unknown;
+        message?: unknown;
         fields?: Record<string, unknown>;
         error_class?: unknown;
       };
     };
     if (body.error) {
-      ({ code, message } = body.error);
+      if (typeof body.error.code === "string") code = body.error.code;
+      if (typeof body.error.message === "string") message = body.error.message;
       if (body.error.fields && typeof body.error.fields === "object" && !Array.isArray(body.error.fields)) {
         fields = body.error.fields;
       }

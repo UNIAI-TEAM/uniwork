@@ -175,7 +175,7 @@ describe("doc.blocked (G5-03w, vendored)", () => {
   it("is an additive host event under version 1; any non-empty reason validates", () => {
     expect(PROTOCOL_VERSION).toBe(1);
     expect(HOST_EVENT_TYPES).toContain("doc.blocked");
-    for (const reason of ["permission_revoked", "document_deleted", "organization_suspended", "member_deactivated", "document_archived", "newer_reason"]) {
+    for (const reason of ["permission_revoked", "document_deleted", "organization_suspended", "member_deactivated", "document_archived", "document_shelved", "newer_reason"]) {
       expect(env("event", "doc.blocked", { document_id: "doc-1", reason }).ok).toBe(true);
     }
     expect(env("event", "doc.blocked", { document_id: "doc-1", reason: "" }).ok).toBe(false);

@@ -1,6 +1,6 @@
 # Tài liệu — Giới hạn 200 MB, tải lên tệp lớn, gợi ý mở bằng app khi lag (addendum, phía D)
 
-> **Trạng thái:** in-progress — Contract r2 Advisor duyệt 2026-10-16 23:35 (UTC+7); r2 = route theo phiên riêng cho frame + chủ thể mở phiên; r4 (2026-10-17, size-cap:006) = chỉnh §6 theo contract BIGUP-S1 `2026-10-17-bigup-upload-sessions-contract.md`. Lát SIZE-SPEC (UNI-1858) của lane size-cap (UNI-1857).
+> **Trạng thái:** shipped — mọi thẻ của lane size-cap (UNI-1857) đã vào root G5-G7 (đến 1c7760c5f, 2026-10-19); danh sách và việc để sau ở §11. Lịch sử: contract r2 Advisor duyệt 2026-10-16 23:35 (UTC+7) (route theo phiên riêng cho frame + chủ thể mở phiên); r3 trần đầu vào engine 383 MiB (size-cap:005); r4 (2026-10-17, size-cap:006) chỉnh §6 theo contract BIGUP-S1 `2026-10-17-bigup-upload-sessions-contract.md`; r5 banner lag ẩn khi không mở được app (§5); r6 BIGUP-LOCKCHECK (§6.2); r7 VERSION-DEDUP lưu trùng checksum không tạo phiên bản (§6.4). Lát SIZE-SPEC (UNI-1858) của lane size-cap (UNI-1857).
 
 **Ngày:** 2026-10-16 · **Nguồn quyết định:** `briefs/size-thresholds-proposal-2026-10-16.md` §0 (D-S1, D-S2, D-S3 user ký 18:20), `briefs/plan-size-cap-2026-10-16.md`, quyết định Advisor `reports/g5-fork_main/advisor-size-decisions-2026-10-16.md` (OQ-SIZE-1..5, BENCH-01), contract fork `contract-size-frame-v0.1` r3 · **Vùng:** `server/internal/{config,handler,service,files,document,storage}`, `server/migrations`, `packages/core/{api,office}`, `packages/views/office`, `apps/web/platform/office-frame`
 
@@ -130,7 +130,7 @@ Request (cả ba route; `parent_id`, `title`, `visibility` chỉ ở route works
 }
 ```
 
-Header `Idempotency-Key` bắt buộc (cùng key + cùng lệnh → cùng phiên, `200`; cùng key + lệnh khác → `409 idempotency_payload_mismatch`, mã hiện có của `BeginIdempotent`; r4 bỏ mã mới `idempotency_conflict`).
+Header `Idempotency-Key` bắt buộc (cùng key + cùng lệnh → cùng phiên, `200`; cùng key + lệnh khác → `409 idempotency_payload_mismatch`, mã hiện có của `BeginIdempotent`; r4 bỏ mã mới `idempotency_conflict`). Thiếu header hoặc header rỗng → `400 invalid_request` trước mọi kiểm tra khác (r5, BIGUP-S1 review: key rỗng từng tắt cả bảo đảm D7).
 
 Server, trước khi nhận phần nào: `size_bytes` trong `(20 MiB, DOCUMENT_MAX_BYTES]` (≤ 20 MiB → `422 upload_session_too_small`: dùng luồng thường; > cap → `413 file_too_large` + `fields.max_bytes`); đuôi tệp được nhận; quyền (tạo trong workspace / sửa tài liệu, cùng thứ tự từ chối như route upload hiện có); quota `storage.bytes` **giữ chỗ** `size_bytes`; probe chạy detector + luật zip (OOXML/ODF: `[Content_Types].xml`, thư mục chính khớp đuôi, không macro, số mục và kích thước giải nén khai báo trong giới hạn; `cd_size ≤ 1 MiB`; `head_b64 ≤ 64 KiB`) → sai thì `415 unsupported_media_type` + `fields.reason`; giới hạn phiên đang mở mỗi người → `429 upload_sessions_exhausted` + `Retry-After`.
 
@@ -149,6 +149,8 @@ Response `201`:
 
 URL phần là presigned PUT S3 multipart tới khoá object của chính dòng `files` của phiên (r4: tệp chưa được claim nên chưa tài liệu nào đọc được, tức là đã đóng vai staging; không phải copy lúc hoàn tất), TTL 1 giờ; client gửi `PUT` thẳng, `credentials: 'omit'`, ghi lại `ETag`.
 
+**Khoá sửa (BIGUP-LOCKCHECK, r6):** hai route tạo cho **phiên bản mới** (`POST /api/v1/documents/{documentID}/upload-sessions` và `POST /api/v1/office-frame/documents/{documentID}/upload-sessions`) từ chối ngay bằng `423 document_locked` khi tài liệu đang có một nhiệm kỳ khoá sửa còn sống mà người gọi không giữ (người khác giữ, hoặc một agent giữ) — trước khi giữ chỗ quota và trước khi mở phiên, nên không phần nào được tải lên và không dòng phiên nào được tạo; thân lỗi dùng đúng các trường của cổng commit (`holder_id`, `holder_name`, `since`, `expires_at`, `held_by_me`, `current_revision`; **không** có `lock_id`). Người gọi đang giữ khoá (bất kỳ tab/thiết bị nào) hoặc không có nhiệm kỳ còn sống (kể cả nhiệm kỳ đã quá hạn nhưng chưa bị dọn) thì qua; nhiệm kỳ của chính người gọi được coi là "giữ" nên `held_by_me` luôn `false` trong lỗi này, vì thân tạo phiên không mang `edit_lock_id`. Kiểm tra này **chỉ đọc** (không khoá dòng, không gia hạn heartbeat, không ghi audit/outbox) và **chỉ** áp cho hai route tạo phiên bản: route tạo trong workspace, luồng tải một lượt và cổng commit (`checkDocumentEditLock`) không đổi; cổng commit vẫn là nơi quyết định cuối, nên khoá bị lấy sau khi mở phiên vẫn từ chối ở commit với cùng `423` và cùng copy.
+
 ### 6.3 Trạng thái / làm mới URL
 
 `GET .../upload-sessions/{sessionID}` → cùng shape response tạo, cộng trường `status` (`open` | `validating` | `completed`; r4; `parts` chỉ có khi `open`), `completed_parts` lấy từ S3 ListParts (`[{part_number, etag, size}]`), `parts` = URL mới cho các phần còn thiếu. Phiên hết hạn / đã huỷ / đã GC → `410 upload_session_expired`; không thấy → `404 not_found`.
@@ -160,6 +162,8 @@ URL phần là presigned PUT S3 multipart tới khoá object của chính dòng 
 Response `200` theo route tạo:
 - route workspace → `DocumentSDO` (tài liệu đã tạo, như `POST .../documents/files` trả `201`);
 - route tài liệu và route frame → `DocumentUploadSDO` `{upload_id, checksum_sha256, size_bytes, claim_expires_at}` rồi commit như hiện có (`POST /documents/{id}/versions/commit` hoặc `/office-frame/documents/{id}/versions/commit`).
+
+Lưu tệp mà checksum trùng phiên bản hiện hành trả **200** với đúng phiên bản đó (UNI-1900): không claim upload đã staged, không tăng quota, không thêm version, không đổi pointer/revision, không audit/outbox. Không dùng 409 `document_version_unchanged` (mã đó vẫn chỉ dành cho checkpoint trang). Base cũ vẫn 409 `document_version_conflict`; khóa sửa vẫn 423 trước bước so checksum. Output của office job và restore vẫn luôn tạo version. Lưu không đổi để upload ở trạng thái staged, nên sau cửa sổ staged 24 giờ, gọi lại với cùng `upload_id` trả `409 document_upload_invalid` (reason `file_claim_expired`) và client staging một upload mới; câu trả lời đã lưu của commit key khi đó được phát lại vì dấu vân tay (tài liệu, base, checksum, engine) không đổi.
 
 Kiểm tra có thể kéo dài với tệp 200 MB: request `complete` giữ kết nối tới khi xong (client hiện "Đang kiểm tra tệp…"). Nếu proxy cắt kết nối, client gọi lại `complete` (idempotent) hoặc `GET` để đọc trạng thái `validating` / `completed`.
 
@@ -211,3 +215,30 @@ Khoá cuối cùng theo `docs/conventions.md` (worker chọn chỗ đặt trong 
 - SIZE-W1: từ chối trước khi gửi (không có request) + tệp khác vẫn tải; fallback khi config hỏng; trần tải xuống 256 MiB; chip một lần; hộp thoại không mất bản; `doc.download` gửi đúng; 413 nêu `{{max}}`.
 - LAG-W1: banner khi `lag_detected`; fallback kích thước chỉ khi không có observer; dismiss nhớ theo tài liệu; không chặn lưu.
 - BIGUP-S1/W1: theo contract BIGUP-S1.
+
+## 11. Đã giao và việc để sau (đóng SIZE-SPEC, 2026-10-19)
+
+Các thẻ xây trên addendum này, theo commit merge vào root G5-G7:
+
+| Thẻ | Issue | Merge root |
+|---|---|---|
+| SIZE-S1 + SIZE-W1a | UNI-1859, UNI-1860 | a8b2b3914 |
+| SIZE-W1b + LAG-W1 | UNI-1860, UNI-1866 | 1c20aa10e |
+| BIGUP-S1 | UNI-1862 | beff88384 |
+| SIZE-S2 (kiểm tra trên spool trước `Put`) | UNI-1870 | 844aab79f |
+| BIGUP-W1 | UNI-1863 | 98c210422 |
+| BIGUP-LOCKCHECK (r6) | UNI-1890 | f6aebb640 |
+| VERSION-DEDUP (r7) | UNI-1900 | 49c44680f |
+| UPLOAD-DIALOG-POLISH | UNI-1906 | 7b5ea5e23 |
+| FRAME-SAVE-HYGIENE | UNI-1907 | 11c6a963f |
+| UX-FLOOR-LOCKBAR (fixture e2e theo r7) | UNI-1917 | 1c7760c5f |
+
+Việc để sau, không xây trong lane này (mỗi việc cần một thẻ riêng do Advisor mở):
+
+- **SIZE-OPS1:** transport nhị phân/streaming cho job engine, để tài liệu trên 383 MiB chuyển đổi và xuất PDF được (§3, r3); hiện engine trả 413 `upload_bounds`.
+- **Phía fork (g5-fork_main):** BIGUP-A1 (phiên tải lên từ app desktop) và BENCH-01 (đo mở web theo kích thước, giữ chặn xlsx chỉ nơi tab thật sự sập).
+- **Frame, lưu bị khoá (F-1, FRAME-SAVE-HYGIENE):** frame vẫn ghi "Không lưu được tài liệu. Hãy thử lại." khi lưu bị khoá sửa từ chối; câu riêng cho khoá cần đổi ở fork.
+- **Số phiên bản trên thanh của frame (F-3):** thanh "Đã cập nhật lên phiên bản N" dùng revision tài liệu, lịch sử dùng số phiên bản; host nên gửi số phiên bản.
+- **Nhãn sau khi lấy lại khoá (F-4):** đầu trang ghi "Chưa xác nhận được việc lưu" dù lần lưu bị từ chối chứ không phải chưa xác nhận.
+- **Toast xếp chồng (P-2, UPLOAD-DIALOG-POLISH):** sonner gộp toast đang chờ dưới toast tiến trình, nút Hủy chỉ bấm được khi rê chuột; cần chỉnh Toaster chung.
+- **Ngoài phạm vi từ đầu (user chưa quyết):** quota chỉ tính bản mới nhất, chính sách giữ phiên bản.

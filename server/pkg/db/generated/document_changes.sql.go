@@ -189,20 +189,34 @@ WHERE d.organization_id = $2
   AND d.workspace_id = $3
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND ($4::boolean
-       OR ($5::boolean AND d.visibility = 'workspace'
+  -- ARCHIVE-01: shelved rows stay in the snapshot - read-only is a feed-row
+  -- flag; it is trashed rows that the snapshot excludes (archived_at above).
+  AND (($4::boolean
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels, or it is
+        -- not in the foreign set; a live share is the OR below. Removes only
+        -- what admin scope ADDS. Set: uw_my_folder_foreign_ids
+        -- (migration 9991792289293597).
+        AND (d.acl_owner_id = $5::text
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    $5, $2, $3, $7::int
+                  ) mfs WHERE mfs.document_id = d.id)))
+       OR ($8::boolean AND d.visibility = 'workspace'
            AND d.workspace_level = ANY($6::text[]))
-       OR ($7::boolean AND d.acl_owner_id = $8::text)
-       OR ($9::boolean AND EXISTS (
+       OR ($9::boolean AND d.acl_owner_id = $5::text)
+       OR ($10::boolean AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND ((s.principal_type = 'user' AND s.principal_id = $8)
+              AND ((s.principal_type = 'user' AND s.principal_id = $5)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($10::text[]))))))
+                       AND s.principal_id = ANY($11::text[]))))))
 `
 
 type InsertDocumentChangeSnapshotItemsParams struct {
@@ -210,10 +224,11 @@ type InsertDocumentChangeSnapshotItemsParams struct {
 	OrganizationID  string   `json:"organization_id"`
 	WorkspaceID     string   `json:"workspace_id"`
 	SeeAll          bool     `json:"see_all"`
-	MemberVisible   bool     `json:"member_visible"`
-	ShareLevels     []string `json:"share_levels"`
-	AclOwner        bool     `json:"acl_owner"`
 	ActorID         string   `json:"actor_id"`
+	ShareLevels     []string `json:"share_levels"`
+	MaxLevel        int32    `json:"max_level"`
+	MemberVisible   bool     `json:"member_visible"`
+	AclOwner        bool     `json:"acl_owner"`
 	AllowShares     bool     `json:"allow_shares"`
 	ShareWorkspaces []string `json:"share_workspaces"`
 }
@@ -228,10 +243,11 @@ func (q *Queries) InsertDocumentChangeSnapshotItems(ctx context.Context, arg Ins
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.SeeAll,
-		arg.MemberVisible,
-		arg.ShareLevels,
-		arg.AclOwner,
 		arg.ActorID,
+		arg.ShareLevels,
+		arg.MaxLevel,
+		arg.MemberVisible,
+		arg.AclOwner,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 	)
@@ -389,7 +405,7 @@ func (q *Queries) ListDocumentChangeSnapshotItems(ctx context.Context, arg ListD
 const listDocumentsForChangeFeed = `-- name: ListDocumentsForChangeFeed :many
 SELECT
   d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
-  d.current_version, d.file_version_id, d.archived_at,
+  d.current_version, d.file_version_id, d.archived_at, d.shelved_at,
   d.owner_id, d.visibility, d.acl_owner_id, d.workspace_level
 FROM documents d
 WHERE d.organization_id = $1
@@ -410,6 +426,7 @@ type ListDocumentsForChangeFeedRow struct {
 	CurrentVersion int32              `json:"current_version"`
 	FileVersionID  pgtype.Text        `json:"file_version_id"`
 	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	ShelvedAt      pgtype.Timestamptz `json:"shelved_at"`
 	OwnerID        pgtype.Text        `json:"owner_id"`
 	Visibility     string             `json:"visibility"`
 	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
@@ -439,6 +456,7 @@ func (q *Queries) ListDocumentsForChangeFeed(ctx context.Context, arg ListDocume
 			&i.CurrentVersion,
 			&i.FileVersionID,
 			&i.ArchivedAt,
+			&i.ShelvedAt,
 			&i.OwnerID,
 			&i.Visibility,
 			&i.AclOwnerID,

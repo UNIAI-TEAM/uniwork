@@ -46,6 +46,9 @@ type CopyDocumentInput struct {
 	// the copy's first version is the job's OOXML output
 	// (document_copy_convert.go) instead of the source's own bytes.
 	JobID string
+	// UploadID, when set, creates the copy's first version from a staged
+	// upload of this document by the same actor instead of the source's head.
+	UploadID string
 }
 
 func errCopyConsentRequired() error {
@@ -111,8 +114,12 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 	if err := s.requireCopySeat(ctx, s.q, src.WorkspaceID, actor.ID); err != nil {
 		return DocumentFileResult{}, err
 	}
-	if strings.TrimSpace(in.JobID) != "" {
-		in.JobID = strings.TrimSpace(in.JobID)
+	in.JobID = strings.TrimSpace(in.JobID)
+	in.UploadID = strings.TrimSpace(in.UploadID)
+	if in.JobID != "" && in.UploadID != "" {
+		return DocumentFileResult{}, Invalid("upload_id và job_id loại trừ lẫn nhau")
+	}
+	if in.JobID != "" {
 		return s.acceptConversion(ctx, fs, actor, src, access, in)
 	}
 	current, err := s.currentFileVersion(ctx, s.q, src)
@@ -135,13 +142,12 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 			return DocumentFileResult{}, err
 		}
 	}
-	scope := documentScope(src.OrganizationID, src.WorkspaceID)
-	file, err := resolveUpload(ctx, fs, scope, current.FileID.String)
-	if err != nil {
-		return DocumentFileResult{}, err
+	fpSource := current.ID
+	if in.UploadID != "" {
+		fpSource = "upload:" + in.UploadID
 	}
 	opts := IdempotencyOptions{
-		Fingerprint:        IdempotencyFingerprint(idempotencyScopeDocumentCopy, src.ID, current.ID, title, in.ParentID),
+		Fingerprint:        IdempotencyFingerprint(idempotencyScopeDocumentCopy, src.ID, fpSource, title, in.ParentID),
 		RequireFingerprint: true,
 	}
 	replay, err := PeekIdempotent(ctx, s.q, src.OrganizationID, src.WorkspaceID, idempotencyScopeDocumentCopy, in.IdempotencyKey, actor.ID, opts)
@@ -151,9 +157,26 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 	if replay != nil {
 		return replayWithAccess(replay.Body, access)
 	}
+	scope := documentScope(src.OrganizationID, src.WorkspaceID)
+	targetFileID := current.FileID.String
+	if in.UploadID != "" {
+		if err := s.verifyCopyUpload(ctx, s.q, fs, actor, src, in.UploadID); err != nil {
+			return DocumentFileResult{}, err
+		}
+		targetFileID = in.UploadID
+	}
+	file, err := resolveUpload(ctx, fs, scope, targetFileID)
+	if err != nil {
+		return DocumentFileResult{}, err
+	}
+	if in.UploadID != "" {
+		if maxBytes := s.documentFileMaxBytes(); maxBytes > 0 && file.SizeBytes > maxBytes {
+			return DocumentFileResult{}, documentFileError(files.TooLarge(maxBytes))
+		}
+	}
 
 	var res DocumentFileResult
-	err = s.withDocumentMutation(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
+	err = s.withDocumentMutationOnShelved(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
 		}
@@ -171,10 +194,19 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 			return err
 		}
 		if locked.FileVersionID.String != current.ID {
-			// A version landed between the read and the lock: the file, the
-			// source version and the source revision must describe one
-			// snapshot, so the caller retries against the new version.
-			return errDocumentVersionConflict(locked.Revision)
+			if in.UploadID == "" {
+				// A version landed between the read and the lock: the file, the
+				// source version and the source revision must describe one
+				// snapshot, so the caller retries against the new version.
+				return errDocumentVersionConflict(locked.Revision)
+			}
+			current, err = s.currentFileVersion(ctx, q, locked)
+			if err != nil {
+				return err
+			}
+			if current == nil || !current.FileID.Valid {
+				return ErrNotFound
+			}
 		}
 		if in.ParentID != "" {
 			// Root (G1-04b) replaced requireParentInTx with lockPageParent:
@@ -184,16 +216,43 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 				return err
 			}
 		}
-		// Claim the same file for the copy: FileService counts the bytes once
-		// per file_id (T1-Q9), so a copy adds references, not storage, and no
-		// quota is consumed again.
+		// Claim the file for the copy: for a head copy FileService counts the
+		// bytes once per file_id (T1-Q9); for a staged upload_id (UNI-1872) the
+		// upload is claimed once and consumes storage for the new document.
 		claimed, err := fs.ClaimInTx(ctx, q, files.ClaimInput{
 			Actor: actor, Purpose: files.DocumentFile, Scope: scope, FileIDs: []files.FileID{file.ID},
 		})
 		if err != nil {
 			return documentFileError(err)
 		}
+		if s.store.afterClaim != nil {
+			if err := s.store.afterClaim(); err != nil {
+				return err
+			}
+		}
 		copied := claimed[0]
+		targetFormat := current.MimeType
+		if in.UploadID != "" {
+			inUse, err := q.DocumentFileInUse(ctx, db.DocumentFileInUseParams{
+				OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
+				FileID: pgtype.Text{String: string(file.ID), Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+			if inUse {
+				return errUploadAlreadyCommitted()
+			}
+			if current.MimeType.String != copied.ContentType {
+				return CodedError{Code: document.ErrCodeUnsupportedMedia, Status: http.StatusUnsupportedMediaType,
+					Msg:    "phiên bản mới phải cùng định dạng với tài liệu",
+					Fields: map[string]any{"reason": "format_changed"}}
+			}
+			if err := s.consumeStorage(ctx, q, actor, locked.OrganizationID, locked.WorkspaceID, copied); err != nil {
+				return err
+			}
+			targetFormat = pgtype.Text{String: copied.ContentType, Valid: true}
+		}
 		docID, versionID := util.NewID(), util.NewID()
 		doc, err := q.InsertDocument(ctx, db.InsertDocumentParams{
 			ID: docID, OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
@@ -210,7 +269,7 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 			SourceVersionID:      pgtype.Text{String: current.ID, Valid: true},
 			SourceRevision:       pgtype.Int8{Int64: locked.Revision, Valid: true},
 			SourceFormat:         current.MimeType,
-			TargetFormat:         current.MimeType,
+			TargetFormat:         targetFormat,
 			SourceChecksumSha256: current.ChecksumSha256,
 			CreatedBy:            actor.ID, CreatedByKind: string(actor.Kind),
 			UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
@@ -249,6 +308,51 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 		return DocumentFileResult{}, err
 	}
 	return res, nil
+}
+
+type uploadOriginProvider interface {
+	UploadOrigin(id files.FileID) (files.UploadPurpose, files.Scope, audit.Actor, string, bool)
+}
+
+// verifyCopyUpload enforces that uploadID was staged on src by actor in src's
+// organization and workspace via UploadDocumentFile ("documents.upload:<docID>:...").
+// Any mismatch (unknown id, head/create file, asset, another document, another
+// actor, or another organization/workspace) fails closed as 404 (ErrNotFound).
+func (s *DocumentService) verifyCopyUpload(ctx context.Context, q *db.Queries, fs files.Service, actor Actor, src db.Document, uploadID string) error {
+	prefix := "documents.upload:" + src.ID + ":"
+	sess, err := q.GetUploadSessionByFile(ctx, uploadID)
+	if err == nil {
+		if !sess.OrganizationID.Valid || sess.OrganizationID.String != src.OrganizationID ||
+			!sess.WorkspaceID.Valid || sess.WorkspaceID.String != src.WorkspaceID ||
+			sess.Purpose != string(files.DocumentFile) ||
+			sess.CreatedByKind != string(actor.Kind) || sess.CreatedBy != actor.ID ||
+			!strings.HasPrefix(sess.IdempotencyKey, prefix) {
+			return ErrNotFound
+		}
+		return nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	for {
+		if u, ok := fs.(interface{ Unwrap() files.Service }); ok {
+			fs = u.Unwrap()
+			continue
+		}
+		break
+	}
+	if origin, ok := fs.(uploadOriginProvider); ok {
+		purpose, scope, upActor, idemKey, found := origin.UploadOrigin(files.FileID(uploadID))
+		if found &&
+			purpose == files.DocumentFile &&
+			scope.OrganizationID == src.OrganizationID &&
+			scope.WorkspaceID == src.WorkspaceID &&
+			upActor == actor &&
+			strings.HasPrefix(idemKey, prefix) {
+			return nil
+		}
+	}
+	return ErrNotFound
 }
 
 // copyDocumentShares snapshots the source's live grants onto the copy: the

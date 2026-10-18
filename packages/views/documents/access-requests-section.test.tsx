@@ -116,7 +116,7 @@ describe("AccessRequestsSection", () => {
     renderSection();
     await screen.findByText("Bình");
     const first = screen.getByRole("listitem", { name: /Bình/ });
-    const levelLabel = `${t("documents.share.level_label")} Bình`;
+    const levelLabel = t("documents.share.level_for", { name: "Bình" });
     fireEvent.click(within(first).getByRole("combobox", { name: levelLabel }));
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
     expect(options).toEqual([t("documents.share.level_view"), t("documents.share.level_edit")]);
@@ -131,7 +131,7 @@ describe("AccessRequestsSection", () => {
     renderSection();
     await screen.findByText("Chi");
     const row = screen.getByRole("listitem", { name: /Chi/ });
-    const levelLabel = `${t("documents.share.level_label")} Chi`;
+    const levelLabel = t("documents.share.level_for", { name: "Chi" });
     const trigger = within(row).getByRole("combobox", { name: levelLabel });
     expect(trigger).toHaveTextContent(t("documents.share.level_edit"));
     fireEvent.click(trigger);
@@ -149,7 +149,7 @@ describe("AccessRequestsSection", () => {
     pending = { requests: [{ ...binh, id: "r3", requested_level: "comment" }] };
     renderSection();
     await screen.findByText("Bình");
-    fireEvent.click(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Bình` }));
+    fireEvent.click(screen.getByRole("combobox", { name: t("documents.share.level_for", { name: "Bình" }) }));
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
     // The label is this namespace's own: documents.share.level_comment belongs to DOC-05.
     expect(options).toEqual([
@@ -299,6 +299,16 @@ describe("AccessRequestsSection", () => {
     renderSection();
     const heading = await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 2 }) });
     expect(heading).not.toHaveFocus();
+  });
+
+  it("renders nothing when the server has no access-requests route", async () => {
+    requestMock.mockReset();
+    requestMock.mockImplementation(() => Promise.reject(new ApiError("not found", "not_found", 404)));
+    const { container } = renderSection();
+    await waitFor(() => expect(calls(LIST).length).toBeGreaterThan(0));
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: t("documents.share.retry") })).toBeNull();
   });
 
   it("offers a retry when the list cannot be read", async () => {

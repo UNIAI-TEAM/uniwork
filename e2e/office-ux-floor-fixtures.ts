@@ -1,9 +1,10 @@
 import { expect, test, type APIRequestContext, type Frame, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import JSZip from "jszip";
 import { Client } from "pg";
 import { basename, resolve } from "node:path";
 import { e2eApiUrl } from "./api-url";
-import { readPinnedFrame, type SeededDocx } from "./office-docs-web-fixtures";
+import { openSeededDocument, readPinnedFrame, seededEditLockId, type SeededDocx } from "./office-docs-web-fixtures";
 import { signInAs } from "./office-module-web-fixtures";
 
 /**
@@ -66,10 +67,10 @@ async function docsFrame(page: Page): Promise<Frame> {
   return frame!;
 }
 
-/** Signs in, opens the document and waits for an editable editor in the frame. */
+/** Signs in, opens the document (recording its edit-lock tenure) and waits for an editable editor in the frame. */
 export async function openDocs(page: Page, seeded: SeededDocx): Promise<Frame> {
   await signInAs(page, seeded.account.email);
-  await page.goto(seeded.documentUrl);
+  await openSeededDocument(page, seeded);
   await expect(page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first()).toBeVisible({ timeout: 60_000 });
   return docsFrame(page);
 }
@@ -85,7 +86,11 @@ export async function makeDirty(page: Page, marker: string): Promise<void> {
 
 /**
  * A second writer commits a new version through the API (uploads + versions/commit
- * on the current head), as another member saving elsewhere would.
+ * on the current head), carrying the open page's `edit_lock_id` so the server's
+ * lock gate accepts the commit while the frame's own Save then meets a 409.
+ * The bytes differ from v1 (a zip comment; the document is unchanged): an
+ * identical file makes no new version (VERSION-DEDUP, UNI-1900), so no S6 bar
+ * and no 409 would follow.
  */
 export async function commitElsewhere(request: APIRequestContext, seeded: SeededDocx): Promise<void> {
   const auth = { authorization: `Bearer ${seeded.account.token}` };
@@ -93,15 +98,20 @@ export async function commitElsewhere(request: APIRequestContext, seeded: Seeded
   expect(got.ok(), `read head: HTTP ${got.status()}`).toBeTruthy();
   const revision = ((await got.json()) as { document: { revision: string } }).document.revision;
   const key = `ux-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const newBytes = await (await JSZip.loadAsync(readFileSync(DOCX_FIXTURE))).generateAsync({
+    type: "nodebuffer",
+    comment: `ux-floor commit elsewhere ${key}`,
+  });
   const up = await request.post(`${e2eApiUrl}/api/v1/documents/${seeded.documentId}/uploads`, {
     headers: { ...auth, "Idempotency-Key": `up-${key}` },
-    multipart: { file: { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) } },
+    multipart: { file: { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: newBytes } },
   });
   expect(up.ok(), `stage upload: HTTP ${up.status()} ${await up.text()}`).toBeTruthy();
   const { upload_id } = (await up.json()) as { upload_id: string };
+  const editLockId = seededEditLockId(seeded);
   const commit = await request.post(`${e2eApiUrl}/api/v1/documents/${seeded.documentId}/versions/commit`, {
     headers: { ...auth, "Idempotency-Key": `commit-${key}`, "content-type": "application/json" },
-    data: { upload_id, base_revision: revision },
+    data: { upload_id, base_revision: revision, ...(editLockId ? { edit_lock_id: editLockId } : {}) },
   });
   expect(commit.ok(), `commit elsewhere: HTTP ${commit.status()} ${await commit.text()}`).toBeTruthy();
 }
@@ -299,15 +309,6 @@ export async function focusedIn(frame: Frame): Promise<{ id: string; inCard: boo
     const id = el?.dataset.choice ?? (el?.classList.contains("ow-dlg-close") ? "close" : el?.classList.contains("ow-dlg-title") ? "title" : el?.tagName.toLowerCase() ?? "none");
     return { id, inCard: !!el && !!document.querySelector(card)?.contains(el) };
   }, S5_CARD);
-}
-
-/**
- * Marks the rest of the test as expected to fail for a known BLOCKING finding,
- * once the state is reached (a failure before this call is a real failure).
- */
-export function finding(id: string, rule: string): void {
-  test.info().annotations.push({ type: "finding", description: `${id}: ${rule}` });
-  test.fail(true, `${id} (BLOCKING, G7-09): ${rule}`);
 }
 
 /** Pins the iframe element to a CSS size, so the frame's own viewport is exactly that. */

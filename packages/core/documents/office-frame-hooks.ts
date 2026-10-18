@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { mintOfficeFrameToken, type OfficeFrameToken } from "../api/endpoints/office-frame";
+import { mintDocumentSourceFrameToken, mintOfficeFrameToken, type OfficeFrameToken } from "../api/endpoints/office-frame";
 import { officeKeys } from "./office-hooks";
 
 // Office Docs web frame token (UNI-1013). The host mints it with its session
@@ -11,13 +11,16 @@ import { officeKeys } from "./office-hooks";
 export const officeFrameKeys = {
   token: (wsId: string, documentId: string) =>
     [...officeKeys.document(wsId, documentId), "frame-token"] as const,
+  // A source token is keyed apart from a document's: the two never share a cache row.
+  sourceToken: (wsId: string, sourceFileId: string) =>
+    [...officeKeys.all, wsId, "source", sourceFileId, "frame-token"] as const,
 };
 
 /** Re-mint this long before `expires_in` runs out. */
 const OFFICE_FRAME_REFRESH_MARGIN_S = 60;
 
 /** Next re-mint delay in ms; false when the token is missing. */
-export function officeFrameRefetchInterval(token: OfficeFrameToken | null | undefined): number | false {
+export function officeFrameRefetchInterval(token: Pick<OfficeFrameToken, "expires_in"> | null | undefined): number | false {
   if (!token) return false;
   return Math.max(5, token.expires_in - OFFICE_FRAME_REFRESH_MARGIN_S) * 1000;
 }
@@ -27,6 +30,20 @@ export function useOfficeFrameToken(wsId: string, documentId: string, opts: { en
     queryKey: officeFrameKeys.token(wsId, documentId),
     queryFn: ({ signal }) => mintOfficeFrameToken(documentId, { signal }),
     enabled: (opts.enabled ?? true) && !!wsId && !!documentId,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: (query) => officeFrameRefetchInterval(query.state.data),
+  });
+}
+
+/** The view-only `ofs1.` token of one file from another module (UNI-1869), minted on its workspace route. */
+export function useOfficeFrameSourceToken(wsId: string, sourceFileId: string, opts: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: officeFrameKeys.sourceToken(wsId, sourceFileId),
+    queryFn: ({ signal }) => mintDocumentSourceFrameToken(wsId, sourceFileId, { signal }),
+    enabled: (opts.enabled ?? true) && !!wsId && !!sourceFileId,
     staleTime: Infinity,
     gcTime: 0,
     retry: false,

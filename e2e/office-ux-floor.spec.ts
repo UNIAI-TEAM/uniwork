@@ -1,10 +1,10 @@
 import { expect, test, type Frame } from "@playwright/test";
-import { e2eBaseUrl } from "./api-url";
+import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 import { auditText } from "./contrast";
-import { seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
+import { releaseSeededEditLock, seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
   COMPOSER, EDITOR, FRAME_SELECTOR, PICKER_POP, S5_CARD, S5_MASK, S6_BAR, aiFlagsBeforeAll, clippedLabels, commitElsewhere, contrastIn, docsFrameInstalled,
-  expectFocus, finding, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
+  expectFocus, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
   reachConflict, recordLiveWrites, recordMotion, s5Choices, selectUniworkAi, sizeFrame, smallTargets, surfaceIsMode, visualOrder,
   uniworkOption, waitForBar, type Locale, type Mode,
 } from "./office-ux-floor-fixtures";
@@ -35,6 +35,10 @@ import {
  * (a timeout, a selector that slipped) is a real failure. (`expect.soft` under test.fail would absorb the same.)
  *
  * Run with OFFICE_UX_FLOOR_E2E=1 (server with AI_PROVIDER=fake for S7/S9).
+ * S9 also needs AI_CONVERSATION_KEY on that server: without it there is no transcript store, so the first
+ * UniWork AI turn answers 503 ai_disabled (ConversationStorePG.Create refuses, uniworkStoreErr maps it) and the
+ * frame shows an error line instead of an answer. Give each run its own key (`openssl rand -base64 32`), never a
+ * committed one.
  */
 test.describe.configure({ timeout: 240_000 });
 test.skip(process.env.OFFICE_UX_FLOOR_E2E !== "1", "Set OFFICE_UX_FLOOR_E2E=1 to run the G7-09 UX floor checks.");
@@ -57,6 +61,10 @@ test.beforeAll(async ({ browser, request }) => {
   }
   await setFlag("office_engine", seeded.organizationId, true);
   test.info().annotations.push({ type: "frame", description: pinnedVersion() });
+});
+
+test.afterEach(async ({ request }) => {
+  await releaseSeededEditLock(request, seeded);
 });
 
 async function audit(frame: Frame, root: string, label: string, mode: Mode): Promise<void> {
@@ -189,12 +197,38 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
   test("Save copy sits between Reload and Overwrite with edit access", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    finding("UXF-02", "State Patterns › S5: 'Lưu thành bản sao…' (uwConflictSaveCopy, OQ-UX6) between Reload and Overwrite when the user can edit (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const { ids } = await s5Choices(frame);
     expect(ids, "save-copy, reload and overwrite present").toEqual(expect.arrayContaining(["reload", "save-copy", "overwrite"]));
     // Relative order only: UXF-03 (diff first) is its own test, so fixing it must not change this verdict.
     expect(ids.indexOf("reload"), "Reload before Save copy").toBeLessThan(ids.indexOf("save-copy"));
     expect(ids.indexOf("save-copy"), "Save copy before Overwrite").toBeLessThan(ids.indexOf("overwrite"));
+  });
+
+  test("Save copy creates a copy with the source visibility and leaves the open document in conflict", async ({ page, request }) => {
+    await prepare(page, baseUrl, "light", "vi");
+    const frame = await reachConflict(page, request, seeded);
+    const titleBefore = await page.title();
+    await frame.locator(`${S5_CARD} [data-choice="save-copy"]`).click();
+    await frame.locator(`${S5_CARD} [data-choice="go"]`).waitFor();
+    await expectFocus(frame, "back", "Save copy confirm: default focus Back");
+    await frame.locator(`${S5_CARD} [data-choice="go"]`).click();
+    const alert = frame.locator(`${S5_CARD} .ow-dlg-alert`);
+    await expect(alert).not.toHaveText("", { timeout: 30_000 });
+    const alertText = (await alert.textContent()) ?? "";
+    const auth = { authorization: `Bearer ${seeded.account.token}` };
+    const listed = await request.get(`${e2eApiUrl}/api/v1/workspaces/${seeded.account.wsId}/documents`, { headers: auth });
+    expect(listed.ok(), `list documents: HTTP ${listed.status()}`).toBeTruthy();
+    const { documents } = (await listed.json()) as { documents: { id: string; title: string; visibility: string }[] };
+    const source = documents.find((d) => d.id === seeded.documentId);
+    const copy = documents.find((d) => d.id !== seeded.documentId && alertText.includes(d.title));
+    expect(source, "source document still in workspace list").toBeDefined();
+    expect(copy, `copy quoted in done alert (${alertText}) appears in workspace list`).toBeDefined();
+    expect(copy!.visibility, "copy keeps source visibility").toBe(source!.visibility);
+    // Open document is unchanged: still on the source URL, same page title, and S5 step 1 is still open.
+    expect(page.url()).toBe(seeded.documentUrl);
+    expect(await page.title()).toBe(titleBefore);
+    await expect(frame.locator(`${S5_CARD} [data-choice="reload"]`)).toBeVisible();
+    await expect(frame.locator(`${S5_CARD} [data-choice="overwrite"]`)).toBeVisible();
   });
 
   test("Docs shows 'Xem khác biệt' before Reload", async ({ page, request }) => {
@@ -416,8 +450,14 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
         const sendBtn = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
         await expect(sendBtn, "S9: Send is enabled after the disclosure acknowledgement").not.toHaveAttribute("aria-disabled", "true");
         await sendBtn.click();
-        await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
-        await audit(frame, ".ai-chat", "S9 result/error", mode);
+        // S9: the turn reached its end, then the error line is checked explicitly. The pinned frame's action toolbar
+        // also appears on a failed turn (its `showToolbar` accepts `entry.error`), so the toolbar alone does not prove
+        // an answer; the assertion below is what does. `.ai-msg-error` is exactly what a frame whose same-origin AI
+        // POST never reached the API shows (split-origin, before the app proxied the frame AI routes).
+        await frame.locator(".ai-chat .ai-msg-toolbar").first().waitFor({ state: "visible", timeout: 90_000 });
+        const errorLine = await frame.locator(".ai-chat .ai-msg-error").first().isVisible().catch(() => false);
+        expect(errorLine, "S9: the UniWork AI turn rendered an error line, not an answer — the frame's AI POST must reach the API (on a split-origin setup the app rewrites /api/v1/office-frame/documents/{id}/ai/... to NEXT_PUBLIC_API_URL)").toBe(false);
+        await audit(frame, ".ai-chat", "S9 result", mode);
         await shot(frame, `s9-result-${mode}-${locale}`);
       });
     }

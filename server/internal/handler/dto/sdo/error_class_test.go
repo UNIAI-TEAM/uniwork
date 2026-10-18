@@ -30,6 +30,7 @@ func TestErrorClassTable(t *testing.T) {
 		"folder_name_taken":            "conflict",
 		"my_folder_locked":             "conflict",
 		"document_deleted":             "gone",
+		"document_shelved":             "read_only",
 		"quota_exceeded":               "quota",
 		"forbidden":                    "permission",
 		"member_deactivated":           "permission",
@@ -121,6 +122,9 @@ func TestErrorClassTable(t *testing.T) {
 		// MYFOLDER-01 (UNI-1850, §4): 400 validation refusal when create
 		// names an unknown destination or pairs destination="my_folder" with parent_id.
 		"invalid_destination",
+		// SH-S2 (UNI-1781): per-item semantic refusal on PUT /documents/{id}/access
+		// (422, fields.rejected[]); the dialog highlights the bad rows in place.
+		"document_access_rejected",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
@@ -147,6 +151,7 @@ func TestErrorClassTable(t *testing.T) {
 		"document_permissions.go", "document_shares.go", "document_break_glass.go",
 		"document_files.go", "document_commit.go",
 		"document_access_report.go", "document_access_report_export.go",
+		"document_access_batch.go",
 	} {
 		src, err := os.ReadFile("../../../service/" + name)
 		if errors.Is(err, fs.ErrNotExist) && name == "document_break_glass.go" {

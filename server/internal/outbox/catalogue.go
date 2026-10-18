@@ -255,7 +255,7 @@ var catalogue = []EventDef{
 	// Access changes (UNI-676). Workspace scope, ids only: a recipient
 	// outside the workspace learns of a share through "shared with me";
 	// delivery-time filtering goes through DocumentReaderResolver.
-	{Topic: "document.shared", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.shared", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id", "notify_user_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.share_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.break_glass_granted", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.break_glass_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -274,6 +274,10 @@ var catalogue = []EventDef{
 	{Topic: "document.moved", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.archived", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.restored", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// ARCHIVE-01 (UNI-1845): the shelved state is the real archive, kept
+	// forever; ids plus the shelve batch, same shape as the trash rows.
+	{Topic: "document.shelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.unshelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Document comments (UNI-681): ids only, workspace scope like the task

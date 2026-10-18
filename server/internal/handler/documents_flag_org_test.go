@@ -58,6 +58,7 @@ func TestDocumentsFlagOrganizationOverride(t *testing.T) {
 		{"GET", "/api/v1/workspaces/" + w.wsID + "/documents"},
 		{"POST", "/api/v1/workspaces/" + w.wsID + "/documents"},
 		{"GET", "/api/v1/workspaces/" + w.wsID + "/documents/sources"},
+		{"POST", "/api/v1/workspaces/" + w.wsID + "/documents/sources/task%3A01J8X4ATT0N1P2Q3R4S5T6U7/office/frame-token"},
 		{"GET", "/api/v1/documents/" + docA},
 		{"PATCH", "/api/v1/documents/" + docA},
 		{"POST", "/api/v1/documents/" + docA + "/office/frame-token"},

@@ -117,7 +117,7 @@ func (s *DocumentService) CreateDocumentLink(ctx context.Context, actor Actor, d
 		return CreatedDocumentLink{}, err
 	}
 	var out CreatedDocumentLink
-	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (s *DocumentService) CreateDocumentLink(ctx context.Context, actor Actor, d
 // RevokeDocumentLink ends a link; the next public read with its token is
 // not found.
 func (s *DocumentService) RevokeDocumentLink(ctx context.Context, actor Actor, documentID, linkID string) error {
-	return s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	return s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteAllowed, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}

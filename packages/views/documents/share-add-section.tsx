@@ -1,0 +1,527 @@
+"use client";
+
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { ApiError } from "@uniwork/core/api";
+import {
+  parseDocumentAccessRejected,
+  type DocumentAccessOnExisting,
+  type DocumentAccessPreview,
+  type DocumentAccessRejectedCode,
+  type DocumentAccessUpdateItemInput,
+  type DocumentShareCandidate,
+} from "@uniwork/core/api/endpoints/documents-sharing";
+import { isDocumentShelvedError, sharePrincipalsNotInOrganization } from "@uniwork/core/documents/errors";
+import {
+  useDocumentShareCandidates,
+  useUpdateDocumentAccess,
+} from "@uniwork/core/documents/hooks-sharing";
+import {
+  DOCUMENT_ACCESS_LEVELS,
+  type Document,
+  type DocumentAccessLevel,
+  type DocumentAccessVia,
+  type DocumentHomeWorkspaceAccess,
+  type DocumentShare,
+} from "@uniwork/core/types/document";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Label } from "@uniwork/ui/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@uniwork/ui/components/ui/select";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import {
+  buildLocalShareCandidates,
+  filterShareCandidates,
+  ShareCandidatePicker,
+  type ShareMembersDirectory,
+} from "./share-candidate-picker";
+import { ShareAddCustomLevels } from "./share-add-custom-levels";
+import { shareErrorMessage } from "./share-dialog-break-glass";
+import { warningSentence } from "./share-preview-sentences";
+
+/** The server caps one batch at 100 items; the picker stops well short of it. */
+const SHARE_PEOPLE_MAX = 50;
+
+export type { ShareMembersDirectory };
+
+export interface SelectedShareCandidate {
+  key: string;
+  candidate: DocumentShareCandidate;
+  customLevel?: DocumentAccessLevel;
+  onExisting: DocumentAccessOnExisting;
+}
+
+export interface ShareAddSectionProps {
+  wsId: string;
+  doc: Pick<Document, "id" | "workspace_id" | "organization_id">;
+  open: boolean;
+  shares: DocumentShare[];
+  homeWorkspace?: DocumentHomeWorkspaceAccess | null;
+  alreadySharedUserIds?: readonly (string | null | undefined)[];
+  members: ShareMembersDirectory;
+  orgWorkspaces: Array<{ id: string; name: string }>;
+  organization?: { id: string; name: string } | null;
+  /** The document is shelved (ARCHIVE-01 U-9): nothing here may be granted —
+   *  the whole section reads but never writes; the submit control stays in the
+   *  tab order and points at this note id. */
+  shelved?: boolean;
+  /** The explanation line the locked controls point at. */
+  shelvedNoteId?: string;
+}
+
+export function allowedLevelsForPrincipal(
+  principalType: string,
+  isHomeWorkspace = false,
+): readonly DocumentAccessLevel[] {
+  if (principalType === "organization" || (principalType === "workspace" && isHomeWorkspace)) {
+    return ["view", "comment", "edit"] as const;
+  }
+  return DOCUMENT_ACCESS_LEVELS;
+}
+
+export function ShareAddSection({
+  wsId,
+  doc,
+  open,
+  shares,
+  homeWorkspace,
+  alreadySharedUserIds,
+  members,
+  orgWorkspaces,
+  organization,
+  shelved = false,
+  shelvedNoteId,
+}: ShareAddSectionProps) {
+  const { t } = useTranslation();
+  const baseId = useId();
+  const inputId = `${baseId}-candidate-input`;
+  const listboxId = `${baseId}-candidate-listbox`;
+  const levelId = `${baseId}-common-level`;
+
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [selected, setSelected] = useState<SelectedShareCandidate[]>([]);
+  const [commonLevel, setCommonLevel] = useState<DocumentAccessLevel>("view");
+  const [customMode, setCustomMode] = useState(false);
+  const [pendingApplyAllLevel, setPendingApplyAllLevel] = useState<DocumentAccessLevel | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<{
+    items: DocumentAccessUpdateItemInput[];
+    preview: DocumentAccessPreview;
+  } | null>(null);
+  const [rejectedByKey, setRejectedByKey] = useState<Record<string, DocumentAccessRejectedCode>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  // `updateAccess.isPending` is false between the dry_run resolving and the
+  // real call, so a fast second click would run both again; the ref closes it.
+  const inFlight = useRef(false);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const prevPreviewRef = useRef<typeof pendingPreview>(null);
+  // Whether the preview panel unmounted from a Cancel/Accept inside it, so the
+  // close effect can tell a real close from other paths that clear the state.
+  const previewClosedByButtons = useRef(false);
+  // TV2-05 (same R4-02 pattern as the per-row panels): when the panel closes,
+  // focus returns to the Chia sẻ button that opened it, not the dialog root.
+  useEffect(() => {
+    const prev = prevPreviewRef.current;
+    prevPreviewRef.current = pendingPreview;
+    if (!prev || pendingPreview) return;
+    if (!previewClosedByButtons.current) return;
+    previewClosedByButtons.current = false;
+    submitRef.current?.focus();
+  }, [pendingPreview]);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setDebouncedQuery("");
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedQuery(trimmed), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery(""); setDebouncedQuery(""); setSelected([]); setCommonLevel("view");
+      setCustomMode(false); setPendingApplyAllLevel(null); setPendingPreview(null);
+      setRejectedByKey({}); setSubmitError(null); setAnnouncement("");
+    }
+  }, [open, doc.id]);
+
+  const candidatesQuery = useDocumentShareCandidates(wsId, doc.id, { q: debouncedQuery, enabled: open });
+  const updateAccess = useUpdateDocumentAccess(wsId, doc.id);
+
+  const levelLabel = (lvl: DocumentAccessLevel | string) =>
+    lvl === "manage" ? t("documents.share.level_manage")
+    : lvl === "edit" ? t("documents.share.level_edit")
+    : lvl === "comment" ? t("documents.share.level_comment")
+    : t("documents.share.level_view");
+
+  const viaLabel = (via: DocumentAccessVia | string) =>
+    via === "owner" ? t("documents.share.via_owner")
+    : via === "member" ? t("documents.share.via_member")
+    : via === "organization" ? t("documents.share.via_organization")
+    : via === "link" ? t("documents.share.via_link")
+    : via === "ai_context" ? t("documents.share.via_ai_context")
+    : t("documents.share.via_share");
+
+  const rejectedReasonLabel = (code: DocumentAccessRejectedCode) =>
+    code === "principal_not_in_organization" ? t("documents.share.rejected_not_in_org")
+    : code === "level_not_allowed" ? t("documents.share.rejected_level_not_allowed")
+    : code === "duplicate_principal" ? t("documents.share.rejected_duplicate")
+    : code === "break_glass_required" ? t("documents.share.rejected_break_glass")
+    : t("documents.share.rejected_unknown");
+
+  // Fall back to the local directory only when the server has returned no pages
+  // and answered 404 (endpoint unavailable). A failed page 2 or a non-404 error
+  // keeps whatever pages arrived and offers a retry instead of swapping lists.
+  const endpointUnavailable =
+    candidatesQuery.isError &&
+    !candidatesQuery.data &&
+    candidatesQuery.error instanceof ApiError &&
+    candidatesQuery.error.status === 404;
+  // A first page that failed any other way has no candidates and no answer
+  // worth keeping: the picker shows the error with a retry, not "no result".
+  const candidatesLoadError =
+    !endpointUnavailable && candidatesQuery.isError && !candidatesQuery.data;
+  const serverItems = candidatesQuery.items;
+  const candidates = useMemo(
+    () =>
+      endpointUnavailable
+        ? filterShareCandidates(
+            buildLocalShareCandidates(shares, homeWorkspace, doc.workspace_id, members, orgWorkspaces, organization),
+            debouncedQuery,
+          )
+        : serverItems,
+    [endpointUnavailable, serverItems, debouncedQuery, shares, homeWorkspace, doc.workspace_id, members, orgWorkspaces, organization],
+  );
+
+  const selectedKeys = useMemo(() => new Set(selected.map((s) => s.key)), [selected]);
+  const atLimit = selected.length >= SHARE_PEOPLE_MAX;
+
+  const effectiveItemLevel = (item: SelectedShareCandidate): DocumentAccessLevel => {
+    const desired = item.customLevel ?? commonLevel;
+    const allowed = allowedLevelsForPrincipal(item.candidate.principal_type, item.candidate.is_home_workspace);
+    return allowed.includes(desired) ? desired : "edit";
+  };
+
+  const hasCustomOverrides = useMemo(
+    () => selected.some((s) => s.customLevel !== undefined && s.customLevel !== commonLevel),
+    [selected, commonLevel],
+  );
+
+  const customLevelsSummaryText = (() => {
+    if (!selected.length) return "";
+    const counts = new Map<DocumentAccessLevel, number>();
+    for (const item of selected) {
+      const lvl = effectiveItemLevel(item);
+      counts.set(lvl, (counts.get(lvl) ?? 0) + 1);
+    }
+    return DOCUMENT_ACCESS_LEVELS.filter((lvl) => (counts.get(lvl) ?? 0) > 0)
+      .map((lvl) => `${counts.get(lvl)} ${levelLabel(lvl)}`)
+      .join(" · ");
+  })();
+
+  const selectCandidate = (candidate: DocumentShareCandidate) => {
+    if (shelved) return;
+    const key = `${candidate.principal_type}:${candidate.principal_id}`;
+    if (selectedKeys.has(key) || atLimit) return;
+    setSelected((prev) => [...prev, { key, candidate, onExisting: "keep" }]);
+    setQuery("");
+    setPendingPreview(null);
+    setSubmitError(null);
+  };
+
+  const removeCandidate = (key: string, name: string) => {
+    setSelected((prev) => prev.filter((item) => item.key !== key));
+    setRejectedByKey((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setPendingPreview(null);
+    setAnnouncement(t("documents.share.people_removed", { name }));
+  };
+
+  // Any change to what would be written drops a shown preview: the confirm box
+  // must never commit items other than the ones its sentences describe.
+  const updateSelected = (key: string, patch: Partial<SelectedShareCandidate>) => {
+    setSelected((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
+    setPendingPreview(null);
+  };
+
+  const confirmApplyAll = (targetLevel: DocumentAccessLevel) => {
+    setCommonLevel(targetLevel);
+    setSelected((prev) => prev.map((item) => ({ ...item, customLevel: undefined })));
+    setPendingApplyAllLevel(null);
+    setPendingPreview(null);
+  };
+
+  const buildRequestItems = (): DocumentAccessUpdateItemInput[] =>
+    selected.map((item) => {
+      const entry: DocumentAccessUpdateItemInput = {
+        principal_type: item.candidate.principal_type,
+        principal_id: item.candidate.principal_id,
+        level: effectiveItemLevel(item),
+      };
+      if (item.candidate.direct_level !== null) entry.on_existing = item.onExisting;
+      return entry;
+    });
+
+  const handleMutationError = (err: unknown, items: DocumentAccessUpdateItemInput[]) => {
+    const rejected = parseDocumentAccessRejected(err);
+    if (rejected && rejected.rejected.length > 0) {
+      const nextMap: Record<string, DocumentAccessRejectedCode> = {};
+      for (const r of rejected.rejected) {
+        const item = items[r.index];
+        const key = item ? `${item.principal_type}:${item.principal_id}` : `${r.principal_type}:${r.principal_id}`;
+        nextMap[key] = r.code;
+      }
+      setRejectedByKey(nextMap);
+      setSubmitError(
+        rejected.rejected
+          .map((r) => {
+            const match = selected.find(
+              (s) => s.candidate.principal_type === r.principal_type && s.candidate.principal_id === r.principal_id,
+            );
+            return `${match?.candidate.name ?? r.principal_id}: ${rejectedReasonLabel(r.code)}`;
+          })
+          .join(" · "),
+      );
+      return;
+    }
+    const refused = sharePrincipalsNotInOrganization(err);
+    if (refused?.length) {
+      const names = refused
+        .map((id) => selected.find((s) => s.candidate.principal_id === id)?.candidate.name ?? id)
+        .join(", ");
+      setSubmitError(t("documents.share.people_not_in_org", { count: refused.length, names }));
+      return;
+    }
+    // ARCHIVE-01 U-9: the server refuses share writes on a shelved document
+    // (409 document_shelved); name the reason, not the raw envelope.
+    if (isDocumentShelvedError(err)) {
+      setSubmitError(t("documents.shelved_doc.write_blocked"));
+      return;
+    }
+    const msg = shareErrorMessage(err, t) ?? t("documents.share.submit_failed");
+    setSubmitError(msg);
+  };
+
+  const executeCommit = async (items: DocumentAccessUpdateItemInput[]) => {
+    if (inFlight.current || shelved) return;
+    inFlight.current = true;
+    setSubmitError(null);
+    setRejectedByKey({});
+    try {
+      await updateAccess.mutateAsync({ items, dry_run: false });
+      toast.success(t("documents.share.shared_toast", { count: items.length }));
+      setSelected([]);
+      setQuery("");
+      setCustomMode(false);
+      previewClosedByButtons.current = true;
+      setPendingPreview(null);
+    } catch (err) {
+      handleMutationError(err, items);
+    } finally {
+      inFlight.current = false;
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (shelved || !selected.length || updateAccess.isPending || inFlight.current) return;
+    inFlight.current = true;
+    setSubmitError(null);
+    setRejectedByKey({});
+    const items = buildRequestItems();
+    let preview: DocumentAccessPreview;
+    try {
+      preview = (await updateAccess.mutateAsync({ items, dry_run: true })).preview;
+    } catch (err) {
+      inFlight.current = false;
+      handleMutationError(err, items);
+      return;
+    }
+    inFlight.current = false;
+    if (preview.warnings.length > 0) {
+      setPendingPreview({ items, preview });
+      return;
+    }
+    await executeCommit(items);
+  };
+
+  const renderWarningSentence = (warning: { code: string; index: number }) => {
+    const item = selected[warning.index];
+    const principalId = item?.candidate.principal_id;
+    return warningSentence(
+      { t, levelLabel, sourceLabel: viaLabel },
+      {
+        code: warning.code,
+        name: item?.candidate.name ?? "",
+        principalType: item?.candidate.principal_type ?? "user",
+        targetLevel: item ? effectiveItemLevel(item) : commonLevel,
+        beforeLevel: item?.candidate.direct_level ?? undefined,
+        user: pendingPreview?.preview.users.find((u) => u.user_id === principalId),
+        group: pendingPreview?.preview.groups.find(
+          (g) => g.principal_type === item?.candidate.principal_type && g.principal_id === principalId,
+        ),
+      },
+    ).confirm;
+  };
+
+  return (
+    <section aria-labelledby="share-add-title" className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 id="share-add-title" className="text-label font-medium text-foreground">
+          {t("documents.share.add_title")}
+        </h3>
+        {selected.length > 0 ? (
+          <span className="text-caption text-muted-foreground">
+            {t("documents.share.selected_count", { count: selected.length })}
+          </span>
+        ) : null}
+      </div>
+
+      <span className="sr-only" aria-live="polite">{announcement}</span>
+
+      <ShareCandidatePicker
+        inputId={inputId} listboxId={listboxId} query={query} onQueryChange={setQuery}
+        selected={selected} selectedKeys={selectedKeys} candidates={candidates}
+        hasMore={!endpointUnavailable && Boolean(candidatesQuery.hasNextPage)}
+        loadingMore={candidatesQuery.isFetchingNextPage}
+        loadMoreError={!endpointUnavailable && candidatesQuery.isFetchNextPageError}
+        loadError={candidatesLoadError}
+        onRetry={() => void candidatesQuery.refetch()}
+        onLoadMore={() => void candidatesQuery.fetchNextPage()}
+        alreadySharedUserIds={alreadySharedUserIds}
+        isLoading={candidatesQuery.isLoading || Boolean(members.loading || members.isLoading)}
+        disabled={updateAccess.isPending || shelved} atLimit={atLimit} rejectedByKey={rejectedByKey}
+        onSelectCandidate={selectCandidate} onRemoveCandidate={removeCandidate}
+        onChangeOnExisting={(key, onExisting) => updateSelected(key, { onExisting })}
+        effectiveItemLevel={effectiveItemLevel} levelLabel={levelLabel} rejectedReasonLabel={rejectedReasonLabel}
+      />
+
+      {atLimit ? (
+        <p className="text-caption text-muted-foreground">
+          {t("documents.share.people_limit", { max: SHARE_PEOPLE_MAX })}
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex w-40 min-w-0 flex-col gap-1.5">
+            <Label htmlFor={levelId}>{t("documents.share.level_label")}</Label>
+            <Select
+              value={commonLevel}
+              disabled={shelved}
+              items={DOCUMENT_ACCESS_LEVELS.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
+              onValueChange={(v) => {
+                if (shelved) return;
+                const next = v as DocumentAccessLevel;
+                if (hasCustomOverrides) setPendingApplyAllLevel(next);
+                else { setCommonLevel(next); setPendingPreview(null); }
+              }}
+            >
+              <SelectTrigger id={levelId} className="w-full"><SelectValue className="min-w-0">{levelLabel(commonLevel)}</SelectValue></SelectTrigger>
+              <SelectContent>
+                {(selected.length > 0 &&
+                selected.every((s) => s.candidate.principal_type === "organization" || s.candidate.is_home_workspace)
+                  ? (["view", "comment", "edit"] as const)
+                  : DOCUMENT_ACCESS_LEVELS
+                ).map((lvl) => (
+                  <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selected.length > 1 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-expanded={customMode}
+              aria-disabled={shelved || undefined}
+              aria-describedby={shelved ? shelvedNoteId : undefined}
+              onClick={() => { if (!shelved) setCustomMode((p) => !p); }}
+            >
+              {t("documents.share.custom_levels_toggle")}
+            </Button>
+          ) : null}
+        </div>
+
+        <Button
+          type="button"
+          ref={submitRef}
+          aria-disabled={shelved || !selected.length || updateAccess.isPending || undefined}
+          aria-describedby={shelved ? shelvedNoteId : undefined}
+          aria-busy={updateAccess.isPending || undefined}
+          onClick={() => void handleSubmit()}
+        >
+          {updateAccess.isPending ? (<><Spinner aria-hidden role="presentation" />{t("documents.share.submitting")}</>) : t("documents.share.submit")}
+        </Button>
+      </div>
+
+      {commonLevel === "manage" && selected.some((s) => !allowedLevelsForPrincipal(s.candidate.principal_type, s.candidate.is_home_workspace).includes("manage")) ? (
+        <p role="status" className="w-full text-caption text-muted-foreground">{t("documents.share.level_manage_capped_hint")}</p>
+      ) : null}
+
+      {pendingApplyAllLevel ? (
+        <div
+          role="region"
+          aria-label={t("documents.share.apply_all_button")}
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 p-2.5 text-caption"
+        >
+          <span className="min-w-0 break-words">{t("documents.share.apply_all_confirm", { count: selected.length, level: levelLabel(pendingApplyAllLevel) })}</span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button type="button" size="sm" onClick={() => confirmApplyAll(pendingApplyAllLevel)}>{t("documents.share.apply_all_accept")}</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setPendingApplyAllLevel(null)}>{t("documents.share.apply_all_cancel")}</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {customMode && selected.length > 1 ? (
+        <ShareAddCustomLevels
+          selected={selected}
+          shelved={shelved}
+          summaryText={customLevelsSummaryText}
+          onApplyAll={() => { if (shelved) return; if (hasCustomOverrides) setPendingApplyAllLevel(commonLevel); else confirmApplyAll(commonLevel); }}
+          allowedLevels={(item) => allowedLevelsForPrincipal(item.candidate.principal_type, item.candidate.is_home_workspace)}
+          effectiveItemLevel={effectiveItemLevel}
+          levelLabel={levelLabel}
+          onChangeLevel={(key, customLevel) => updateSelected(key, { customLevel })}
+        />
+      ) : null}
+
+      {pendingPreview ? (
+        <div
+          role="region"
+          data-testid="share-add-confirm"
+          className="flex flex-col gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-caption break-words text-foreground"
+        >
+          <ul className="flex flex-col gap-1">
+            {pendingPreview.preview.warnings.map((w, idx) => (
+              <li key={`${w.code}-${w.index}-${idx}`} className="break-words">{renderWarningSentence(w)}</li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => { void executeCommit(pendingPreview.items); }}>
+              {t("documents.share.confirm_accept")}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => { previewClosedByButtons.current = true; setPendingPreview(null); }}>
+              {t("documents.share.confirm_cancel")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {submitError ? <p role="alert" className="text-caption break-words text-destructive">{submitError}</p> : null}
+    </section>
+  );
+}

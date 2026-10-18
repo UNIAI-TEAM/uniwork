@@ -48,12 +48,16 @@ const (
 //   - Query runs the folded-text search over the whole workspace - it
 //     ignores ParentID, the way search behaves in the client.
 //   - Archived switches to the trash view (manage-only).
+//   - Shelved switches to the archive shelf (ARCHIVE-01): the shelved rows
+//     the caller can view, keyset shelved_at DESC, id DESC, filters allowed.
+//     Shelved with Archived is 400 invalid_filter.
 type ListDocumentsInput struct {
 	ParentID    *string
 	Query       string
 	Kind        string
 	Match       string
 	Archived    bool
+	Shelved     bool
 	UpdatedBy   string
 	UpdatedFrom time.Time
 	UpdatedTo   time.Time
@@ -152,6 +156,9 @@ type DocumentListItem struct {
 	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
 	// carries the tenure id - that is R1's or the holder's.
 	EditLock *DocumentEditLockSummary
+	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
+	// addendum §6.4, §7); nil for agent actors (C-01 §4).
+	ShareScope *DocumentShareScope
 	// Access is the actor's level on the row (document_list_access.go); the
 	// zero value means the service did not compute it.
 	Access DocumentAccess
@@ -165,8 +172,8 @@ type DocumentListPage struct {
 }
 
 // documentCursor pins the ordering value of the last row returned. At pairs
-// with the (updated_at|archived_at, id) descending lists, Pos with the
-// position-ordered children list; exactly one is set.
+// with the (updated_at|archived_at|shelved_at, id) descending lists, Pos
+// with the position-ordered children list; exactly one is set.
 type documentCursor struct {
 	At  *time.Time `json:"t,omitempty"`
 	Pos *float64   `json:"p,omitempty"`
@@ -328,7 +335,10 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	if err := s.attachListFacts(ctx, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
-	return page, s.attachListEditLocks(ctx, actor, page.Items)
+	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
 func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
@@ -338,6 +348,11 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	}
 	if in.SharedByMe && in.ParentID != nil {
 		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shared_by_me không thể dùng cùng parent_id")
+	}
+	if in.Shelved && in.Archived {
+		// ARCHIVE-01 (Q-AR3 = a): the shelf and the trash are two views; a
+		// trashed-and-shelved row lives in the trash only.
+		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shelved không thể dùng cùng archived")
 	}
 	cursor, err := decodeDocumentCursor(in.Cursor)
 	if err != nil {
@@ -401,10 +416,12 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		rows, err := s.q.ListArchivedDocumentsPage(ctx, db.ListArchivedDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
-			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
-			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelEdit),
+			ShareWorkspaces: scope.shareWorkspaces,
+			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(), Access: nullText(filters.access),
 			Query: query, MatchTitle: matchTitle,
@@ -421,6 +438,41 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			out.Items = append(out.Items, DocumentListItem{Document: d})
 		}
 
+	case in.Shelved:
+		// ARCHIVE-01 §4: the archive shelf. Every caller sees the shelved
+		// rows they can view - the flat list's own permission ladder, not the
+		// trash's manage/edit gate - ordered shelved_at DESC, id DESC. A
+		// parent_id or search term still applies; the filters resolve with
+		// archived=false so access=manage/edit stays legal here.
+		var cursorAt pgtype.Timestamptz
+		if cursor.At != nil {
+			cursorAt = pgtype.Timestamptz{Time: *cursor.At, Valid: true}
+		}
+		rows, err := s.q.ListShelvedDocumentsPage(ctx, db.ListShelvedDocumentsPageParams{
+			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
+			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
+			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
+			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
+			ShareLevels: shareLevelsFor(DocumentLevelView),
+			Kind:        kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(),
+			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
+			SharedByMe: in.SharedByMe,
+			Query:      query, MatchTitle: matchTitle,
+			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
+		})
+		if err != nil {
+			return DocumentListPage{}, err
+		}
+		for i, d := range rows {
+			if i == limit {
+				out.NextCursor = encodeDocumentCursor(documentCursor{At: &rows[limit-1].ShelvedAt.Time, ID: rows[limit-1].ID})
+				break
+			}
+			out.Items = append(out.Items, DocumentListItem{Document: d})
+		}
+
 	case in.ParentID != nil && !query.Valid:
 		// One level of the tree, position order. q present searches the
 		// whole workspace instead (the flat branch below).
@@ -430,7 +482,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		rows, err := s.q.ListDocumentsByParentPage(ctx, db.ListDocumentsByParentPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ParentID: nullText(*in.ParentID),
-			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
@@ -458,7 +511,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		rows, err := s.q.ListDocumentsPage(ctx, db.ListDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
@@ -627,7 +681,10 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 	if err := s.attachListFacts(ctx, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
-	return page, s.attachListEditLocks(ctx, actor, page.Items)
+	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
 func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
@@ -664,7 +721,8 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	}
 	rows, err := s.q.ListRecentDocumentsPage(ctx, db.ListRecentDocumentsPageParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ActorID: actor.ID,
-		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
+		MaxLevel: subtreeMaxLevel(),
+		SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
 		AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
 		ShareWorkspaces: scope.shareWorkspaces,
 		Format:          nullText(filters.format), FormatMime: nullText(filters.formatMime),
@@ -704,6 +762,12 @@ func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 		CreatedBy: r.CreatedBy, CreatedByKind: r.CreatedByKind, UpdatedBy: r.UpdatedBy,
 		UpdatedByKind: r.UpdatedByKind, ContentSavedAt: r.ContentSavedAt, LastVersionAt: r.LastVersionAt,
 		ArchivedAt: r.ArchivedAt, ArchivedBy: r.ArchivedBy, PurgeAfter: r.PurgeAfter,
-		ArchiveBatchID: r.ArchiveBatchID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		ArchiveBatchID: r.ArchiveBatchID,
+		// ARCHIVE-01 (Q-AR3 = a): search rows the shelf holds must report the
+		// state so the client can label them "Đã lưu trữ".
+		ShelvedAt:     r.ShelvedAt,
+		ShelvedBy:     r.ShelvedBy,
+		ShelvedByKind: r.ShelvedByKind, ShelveBatchID: r.ShelveBatchID,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }

@@ -1,18 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { Save } from "lucide-react";
+import { Printer, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { createOfficeFrameApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import type { OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
+import { createOfficeFrameApi, createOfficeFrameSourceApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import type { FileMeta, OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
 import { officeFrameSrc, officeModuleSpec } from "@uniwork/core/office/office-modules";
+import type { Document } from "@uniwork/core/types/document";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
+import { useOptionalNavigation } from "../../navigation";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
 import type { DesktopOpenOutcome } from "../desktop-open-action";
 import { LeaveDialog } from "../leave-dialog";
@@ -27,8 +30,11 @@ import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
 import { FrameSaveBlockedDialog, FrameSizeWarningChip } from "./frame-size-ui";
 import { useDocsFrameSession } from "./use-docs-frame-session";
+import type { OfficeFrameFileRef } from "./docs-frame-session-model";
 import { useFrameEditLock } from "./frame-edit-lock";
 import { useFrameComments } from "./use-frame-comments";
+import { hasHostDialogAbove, requestDocumentFrameLeave } from "./frame-close-requested";
+import { useFirstSaveNaming } from "./first-save-naming";
 
 export interface OfficeModuleFrameControls {
   save: () => Promise<boolean>;
@@ -39,7 +45,8 @@ export interface OfficeModuleFrameProps {
   /** The genoffice web module; must be the module the server derives for the document. */
   module: OfficeModule;
   wsId: string;
-  documentId: string;
+  /** The file the frame opens; `kind: "source"` is a file from another module, always read-only (UNI-1869). */
+  fileRef: OfficeFrameFileRef;
   /** Document title, for the frame's accessible name until the editor reports its own. */
   title: string;
   /** Pinned frame build (the web app's sync pin); the frame is served same-origin. */
@@ -68,8 +75,14 @@ export interface OfficeModuleFrameProps {
   revealCommentId?: string | null;
   /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
   onFrameCommentsChange?: (framePanel: boolean) => void;
+  /** The session failed for good (mint refused, bundle missing, handshake timeout): the host may close the frame's host surface. */
+  onSessionFailure?: (failure: ProtocolErrorShape) => void;
+  /** Called when the frame sends `close_requested {reason: 'escape'}`; defaults on a document route to leaving to `libraryHref` through the leave guard. */
+  onCloseRequested?: () => void;
   /** Stored document size in bytes, for the size-based lag banner fallback when the browser lacks a lag PerformanceObserver. */
   fileSizeBytes?: number | null;
+  /** The open document row (UNI-1847): an unnamed blank's first save asks for its name. */
+  documentDetail?: Document;
   /** Injectable feature-detection seam for `PerformanceObserver` `longtask`/`event` support. */
   hasLagObserver?: () => boolean;
   /** Injectable StorageAdapter seam for per-document lag banner dismissal (`office.lagBanner.dismissed:<documentId>`). */
@@ -79,11 +92,13 @@ export interface OfficeModuleFrameProps {
 
 // One stateless API per module, shared by every frame of it.
 const defaultApis = new Map<OfficeModule, DocsFrameApi>();
-function defaultFrameApi(module: OfficeModule): DocsFrameApi {
-  let api = defaultApis.get(module);
+const defaultSourceApis = new Map<OfficeModule, DocsFrameApi>();
+function defaultFrameApi(module: OfficeModule, isSource: boolean): DocsFrameApi {
+  const map = isSource ? defaultSourceApis : defaultApis;
+  let api = map.get(module);
   if (!api) {
-    api = createOfficeFrameApi(module);
-    defaultApis.set(module, api);
+    api = isSource ? createOfficeFrameSourceApi(module) : createOfficeFrameApi(module);
+    map.set(module, api);
   }
   return api;
 }
@@ -108,11 +123,12 @@ function useFrameTheme(): Theme {
  * travels back over postMessage and is made here.
  */
 export function OfficeModuleFrame({
-  module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
+  module, wsId, fileRef, title, frameVersion, api, readonly = false, fitContent = false,
   onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId,
-  onFrameCommentsChange, fileSizeBytes, hasLagObserver, lagStorage, className,
+  onFrameCommentsChange, onSessionFailure, onCloseRequested, fileSizeBytes, documentDetail, hasLagObserver, lagStorage, className,
 }: OfficeModuleFrameProps) {
-  const frameApi = api ?? defaultFrameApi(module);
+  const isSource = fileRef.kind === "source";
+  const frameApi = api ?? defaultFrameApi(module, isSource);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const { t: tRoot } = useTranslation();
   const headerSlot = useHeaderActionsSlotAvailable();
@@ -130,19 +146,39 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
+  const navigation = useOptionalNavigation();
+  const leavingByEscRef = useRef(false);
   const lag = useFrameLagBanner({
-    iframeRef, frameOrigin, module, documentId,
+    iframeRef, frameOrigin, module, documentId: fileRef.id,
     fileSizeBytes, hasLagObserver, lagStorage,
   });
-  const frameComments = useFrameComments({ wsId, documentId, myLevel, revealCommentId });
+  const frameComments = useFrameComments({ wsId, documentId: fileRef.id, myLevel, revealCommentId });
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
-  // The document page's edit lock, when this frame is its editor (UNI-1645).
-  const editLock = useFrameEditLock();
+  // The document page's edit lock, when this frame is its editor (UNI-1645). A source has no
+  // lock: it never reads the page's, whatever provider it sits under.
+  const pageEditLock = useFrameEditLock();
+  const editLock = isSource ? null : pageEditLock;
+  // UNI-1847 (SAVE-01): the first save of a never-saved blank asks for its name before the
+  // upload; every save entry point (header, leave, the frame's own Save) goes through it.
+  // `onNamed` reaches the session's notifyRenamed through a ref: the session is created below.
+  const notifyRenamedRef = useRef<((file: FileMeta) => void) | null>(null);
+  const naming = useFirstSaveNaming({
+    document: isSource ? null : (documentDetail ?? null),
+    module,
+    wsId,
+    onNamed: (file) => notifyRenamedRef.current?.(file),
+  });
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly, editLock,
-    comments: frameComments.binding,
+    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, fileRef, editLock,
+    // A source is read-only by construction; its `ofs1.` token writes nowhere.
+    readonly: readonly || isSource,
+    // Only a stored document has the comments the binding serves.
+    comments: isSource ? undefined : frameComments.binding,
+    // The same my_level the binding reads: a `comment` level keeps a can_edit === false
+    // token out of the readOnly profile, so the commenter still comments (RFH-1).
+    myLevel,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -153,6 +189,8 @@ export function OfficeModuleFrame({
       toast.success(tRootRef.current("documents.copy.done", { title: stripExtension(name) }));
       onSavedAs?.(copyId, name);
     },
+    // The first save of a never-saved blank asks for its name before the upload (SAVE-01).
+    firstSave: isSource ? undefined : naming,
     // The frame asks to save a copy under the source's own name: name it the way UniWork names a copy.
     copyName: (name) => {
       const base = stripExtension(name);
@@ -162,12 +200,37 @@ export function OfficeModuleFrame({
     },
     // "Download my version" in the frame's conflict dialog: "<title> (my version)", the host adds the extension.
     downloadName: () => tRootRef.current("office.docsFrame.mine_file_name", { title: stripExtension(frameTitleRef.current ?? title) }),
-    onError: (error: ProtocolErrorShape) => {
-      if (error.code === "cancelled") return;
+    onSourceWriteRefused: (kind) => {
+      toast.error(tRef.current(kind === "export" ? "errors.read_only_source_export" : "errors.read_only_source"));
+    },
+    // The save was refused because the document went to "Lưu trữ" (ARCHIVE-01 U-8): one sentence; the
+    // session turns read-only and the page reads the document again for its banner.
+    onShelved: () => { toast.error(tRootRef.current("documents.shelved_doc.frame_save_blocked")); },
+    onError: (error: ProtocolErrorShape, { fatal }) => {
+      if (error.code === "cancelled" || (fatal && onSessionFailureRef.current)) return;
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";
       toast.error(tRef.current(`errors.${key}`));
     },
+    onCloseRequested: () => {
+      if (onCloseRequested) {
+        if (!hasHostDialogAbove(containerRef.current)) onCloseRequested();
+        return;
+      }
+      requestDocumentFrameLeave({ container: containerRef.current, libraryHref, navigation, leaveOpen, leavingRef: leavingByEscRef });
+    },
   });
+  notifyRenamedRef.current = session.notifyRenamed;
+  // A session that failed for good (mint refused, bundle missing, timeout) still renders its own
+  // failure view; the host embedding it (the source-file viewer) may close its surface instead.
+  const onSessionFailureRef = useRef(onSessionFailure);
+  onSessionFailureRef.current = onSessionFailure;
+  // Once per failure: the session's failure object is rebuilt on every render, so only the edge fires.
+  const sessionFailed = session.status === "failed";
+  const failureRef = useRef(session.failure);
+  failureRef.current = session.failure;
+  useEffect(() => {
+    if (sessionFailed && failureRef.current) onSessionFailureRef.current?.(failureRef.current);
+  }, [sessionFailed]);
   const { dirty, saveState, print } = session;
   // The page's own panel is hidden only while a frame serves comments. A re-key keeps the claim
   // (use-frame-comments holds it until the next ack); a failed frame no longer serves anything, and
@@ -200,10 +263,13 @@ export function OfficeModuleFrame({
   }, [controlsRef, print, save]);
 
   // Ctrl/Cmd+P while focus sits in the page (not the frame) prints the document, not the page.
+  // Focus inside the iframe is the frame's own document (UNI-1911): only the frame can hear
+  // Ctrl+P there, and the pinned md/html/sheets builds do not bind it — a fork follow-up.
   useEffect(() => {
     // The frame's own dialog is modal for the page: the page's shortcuts wait until it closes.
-    if (session.status !== "ready" || session.modal) return undefined;
+    if (session.status !== "ready" || session.modal || !session.canPrint) return undefined;
     const onKey = (event: KeyboardEvent) => {
+      if (event.repeat) return;
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
         void print();
@@ -211,7 +277,7 @@ export function OfficeModuleFrame({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [print, session.modal, session.status]);
+  }, [print, session.canPrint, session.modal, session.status]);
 
   // Unsaved edits: the in-app leave dialog, and the browser's own prompt on unload.
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -298,6 +364,27 @@ export function OfficeModuleFrame({
     [saveState, saveQuiet, saving, saveLabel, save, tRoot],
   );
 
+  // The page's overflow menu gains Print once the frame can answer it (UNI-1911): granted
+  // `print` and ready — a read-only user keeps it, a source viewer never mounts under a page
+  // header, and `!isSource` keeps it hidden even if one ever did. The same `print()` Ctrl+P
+  // calls, so the menu entry and Ctrl+P share the one `host.print` the session lets open at a
+  // time. The frame's own Print in Docs/Slides/PDF is an in-frame window.print, never
+  // `host.print`, but the browser print dialog is tab-modal, so it cannot stack a second one.
+  const printMenuItem = useMemo(() => {
+    if (!headerSlot || isSource || session.status !== "ready" || session.modal || !session.canPrint) return null;
+    return (
+      <DropdownMenuItem
+        className="gap-2 px-2 py-2"
+        disabled={session.printing}
+        onClick={() => void print()}
+        data-office-frame-print
+      >
+        {session.printing ? <Spinner className="size-3.5" /> : <Printer aria-hidden className="size-3.5" />}
+        {tRoot("documents.actions.print")}
+      </DropdownMenuItem>
+    );
+  }, [headerSlot, isSource, session.status, session.modal, session.canPrint, session.printing, print, tRoot]);
+
   // The server refused the token mint because the module's flag is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
   // `open_refused` from the frame (or Sheets `too_large` error) replaces the frame with the refusal notice.
@@ -342,13 +429,15 @@ export function OfficeModuleFrame({
         // The page header around the frame says whether the frame's edits are saved.
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
+      {/* Print sits in the page's overflow menu; hidden until granted + ready (and while a frame dialog owns the page). */}
+      {printMenuItem ? <HeaderActionsFill menuItems={printMenuItem} /> : null}
       <FrameLagBanner
         open={lagOpen}
         onOpenApp={desktopOpen && !session.viewOnly ? () => { void appOpenRef.current?.(); } : undefined}
         onContinue={() => { refocusAfterLag.current = true; lag.dismiss(); }}
       />
       {desktopOpen && !booting && !session.viewOnly ? (
-        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={save} requestRef={appOpenRef} />
+        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={fileRef.id} dirty={dirty} save={save} requestRef={appOpenRef} />
       ) : null}
       <FrameSizeWarningChip warning={session.sizeWarning} />
       <iframe
@@ -416,6 +505,8 @@ export function OfficeModuleFrame({
         onChoice={(choice) => { if (choice !== "stay") finishLeave(true); }}
         finalFocus={finalFocus}
       />
+      {/* The first save of a never-saved blank names it first (UNI-1847, SAVE-01). */}
+      {naming.dialog}
     </div>
   );
 }

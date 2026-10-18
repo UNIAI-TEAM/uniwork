@@ -21,7 +21,7 @@ for (const sample of [{ width: 1440, theme: "light" }, { width: 390, theme: "dar
       await expect(panel).not.toContainText(/(?:documents|chat|ai|calendar|people|myTasks|projects|editor|landing)\.[a-z][\w.]+/);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), feature).toBeLessThanOrEqual(1);
       expect(await page.locator('#product-preview .product-demo-content').evaluate(node => node.scrollHeight - node.clientHeight), `${feature} keeps its own scroll`).toBeLessThanOrEqual(1);
-      if (feature === 'documents') await expect(panel.getByRole('list', { name: vi.documents.home.create.label }).getByRole('button')).toHaveCount(8);
+      if (feature === 'documents') await expect(panel.getByRole('region', { name: vi.documents.home.quick_create.label }).getByRole('button')).toHaveCount(7);
       if (feature === 'calendar') await expect(panel.locator('.fc')).toBeVisible();
       await page.locator('#product-preview').screenshot({ path: `.impeccable/review/current-${feature}-${sample.width}.png`, animations: 'disabled' });
     }
@@ -39,7 +39,7 @@ test('documents use the current library and retain a locally edited page', async
   await landingReady(page);
   const panel = page.locator('.preview-main > [role=tabpanel]:not([hidden])');
   await expect(panel.locator('.product-documents-library')).toBeVisible();
-  await panel.getByRole('list', { name: vi.documents.home.create.label }).getByRole('button').first().click();
+  await panel.getByRole('region', { name: vi.documents.home.quick_create.label }).getByRole('button').first().click();
   await expect(panel.locator('[contenteditable=true]')).toBeVisible();
   await panel.locator('[contenteditable=true]').fill('Nội dung trang mẫu được lưu trong demo.');
   await panel.getByRole('button', { name: vi.common.save, exact: true }).click();
@@ -110,7 +110,7 @@ test('feature pages share the current Documents preview', async ({ page }) => {
   await landingReady(page);
   await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'documents');
   const panel = page.locator('.preview-main > [role=tabpanel]:not([hidden])');
-  await expect(panel.getByRole('list', { name: vi.documents.home.create.label }).getByRole('button')).toHaveCount(8);
+  await expect(panel.getByRole('region', { name: vi.documents.home.quick_create.label }).getByRole('button')).toHaveCount(7);
   await expect(panel).not.toContainText(/documents\.[a-z][\w.]+/);
   await page.locator('.feature-page-related a').first().click();
   await expect(page.locator('#product-preview .product-demo-shell')).not.toHaveAttribute('data-demo-feature', 'documents');
