@@ -11,6 +11,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteDocumentBreakGlassGrants = `-- name: DeleteDocumentBreakGlassGrants :exec
+DELETE FROM document_break_glass_grants
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+`
+
+type DeleteDocumentBreakGlassGrantsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+// The purge deletes a document's grants with it: this table has no sweeper of
+// its own, so a live grant of a document that no longer exists would stay
+// forever and enter the tenant export (RETENTION-01, UNI-1904). Runs in the
+// purge transaction, next to the document's other dependent rows; no audit of
+// its own, the document.deleted row already records the deletion.
+func (q *Queries) DeleteDocumentBreakGlassGrants(ctx context.Context, arg DeleteDocumentBreakGlassGrantsParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentBreakGlassGrants, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	return err
+}
+
 const getDocumentBreakGlassGrant = `-- name: GetDocumentBreakGlassGrant :one
 SELECT id, organization_id, workspace_id, document_id, actor_id, actor_kind, level, reason, granted_at, expires_at, revoked_at, revoked_by
 FROM document_break_glass_grants

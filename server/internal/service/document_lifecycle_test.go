@@ -4,9 +4,12 @@ package service
 // sweep's FileService seam, and version compaction.
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1000,6 +1003,95 @@ func TestDocumentManualPurge(t *testing.T) {
 		if afterChild.ParentID.Valid || !afterChild.ArchivedAt.Valid {
 			t.Fatalf("retained child after sweep: parent=%v archived=%v, want NULL parent in trash",
 				afterChild.ParentID, afterChild.ArchivedAt.Valid)
+		}
+	})
+
+	t.Run("PG-5: purge deletes the document's break-glass grants and they leave the tenant export", func(t *testing.T) {
+		// RETENTION-01 (UNI-1904): document_break_glass_grants has no sweeper
+		// and no DELETE of its own, so a live grant of a purged document would
+		// stay forever and enter the tenant export. It goes with the document,
+		// child in the purged subtree included; a grant on another document of
+		// the same organization is untouched.
+		f.svc.SetFiles(&releaseSpy{})
+		folderF := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID,
+			kind: DocumentKindFolder, title: "Thư mục PG5",
+		})
+		child := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Con PG5", parent: folderF.ID,
+		})
+		if _, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatalf("archive F: %v", err)
+		}
+		live := time.Now().Add(time.Hour)
+		rootGrant := f.breakGlass(t, tn, folderF.ID, tn.wsAdmin.ID, live, false)
+		childGrant := f.breakGlass(t, tn, child.ID, tn.wsAdmin.ID, live, false)
+		controlDoc := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			kind: DocumentKindPage, title: "Kiểm chứng PG5",
+		})
+		controlGrant := f.breakGlass(t, tn, controlDoc.ID, tn.wsAdmin.ID, live, false)
+
+		purged, err := f.svc.PurgeDocument(f.ctx, admin, folderF.ID)
+		if err != nil {
+			t.Fatalf("purge F: %v", err)
+		}
+		if len(purged) != 2 {
+			t.Fatalf("purged = %v, want 2 (F and its child)", purged)
+		}
+
+		var n int
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT count(*) FROM document_break_glass_grants WHERE document_id = ANY($1::text[])`,
+			[]string{folderF.ID, child.ID}).Scan(&n); err != nil || n != 0 {
+			t.Fatalf("break-glass rows of the purged subtree = %d, err = %v, want 0", n, err)
+		}
+		for _, g := range []string{rootGrant, childGrant} {
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM document_break_glass_grants WHERE id = $1`, g).Scan(&n); err != nil || n != 0 {
+				t.Fatalf("grant %s survived the purge (n=%d, err=%v)", g, n, err)
+			}
+		}
+		// Control: the same organization's other document keeps its grant.
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT count(*) FROM document_break_glass_grants WHERE id = $1 AND document_id = $2`,
+			controlGrant, controlDoc.ID).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("control grant row = %d, err = %v, want 1", n, err)
+		}
+
+		// The organization's tenant export carries no grant naming a purged
+		// document, and still carries the control's.
+		consumer := NewPrivacyExportConsumer(f.pool, f.q)
+		body, _, err := consumer.buildZip(f.ctx, tn.orgID)
+		if err != nil {
+			t.Fatalf("buildZip: %v", err)
+		}
+		zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var grants string
+		for _, file := range zr.File {
+			if file.Name != "tables/document_break_glass_grants.jsonl" {
+				continue
+			}
+			b, err := readZipFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			grants = string(b)
+		}
+		if grants == "" {
+			t.Fatal("tenant export has no break-glass table")
+		}
+		for _, id := range []string{folderF.ID, child.ID, rootGrant, childGrant} {
+			if strings.Contains(grants, id) {
+				t.Fatalf("tenant export still names the purged break-glass row %s: %s", id, grants)
+			}
+		}
+		if !strings.Contains(grants, controlGrant) || !strings.Contains(grants, controlDoc.ID) {
+			t.Fatalf("tenant export lost the control grant: %s", grants)
 		}
 	})
 }
