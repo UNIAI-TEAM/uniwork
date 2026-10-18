@@ -27,8 +27,7 @@
 
 .app-icon { flex: none; border-radius: 22.4%; }
 .app-icon-tile { display: grid; place-items: center; background: var(--muted); }
-.app-icon-office { position: relative; overflow: hidden; display: block; }
-.app-icon-office img { position: absolute; max-width: none; }
+.app-icon-office { display: block; flex: none; }
 .app-icon-office.is-muted { opacity: .5; }
 
 .marketing-site .app-section { padding-top: 168px; }
