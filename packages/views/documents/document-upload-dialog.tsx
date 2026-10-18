@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { Paperclip } from "lucide-react";
+import { FilePlus, Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChunkedUploadProgress } from "@uniwork/core/documents/chunked-upload";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@uniwork/core/documents/limits";
@@ -14,8 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
-import { Label } from "@uniwork/ui/components/ui/label";
 import { Progress, ProgressLabel } from "@uniwork/ui/components/ui/progress";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Switch } from "@uniwork/ui/components/ui/switch";
@@ -149,12 +147,15 @@ export function DocumentUploadDialog({
           }}
         >
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="document-upload-file">{t("documents.upload.pick")}</Label>
-            <Input
+
+            <input
               key={inputKey}
               id="document-upload-file"
               type="file"
               accept={accept}
+              aria-label={t("documents.upload.pick")}
+              className="sr-only"
+              tabIndex={-1}
               disabled={isBusy}
               onChange={(event) => {
                 const picked = event.target.files?.[0] ?? null;
@@ -162,11 +163,27 @@ export function DocumentUploadDialog({
                 onPickFile?.(picked);
               }}
             />
-            {file ? (
-              <p className="text-caption text-muted-foreground" data-testid="document-upload-selected">
-                {t("documents.upload.selected", { name: file.name })}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isBusy}
+                onClick={() => {
+                  const input = document.getElementById("document-upload-file");
+                  input?.click();
+                }}
+              >
+                <FilePlus aria-hidden className="size-3.5" />
+                {t("documents.upload.pick")}
+              </Button>
+              <p
+                className="truncate text-caption text-muted-foreground"
+                data-testid="document-upload-selected"
+              >
+                {file ? t("documents.upload.selected", { name: file.name }) : t("documents.upload.no_file")}
               </p>
-            ) : hint ? (
+            </div>
+            {!file && hint ? (
               <p className="text-caption text-muted-foreground">{hint}</p>
             ) : null}
             {showResumeHint ? (

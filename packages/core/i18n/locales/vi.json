@@ -8936,6 +8936,7 @@
       "version_description": "Tệp mới trở thành bản làm việc; phiên bản đang mở vẫn nằm trong lịch sử.",
       "pick": "Chọn tệp",
       "selected": "Đã chọn {{name}}",
+      "no_file": "Chưa chọn tệp",
       "size_hint": "Tối đa {{max}} mỗi tệp.",
       "too_large_named": "{{name}} nặng {{size}}, vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
       "unsupported_format": "Định dạng của {{name}} chưa được hỗ trợ.",
@@ -8951,7 +8952,10 @@
       "drop_progress": "Đang tải lên {{name}} · {{percent}}%",
       "paused_status": "Đã tạm dừng",
       "failed_resumable": "Chưa tải lên hết tệp. Tiến độ đã được giữ lại — bấm Tải lên để tiếp tục.",
-      "document_locked": "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại."
+      "drop_queued": "Đang chờ tải lên {{name}}",
+      "document_locked": "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại.",
+      "document_locked_by_me": "Bạn đang sửa tài liệu này ở một cửa sổ khác. Lưu hoặc đóng cửa sổ đó rồi thử lại.",
+      "no_change": "Không có thay đổi — giữ nguyên phiên bản hiện tại"
     },
     "file": {
       "metadata_title": "Thông tin tệp",
