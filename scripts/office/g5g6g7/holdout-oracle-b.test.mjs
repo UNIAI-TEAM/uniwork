@@ -599,3 +599,40 @@ describe('item 7 (R20-3): a percent change matches only a claim in percent units
     assert.equal(verdict(share, mkAsk('Share 138.33 from 83 and 60.', { numbers: [138.33] })), 'pass');
   });
 });
+
+describe('item 8 (round h, H-1): a plain report number may trace to a percent leaf, nothing else relaxes', () => {
+  const pctCase = mkCase({
+    tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
+    expected: { numeric: [{ name: 'v', value: 25, tolerance: 0, rounding: 'none', unit: '%' }], structural: [], writes: 0, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: 25 }, structural: [], writes: 0, text: 'x' },
+  });
+  const cell = (value) => ({ toolResults: [{ name: 'read_range', text: readResult({ A1: value }) }] });
+  it('passes a plain report 25 against a read "25%", with a percent, a bare or no figure in the prose', () => {
+    assert.equal(verdict(pctCase, mkAsk('The rate is 25%.', { numbers: [25] }, cell('25%'))), 'pass');
+    assert.equal(verdict(pctCase, mkAsk('Done.', { numbers: [25] }, cell('25%'))), 'pass');
+  });
+  it('fails a bare prose 25 against a read "25%" (prose stays strict)', () => {
+    assert.equal(verdict(pctCase, mkAsk('The rate is 25.', { numbers: [25] }, cell('25%'))), 'fail');
+    assert.equal(verdict(pctCase, mkAsk('The rate is 25.', { numbers: [] }, cell('25%'))), 'fail');
+  });
+  it('fails prose "25%" against a plain read leaf 25 (prose stays strict)', () => {
+    assert.equal(verdict(pctCase, mkAsk('The rate is 25%.', { numbers: [25] }, cell(25))), 'fail');
+  });
+  it('fails a plain report 25 against any other marker or currency: k, m, bn, tr, triệu, tỷ, nghìn, ngàn', () => {
+    for (const mark of ['25k', '25m', '25bn', '25tr', '25 triệu', '25 tỷ', '25 nghìn', '25 ngàn']) {
+      assert.equal(verdict(pctCase, mkAsk('Done.', { numbers: [25] }, cell(mark))), 'fail', mark);
+    }
+  });
+  it('keeps a plain report 25 against a plain read 25 as a pass', () => {
+    assert.equal(verdict(pctCase, mkAsk('Done.', { numbers: [25] }, cell(25))), 'pass');
+  });
+  it('does not widen the percent change: a bare report number matches it only when the prose writes the value with a percent sign', () => {
+    const pct40 = mkCase({
+      expected: { numeric: [{ name: 'v', value: 40, tolerance: 0, rounding: 'none', unit: '%' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { v: 40 }, structural: [], writes: 0, text: 'x' },
+    });
+    const cells = { toolResults: [{ name: 'read_range', text: readResult({ A1: 50, B1: 70 }) }] };
+    assert.equal(verdict(pct40, mkAsk('Change 40 from 50 to 70.', { numbers: [40] }, cells)), 'fail', 'X5');
+    assert.equal(verdict(pct40, mkAsk('Change 40% from 50 to 70.', { numbers: [40] }, cells)), 'pass', 'X6');
+  });
+});
