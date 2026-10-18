@@ -176,7 +176,15 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 	}
 
 	var res DocumentFileResult
-	err = s.withDocumentMutationOnShelved(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
+	// The copy is a create in the source's workspace, so it is a tree write:
+	// the workspace tree lock is taken before the source row lock, the one
+	// order every naming command keeps (appendix §3.3; G5-13 A98). Without it
+	// this command took the parent row lock (lockPageParent) ahead of a move
+	// or archive that already held the tree lock. workspace_id never changes
+	// on a row, so the id read before the transaction still names the row's
+	// workspace and the envelope refuses a row that disagrees. The source
+	// stays writable while shelved (addendum §3), so the stance is unchanged.
+	err = s.withDocumentMutationLocked(ctx, actor, src.ID, src.WorkspaceID, DocumentLevelEdit, shelveWriteAllowed, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
 		}

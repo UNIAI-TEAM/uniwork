@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -311,6 +313,57 @@ func TestDocumentOfficeQ7(t *testing.T) {
 			}
 			if got := env.job(t, row.ID); got.CommittedVersionID.Valid {
 				t.Fatal("a refused accept claimed the job")
+			}
+		})
+
+		// G5-13 A98: the accept is a create in the source's workspace, so it is
+		// a tree write like the same-format copy - the workspace tree lock
+		// precedes the source row lock. A holder on the tree lock blocks the
+		// accept until it commits, which the old envelope (no tree lock) never
+		// did.
+		t.Run("the accept takes the workspace tree lock", func(t *testing.T) {
+			src := env.createFile(t, member, "tree-order.xls", xls)
+			eng := convertOnly()
+			jobs := newJobs(eng)
+			row := startConvert(t, jobs, src.Document.ID)
+			eng.finishConvert(t, row.ID, converted, q7Result("xls", "xlsx"))
+			// Settle the row to completed before the race: the accept only
+			// claims a completed job, and the engine's in-memory finish alone
+			// leaves the row accepted.
+			if done, err := jobs.GetOfficeJob(ctx, member, env.tn.orgID, env.tn.wsA, row.ID); err != nil || done.State != "completed" {
+				t.Fatalf("convert job = %+v, %v", done, err)
+			}
+			watch, err := pgx.ConnectConfig(ctx, env.f.pool.Config().ConnConfig.Copy())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = watch.Close(ctx) }()
+			holder, err := env.f.pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = holder.Rollback(ctx) }()
+			if err := env.f.q.WithTx(holder).LockDocumentTree(ctx, env.tn.wsA); err != nil {
+				t.Fatal(err)
+			}
+			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				_, err := env.svc.CopyDocument(cctx, member, src.Document.ID, CopyDocumentInput{
+					Consent: "copy", JobID: row.ID, IdempotencyKey: util.NewID(),
+				})
+				done <- err
+			}()
+			waitForLockWaitersOn(t, watch, 1)
+			if err := holder.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case err := <-done:
+				mustf(t, err, "accept after the tree lock was released")
+			case <-time.After(30 * time.Second):
+				t.Fatal("the accept did not finish after the tree lock was released")
 			}
 		})
 
