@@ -203,6 +203,9 @@ export function OfficeModuleFrame({
     onSourceWriteRefused: (kind) => {
       toast.error(tRef.current(kind === "export" ? "errors.read_only_source_export" : "errors.read_only_source"));
     },
+    // The save was refused because the document went to "Lưu trữ" (ARCHIVE-01 U-8): one sentence; the
+    // session turns read-only and the page reads the document again for its banner.
+    onShelved: () => { toast.error(tRootRef.current("documents.shelved_doc.frame_save_blocked")); },
     onError: (error: ProtocolErrorShape, { fatal }) => {
       if (error.code === "cancelled" || (fatal && onSessionFailureRef.current)) return;
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";

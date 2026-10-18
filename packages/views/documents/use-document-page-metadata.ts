@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
+import { isDocumentShelvedError } from "@uniwork/core/documents/errors";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import type { Document } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
+import { documentErrorMessage } from "./document-error-message";
 
 export interface DocumentPageMetadataStatus { dirty: boolean; pending: boolean; failed: boolean }
 export interface DocumentPageMetadataHandle {
@@ -121,7 +122,15 @@ export function useDocumentPageMetadata(
         return !hasChanges();
       } catch (error) {
         failed.current = true;
-        toast.error(apiErrorMessage(error) ?? t("documents.page_ui.metadata_failed"));
+        toast.error(documentErrorMessage(error, t, "documents.page_ui.metadata_failed"));
+        if (isDocumentShelvedError(error) && active.current) {
+          // The document went to Lưu trữ: the edit can never land, so the header and the breadcrumb
+          // read the stored title and icon again instead of keeping the refused text (F7).
+          current.current = { title: acknowledged.current.title, icon: acknowledged.current.icon };
+          setTitle(acknowledged.current.title);
+          setIcon(acknowledged.current.icon);
+          changeRef.current(acknowledged.current.title);
+        }
         return false;
       } finally {
         saving.current = false;

@@ -26,7 +26,8 @@ type DocumentChangeFeedSDO struct {
 	Revision       string  `json:"revision" description:"Revision hiện tại, chuỗi thập phân; 0 khi tombstone bị xoá cứng" example:"42"`
 	CurrentVersion int32   `json:"current_version" description:"Số thứ tự phiên bản mới nhất khi upsert; 0 khi removal" example:"3"`
 	VersionID      *string `json:"version_id" description:"Id bản ghi phiên bản đang là head (file); null với page/folder và mọi removal" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
-	Archived       bool    `json:"archived" description:"true khi tài liệu đang được lưu trữ (upsert); archive/restore khác delete" example:"false"`
+	Archived       bool    `json:"archived" description:"true khi tài liệu đang ở thùng rác (upsert); archive/restore khác delete" example:"false"`
+	Shelved        bool    `json:"shelved" description:"true khi tài liệu đang ở kho lưu trữ, chỉ đọc (upsert; ARCHIVE-01); desktop chuyển file sang chỉ đọc" example:"false"`
 	Removal        string  `json:"removal" description:"Lý do removal: permission_revoked hoặc moved_workspace; rỗng khi upsert. document_deleted vẫn nằm trong enum cho tương lai nhưng feed hiện không gửi: một purge trả 410 change_cursor_expired (client resync)" example:"permission_revoked"`
 }
 

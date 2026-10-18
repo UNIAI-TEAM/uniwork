@@ -1137,7 +1137,7 @@
       "loading": "Đang tải…",
       "export": {
         "title": "Xuất dữ liệu",
-        "description": "Zip gồm organization.json, manifest.json và một tệp JSONL cho mỗi bảng. Không có nội dung tệp đính kèm; nhật ký hoạt động và hóa đơn không nằm trong bản xuất.",
+        "description": "Zip gồm organization.json, manifest.json và một tệp JSONL cho mỗi bảng. Không có nội dung tệp đính kèm; nhật ký hoạt động và hóa đơn không nằm trong bản xuất. Bản xuất bao gồm tài liệu trong Thư mục của tôi của mọi thành viên.",
         "submit": "Tạo bản xuất",
         "empty": "Chưa có bản xuất nào.",
         "download": "Tải về",
@@ -9402,6 +9402,52 @@
         "left_in_trash": "Một số mục con vẫn ở lại thùng rác."
       }
     },
+    "shelved_list": {
+      "title": "Lưu trữ",
+      "intro": "Tài liệu đã xong việc được cất ở đây: giữ mãi, chỉ đọc, không bình luận. Bỏ lưu trữ đưa mục về như cũ. Ai xem được vẫn mở và tìm thấy (nhãn “Đã lưu trữ”). Lưu trữ một thư mục là lưu cả cây; cần quyền Quản lý.",
+      "badge": "Đã lưu trữ",
+      "shelve": "Lưu trữ",
+      "unshelve": "Bỏ lưu trữ",
+      "undo": "Hoàn tác",
+      "unshelve_item": "Bỏ lưu trữ {{title}}",
+      "no_permission": "Bạn không quản lý mục này.",
+      "unshelve_failed": "Không bỏ lưu trữ được. Chưa có gì thay đổi.",
+      "shelve_failed": "Không lưu trữ được. Chưa có gì thay đổi.",
+      "too_large": "Thư mục có quá nhiều mục nên chưa lưu trữ hết được một lần. Hãy lưu trữ từng phần bên trong trước.",
+      "filter_by_label": "Lưu trữ bởi",
+      "filter_by_any": "Bất kỳ ai",
+      "filter_loaded_only": "Chỉ lọc trong phần đã tải — tải thêm để lọc rộng hơn.",
+      "shelved_by_former": "Cựu thành viên",
+      "shelved_by_system": "Hệ thống",
+      "sort_shelved_desc": "Lưu trữ gần nhất",
+      "columns": {
+        "name": "Tên",
+        "access": "Truy cập",
+        "shelved_by": "Lưu trữ bởi",
+        "shelved_at": "Lưu trữ lúc",
+        "actions": "Thao tác"
+      },
+      "empty_title": "Chưa có tài liệu nào được lưu trữ",
+      "empty_description": "Mục mà người quản lý đưa vào Lưu trữ sẽ hiện ở đây.",
+      "no_matches_title": "Không có mục nào khớp",
+      "no_matches_description": "Không mục nào khớp bộ lọc trong phần đã tải.",
+      "shelve_title": "Lưu trữ thư mục này?",
+      "shelve_folder_body": "Cả thư mục và mọi thứ bên trong sẽ thành chỉ đọc: {{subfolders}} và {{documents}}.",
+      "shelve_subfolders_one": "{{count}} thư mục con",
+      "shelve_subfolders_other": "{{count}} thư mục con",
+      "shelve_documents_one": "{{count}} tài liệu",
+      "shelve_documents_other": "{{count}} tài liệu",
+      "shelve_loading": "Đang đọc bên trong…",
+      "shelve_confirm": "Lưu trữ",
+      "shelve_submitting": "Đang lưu trữ…",
+      "shelve_forbidden": "Bạn không quản lý mọi mục trong thư mục này.",
+      "toast": {
+        "shelved": "Đã lưu trữ {{title}}",
+        "unshelved": "Đã bỏ lưu trữ {{title}}",
+        "left_shelved": "Một số mục con vẫn ở trong Lưu trữ.",
+        "restored_to_shelved": "Đã khôi phục {{title}} vào Lưu trữ"
+      }
+    },
     "public": {
       "loading": "Đang tải tài liệu…",
       "not_found_title": "Liên kết không còn hiệu lực",
@@ -9685,6 +9731,7 @@
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
         "shared_by_me": "Tôi đã chia sẻ",
+        "shelved": "Lưu trữ",
         "trash": "Thùng rác",
         "folders": "Thư mục",
         "elsewhere": "Từ nơi khác",
@@ -9712,7 +9759,6 @@
         "meeting": "Cuộc họp",
         "email": "Email"
       },
-
       "chips_label": "Lọc theo loại",
       "chips": {
         "all": "Tất cả",
@@ -9915,6 +9961,17 @@
       "upload_size_mismatch": "Kích thước tệp đã thay đổi trong lúc tải lên. Hãy chọn lại tệp và thử lại.",
       "upload_probe_mismatch": "Nội dung tệp không khớp với định dạng đã chọn. Hãy kiểm tra lại tệp.",
       "quota_exceeded": "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói."
+    },
+    "shelved_doc": {
+      "label": "Đã lưu trữ",
+      "banner": "Tài liệu này đã được lưu trữ: chỉ đọc, không bình luận.",
+      "unshelve": "Bỏ lưu trữ",
+      "unshelved": "Đã bỏ lưu trữ {{title}}",
+      "unshelve_failed": "Không bỏ lưu trữ được tài liệu này.",
+      "write_blocked": "Tài liệu đã được lưu trữ, chỉ đọc.",
+      "frame_save_blocked": "Tài liệu đã được lưu trữ nên không lưu được.",
+      "comments_status": "Tài liệu đã lưu trữ: bình luận chỉ để đọc.",
+      "share_note": "Tài liệu đã lưu trữ: chỉ thu hồi được quyền, không cấp thêm."
     }
   },
   "squads": {
@@ -10073,6 +10130,7 @@
         "description": "Tài liệu vẫn đang được mở. Điều này có thể xảy ra khi kết nối chậm."
       },
       "mine_file_name": "{{title}} (bản của tôi)",
+      "remote_author_you": "bạn",
       "failure": {
         "unavailable": {
           "title": "Chưa mở được tài liệu trên web",

@@ -204,15 +204,15 @@ func officeErr(code, reason string) error { return office.NewEngineError(code, r
 // level - view to open or read status, edit for other submissions or cancel.
 // Only human actors reach an office command: agents write through proposals
 // (ADR 0010) and anything else never gets a document.
-func (s *DocumentOfficeService) authorize(ctx context.Context, actor Actor, documentID string, required DocumentLevel) error {
+func (s *DocumentOfficeService) authorize(ctx context.Context, actor Actor, documentID string, required DocumentLevel) (db.Document, error) {
 	if actor.Kind != audit.KindHuman || actor.ID == "" {
-		return ErrForbidden
+		return db.Document{}, ErrForbidden
 	}
 	if s.documents == nil {
-		return fmt.Errorf("office: documents service not wired")
+		return db.Document{}, fmt.Errorf("office: documents service not wired")
 	}
-	_, _, err := s.documents.authorizeDocument(ctx, actor, documentID, required)
-	return err
+	doc, _, err := s.documents.authorizeDocument(ctx, actor, documentID, required)
+	return doc, err
 }
 
 func validOfficeOperation(op office.Operation) bool {
@@ -251,7 +251,8 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if err := validateOfficeJobEdits(in.Operation, in.Edits); err != nil {
 		return db.OfficeJob{}, err
 	}
-	if err := s.authorize(ctx, actor, in.DocumentID, officeJobRequiredLevel(in.Operation)); err != nil {
+	jobDoc, err := s.authorize(ctx, actor, in.DocumentID, officeJobRequiredLevel(in.Operation))
+	if err != nil {
 		return db.OfficeJob{}, err
 	}
 	// A retried key is answered from its row before anything about the
@@ -263,6 +264,11 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 		return s.replay(ctx, actor, existing, in)
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
+	}
+	// A shelved document is read-only (ARCHIVE-01 §3): a job that writes is
+	// refused before the output intent exists; open and export stay allowed.
+	if officeJobRequiredLevel(in.Operation) == DocumentLevelEdit && jobDoc.ShelvedAt.Valid {
+		return db.OfficeJob{}, errDocumentShelved()
 	}
 	input, format, baseRevision, err := s.jobInput(ctx, in)
 	if err != nil {
@@ -655,7 +661,7 @@ func (s *DocumentOfficeService) CancelOfficeJob(ctx context.Context, actor Actor
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
-	if err := s.authorize(ctx, actor, row.DocumentID, DocumentLevelEdit); err != nil {
+	if _, err := s.authorize(ctx, actor, row.DocumentID, DocumentLevelEdit); err != nil {
 		return db.OfficeJob{}, err
 	}
 	// Only the job's creator discards its work: a cancel can drop staged
@@ -691,7 +697,7 @@ func (s *DocumentOfficeService) GetOfficeJob(ctx context.Context, actor Actor, o
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
-	if err := s.authorize(ctx, actor, row.DocumentID, DocumentLevelView); err != nil {
+	if _, err := s.authorize(ctx, actor, row.DocumentID, DocumentLevelView); err != nil {
 		return db.OfficeJob{}, err
 	}
 	return s.Refresh(ctx, row)

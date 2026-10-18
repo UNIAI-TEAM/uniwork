@@ -1,4 +1,5 @@
 import { documentLevelRank } from "@uniwork/core/permissions";
+import { isShelved } from "@uniwork/core/types/document";
 import type {
   Document,
   DocumentComment,
@@ -291,10 +292,11 @@ export type CommentDocContext = Pick<Document, "my_level" | "owner_kind"> & {
 
 /** Whether the caller can write/reply/edit own comments in the panel (DOC5-W01: comment, edit, manage). */
 export function canCommentInPanel(
-  doc: Pick<Document, "my_level"> | null | undefined,
+  doc: Pick<Document, "my_level" | "shelved_at"> | null | undefined,
   writeRefused = false,
 ): boolean {
-  if (writeRefused) return false;
+  // A shelved document takes no comments at any level (ARCHIVE-01 §3).
+  if (writeRefused || isShelved(doc)) return false;
   return documentLevelRank(doc?.my_level) >= documentLevelRank("comment");
 }
 

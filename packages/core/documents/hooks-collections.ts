@@ -8,9 +8,12 @@ import {
   listRecentDocuments,
   listSharedByMe,
   listSharedWithMe,
+  listShelvedDocuments,
   moveDocument,
   purgeDocument,
   restoreDocument,
+  shelveDocument,
+  unshelveDocument,
   type ListDocumentsBaseOpts,
   type ListDocumentsOpts,
   type MoveDocumentBody,
@@ -174,6 +177,31 @@ export function useSharedByMe(wsId: string, opts?: DocumentListFilters & { enabl
   });
 }
 
+/** The "Lưu trữ" list (ARCHIVE-01 §4): shelved rows the caller may see, flat
+ *  and keyset-paged like the other collection lists. The format/access chips
+ *  filter server-side and key the cache entry; under the workspace root so
+ *  every `document.*` frame and a shelve/unshelve refresh reaches it. */
+export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: documentKeys.shelved(wsId, documentListFilterKey(opts)),
+    queryFn: ({ pageParam, signal }) =>
+      listShelvedDocuments(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          format: opts?.format,
+          access: opts?.access,
+        },
+        signal,
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+
 /**
  * Reparent/reorder one document. The caller sends the revision it last saw;
  * a move whose answer cannot prove itself throws "result not verifiable" and
@@ -227,6 +255,44 @@ export function useRestoreDocument(wsId: string) {
     },
   });
 }
+
+/** Shelve a document subtree into the read-only "Lưu trữ" state (manage;
+ *  ARCHIVE-01). Awaits the server - shelving moves the item out of the
+ *  regular lists and tree, so nothing is optimistic. The workspace-root
+ *  invalidate covers the shelved list too (its key hangs off the root). */
+export function useShelveDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { documentId: string; idempotencyKey?: string }) =>
+      requireVerifiableArchive(
+        await shelveDocument(input.documentId, { idempotencyKey: input.idempotencyKey }),
+      ),
+    onSuccess: (res) => {
+      qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
+/** Unshelve the target item and the same-batch shelved descendants the caller
+ *  manages (ARCHIVE-01 §2 S-2; symmetric to restore's partial-batch rule).
+ *  The workspace-root invalidate covers the shelved list, the regular lists,
+ *  the tree and the details. */
+export function useUnshelveDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: string | { documentId: string; idempotencyKey?: string }) => {
+      const { documentId, idempotencyKey } =
+        typeof input === "string" ? { documentId: input, idempotencyKey: undefined } : input;
+      return requireVerifiableArchive(await unshelveDocument(documentId, { idempotencyKey }));
+    },
+    onSuccess: (res) => {
+      qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
 
 /** Permanently delete a trashed item and the trashed descendants in its batch
  *  that the caller manages (RESTORE-01). Awaits the server (no optimistic

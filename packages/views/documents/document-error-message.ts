@@ -1,7 +1,12 @@
 import type { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage, errorCode, errorFields } from "@uniwork/core/api";
 import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
-import { classifyDocumentError, isDocumentNotInTrashError, isFolderTooLargeError } from "@uniwork/core/documents/errors";
+import {
+  classifyDocumentError,
+  isDocumentNotInTrashError,
+  isDocumentShelvedError,
+  isFolderTooLargeError,
+} from "@uniwork/core/documents/errors";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import {
   DEFAULT_DOCUMENT_MAX_BYTES,
@@ -116,6 +121,8 @@ export function documentErrorMessage(
     return t("documents.upload.document_locked");
   }
   if (code && CODED.has(code)) return t(`documents.errors.${code}`, { max: TREE_MAX_LEVEL });
+  // ARCHIVE-01 U-10: every web write onto an archived document says the same sentence.
+  if (isDocumentShelvedError(error)) return t("documents.shelved_doc.write_blocked");
   if (opts?.resumable) return t("documents.upload.failed_resumable");
   return apiErrorMessage(error) ?? t(fallbackKey, opts?.fallbackOpts);
 }

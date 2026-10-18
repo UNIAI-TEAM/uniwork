@@ -69,6 +69,8 @@ export const WS_EVENT_TYPES = [
   "document.moved",
   "document.archived",
   "document.restored",
+  "document.shelved",
+  "document.unshelved",
   "document.break_glass_granted",
   "document.break_glass_revoked",
   "document.share_revoked",

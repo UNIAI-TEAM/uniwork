@@ -17,8 +17,9 @@ describe("documentKeys", () => {
       documentKeys.sources("ws1"),
       documentKeys.sourcesRoot("ws1"),
       documentKeys.recent("ws1"),
+      documentKeys.shelved("ws1"),
+      documentKeys.shelved("ws1", "f1"),
       documentKeys.sharedWithMe("ws1"),
-      documentKeys.sharedByMe("ws1"),
       documentKeys.tree("ws1"),
       documentKeys.shares("ws1", "d1"),
       documentKeys.accessLogs("ws1", "d1"),
@@ -126,7 +127,9 @@ describe("documentKeys", () => {
     expect(documentKeys.recent("ws1")).toEqual(["documents", "ws1", "recent"]);
     expect(documentKeys.sharedWithMe("ws1")).toEqual(["documents", "ws1", "shared"]);
     expect(documentKeys.sharedByMe("ws1")).toEqual(["documents", "ws1", "shared-by-me"]);
-    expect(documentKeys.sharedByMe("ws1")).not.toEqual(documentKeys.sharedWithMe("ws1"));
+    expect(documentKeys.shelved("ws1")).toEqual(["documents", "ws1", "shelved"]);
+    expect(documentKeys.shelved("ws1", "f1")).toEqual(["documents", "ws1", "shelved", "f1"]);
+    expect(documentKeys.shelved("ws1")).not.toEqual(documentKeys.shelved("ws2"));
   });
 
   // UNI-1868: the format/access chips are part of the key when they are set,

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
-import { classifyDocumentError } from "@uniwork/core/documents/errors";
+import { classifyDocumentError, isDocumentShelvedError } from "@uniwork/core/documents/errors";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import {
   useCreateDocumentLink,
@@ -25,6 +25,10 @@ export interface ShareLinksSectionProps {
   onOpenSettings: () => void;
   /** Active locale, for the created/expiry times. */
   locale: string;
+  /** The document is shelved (ARCHIVE-01 U-9): links can be revoked, not created. */
+  locked?: boolean;
+  /** The explanation line a locked create button points at. */
+  lockedNoteId?: string;
   /** Organization public-links policy when known (SH-W1 §5.3). */
   publicLinksEnabled?: boolean | null;
   /** Whether the caller is an organization owner/admin who can change the policy. */
@@ -46,6 +50,8 @@ export function ShareLinksSection({
   doc,
   onOpenSettings,
   locale,
+  locked = false,
+  lockedNoteId,
   publicLinksEnabled,
   canManageOrgSettings = true,
 }: ShareLinksSectionProps) {
@@ -70,7 +76,7 @@ export function ShareLinksSection({
   const now = Date.now();
 
   const submitCreate = async () => {
-    if (createLink.isPending) return;
+    if (createLink.isPending || locked) return;
     setCreateError(null);
     setCopied(false);
     const days = Number.parseInt(expiry, 10);
@@ -89,6 +95,10 @@ export function ShareLinksSection({
         setCreateError({ text: t("documents.share.links_off"), settings: true });
       } else if (cls.cls === "permission") {
         setCreateError({ text: t("documents.share.link_entitlement") });
+      } else if (isDocumentShelvedError(err)) {
+        // The shelve gate answers 409 document_shelved: the same shelved
+        // sentence as every other refused write (ARCHIVE-01 U-9).
+        setCreateError({ text: t("documents.shelved_doc.write_blocked") });
       } else {
         setCreateError({
           text: (isDocumentNotVerifiable(err) ? undefined : apiErrorMessage(err)) ?? t("documents.share.link_create_failed"),
@@ -151,7 +161,7 @@ export function ShareLinksSection({
             min={1}
             max={90}
             value={expiry}
-            disabled={createLink.isPending}
+            disabled={createLink.isPending || locked}
             onChange={(event) => setExpiry(event.target.value)}
           />
         </div>
@@ -159,6 +169,8 @@ export function ShareLinksSection({
           type="button"
           size="sm"
           disabled={createLink.isPending}
+          aria-disabled={locked || undefined}
+          aria-describedby={locked ? lockedNoteId : undefined}
           aria-busy={createLink.isPending || undefined}
           onClick={() => void submitCreate()}
         >
