@@ -121,6 +121,9 @@ var rules = map[string]rule{
 	// DOC-05 (UNI-1628): an admin opened emergency view access to a
 	// restricted document; the owner must hear about it.
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
+	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
+	// effective level on the document.
+	"document.shared": ruleDocumentShared,
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
 	// document; the ACL owner hears once per archive batch.
 	"document.archived":      ruleDocumentTrashed,
@@ -642,6 +645,84 @@ func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p 
 		"document_id": doc.ID, "grant_id": p["grant_id"],
 	}
 	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params)
+}
+
+// ruleDocumentShared notifies a person when a direct user share raised their
+// effective level on the document (SH-S3, UNI-1782; addendum §8, §10 Q-S2).
+// The mutation transaction stamps notify_user_id on the event only when that
+// rise holds; this rule re-checks CanReadDocument at delivery time so a grant
+// revoked before the consumer runs sends nothing.
+func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid := p["notify_user_id"]
+	if e.docs == nil || p["document_id"] == "" || p["share_id"] == "" || uid == "" {
+		return nil, nil
+	}
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	var level string
+	sh, err := e.q.GetLiveDocumentShareByID(ctx, db.GetLiveDocumentShareByIDParams{
+		ID: p["share_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	switch {
+	case err == nil:
+		if sh.PrincipalType != "user" || sh.PrincipalID != uid {
+			return nil, nil
+		}
+		level = sh.Level
+	case errors.Is(err, pgx.ErrNoRows):
+		// The grant was revoked before delivery. Recover the ORIGINAL level
+		// from the share row the event names - revoked history included -
+		// never from an audit row keyed by correlation/action/document/time,
+		// which cannot tell one batch recipient from another (SH-S3 R1-09).
+		revoked, err := e.q.GetDocumentShareByID(ctx, db.GetDocumentShareByIDParams{
+			ID: p["share_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if revoked.PrincipalType != "user" || revoked.PrincipalID != uid {
+			return nil, nil
+		}
+		level = revoked.Level
+	default:
+		return nil, err
+	}
+	return []Draft{{
+		UserID:         uid,
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Kind:           KindDocumentShared,
+		GroupKey:       "document:" + doc.ID + ":shared",
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		ActorKind:      actorKindOf(ev),
+		ActorID:        ev.ActorID.String,
+		Params: map[string]string{
+			"actor":       actorName(ctx, e.q, ev),
+			"document":    doc.Title,
+			"document_id": doc.ID,
+			"level":       level,
+		},
+	}}, nil
 }
 
 // ruleDocumentTrashed tells the ACL owners of an archive batch's documents

@@ -17,6 +17,8 @@ import {
   type DocumentSizeLimits,
   type OfficeModule,
   type ProtocolErrorShape,
+  type SaveResult,
+  type FileMeta,
   type SaveBlockedPayload,
   type SavedPayload,
   type SizeWarningPayload,
@@ -176,6 +178,13 @@ export interface DocsFrameSessionOptions {
   myLevel?: string | null;
   /** Called when the frame sends `close_requested {reason: 'escape'}` and the session is live, idle (not saving), and has no modal open. */
   onCloseRequested?: () => void;
+  /**
+   * UNI-1847 (SAVE-01): the first save of a never-saved blank Office document asks for its
+   * name before the upload. `needsName` is the page's detection (`untitled.<ext>` at version 1,
+   * the user may edit); `ask` opens the page's naming dialog and resolves `true` once the title
+   * is written (the save then proceeds). The session adds "nothing saved this session yet".
+   */
+  firstSave?: FirstSaveNamer;
 }
 
 export interface DocsFrameSession {
@@ -216,10 +225,38 @@ export interface DocsFrameSession {
    */
   save: (reason: "user" | "navigate") => Promise<DocsFrameSaveOutcome>;
   print: () => Promise<boolean>;
+  /** Tell the frame the document's display name changed (UNI-1847, after the first-save rename). */
+  notifyRenamed: (file: FileMeta) => void;
   /** Changes on every retry; key the iframe with it so the frame reloads. */
   attempt: number;
   /** Re-mint a token that failed and reload the frame. */
   retry: () => void;
+}
+
+/** The page's "name this document" prompt of a first save (UNI-1847). */
+export interface FirstSaveNamer {
+  /** The open document still needs naming: untitled.<ext>, file version 1, the user may edit. */
+  needsName: () => boolean;
+  /** Opens the naming dialog; resolves true after the title is written, false on Cancel/Esc. */
+  ask: () => Promise<boolean>;
+}
+
+/**
+ * The `api.save` answer the host gives while the naming dialog asks instead (UNI-1847):
+ * a declined save reads as the user's own Cancel in the protocol - the frame keeps its
+ * edits unsaved and never waits on its api.save timeout (the pinned bundle's
+ * No.transfer, 120 s; the frame prints its own generic failure line, S01-V2).
+ */
+export const FIRST_SAVE_DECLINED: SaveResult = {
+  ok: false,
+  error: { code: "cancelled", message: "name the document before it saves", retryable: false },
+};
+
+/** What the Save the page has open fails with when the host itself gave up on it (never `fatal`: that one is already on screen). */
+export function hostSaveCauseError(cause: HostSaveWatch["cause"]): ProtocolErrorShape | null {
+  if (cause === "watchdog") return { code: "timeout", message: "the editor did not answer the save in time", retryable: true };
+  if (cause === "unload") return { code: "internal", message: "the editor closed before it answered the save", retryable: true, details: { reason: "frame_unloaded" } };
+  return null;
 }
 
 /**

@@ -136,6 +136,14 @@ func (s *DocumentService) resolveLevel(ctx context.Context, q *db.Queries, actor
 // that answer (RequireMemberQ reads the organization row too), so the skipped
 // check can never admit a closed tenant.
 func (s *DocumentService) resolveLevelInTenant(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (DocumentAccess, error) {
+	return s.resolveLevelInTenantFromShares(ctx, q, actor, doc, nil, false)
+}
+
+func (s *DocumentService) resolveLevelInTenantWithShares(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, shares []db.DocumentShare) (DocumentAccess, error) {
+	return s.resolveLevelInTenantFromShares(ctx, q, actor, doc, shares, true)
+}
+
+func (s *DocumentService) resolveLevelInTenantFromShares(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, shares []db.DocumentShare, sharesLoaded bool) (DocumentAccess, error) {
 	none := DocumentAccess{}
 	switch actor.Kind {
 	case audit.KindHuman, audit.KindAgent:
@@ -204,13 +212,16 @@ func (s *DocumentService) resolveLevelInTenant(ctx context.Context, q *db.Querie
 		return best, nil
 	}
 
-	shares, err := q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		DocumentID:     doc.ID,
-	})
-	if err != nil {
-		return none, err
+	if !sharesLoaded {
+		var err error
+		shares, err = q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
+			OrganizationID: doc.OrganizationID,
+			WorkspaceID:    doc.WorkspaceID,
+			DocumentID:     doc.ID,
+		})
+		if err != nil {
+			return none, err
+		}
 	}
 	for _, sh := range shares {
 		lvl := DocumentLevel(sh.Level)

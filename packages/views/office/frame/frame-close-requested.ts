@@ -5,6 +5,7 @@ import { leaveGuardAllows } from "../../navigation/leave-guard";
 import type { NavigationAdapter } from "../../navigation/types";
 import {
   armWatchdog,
+  hostSaveCauseError,
   saveBlockedMaxBytes,
   shapeOf,
   type DocsFrameSaveBlocked,
@@ -14,6 +15,7 @@ import {
   type FrameLife,
   type HostSaveWatch,
 } from "./docs-frame-session-model";
+import type { FirstSaveGate } from "./first-save-gate";
 
 const HOST_DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]';
 
@@ -94,6 +96,7 @@ export async function runHostSave(deps: {
   host: DocsFrameHost | null;
   frameLife: RefObject<FrameLife>;
   hostSave: RefObject<HostSaveWatch | null>;
+  firstSaveGate: RefObject<FirstSaveGate>;
   modalOpen: RefObject<boolean>;
   savedOnce: RefObject<boolean>;
   saveBlockedOpen: RefObject<boolean>;
@@ -101,10 +104,21 @@ export async function runHostSave(deps: {
   setSaveState: (state: DocsFrameSaveState) => void;
   setSaveBlocked: (blocked: DocsFrameSaveBlocked | null) => void;
 }): Promise<DocsFrameSaveOutcome> {
-  const { reason, host, frameLife, hostSave, modalOpen, savedOnce, saveBlockedOpen, latest, setSaveState, setSaveBlocked } = deps;
+  const { reason, host, frameLife, hostSave, firstSaveGate, modalOpen, savedOnce, saveBlockedOpen, latest, setSaveState, setSaveBlocked } = deps;
   // One Save at a time: a second one (the page is inert while the frame's dialog is open) is refused, unsent.
   const life = frameLife.current;
   if (!host || hostSave.current || life.state !== "live") return "failed";
+  // UNI-1847 (SAVE-01, D2): a never-saved blank is named before its first upload. Cancel
+  // answers "cancelled" (the edits stay, the header stays unsaved); the name written, the
+  // same Save carries on - and every later one, the dialog never opens twice. The wait
+  // counts as a save in flight (UNI-1901): `asking()` holds close_requested off meanwhile.
+  const naming = firstSaveGate.current.pendingName();
+  if (naming) {
+    if (!(await firstSaveGate.current.pageAsk(naming))) return "cancelled";
+    // The dialog may stay open a long time: a frame Save that joined it re-issued this Save
+    // already, and the frame may have been retried or gone meanwhile.
+    if (!host || hostSave.current || frameLife.current !== life || life.state !== "live") return "failed";
+  }
   const watch: HostSaveWatch = { life, abort: new AbortController(), cause: null, settled: false, busy: 0, modal: modalOpen.current, stored: false, timer: null };
   hostSave.current = watch;
   armWatchdog(watch);
@@ -138,12 +152,8 @@ export async function runHostSave(deps: {
   } catch (error) {
     // The frame failed for good: its failure is already on screen (and reported once), and this Save ends with it.
     if (watch.cause === "fatal") { setSaveState("error"); return "failed"; }
-    if (watch.cause === "watchdog") {
-      return fail({ code: "timeout", message: "the editor did not answer the save in time", retryable: true });
-    }
-    if (watch.cause === "unload") {
-      return fail({ code: "internal", message: "the editor closed before it answered the save", retryable: true, details: { reason: "frame_unloaded" } });
-    }
+    const caused = hostSaveCauseError(watch.cause);
+    if (caused) return fail(caused);
     const shape = shapeOf(error);
     // The session itself went away (retry, unmount): nobody is left to tell, and the session
     // that replaced it keeps its own header.

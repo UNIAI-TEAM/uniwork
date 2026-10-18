@@ -275,8 +275,12 @@ func resolveUpload(ctx context.Context, fs files.Service, scope files.Scope, upl
 // order). The answer is the same on a replay of the same key and payload.
 func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, error) {
 	started := time.Now()
-	res, err := s.commitFileVersion(ctx, actor, documentID, in)
-	s.recordDocumentSave(documentMetricKindFile, err, time.Since(started))
+	res, unchanged, err := s.commitFileVersion(ctx, actor, documentID, in)
+	if err == nil && unchanged {
+		s.metrics.ObserveDocumentSave(documentMetricKindFile, documentOutcomeUnchanged, time.Since(started).Seconds())
+	} else {
+		s.recordDocumentSave(documentMetricKindFile, err, time.Since(started))
+	}
 	route := DocumentEditLockRouteCommit
 	if in.Frame {
 		route = DocumentEditLockRouteFrameCommit
@@ -286,22 +290,22 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 }
 
 // commitFileVersion is the command body; CommitFileVersion adds the save metrics.
-func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, error) {
+func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, bool, error) {
 	fs, err := s.fileService()
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 	if in.UploadID == "" {
-		return DocumentFileResult{}, Invalid("upload_id bắt buộc")
+		return DocumentFileResult{}, false, Invalid("upload_id bắt buộc")
 	}
 	doc, current, err := s.preflightDocument(ctx, actor, documentID)
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
 	file, err := resolveUpload(ctx, fs, scope, in.UploadID)
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 	opts := IdempotencyOptions{
 		Fingerprint:        commitFingerprint(doc.ID, in.BaseRevision, file.ChecksumSHA256, in.Engine),
@@ -309,23 +313,24 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	}
 	replay, err := PeekIdempotent(ctx, s.q, doc.OrganizationID, doc.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
 	if err != nil {
-		return DocumentFileResult{}, NormalizeIdempotencyError(err)
+		return DocumentFileResult{}, false, NormalizeIdempotencyError(err)
 	}
 	if replay != nil {
 		s.intentCounters().IncOfficeIdempotentReplay()
-		return replayWithAccess(replay.Body, current)
+		res, err := replayWithAccess(replay.Body, current)
+		return res, false, err
 	}
 	// The intent claim below is a write, so the permission is decided before
 	// it as well as again inside the mutation: a caller who may only view
 	// leaves no intent row behind.
 	if err := decideFileSave(doc, current); err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 	// office_sync_write hides new sync commits only (G5-07, X-03): it gates
 	// the desktop device session's path, never the web host or the web frame;
 	// a replay above and the intent lookup keep answering while it is off.
 	if in.Sync && !s.syncWriteEnabled(ctx, actor, doc.OrganizationID) {
-		return DocumentFileResult{}, errOfficeCapabilityOff(officeSyncWriteCapability)
+		return DocumentFileResult{}, false, errOfficeCapabilityOff(officeSyncWriteCapability)
 	}
 	// The logical intent is claimed before the transaction, in its own, so a
 	// lookup sees this attempt in flight (document_commit_intent.go).
@@ -333,21 +338,22 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	if in.IdempotencyKey != "" {
 		c, committed, err := s.claimOrAwaitCommitIntent(ctx, actor, doc, in.IdempotencyKey, opts.Fingerprint)
 		if err != nil {
-			return DocumentFileResult{}, err
+			return DocumentFileResult{}, false, err
 		}
 		if committed {
-			return s.replayCommittedIntent(ctx, actor, doc, in, opts, current)
+			res, err := s.replayCommittedIntent(ctx, actor, doc, in, opts, current)
+			return res, false, err
 		}
 		claim = &c
 	}
-	res, replayed, err := s.commitClaimedFileVersion(ctx, actor, doc, scope, file, in, opts, claim)
+	res, replayed, unchanged, err := s.commitClaimedFileVersion(ctx, actor, doc, scope, file, in, opts, claim)
 	if err != nil && claim != nil {
 		s.releaseCommitIntent(ctx, doc, *claim)
 	}
 	if err == nil && replayed {
 		s.intentCounters().IncOfficeIdempotentReplay()
 	}
-	return res, err
+	return res, unchanged, err
 }
 
 // replayCommittedIntent answers the post-claim race: the intent was already
@@ -370,23 +376,25 @@ func (s *DocumentService) replayCommittedIntent(
 
 // commitClaimedFileVersion is the commit after the intent claim: the format
 // check and the one transaction. replayed reports a ledger answer found
-// inside the transaction.
+// inside the transaction; unchanged reports the UNI-1900 identical-bytes
+// no-op (plain upload only).
 func (s *DocumentService) commitClaimedFileVersion(
 	ctx context.Context, actor Actor, doc db.Document, scope files.Scope, file files.File,
 	in CommitFileVersionInput, opts IdempotencyOptions, claim *commitIntentClaim,
-) (DocumentFileResult, bool, error) {
+) (DocumentFileResult, bool, bool, error) {
 	fs, err := s.fileService()
 	if err != nil {
-		return DocumentFileResult{}, false, err
+		return DocumentFileResult{}, false, false, err
 	}
 	// The editor format check streams the bytes, so it runs before the
 	// transaction opens (FS-C1 §5.5).
 	if _, err := s.checkStoredFile(ctx, fs, scope, file); err != nil {
-		return DocumentFileResult{}, false, err
+		return DocumentFileResult{}, false, false, err
 	}
 
 	var res DocumentFileResult
 	replayed := false
+	unchanged := false
 	if s.store.beforeSaveLock != nil {
 		s.store.beforeSaveLock()
 	}
@@ -466,6 +474,50 @@ func (s *DocumentService) commitClaimedFileVersion(
 		if err != nil {
 			return err
 		}
+		// UNI-1900 / G7-08 D-E1: a plain upload whose bytes equal the current
+		// version is a 200 no-op. Office job outputs still land their own
+		// version (the job CAS). The check is after the base and before
+		// ClaimInTx, so a stale base is still 409 and a locked caller already
+		// got 423.
+		if job == nil && fileVersionUnchanged(current, file) {
+			// R1-1: identical bytes are only a no-op for an upload this
+			// document may still take. An upload another version already
+			// consumed stays the contract's refusal, exactly as it is after
+			// ClaimInTx - the guard would otherwise swallow
+			// upload_already_committed for any other document whose current
+			// version happens to carry the same bytes. The read is unlocked
+			// on purpose: a no-op writes nothing, so a lost race with a
+			// concurrent claimer only decides which of the two the caller
+			// hears, and the claimer's own transaction still locks the row.
+			inUse, err := q.DocumentFileInUse(ctx, db.DocumentFileInUseParams{
+				OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
+				FileID: pgtype.Text{String: string(file.ID), Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+			if inUse && (!current.FileID.Valid || files.FileID(current.FileID.String) != file.ID) {
+				return errUploadAlreadyCommitted()
+			}
+			name := locked.Title
+			if current.FileID.Valid {
+				resolved, rerr := fs.ResolveMany(ctx, files.ResolveInput{
+					Scope: scope, Mode: files.ReadProxy, Disposition: files.DispositionAttachment,
+					FileIDs: []files.FileID{files.FileID(current.FileID.String)},
+				})
+				if rerr == nil && len(resolved) == 1 && resolved[0].Err == nil && resolved[0].File.Filename != "" {
+					name = resolved[0].File.Filename
+				}
+			}
+			res = DocumentFileResult{Document: locked, Version: *current, File: fileInfoOf(*current, name), Access: access}
+			unchanged = true
+			if claim != nil {
+				if err := s.markCommitIntentCommitted(ctx, q, locked, *claim, res); err != nil {
+					return err
+				}
+			}
+			return storeDocumentFileResult(commit, http.StatusOK, res)
+		}
 		claimed, err := fs.ClaimInTx(ctx, q, files.ClaimInput{
 			Actor: actor, Purpose: files.DocumentFile, Scope: scope,
 			FileIDs: []files.FileID{file.ID}, Replaces: replacedFiles(current, file.ID),
@@ -536,9 +588,16 @@ func (s *DocumentService) commitClaimedFileVersion(
 		return storeDocumentFileResult(commit, http.StatusOK, res)
 	})
 	if err != nil {
-		return DocumentFileResult{}, false, err
+		return DocumentFileResult{}, false, false, err
 	}
-	return res, replayed, nil
+	return res, replayed, unchanged, nil
+}
+
+// fileVersionUnchanged is the UNI-1900 identical-bytes guard: a current
+// version row with a stored checksum that equals the staged upload's.
+func fileVersionUnchanged(current *db.DocumentVersion, file files.File) bool {
+	return current != nil && current.ChecksumSha256.Valid && current.ChecksumSha256.String != "" &&
+		current.ChecksumSha256.String == file.ChecksumSHA256
 }
 
 // RestoreFileVersionInput restores an earlier file version on a base
