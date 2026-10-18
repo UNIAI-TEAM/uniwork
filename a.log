@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+f0efc545dd42a83493e65457e822067f1a50f526
+ebc45babe326b625fa0c094f162e623295fec5fb
+f0efc545d chore: merge the G5-G7 root (ebc45babe) into MYFOLDER-SEARCH
+f2d14c309 test(documents): pin the folder-scoped report subtree, trash share levels and report share levels for My Folder
+ebc45babe chore: merge TRASH-NOTIFY-01 trash and restore notifications, server + web (UNI-1844, 024e27f64) into the G5-G7 root
+86288231b test(documents): one red-proven row per admin listing for the My Folder subtree
+8d441c5b6 fix(documents): exclude only admin-scope-only rows of a foreign My Folder subtree
+024e27f64 chore(merge): e6-server TN 364ce43e4 (root f6aebb640) into TRASH-NOTIFY-01 web
