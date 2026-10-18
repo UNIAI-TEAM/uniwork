@@ -351,15 +351,22 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     assert.equal(afterCountedResponse.usage.missingUsageCalls, 1, 'the thrown turn is still unknown');
     assert.equal(afterCountedResponse.usage.outputTokens, 10);
     assert.equal(interruptionFromTurn(null, { requests: [], responses: [] }), null);
+  });
 
-    // G708-R4-3: an empty MATCHED list is not a proof - the matcher can miss a route.
-    // A frame AI POST the broader observer saw makes the turn an unknown-usage stop.
-    const byokMissed = interruptionFromTurn(new Error('frame navigated away'), {
-      requests: [], responses: [], aiPaths: [{ path: '/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions' }],
-    });
-    assert.equal(byokMissed instanceof InterruptedAiTurnError, true, 'a missed route is not "no request began"');
-    assert.equal(byokMissed.usage.missingUsageCalls, 1);
-    assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), true);
+  it('G708-R5-3: a broad-net POST through the observer is unknown usage, not "no request began"', async () => {
+    const page = makeFakePage();
+    const requests = [];
+    const responses = [];
+    const aiPaths = [];
+    const { settle } = observeModelWire(page, { requests, responses, aiPaths });
+    page.emit('request', fakeRequest('POST', 'http://web.test/api/v1/office-frame/documents/D1/ai/unregistered/foo', '{}'));
+    await settle();
+    assert.equal(requests.length, 0, 'an unregistered path is not a matched model route');
+    assert.equal(aiPaths.length, 1);
+    assert.equal(aiPaths[0].path, '/api/v1/office-frame/documents/D1/ai/unregistered/foo');
+    const seen = interruptionFromTurn(new Error('frame navigated away'), { requests, responses, aiPaths });
+    assert.equal(seen instanceof InterruptedAiTurnError, true, 'the observer-captured path is not "no request began"');
+    assert.equal(seen.usage.missingUsageCalls, 1);
   });
 
   it('G708-R5-1 (a): Anthropic message_start only is unknown usage', async () => {
