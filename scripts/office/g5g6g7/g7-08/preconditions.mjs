@@ -10,6 +10,7 @@ import { parseEnvFile, sleep } from '../harness/app-steps.mjs';
 import { harnessPaths } from '../harness/lib.mjs';
 import { VERDICT, blockedVerdict, passVerdict } from './oracles.mjs';
 import { DEFAULT_REPO_ROOT, FORMAT_FEATURE_FLAGS, SERVER_FORMAT_TOKENS } from './rows.mjs';
+import { MODEL_CALL_ROUTE_GLOBS, modelRouteShape, toolCallNamesFromSseText, usageFromSseText } from './wire-observe.mjs';
 
 export const HARNESS_PRECONDITION_OWNER = 'D (harness)';
 export const FRAME_SELECTOR_OWNER = 'F';
@@ -320,48 +321,61 @@ export async function bindDryRunStubRoutes({
     await route.fulfill({ status: up.status, headers: { ...headers, 'Content-Type': 'application/json' }, body: await up.text() });
   });
 
-  await page.route('**/api/v1/office-frame/documents/*/ai/*/chat/completions', async (route) => {
-    const req = route.request();
-    const cors = corsHeadersForOrigin(req.headers().origin || '*');
-    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors, body: '' });
-    const postBody = req.postData() || '{}';
-    try { wireRequests.push({ body: JSON.parse(postBody) }); } catch { /* ignore */ }
-    const reqHeaders = req.headers();
-    const convHeader = reqHeaders['x-uniwork-ai-conversation'] || `conv-${rowId}`;
-    const runHeader = reqHeaders['x-uniwork-ai-run'] || '';
-    const upstreamHeaders = {
-      Authorization: `Bearer ${stubFrameToken}`, 'Content-Type': 'application/json',
-      'X-UniWork-AI-Conversation': convHeader, ...(runHeader ? { 'X-UniWork-AI-Run': runHeader } : {}),
-    };
-    const upstreamRes = await fetchImpl(
-      `${stub.url}/api/v1/office-frame/documents/${documentId}/ai/uniwork/chat/completions`,
-      { method: 'POST', headers: upstreamHeaders, body: postBody },
-    );
-    const sseText = await upstreamRes.text();
-    const toolCallNames = [];
-    // G708-R2-7: a stream with no usage chunk is an unknown count (null), never a recorded 0.
-    let usage = null;
-    for (const line of sseText.split('\n')) {
-      if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
-      try {
-        const chunk = JSON.parse(line.slice(6));
-        if (chunk.usage) usage = chunk.usage;
-        for (const tc of chunk.choices?.[0]?.delta?.tool_calls ?? []) {
-          if (tc?.function?.name) toolCallNames.push(tc.function.name);
-        }
-      } catch { /* ignore */ }
-    }
-    wireResponses.push({ status: upstreamRes.status, usage, toolCallNames });
-    await route.fulfill({
-      status: upstreamRes.status,
-      headers: {
-        ...cors, 'Content-Type': 'text/event-stream',
-        'X-UniWork-AI-Conversation': upstreamRes.headers.get('x-uniwork-ai-conversation') || convHeader,
-        'X-UniWork-AI-Run': upstreamRes.headers.get('x-uniwork-ai-run') || `run-${rowId}`,
-      },
-      body: sseText,
+  // R4-1: the dry-run stub covers exactly the registered model-CALL routes - the same table the
+  // real-run observer counts (`wire-observe.mjs`), so a dry BYOK row is stubbed or BLOCKED by
+  // name, never passed unseen. The UniWork turn is forwarded to the stub facade; the BYOK routes
+  // have no vendor stub, so they answer a named 501 whose response carries no usage, and the row
+  // BLOCKs on the unknown instead of scoring a zero-token call.
+  for (const glob of MODEL_CALL_ROUTE_GLOBS) {
+    await page.route(glob, async (route) => {
+      const req = route.request();
+      const cors = corsHeadersForOrigin(req.headers().origin || '*');
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors, body: '' });
+      const pathname = new URL(req.url()).pathname;
+      const shape = modelRouteShape(pathname);
+      const postBody = req.postData() || '{}';
+      let parsedBody = null;
+      try { parsedBody = JSON.parse(postBody); } catch { parsedBody = null; }
+      wireRequests.push({ path: pathname, shape, body: parsedBody });
+      if (shape !== 'openai' || !/\/ai\/uniwork\/chat\/completions$/.test(pathname)) {
+        wireResponses.push({ status: 501, shape, usage: null, toolCallNames: [] });
+        return route.fulfill({
+          status: 501,
+          headers: { ...cors, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: { code: 'dry_run_byok_stub_absent', message: 'the dry-run stub serves the UniWork turn only' } }),
+        });
+      }
+      const reqHeaders = req.headers();
+      const convHeader = reqHeaders['x-uniwork-ai-conversation'] || `conv-${rowId}`;
+      const runHeader = reqHeaders['x-uniwork-ai-run'] || '';
+      const upstreamHeaders = {
+        Authorization: `Bearer ${stubFrameToken}`, 'Content-Type': 'application/json',
+        'X-UniWork-AI-Conversation': convHeader, ...(runHeader ? { 'X-UniWork-AI-Run': runHeader } : {}),
+      };
+      const upstreamRes = await fetchImpl(
+        `${stub.url}/api/v1/office-frame/documents/${documentId}/ai/uniwork/chat/completions`,
+        { method: 'POST', headers: upstreamHeaders, body: postBody },
+      );
+      const sseText = await upstreamRes.text();
+      // G708-R2-7 + R4-1: the stream is read in the route's own shape; a stream with no usage
+      // chunk is an unknown count (null), never a recorded 0.
+      wireResponses.push({
+        status: upstreamRes.status,
+        shape,
+        usage: usageFromSseText(sseText, shape),
+        toolCallNames: toolCallNamesFromSseText(sseText, shape),
+      });
+      await route.fulfill({
+        status: upstreamRes.status,
+        headers: {
+          ...cors, 'Content-Type': 'text/event-stream',
+          'X-UniWork-AI-Conversation': upstreamRes.headers.get('x-uniwork-ai-conversation') || convHeader,
+          'X-UniWork-AI-Run': upstreamRes.headers.get('x-uniwork-ai-run') || `run-${rowId}`,
+        },
+        body: sseText,
+      });
     });
-  });
+  }
 }
 
 export async function verifyHostAndFramePreconditions({
