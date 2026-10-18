@@ -245,6 +245,8 @@ const COUNT_TOKEN_SYNONYMS = new Map([
   ['changed', 'changed'], ['change', 'changed'], ['changes', 'changed'],
   ['modified', 'changed'], ['modify', 'changed'], ['edited', 'changed'], ['edit', 'changed'], ['edits', 'changed'],
   ['updated', 'changed'], ['update', 'changed'], ['updates', 'changed'], ['revised', 'changed'], ['rewritten', 'changed'],
+  ['altered', 'changed'], ['alter', 'changed'], ['amended', 'changed'], ['adjusted', 'changed'], ['corrected', 'changed'],
+  ['touched', 'changed'], ['replaced', 'changed'], ['rewrote', 'changed'], ['reworded', 'changed'],
   ['sua', 'changed'], ['doi', 'changed'],
   ['overwritten', 'overwritten'], ['overwrite', 'overwritten'], ['overwrites', 'overwritten'],
   ['paragraphs', 'paragraph'], ['paragraph', 'paragraph'], ['paras', 'paragraph'], ['para', 'paragraph'], ['doan', 'paragraph'],
@@ -265,7 +267,7 @@ const COUNT_TOKEN_SYNONYMS = new Map([
   ['columns', 'column'], ['column', 'column'], ['cols', 'column'], ['col', 'column'], ['cot', 'column'],
 ]);
 
-const COUNT_FILLER_TOKENS = new Set(['so', 'tong', 'count', 'counts', 'number', 'total', 'of', 'the', 'in', 'cac', 'nhung', 'da', 'bi', 'duoc']);
+const COUNT_FILLER_TOKENS = new Set(['so', 'tong', 'count', 'counts', 'number', 'total', 'of', 'the', 'in', 'cac', 'nhung', 'da', 'bi', 'duoc', 'that', 'were', 'was', 'are', 'is', 'been', 'have', 'has', 'which', 'got', 'being']);
 
 /**
  * Parses a count item's value (review-g712-18 R18-4): digits or number words 0–20 in English and Vietnamese, accepted

@@ -88,8 +88,17 @@ const sameValue = (a, b, kind = null) => valuesEqual(b, a, kind);
 const norm = (anchor) => normalizeAnchor(anchor ?? '');
 
 /** Matches the reported figures to the expected numeric items; returns { numeric, extras, extraIdx }. */
+// A reported figure may carry the unit it was read with ("143k", "25%", "1.500.000 đ"): the number is what it is written as
+// (no conversion), and its unit is judged by the trace, not here.
+const figureNumber = (value) => {
+  const direct = toNumber(value);
+  if (direct !== null) return direct;
+  const q = figureQuantity(value);
+  return q && q.readings.length === 1 ? q.readings[0].n : null;
+};
+
 function matchNumbers(expected, figures) {
-  const free = figures.map((value, i) => ({ value, i, n: toNumber(value) })).filter((f) => f.n !== null);
+  const free = figures.map((value, i) => ({ value, i, n: figureNumber(value) })).filter((f) => f.n !== null);
   const numeric = {};
   for (const item of expected) {
     const within = (f) => Math.abs(roundTo(f.n, item.rounding) - item.value) <= item.tolerance + 1e-9;
@@ -97,7 +106,7 @@ function matchNumbers(expected, figures) {
     if (!pick && free.length > 0) pick = [...free].sort((a, b) => Math.abs(a.n - item.value) - Math.abs(b.n - item.value))[0];
     if (!pick) continue;
     free.splice(free.indexOf(pick), 1);
-    numeric[item.name] = pick.value;
+    numeric[item.name] = toNumber(pick.value) !== null ? pick.value : pick.n;
   }
   return { numeric, extras: free.map((f) => f.value), extraIdx: free.map((f) => f.i) };
 }
@@ -150,8 +159,15 @@ function editProof(expected, applied, sheetNames, sourceText) {
  * split at sentence ends, semicolons and conjunctions so a refusal clause cannot shelter a change clause.
  */
 const CLAUSE_SPLIT_RE = /(?<=[.!?…;])\s+|\n+|(?<![\p{L}\d])(?:but|however|yet|and then|and|then|while|nhưng|tuy nhiên|và|rồi|đồng thời)(?![\p{L}\d])/iu;
-const CLAUSE_NEGATION_RE = /\b(?:cannot|can['’]t|can\s+not|could\s+not|couldn['’]t|did\s+not|didn['’]t|do\s+not|don['’]t|does\s+not|doesn['’]t|will\s+not|won['’]t|would\s+not|wouldn['’]t|is\s+not|are\s+not|was\s+not|were\s+not|has\s+not|have\s+not|had\s+not|not|never|no|without|unable|refus\w*|declin\w*|reject\w*|if|when|unless|whether|before)\b|(?:không|chưa|chẳng|từ chối)/iu;
-const CLAIMED_CHANGE_CLAUSE_RE = /(?:\b(?:i|we)\s+(?:have\s+|had\s+)?(?:also\s+|just\s+|already\s+)?(?:edited|written|wrote|modified|updated|changed|applied|saved|deleted|removed|inserted|replaced|overwrote|overwritten|created|added|renamed|moved|translated)\b|\b(?:the\s+|this\s+)?(?:edit|change|update|modification|heading|cell|row|column|sheet|table|paragraph|document|value|note)\s+(?:was|were|has\s+been|have\s+been)\s+(?:edited|written|modified|updated|changed|applied|saved|deleted|removed|inserted|replaced|overwritten|created|added|renamed|moved)\b|(?:tôi\s+đã|đã)\s+(?:chỉnh sửa|sửa|ghi đè|thay thế|thay đổi|cập nhật|áp dụng|thực hiện|lưu|xóa|xoá|thêm|chèn|tạo|đổi tên)(?!\p{L}))/iu;
+const CLAUSE_NEGATION_RE = /\b(?:cannot|can['’]t|can\s+not|could\s+not|couldn['’]t|did\s+not|didn['’]t|do\s+not|don['’]t|does\s+not|doesn['’]t|will\s+not|won['’]t|would\s+not|wouldn['’]t|is\s+not|are\s+not|was\s+not|were\s+not|has\s+not|have\s+not|had\s+not|not|never|no|nothing|none|without|unable|refus\w*|declin\w*|reject\w*|if|when|unless|whether|before)\b|(?:không|chưa|chẳng|từ chối)/iu;
+const ACTIVE_CHANGE_VERBS = 'edited|written|wrote|modified|updated|changed|applied|saved|deleted|removed|inserted|replaced|overwrote|overwritten|created|added|renamed|moved|translated';
+const PASSIVE_CHANGE_VERBS = 'edited|written|modified|updated|changed|applied|saved|deleted|removed|inserted|replaced|overwritten|created|added|renamed|moved';
+const CLAIMED_CHANGE_CLAUSE_RE = new RegExp(
+  `\\b(?:i|we)\\s+(?:have\\s+|had\\s+)?(?:(?:also|just|already|successfully|now)\\s+)*(?:${ACTIVE_CHANGE_VERBS})\\b` +
+    `|\\b(?:is|are|was|were|has\\s+been|have\\s+been)\\s+(?:(?:now|already|successfully)\\s+)*(?:${PASSIVE_CHANGE_VERBS})\\b` +
+    '|(?:tôi\\s+đã|đã)\\s+(?:chỉnh sửa|sửa|ghi đè|thay thế|thay đổi|cập nhật|áp dụng|thực hiện|lưu|xóa|xoá|thêm|chèn|tạo|đổi tên)(?!\\p{L})',
+  'iu',
+);
 
 function claimsAChange(text) {
   return String(text ?? '')
@@ -277,7 +293,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   }
   const { numeric, extras, extraIdx } = matchNumbers(caseDoc.expected.numeric, figures);
   const allExpectedNumericMatched = caseDoc.expected.numeric.every((item) => {
-    const actual = toNumber(numeric[item.name]);
+    const actual = figureNumber(numeric[item.name]);
     return actual !== null && Math.abs(roundTo(actual, item.rounding) - item.value) <= item.tolerance + 1e-9;
   });
   // Every figure fails the ask when it is untraceable: a value of report.numbers (matched to an expected item or not) and

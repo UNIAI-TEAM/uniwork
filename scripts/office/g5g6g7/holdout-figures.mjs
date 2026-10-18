@@ -193,8 +193,8 @@ const cleanCellString = (s) => String(s ?? '').replace(/\s*\[formula\s*=[^\]]*\]
 
 export function isFailedResultPayload(root) {
   if (!root || typeof root !== 'object' || Array.isArray(root)) return false;
-  if (Boolean(root.error) || Boolean(root.err) || Boolean(root.denied)) return true;
-  return typeof root.status === 'string' && /^(?:error|failed|denied|refused|partial)$/i.test(root.status.trim());
+  if (Boolean(root.error) || Boolean(root.err) || Boolean(root.denied) || root.ok === false || root.partial === true) return true;
+  return typeof root.status === 'string' && /^(?:error|failed|denied|refused|partial|incomplete)$/i.test(root.status.trim());
 }
 
 /**
@@ -206,7 +206,8 @@ export function readLeaves(text) {
   const out = [];
   const push = (v) => {
     if (typeof v === 'number') { if (Number.isFinite(v)) out.push(quantityOfNumber(v)); return; }
-    if (typeof v === 'string') out.push(...quantitiesOf(cleanCellString(v)));
+    // A spreadsheet error value (#REF!, #DIV/0!, #ERR60) is the absence of a value, never an operand.
+    if (typeof v === 'string' && !/^\s*#[A-Za-z0-9/!?_.]*\s*$/.test(v)) out.push(...quantitiesOf(cleanCellString(v)));
   };
   let root;
   try {
