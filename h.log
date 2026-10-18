@@ -1,0 +1,12 @@
+$ ss -ltnp 2>/dev/null | grep -E ":(3000|18550)\b"; curl -s -o /dev/null -w "WEB_HTTP=%{http_code}\n" http://localhost:3000/login; curl -s http://localhost:3000/login | grep -oE "localhost:[0-9]+" | sort | uniq -c | head; tail -30 /tmp/unone-web.log; true
+WEB_HTTP=200
+      4 localhost:3000
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.3.8
+- Local:         http://localhost:3000
+- Network:       http://172.30.0.2:3000
+✓ Ready in 87ms
+✓ Running next.config.mjs took 108ms
