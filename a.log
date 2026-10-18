@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1645c-el1b-desktop; git log --oneline -3
+68e39992451e89dbdb15e754f869b59b30b25405
+68e39992451e89dbdb15e754f869b59b30b25405
+68e39992 merge: fork main 713d0b047 (DESKTOP-HOME DH-1) into EL-1(b)
+d58134e5 fix(shell): join in-flight drop releases on will-quit
+30a3642d test(shell): add EL-1(b) fix5 BE red pins for in-flight drop join
