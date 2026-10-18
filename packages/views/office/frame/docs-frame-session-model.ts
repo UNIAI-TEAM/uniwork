@@ -167,6 +167,13 @@ export interface DocsFrameSessionOptions {
    * rides on the commit, a 423 on Save goes back through `onLocked`. Absent = no lock management.
    */
   editLock?: FrameEditLock | null;
+  /**
+   * The document's effective level for the user (`my_level`). Only `comment`
+   * keeps a `can_edit === false` token out of the readOnly profile (RFH-1: a
+   * commenter may not save but still comments); any other or absent level is a
+   * true viewer. The comments binding reads the same prop off the page.
+   */
+  myLevel?: string | null;
 }
 
 export interface DocsFrameSession {
@@ -215,8 +222,10 @@ export interface DocsFrameSession {
 
 /**
  * Capabilities this host grants. Routes that do not exist yet stay off.
- * `exportPdf` follows the API alone: nothing tells the host whether this
- * deployment has a PDF renderer, so it is offered and a 501 answers
+ * `exportPdf` is `module !== "docs" || api.export`: the grant decides alone
+ * outside Docs (Slides renders the PDF in the frame), while Docs goes through
+ * `api.export` — nothing tells the host whether this deployment has a PDF
+ * renderer, so it is offered when the API exists and a 501 answers
  * `unsupported`, on which the frame prints in place instead. Each module
  * starts from its grant (`officeModuleSpec(module).grant`, one table the
  * module workers fill in), narrowed by readonly and by what the API

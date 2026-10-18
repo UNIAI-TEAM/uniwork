@@ -155,6 +155,9 @@ export function OfficeModuleFrame({
     readonly: readonly || isSource,
     // Only a stored document has the comments the binding serves.
     comments: isSource ? undefined : frameComments.binding,
+    // The same my_level the binding reads: a `comment` level keeps a can_edit === false
+    // token out of the readOnly profile, so the commenter still comments (RFH-1).
+    myLevel,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
