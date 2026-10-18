@@ -37,7 +37,6 @@ import {
   buildVersionAndSaveObserved,
   evaluatePreconditions,
   evaluateRowObserved,
-  extractWireToolCalls,
   missingSelectorVerdict,
   moduleAiSelectors,
   moduleFrameSelectors,
@@ -49,6 +48,7 @@ import {
   runWebPptxRow,
   runWebXlsxRow,
 } from './web-driver.mjs';
+import { extractWireToolCalls } from './wire-observe.mjs';
 
 const xlsxBytes = buildXlsx().bytes;
 const docxBytes = buildDocx().bytes;
@@ -407,7 +407,9 @@ describe('G7-08 W2 run-g7-08 CLI argument parsing, budget stop, and evidence wri
         assert.equal(record.exitCode, 0);
       }
 
-      // Check throwing rowRunner maps to FAIL row_runner_threw
+      // G708-R4-3: a generic throw from a row runner is unknown usage, never a trusted-zero
+      // `row_runner_threw`: the matrix stops. The driver RETURNS `row_runner_threw` itself when
+      // its observer proves no frame AI POST happened at all.
       const failRes = await runG708Matrix(
         {
           rows: [getRowById('X-R1')],
@@ -426,9 +428,10 @@ describe('G7-08 W2 run-g7-08 CLI argument parsing, budget stop, and evidence wri
           },
         },
       );
-      assert.equal(failRes.status, VERDICT.FAIL);
-      assert.equal(failRes.exitCode, ROW_EXIT.FAIL);
-      assert.equal(failRes.runs[0].reason, 'row_runner_threw');
+      assert.equal(failRes.status, VERDICT.BLOCKED);
+      assert.equal(failRes.exitCode, ROW_EXIT.BLOCKED);
+      assert.equal(failRes.runs[0].reason, 'missing_usage_on_model_call');
+      assert.equal(failRes.runs[0].usage.missingUsageCalls, 1);
 
       const silent = { write() {} };
       assert.equal(verifyRecordedRunResult(path.join(tmp, 'missing.json'), silent), ROW_EXIT.BLOCKED);

@@ -8,7 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runEvidence } from '../evidence.mjs';
 import { isMainModule } from '../harness/lib.mjs';
-import { VERDICT, blockedVerdict, failVerdict } from './oracles.mjs';
+import { VERDICT, blockedVerdict } from './oracles.mjs';
 import {
   DEFAULT_REPO_ROOT,
   HOSTS,
@@ -19,7 +19,7 @@ import {
   getRowById,
 } from './rows.mjs';
 import { REAL_AI_BLOCKER, runWebMatrixRow } from './web-driver.mjs';
-import { InterruptedAiTurnError } from './save-observe.mjs';
+import { InterruptedAiTurnError } from './wire-observe.mjs';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 export const DEFAULT_OUTPUT_TOKEN_BUDGET = 100_000;
@@ -318,17 +318,23 @@ export async function runG708Matrix(
           env,
         });
       } catch (err) {
-        // R3-3: an AI turn that threw after a model request had begun is an unknown usage, not a
-        // bare crash: record it so the budget stops the matrix instead of starting the next row.
+        // R3-3 + R4-3: a row runner that threw left that turn's spend unknown, so the matrix
+        // stops instead of starting the next row on a trusted zero. The driver classifies what
+        // its observer saw and either rethrows `InterruptedAiTurnError` or, when no frame AI
+        // POST was observed at all, RETURNS `row_runner_threw`; so a plain throw that reaches
+        // here is an unclassified unknown, never a 0-call crash.
         if (err instanceof InterruptedAiTurnError) {
           outcome = {
             ...blockedVerdict('missing_usage_on_model_call', { detail: err.message }),
             usage: err.usage,
           };
         } else {
-          outcome = failVerdict('row_runner_threw', {
-            error: err instanceof Error ? err.message : String(err),
-          });
+          outcome = {
+            ...blockedVerdict('missing_usage_on_model_call', {
+              detail: err instanceof Error ? err.message : String(err),
+            }),
+            usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0, missingUsageCalls: 1, missingObservationCalls: 0 },
+          };
         }
       }
     }

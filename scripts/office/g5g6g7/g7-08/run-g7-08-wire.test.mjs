@@ -1,21 +1,22 @@
 /**
  * Matrix-level tests for the G7-08 real-run wire observation (review r3 findings
- * G708-R3-1, R3-3), split out of `run-g7-08.test.mjs` to keep every module under
- * the repo's 500-line limit. The observer itself is unit-tested through an
- * injected fake page in `save-observe.test.mjs`; here its result drives the
- * matrix: a row with an unknown-usage model call stops the run before the next
- * row, and a row runner that threw after a model request had begun is that same
- * unknown-usage stop rather than a bare crash.
+ * G708-R3-1, R3-3; review r4 findings G708-R4-1, R4-3), split out of
+ * `run-g7-08.test.mjs` to keep every module under the repo's 500-line limit. The
+ * observer itself is unit-tested through an injected fake page in
+ * `wire-observe.test.mjs`; here its result drives the matrix: a row with an
+ * unknown-usage model call stops the run before the next row, and a row runner
+ * that threw after the observer was attached is that same unknown-usage stop
+ * unless the observer can prove no frame AI POST happened at all.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { VERDICT, blockedVerdict, passVerdict } from './oracles.mjs';
+import { VERDICT, blockedVerdict, failVerdict, passVerdict } from './oracles.mjs';
 import { ROW_EXIT, getRowById } from './rows.mjs';
 import { runG708Matrix } from './run-g7-08.mjs';
-import { evaluateWireObservation, interruptionFromTurn } from './save-observe.mjs';
+import { evaluateWireObservation, interruptionFromTurn } from './wire-observe.mjs';
 
 const makeTempRunDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'g708-wire-test-'));
 
@@ -120,7 +121,9 @@ describe('G7-08 real-run wire observation drives the matrix stop', () => {
         log: () => {},
         rowRunner: async () => {
           calls += 1;
-          if (calls === 1) throw interruptionFromTurn(new Error('composer detached'), { requests: [], responses: [] });
+          // The driver RETURNS this verdict itself, and only when its observer saw no frame AI
+          // POST at all - a throw never reaches the matrix as a bare crash any more (R4-3).
+          if (calls === 1) return { ...failVerdict('row_runner_threw', { error: 'composer detached' }), usage: null };
           return { ...passVerdict('second_row_ok'), usage: { modelCalls: 1, inputTokens: 1, outputTokens: 1 } };
         },
       });
@@ -131,5 +134,48 @@ describe('G7-08 real-run wire observation drives the matrix stop', () => {
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
+  });
+
+  it('G708-R4-3: a plain Error after a model request stops the matrix with unknown usage', async () => {
+    // Test (1) of the finding: a plain Error - not an `InterruptedAiTurnError` - from a row runner
+    // that had already pushed a request. It must never read as a trusted-zero crash.
+    const tmp = makeTempRunDir();
+    try {
+      let calls = 0;
+      const res = await runG708Matrix(matrixArgs(tmp), {
+        evidenceFn: () => null,
+        log: () => {},
+        rowRunner: async () => {
+          calls += 1;
+          if (calls === 1) throw new Error('edit stage blew up');
+          return { ...passVerdict('should_not_run'), usage: { modelCalls: 1, inputTokens: 1, outputTokens: 1 } };
+        },
+      });
+      assert.equal(calls, 1, 'the second row runner is not called');
+      assert.equal(res.runs[0].status, VERDICT.BLOCKED);
+      assert.equal(res.runs[0].reason, 'missing_usage_on_model_call');
+      assert.equal(res.runs[0].usage.missingUsageCalls, 1, 'a generic throw is unknown usage, never 0');
+      assert.equal(res.runs[1].reason, 'missing_usage_on_model_call');
+      assert.equal(res.exitCode, ROW_EXIT.BLOCKED);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('G708-R4-3: a missed route seen by the broader observer is an unknown-usage stop, not a crash', () => {
+    // Test (2) of the finding: the matched list is empty, so the old rule read "no request began";
+    // the observer's own AI-mount record proves a BYOK POST did begin.
+    const seen = interruptionFromTurn(new Error('frame navigated away'), {
+      requests: [],
+      responses: [],
+      aiPaths: [{ path: '/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions' }],
+    });
+    assert.equal(seen.name, 'InterruptedAiTurnError');
+    assert.equal(seen.usage.missingUsageCalls, 1);
+
+    // The provable case still keeps its own error, because the observer saw nothing at all.
+    const provable = interruptionFromTurn(new Error('composer detached'), { requests: [], responses: [], aiPaths: [] });
+    assert.equal(provable.name, 'Error');
+    assert.equal(provable.message, 'composer detached');
   });
 });

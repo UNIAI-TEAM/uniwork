@@ -24,9 +24,9 @@ import {
 } from './oracles.mjs';
 import { DEFAULT_REPO_ROOT, getRowById } from './rows.mjs';
 import {
-  evaluateWireObservation, interruptionFromTurn, isSaveIntentPath, observeModelWire,
-  parseCommitBaseRevision, readFrameHead, readVersionCount,
+  isSaveIntentPath, parseCommitBaseRevision, readFrameHead, readVersionCount,
 } from './save-observe.mjs';
+import { InterruptedAiTurnError, evaluateWireObservation, extractWireToolCalls, interruptionFromTurn, observeModelWire } from './wire-observe.mjs';
 import { readEditorText, runEditStage } from './web-edit-flow.mjs';
 import {
   FRAME_SELECTOR_OWNER, HARNESS_PRECONDITION_OWNER, MODULE_AI_SELECTORS,
@@ -63,29 +63,6 @@ export function missingSelectorVerdict(what, details = {}) {
 
 // Every module host is `data-office-module={module}` (office-module-frame.tsx:334-335); harness/web.mjs knows all six.
 export const moduleFrameSelectors = webFrameSelectors;
-
-export function extractWireToolCalls(requests = [], responses = []) {
-  const offeredSet = new Set();
-  const executedSet = new Set();
-  for (const req of requests) {
-    for (const tool of req?.body?.tools ?? []) {
-      const name = tool?.function?.name ?? tool?.name;
-      if (typeof name === 'string' && name.trim()) offeredSet.add(name.trim());
-    }
-    for (const msg of req?.body?.messages ?? []) {
-      for (const tc of (msg?.role === 'assistant' && Array.isArray(msg.tool_calls) ? msg.tool_calls : [])) {
-        const name = tc?.function?.name;
-        if (typeof name === 'string' && name.trim()) executedSet.add(name.trim());
-      }
-    }
-  }
-  for (const res of responses) {
-    for (const name of res?.toolCallNames ?? []) {
-      if (typeof name === 'string' && name.trim()) executedSet.add(name.trim());
-    }
-  }
-  return { offeredTools: [...offeredSet], executedTools: [...executedSet] };
-}
 
 export function buildVersionAndSaveObserved(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -251,6 +228,11 @@ export async function runWebMatrixRow(runEntry, {
   let browser = null;
   let web = null;
   let stub = null;
+  // R4-3: hoisted so the catch below can still read them - the observer's own record, not the
+  // matched arrays, is what proves whether a throw happened before any frame AI POST.
+  const wireRequests = [];
+  const wireResponses = [];
+  const aiPaths = [];
   try {
     seeded = await seedFixtureDocument({ apiOrigin, runDir, fetchImpl, fixtureId: row.fixtureId, repoRoot });
     const { documentId, token, organizationSlug, workspaceSlug, email, password, userId } = seeded;
@@ -277,8 +259,6 @@ export async function runWebMatrixRow(runEntry, {
     let inAiTurn = false;
     let saveIntentsDuringAiTurn = 0;
     const commitBases = [];
-    const wireRequests = [];
-    const wireResponses = [];
 
     // R2-2: every save-intent POST (host upload, frame commit, legacy version create) during the turn counts.
     web.page.on('request', (req) => {
@@ -298,7 +278,7 @@ export async function runWebMatrixRow(runEntry, {
     } else {
       // R3-1: on a real run nothing routes or fulfils the model call - the observer only listens,
       // so the SSE stream the frame sees is untouched, and every model response (usage or not) is recorded.
-      settleWire = observeModelWire(web.page, { requests: wireRequests, responses: wireResponses }).settle;
+      settleWire = observeModelWire(web.page, { requests: wireRequests, responses: wireResponses, aiPaths }).settle;
     }
 
     const sel = moduleFrameSelectors(row.module);
@@ -371,10 +351,10 @@ export async function runWebMatrixRow(runEntry, {
     inAiTurn = false;
     // A response body still in flight is not a response that never arrived: settle the observer first.
     await settleWire();
-    // R3-3: a turn that threw after a model request had begun consumed an unknown amount; only a
-    // failure that provably happened before any request keeps its own error for `row_runner_threw`.
-    const interruption = interruptionFromTurn(turnError, { requests: wireRequests, responses: wireResponses });
-    if (interruption) throw interruption;
+    // R3-3 + R4-3: a turn that threw after a model request consumed an unknown amount. The outer
+    // catch classifies it against the observer's own record; `row_runner_threw` is the one case it
+    // can still prove (no POST to any frame AI path at all).
+    if (turnError) throw turnError;
 
     const replyText = await frame.$$eval(
       `${FRAME_AI_SELECTORS.assistantAnswer}, ${FRAME_AI_SELECTORS.assistantMsg}`,
@@ -482,6 +462,18 @@ export async function runWebMatrixRow(runEntry, {
       ...(rawObserved.oldDocxPath ? { oldDocxPath: rawObserved.oldDocxPath, newDocxPath: rawObserved.newDocxPath, partsDiffPath: rawObserved.partsDiffPath } : {}),
     } : verdict.details;
     return { ...verdict, details, documentId, usage, preconditions, screenshotPath };
+  } catch (err) {
+    // R4-3: after the observer is attached, ANY throw - during the turn or later, during
+    // edit/save/IO - is unknown usage, so the matrix stops instead of starting the next row on a
+    // trusted zero. `interruptionFromTurn` only calls it provable when the observer saw no POST to
+    // a registered model route AND none under the frame's AI mount at all; that one case keeps its
+    // own `row_runner_threw` FAIL.
+    const interruption = interruptionFromTurn(err, { requests: wireRequests, responses: wireResponses, aiPaths });
+    if (interruption instanceof InterruptedAiTurnError) throw interruption;
+    return {
+      ...failVerdict('row_runner_threw', { error: err instanceof Error ? err.message : String(err) }),
+      usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0, missingUsageCalls: 0, missingObservationCalls: 0 },
+    };
   } finally {
     if (web?.close) await web.close().catch(() => {});
     if (browser?.close) await browser.close().catch(() => {});
