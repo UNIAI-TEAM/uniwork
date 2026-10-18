@@ -76,6 +76,15 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
     );
   }
 
+  // A call log is a chip on the wall that prints its own time: no bubble, no second time line.
+  if (record && messageView(record) === "call-log") {
+    return (
+      <View className="items-center px-6 py-1.5">
+        <MessageContent record={record} own={own} ctx={ctx} onLongPress={() => props.onLongPress(message)} />
+      </View>
+    );
+  }
+
   const interactive = record ? INTERACTIVE_VIEWS.has(messageView(record)) : false;
   const preview = record ? messagePreviewText(record, t) : message.body;
   const longPress = () => props.onLongPress(message);

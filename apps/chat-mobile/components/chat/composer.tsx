@@ -318,11 +318,13 @@ export function Composer(props: Props) {
       <ActionSheet
         visible={attachOpen}
         onClose={() => setAttachOpen(false)}
+        title={t("chat.composer_attach")}
+        layout="tiles"
         actions={[
-          { key: "photo", label: t("chat.media_image"), onPress: () => void pickPhoto() },
-          { key: "file", label: t("chat.composer_attach_file"), onPress: () => void pickFile() },
-          { key: "expressions", label: `${t("chat.expression_tab_sticker")} · ${t("chat.expression_tab_gif")}`, onPress: props.onOpenExpressions },
-          { key: "reminder", label: t("chat.composer_create_reminder"), onPress: props.onOpenReminder },
+          { key: "photo", label: t("chat.media_image"), icon: "image-outline", tint: "blue", onPress: () => void pickPhoto() },
+          { key: "file", label: t("chat.composer_attach_file"), icon: "attach", tint: "orange", onPress: () => void pickFile() },
+          { key: "expressions", label: `${t("chat.expression_tab_sticker")} · ${t("chat.expression_tab_gif")}`, icon: "happy-outline", tint: "yellow", onPress: props.onOpenExpressions },
+          { key: "reminder", label: t("chat.composer_create_reminder"), icon: "alarm-outline", tint: "teal", onPress: props.onOpenReminder },
         ]}
       />
     </View>

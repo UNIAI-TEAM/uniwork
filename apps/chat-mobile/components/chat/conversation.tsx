@@ -227,6 +227,7 @@ export function Conversation(props: Props) {
       <MessageActionsSheet
         message={actionMessage}
         own={actionMessage?.sender === userId}
+        senderName={actionMessage ? room.senderName(actionMessage) : undefined}
         inThread={Boolean(threadRootId)}
         followUp={actionMessage ? openFollowUp(actionMessage.id) : null}
         onClose={() => setActionMessage(null)}
