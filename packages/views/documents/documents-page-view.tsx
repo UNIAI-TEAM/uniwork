@@ -8,9 +8,10 @@ import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useDocument, useDocumentLimits } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
-import { useDownloadDocumentSource } from "@uniwork/core/documents/hooks-library";
+import { useDownloadDocumentSource, useEnsureMyFolder } from "@uniwork/core/documents/hooks-library";
 import { paths } from "@uniwork/core/paths";
 import { canEditDocument } from "@uniwork/core/permissions";
+import { isMyFolder } from "@uniwork/core/types/document";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { CollectionPageState } from "../layout/collection-page";
@@ -69,10 +70,11 @@ function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
     default:
       return { kind: "home" };
   }
+  return { kind: "home" };
 }
 
 function buildDocumentsViewUrl(
-  wsPaths: ReturnType<typeof paths.workspace>,
+  wsPaths: { documents: () => string; documentsFolder: (folderId: string) => string },
   next: LibraryView,
   nextFolder: string | null,
 ): string {
@@ -80,11 +82,7 @@ function buildDocumentsViewUrl(
   if (targetFolder) return wsPaths.documentsFolder(targetFolder);
   const base = wsPaths.documents();
   if (next.kind === "home") return base;
-  if (next.kind === "sources") {
-    return next.source
-      ? `${base}?view=sources&source=${encodeURIComponent(next.source)}`
-      : `${base}?view=sources`;
-  }
+  if (next.kind === "sources") return next.source ? `${base}?view=sources&source=${encodeURIComponent(next.source)}` : `${base}?view=sources`;
   return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
 }
 
@@ -108,7 +106,7 @@ export interface DocumentsPageViewProps {
  * create, upload and save await the server.
  */
 export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, officeFrameVersion }: DocumentsPageViewProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
   const limits = useDocumentLimits({ enabled });
@@ -154,10 +152,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     enabled: enabled && !!folderId,
     retry: shouldRetryFolderDetail,
   });
+  const ensureMyFolder = useEnsureMyFolder(wsId);
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
   const sourcePreview = useSourcePreview(downloadSource);
-
   // The row-menu download (and the viewer's fallback when no module frame can
   // host the file): one code path for both, named for the file.
   const downloadSourceFile = (sourceId: string) => {
@@ -200,15 +198,30 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // asks RequireMember only); inside a folder the folder's own level decides,
   // and a viewer of it sees no create control at all.
   const folderDoc = !folderInvalid && rawFolderDoc?.id === folderId ? rawFolderDoc : null;
+  const myFolderLabel = t("documents.home.my_folder.label");
+  const myFolderId = useMemo(
+    () => library.tree.find((node) => isMyFolder(node))?.id ?? ensureMyFolder.data?.id ?? (folderDoc && isMyFolder(folderDoc) ? folderDoc.id : null),
+    [library.tree, ensureMyFolder.data?.id, folderDoc],
+  );
+  const openFolderTitle = folderDoc ? (isMyFolder(folderDoc) ? myFolderLabel : folderDoc.title) : undefined;
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const canCreate =
     !folderId ||
     (folderDoc !== null &&
       canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
-  const fileUpload = useDocumentFileUpload({ wsId, parentId: parentForCreate, limits, onOpen });
+  const fileUpload = useDocumentFileUpload({
+    wsId,
+    parentId: parentForCreate,
+    limits,
+    onOpen,
+    description: t(parentForCreate && !isMyFolder(folderDoc) ? "documents.upload.description_folder" : "documents.upload.description"),
+    rootDestination: "my_folder",
+    rootParentId: myFolderId,
+    resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id,
+  });
 
-  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title });
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
@@ -244,6 +257,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     }
   };
 
+
   const newRootFolder = async (title?: string): Promise<boolean> => {
     const id = await creator.newFolder(null, title);
     if (id) {
@@ -252,7 +266,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     }
     return false;
   };
-
+  const openMyFolder = () => {
+    if (myFolderId) return goHome({ kind: "home" }, myFolderId);
+    if (ensureMyFolder.isPending) return;
+    void ensureMyFolder.mutateAsync().then(
+      (doc) => goHome({ kind: "home" }, doc.id),
+      () => toast.error(t("documents.home.my_folder.open_failed")),
+    );
+  };
   const handlers: LibraryRowHandlers = {
     onOpen,
     onFolder: (id) => goHome({ kind: "home" }, id),
@@ -289,7 +310,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const state = library.state;
   // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
-  const groups = groupRows(tableRows, homeView ? "none" : groupBy, library.folderIndex);
+  const groups = groupRows(tableRows, homeView ? "none" : groupBy, library.folderIndex, myFolderLabel);
   const subfolders = subfoldersOf(library.tree, folderId);
   // "filtered" still answers "is a filter on" (editor/updated live on the
   // home filter bar, chip/access everywhere the list toolbar shows): it gates
@@ -314,12 +335,15 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     wsId,
     view,
     folderId,
+    myFolderId,
+    myFolderPending: ensureMyFolder.isPending,
     starredCount: library.starredCount,
     sourcesAvailable: library.sourcesAvailable,
     canCreate: !folderId || canCreate,
     newFolderPending: creator.folderPending,
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
+    onMyFolder: openMyFolder,
     onNewFolder: (title?: string) => newRootFolder(title),
   };
   const createProps = {
@@ -411,6 +435,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   wsId={wsId}
                   folderDoc={folderDoc}
                   canRename={canCreate}
+                  myFolderId={myFolderId}
                   onRoot={() => goHome({ kind: "home" })}
                   onFolder={(id) => goHome({ kind: "home" }, id)}
                   folderHandlers={handlers}
@@ -430,6 +455,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 <DocumentsSearchResults
                   search={search}
+                  myFolderId={myFolderId}
                   onSelectFolder={(id) => {
                     search.clear();
                     goHome({ kind: "home" }, id);
@@ -496,7 +522,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               />
             ) : homeView ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                {canCreate ? <DocumentsHomeNote folderTitle={folderDoc?.title ?? null} create={folderId ? null : createProps} /> : null}
+                {canCreate ? <DocumentsHomeNote folderTitle={openFolderTitle ?? null} create={folderId ? null : createProps} /> : null}
                 <LibraryToolbar variant={folderId ? "folder" : "home"} {...toolbar} />
                 <DocumentsSections
                   folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}

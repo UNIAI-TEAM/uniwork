@@ -8919,7 +8919,8 @@
     },
     "upload": {
       "title": "Tải tệp lên",
-      "description": "Tệp trở thành một tài liệu mới trong workspace.",
+      "description": "Tệp trở thành tài liệu mới trong Thư mục của tôi (chỉ bạn thấy).",
+      "description_folder": "Tệp trở thành tài liệu mới trong thư mục này.",
       "version_title": "Tải phiên bản mới",
       "version_description": "Tệp mới trở thành bản làm việc; phiên bản đang mở vẫn nằm trong lịch sử.",
       "pick": "Chọn tệp",
@@ -9542,6 +9543,10 @@
         "html": "Trang HTML chưa đặt tên.html",
         "pdf": "PDF chưa đặt tên.pdf"
       },
+      "my_folder": {
+        "label": "Thư mục của tôi",
+        "open_failed": "Không thể mở Thư mục của tôi. Thử lại."
+      },
       "folders": {
         "default_name": "Thư mục mới",
         "create_failed": "Không thể tạo thư mục. Thử lại.",
@@ -9574,7 +9579,7 @@
         "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
       "quick_create": {
-        "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
+        "hint_root": "File mới tạo hoặc tải lên ở đây sẽ nằm trong Thư mục của tôi (chỉ bạn thấy) và mở ngay trong trình soạn thảo.",
         "label": "Tạo nhanh"
       },
       "create": {
@@ -9871,6 +9876,7 @@
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
       "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
       "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
+      "my_folder_locked": "Thư mục của tôi là thư mục hệ thống cá nhân — không thể đổi tên, chia sẻ, di chuyển hoặc chuyển vào thùng rác.",
       "unsupported_media_type": "Định dạng tệp này chưa được hỗ trợ.",
       "upload_sessions_exhausted": "Bạn đang có quá nhiều phiên tải lên cùng lúc. Hãy hoàn tất hoặc hủy bớt rồi thử lại.",
       "upload_session_expired": "Phiên tải lên đã hết hạn. Hãy chọn lại tệp để tải lên từ đầu.",

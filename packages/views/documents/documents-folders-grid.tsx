@@ -15,6 +15,7 @@ import {
 import type { LibraryRowHandlers } from "./documents-library-row";
 import { isFolderRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 import { canArchiveRow, canMoveRow, rowLevel } from "./row-level";
+import { myFolderFirst } from "./document-tree-model";
 
 /**
  * The folder card grid of the TRASH-A3 boards (Main.dc "Thư mục" section,
@@ -43,7 +44,8 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
       {folders.map((node) => {
         const doc = docById.get(node.id);
-        // Subfolders come from the tree index; the tree does not promise every
+        const myFolder = isMyFolder(node) || isMyFolder(doc);
+        const cardTitle = (myFolder ? t("documents.home.my_folder.label") : node.title) || t("documents.detail.untitled");
         // document of a folder, so the card never counts documents. The editor
         // and the last update show only when the folder's own row is loaded.
         const sub = node.children.filter((child) => child.kind === "folder").length;
@@ -71,7 +73,7 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
               </span>
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="flex items-center gap-1.5">
-                  <span className="truncate font-medium text-foreground">{node.title}</span>
+                  <span className="truncate font-medium text-foreground">{cardTitle}</span>
                   {starred ? (
                     <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
                   ) : null}
@@ -87,8 +89,8 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={t("documents.home.row.menu", { title: node.title })}
-                      title={t("documents.home.row.menu", { title: node.title })}
+                      aria-label={t("documents.home.row.menu", { title: cardTitle })}
+                      title={t("documents.home.row.menu", { title: cardTitle })}
                       className="my-auto shrink-0"
                     />
                   }
@@ -141,22 +143,23 @@ export function folderMenuItems(
 ): FolderMenuItem[] {
   if (doc.archived_at) return [];
   const level = rowLevel(doc);
+  const myFolder = isMyFolder(doc);
   const items: FolderMenuItem[] = [];
   if (handlers.onNewSubfolder && canMoveRow(level)) {
     items.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
   }
-  if (handlers.onRename && canMoveRow(level)) {
+  if (!myFolder && handlers.onRename && canMoveRow(level)) {
     items.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
   }
-  if (handlers.onMove && canMoveRow(level)) {
+  if (!myFolder && handlers.onMove && canMoveRow(level)) {
     items.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
   }
-  if (handlers.onShelve && canArchiveRow(level) && !isMyFolder(doc) && !isShelved(doc)) {
+  if (!myFolder && handlers.onShelve && canArchiveRow(level) && !isShelved(doc)) {
     // ARCHIVE-01 U-4: Lưu trữ sits beside the trash command, manage-only and
     // never on the My Folder root, as on the table row.
     items.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
   }
-  if (handlers.onArchive && canArchiveRow(level)) {
+  if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
     // A folder's dialog says Delete, so the card says it too (FD-D6), with
     // the row's Trash2 glyph: Archive now belongs to Lưu trữ beside it.
     items.push({ id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) });
@@ -214,7 +217,7 @@ export function nonFolderRows(rows: LibraryRow[]): LibraryRow[] {
 
 /** The children folders of a folder node, or the tree's roots at the home root. */
 export function subfoldersOf(tree: DocumentTreeNode[], folderId: string | null): DocumentTreeNode[] {
-  const nodes = folderId ? (findNode(tree, folderId)?.children ?? []) : tree;
+  const nodes = folderId ? (findNode(tree, folderId)?.children ?? []) : myFolderFirst(tree);
   return nodes.filter((node) => node.kind === "folder");
 }
 

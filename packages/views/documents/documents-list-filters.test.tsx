@@ -319,9 +319,10 @@ describe("server-side type and access filters (UNI-1868)", () => {
     await screen.findByText("Tệp của tôi.docx");
     await clickChip("page");
     // Rows narrowed: only the page survives; no kind/format is sent to this endpoint.
-    expect(await screen.findByText("Trang của tôi")).toBeInTheDocument();
-    expect(screen.queryByText("Tệp của tôi.docx")).toBeNull();
-    expect(screen.queryByText("Thư mục của tôi")).toBeNull();
+    const table = screen.getByRole("table");
+    expect(await within(table).findByText("Trang của tôi")).toBeInTheDocument();
+    expect(within(table).queryByText("Tệp của tôi.docx")).toBeNull();
+    expect(within(table).queryByText("Thư mục của tôi")).toBeNull();
     const endpointCalls = listCalls().filter((path) => matchesScopeEndpoint(path, endpoint));
     expect(endpointCalls.every((path) => !queryOf(path).get("kind") && !queryOf(path).get("format"))).toBe(true);
   });

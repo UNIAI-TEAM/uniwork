@@ -32,6 +32,8 @@ interface StartChunkedDocumentUploadInput {
   file: File | Blob;
   filename?: string;
   idempotencyKey?: string;
+  /** Overrides the hook's target for this upload only (resolved at call time). */
+  target?: UploadSessionTarget;
 }
 
 const ACTIVE_PHASES = new Set<ChunkedUploadPhase>([
@@ -77,10 +79,10 @@ export function useChunkedDocumentUpload(
   }, []);
 
   const findResumable = useCallback(
-    (file: File | Blob, filename?: string): ResumableUpload | null => {
+    (file: File | Blob, filename?: string, forTarget?: UploadSessionTarget): ResumableUpload | null => {
       const key = uploadFileKey(file, resolveFilename(file, filename));
       try {
-        return findResumableUpload(storage, key, targetRef.current);
+        return findResumableUpload(storage, key, forTarget ?? targetRef.current);
       } catch {
         return null;
       }
@@ -92,12 +94,11 @@ export function useChunkedDocumentUpload(
     (file: File | Blob, filename?: string): boolean => findResumable(file, filename) !== null,
     [findResumable],
   );
-
   const start = useCallback(
     async (input: StartChunkedDocumentUploadInput): Promise<ChunkedUploadResult> => {
-      const currentTarget = targetRef.current;
+      const currentTarget = input.target ?? targetRef.current;
       const filename = resolveFilename(input.file, input.filename);
-      const saved = findResumable(input.file, filename);
+      const saved = findResumable(input.file, filename, currentTarget);
       const idempotencyKey = saved?.idempotency_key ?? input.idempotencyKey ?? createSafeId();
 
       const upload = startChunkedUpload({

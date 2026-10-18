@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { getDocument } from "@uniwork/core/api/endpoints/documents";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { documentKeys } from "@uniwork/core/documents/keys";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 
 /* ---- pure tree helpers (unit-tested on their own) ----------------------- */
 
@@ -175,4 +175,11 @@ export function foldersOnly(nodes: DocumentTreeNode[]): DocumentTreeNode[] {
   return nodes
     .filter((node) => node.kind === "folder")
     .map((node) => ({ ...node, children: foldersOnly(node.children) }));
+}
+
+/** Places the caller's My Folder first among root nodes while keeping sibling order. */
+export function myFolderFirst(nodes: DocumentTreeNode[]): DocumentTreeNode[] {
+  const idx = nodes.findIndex((node) => isMyFolder(node));
+  if (idx <= 0) return nodes;
+  return [nodes[idx]!, ...nodes.slice(0, idx), ...nodes.slice(idx + 1)];
 }

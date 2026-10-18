@@ -38,6 +38,7 @@ const CODED = new Set([
   "folder_too_large",
   "folder_name_taken",
   "source_not_saveable",
+  "my_folder_locked",
   "upload_sessions_exhausted",
   "upload_session_expired",
   "upload_parts_invalid",

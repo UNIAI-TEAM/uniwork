@@ -537,7 +537,7 @@ describe("Documents unified search (FD-10)", () => {
 
     // The home board has its own header row (no collection header).
     const heading = screen.getByRole("heading", { level: 1, name: t("documents.home.sidebar.home") });
-    const row = heading.parentElement!.parentElement!;
+    const row = heading.parentElement!.parentElement!.parentElement!;
     expect(screen.getAllByRole("searchbox")).toHaveLength(1);
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     const searchBox = searchInput.parentElement!;

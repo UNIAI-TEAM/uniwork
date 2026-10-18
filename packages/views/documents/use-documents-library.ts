@@ -22,6 +22,7 @@ import type {
   DocumentList,
   DocumentTreeNode,
 } from "@uniwork/core/types/document";
+import { myFolderFirst } from "./document-tree-model";
 import type { LibraryView } from "./documents-sidebar";
 import {
   documentRow,
@@ -257,7 +258,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   if (sourcesMissing && answeredFor === wsId) setAnsweredFor(null);
   const sourcesAvailable = !sourcesMissing && (Boolean(sourcesQuery.data) || answeredFor === wsId);
 
-  const nodes: DocumentTreeNode[] = useMemo(() => tree.data?.documents ?? [], [tree.data]);
+  const nodes: DocumentTreeNode[] = useMemo(() => myFolderFirst(tree.data?.documents ?? []), [tree.data]);
   const folderIndex: Map<string, FolderInfo> = useMemo(() => indexTree(nodes), [nodes]);
   const starred = useMemo(
     () => (favorites.data ?? []).filter((fav) => !fav.workspace_id || fav.workspace_id === wsId),

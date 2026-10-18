@@ -82,6 +82,7 @@ export function DocumentActionsMenu({
   const canAdminister = canAdministerDocument(doc, { userId, orgRole: null, wsRole: null }).allowed;
   const owned = !!doc.owner_kind;
   const archived = !!doc.archived_at;
+  const myFolder = isMyFolder(doc);
   const shelved = isShelved(doc);
   // Lưu trữ / Bỏ lưu trữ follow the shelf's own rule (manage or admin_scope), like the banner and the shelf row.
   const canShelve = canManageTrashed(doc);
@@ -93,7 +94,7 @@ export function DocumentActionsMenu({
   // open Share at the requests section, then drop the parameter. An archived
   // or owned document, or a caller who cannot administer, loses it silently.
   useAccessRequestsDeepLink({
-    allowed: canAdminister && !owned && !archived && !shelved,
+    allowed: canAdminister && !owned && !archived && !shelved && !myFolder,
     onOpen: () => {
       setFocusRequests(true);
       setPanel("share");
@@ -105,7 +106,7 @@ export function DocumentActionsMenu({
 
   const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
-  if (canAdminister && !owned && !archived) {
+  if (canAdminister && !owned && !archived && !myFolder) {
     items.push({ id: "share", label: t("documents.actions.share"), icon: Share2 });
   }
   if (canManage && !owned && !archived && !shelved) {
@@ -114,16 +115,16 @@ export function DocumentActionsMenu({
   if (canEdit && !owned && !archived && doc.kind === "file" && !copyUnavailable) {
     items.push({ id: "copy", label: t("documents.actions.copy"), icon: Copy });
   }
-  if (canShelve && !owned && !archived && !shelved && !isMyFolder(doc)) {
+  if (canShelve && !owned && !archived && !shelved && !myFolder) {
     items.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive });
   }
   if (canShelve && !owned && !archived && shelved) {
     items.push({ id: "unshelve", label: t("documents.shelved_list.unshelve"), icon: ArchiveRestore });
   }
-  if (canManage && !owned && !archived) {
+  if (canManage && !owned && !archived && !myFolder) {
     items.push({ id: "archive", label: t("documents.actions.archive"), icon: Trash2, destructive: true });
   }
-  if (canManage && !owned && archived) {
+  if (canManage && !owned && archived && !myFolder) {
     items.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore });
   }
   return (
