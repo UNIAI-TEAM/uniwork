@@ -15,8 +15,10 @@ import {
   evaluateWireObservation,
   extractWireUsage,
   interruptionFromTurn,
+  isFrameAiPath,
   isModelCompletionPath,
   isSaveIntentPath,
+  modelRouteShape,
   observeModelWire,
   observeOldVersionAfterSave,
   parseCommitBaseRevision,
@@ -253,6 +255,18 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/uploads'), false);
     assert.equal(isModelCompletionPath(undefined), false);
 
+    // R4-1: each registered route is read in the shape its own handler answers with
+    // (handler/ai_mount.go:71-73 -> ai/proxy.go:61-63,223-236; uniwork -> openai_facade).
+    assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions'), 'openai');
+    assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), 'openai');
+    assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages'), 'anthropic');
+    assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/ai/byok/gemini/generate'), 'gemini');
+    assert.equal(modelRouteShape('/api/v1/office-frame/documents/D1/uploads'), null);
+    // The broad net for R4-3: any POST under the frame's AI mount, whatever shape.
+    assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), true);
+    assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/uniwork/models'), true);
+    assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/uploads'), false);
+
     assert.deepEqual(usageFromModelResponseBody({ usage: { prompt_tokens: 12, completion_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
     assert.deepEqual(usageFromModelResponseBody({ usage: { input_tokens: 12, output_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
     assert.equal(usageFromModelResponseBody({ usage: { prompt_tokens: 12 } }), null);
@@ -264,6 +278,29 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     assert.equal(usageFromSseText('data: {"choices":[{"delta":{"content":"a"}}]}\n\ndata: [DONE]\n'), null, 'a stream with no usage chunk is an unknown');
     assert.equal(usageFromSseText(''), null);
     assert.equal(usageFromSseText('<html>502</html>'), null);
+
+    // R4-1: the Anthropic `/messages` stream - input on message_start, output on
+    // message_delta, both cumulative (ai/proxy.go:433-441).
+    const anthropicSse = 'data: {"type":"message_start","message":{"usage":{"input_tokens":41}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: [DONE]\n';
+    assert.deepEqual(usageFromSseText(anthropicSse, 'anthropic'), { prompt_tokens: 41, completion_tokens: 9 });
+    assert.deepEqual(
+      usageFromModelResponseBody({ usage: { input_tokens: 6, output_tokens: 3 } }, 'anthropic'),
+      { prompt_tokens: 6, completion_tokens: 3 },
+    );
+    // R4-1: the Gemini `/generate` body (ai/proxy.go:426-432); thoughts count as output.
+    assert.deepEqual(
+      usageFromModelResponseBody({ usageMetadata: { promptTokenCount: 7, candidatesTokenCount: 5, thoughtsTokenCount: 2 } }, 'gemini'),
+      { prompt_tokens: 7, completion_tokens: 7 },
+    );
+    assert.deepEqual(
+      usageFromSseText('data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4}}\n', 'gemini'),
+      { prompt_tokens: 8, completion_tokens: 4 },
+    );
+    // A shape whose own block is absent is an unknown, never 0 - the wrong-shape body
+    // must not be read as a zero-token call.
+    assert.equal(usageFromSseText('data: {"choices":[{"delta":{}}]}\n\ndata: [DONE]\n', 'anthropic'), null);
+    assert.equal(usageFromModelResponseBody({ usage: { prompt_tokens: 3, completion_tokens: 1 } }, 'anthropic'), null);
+    assert.equal(usageFromModelResponseBody({ usage: { input_tokens: 3, output_tokens: 1 } }, 'gemini'), null);
 
     assert.deepEqual(
       toolCallNamesFromSseText('data: {"choices":[{"delta":{"tool_calls":[{"function":{"name":"read_range"}}]}}]}\n\ndata: [DONE]\n'),
@@ -329,7 +366,7 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     assert.equal(requests.length, 1, 'only the model route is recorded');
     assert.deepEqual(requests[0].body.tools.map((t) => t.function.name), ['read_range', 'edit_block']);
     assert.equal(responses.length, 1);
-    assert.deepEqual(responses[0], { status: 200, usage: { prompt_tokens: 100, completion_tokens: 20 }, toolCallNames: [] });
+    assert.deepEqual(responses[0], { status: 200, shape: 'openai', usage: { prompt_tokens: 100, completion_tokens: 20 }, toolCallNames: [] });
 
     const wire = evaluateWireObservation({ requests, responses, sawTurnEffects: true });
     assert.equal(wire.unobserved, false);
@@ -394,5 +431,14 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     assert.equal(afterCountedResponse.usage.missingUsageCalls, 1, 'the thrown turn is still unknown');
     assert.equal(afterCountedResponse.usage.outputTokens, 10);
     assert.equal(interruptionFromTurn(null, { requests: [], responses: [] }), null);
+
+    // G708-R4-3: an empty MATCHED list is not a proof - the matcher can miss a route.
+    // A frame AI POST the broader observer saw makes the turn an unknown-usage stop.
+    const byokMissed = interruptionFromTurn(new Error('frame navigated away'), {
+      requests: [], responses: [], aiPaths: [{ path: '/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions' }],
+    });
+    assert.equal(byokMissed instanceof InterruptedAiTurnError, true, 'a missed route is not "no request began"');
+    assert.equal(byokMissed.usage.missingUsageCalls, 1);
+    assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), true);
   });
 });

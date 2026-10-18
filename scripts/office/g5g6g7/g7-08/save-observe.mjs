@@ -98,88 +98,194 @@ export class InterruptedAiTurnError extends Error {
 }
 
 /**
- * R3-3: a turn that threw after a model request had begun consumed an unknown
- * amount, so the caller must stop on `missing_usage_on_model_call`; a failure that
- * provably happened before any request keeps its own error for `row_runner_threw`.
+ * R3-3 + R4-3: a row runner threw after a model request MAY have begun, so what
+ * that turn consumed is unknown. The error carries that unknown usage
+ * (`missingUsageCalls >= 1`) so the run stops the matrix instead of starting the
+ * next row on a trusted zero.
+ *
+ * R4-3: "provably no request began" is not the matched arrays being empty - the
+ * matcher can miss a route. It is provable only when the observer saw no POST to
+ * any registered model route AND no POST under the frame's AI mount at all
+ * (`aiPaths`). Then the raw error is returned and the caller keeps its separate
+ * `row_runner_threw`.
  */
-export function interruptionFromTurn(turnError, { requests = [], responses = [] } = {}) {
+export function interruptionFromTurn(turnError, { requests = [], responses = [], aiPaths = [] } = {}) {
   if (!turnError) return null;
-  if (requests.length === 0 && responses.length === 0) return turnError;
+  if (requests.length === 0 && responses.length === 0 && aiPaths.length === 0) return turnError;
   return new InterruptedAiTurnError(turnError, extractWireUsage(responses));
 }
 
 /**
- * R3-1: the frame's model completion route - the same path the dry-run stub
- * intercepts (`page.route('**\/api\/v1\/office-frame\/documents\/*\/ai\/*\/chat\/completions')`).
- * Both providers answer through it: `/ai/uniwork/chat/completions` and
- * `/ai/{aiProvider}/chat/completions` (router/office_frame_ai.go:74,126).
+ * R3-1 + R4-1: the frame's model-CALL routes, exactly as the router registers
+ * them (`server/internal/handler/router/office_frame_ai.go`): the UniWork turn
+ * at `:126` and the three BYOK vendor calls at `:74` (`chat/completions`),
+ * `:79` (`messages`) and `:84` (`generate`). The `:89` `.../models` route is a
+ * GET listing of vendor models, not a model call, so it is deliberately absent
+ * here; so is `/ai/{provider}/chat/completions`, which no route serves (the
+ * BYOK path always carries the `byok` segment).
+ *
+ * Each route is paired with the response shape its usage block is read in
+ * (`usagePairFromDoc`). The shape is the protocol that route is wired to:
+ * `handler/ai_mount.go:71-73` binds the three BYOK routes to
+ * `ai.ProxyChatCompletions` / `ProxyMessages` / `ProxyGenerate`, and
+ * `server/internal/ai/proxy.go:61-63,223-236` pins those to
+ * openai-compatible / anthropic / gemini. The BYOK proxy streams the vendor's
+ * body through untouched (`proxy.go:193,219`), so the frame sees the vendor's
+ * native shape; the UniWork turn is built by `ai/openai_facade.go:377-383`.
  */
-const MODEL_COMPLETION_PATH_RE = /\/office-frame\/documents\/[^/]+\/ai\/[^/]+\/chat\/completions$/;
+const MODEL_CALL_ROUTES = Object.freeze([
+  { re: /\/office-frame\/documents\/[^/]+\/ai\/uniwork\/chat\/completions$/, shape: 'openai' },
+  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/chat\/completions$/, shape: 'openai' },
+  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/messages$/, shape: 'anthropic' },
+  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/generate$/, shape: 'gemini' },
+]);
+
+/** R4-1: the response shape of one registered model route, or null when the path is not one. */
+export function modelRouteShape(pathname) {
+  const p = String(pathname ?? '');
+  for (const route of MODEL_CALL_ROUTES) if (route.re.test(p)) return route.shape;
+  return null;
+}
 
 export function isModelCompletionPath(pathname) {
-  return MODEL_COMPLETION_PATH_RE.test(String(pathname ?? ''));
+  return modelRouteShape(pathname) !== null;
 }
 
 /**
- * R3-1: a model response body without both token counts is an unknown, not a zero.
- * OpenAI-shaped bodies carry `usage.prompt_tokens`/`completion_tokens`; an
- * Anthropic-shaped one carries `input_tokens`/`output_tokens`.
+ * R4-3: any path under the frame's AI mount, whatever the shape. The
+ * interruption check uses this broader net: a POST here means a model call may
+ * have begun even when no registered model route was matched.
  */
-export function usageFromModelResponseBody(body) {
-  const usage = body?.usage;
-  if (!usage || typeof usage !== 'object') return null;
-  const input = usage.prompt_tokens ?? usage.input_tokens;
-  const output = usage.completion_tokens ?? usage.output_tokens;
+const FRAME_AI_PATH_RE = /\/office-frame\/documents\/[^/]+\/ai\//;
+
+export function isFrameAiPath(pathname) {
+  return FRAME_AI_PATH_RE.test(String(pathname ?? ''));
+}
+
+/**
+ * R4-1: the (input, output) pair one JSON document reports, read in the shape of
+ * the route it came from - the same three shapes the server's own usage tap
+ * reads (`server/internal/ai/proxy.go:425-447`):
+ * - `openai`    - `usage.prompt_tokens` / `usage.completion_tokens`: the UniWork
+ *   facade's `UniworkUsage` (`ai/openai_facade.go:213-215`, written into the SSE
+ *   chunk at `:382`) and the OpenAI-compatible BYOK proxy (`proxy.go:442-446`);
+ * - `anthropic` - `usage.input_tokens` / `usage.output_tokens`, and the same pair
+ *   under `message.usage` on a `message_start` (`proxy.go:433-441`);
+ * - `gemini`    - `usageMetadata.promptTokenCount` / `usageMetadata.candidatesTokenCount`
+ *   plus `usageMetadata.thoughtsTokenCount` (`proxy.go:426-432`).
+ * With no shape the three are tried in turn, which is what a bare body read means.
+ * Either count may come back null: a chunk often carries only one of them.
+ */
+function usagePairFromDoc(doc, shape = null) {
+  let input = null;
+  let output = null;
+  for (const s of shape ? [shape] : ['openai', 'anthropic', 'gemini']) {
+    if (s === 'gemini') {
+      const m = doc?.usageMetadata;
+      if (!m || typeof m !== 'object') continue;
+      if (typeof m.promptTokenCount === 'number') input = m.promptTokenCount;
+      const cand = m.candidatesTokenCount;
+      const thoughts = m.thoughtsTokenCount;
+      if (typeof cand === 'number' || typeof thoughts === 'number') {
+        output = (typeof cand === 'number' ? cand : 0) + (typeof thoughts === 'number' ? thoughts : 0);
+      }
+    } else if (s === 'anthropic') {
+      // A streamed message reports input on `message_start` and the final output on
+      // `message_delta`; a non-stream body carries one `usage` block.
+      for (const u of [doc?.message?.usage, doc?.usage]) {
+        if (!u || typeof u !== 'object') continue;
+        if (typeof u.input_tokens === 'number') input = u.input_tokens;
+        if (typeof u.output_tokens === 'number') output = u.output_tokens;
+      }
+    } else {
+      const u = doc?.usage;
+      if (!u || typeof u !== 'object') continue;
+      if (typeof u.prompt_tokens === 'number') input = u.prompt_tokens;
+      if (typeof u.completion_tokens === 'number') output = u.completion_tokens;
+    }
+  }
+  return { input, output };
+}
+
+/**
+ * R3-1 + R4-1: a model response body without both token counts is an unknown,
+ * not a zero. The counts are read in the shape of the route they came from; a
+ * body whose shape reports no block, or only one of the two counts, is null.
+ */
+export function usageFromModelResponseBody(body, shape = null) {
+  const { input, output } = usagePairFromDoc(body, shape);
   if (typeof input !== 'number' || typeof output !== 'number') return null;
   return { prompt_tokens: input, completion_tokens: output };
 }
 
 /**
- * R3-1: the usage of one SSE stream, or null when the stream carried no usage
- * chunk. Text that is not an SSE stream is tried as a JSON body first.
+ * R3-1 + R4-1: the usage of one SSE stream, or null when the stream carried no
+ * complete usage. Every chunk is read in the route's shape and the latest value
+ * of each count wins, because each protocol reports cumulative counts and may
+ * split them across chunks (Anthropic's `message_start` / `message_delta`).
+ * Text that is not an SSE stream is tried as a single JSON body.
  */
-export function usageFromSseText(text) {
+export function usageFromSseText(text, shape = null) {
   const raw = String(text ?? '');
   if (raw.trim() === '') return null;
-  let usage = null;
+  let input = null;
+  let output = null;
   let sawChunk = false;
   for (const line of raw.split('\n')) {
     if (!line.startsWith('data:')) continue;
     const payload = line.slice(5).trim();
     if (payload === '' || payload === '[DONE]') continue;
+    let chunk;
     try {
-      const chunk = JSON.parse(payload);
-      sawChunk = true;
-      if (chunk?.usage) usage = chunk.usage;
+      chunk = JSON.parse(payload);
     } catch {
-      /* a partial or non-JSON line is not a usage chunk */
+      continue; // a partial or non-JSON line is not a usage chunk
     }
+    sawChunk = true;
+    const pair = usagePairFromDoc(chunk, shape);
+    if (pair.input !== null) input = pair.input;
+    if (pair.output !== null) output = pair.output;
   }
-  if (usage) return usageFromModelResponseBody({ usage }) ?? usage;
   if (!sawChunk) {
     try {
-      return usageFromModelResponseBody(JSON.parse(raw));
+      return usageFromModelResponseBody(JSON.parse(raw), shape);
     } catch {
-      /* not JSON either */
+      return null; // not JSON either
     }
   }
-  return null;
+  if (typeof input !== 'number' || typeof output !== 'number') return null;
+  return { prompt_tokens: input, completion_tokens: output };
 }
 
-/** R3-1: the tool names one SSE stream executed, for the wire tool-surface evidence. */
-export function toolCallNamesFromSseText(text) {
+/**
+ * R3-1 + R4-1: the tool names one stream reports, read in the route's response
+ * shape. OpenAI-shaped deltas carry `choices[0].delta.tool_calls[].function.name`
+ * (`ai/openai_facade.go:229` names `delta`, `:206-209` the `tool_calls` array); an Anthropic stream names the tool on a
+ * `content_block_start` with `content_block.type='tool_use'`; a Gemini stream
+ * names it under `candidates[0].content.parts[].functionCall.name`.
+ */
+export function toolCallNamesFromSseText(text, shape = null) {
   const names = [];
+  const push = (name) => { if (typeof name === 'string' && name.trim()) names.push(name.trim()); };
   for (const line of String(text ?? '').split('\n')) {
     if (!line.startsWith('data:')) continue;
     const payload = line.slice(5).trim();
     if (payload === '' || payload === '[DONE]') continue;
+    let chunk;
     try {
-      const chunk = JSON.parse(payload);
-      for (const tc of chunk?.choices?.[0]?.delta?.tool_calls ?? []) {
-        if (tc?.function?.name) names.push(tc.function.name);
-      }
+      chunk = JSON.parse(payload);
     } catch {
-      /* ignore */
+      continue;
+    }
+    if (!shape || shape === 'openai') {
+      for (const tc of chunk?.choices?.[0]?.delta?.tool_calls ?? []) push(tc?.function?.name);
+    }
+    if (!shape || shape === 'anthropic') {
+      const block = chunk?.content_block;
+      if (block?.type === 'tool_use') push(block?.name);
+    }
+    if (!shape || shape === 'gemini') {
+      for (const part of chunk?.candidates?.[0]?.content?.parts ?? []) push(part?.functionCall?.name);
     }
   }
   return names;
@@ -230,7 +336,7 @@ export function evaluateWireObservation({ requests = [], responses = [], sawTurn
  * from; a listener failure must never take the turn down, so every read is
  * guarded.
  */
-export function observeModelWire(page, { requests, responses, onError } = {}) {
+export function observeModelWire(page, { requests, responses, aiPaths = [], onError } = {}) {
   const pending = new Set();
   const settle = async ({ timeoutMs = 5_000 } = {}) => {
     const deadline = Date.now() + timeoutMs;
@@ -250,10 +356,14 @@ export function observeModelWire(page, { requests, responses, onError } = {}) {
     try {
       if (req.method() !== 'POST') return;
       const pathname = new URL(req.url()).pathname;
-      if (!isModelCompletionPath(pathname)) return;
+      // R4-3: the broad net - any AI-mount POST means a model call may have begun,
+      // even when the path is not one of the registered model routes.
+      if (isFrameAiPath(pathname)) aiPaths.push({ path: pathname });
+      const shape = modelRouteShape(pathname);
+      if (!shape) return;
       let body = null;
       try { body = JSON.parse(req.postData() || '{}'); } catch { body = null; }
-      requests.push({ path: pathname, body });
+      requests.push({ path: pathname, shape, body });
     } catch (err) {
       fail(err);
     }
@@ -265,13 +375,17 @@ export function observeModelWire(page, { requests, responses, onError } = {}) {
       const req = res.request();
       if (req?.method() !== 'POST') return;
       const pathname = new URL(res.url()).pathname;
-      if (!isModelCompletionPath(pathname)) return;
+      const shape = modelRouteShape(pathname);
+      if (!shape) return;
       let text = '';
       try { text = await res.text(); } catch { text = ''; }
       responses.push({
         status: res.status(),
-        usage: usageFromSseText(text),
-        toolCallNames: toolCallNamesFromSseText(text),
+        shape,
+        // R4-1: the usage is read in the route's own response shape, so an Anthropic
+        // `/messages` stream and a Gemini `/generate` body are counted, not dropped.
+        usage: usageFromSseText(text, shape),
+        toolCallNames: toolCallNamesFromSseText(text, shape),
       });
     })();
     pending.add(task);
