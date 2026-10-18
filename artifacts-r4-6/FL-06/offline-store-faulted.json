@@ -1,0 +1,59 @@
+{
+  "deploymentId": "default",
+  "accountId": "01M57KQAF7VQECH9WA1CNYWZJK",
+  "library": [
+    {
+      "name": "1bc04b5291c26a46d918139138b992d2de976d6851d0893b0476b85bfbdfc6e6.rec",
+      "sizeBytes": 118,
+      "sha256": "3673b8111b3ac6a17fb1ff4b8a9f9ac37e6383a588ef03a8e2b0df33eba27aac"
+    },
+    {
+      "name": "4513c4f601086c2a4f111ffbe57795976feb75859d197ab4d7da62b361d2f612.rec",
+      "sizeBytes": 751,
+      "sha256": "413dc29db6daf27fddb29bc2538a25ded6281882322bedc46343e8e24a68652a"
+    }
+  ],
+  "leases": [
+    {
+      "name": "7cd9c1132a52f4b0eba21c090e22e57fdea79e6b366c06249fbfab5bd220aa15.rec",
+      "sizeBytes": 1539,
+      "sha256": "2120d7e6b90ecfb7cec613702fb055241b7cacac98d1a460f3a24baeda9e7738"
+    }
+  ],
+  "records": [
+    {
+      "store": "library",
+      "name": "1bc04b5291c26a46d918139138b992d2de976d6851d0893b0476b85bfbdfc6e6.rec",
+      "sizeBytes": 118,
+      "sha256": "3673b8111b3ac6a17fb1ff4b8a9f9ac37e6383a588ef03a8e2b0df33eba27aac"
+    },
+    {
+      "store": "library",
+      "name": "4513c4f601086c2a4f111ffbe57795976feb75859d197ab4d7da62b361d2f612.rec",
+      "sizeBytes": 751,
+      "sha256": "413dc29db6daf27fddb29bc2538a25ded6281882322bedc46343e8e24a68652a"
+    },
+    {
+      "store": "feed-cursors",
+      "name": "77bd31a6262c4617871a116d6183ddc167e6a337cd90e43f34ee7d1481b1e816.rec",
+      "sizeBytes": 406,
+      "sha256": "21bb9fa5602b6e1f6d1e509b2bc0a2ecc04ded65580a5a1b38e068e16d70bceb"
+    },
+    {
+      "store": "doc-index",
+      "name": "d430250a46f123f4665e00f91d3ee1ff2765998f99474eb0d7cb981d681bab5b.rec",
+      "sizeBytes": 277,
+      "sha256": "bfb6c51e4e132a6711912433d38704f13fb305e5266d2d3729e1744920293dbb"
+    },
+    {
+      "store": "offline-leases",
+      "name": "7cd9c1132a52f4b0eba21c090e22e57fdea79e6b366c06249fbfab5bd220aa15.rec",
+      "sizeBytes": 1539,
+      "sha256": "2120d7e6b90ecfb7cec613702fb055241b7cacac98d1a460f3a24baeda9e7738"
+    }
+  ],
+  "pinRecords": [
+    "4513c4f601086c2a4f111ffbe57795976feb75859d197ab4d7da62b361d2f612.rec"
+  ],
+  "copies": []
+}

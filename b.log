@@ -1,0 +1,25 @@
+$ (sudo -n apt-get install -y --no-install-recommends gnome-keyring dbus-x11 postgresql-client libsecret-tools python3-gi gir1.2-glib-2.0 || apt-get install -y --no-install-recommends gnome-keyring dbus-x11 postgresql-client libsecret-tools python3-gi gir1.2-glib-2.0); python3 -c 'import gi; print("PYTHON3_GI=yes")' || echo PYTHON3_GI=no; command -v gnome-keyring-daemon psql dbus-run-session go secret-tool; gnome-keyring-daemon --version; ls /usr/lib/x86_64-linux-gnu/faketime/ 2>/dev/null; sudo -n true && echo SUDO_NOPASSWD=yes || echo SUDO_NOPASSWD=no; true
+Reading package lists...
+Building dependency tree...
+Reading state information...
+gnome-keyring is already the newest version (46.1-2ubuntu0.2).
+dbus-x11 is already the newest version (1.14.10-4ubuntu4.1).
+postgresql-client is already the newest version (16+257build1.1).
+libsecret-tools is already the newest version (0.21.4-1build3).
+python3-gi is already the newest version (3.48.2-1).
+gir1.2-glib-2.0 is already the newest version (2.80.0-6ubuntu3.9).
+The following package was automatically installed and is no longer required:
+  libwayland-server0
+Use 'sudo apt autoremove' to remove it.
+0 upgraded, 0 newly installed, 0 to remove and 32 not upgraded.
+PYTHON3_GI=yes
+/usr/bin/gnome-keyring-daemon
+/usr/bin/psql
+/usr/bin/dbus-run-session
+/usr/local/go/bin/go
+/usr/bin/secret-tool
+gnome-keyring-daemon: 46.1
+testing: enabled
+libfaketimeMT.so.1
+libfaketime.so.1
+SUDO_NOPASSWD=yes

@@ -1,0 +1,26 @@
+{
+  "document_id": "01M57KQB17CRY5YN4YFB6477EH",
+  "documentId": "01M57KQB17CRY5YN4YFB6477EH",
+  "readAt": "2026-10-18T13:37:53.206Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M57KQB17CRY5YN4YFE1E6YQM",
+      "document_id": "01M57KQB17CRY5YN4YFB6477EH",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M57KQB0V61Y38BK43A544T5M",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 11187,
+      "checksum_sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "download_url": "/api/v1/documents/01M57KQB17CRY5YN4YFB6477EH/download?version=1",
+      "created_by": "01M57KQAD29F2NXNT2W2ARV9QD",
+      "created_by_kind": "human",
+      "created_at": "2026-10-18T13:37:53Z"
+    }
+  ],
+  "next_cursor": null
+}
