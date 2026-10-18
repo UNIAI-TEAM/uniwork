@@ -1,0 +1,4 @@
+$ (command -v helm >/dev/null || (curl -sSL https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz | tar -xz -C /tmp && sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm)) && bash ci/scripts/render-uniwork-chart.sh; rc=$?; echo; echo "CI_CHART_EXIT=$rc"
+OK: uniwork chart render assertions passed
+
+CI_CHART_EXIT=0
