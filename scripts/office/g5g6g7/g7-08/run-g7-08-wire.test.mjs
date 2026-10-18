@@ -240,4 +240,21 @@ describe('G7-08 real-run wire observation drives the matrix stop', () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it('w2i: a driver-observed frame-AI POST to the web origin is BLOCKED frame_ai_wrong_origin naming both origins and never counted as a model call', async () => {
+    const p = fakePage();
+    const verdict = await runWebMatrixRow({ rowId: 'X-R1', host: 'web' }, {
+      apiOrigin: 'http://api.test',
+      injectedPage: p,
+      injectedRowBody: async () => {
+        p.emit('request', fakeReq(MODEL_URL));
+      },
+    });
+    assert.equal(verdict.status, VERDICT.BLOCKED);
+    assert.equal(verdict.exitCode, ROW_EXIT.BLOCKED);
+    assert.equal(verdict.reason, 'frame_ai_wrong_origin');
+    assert.equal(verdict.details.expectedOrigin, 'http://api.test');
+    assert.equal(verdict.details.observedOrigin, 'http://web.test');
+    assert.equal(verdict.usage.modelCalls, 0);
+  });
 });

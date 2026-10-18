@@ -10,7 +10,7 @@ import { parseEnvFile, sleep } from '../harness/app-steps.mjs';
 import { harnessPaths } from '../harness/lib.mjs';
 import { VERDICT, blockedVerdict, passVerdict } from './oracles.mjs';
 import { DEFAULT_REPO_ROOT, FORMAT_FEATURE_FLAGS, SERVER_FORMAT_TOKENS } from './rows.mjs';
-import { MODEL_CALL_ROUTE_GLOBS, modelRouteShape, toolCallNamesFromSseText, usageFromSseText } from './wire-observe.mjs';
+import { modelCallRouteGlobs, modelRouteShape, toolCallNamesFromSseText, usageFromSseText } from './wire-observe.mjs';
 
 export const HARNESS_PRECONDITION_OWNER = 'D (harness)';
 export const FRAME_SELECTOR_OWNER = 'F';
@@ -285,8 +285,9 @@ export async function installProtocolSniffer(page) {
 }
 
 export async function bindDryRunStubRoutes({
-  page, fetchImpl = fetch, stub, documentId, rowId, wireRequests, wireResponses,
+  page, apiOrigin, fetchImpl = fetch, stub, documentId, rowId, wireResponses,
 }) {
+  const baseOrigin = new URL(apiOrigin).origin;
   const regRes = await fetchImpl(`${stub.url}/api/v1/auth/register`, { method: 'POST', body: '{}' });
   const { access_token: stubAccess } = await regRes.json();
   const mintRes = await fetchImpl(`${stub.url}/api/v1/documents/${documentId}/office/frame-token`, {
@@ -294,7 +295,7 @@ export async function bindDryRunStubRoutes({
   });
   const { token: stubFrameToken } = await mintRes.json();
 
-  await page.route('**/api/v1/office-frame/documents/*/ai/credentials', async (route) => {
+  await page.route(`${baseOrigin}/api/v1/office-frame/documents/*/ai/credentials`, async (route) => {
     const headers = corsHeadersForOrigin(route.request().headers().origin || '*');
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     await route.fulfill({
@@ -303,7 +304,7 @@ export async function bindDryRunStubRoutes({
     });
   });
 
-  await page.route('**/api/v1/office-frame/documents/*/ai/cloud', async (route) => {
+  await page.route(`${baseOrigin}/api/v1/office-frame/documents/*/ai/cloud`, async (route) => {
     const headers = corsHeadersForOrigin(route.request().headers().origin || '*');
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     const up = await fetchImpl(`${stub.url}/api/v1/office-frame/documents/${documentId}/ai/cloud`, {
@@ -312,7 +313,7 @@ export async function bindDryRunStubRoutes({
     await route.fulfill({ status: up.status, headers: { ...headers, 'Content-Type': 'application/json' }, body: await up.text() });
   });
 
-  await page.route('**/api/v1/office-frame/documents/*/ai/uniwork/models', async (route) => {
+  await page.route(`${baseOrigin}/api/v1/office-frame/documents/*/ai/uniwork/models`, async (route) => {
     const headers = corsHeadersForOrigin(route.request().headers().origin || '*');
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     const up = await fetchImpl(`${stub.url}/api/v1/office-frame/documents/${documentId}/ai/uniwork/models`, {
@@ -321,24 +322,17 @@ export async function bindDryRunStubRoutes({
     await route.fulfill({ status: up.status, headers: { ...headers, 'Content-Type': 'application/json' }, body: await up.text() });
   });
 
-  // R4-1: the dry-run stub covers exactly the registered model-CALL routes - the same table the
-  // real-run observer counts (`wire-observe.mjs`), so a dry BYOK row is stubbed or BLOCKED by
-  // name, never passed unseen. The UniWork turn is forwarded to the stub facade; the BYOK routes
-  // have no vendor stub, so they answer a named 501 whose response carries no usage, and the row
-  // BLOCKs on the unknown instead of scoring a zero-token call.
-  for (const glob of MODEL_CALL_ROUTE_GLOBS) {
+  // R4-1 + w2i: the dry-run stub intercepts only on the absolute API origin the harness started.
+  for (const glob of modelCallRouteGlobs(baseOrigin)) {
     await page.route(glob, async (route) => {
       const req = route.request();
       const cors = corsHeadersForOrigin(req.headers().origin || '*');
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors, body: '' });
-      const pathname = new URL(req.url()).pathname;
+      const { origin, pathname } = new URL(req.url());
       const shape = modelRouteShape(pathname);
       const postBody = req.postData() || '{}';
-      let parsedBody = null;
-      try { parsedBody = JSON.parse(postBody); } catch { parsedBody = null; }
-      wireRequests.push({ path: pathname, shape, body: parsedBody });
       if (shape !== 'openai' || !/\/ai\/uniwork\/chat\/completions$/.test(pathname)) {
-        wireResponses.push({ status: 501, shape, usage: null, toolCallNames: [] });
+        wireResponses.push({ origin, status: 501, shape, usage: null, toolCallNames: [] });
         return route.fulfill({
           status: 501,
           headers: { ...cors, 'Content-Type': 'application/json' },
@@ -360,6 +354,7 @@ export async function bindDryRunStubRoutes({
       // G708-R2-7 + R4-1: the stream is read in the route's own shape; a stream with no usage
       // chunk is an unknown count (null), never a recorded 0.
       wireResponses.push({
+        origin,
         status: upstreamRes.status,
         shape,
         usage: usageFromSseText(sseText, shape),

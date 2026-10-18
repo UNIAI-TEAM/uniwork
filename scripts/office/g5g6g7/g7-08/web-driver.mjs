@@ -203,7 +203,7 @@ export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
 export async function runWebMatrixRow(runEntry, {
   runDir, repoRoot = DEFAULT_REPO_ROOT, dryRun = false, fetchImpl = fetch,
   env = process.env, timeoutMs = 45_000, observedOverride = null,
-  injectedPage = null, injectedRowBody = null,
+  apiOrigin: injectedApiOrigin = null, injectedPage = null, injectedRowBody = null,
 } = {}) {
   const row = getRowById(runEntry?.rowId ?? runEntry?.id) ?? runEntry;
   if (!row) return blockedVerdict('unknown_matrix_row');
@@ -213,7 +213,7 @@ export async function runWebMatrixRow(runEntry, {
   if (observedOverride) return evaluateRowObserved(row, observedOverride);
   if (row.mode === 'hitl') return evaluateRowObserved(row, {});
   const injected = typeof injectedRowBody === 'function';
-  let apiOrigin;
+  let apiOrigin = injectedApiOrigin;
   let webOrigin;
   let fixture;
   if (!injected) {
@@ -241,8 +241,11 @@ export async function runWebMatrixRow(runEntry, {
   const aiPaths = [];
   try {
     if (injected) {
-      observeModelWire(injectedPage, { requests: wireRequests, responses: wireResponses, aiPaths });
+      const { settle } = observeModelWire(injectedPage, { requests: wireRequests, responses: wireResponses, aiPaths });
       await injectedRowBody();
+      await settle();
+      const usage = evaluateWireObservation({ requests: wireRequests, responses: wireResponses, aiPaths, apiOrigin });
+      if (usage.unobserved) return { ...blockedVerdict(usage.reason, { ...usage.detail, missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls }), usage };
       return blockedVerdict('injected_row_body_returned');
     }
     seeded = await seedFixtureDocument({ apiOrigin, runDir, fetchImpl, fixtureId: row.fixtureId, repoRoot });
@@ -281,17 +284,14 @@ export async function runWebMatrixRow(runEntry, {
       else if (p.endsWith('/versions/commit')) commitBases.push(parseCommitBaseRevision(req.postData()));
     });
 
-    let settleWire = async () => 0;
+    const settleWire = observeModelWire(web.page, {
+      requests: wireRequests, responses: wireResponses, aiPaths, recordResponses: !(dryRun && stub),
+    }).settle;
     if (dryRun && stub) {
       await bindDryRunStubRoutes({
-        page: web.page, fetchImpl, stub, documentId, rowId: row.id, wireRequests, wireResponses,
+        page: web.page, apiOrigin, fetchImpl, stub, documentId, rowId: row.id, wireResponses,
       });
-    } else {
-      // R3-1: on a real run nothing routes or fulfils the model call - the observer only listens,
-      // so the SSE stream the frame sees is untouched, and every model response (usage or not) is recorded.
-      settleWire = observeModelWire(web.page, { requests: wireRequests, responses: wireResponses, aiPaths }).settle;
     }
-
     const sel = moduleFrameSelectors(row.module);
     await web.page.goto(documentUrl({ webOrigin, org: organizationSlug, ws: workspaceSlug, documentId }), {
       waitUntil: 'domcontentloaded', timeout: timeoutMs,
@@ -377,14 +377,12 @@ export async function runWebMatrixRow(runEntry, {
       || saveIntentsDuringAiTurn > 0
       || wireResponses.some((res) => (res?.toolCallNames?.length ?? 0) > 0);
     const usage = evaluateWireObservation({
-      requests: wireRequests,
-      responses: wireResponses,
-      sawTurnEffects,
+      requests: wireRequests, responses: wireResponses, aiPaths, apiOrigin, sawTurnEffects,
     });
     if (usage.unobserved) {
       return {
         ...blockedVerdict(usage.reason, {
-          missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls,
+          ...usage.detail, missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls,
           requests: wireRequests.length, responses: wireResponses.length,
         }),
         documentId, usage, preconditions, screenshotPath,
