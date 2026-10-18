@@ -39,7 +39,8 @@ export interface MessageCardContext {
   wsSlug: string;
   roomId: string;
   userId: string;
-  onOpenImage: (url: string, name: string) => void;
+  /** `messageId` lets the viewer page through the conversation's photos from this one. */
+  onOpenImage: (url: string, name: string, messageId?: string) => void;
   /** A tap on a poll option (M3); the cache takes the answer. */
   onVotePoll: (messageId: string, optionId: string) => void;
 }
@@ -133,7 +134,7 @@ function ImageCard({ record, ctx, onLongPress }: { record: ChatMessageRecord; ct
   const freshUrl = useFreshChatMediaUrl(ctx.wsId, ctx.roomId);
   const open = () =>
     void freshUrl(record.id, { url: file.url, expiresAt: file.url_expires_at }, (m) => m.file?.url)
-      .then((url) => ctx.onOpenImage(url, file.filename))
+      .then((url) => ctx.onOpenImage(url, file.filename, record.id))
       .catch(() => Alert.alert(t("chat.media_unavailable", { name: file.filename })));
   return (
     <Pressable {...longPress} onPress={open} accessibilityRole="imagebutton" accessibilityLabel={t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") })}>
@@ -165,7 +166,7 @@ function FileCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord
     <Pressable {...longPress} onPress={open} accessibilityRole="button" accessibilityLabel={t("chat.message_list.file_open_named", { name })} className="min-w-[240px] flex-row items-center gap-3">
       <View className={cn("h-12 w-12 items-center justify-center rounded-lg", TINTS[badge.tint].bg)}>
         {badge.label ? (
-          <Text className={cn("text-[11px] font-extrabold", TINTS[badge.tint].text)}>{badge.label}</Text>
+          <Text className={cn("text-[11px] font-display font-extrabold", TINTS[badge.tint].text)}>{badge.label}</Text>
         ) : (
           <Ionicons name="document-outline" size={22} color={theme[TINTS[badge.tint].ink]} />
         )}
@@ -249,7 +250,7 @@ function PollCard({ record, own, ctx, onLongPress }: { record: ChatMessageRecord
   const footer = [results.closed ? t("chat.poll_closed") : null, results.hideCounts ? null : t("chat.poll_vote_hint", { count: results.total })].filter(Boolean).join(" · ");
   return (
     <Card own={own} tint="blue" icon="stats-chart-outline" kind={t("chat.poll_message_badge")} badge={results.closed ? <Pill label={t("chat.poll_closed_status")} /> : null}>
-      <Text className={cn("text-[15px] font-bold", ink(own).text)}>{poll.question}</Text>
+      <Text className={cn("text-[15px] font-display font-bold", ink(own).text)}>{poll.question}</Text>
       <Text className={cn("mb-1 text-xs", ink(own).meta)}>{t(many ? "chat.message_list.poll_pick_many" : "chat.message_list.poll_pick_one")}</Text>
       {results.options.map((option) => (
         <Pressable
@@ -433,7 +434,7 @@ export function MessageContent({ record, own, ctx, onLongPress }: { record: Chat
     case "post":
       return (
         <Card own={own} tint="orange" icon="newspaper-outline" kind={t("chat.post_message_badge")}>
-          <Text className={cn("text-[17px] font-bold", ink(own).text)}>{record.post!.title}</Text>
+          <Text className={cn("text-[17px] font-display font-bold", ink(own).text)}>{record.post!.title}</Text>
           <Text className={body}>{record.post!.body}</Text>
         </Card>
       );

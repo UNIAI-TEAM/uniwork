@@ -19,7 +19,7 @@ import { useRoomContext } from "@/components/chat/use-room-context";
 import { Text } from "@/components/ui/text";
 import { callEngine } from "@/data/calls/call-store";
 import { refreshRoomTimelineOnOpen } from "@/data/chat-timeline";
-import { roomAroundOptions, roomTimelineOptions } from "@/data/queries/chat";
+import { roomAroundOptions, roomTimelineOptions, roomsOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import { roomHeaderMark } from "@/lib/conversation-display";
@@ -34,6 +34,8 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   const [anchorId, setAnchorId] = useState<string | null>(linkedMessageId);
   const [jump, setJump] = useState<{ id: string; seq: number } | null>(linkedMessageId ? { id: linkedMessageId, seq: 0 } : null);
   const [atLatest, setAtLatest] = useState(true);
+  // Unread in the other conversations, on the back button (MobileChat board).
+  const otherUnread = useQuery(roomsOptions(chat.wsId)).data?.reduce((sum, entry) => (entry.id === roomId ? sum : sum + (entry.unread_count ?? 0)), 0) ?? 0;
 
   // A new link while the room is open moves the anchor.
   useEffect(() => {
@@ -76,9 +78,12 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
       header={
         <ChatHeader
           title={room.title}
+          backBadge={otherUnread}
+          onPressTitle={() => router.push(chatRoutes.info(chat, roomId))}
+          titleActionLabel={t("chat.mobile.room_info")}
           subtitle={room.typingLabel ?? (room.peerOnline ? t("chat.presence_online") : null)}
           typing={Boolean(room.typingLabel)}
-          avatar={room.room ? <RoomAvatar mark={roomHeaderMark(room.room, room.title, room.peerOnline)} size={40} /> : null}
+          avatar={room.room ? <RoomAvatar mark={roomHeaderMark(room.room, room.title, room.peerOnline)} size={40} seed={roomId} /> : null}
           right={
             <View className="flex-row">
               {callable ? (
@@ -87,7 +92,6 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
                   <HeaderIconButton icon="videocam-outline" label={t("chat.video_call_start")} testID="room-call-video" onPress={() => call(true)} />
                 </>
               ) : null}
-              <HeaderIconButton icon="information-circle-outline" label={t("chat.mobile.room_info")} onPress={() => router.push(chatRoutes.info(chat, roomId))} />
             </View>
           }
         />
