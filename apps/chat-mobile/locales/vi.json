@@ -1118,7 +1118,9 @@
     "calls": {
       "empty": "Chưa có cuộc gọi nào. Cuộc gọi trong các cuộc trò chuyện của bạn sẽ hiện ở đây.",
       "outgoing": "Gọi đi",
-      "incoming": "Gọi đến"
+      "incoming": "Gọi đến",
+      "filter_missed": "Cuộc gọi nhỡ",
+      "no_missed": "Không có cuộc gọi nhỡ nào."
     },
     "contacts": {
       "empty": "Chưa có ai khác trong workspace này.",

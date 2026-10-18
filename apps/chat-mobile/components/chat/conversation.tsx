@@ -1,6 +1,7 @@
 // The body of a conversation, shared by a room and a thread: the message list
-// with day separators, quotes, "Đã xem" on a DM, the typing line and the task
-// cards under messages; the composer with its voice, sticker/GIF and reminder
+// on the chat wall with day separators, bubbles shaped by run, quotes, "Đã xem"
+// on a DM, the typing line and the task cards under messages; in a thread the
+// root stands out above an "N trả lời" divider; the composer with its voice, sticker/GIF and reminder
 // sends; and the long-press sheet with what each action does to the server
 // and the cache (send queue, reactions, edit, delete, copy, thread, poll vote,
 // follow-up, task).
@@ -27,10 +28,12 @@ import { chatApi } from "@/data/chat-api";
 import { chatSendDeps, deliverPendingSend, discardPendingSend, sendChatMessage } from "@/data/chat-send";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
+import { continuedRunKeys } from "@/lib/conversation-display";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText } from "@/lib/message-display";
 import type { PendingFile } from "@/lib/send-pipeline";
 import { buildTimelineRows, type TimelineMessage, type TimelineRow } from "@/lib/timeline-display";
+import { useColorScheme } from "@/lib/use-color-scheme";
 import { Composer, type ComposerEdit, type ComposerReply } from "./composer";
 import { ExpressionSheet } from "./expression-sheet";
 import { ImageViewer } from "./image-viewer";
@@ -71,8 +74,10 @@ export function Conversation(props: Props) {
   const [image, setImage] = useState<{ url: string; name: string } | null>(null);
   const [sheet, setSheet] = useState<"expressions" | "reminder" | null>(null);
   const { wsId, userId } = chat;
+  const { colorScheme } = useColorScheme();
 
   const rows = useMemo(() => buildTimelineRows(messages), [messages]);
+  const continued = useMemo(() => continuedRunKeys(rows), [rows]);
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   // A DM's single "Seen", on the latest own message the peer has read.
   const seenId = useMemo(() => {
@@ -124,11 +129,12 @@ export function Conversation(props: Props) {
     const own = message.sender === userId;
     const quotedId = message.replyToEventId;
     const quoted = quotedId ? byId.get(quotedId) : undefined;
-    return (
+    const bubble = (
       <MessageRow
         message={message}
         own={own}
         compactTop={row.compactTop}
+        continued={continued.has(row.key)}
         senderName={room.senderName(message)}
         showSender={room.isGroup && !own && row.showAvatar}
         quote={quotedId ? (quoted ? quoteOf(quoted) : { id: quotedId, sender: t("chat.action_reply"), text: "…" }) : null}
@@ -136,6 +142,7 @@ export function Conversation(props: Props) {
         highlighted={message.id === props.jumpTo?.id}
         showThread={!threadRootId}
         ctx={ctx}
+        scheme={colorScheme}
         taskIds={taskIdsByMessage.get(message.id)}
         onLongPress={setActionMessage}
         onPressQuote={props.onQuoteJump}
@@ -144,6 +151,24 @@ export function Conversation(props: Props) {
         onToggleReaction={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => Alert.alert(t("chat.message_list.react_failed")))}
       />
     );
+    if (message.id !== threadRootId) return bubble;
+    // The server's count covers replies on pages not loaded yet; the loaded ones cover a count not refreshed yet.
+    const replies = Math.max(message.record?.reply_count ?? 0, messages.length - 1);
+    const label = t("chat.thread_replies", { count: replies });
+    return (
+      <>
+        <View className="border-b border-primary/20 bg-primary/10 pb-3">{bubble}</View>
+        {replies > 0 ? (
+          <View className="flex-row items-center gap-2.5 px-3 pb-1.5 pt-3.5" accessible accessibilityRole="header" accessibilityLabel={label}>
+            <View className="h-px flex-1 bg-border" />
+            <View className="rounded-full bg-chat-chip px-3 py-[3px]">
+              <Text className="text-[13px] font-semibold text-chat-chip-foreground">{label}</Text>
+            </View>
+            <View className="h-px flex-1 bg-border" />
+          </View>
+        ) : null}
+      </>
+    );
   };
 
   return (
@@ -151,11 +176,11 @@ export function Conversation(props: Props) {
       {props.header}
       {props.banner}
       {props.loading ? (
-        <View className="flex-1 items-center justify-center">
+        <View className="flex-1 items-center justify-center bg-chat-wall">
           <ActivityIndicator accessibilityLabel={t("common.loading")} />
         </View>
       ) : (
-        <View className="flex-1">
+        <View className="flex-1 bg-chat-wall">
           <MessageList
             rows={rows}
             renderMessage={renderMessage}
@@ -202,6 +227,7 @@ export function Conversation(props: Props) {
       <MessageActionsSheet
         message={actionMessage}
         own={actionMessage?.sender === userId}
+        senderName={actionMessage ? room.senderName(actionMessage) : undefined}
         inThread={Boolean(threadRootId)}
         followUp={actionMessage ? openFollowUp(actionMessage.id) : null}
         onClose={() => setActionMessage(null)}

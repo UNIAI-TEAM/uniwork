@@ -1,5 +1,7 @@
 // Ported from usf apps/mobile/app/(app)/select-workspace.tsx. One organization
-// per account (ADR 0032), so the list is flat.
+// per account (ADR 0032), so the list is flat, the organization named once
+// above it (canvas MobSelectWorkspace).
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import type { Workspace } from "@uniwork/core/types/workspace";
 import { router } from "expo-router";
@@ -15,9 +17,12 @@ import { useAuthStore } from "@/data/auth/store";
 import { unregisterPushToken } from "@/data/push";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { THEME } from "@/lib/theme";
+import { useColorScheme } from "@/lib/use-color-scheme";
 
 export default function SelectWorkspace() {
   const { t } = useTranslation();
+  const { colorScheme } = useColorScheme();
   const logout = useAuthStore((s) => s.logout);
   const setCurrent = useWorkspaceStore((s) => s.setCurrent);
   const { data, isLoading, error, refetch } = useQuery(workspaceListOptions());
@@ -32,10 +37,24 @@ export default function SelectWorkspace() {
     await logout();
   };
 
+  const organization = data?.[0]?.organization_name;
+
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView contentContainerClassName="px-6 py-6 gap-6">
-        <Text className="text-2xl font-semibold text-foreground">{t("workspace.pickTitle")}</Text>
+      <ScrollView contentContainerClassName="gap-6 px-5 pb-6 pt-3">
+        <View className="gap-2.5">
+          <Text accessibilityRole="header" className="text-[30px] font-extrabold leading-9 tracking-tight text-foreground">
+            {t("workspace.pickTitle")}
+          </Text>
+          {organization ? (
+            <View className="flex-row items-center gap-2">
+              <WorkspaceAvatar name={organization} size={24} />
+              <Text numberOfLines={1} className="flex-1 text-[15px] font-semibold text-foreground">
+                {organization}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         {isLoading ? (
           <View className="py-8 items-center">
             <ActivityIndicator />
@@ -52,19 +71,31 @@ export default function SelectWorkspace() {
         ) : (
           <View className="gap-3">
             {data.map((ws) => (
-              <CardPressable key={ws.id} className="flex-row items-center gap-3" onPress={() => void onSelect(ws)}>
-                <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={40} />
-                <View className="flex-1">
-                  <Text className="text-base font-semibold text-foreground">{ws.name}</Text>
-                  <Text className="text-xs text-muted-foreground mt-0.5">{ws.organization_name}</Text>
+              <CardPressable
+                key={ws.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${ws.name}, ${ws.organization_name}`}
+                className="min-h-[76px] flex-row items-center gap-3.5 py-3.5 pl-4 pr-3.5"
+                onPress={() => void onSelect(ws)}
+              >
+                <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={48} />
+                <View className="flex-1 gap-0.5">
+                  <Text numberOfLines={1} className="text-base font-bold text-foreground">
+                    {ws.name}
+                  </Text>
+                  <Text numberOfLines={1} className="text-[13px] text-muted-foreground">
+                    {ws.organization_name}
+                  </Text>
                 </View>
+                <Ionicons name="chevron-forward" size={18} color={THEME[colorScheme].mutedForeground} />
               </CardPressable>
             ))}
           </View>
         )}
-        <View className="pt-4 border-t border-border">
-          <Button variant="outline" onPress={() => void onLogout()}>
-            <Text>{t("auth.logout")}</Text>
+        <View className="border-t border-border pt-5">
+          <Button variant="outline" className="h-12 rounded-full sm:h-12" onPress={() => void onLogout()}>
+            <Ionicons name="log-out-outline" size={18} color={THEME[colorScheme].foreground} />
+            <Text className="text-[15px] font-semibold">{t("auth.logout")}</Text>
           </Button>
         </View>
       </ScrollView>

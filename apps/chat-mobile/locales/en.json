@@ -1118,7 +1118,9 @@
     "calls": {
       "empty": "No calls yet. Calls in your conversations show up here.",
       "outgoing": "Outgoing",
-      "incoming": "Incoming"
+      "incoming": "Incoming",
+      "filter_missed": "Missed",
+      "no_missed": "No missed calls."
     },
     "contacts": {
       "empty": "No one else is in this workspace yet.",

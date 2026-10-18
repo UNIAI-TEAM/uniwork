@@ -4,6 +4,7 @@
 // and the time are the tab's own.
 import type { CallLog } from "@/data/queries/call-logs";
 import { resolveChatNicknameForUser } from "./contacts-display";
+import { formatMessageDay } from "./timeline-display";
 
 export interface CallLogView {
   /** the web row's i18n key, with its params */
@@ -64,4 +65,36 @@ export function formatCallTime(iso: string, locale: string, now: Date = new Date
   if (at.toDateString() === now.toDateString()) return at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   const sameYear = at.getFullYear() === now.getFullYear();
   return at.toLocaleDateString(locale, sameYear ? { day: "2-digit", month: "2-digit" } : { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** The clock time of a log; the day header above the row carries the date. Blank when unreadable. */
+export function formatCallClock(iso: string, locale: string): string {
+  const at = new Date(iso);
+  if (!iso || Number.isNaN(at.getTime())) return "";
+  return at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+}
+
+export type CallLogFilter = "all" | "missed";
+
+type SectionedLog = Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds" | "ended_at">;
+
+/**
+ * The calls tab's day groups: the logs in the order the server pages them
+ * (newest first), a header each time the calendar day changes, titled like the
+ * room's day divider. `missed` keeps only the calls missed by the viewer.
+ */
+export function callLogSections<T extends SectionedLog>(
+  logs: readonly T[],
+  options: { userId: string; filter: CallLogFilter; locale: string; labels: { today: string; yesterday: string }; now?: Date },
+): { title: string; data: T[] }[] {
+  const sections: { title: string; data: T[] }[] = [];
+  for (const log of logs) {
+    if (options.filter === "missed" && !callLogView(log, options.userId).missed) continue;
+    const ts = new Date(log.ended_at).getTime();
+    const title = log.ended_at && !Number.isNaN(ts) ? formatMessageDay(ts, options.locale, options.labels, options.now) : "";
+    const last = sections.at(-1);
+    if (last && last.title === title) last.data.push(log);
+    else sections.push({ title, data: [log] });
+  }
+  return sections;
 }

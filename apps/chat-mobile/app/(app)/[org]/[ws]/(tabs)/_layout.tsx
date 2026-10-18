@@ -1,5 +1,6 @@
 // Ported from usf apps/mobile/app/(app)/[workspace]/(tabs)/_layout.tsx with
-// Ionicons instead of SF symbols (Android has none). Four tabs of M1.
+// Ionicons instead of SF symbols (Android has none). Four tabs of M1; the
+// MobileList board's bar: brand when active, the filled glyph on the active tab.
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import type { ComponentProps } from "react";
@@ -25,10 +26,10 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: theme.primary,
+        tabBarActiveTintColor: theme.brand,
         tabBarInactiveTintColor: theme.mutedForeground,
         tabBarStyle: { backgroundColor: theme.background, borderTopColor: theme.border },
-        tabBarLabelStyle: { fontSize: 11 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}
     >
       {TABS.map((tab) => (
