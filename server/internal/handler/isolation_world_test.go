@@ -287,6 +287,12 @@ type isoBody struct {
 	json      any
 	multipart *isoMultipart
 	headers   map[string]string
+	// raw is sent as is under a JSON content type, for a body that is not valid
+	// JSON or is too large to build from a value.
+	raw []byte
+	// noBody sends a write with a zero-length body and no Content-Type, the way
+	// the desktop's lease client grants (the default injects "{}" instead).
+	noBody bool
 }
 
 type isoMultipart struct {
@@ -323,6 +329,10 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 		_, _ = part.Write(body.multipart.content)
 		_ = mw.Close()
 		rd, contentType = &buf, mw.FormDataContentType()
+	case body.noBody:
+		rd = http.NoBody
+	case body.raw != nil:
+		rd, contentType = bytes.NewReader(body.raw), "application/json"
 	case body.json != nil:
 		raw, err := json.Marshal(body.json)
 		if err != nil {

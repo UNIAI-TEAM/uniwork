@@ -432,18 +432,21 @@ var isoRoutes = map[string]isoSpec{
 	// R1-8: the anchors key is required, so the body must carry it or the
 	// route answers 400 before it reads the document - an empty [] is the
 	// valid no-op update the tenancy gate then judges.
-	"PUT /api/v1/documents/{documentID}/comments/anchors":  {body: isoWith(map[string]string{"version_id": "versionID"}, map[string]any{"anchors": []any{}})},
-	"POST /api/v1/documents/{documentID}/copies":           {body: isoIdem(nil, map[string]any{"consent": "copy"})},
-	"POST /api/v1/documents/{documentID}/move":             {body: isoJSON(map[string]any{"revision": "1", "parent_id": nil})},
-	"POST /api/v1/documents/{documentID}/office/jobs":      {body: isoIdem(nil, map[string]any{"operation": "serialize"})},
-	"POST /api/v1/documents/{documentID}/office/sessions":  {body: isoLaunchPost},
-	"POST /api/v1/documents/{documentID}/preview/scopes":   {body: isoPreviewPost},
-	"PUT /api/v1/orgs/{orgID}/ai/credentials/{aiProvider}": {body: isoAICredentialPut},
-	"POST /api/v1/orgs/{orgID}/ai/cloud/search":            {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
-	"POST /api/v1/orgs/{orgID}/ai/cloud/images":            {body: isoJSON(map[string]any{"prompt": "iso"})},
-	"POST /api/v1/orgs/{orgID}/ai/cloud/media/analyze":     {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
-	"POST /api/v1/orgs/{orgID}/ai/cloud/transcribe":        {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
-	"POST /api/v1/orgs/{orgID}/signatures":                 {body: isoSignaturePost},
+	"PUT /api/v1/documents/{documentID}/comments/anchors": {body: isoWith(map[string]string{"version_id": "versionID"}, map[string]any{"anchors": []any{}})},
+	"POST /api/v1/documents/{documentID}/copies":          {body: isoIdem(nil, map[string]any{"consent": "copy"})},
+	"POST /api/v1/documents/{documentID}/move":            {body: isoJSON(map[string]any{"revision": "1", "parent_id": nil})},
+	"POST /api/v1/documents/{documentID}/office/jobs":     {body: isoIdem(nil, map[string]any{"operation": "serialize"})},
+	"POST /api/v1/documents/{documentID}/office/sessions": {body: isoLaunchPost},
+	// G5-D1: the desktop grants with no body at all, so the outsider and the
+	// control both send that, and a 400 before the tenancy gate would fail it.
+	"PUT /api/v1/documents/{documentID}/office/offline-lease": {body: func(*isoWorld, *isoTenant) isoBody { return isoBody{noBody: true} }},
+	"POST /api/v1/documents/{documentID}/preview/scopes":      {body: isoPreviewPost},
+	"PUT /api/v1/orgs/{orgID}/ai/credentials/{aiProvider}":    {body: isoAICredentialPut},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/search":               {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/images":               {body: isoJSON(map[string]any{"prompt": "iso"})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/media/analyze":        {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/transcribe":           {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
+	"POST /api/v1/orgs/{orgID}/signatures":                    {body: isoSignaturePost},
 	// UniWork AI (G6-03a): one turn per call with the conversation held by the
 	// server, so the body is a single user question. The frame's row rides the
 	// tenant's DOCX frame token; the session document row rides its Markdown
