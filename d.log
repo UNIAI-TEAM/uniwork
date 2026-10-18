@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19180 14100; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19180/tcp 14100/tcp 2>/dev/null; sleep 1; for p in 19180 14100; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+53d606179b719507b5b5595e83604b47b0902db1
+53d606179 chore: merge G5-G7 root 6f4ca157a into FRAME-RO-HOST (UNI-1901)
+8ec35a476 feat(office): handle close_requested from office frames (UNI-1901)
+561af585d test(office): add red tests for close_requested frame event (UNI-1901)
+9afd09f3c fix(office): keep comments for a comment-level viewer (RFH-1) + fix exportPdf docstring (RFH-2)

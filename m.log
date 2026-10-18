@@ -1,0 +1,150 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_MODULES_WEB_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-modules-web.spec.ts --reporter=list > /tmp/frohb-office-modules-web.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/frohb-office-modules-web.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/frohb-office-modules-web.log && echo "skipped: office-modules-web has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/frohb-office-modules-web.log || { echo "no passing test matched office-modules-web"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_MODULES_WEB_EXIT=$rc"
+  ✓  14 office-modules-web.spec.ts:167:5 › sheets module › a book.xlsx opens in the sheets frame and the handshake completes (4.1s)
+  ✓  15 office-modules-web.spec.ts:180:5 › sheets module › a sheets frame bundle that answers 404 shows the load failure, not an endless skeleton (2.6s)
+  ✘  16 office-modules-web.spec.ts:207:7 › sheets module › an edit in the sheets frame is saved as a new version (6.7s)
+
+
+  1) office-modules-web.spec.ts:207:7 › sheets module › an edit in the sheets frame is saved as a new version 
+
+    Error: sheets: stored v2 lacks the edit 04826241
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      218 |         const newest = (await listVersions(request, seeded.account.token, seeded.documentId)).reduce((a, b) => (b.version > a.version ? b : a));
+      219 |         const bytes = await versionBytes(request, seeded.account.token, seeded.documentId, newest.version);
+    > 220 |         expect(await c.hasEdit!(bytes, marker), `${c.module}: stored v${newest.version} lacks the edit ${marker}`).toBe(true);
+          |                                                                                                                    ^
+      221 |         await page.screenshot({ path: test.info().outputPath(`02-${c.module}-saved.png`) });
+      222 |       });
+      223 |     }
+
+    Error Context: test-results/office-modules-web-sheets--60b6b-e-is-saved-as-a-new-version/error-context.md
+
+    Error Context: test-results/office-modules-web-sheets--60b6b-e-is-saved-as-a-new-version/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/office-modules-web-sheets--60b6b-e-is-saved-as-a-new-version/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/office-modules-web-sheets--60b6b-e-is-saved-as-a-new-version/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    office-modules-web.spec.ts:207:7 › sheets module › an edit in the sheets frame is saved as a new version 
+  15 passed (2.0m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-modules-web.spec.ts --reporter=list
+===== e2e/test-results/office-modules-web-sheets--60b6b-e-is-saved-as-a-new-version/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-modules-web.spec.ts >> sheets module >> an edit in the sheets frame is saved as a new version
+- Location: office-modules-web.spec.ts:207:7
+
+# Error details
+
+```
+Error: sheets: stored v2 lacks the edit 04826241
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+```
+
+# Test source
+
+```ts
+  120 |       expect(response.headers()["content-security-policy"]).toBe(pin.headers["Content-Security-Policy"]);
+  121 |       expect(response.headers()["x-frame-options"]).toBe("SAMEORIGIN");
+  122 |       expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+  123 |     });
+  124 |   }
+  125 | 
+  126 |   test("html: preview.html is served with its own sandboxed policy, not the frame's", async ({ request }) => {
+  127 |     test.skip(!(await moduleFrameInstalled(request, baseUrl, "html")), "no html bundle is installed in this web build");
+  128 |     const pin = readModulePin("html")! as ModulePin & { headers: Record<string, string>; documents: { path: string; value: string }[] };
+  129 |     const response = await request.get(`${baseUrl}${moduleFrameBase("html", pin)}/preview.html`);
+  130 |     expect(response.status()).toBe(200);
+  131 |     const csp = response.headers()["content-security-policy"];
+  132 |     expect(csp).toBe(pin.documents[0]!.value);
+  133 |     expect(csp).toContain("sandbox allow-scripts allow-forms allow-popups allow-modals");
+  134 |     expect(csp).not.toContain("allow-same-origin");
+  135 |     expect(csp.replace("frame-ancestors 'self'", "")).not.toContain("'self'"); // only the framing rule names the host
+  136 |     expect(csp).toContain("connect-src 'none'");
+  137 |     expect(csp).not.toBe(pin.headers["Content-Security-Policy"]);
+  138 |     expect(response.headers()["x-frame-options"]).toBe("SAMEORIGIN");
+  139 |   });
+  140 | });
+  141 | 
+  142 | for (const c of CASES) {
+  143 |   test.describe(`${c.module} module`, () => {
+  144 |     const pin = readModulePin(c.module);
+  145 |     let seeded: SeededDocx;
+  146 | 
+  147 |     test.beforeAll(async ({ browser, request }) => {
+  148 |       test.skip(!(await moduleFrameInstalled(request, baseUrl, c.module)), `no ${c.module} bundle is installed in this web build`);
+  149 |       const context = await browser.newContext({ baseURL: baseUrl });
+  150 |       try {
+  151 |         seeded = await seedDocument(await context.newPage(), baseUrl, `${c.module}-web-${Date.now().toString(36)}`, c.file);
+  152 |       } finally {
+  153 |         await context.close();
+  154 |       }
+  155 |       await setFlag("office_engine", seeded.organizationId, true);
+  156 |       await setFlag(c.flag, seeded.organizationId, true);
+  157 |     });
+  158 | 
+  159 |     test.afterEach(async ({ request }) => {
+  160 |       await releaseSeededEditLock(request, seeded);
+  161 |     });
+  162 | 
+  163 |     test.afterAll(async () => {
+  164 |       if (seeded) await setFlag(c.flag, seeded.organizationId, false);
+  165 |     });
+  166 | 
+  167 |     test(`a ${c.file.name} opens in the ${c.module} frame and the handshake completes`, async ({ page }) => {
+  168 |       const violations: string[] = [];
+  169 |       page.on("console", (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) violations.push(m.text()); });
+  170 |       await signInAs(page, seeded.account.email);
+  171 |       await openSeededDocument(page, seeded);
+  172 |       const frame = page.locator(`iframe[src*="/office-frame/${c.module}/"]`);
+  173 |       await expect(frame).toBeVisible({ timeout: 60_000 });
+  174 |       expect(await frame.getAttribute("src")).toContain(`${moduleFrameBase(c.module, pin!)}/`);
+  175 |       await expect(moduleFrameHost(page, c.module)).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+  176 |       await page.screenshot({ path: test.info().outputPath(`01-${c.module}-opened.png`) });
+  177 |       expect(violations).toEqual([]);
+  178 |     });
+  179 | 
+  180 |     test(`a ${c.module} frame bundle that answers 404 shows the load failure, not an endless skeleton`, async ({ page }) => {
+  181 |       // A bundle missing on the server: the iframe fires no error for an HTTP 404, so the host probes it.
+  182 |       await page.route(`**/office-frame/${c.module}/**/index.html`, (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "not found" }));
+  183 |       await signInAs(page, seeded.account.email);
+  184 |       await openSeededDocument(page, seeded);
+  185 |       await expectFrameNotice(page, "load");
+  186 |       await expect(page.locator(`iframe[src*="/office-frame/${c.module}/"]`)).toHaveCount(0);
+  187 |       await page.screenshot({ path: test.info().outputPath(`03-${c.module}-bundle-missing.png`) });
+  188 |     });
+  189 | 
+  190 |     if (c.module === "pdf") {
+  191 |       test("a frame whose script is blocked shows the load failure at once and says why", async ({ page, context }) => {
+  192 |         // The frame document loads but its bundle script never does: no error reaches the page, so the
+  193 |         // host probes the scripts once the frame has loaded instead of waiting out the boot timer.
+  194 |         await context.addCookies([{ name: "uniwork-locale", value: "en", url: baseUrl }]);
+  195 |         await page.route(`**/office-frame/${c.module}/**/*.js`, (route) => route.abort("failed"));
+  196 |         await signInAs(page, seeded.account.email);
+  197 |         const startedAt = Date.now();
+  198 |         await openSeededDocument(page, seeded);
+  199 |         await expect(page.getByTestId("office-docs-frame-failed")).toBeVisible({ timeout: 20_000 });
+  200 |         expect(Date.now() - startedAt, "the host must not wait for the 25 s boot timer").toBeLessThan(20_000);
+  201 |         await expectFrameNotice(page, "load", "The edit
+E2E_MODULES_WEB_EXIT=1
