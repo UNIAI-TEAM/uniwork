@@ -375,11 +375,19 @@ async function fl05(ctx) {
   const before = collectOfflineState(storeArgs(ctx, [doc.id]));
   await ctx.close(session);
   // the second launch runs `skewMinutes` behind the latest wall clock the first one saw
+  const launchBoundary = (await ctx.proxyLog()).length;
   const second = await ctx.launch({ requireSignIn: false, extraEnv: ctx.vm.faketimeEnv(lib.path, skewMinutes) });
   const signedIn = await ctx.waitSignedIn(second);
   const appNow = await second.app.evaluate(() => Date.now()).catch(() => null);
   const behindMs = typeof appNow === "number" ? Date.now() - appNow : null;
+  const cutPosition = (await ctx.proxyLog()).length;
   await ctx.setRules(ctx.caseRules(["cut-lease", "cut-open"]));
+  // CL3-4: the app's startup pass renews a rolled-back lease while the network is still up (fork lease/clock.ts:100-111
+  // `shouldRenew: true` on rollback; the row's own note "online, server time check"): that renewal is the SERVER's grant,
+  // not the rolled-back clock extending anything. The claim is what the clock does once the network is cut, so the
+  // expiry is read at the cut; it counts as the baseline only when a lease PUT answered 200 on the wire explains it.
+  const leaseAtCut = await rowReading(second, doc.id);
+  const renewedBeforeCut = leasePutsSince((await ctx.proxyLog()).slice(0, cutPosition), launchBoundary).filter((entry) => entry.status === 200);
   const boundary = (await ctx.proxyLog()).length;
   const opened = await offlineOpen(second, doc.id);
   const row = await awaitRowState(ctx, second, doc.id, faulted);
@@ -388,7 +396,8 @@ async function fl05(ctx) {
   const window = (await ctx.proxyLog()).slice(boundary);
   const faultedState = collectOfflineState(storeArgs(ctx, [doc.id]));
   const copies = listPlaintextCopies(ctx.userDataDir(), ctx.deploymentId(), { accountIds: [ctx.tenant.app.userId] });
-  const leaseGrants = window.filter((entry) => entry.method === "PUT" && String(entry.path).endsWith("/office/offline-lease") && entry.status === 200);
+  // every lease PUT answered 200 from the moment the rule was set (not from the open): none may get through the cut
+  const leaseGrants = (await ctx.proxyLog()).slice(cutPosition).filter((entry) => entry.method === "PUT" && String(entry.path).endsWith("/office/offline-lease") && entry.status === 200);
   // the real clock back: the latched rollback lifts only through a successful online renewal
   await ctx.close(second);
   const third = await ctx.launch({ requireSignIn: false });
@@ -404,8 +413,11 @@ async function fl05(ctx) {
   // NOT the ciphertext: the fork persists the clock_rollback latch (lease/manager.ts:394-409), so the
   // lease record is rewritten while the lease is not extended. Extension is read from the semantic
   // fields of the approved reading - the expiry may not move later and the committed version stays.
-  const expiryHeld = Number.isFinite(expiryBefore) && (expiryDuring === null || expiryDuring <= expiryBefore);
-  const versionHeld = leaseBefore.version === null || reading.version === null || reading.version === leaseBefore.version;
+  const expiryAtCut = Date.parse(leaseAtCut?.leaseUntil ?? "");
+  const baseline = renewedBeforeCut.length > 0 && Number.isFinite(expiryAtCut) ? Math.max(expiryBefore, expiryAtCut) : expiryBefore;
+  const expiryHeld = Number.isFinite(expiryBefore) && (expiryDuring === null || expiryDuring <= baseline);
+  const baseVersion = renewedBeforeCut.length > 0 && leaseAtCut?.version != null ? leaseAtCut.version : leaseBefore.version;
+  const versionHeld = baseVersion === null || reading.version === null || reading.version === baseVersion;
   return {
     documentId: doc.id,
     assertions: [

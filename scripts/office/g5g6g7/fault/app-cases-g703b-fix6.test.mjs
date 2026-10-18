@@ -240,3 +240,43 @@ test("CL3-5: B's lease record (granted before the content download, manager.ts:9
     world.clean();
   }
 });
+
+// ---- CL3-4: FL-05 reads the lease at the cut; the startup renewal the server granted is not the clock extending it ----
+
+async function runFl05(tweak = () => {}) {
+  const world = createWorld("FL-05");
+  try {
+    tweak(world);
+    const outcome = await OFFLINE_FAULT_DRIVERS["FL-05"](world.ctx);
+    return { world, byName: Object.fromEntries(outcome.assertions.map((a) => [a.name, a])), failed: outcome.assertions.filter((a) => !a.ok).map((a) => a.name) };
+  } finally {
+    world.clean();
+  }
+}
+
+test("CL3-4: the startup pass's online renewal under the rolled-back clock (a lease PUT 200 before the cut, fork lease/clock.ts:100-111) does not fail never_extends_lease", async () => {
+  const { world, byName, failed } = await runFl05((w) => { w.renewAtRollbackLaunch = true; });
+  assert.deepEqual(failed, []);
+  assert.equal(byName.never_extends_lease.ok, true);
+  const puts = world.log.filter((entry) => entry.method === "PUT" && String(entry.path).endsWith("/office/offline-lease") && entry.status === 200);
+  assert.ok(puts.length >= 2, "the pin's grant and the startup renewal were both on the wire");
+});
+
+test("CL3-4: an expiry that moves later with NO lease PUT on the wire (the rolled-back clock extending it) still fails", async () => {
+  const { byName } = await runFl05((w) => { w.extendOnRollback = true; });
+  assert.equal(byName.never_extends_lease.ok, false);
+});
+
+test("CL3-4: a lease PUT answered 200 after the cut still fails (nothing may get through once the rule is set)", async () => {
+  const { byName } = await runFl05((world) => {
+    const rowsFor = world.product.rowsFor;
+    world.product.rowsFor = (dep) => {
+      if (world.rollbackLatched) {
+        world.rules = [];
+        world.leasePut([...world.rows.keys()][0]);
+      }
+      return rowsFor(dep);
+    };
+  });
+  assert.equal(byName.never_extends_lease.ok, false);
+});

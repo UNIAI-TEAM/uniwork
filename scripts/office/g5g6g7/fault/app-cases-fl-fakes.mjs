@@ -81,6 +81,7 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     rollbackLatched: false,
     // a product that extends the lease while the clock is back (a test turns it on)
     extendOnRollback: false,
+    renewAtRollbackLaunch: false,
     // R2-9: time the driver slept (ctx.sleep), the content requests a hold rule keeps, the copies an open tab shows
     sleptMs: 0,
     held: new Map(),
@@ -533,6 +534,13 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       for (const [documentId, lease] of world.leases) {
         writeRecord(world.leaseDir(), `lease/${documentId}`, Buffer.from(`lease-${documentId}-latched-${++world.leaseSeq}`));
         if (world.extendOnRollback) lease.grantedAt += 60 * 60 * 1000;
+        // the fork's startup pass renews a rolled-back lease while the network is still up (lease/clock.ts:100-111
+        // shouldRenew: true): a granted PUT, the new expiry taken from the server, the latch kept
+        if (world.renewAtRollbackLaunch) {
+          leasePut(documentId);
+          world.leases.get(documentId).grantedAt += 5_000;
+          world.rollbackLatched = true;
+        }
       }
     }
     world.keyringBroken = world.keyringSticky && world.keyringLocked;
