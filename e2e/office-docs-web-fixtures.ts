@@ -37,6 +37,15 @@ export async function seedDocx(page: Page, baseUrl: string, tag: string): Promis
   return seedDocument(page, baseUrl, tag, { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) });
 }
 
+/**
+ * A fresh account with one never-saved blank Office document (UNI-1847): the
+ * server stores it as `untitled.docx` at file version 1 - exactly what the
+ * first-save naming gate looks for.
+ */
+export async function seedUntitledDocx(page: Page, baseUrl: string, tag: string): Promise<SeededDocx> {
+  return seedDocument(page, baseUrl, tag, { name: "untitled.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) });
+}
+
 /** A fresh account with one file document of any format (the module frame specs, UNI-1014). */
 export async function seedDocument(page: Page, baseUrl: string, tag: string, file: { name: string; mimeType: string; buffer: Buffer }): Promise<SeededDocx> {
   const account = await createRecordingAccount(page, e2eApiUrl, tag);
