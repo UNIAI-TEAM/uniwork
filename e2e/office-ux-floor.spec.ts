@@ -35,6 +35,10 @@ import {
  * (a timeout, a selector that slipped) is a real failure. (`expect.soft` under test.fail would absorb the same.)
  *
  * Run with OFFICE_UX_FLOOR_E2E=1 (server with AI_PROVIDER=fake for S7/S9).
+ * S9 also needs AI_CONVERSATION_KEY on that server: without it there is no transcript store, so the first
+ * UniWork AI turn answers 503 ai_disabled (ConversationStorePG.Create refuses, uniworkStoreErr maps it) and the
+ * frame shows an error line instead of an answer. Give each run its own key (`openssl rand -base64 32`), never a
+ * committed one.
  */
 test.describe.configure({ timeout: 240_000 });
 test.skip(process.env.OFFICE_UX_FLOOR_E2E !== "1", "Set OFFICE_UX_FLOOR_E2E=1 to run the G7-09 UX floor checks.");
