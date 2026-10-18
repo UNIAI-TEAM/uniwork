@@ -109,6 +109,41 @@ async function startUpstreamServer() {
         return;
       }
 
+      if (req.url === "/api/v1/documents/doc_lease/office/offline-lease") {
+        const payload = JSON.stringify({
+          document_id: "doc_lease",
+          lease_id: "lease_1",
+          expires_at: "2099-01-01T00:00:00.000Z",
+          state: "active",
+        });
+        res.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": String(Buffer.byteLength(payload)),
+        });
+        res.end(payload);
+        return;
+      }
+
+      if (req.url === "/api/v1/documents/doc_lease/office/plain") {
+        const payload = "not-json-body: lease note";
+        res.writeHead(200, {
+          "content-type": "text/plain; charset=utf-8",
+          "content-length": String(Buffer.byteLength(payload)),
+        });
+        res.end(payload);
+        return;
+      }
+
+      if (req.url === "/api/v1/documents/doc_lease/office/broken") {
+        const payload = '{"expires_at": ';
+        res.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": String(Buffer.byteLength(payload)),
+        });
+        res.end(payload);
+        return;
+      }
+
       const echo = JSON.stringify({
         ok: true,
         method: req.method,
@@ -666,4 +701,82 @@ test("collect.mjs reads paginated document versions via public API, writes serve
   assert.deepEqual(written.head, { revision: "7" });
   assert.equal(typeof written.readAt, "string");
   assert.equal(JSON.stringify(written).includes("test-bearer-token-123"), false);
+});
+
+test("rewrite_json patches a matched JSON response, resolves now_plus_ms, and passes non-JSON or non-matching traffic through untouched", async (t) => {
+  const scratchDir = mkdtempSync(join(tmpdir(), "fault-proxy-rewrite-"));
+  const logFile = join(scratchDir, "rewrite.jsonl");
+  const upstream = await startUpstreamServer();
+  const proxy = await startFaultProxy({ target: upstream.origin, logFile });
+
+  t.after(async () => {
+    await proxy.close();
+    await upstream.close();
+    rmSync(scratchDir, { recursive: true, force: true });
+  });
+
+  const setRulesRes = await fetch(`${proxy.origin}/__fault/rules`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify([
+      {
+        id: "lease-rewrite",
+        match: {
+          method: "PUT",
+          path: "^/api/v1/documents/[^/]+/office/(offline-lease|plain|broken)$",
+        },
+        action: { type: "rewrite_json", patch: { expires_at: { now_plus_ms: 120000 } } },
+      },
+    ]),
+  });
+  assert.equal(setRulesRes.status, 200);
+
+  // (a) matched JSON response: expires_at replaced, every other field preserved.
+  const before = Date.now();
+  const leaseRes = await fetch(`${proxy.origin}/api/v1/documents/doc_lease/office/offline-lease`, {
+    method: "PUT",
+  });
+  assert.equal(leaseRes.status, 200);
+  const rawBody = await leaseRes.text();
+  const body = JSON.parse(rawBody);
+  assert.equal(body.document_id, "doc_lease");
+  assert.equal(body.lease_id, "lease_1");
+  assert.equal(body.state, "active");
+  assert.notEqual(body.expires_at, "2099-01-01T00:00:00.000Z");
+  assert.equal(leaseRes.headers.get("content-length"), String(Buffer.byteLength(rawBody)));
+
+  // (b) now_plus_ms resolves to a future ISO-8601 UTC timestamp with milliseconds.
+  assert.match(body.expires_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  const expiresMs = Date.parse(body.expires_at);
+  assert.ok(!Number.isNaN(expiresMs), `expires_at is a timestamp: ${body.expires_at}`);
+  const delta = expiresMs - before;
+  assert.ok(delta > 60_000 && delta < 300_000, `expected ~120s in the future, got ${delta}ms`);
+
+  // Log entry keeps the upstream status and the ruleId.
+  const logLines = parseJsonl(await (await fetch(`${proxy.origin}/__fault/log`)).text());
+  assert.equal(logLines.length, 1);
+  assert.equal(logLines[0].status, 200);
+  assert.equal(logLines[0].ruleId, "lease-rewrite");
+  assert.equal(logLines[0].path, "/api/v1/documents/doc_lease/office/offline-lease");
+
+  // (c) a matched non-JSON body passes through byte-for-byte.
+  const plainText = "not-json-body: lease note";
+  const plainRes = await fetch(`${proxy.origin}/api/v1/documents/doc_lease/office/plain`, { method: "PUT" });
+  assert.equal(plainRes.status, 200);
+  assert.equal(await plainRes.text(), plainText);
+  assert.equal(plainRes.headers.get("content-length"), String(Buffer.byteLength(plainText)));
+
+  // (c2) a JSON content-type with an unparseable body also passes through byte-for-byte.
+  const brokenText = '{"expires_at": ';
+  const brokenRes = await fetch(`${proxy.origin}/api/v1/documents/doc_lease/office/broken`, { method: "PUT" });
+  assert.equal(brokenRes.status, 200);
+  assert.equal(await brokenRes.text(), brokenText);
+  assert.equal(brokenRes.headers.get("content-length"), String(Buffer.byteLength(brokenText)));
+
+  // (d) a non-matching request is untouched.
+  const echoRes = await fetch(`${proxy.origin}/api/v1/other`);
+  assert.equal(echoRes.status, 200);
+  const echo = await echoRes.json();
+  assert.equal(echo.ok, true);
+  assert.equal(echo.url, "/api/v1/other");
 });

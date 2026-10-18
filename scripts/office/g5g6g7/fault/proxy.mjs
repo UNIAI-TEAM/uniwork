@@ -89,6 +89,49 @@ function destroySocket(socket, reset = false) {
 }
 
 /**
+ * Applies a `rewrite_json` patch to a buffered upstream response body.
+ *
+ * Returns the re-serialized body, or `null` when the body must pass through
+ * byte-for-byte unchanged (empty body, non-JSON body, or any parse failure).
+ * Only top-level keys are set; `{ now_plus_ms: n }` values resolve to an
+ * ISO-8601 UTC timestamp at response time.
+ */
+function applyJsonPatch(bodyBuffer, headers = {}, patch = {}) {
+  if (!bodyBuffer || bodyBuffer.length === 0) return null;
+  const contentType = String(headers["content-type"] ?? "");
+  const text = bodyBuffer.toString("utf8");
+  const trimmed = text.trim();
+  const looksJson = /json/i.test(contentType) || trimmed.startsWith("{") || trimmed.startsWith("[");
+  if (!looksJson) return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value).length === 1 &&
+      Object.prototype.hasOwnProperty.call(value, "now_plus_ms") &&
+      Number.isInteger(value.now_plus_ms) &&
+      value.now_plus_ms >= 0
+    ) {
+      parsed[key] = new Date(Date.now() + value.now_plus_ms).toISOString();
+    } else {
+      parsed[key] = value;
+    }
+  }
+
+  return Buffer.from(JSON.stringify(parsed), "utf8");
+}
+
+/**
  * Starts the fault-injection reverse proxy in front of `target`.
  *
  * @param {object} options
@@ -281,6 +324,7 @@ export async function startFaultProxy({
     keyTag,
     ruleId,
     dropResponseAfterForward = false,
+    rewriteJsonPatch = null,
     bufferedBody = null,
   }) {
     let logged = false;
@@ -322,6 +366,35 @@ export async function startFaultProxy({
         }
 
         const statusCode = proxyRes.statusCode ?? 502;
+
+        if (rewriteJsonPatch) {
+          const chunks = [];
+          proxyRes.on("data", (chunk) => {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          });
+          proxyRes.on("end", () => {
+            logOnce(statusCode);
+            if (res.writableEnded || res.destroyed) return;
+            const original = Buffer.concat(chunks);
+            const rewritten = applyJsonPatch(original, proxyRes.headers, rewriteJsonPatch);
+            if (!rewritten) {
+              res.writeHead(statusCode, proxyRes.headers);
+              res.end(original);
+              return;
+            }
+            const headers = { ...proxyRes.headers };
+            delete headers["transfer-encoding"];
+            headers["content-length"] = String(rewritten.length);
+            res.writeHead(statusCode, headers);
+            res.end(rewritten);
+          });
+          proxyRes.on("error", () => {
+            logOnce(statusCode);
+            destroySocket(req.socket, false);
+          });
+          return;
+        }
+
         if (!res.headersSent && !res.writableEnded) {
           res.writeHead(statusCode, proxyRes.headers);
         }
@@ -488,6 +561,20 @@ export async function startFaultProxy({
         keyTag,
         ruleId,
         dropResponseAfterForward: true,
+      });
+      return;
+    }
+
+    if (action.type === "rewrite_json") {
+      forwardToTarget({
+        req,
+        res,
+        startTime,
+        cleanPath,
+        idempotencyKey,
+        keyTag,
+        ruleId,
+        rewriteJsonPatch: action.patch,
       });
       return;
     }
