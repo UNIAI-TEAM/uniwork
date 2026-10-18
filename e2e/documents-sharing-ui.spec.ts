@@ -104,73 +104,8 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
   await expect(dialog.getByText("Liên kết công khai", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(dialog.getByTestId("share-created-url")).toHaveCount(0);
 
-  // TEMP-DIAG (UNI-1914): remove before the final commit.
-  page.on("request", (r) => {
-    if (r.method() === "DELETE") console.log(`DIAG request ${r.method()} ${r.url()}`);
-  });
-  await page.evaluate(() => {
-    const w = window as unknown as { __diag: string[] };
-    w.__diag = [];
-    const d = (s: string) => w.__diag.push(`${Math.round(performance.now())} ${s}`);
-    const desc = (n: Element | null) =>
-      n ? `${n.tagName}${n.getAttribute("aria-label") ? `[${n.getAttribute("aria-label")}]` : ""}.${(n.getAttribute("data-slot") ?? "")}` : "null";
-    for (const phase of [true, false]) {
-      for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
-        document.addEventListener(
-          type,
-          (e) => {
-            const me = e as MouseEvent;
-            const btn = document.querySelector('[role="dialog"] section[aria-labelledby="share-links-title"] ul button');
-            const top = document.elementFromPoint(me.clientX, me.clientY);
-            const dialogs = document.querySelectorAll('[role="dialog"]').length;
-            const path = e.composedPath().slice(0, 4).map((n) => desc(n as Element)).join(" > ");
-            if (type === "pointerdown") (btn as HTMLElement | null)?.setAttribute("data-diag-id", String(performance.now()));
-            const dlg = document.querySelector('[role="dialog"]') as HTMLElement | null;
-            const dr = dlg?.getBoundingClientRect();
-            const br = btn?.getBoundingClientRect();
-            const anims = dlg?.getAnimations().map((a) => `${(a as CSSTransition).transitionProperty ?? (a as CSSAnimation).animationName}:${a.playState}`).join(",");
-            d(
-              `rect dlg=${dr?.top.toFixed(1)}..${dr?.bottom.toFixed(1)} h=${dr?.height.toFixed(1)} scrollTop=${dlg?.scrollTop} scrollH=${dlg?.scrollHeight} btn=${br?.top.toFixed(1)}..${br?.bottom.toFixed(1)} anims=[${anims}] tf=${dlg ? getComputedStyle(dlg).transform : ""}`,
-            );
-            d(
-              `${phase ? "cap" : "bub"} ${type} xy=${me.clientX},${me.clientY} target=${desc(e.target as Element)} top=${desc(top)} btnConnected=${btn?.isConnected} btnDisabled=${(btn as HTMLButtonElement | null)?.disabled} btnId=${btn?.getAttribute("data-diag-id")} dialogs=${dialogs} prevented=${e.defaultPrevented} path=${path}`,
-            );
-          },
-          phase,
-        );
-      }
-    }
-    let frames = 0;
-    let last = "";
-    const sample = () => {
-      const dlg = document.querySelector('[role="dialog"]') as HTMLElement | null;
-      const btn = document.querySelector('[role="dialog"] section[aria-labelledby="share-links-title"] ul button');
-      const dr = dlg?.getBoundingClientRect();
-      const br = btn?.getBoundingClientRect();
-      const kids = Array.from(dlg?.children ?? []).map((c) => `${c.tagName}:${Math.round(c.getBoundingClientRect().height)}:${(c.textContent ?? "").slice(0, 24)}`);
-      const inner = Array.from(dlg?.children[1]?.children ?? []).map((c) => `${c.tagName}:${Math.round(c.getBoundingClientRect().height)}:${(c.textContent ?? "").slice(0, 40).replace(/\s+/g, " ")}`);
-      const cur = `kids=${kids.join("|")} inner=${inner.join("|")} raf dlg=${dr?.top.toFixed(1)}..${dr?.bottom.toFixed(1)} scrollTop=${dlg?.scrollTop} scrollH=${dlg?.scrollHeight} btn=${br?.top.toFixed(1)}..${br?.bottom.toFixed(1)}`;
-      if (frames++ < 600 && cur !== last) d(cur);
-      last = cur;
-      requestAnimationFrame(sample);
-    };
-    requestAnimationFrame(sample);
-    new MutationObserver((muts) => {
-      for (const m of muts) {
-        for (const n of Array.from(m.removedNodes)) {
-          if (n instanceof Element && (n.matches("button") || n.querySelector("ul button") || n.matches('[role="dialog"]'))) {
-            d(`removed ${desc(n)} children=${n.childElementCount}`);
-          }
-        }
-      }
-    }).observe(document.body, { childList: true, subtree: true });
-  });
-  const diagBtn = dialog.getByRole("region", { name: "Liên kết công khai" }).getByRole("button", { name: /^Thu hồi/ });
-  console.log(`DIAG box ${JSON.stringify(await diagBtn.boundingBox())} dialogBox ${JSON.stringify(await dialog.boundingBox())}`);
   // Revoke the link; the anonymous reader gets the dead-link state.
-  await diagBtn.click();
-  await page.waitForTimeout(2000);
-  console.log(`DIAG log\n${(await page.evaluate(() => (window as unknown as { __diag: string[] }).__diag)).join("\n")}`);
+  await dialog.getByRole("region", { name: "Liên kết công khai" }).getByRole("button", { name: /^Thu hồi/ }).click();
   await expect(dialog.getByText("Chưa có liên kết nào.")).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press("Escape");
   await visitor.reload();

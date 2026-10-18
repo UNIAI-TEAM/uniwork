@@ -292,7 +292,9 @@ export function ShareCandidatePicker({
           placeholder={t("documents.share.candidate_search")}
           value={query}
           disabled={disabled || atLimit}
-          onFocus={() => setDropdownOpen(true)}
+          // Not on focus: the dialog focuses this input when it opens, and an inline list
+          // that opened then collapses on the first press elsewhere, moving the control
+          // under the pointer before the click completes (UNI-1914).
           onClick={() => setDropdownOpen(true)}
           onChange={(event) => {
             onQueryChange(event.target.value);
