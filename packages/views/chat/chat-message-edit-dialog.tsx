@@ -76,6 +76,7 @@ export function ChatMessageEditDialog({
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => onOpenChange(false)}
+          cancelVariant="secondary"
           cancelLabel={t("chat.edit_dialog_cancel")}
           submitLabel={t("chat.edit_dialog_save")}
           submittingLabel={t("chat.edit_dialog_saving")}

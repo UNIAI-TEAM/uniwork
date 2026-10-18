@@ -8,6 +8,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import { roomShortcutLabel } from "../meetings/meeting-room-shortcuts";
 import type { VoiceCallRecordingState } from "./use-voice-call-recording";
 import { VoiceCallControlRow } from "./voice-call-floating-panel";
@@ -214,6 +215,10 @@ export function ActiveVoiceControls({
             title={t("chat.voice_call_end_for_all_confirm_title")}
             description={t("chat.voice_call_end_for_all_confirm")}
             confirmLabel={t("chat.voice_call_end_for_all")}
+            icon={PhoneOff}
+            solid
+            cancelVariant="secondary"
+            className={CHAT_CONFIRM_CLASS}
             onConfirm={() => {
               setConfirmEndOpen(false);
               onEndForAll();

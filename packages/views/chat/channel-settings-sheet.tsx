@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Hash, Lock, Search, UserPlus } from "lucide-react";
+import { Archive, Hash, Lock, Search, TriangleAlert, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,6 +28,7 @@ import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatRoomMark } from "./chat-room-mark";
 import { identityTint } from "../people/identity-tint";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import { toastChatError } from "./chat-error-message";
 import { canAdminChannel, isChatRoomModerator } from "./chat-room-moderation-utils";
 import { LeaveConversationSection } from "./leave-conversation-section";
@@ -408,6 +409,10 @@ export function ChannelSettingsSheet({
           description={t("chat.channel.archive_hint")}
           confirmLabel={t("chat.channel.archive")}
           pending={archiveChannel.isPending}
+          icon={Archive}
+          tone="warning"
+          cancelVariant="secondary"
+          className={CHAT_CONFIRM_CLASS}
           onConfirm={handleArchive}
         />
         <ConfirmDialog
@@ -416,6 +421,11 @@ export function ChannelSettingsSheet({
           title={t("chat.channel.discard_confirm_title")}
           description={t("chat.channel.discard_confirm_description")}
           confirmLabel={t("chat.channel.discard_changes")}
+          icon={TriangleAlert}
+          tone="warning"
+          solid
+          cancelVariant="secondary"
+          className={CHAT_CONFIRM_CLASS}
           onConfirm={() => {
             const next = afterDiscardRef.current;
             afterDiscardRef.current = null;

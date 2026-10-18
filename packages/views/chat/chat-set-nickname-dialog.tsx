@@ -106,6 +106,7 @@ export function ChatSetNicknameDialog({
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("common.save")}
           submittingLabel={t("chat.nickname_saving")}
           submitting={pendingAction === "save"}

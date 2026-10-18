@@ -1,12 +1,13 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Circle, Square } from "lucide-react";
+import { Circle, CircleDot, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import type { VoiceCallRecordingState } from "./use-voice-call-recording";
 
 /**
@@ -107,6 +108,10 @@ export function VoiceCallRecordControl({
         description={t("chat.voice_call_record_confirm")}
         confirmLabel={t("chat.voice_call_record_confirm_action")}
         destructive={false}
+        icon={CircleDot}
+        tone="destructive"
+        cancelVariant="secondary"
+        className={CHAT_CONFIRM_CLASS}
         pending={pending}
         onConfirm={() => {
           void start().then(() => setConfirmOpen(false));

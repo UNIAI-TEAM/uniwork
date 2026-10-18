@@ -164,6 +164,7 @@ export function AddGroupMembersDialog({
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={isChannel ? t("chat.channel.invite_members") : t("chat.invite_members")}
           submittingLabel={t("chat.inviting_members")}
           submitting={inviting}

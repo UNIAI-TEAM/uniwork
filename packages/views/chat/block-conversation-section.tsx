@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 
 export function BlockConversationSection({
   blockedByMe,
@@ -74,6 +75,10 @@ export function BlockConversationSection({
         description={t("chat.block_confirm_description")}
         confirmLabel={blocking ? t("chat.blocking_user") : t("chat.block_user")}
         pending={blocking}
+        icon={Ban}
+        solid
+        cancelVariant="secondary"
+        className={CHAT_CONFIRM_CLASS}
         onConfirm={handleConfirm}
       />
     </>

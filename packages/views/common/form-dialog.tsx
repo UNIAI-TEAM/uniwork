@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentProps, ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -12,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import {
@@ -118,6 +120,7 @@ export function FormDialogFooter({
   destructive = false,
   leading,
   reasonId,
+  cancelVariant = "outline",
 }: {
   onCancel: () => void;
   cancelLabel?: string;
@@ -138,6 +141,8 @@ export function FormDialogFooter({
    * a screen reader hears the reason on the button that cannot be pressed.
    */
   reasonId?: string;
+  /** A module's own Cancel look (chat's grey pill is "secondary"). */
+  cancelVariant?: ComponentProps<typeof Button>["variant"];
 }) {
   const { t } = useTranslation();
   const inert = submitDisabled || submitting;
@@ -146,7 +151,7 @@ export function FormDialogFooter({
     // thumb aims for; from sm up they sit side by side at their own width.
     <DialogFooter className="items-stretch px-5 py-3 sm:items-center">
       {leading ? <div className="min-w-0 text-caption text-muted-foreground sm:mr-auto">{leading}</div> : null}
-      <Button type="button" variant="outline" aria-disabled={submitting || undefined} onClick={onCancel}>
+      <Button type="button" variant={cancelVariant} aria-disabled={submitting || undefined} onClick={onCancel}>
         {cancelLabel ?? t("common.cancel")}
       </Button>
       {submitLabel ? (
@@ -184,6 +189,11 @@ export function ConfirmDialog({
   pending = false,
   destructive = true,
   nested = false,
+  icon,
+  tone = destructive ? "destructive" : "info",
+  solid = false,
+  cancelVariant,
+  className,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -198,21 +208,31 @@ export function ConfirmDialog({
   destructive?: boolean;
   /** Asked from inside another dialog (discard a form's edits): dims that dialog too. */
   nested?: boolean;
+  /** A 40px soft-tinted tile above the title that names the kind of step. */
+  icon?: LucideIcon;
+  /** The tile's tint; follows `destructive` unless set. */
+  tone?: "destructive" | "warning" | "info";
+  /** The confirm button takes the solid fill (destructive-solid when destructive). */
+  solid?: boolean;
+  cancelVariant?: ComponentProps<typeof AlertDialogCancel>["variant"];
+  className?: string;
 }) {
   const { t } = useTranslation();
+  const confirmVariant = destructive ? (solid ? "destructiveSolid" : "destructive") : "default";
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent nested={nested}>
+      <AlertDialogContent nested={nested} className={className}>
         <AlertDialogHeader>
+          {icon ? <IconTile icon={icon} tone={tone} className="mb-2.5" /> : null}
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
         </AlertDialogHeader>
         <AlertDialogFooter>
           {/* aria-disabled, not disabled: both stay in the tab order while the
               action runs (see FormDialogFooter); Button blocks the press. */}
-          <AlertDialogCancel aria-disabled={pending || undefined}>{cancelLabel ?? t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogCancel variant={cancelVariant} aria-disabled={pending || undefined}>{cancelLabel ?? t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction
-            variant={destructive ? "destructive" : "default"}
+            variant={confirmVariant}
             aria-disabled={pending || undefined}
             aria-busy={pending || undefined}
             onClick={onConfirm}

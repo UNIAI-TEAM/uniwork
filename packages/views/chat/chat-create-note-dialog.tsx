@@ -118,6 +118,7 @@ export function ChatCreateNoteDialog({
 
           <FormDialogFooter
             onCancel={() => onOpenChange(false)}
+            cancelVariant="secondary"
             submitLabel={t("chat.note_create_submit")}
             submittingLabel={t("chat.note_create_submitting")}
             submitting={sendMessage.isPending}

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 
 export function LeaveConversationSection({
   variant,
@@ -72,6 +73,10 @@ export function LeaveConversationSection({
         confirmLabel={leaving ? t("chat.leaving_conversation") : leaveLabel}
         pending={leaving}
         destructive={destructive}
+        icon={Icon}
+        solid
+        cancelVariant="secondary"
+        className={CHAT_CONFIRM_CLASS}
         onConfirm={handleConfirm}
       />
     </>
