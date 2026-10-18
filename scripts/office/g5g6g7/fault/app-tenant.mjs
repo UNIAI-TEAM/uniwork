@@ -427,6 +427,27 @@ export const clearOfflineLibrary = (tenant) =>
   }, [200, 204, 404], "/api/v1/admin/flags/{key}/overrides");
 
 /**
+ * The organization-scoped `office_offline_library` override of this run's
+ * tenant, read back from the server (GET `/api/v1/admin/flags/{key}/overrides`,
+ * admin_flags.go `adminListFlagOverrides` -> `AdminFlagOverrideDTO`): the row
+ * itself, or null when the tenant carries none (review r1 R1-9).
+ *
+ * The read is how the runner proves a lift actually took effect instead of
+ * assuming the DELETE did; an unreachable server or a refused read is reported
+ * as `{error}` so the caller decides (a lift it cannot verify is a failure, not
+ * a silent success).
+ */
+export async function readOfflineLibraryOverride(tenant) {
+  const res = await authedRequest(tenant.apiOrigin, "/api/v1/admin/flags/office_offline_library/overrides", { method: "GET", as: tenant.owner });
+  if (res.status !== 200) {
+    const code = res.body?.error?.code ?? res.body?.code ?? "";
+    return { error: `GET /api/v1/admin/flags/{key}/overrides -> ${res.status}${code ? ` ${code}` : ""}` };
+  }
+  const rows = Array.isArray(res.body?.overrides) ? res.body.overrides : [];
+  return { override: rows.find((row) => row?.scope_type === "organization" && row?.scope_id === tenant.orgId) ?? null };
+}
+
+/**
  * FQ-24's test setup (OQ-F3, agreed by the lead): expires the upload claims the
  * app staged in this run's organization, in the run's own database, through
  * psql (table and columns: server/migrations/951_file_upload_sessions.up.sql).

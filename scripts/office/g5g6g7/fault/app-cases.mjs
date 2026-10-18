@@ -33,6 +33,7 @@ import { DEFAULT_FORK_SHA, HARNESS_DEPLOYMENT_ID, harnessPaths, isMainModule, re
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
 import { OFFLINE_DRIVERS } from "./app-case-drivers-offline.mjs";
+import { liftBlocker, createOfflineFlagGuard } from "./app-offline-flag.mjs";
 import {
   BLOCKED_EXIT_CODE, appTraceArtifacts, blockedAfterFailure, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
   noServerReason, parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
@@ -41,8 +42,8 @@ import { ExitRangeError, parseExitRange, partialCaseResult, partialLabel, select
 import { guardCaseResult, harnessDownReason, seedBehindGuard } from "./app-process-guard.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
-  clearOfflineLibrary, clearSyncWrite, createFileDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, runnerApiOrigin, seedAppTenant,
-  setOfflineLibrary, setSyncWrite,
+  clearOfflineLibrary, clearSyncWrite, createFileDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, readOfflineLibraryOverride, runnerApiOrigin,
+  seedAppTenant, setOfflineLibrary, setSyncWrite,
 } from "./app-tenant.mjs";
 import { caseExpect } from "./case-expect.mjs";
 import { EMPTY_SERVER_VERSIONS, collectServerVersions } from "./collect.mjs";
@@ -185,6 +186,7 @@ function finishCase(row, result, caseDir, runDir, forkSha) {
 
 async function runOne({ row, run, runs, caseDir, shared }) {
   const { ports, proxy, tenant, fixtures, playwright, databaseUrl, runDir } = shared;
+  const offlineFlag = shared.offlineFlag.forRun();
   const fixture = fixtures.get(row.fixture);
   const runDirOut = runs > 1 ? join(caseDir, String(run.index)) : caseDir;
   const appDir = join(runDir, "fault", ".app", `${row.id}-${run.index}`);
@@ -217,8 +219,9 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     artifactPath: (name) => join(runDirOut, name),
     /** the app answered its last call: a wait that timed out on a dead app is BLOCKED, never FAIL */
     appAlive: async (session) => Boolean(await session.shell.evaluate(() => true).catch(() => false)),
-    setOfflineLibrary: (enabled) => setOfflineLibrary(tenant, enabled),
-    clearOfflineLibrary: () => clearOfflineLibrary(tenant),
+    // the run owns the override it switches on (app-offline-flag.mjs): a leftover is
+    // cleared first, and only this run lifts it, with a read-back, in `finally`
+    setOfflineLibrary: () => offlineFlag.enable(),
     newDocument: async () => {
       const doc = await createFileDocument(tenant, fixture, `${row.id} run ${run.index}`);
       docs.set(doc.id, await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: doc.id }));
@@ -275,6 +278,7 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     clearSyncWrite: () => clearSyncWrite(tenant),
   };
   let outcome;
+  let liftReason = null;
   try {
     outcome = await DRIVERS[row.id](ctx);
   } catch (error) {
@@ -286,10 +290,14 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     await fetch(`${proxy.origin}/__fault/rules`, { method: "DELETE" }).catch(() => {});
     // the FL rows switch the org capability on through an admin override; the tenant
     // outlives the run, so a non-FL row must never inherit it (contract Acceptance:
-    // the capability is enabled only for the FL runs). Best-effort: the run's own
-    // verdict is already decided and a lift failure must not mask it.
-    await clearOfflineLibrary(tenant).catch(() => {});
+    // the capability is enabled only for the FL runs). Only a run that enabled it
+    // lifts it, and the lift is read back (review r1 R1-9): a failure is kept for the
+    // verdict below and stops every later row.
+    liftReason = await offlineFlag.lift();
   }
+  // a run whose capability could not be lifted is not a clean PASS: the row keeps its own
+  // product verdict, but one that would PASS becomes BLOCKED with the lift's reason
+  if (liftReason && !outcome.blocker && outcome.assertions.every((a) => a.ok)) outcome = { ...outcome, blocker: liftBlocker(liftReason) };
   const docId = outcome.documentId ?? [...docs.keys()][0] ?? null;
   const traceLines = docId ? readTrace(docId) : [];
   const proxyRaw = await proxyLogRaw().catch(() => "");
@@ -359,7 +367,13 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
     }
     const { tenant } = seeded;
     let admin;
+    const offlineFlag = createOfflineFlagGuard({
+      set: (enabled) => setOfflineLibrary(tenant, enabled),
+      clear: () => clearOfflineLibrary(tenant),
+      read: () => readOfflineLibraryOverride(tenant),
+    });
     const shared = {
+      offlineFlag,
       ports, proxy, tenant, playwright, runDir, fixtures: loadFixtures(), databaseUrl: serverEnv.DATABASE_URL || "",
       ensureAdmin: async () => {
         if (admin === undefined) {
@@ -385,6 +399,15 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
       const caseDir = join(runDir, "fault", row.id);
       // the guard before the case: a dead harness server makes this and every later row BLOCKED, never a FAIL
       downReason = downReason ?? (await probe(runnerApi, runDir));
+      // a lift that failed leaves the tenant with the capability on: every later row, FL or FQ, is BLOCKED and says why
+      const liftFailure = offlineFlag.failure();
+      if (liftFailure && !downReason) {
+        const result = finishCase(row, blockedCase(row, liftBlocker(liftFailure)), caseDir, runDir, forkSha);
+        process.stdout.write(`${row.id}: BLOCKED — ${liftBlocker(liftFailure)}
+`);
+        results.push(result);
+        continue;
+      }
       if (downReason) {
         const result = finishCase(row, blockedCase(row, downReason), caseDir, runDir, forkSha);
         process.stdout.write(`${row.id}: BLOCKED — ${downReason}\n`);
