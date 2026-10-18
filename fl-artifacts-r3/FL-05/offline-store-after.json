@@ -1,0 +1,24 @@
+{
+  "deploymentId": "default",
+  "accountId": "01M56YYC39T7CPHTPWA251FS2C",
+  "library": [],
+  "leases": [],
+  "records": [
+    {
+      "store": "feed-cursors",
+      "name": "7157e630abb09e026067833811bc6321127d81d586f30e617ba919c11930c1f2.rec",
+      "sizeBytes": 406,
+      "sha256": "9a8241f3e54a8a11a10b60f08a07b2409f8417e35b404484b8b93354655ad04a"
+    },
+    {
+      "store": "doc-index",
+      "name": "44383d9d2a20aa8f75bdff957c31a4d0b6d91b3c356d37a922c7fcdeb2f0af4a.rec",
+      "sizeBytes": 88,
+      "sha256": "efd2ff6a716298388f52b36422f8014b9e9765e8553717e966526e8a20f7d986"
+    }
+  ],
+  "pinRecords": [
+    "464bff4d95ae3db0c56393ed82dceba17721830cc4dec55ed1b1deb4f5aed574.rec"
+  ],
+  "copies": []
+}

@@ -1,0 +1,33 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-fl3" OFFICE_FORK_SHA=aae163aed timeout -k 15 600 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FL-05 --run-dir .harness-run-fl3; rc=$?; f=.harness-run-fl3/fault/FL-05/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.blocker||"");for(const a of r.assertions||[])console.log((a.ok?"ok  ":"FAIL")+" "+a.name+(a.ok?"":" expected="+JSON.stringify(a.expected)+" actual="+JSON.stringify(a.actual)))' "$PWD/$f"; echo; echo "APP_CASE_FL_05_EXIT=$rc"
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33627 app_api=http://127.0.0.1:41025 proxy_upstream=http://127.0.0.1:33627
+FL-05: running
+dbus-daemon[31142]: [session uid=1000 pid=31142] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=31218 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[31142]: [session uid=1000 pid=31142] Successfully activated service 'org.a11y.Bus'
+FL-05: FAIL
+FL-05 (G5-A07): FAIL
+/workspace/.harness-run-fl3/fault
+APP_CASES_EXIT=1
+FL-05 FAIL 
+FAIL pin_accepted expected="ok" actual="revoked"
+FAIL first_launch_ready expected="ready" actual="never"
+FAIL pre_store_has_the_pinned_copy expected="the pin row and >= 1 ciphertext blob" actual="0/1 pin row(s), 0 blob(s)"
+FAIL lease_expiry_read_before expected="the ready row reports leaseUntil" actual="no leaseUntil"
+ok   wall_clock_moved_back
+ok   relaunch_signed_in
+FAIL open_refused_clock_rollback expected="lease_unusable / clock_rollback" actual="revoked / permission_revoked"
+FAIL row_locked expected="lease-expired|locked" actual="never"
+FAIL row_names_the_lock_reason expected="clock_rollback" actual="none"
+ok   content_not_served
+ok   no_plaintext_copy_materialized
+FAIL never_extends_lease expected=true actual=false
+FAIL retry_accepted expected="ok" actual="not_pinned"
+FAIL row_recovered_after_real_clock expected="ready" actual="never"
+FAIL s11_shot expected="s11-lock-panel.png" actual="the app died during the capture"
+ok   s3_tab_selected
+ok   s3_shot
+ok   no_commit_outside_policy
+ok   no_upload_outside_policy
+ok   version_delta
+
+APP_CASE_FL_05_EXIT=1
