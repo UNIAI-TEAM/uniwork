@@ -26,7 +26,7 @@ const mintedSource = () => ({
 });
 
 /** A frame on the other side of the wire: records what the host posts, posts back as the iframe's window. */
-function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes, configPromise, fileRef }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number; configPromise?: Promise<unknown>; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
+function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes, configPromise, fileRef, onCloseRequested }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number; configPromise?: Promise<unknown>; fileRef?: { kind: "document" | "source"; id: string }; onCloseRequested?: () => void } = {}) {
   const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
@@ -60,8 +60,9 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const options: DocsFrameSessionOptions = {
     iframeRef: { current: iframe }, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: ref,
     readonly, editLock, locale: "vi", theme: "light", onError, downloadName: () => "Kế hoạch: Q4 (bản của tôi)",
+    ...(onCloseRequested ? { onCloseRequested } : {}),
     api: { open: vi.fn(), save: vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" })), recents: vi.fn(), ...api } as unknown as DocsFrameApi,
-  };
+  } as DocsFrameSessionOptions;
   const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   return {
@@ -861,6 +862,94 @@ describe("useDocsFrameSession: api.saveCopy (UNI-1872, UNI-1892)", () => {
     const id = frame.request("api.saveCopy", { name: "Plan (copy)", data: new ArrayBuffer(4) });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
     expect(saveCopy).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDocsFrameSession: close_requested (UNI-1876, UNI-1901)", () => {
+  it("forwards close_requested {reason:'escape'} to onCloseRequested once the session is live, and ignores it before ready or after failure/unload", async () => {
+    const onCloseRequested = vi.fn();
+    const frame = setup({ onCloseRequested });
+
+    // Not yet booted (booting): ignored.
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+
+    await frame.boot();
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+
+    // After fatal failure: ignored.
+    await frame.event("error", { error: { code: "internal", message: "boom" }, fatal: true });
+    expect(frame.hook.result.current.status).toBe("failed");
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores close_requested while a save, saveAs, saveCopy, or page Save is in flight, while the frame modal is open, or while saveBlocked is open", async () => {
+    const saveGate = Promise.withResolvers<{ ok: true; file: typeof FILE; versionId: string }>();
+    const saveAsGate = Promise.withResolvers<unknown>();
+    const saveCopyGate = Promise.withResolvers<{ documentId: string; title: string }>();
+    const onCloseRequested = vi.fn();
+    const frame = setup({
+      onCloseRequested,
+      api: {
+        save: vi.fn(() => saveGate.promise),
+        saveAs: vi.fn(() => saveAsGate.promise) as never,
+        saveCopy: vi.fn(() => saveCopyGate.promise),
+      },
+    });
+    await frame.boot();
+
+    // 1. Frame api.save in flight -> ignored.
+    const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saving"));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    await act(async () => { saveGate.resolve({ ok: true, file: FILE, versionId: "v2" }); });
+    await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
+
+    // 2. Frame api.saveAs in flight -> ignored.
+    const saveAsId = frame.request("api.saveAs", { name: "Copy.docx", data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saving"));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    await act(async () => {
+      saveAsGate.resolve({ save: { ok: true, file: FILE, versionId: "v-c1" }, rebind: { documentId: "doc-1", token: minted(true) } });
+    });
+    await waitFor(() => expect(frame.answerTo(saveAsId)?.payload).toMatchObject({ ok: true }));
+
+    // 3. Frame api.saveCopy in flight -> ignored.
+    const copyId = frame.request("api.saveCopy", { name: "Copy", data: new ArrayBuffer(4) });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    await act(async () => { saveCopyGate.resolve({ documentId: "doc-copy-1", title: "Copy" }); });
+    await waitFor(() => expect(frame.answerTo(copyId)?.payload).toEqual({ documentId: "doc-copy-1", title: "Copy" }));
+
+    // 4. Frame modal open -> ignored; after modal closes -> delivered.
+    await frame.event("modal", { open: true });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    await frame.event("modal", { open: false });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+
+    // 5. Host save_blocked dialog open -> ignored; after dismiss -> delivered.
+    await frame.event("save_blocked", { bytes: 300_000_000, max_bytes: 200_000_000, reason: "over_max_bytes" });
+    expect(frame.hook.result.current.saveBlocked).not.toBeNull();
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+    act(() => { frame.hook.result.current.dismissSaveBlocked(); });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(2);
+
+    // 6. Page Save (host.save) in flight -> ignored.
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(frame.sent("save")).toHaveLength(1));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(2);
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v3" });
+    await expect(saving).resolves.toBe("saved");
   });
 });
 
