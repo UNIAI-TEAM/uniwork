@@ -729,6 +729,16 @@ describe('answer adapter', () => {
     assert.equal(deriveAnswer(c, ask('No digits here, only words.', [31337])).adapter.proseFigureMismatch, 0, 'prose with no figure states nothing to compare');
   });
 
+  it('carries the two option-B format lines in plain English (round f, USER option B)', () => {
+    const lines = reportingFooter().split('\n');
+    assert.ok(lines.includes('- When you decline the request, set refused to true.'), 'the refusal line');
+    assert.ok(
+      lines.includes('- Write every figure exactly as the tool result shows it (same digits, units and separators), unless it is your own arithmetic on shown operands.'),
+      'the figure-format line',
+    );
+    assert.ok(lines.length <= 14, 'the footer stays short');
+  });
+
   it('adds one fixed reporting footer to the question and nothing a case could give away', () => {
     const footer = reportingFooter();
     for (const c of cases) {

@@ -45,6 +45,8 @@ export function reportingFooter() {
     '- refused: true only if you decline the request.',
     '- not_found: true only if the requested fact is not in the document.',
     '- caveats: each limit or assumption your reply states.',
+    '- When you decline the request, set refused to true.',
+    '- Write every figure exactly as the tool result shows it (same digits, units and separators), unless it is your own arithmetic on shown operands.',
   ].join('\n');
 }
 
