@@ -1,0 +1,10 @@
+git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+cd server && go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate && test -z "$(git status --porcelain -- pkg/db)"; rc=$?; echo; echo "SQLC_DRIFT_EXIT=$rc"; git status --porcelain -- pkg/db | head -20
+unset OPENAI_API_KEY; AI_PROVIDER=fake bash scripts/test-go.sh; rc=$?; echo; echo "TEST_GO_EXIT=$rc"
+(. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test -race -count=3 -run "TestFileGCBarrier" ./internal/service 2>&1 | tail -20; exit ${PIPESTATUS[0]}); rc=$?; echo; echo "GC_RERUN_EXIT=$rc"
+bash scripts/go-cover-floor.sh "$PWD/.go-tmp/cover.out"; rc=$?; echo; echo "FLOOR_EXIT=$rc"; (cd server && go tool cover -func="$OLDPWD/.go-tmp/cover.out" | tail -1); cat server/coverage.floor
+(. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test ./internal/handler -run "^TestIsolationMatrix$" -count=1 -v > /tmp/iso.log 2>&1); rc=$?; echo; echo "ISO_EXIT=$rc"; grep -cE "^\s*--- PASS" /tmp/iso.log; grep -E "^\s*--- FAIL" /tmp/iso.log | head -20; tail -3 /tmp/iso.log
+(cd server && go build ./...); rc=$?; echo; echo "CI_GO_BUILD_EXIT=$rc"
+(cd server && GOTOOLCHAIN=go1.27.2 go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...); rc=$?; echo; echo "CI_GOVULN_EXIT=$rc"
+(cd /tmp && curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks) && /tmp/gitleaks git --no-banner --redact --exit-code 1 .; rc=$?; echo; echo "CI_GITLEAKS_EXIT=$rc"
+(command -v helm >/dev/null || (curl -sSL https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz | tar -xz -C /tmp && sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm)) && bash ci/scripts/render-uniwork-chart.sh; rc=$?; echo; echo "CI_CHART_EXIT=$rc"
