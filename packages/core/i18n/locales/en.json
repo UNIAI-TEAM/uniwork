@@ -9111,8 +9111,7 @@
       },
       "catalog": {
         "web": {
-          "name": "UniWork on the web",
-          "short": "UniWork",
+          "name": "UniWork",
           "kicker": "On the web",
           "description": "Tasks, projects, meetings, documents and chat in one place.",
           "tagline": "Tasks, projects, meetings, documents, chat and AI in one workspace.",

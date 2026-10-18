@@ -70,7 +70,7 @@ describe("the landing header's Apps menu", () => {
     const directory = await openApps();
     expect(toggle?.getAttribute("aria-expanded")).toBe("true");
     expect(hrefs(directory, ".header-apps-list a")).toEqual(["/", "/apps/office", "/apps/unichat"]);
-    expect([...directory.querySelectorAll(".header-apps-list a strong")].map((s) => s.textContent)).toEqual(["UniWork trên web", "UniWork Office", "UniChat"]);
+    expect([...directory.querySelectorAll(".header-apps-list a strong")].map((s) => s.textContent)).toEqual(["UniWork", "UniWork Office", "UniChat"]);
     const personal = directory.querySelector("[data-office-personal]");
     expect(personal?.textContent).toContain("Office for Personal");
     expect(personal?.textContent).toContain("Đang phát triển");

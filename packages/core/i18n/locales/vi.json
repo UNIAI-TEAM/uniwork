@@ -9106,8 +9106,7 @@
       },
       "catalog": {
         "web": {
-          "name": "UniWork trên web",
-          "short": "UniWork",
+          "name": "UniWork",
           "kicker": "Trên web",
           "description": "Việc, dự án, cuộc họp, tài liệu và chat trong một nơi.",
           "tagline": "Việc, dự án, cuộc họp, tài liệu, chat và AI trong một workspace.",

@@ -86,7 +86,7 @@ export function DownloadMatrix({ own }: { own: DesktopOS | null }) {
         </tr></thead>
         <tbody>
           <tr data-app="web">
-            <th scope="row"><span className="hub-row-h"><AppIcon app="web" size={32} />{t("landing.apps.catalog.web.short")}</span></th>
+            <th scope="row"><span className="hub-row-h"><AppIcon app="web" size={32} />{t("landing.apps.catalog.web.name")}</span></th>
             <td colSpan={COLUMNS.length}><span className="hub-span">{t("landing.apps.hub.matrix.webOnly")}</span></td>
             <td><Link className="hub-cell-link" href={paths.login()}>{t("landing.apps.catalog.web.open")}<ArrowRight aria-hidden /></Link></td>
           </tr>
@@ -135,7 +135,7 @@ export function PhoneDownloads({ phone }: { phone: PhoneOS }) {
       {link && <a className={cn(buttonVariants({ variant: "brand", size: "lg" }), "hub-phone-cta")} href={link.href} data-unichat-store={link.os}>{t("landing.apps.download.open", { store: t(`landing.apps.store.${link.label}`) })}<ExternalLink aria-hidden /></a>}
     </div>
     <div className="hub-phone-row">
-      <div className="hub-phone-head"><AppIcon app="web" size={40} /><div><b>{t("landing.apps.catalog.web.short")}</b><span>{t("landing.apps.hub.phone.webSub")}</span></div></div>
+      <div className="hub-phone-head"><AppIcon app="web" size={40} /><div><b>{t("landing.apps.catalog.web.name")}</b><span>{t("landing.apps.hub.phone.webSub")}</span></div></div>
       <Link className={cn(buttonVariants({ variant: "outline", size: "lg" }), "hub-phone-cta")} href={paths.login()}>{t("landing.apps.download.openWeb")}</Link>
     </div>
     <div className="hub-phone-row is-off" data-app="office">
