@@ -15,6 +15,7 @@ export interface FrameApiProxyState {
   copyRefused: boolean;
   isSource: boolean;
   editLockId: string | undefined;
+  documentLimits: Parameters<typeof chunkedUploadThreshold>[0];
   /** The name the first-save dialog wrote for this document (UNI-1847): the next save's upload carries it as filename. */
   renameName?: { id: string; name: string };
 }

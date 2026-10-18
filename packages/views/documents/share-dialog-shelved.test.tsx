@@ -57,7 +57,7 @@ const access = {
 
 function serve() {
   requestMock.mockReset();
-  requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+  requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
     if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(access);
     if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
       const body = opts.body as { dry_run?: boolean } | undefined;
@@ -95,9 +95,9 @@ const putCalls = () => requestMock.mock.calls.filter(([path, init]) => path === 
 /** One macrotask of silence: React settles disabled-guard no-ops so a
  *  later `expect(writes())` sees whether anything fired. */
 const settleTick = async () => {
-  const { promise, resolve } = Promise.withResolvers<void>();
-  setTimeout(resolve, 50);
-  return promise;
+  // No Promise.withResolvers under this lib target: one macrotask of silence
+  // so React settles disabled-guard no-ops before expect(writes()).
+  await new Promise<void>((resolve) => setTimeout(resolve, 50));
 };
 
 function renderDialog(doc = shelvedDoc()) {
