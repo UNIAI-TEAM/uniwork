@@ -660,6 +660,7 @@ describe("DocumentsPageView", () => {
     expect((call?.[1] as { body?: unknown }).body).toEqual({
       format: "docx",
       title: t("documents.home.default_names.docx"),
+      destination: "my_folder",
     });
   });
 

@@ -20,6 +20,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { isMyFolder } from "@uniwork/core/types/document";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
@@ -103,10 +104,11 @@ export function LibraryRowView({
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
-  const title = rowTitle(row) || t("documents.detail.untitled");
+  const doc = row.type === "document" ? row.doc : null;
+  const myFolder = isMyFolder(doc);
+  const title = (myFolder ? t("documents.home.my_folder.label") : rowTitle(row)) || t("documents.detail.untitled");
   const format = rowFormat(row);
   const folder = isFolderRow(row);
-  const doc = row.type === "document" ? row.doc : null;
   const source = row.type === "source" ? row.source : null;
   const sourceLinked = source ? sourceParentLinked(source.parent) : false;
 
@@ -184,14 +186,13 @@ export function LibraryRowView({
     if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
       actions.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
     }
-    if (handlers.onRename && canMoveRow(level)) {
+    if (!myFolder && handlers.onRename && canMoveRow(level)) {
       actions.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
     }
-    if (handlers.onMove && canMoveRow(level)) {
+    if (!myFolder && handlers.onMove && canMoveRow(level)) {
       actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
     }
-    if (handlers.onArchive && canArchiveRow(level)) {
-      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
+    if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
       actions.push(
         folder
           ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }

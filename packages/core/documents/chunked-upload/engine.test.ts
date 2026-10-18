@@ -1254,6 +1254,56 @@ describe("chunked upload engine", () => {
     }
     expect(progressEvents.at(-1)).toMatchObject({ phase: "done", sentBytes: 25 });
   });
+
+  it("propagates a 423 document_locked on version session create without saving a resume record or uploading parts (UNI-1890)", async () => {
+    const file = makeFile(25);
+    const storage = createFakeStorage();
+    const target = { kind: "version" as const, documentId: "doc-1" };
+    const progressEvents: ChunkedUploadProgress[] = [];
+    const fields = {
+      holder_id: "u-2",
+      holder_name: "Bình",
+      since: "2026-10-18T01:00:00Z",
+      expires_at: "2026-10-18T01:02:00Z",
+      held_by_me: false,
+      current_revision: "3",
+    };
+    const calls: string[] = [];
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push(`${method} ${url}`);
+      if (method === "POST" && url === `${API}/api/v1/documents/doc-1/upload-sessions`) {
+        return json({ error: { code: "document_locked", message: "đang bị khóa", fields } }, 423);
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-locked",
+      storage,
+      fetch: fakeFetch,
+      onProgress: (p) => progressEvents.push({ ...p }),
+    });
+
+    await expect(upload.result).rejects.toMatchObject({
+      status: 423,
+      code: "document_locked",
+      fields,
+    });
+    expect(calls).toEqual([`POST ${API}/api/v1/documents/doc-1/upload-sessions`]);
+    expect(findResumableUpload(storage, uploadFileKey(file), target)).toBeNull();
+    expect(progressEvents.at(-1)).toEqual({
+      phase: "failed",
+      sentBytes: 0,
+      totalBytes: 25,
+    });
+  });
 });
 
 

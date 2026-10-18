@@ -21,3 +21,16 @@ describe("paths.workspace().documentsFolder", () => {
     expect(url.searchParams.get("folder")).toBe("f1");
   });
 });
+
+describe("paths.workspace().documentsTrash", () => {
+  const ws = paths.workspace("acme", "team");
+
+  it("opens the Thùng rác scope of the documents route", () => {
+    expect(ws.documentsTrash()).toBe("/acme/team/documents?view=archived");
+  });
+
+  it("carries the document to focus, encoded", () => {
+    expect(ws.documentsTrash("d1")).toBe("/acme/team/documents?view=archived&focus=d1");
+    expect(ws.documentsTrash("a/b?c&d")).toBe("/acme/team/documents?view=archived&focus=a%2Fb%3Fc%26d");
+  });
+});

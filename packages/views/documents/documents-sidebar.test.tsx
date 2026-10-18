@@ -42,6 +42,7 @@ describe("DocumentsSidebar sub-nav", () => {
     const labels = navLabels();
     const order = [
       t("documents.home.sidebar.home"),
+      t("documents.home.my_folder.label"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
@@ -79,8 +80,9 @@ describe("DocumentsSidebar sub-nav", () => {
 
   it("keeps the same entries on the trash view, with no Lưu trữ entry", () => {
     renderSidebar({ view: { kind: "archived" } });
-    expect(navLabels().slice(0, 6)).toEqual([
+    expect(navLabels().slice(0, 7)).toEqual([
       t("documents.home.sidebar.home"),
+      t("documents.home.my_folder.label"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
@@ -117,15 +119,16 @@ describe("DocumentsSidebar icons", () => {
   it("draws every other row in one style: a muted size-4 line glyph, no tile", () => {
     renderSidebar();
     const rows = [
-      ["home", "home"],
-      ["recent", "recent"],
-      ["starred", "starred"],
-      ["shared", "shared"],
-      ["shared_by_me", "sharedByMe"],
-      ["trash", "trash"],
+      ["documents.home.sidebar.home", "home"],
+      ["documents.home.my_folder.label", "myFolders"],
+      ["documents.home.sidebar.recent", "recent"],
+      ["documents.home.sidebar.starred", "starred"],
+      ["documents.home.sidebar.shared", "shared"],
+      ["documents.home.sidebar.shared_by_me", "sharedByMe"],
+      ["documents.home.sidebar.trash", "trash"],
     ] as const;
     for (const [key, icon] of rows) {
-      const row = screen.getByRole("button", { name: t(`documents.home.sidebar.${key}`) });
+      const row = screen.getByRole("button", { name: t(key) });
       expect(row.querySelector('[data-slot="icon-tile"]')).toBeNull();
       const svg = row.querySelector("svg");
       expect(svg).toHaveClass("size-4", "text-muted-foreground");
