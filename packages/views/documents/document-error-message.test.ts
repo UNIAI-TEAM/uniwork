@@ -154,6 +154,20 @@ describe("documentErrorMessage", () => {
     expect(t).toHaveBeenCalledWith("documents.upload.failed_resumable");
   });
 
+  // RAR-15: a chunked version upload refused at session create must not offer
+  // to "resume" a write the server can never accept.
+  it("maps a 409 document_shelved with an open resumable session to documents.shelved_doc.write_blocked (RAR-15)", () => {
+    const t = fakeT();
+    documentErrorMessage(
+      new ApiError("document is shelved", "document_shelved", 409, undefined, undefined, "read_only"),
+      t,
+      "fallback",
+      { resumable: true },
+    );
+    expect(t).toHaveBeenCalledWith("documents.shelved_doc.write_blocked");
+    expect(t).not.toHaveBeenCalledWith("documents.upload.failed_resumable");
+  });
+
   it("maps ChunkedUploadError(central_directory_too_large) with and without file context, and maps missing_etag / malformed_response through resumable or fallback", () => {
     const errCd = new ChunkedUploadError(
       "central_directory_too_large",

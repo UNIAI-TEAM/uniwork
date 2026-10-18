@@ -283,6 +283,33 @@ describe("shelved nav + list", () => {
     expect(screen.getByText(t("documents.shelved_list.filter_loaded_only"))).toBeInTheDocument();
   });
 
+  // RAR-16: a "Lưu trữ bởi" filter that matches nothing still counts as a
+  // filter, so the empty state offers Bỏ bộ lọc and pressing it clears the
+  // member filter (and only it — no other filter is on here).
+  it("offers Bỏ bộ lọc when only the 'Lưu trữ bởi' filter matches nothing, and pressing it clears the member filter (RAR-16)", async () => {
+    route({
+      list: () => [shelved()],
+      members: () => [member(), member({ user_id: "u3", display_name: "Đạt Đặng" })],
+    });
+    renderView();
+    await openShelved();
+    await rowOf("Kế hoạch Q4");
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") }));
+    const option = await screen.findByRole("option", { name: "Đạt Đặng" });
+    fireEvent.pointerDown(option, { pointerType: "mouse" });
+    fireEvent.pointerUp(option, { pointerType: "mouse" });
+    fireEvent.click(option);
+
+    expect(await screen.findByText(t("documents.shelved_list.no_matches_title"))).toBeInTheDocument();
+    expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
+    const clear = screen.getByRole("button", { name: t("documents.library.clear_filters") });
+    fireEvent.click(clear);
+
+    expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.shelved_list.no_matches_title"))).toBeNull();
+  });
+
   // RAR-14(b): each view owns its filter state; leaving Lưu trữ and returning clears shelvedBy.
   it("resets the 'Lưu trữ bởi' filter when leaving Lưu trữ and coming back (RAR-14)", async () => {
     route({
