@@ -191,7 +191,7 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
-		NotificationsMuted: r.NotificationsMuted,
+		NotificationsMuted: r.NotificationsMuted, AvatarURL: r.AvatarURL,
 	}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)

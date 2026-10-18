@@ -150,6 +150,11 @@ type PatchChatRoomSDI struct {
 	MemberPermissions *ChatRoomMemberPermissionsSDI `json:"member_permissions,omitempty" description:"Permissions granted to regular members"`
 }
 
+// UploadChatRoomAvatarSDI is POST .../chat/rooms/{roomID}/avatar (multipart).
+type UploadChatRoomAvatarSDI struct {
+	File []byte `formData:"file" description:"Ảnh PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB"`
+}
+
 // CreateChatChannelSDI is POST .../chat/channels.
 type CreateChatChannelSDI struct {
 	Name          string   `json:"name" description:"Channel name (1–80 chars)" example:"marketing"`

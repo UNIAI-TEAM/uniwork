@@ -227,6 +227,21 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomMemberPermissionsDTO{},
 		auth:        true,
 	})
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar", h.UploadChatRoomAvatar, apiOp{
+		summary:     "Upload group avatar",
+		description: "Đặt ảnh nhóm chat. Tên field multipart là file. PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB. Quyền như đổi tên nhóm: admin phòng, người tạo, hoặc thành viên khi allow_change_profile bật. Chỉ cho nhóm.",
+		tags:        []string{"chat"},
+		sdi:         sdi.UploadChatRoomAvatarSDI{},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
+	r.With(chatRoomLimit).Delete("/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar", h.RemoveChatRoomAvatar, apiOp{
+		summary:     "Remove group avatar",
+		description: "Bỏ ảnh nhóm chat; nhóm hiện lại ảnh các thành viên. Quyền như đổi tên nhóm.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
 	r.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{
 		summary:     "Update chat room member",
 		description: "Thăng/giáng admin phòng hoặc cấm/bỏ cấm gửi tin.",

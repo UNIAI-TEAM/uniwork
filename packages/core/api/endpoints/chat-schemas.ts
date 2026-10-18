@@ -234,6 +234,8 @@ export const ChatRoomSchema = z.object({
   is_default: z.boolean().optional(),
   /** The caller muted this room's notifications; kept on the server, so on every device. */
   notifications_muted: z.boolean().optional().catch(undefined),
+  /** A group's uploaded avatar, signed; absent when the group shows its members. */
+  avatar_url: z.string().optional().catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 

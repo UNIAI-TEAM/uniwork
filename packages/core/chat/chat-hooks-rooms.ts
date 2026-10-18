@@ -235,6 +235,20 @@ export function useUpdateChatRoomSettings(workspaceId: string) {
   });
 }
 
+/** Sets (file) or removes (null) a group's avatar. */
+export function useSetChatRoomAvatar(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { roomId: string; file: File | null }) =>
+      input.file
+        ? chat.uploadChatRoomAvatar(workspaceId, input.roomId, input.file)
+        : chat.removeChatRoomAvatar(workspaceId, input.roomId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
 export function useChatRoomMessages(
   workspaceId: string,
   roomId: string | null,

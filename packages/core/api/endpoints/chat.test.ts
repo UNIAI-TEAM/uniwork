@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import {
   createChatGroup,
+  uploadChatRoomAvatar,
+  removeChatRoomAvatar,
   ensureWorkspaceChatRoom,
   getWorkspaceChatRoom,
   leaveChatRoom,
@@ -209,6 +211,39 @@ describe("chat endpoints", () => {
   it("createChatGroup degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await createChatGroup("ws1", { name: "G", member_user_ids: ["a", "b"] })).toBeNull();
+  });
+
+  it("uploadChatRoomAvatar posts the file and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const file = new File(["png"], "nhom.png", { type: "image/png" });
+    expect(await uploadChatRoomAvatar("ws1", "room1", file)).toBeNull();
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(url).toBe("http://api.test/api/v1/workspaces/ws1/chat/rooms/room1/avatar");
+    expect(init?.method).toBe("POST");
+    expect((init?.body as FormData).get("file")).toBeInstanceOf(Blob);
+  });
+
+  it("removeChatRoomAvatar degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await removeChatRoomAvatar("ws1", "room1")).toBeNull();
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method).toBe("DELETE");
+  });
+
+  it("listChatRooms reads a group's avatar_url and drops a malformed one, not the room", async () => {
+    const group = { kind: "group", name: "G", workspace_id: "ws1", member_user_ids: ["a", "b"] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...group, id: "g1", avatar_url: "https://storage.test/a.png" },
+          { ...group, id: "g2", avatar_url: 42 },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((room) => [room.id, room.avatar_url])).toEqual([
+      ["g1", "https://storage.test/a.png"],
+      ["g2", undefined],
+    ]);
   });
 
   it("listChatRooms keeps valid rooms when one row is malformed", async () => {

@@ -223,6 +223,7 @@ type ChatRoomDTO struct {
 	Topic                 string                        `json:"topic,omitempty" description:"Channel topic"`
 	IsDefault             bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
 	NotificationsMuted    bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
+	AvatarURL             string                        `json:"avatar_url,omitempty" description:"Signed URL of a group's uploaded avatar; absent when the group shows its members" example:"https://storage.example.com/chat/avatars/01J8X4FILE?sig=abc"`
 }
 
 // ChatChannelListSDO is GET .../chat/channels.

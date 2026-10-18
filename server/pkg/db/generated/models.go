@@ -367,6 +367,7 @@ type ChatRoom struct {
 	CreatedByKind     string             `json:"created_by_kind"`
 	ArchivedAt        pgtype.Timestamptz `json:"archived_at"`
 	ArchivedBy        pgtype.Text        `json:"archived_by"`
+	AvatarFileID      pgtype.Text        `json:"avatar_file_id"`
 }
 
 type ChatRoomMember struct {

@@ -339,6 +339,14 @@ func DefaultSpecs() []PurposeSpec {
 			Scope:   ScopeOrgWorkspace,
 			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
 		},
+		{
+			// A group's avatar (UNI-1898): an organization room, so the
+			// workspace is optional like the other chat purposes.
+			Purpose: ChatRoomAvatar,
+			Prefix:  "chat/avatars",
+			Scope:   ScopeOrgWorkspaceOptional,
+			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
+		},
 	}
 }
 
