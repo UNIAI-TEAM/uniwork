@@ -51,7 +51,7 @@ const handlers: LibraryRowHandlers = {
   personName: () => "An",
 };
 
-function renderList() {
+function renderList(opts: { sharedByMe?: boolean } = {}) {
   return render(
     <DocumentsLibraryList
       groups={[{ key: "unfiled", title: "Nhóm", rows: [documentRow(file("a"))] }]}
@@ -64,6 +64,7 @@ function renderList() {
       onRetry={vi.fn()}
       onClearFilters={vi.fn()}
       handlers={handlers}
+      sharedByMe={opts.sharedByMe}
       empty={{ title: "empty", description: "empty" }}
     />,
   );
@@ -191,6 +192,29 @@ describe("column ladder", () => {
       previous = now;
     }
     expect(steps.slice(1)).toEqual(["464:updated", "672:editor", "752:size", "944:access"]);
+  });
+
+  it("swaps access and editor rungs on Shared by me so the scope column joins earlier (SW-V1)", () => {
+    renderList({ sharedByMe: true });
+    let previous = new Set<string>();
+    const steps: string[] = [];
+    for (let c = FLOOR; c <= LIST_MAX; c += 1) {
+      const { visible } = layoutAt(c);
+      const now = new Set(IDS.filter((_, i) => visible[i]));
+      for (const id of previous) expect(now.has(id), `${id} disappears at ${c}`).toBe(true);
+      const added = [...now].filter((id) => !previous.has(id));
+      if (added.length > 0) steps.push(`${c}:${added.join("+")}`);
+      previous = now;
+    }
+    // Truy cập joins where the editor would (42rem) and the editor waits:
+    // the row owner is never the reader of this view, so the scope matters more.
+    expect(steps.slice(1)).toEqual(["464:updated", "672:access", "752:size", "944:editor"]);
+    const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
+    const accessLine = row.querySelector("[data-library-access-line]") as HTMLElement;
+    // The access group leaves the narrow line as its column joins; the rest of
+    // the line (editor · date · size) stays until the last column joins.
+    expect(rungOf(accessLine.querySelector("[data-library-access-group]")!, /^hidden$/)).toBe(672);
+    expect(rungOf(accessLine, /^hidden$/)).toBe(944);
   });
 
   it("swaps the secondary line for the access column once it fits", () => {

@@ -9088,7 +9088,7 @@
         "transfer_confirm": "Transfer",
         "transferred": "Ownership transferred to {{name}}",
         "target_not_member": "{{name}} isn't a member of this workspace, so they can't own this document.",
-        "self_transfer_error": "Admins can't take ownership of a restricted document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
+        "self_transfer_error": "Admins can't take ownership of a private document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
         "title_untitled": "Transfer document ownership",
         "search_placeholder": "Search workspace members",
         "no_candidates": "No other member can take this document.",
@@ -9572,8 +9572,8 @@
       "comment": "Comment"
     },
     "breakGlass": {
-      "lockedTitle": "This document is restricted",
-      "lockedBody": "Admins can manage this document, but can read its content only with emergency access.",
+      "lockedTitle": "This document is private",
+      "lockedBody": "Admins can manage this private document, but can read its content only with emergency access.",
       "openButton": "Open emergency access (24h)",
       "reasonLabel": "Reason for emergency access",
       "reasonHint": "The owner will be notified and this action is recorded in the audit log. View access expires after 24 hours.",
@@ -9590,7 +9590,7 @@
       "viaBreakGlass": "Emergency access",
       "selfShareError": "Admins can't grant themselves access through Share. Use Emergency access (24 hours, audited).",
       "memberTitle": "You need access to this document",
-      "memberBody": "This document is restricted. Contact the owner or a document manager to request access.",
+      "memberBody": "This document is private. Contact the owner or a document manager to request access.",
       "ownerLabel": "Owner: {{owner}}",
       "updatedLabel": "Updated {{time}}",
       "submitFailed": "Could not open emergency access. Try again.",

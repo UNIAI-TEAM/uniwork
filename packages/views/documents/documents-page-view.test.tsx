@@ -539,6 +539,20 @@ describe("DocumentsPageView", () => {
       expect(screen.getByText(t("documents.home.empty.shared_by_me_description"))).toBeInTheDocument();
     });
 
+    it("shows the plain home-workspace scope badge on the narrow line of a shared-by-me row (SW-V2)", async () => {
+      const homeScope = { users: 0, home_workspace: true, workspaces: 0, organization: false, public_link: false };
+      route({
+        list: (path) =>
+          queryOf(path).get("shared_by_me") === "true"
+            ? [summary({ id: "sbm4", title: "Đề xuất ngân sách Q4.docx", via: "owner", visibility: "workspace", share_scope: homeScope })]
+            : [],
+      });
+      renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
+      const row = await rowOf("Đề xuất ngân sách Q4.docx");
+      const line = row.querySelector("[data-library-access-line]") as HTMLElement;
+      expect(within(line).getByTestId("document-share-scope-badge")).toBeInTheDocument();
+    });
+
     it("offers Rename, Move and Archive on a shared-by-me row the caller manages", async () => {
       route({
         list: (path) =>
