@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+970f528ffa952e51dea299b332ae85157edde5e8
+970f528ff fix(documents): hide the file input from assistive tech and describe the picker (UNI-1906 R1-2)
+442fb9d97 fix(documents): click the file input through a ref (UNI-1906 R1-3)
+2bbbf7971 fix(documents): do not bank a retried part's failed bytes (UNI-1906 R1-1)
+49b36a939 fix(documents): dismiss the waiting toast when its Cancel is pressed (UNI-1906 F4)
+1ec33b98a style(documents): drop a stray blank line in the picker block
+4e7572f38 test(documents): mark the queued-toast cancel call as ignored (UNI-1906 F4)
+1a15fc915 feat(documents): a waiting toast for every queued drop (UNI-1906 F4)
+bf9afcd46 fix(documents): legible progress track boundary on the dialog (UNI-1906 F3)
