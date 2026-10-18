@@ -44,6 +44,7 @@ var titles = map[string]map[string]string{
 		KindDocumentAccessRequested:     "{{actor}} xin quyền truy cập tài liệu “{{document}}”.",
 		KindDocumentAccessApproved:      "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",
 		KindDocumentAccessDeclined:      "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
+		KindDocumentTrashedByOther:      "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
 	},
 	"en": {
 		KindTaskAssigned:                "{{actor}} assigned you “{{task}}”",
@@ -76,6 +77,7 @@ var titles = map[string]map[string]string{
 		KindDocumentAccessRequested:     "{{actor}} requested access to “{{document}}”.",
 		KindDocumentAccessApproved:      "{{actor}} gave you access to “{{document}}”.",
 		KindDocumentAccessDeclined:      "Your request to access a document was declined.",
+		KindDocumentTrashedByOther:      "{{actor}} moved your document to trash. Restore it before {{date}}",
 	},
 }
 
@@ -96,6 +98,7 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentAccessRequested:     "Yêu cầu truy cập tài liệu",
 		KindDocumentAccessApproved:      "Đã được cấp quyền",
 		KindDocumentAccessDeclined:      "Yêu cầu bị từ chối",
+		KindDocumentTrashedByOther:      "Tài liệu của bạn đã vào thùng rác",
 	},
 	"en": {
 		KindDocumentMentioned:           "You were mentioned in a comment",
@@ -107,6 +110,7 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentAccessRequested:     "Document access request",
 		KindDocumentAccessApproved:      "Access granted",
 		KindDocumentAccessDeclined:      "Request declined",
+		KindDocumentTrashedByOther:      "Your document was moved to trash",
 	},
 }
 
