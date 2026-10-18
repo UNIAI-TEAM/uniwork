@@ -26,6 +26,13 @@ const requestRow = (over: Record<string, unknown> = {}) => ({
 
 const malformedBodies = [{ nope: true }, { status: 7 }, { requests: "x" }, null, [], "str"];
 
+/** The pending rows of d1; a null answer (no such route) fails the test that expects rows. */
+async function listedRows() {
+  const rows = await listDocumentAccessRequests("d1");
+  if (rows === null) throw new Error("expected pending rows, got null");
+  return rows;
+}
+
 describe("documents-access-requests endpoints", () => {
   beforeEach(() => {
     setAccessToken("tok");
@@ -65,7 +72,7 @@ describe("documents-access-requests endpoints", () => {
 
   it("listDocumentAccessRequests reads the pending rows, a source or null", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ requests: [requestRow(), requestRow({ id: "r2", source: null, message: "" })] }));
-    const out = await listDocumentAccessRequests("d1");
+    const out = await listedRows();
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/documents/d1/access-requests");
     expect(out).toHaveLength(2);
     expect(out[0]).toEqual(requestRow());
@@ -74,7 +81,7 @@ describe("documents-access-requests endpoints", () => {
 
   it("listDocumentAccessRequests drops a malformed row and keeps the rest", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ requests: [requestRow(), { id: 5 }, requestRow({ id: "r3", message: null, source: { kind: 1 } })] }));
-    const out = await listDocumentAccessRequests("d1");
+    const out = await listedRows();
     expect(out.map((r) => r.id)).toEqual(["r1", "r3"]);
     expect(out[1]).toMatchObject({ message: "", source: null });
   });
