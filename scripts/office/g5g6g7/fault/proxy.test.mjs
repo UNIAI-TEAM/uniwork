@@ -822,8 +822,8 @@ test("the proxy log records policy_epoch of a 200 lease PUT answer and nothing e
   const upstream = http.createServer((req, res) => {
     req.resume();
     const body = req.url.endsWith("/office/offline-lease")
-      ? JSON.stringify({ policy_epoch: 3, token: "SECRET-TOKEN" })
-      : JSON.stringify({ policy_epoch: 9 });
+      ? JSON.stringify({ policy_epoch: 3, expires_at: "2099-01-01T00:00:00.000Z", token: "SECRET-TOKEN" })
+      : JSON.stringify({ policy_epoch: 9, expires_at: "2099-01-01T00:00:00.000Z" });
     res.writeHead(200, { "content-type": "application/json" });
     res.end(body);
   });
@@ -838,7 +838,9 @@ test("the proxy log records policy_epoch of a 200 lease PUT answer and nothing e
   const log = await (await fetch(`${proxy.origin}/__fault/log`)).text();
   const entries = log.trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(entries[0].policyEpoch, 3);
+  assert.equal(entries[0].expiresAt, "2099-01-01T00:00:00.000Z");
   assert.equal("policyEpoch" in entries[1], false, "only a lease grant answer is read");
+  assert.equal("expiresAt" in entries[1], false, "only a lease grant answer is read");
   assert.equal(log.includes("SECRET-TOKEN"), false);
 });
 
@@ -882,6 +884,7 @@ test("a rewrite_json rule keeps the log's error code and policy_epoch: the short
   assert.equal("policyEpoch" in entries[0], false);
   assert.equal(entries[1].status, 200);
   assert.equal(entries[1].policyEpoch, 4);
+  assert.equal(entries[1].expiresAt, grantedBody.expires_at);
   assert.equal("errorCode" in entries[1], false);
   assert.equal(entries[1].ruleId, "short-lease");
   assert.equal(log.includes("SECRET-BODY-TEXT") || log.includes("SECRET-TOKEN"), false);

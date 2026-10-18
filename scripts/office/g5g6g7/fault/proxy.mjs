@@ -40,6 +40,16 @@ export function policyEpochOf(body) {
   }
 }
 
+/** `expires_at` of a lease grant answer (top level, `lease` or `data`) when it is a valid ISO timestamp, else null. */
+export function expiresAtOf(body) {
+  try {
+    const parsed = JSON.parse(body.toString("utf8"));
+    const expiresAt = parsed?.expires_at ?? parsed?.lease?.expires_at ?? parsed?.data?.expires_at;
+    return typeof expiresAt === "string" && Number.isFinite(Date.parse(expiresAt)) ? expiresAt : null;
+  } catch {
+    return null;
+  }
+}
 const LEASE_PATH_SUFFIX = "/office/offline-lease";
 
 const CONTROL_PREFIX = "/__fault";
@@ -220,7 +230,7 @@ export async function startFaultProxy({
     return { idempotencyKey: true, keyTag };
   }
 
-  function recordLog({ startTime, method, path, status, idempotencyKey, keyTag, ruleId, errorCode, policyEpoch }) {
+  function recordLog({ startTime, method, path, status, idempotencyKey, keyTag, ruleId, errorCode, policyEpoch, expiresAt }) {
     const entry = {
       ts: new Date().toISOString(),
       method: String(method || "GET").toUpperCase(),
@@ -233,8 +243,9 @@ export async function startFaultProxy({
       // the error code of a JSON 4xx/5xx answer (`error.code`), never the body: an app row
       // must tell `offline_lease_revoked` from any other 403 (G7-03b R2-9)
       ...(errorCode ? { errorCode } : {}),
-      // the policy epoch a lease grant answered with (G7-03b R2-9: a regrant after a revoke records the NEW epoch)
+      // the policy epoch and expiry a lease grant answered with (G7-03b R2-9 / G703-R6-1)
       ...(Number.isInteger(policyEpoch) ? { policyEpoch } : {}),
+      ...(expiresAt ? { expiresAt } : {}),
     };
     const serialized = `${JSON.stringify(entry)}\n`;
     logEntries.push(serialized);
@@ -360,7 +371,7 @@ export async function startFaultProxy({
     bufferedBody = null,
   }) {
     let logged = false;
-    const logOnce = (status, errorCode = null, policyEpoch = null) => {
+    const logOnce = (status, errorCode = null, policyEpoch = null, expiresAt = null) => {
       if (logged) return;
       logged = true;
       recordLog({
@@ -373,6 +384,7 @@ export async function startFaultProxy({
         ruleId,
         errorCode,
         policyEpoch,
+        expiresAt,
       });
     };
 
@@ -411,13 +423,14 @@ export async function startFaultProxy({
             // the rewrite changes only the patched field: the answer's own error code / lease epoch is still read from the original
             const leaseGrantRewritten = statusCode === 200 && req.method === "PUT" && String(cleanPath).endsWith(LEASE_PATH_SUFFIX);
             const sniffable = (statusCode >= 400 || leaseGrantRewritten) && !proxyRes.headers["content-encoding"];
+            const rewritten = applyJsonPatch(original, proxyRes.headers, rewriteJsonPatch);
             logOnce(
               statusCode,
               sniffable && !leaseGrantRewritten ? errorCodeOf(original) : null,
               sniffable && leaseGrantRewritten ? policyEpochOf(original) : null,
+              sniffable && leaseGrantRewritten ? expiresAtOf(rewritten ?? original) : null,
             );
             if (res.writableEnded || res.destroyed) return;
-            const rewritten = applyJsonPatch(original, proxyRes.headers, rewriteJsonPatch);
             if (!rewritten) {
               res.writeHead(statusCode, proxyRes.headers);
               res.end(original);
@@ -456,7 +469,12 @@ export async function startFaultProxy({
         });
         proxyRes.on("end", () => {
           const sniffedBody = sniffError ? Buffer.concat(sniffed) : null;
-          logOnce(statusCode, sniffedBody && !leaseGrant ? errorCodeOf(sniffedBody) : null, sniffedBody && leaseGrant ? policyEpochOf(sniffedBody) : null);
+          logOnce(
+            statusCode,
+            sniffedBody && !leaseGrant ? errorCodeOf(sniffedBody) : null,
+            sniffedBody && leaseGrant ? policyEpochOf(sniffedBody) : null,
+            sniffedBody && leaseGrant ? expiresAtOf(sniffedBody) : null,
+          );
           if (!res.writableEnded && !res.destroyed) {
             res.end();
           }

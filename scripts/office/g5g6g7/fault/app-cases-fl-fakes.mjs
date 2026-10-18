@@ -193,11 +193,13 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       return "revoked";
     }
     if (world.revoked && fresh && oldEpoch) world.regrantsLeft -= 1;
-    world.log.push({ method: "PUT", path, status: 200, ruleId: rule?.id ?? null, policyEpoch: world.grantEpochOverride ?? world.policyEpoch });
     world.revokedSeen.delete(documentId);
     const short = rule?.action.type === "rewrite_json";
     const ttlMs = short ? rule.action.patch.expires_at.now_plus_ms : FULL_LEASE_MS;
-    world.leases.set(documentId, { short, ttlMs, grantedAt: Date.now(), grantedSlept: world.sleptMs, polls: 0, expired: false, epoch: world.policyEpoch });
+    const grantedAt = Date.now();
+    const expiresAt = new Date(grantedAt + ttlMs).toISOString();
+    world.log.push({ method: "PUT", path, status: 200, ruleId: rule?.id ?? null, policyEpoch: world.grantEpochOverride ?? world.policyEpoch, expiresAt });
+    world.leases.set(documentId, { short, ttlMs, grantedAt, grantedSlept: world.sleptMs, polls: 0, expired: false, epoch: world.policyEpoch });
     world.rollbackLatched = false;
     writeRecord(world.leaseDir(), `lease/${documentId}`, Buffer.from(`lease-${documentId}-${++world.leaseSeq}`));
     return "granted";
@@ -538,7 +540,9 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
         // shouldRenew: true): a granted PUT, the new expiry taken from the server, the latch kept
         if (world.renewAtRollbackLaunch) {
           leasePut(documentId);
-          world.leases.get(documentId).grantedAt += 5_000;
+          const renewed = world.leases.get(documentId);
+          renewed.grantedAt += 5_000;
+          world.log.at(-1).expiresAt = new Date(renewed.grantedAt + renewed.ttlMs).toISOString();
           world.rollbackLatched = true;
         }
       }

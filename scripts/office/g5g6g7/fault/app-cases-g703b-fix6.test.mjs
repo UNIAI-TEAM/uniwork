@@ -280,3 +280,19 @@ test("CL3-4: a lease PUT answered 200 after the cut still fails (nothing may get
   });
   assert.equal(byName.never_extends_lease.ok, false);
 });
+
+test("G703-R6-1 / G703-R6-6: a startup renewal followed by a local post-cut extension fails never_extends_lease", async () => {
+  const { byName } = await runFl05((world) => {
+    world.renewAtRollbackLaunch = true;
+    const origSetRules = world.ctx.setRules;
+    let cutDone = false;
+    world.ctx.setRules = async (rules) => {
+      await origSetRules(rules);
+      if (!cutDone && rules.some((r) => r.id === "cut-lease")) {
+        cutDone = true;
+        for (const lease of world.leases.values()) lease.grantedAt += 3_600_000;
+      }
+    };
+  });
+  assert.equal(byName.never_extends_lease.ok, false);
+});

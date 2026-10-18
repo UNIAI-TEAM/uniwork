@@ -382,11 +382,10 @@ async function fl05(ctx) {
   const behindMs = typeof appNow === "number" ? Date.now() - appNow : null;
   const cutPosition = (await ctx.proxyLog()).length;
   await ctx.setRules(ctx.caseRules(["cut-lease", "cut-open"]));
-  // CL3-4: the app's startup pass renews a rolled-back lease while the network is still up (fork lease/clock.ts:100-111
+  // CL3-4 / G703-R6-1: the app's startup pass renews a rolled-back lease while the network is still up (fork lease/clock.ts:100-111
   // `shouldRenew: true` on rollback; the row's own note "online, server time check"): that renewal is the SERVER's grant,
-  // not the rolled-back clock extending anything. The claim is what the clock does once the network is cut, so the
-  // expiry is read at the cut; it counts as the baseline only when a lease PUT answered 200 on the wire explains it.
-  const leaseAtCut = await rowReading(second, doc.id);
+  // not the rolled-back clock extending anything. The allowed baseline is bound to the VERIFIED server-granted expiry of
+  // the pre-cut PUT 200 on the wire, never the post-cut client reading.
   const renewedBeforeCut = leasePutsSince((await ctx.proxyLog()).slice(0, cutPosition), launchBoundary).filter((entry) => entry.status === 200);
   const boundary = (await ctx.proxyLog()).length;
   const opened = await offlineOpen(second, doc.id);
@@ -413,10 +412,13 @@ async function fl05(ctx) {
   // NOT the ciphertext: the fork persists the clock_rollback latch (lease/manager.ts:394-409), so the
   // lease record is rewritten while the lease is not extended. Extension is read from the semantic
   // fields of the approved reading - the expiry may not move later and the committed version stays.
-  const expiryAtCut = Date.parse(leaseAtCut?.leaseUntil ?? "");
-  const baseline = renewedBeforeCut.length > 0 && Number.isFinite(expiryAtCut) ? Math.max(expiryBefore, expiryAtCut) : expiryBefore;
+  const grantedBeforeCut = renewedBeforeCut
+    .map((entry) => Date.parse(entry.expiresAt ?? ""))
+    .filter((ms) => Number.isFinite(ms));
+  const verifiedRenewalExpiry = grantedBeforeCut.length > 0 ? Math.max(...grantedBeforeCut) : Number.NaN;
+  const baseline = renewedBeforeCut.length > 0 && Number.isFinite(verifiedRenewalExpiry) ? Math.max(expiryBefore, verifiedRenewalExpiry) : expiryBefore;
   const expiryHeld = Number.isFinite(expiryBefore) && (expiryDuring === null || expiryDuring <= baseline);
-  const baseVersion = renewedBeforeCut.length > 0 && leaseAtCut?.version != null ? leaseAtCut.version : leaseBefore.version;
+  const baseVersion = leaseBefore.version;
   const versionHeld = baseVersion === null || reading.version === null || reading.version === baseVersion;
   return {
     documentId: doc.id,
