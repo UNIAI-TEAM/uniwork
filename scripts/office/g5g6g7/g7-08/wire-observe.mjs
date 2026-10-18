@@ -91,19 +91,30 @@ export function interruptionFromTurn(turnError, { requests = [], responses = [],
  * native shape; the UniWork turn is built by `ai/openai_facade.go:377-383`.
  */
 const MODEL_CALL_ROUTES = Object.freeze([
-  { re: /\/office-frame\/documents\/[^/]+\/ai\/uniwork\/chat\/completions$/, glob: '**/api/v1/office-frame/documents/*/ai/uniwork/chat/completions', shape: 'openai' },
-  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/chat\/completions$/, glob: '**/api/v1/office-frame/documents/*/ai/byok/*/chat/completions', shape: 'openai' },
-  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/messages$/, glob: '**/api/v1/office-frame/documents/*/ai/byok/*/messages', shape: 'anthropic' },
-  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/generate$/, glob: '**/api/v1/office-frame/documents/*/ai/byok/*/generate', shape: 'gemini' },
+  { re: /\/office-frame\/documents\/[^/]+\/ai\/uniwork\/chat\/completions$/, globPath: '/api/v1/office-frame/documents/*/ai/uniwork/chat/completions', shape: 'openai' },
+  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/chat\/completions$/, globPath: '/api/v1/office-frame/documents/*/ai/byok/*/chat/completions', shape: 'openai' },
+  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/messages$/, globPath: '/api/v1/office-frame/documents/*/ai/byok/*/messages', shape: 'anthropic' },
+  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/generate$/, globPath: '/api/v1/office-frame/documents/*/ai/byok/*/generate', shape: 'gemini' },
 ]);
 
+function normalizeHttpOrigin(rawOrigin) {
+  try {
+    const u = new URL(String(rawOrigin ?? ''));
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.origin : '';
+  } catch {
+    return '';
+  }
+}
+
 /**
- * R4-1: the same four routes as Playwright `page.route` globs, in the same order, so the dry-run
- * stub (`preconditions.mjs`) intercepts exactly what the real-run matcher counts - a dry BYOK row
- * is stubbed or BLOCKED by name, never passed unseen. The globs are derived from the route table
- * above, so the two cannot drift; `wire-observe.test.mjs` checks each glob against its own regex.
+ * R4-1 + w2i: the four model-CALL routes as Playwright `page.route` globs on the harness's
+ * absolute API origin, never `**`, so a frame-AI POST to any other origin is not intercepted.
  */
-export const MODEL_CALL_ROUTE_GLOBS = Object.freeze(MODEL_CALL_ROUTES.map((route) => route.glob));
+export function modelCallRouteGlobs(apiOrigin) {
+  const base = normalizeHttpOrigin(apiOrigin);
+  if (!base) return Object.freeze([]);
+  return Object.freeze(MODEL_CALL_ROUTES.map((route) => `${base}${route.globPath}`));
+}
 
 /** R4-1: the response shape of one registered model route, or null when the path is not one. */
 export function modelRouteShape(pathname) {
@@ -303,7 +314,31 @@ export function toolCallNamesFromSseText(text, shape = null) {
  *   means the observer missed the route, not that the turn cost zero tokens.
  * An empty response collection is never a successful zero-token run.
  */
-export function evaluateWireObservation({ requests = [], responses = [], sawTurnEffects = false } = {}) {
+export function evaluateWireObservation({
+  requests = [], responses = [], aiPaths = [], apiOrigin = null, sawTurnEffects = false,
+} = {}) {
+  const expectedOrigin = normalizeHttpOrigin(apiOrigin);
+  if (expectedOrigin) {
+    const wrong = [...aiPaths, ...requests].find((entry) => entry?.origin && entry.origin !== expectedOrigin);
+    if (wrong) {
+      return {
+        modelCalls: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        missingUsageCalls: 0,
+        unobserved: true,
+        missingObservationCalls: 1,
+        reason: 'frame_ai_wrong_origin',
+        detail: {
+          expectedOrigin,
+          observedOrigin: wrong.origin,
+          path: wrong.path ?? null,
+          requests: requests.length,
+          responses: responses.length,
+        },
+      };
+    }
+  }
   const usage = extractWireUsage(responses);
   const missingResponses = Math.max(0, requests.length - responses.length);
   if (missingResponses > 0 || usage.missingUsageCalls > 0) {
@@ -338,7 +373,7 @@ export function evaluateWireObservation({ requests = [], responses = [], sawTurn
  * from; a listener failure must never take the turn down, so every read is
  * guarded.
  */
-export function observeModelWire(page, { requests, responses, aiPaths = [], onError } = {}) {
+export function observeModelWire(page, { requests, responses, aiPaths = [], onError, recordResponses = true } = {}) {
   const pending = new Set();
   const settle = async ({ timeoutMs = 5_000 } = {}) => {
     const deadline = Date.now() + timeoutMs;
@@ -357,31 +392,31 @@ export function observeModelWire(page, { requests, responses, aiPaths = [], onEr
   page.on('request', (req) => {
     try {
       if (req.method() !== 'POST') return;
-      const pathname = new URL(req.url()).pathname;
-      // R4-3: the broad net - any AI-mount POST means a model call may have begun,
-      // even when the path is not one of the registered model routes.
-      if (isFrameAiPath(pathname)) aiPaths.push({ path: pathname });
+      const { origin, pathname } = new URL(req.url());
+      // R4-3 + w2i: the broad net - any AI-mount POST records its origin and path.
+      if (isFrameAiPath(pathname)) aiPaths.push({ origin, path: pathname });
       const shape = modelRouteShape(pathname);
-      if (!shape) return;
+      if (!shape || !Array.isArray(requests)) return;
       let body = null;
       try { body = JSON.parse(req.postData() || '{}'); } catch { body = null; }
-      requests.push({ path: pathname, shape, body });
+      requests.push({ origin, path: pathname, shape, body });
     } catch (err) {
       fail(err);
     }
   });
+  if (!recordResponses || !Array.isArray(responses)) return { settle };
   page.on('response', (res) => {
-    // Reading the finished body is async: the caller settles this before it reads the usage, so a
     // body still in flight is not mistaken for a response that never arrived.
     const task = (async () => {
       const req = res.request();
       if (req?.method() !== 'POST') return;
-      const pathname = new URL(res.url()).pathname;
+      const { origin, pathname } = new URL(res.url());
       const shape = modelRouteShape(pathname);
       if (!shape) return;
       let text = '';
       try { text = await res.text(); } catch { text = ''; }
       responses.push({
+        origin,
         status: res.status(),
         shape,
         // R4-1: the usage is read in the route's own response shape, so an Anthropic
