@@ -104,8 +104,51 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
   await expect(dialog.getByText("Liên kết công khai", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(dialog.getByTestId("share-created-url")).toHaveCount(0);
 
+  // TEMP-DIAG (UNI-1914): remove before the final commit.
+  page.on("request", (r) => {
+    if (r.method() === "DELETE") console.log(`DIAG request ${r.method()} ${r.url()}`);
+  });
+  await page.evaluate(() => {
+    const w = window as unknown as { __diag: string[] };
+    w.__diag = [];
+    const d = (s: string) => w.__diag.push(`${Math.round(performance.now())} ${s}`);
+    const desc = (n: Element | null) =>
+      n ? `${n.tagName}${n.getAttribute("aria-label") ? `[${n.getAttribute("aria-label")}]` : ""}.${(n.getAttribute("data-slot") ?? "")}` : "null";
+    for (const phase of [true, false]) {
+      for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+        document.addEventListener(
+          type,
+          (e) => {
+            const me = e as MouseEvent;
+            const btn = document.querySelector('[role="dialog"] section[aria-labelledby="share-links-title"] ul button');
+            const top = document.elementFromPoint(me.clientX, me.clientY);
+            const dialogs = document.querySelectorAll('[role="dialog"]').length;
+            const path = e.composedPath().slice(0, 4).map((n) => desc(n as Element)).join(" > ");
+            if (type === "pointerdown") (btn as HTMLElement | null)?.setAttribute("data-diag-id", String(performance.now()));
+            d(
+              `${phase ? "cap" : "bub"} ${type} xy=${me.clientX},${me.clientY} target=${desc(e.target as Element)} top=${desc(top)} btnConnected=${btn?.isConnected} btnDisabled=${(btn as HTMLButtonElement | null)?.disabled} btnId=${btn?.getAttribute("data-diag-id")} dialogs=${dialogs} prevented=${e.defaultPrevented} path=${path}`,
+            );
+          },
+          phase,
+        );
+      }
+    }
+    new MutationObserver((muts) => {
+      for (const m of muts) {
+        for (const n of Array.from(m.removedNodes)) {
+          if (n instanceof Element && (n.matches("button") || n.querySelector("ul button") || n.matches('[role="dialog"]'))) {
+            d(`removed ${desc(n)} children=${n.childElementCount}`);
+          }
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  const diagBtn = dialog.getByRole("region", { name: "Liên kết công khai" }).getByRole("button", { name: /^Thu hồi/ });
+  console.log(`DIAG box ${JSON.stringify(await diagBtn.boundingBox())} dialogBox ${JSON.stringify(await dialog.boundingBox())}`);
   // Revoke the link; the anonymous reader gets the dead-link state.
-  await dialog.getByRole("region", { name: "Liên kết công khai" }).getByRole("button", { name: /^Thu hồi/ }).click();
+  await diagBtn.click();
+  await page.waitForTimeout(2000);
+  console.log(`DIAG log\n${(await page.evaluate(() => (window as unknown as { __diag: string[] }).__diag)).join("\n")}`);
   await expect(dialog.getByText("Chưa có liên kết nào.")).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press("Escape");
   await visitor.reload();
