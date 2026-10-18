@@ -487,6 +487,36 @@ describe("createDocsFrameApi chunked upload sessions above threshold (UNI-1863)"
     await expect(saving).rejects.toMatchObject({ code: "cancelled" });
     expect(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/upload-sessions/sess-abort"))).toBe(true);
   });
+
+  it("maps a 423 document_locked on frame upload-session create to the lock-refused protocol error without uploading parts (UNI-1890)", async () => {
+    const fields = {
+      holder_id: "u2",
+      holder_name: "An",
+      since: "2026-10-15T03:12:00Z",
+      expires_at: "2026-10-15T03:14:00Z",
+      held_by_me: false,
+      current_revision: "8",
+    };
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions": () =>
+        json({ error: { code: "document_locked", message: "đang sửa", fields } }, 423),
+    });
+    const saving = createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: OVER_BYTES, etag: "7" },
+      { ...call(), editLockId: "lock-1", chunkedUploadThresholdBytes: THRESHOLD },
+    );
+    await expect(saving).rejects.toMatchObject({
+      code: "forbidden",
+      status: 423,
+      message: "document_locked (HTTP 423)",
+      details: { apiCode: "document_locked", fields },
+    });
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      "GET /api/v1/office-frame/documents/doc-1",
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions",
+    ]);
+  });
 });
 
 describe("createDocsFrameApi saveCopy (UNI-1872)", () => {

@@ -160,6 +160,10 @@ URL presigned của bucket, rồi gọi `complete` để server ghép và kiểm
   `Retry-After: 60`); phiên sống 24 giờ; URL phần sống 1 giờ (`GET .../upload-sessions/{id}` cấp URL mới).
 - **Quota:** giữ chỗ `size_bytes` lúc mở phiên; nhả khi huỷ, hết hạn, kiểm tra hỏng, hoặc reconcile của
   FileService khi mở phiên hỏng giữa chừng (job `reconcile` theo hạn lease của phiên).
+- **Khoá sửa:** route tạo phiên cho **phiên bản mới** (`POST /documents/{id}/upload-sessions` và route frame)
+  trả `423 document_locked` ngay khi người khác (hoặc một agent) đang giữ khoá sửa còn sống — chưa giữ chỗ quota,
+  chưa mở phiên, không phần nào được tải lên; người gọi đang giữ khoá hoặc không có khoá sống thì qua. Cổng commit
+  vẫn là nơi quyết định cuối. Chi tiết: addendum size-cap §6.2.
 - **GC:** `DocumentWorkers.Run` (10 phút một lần) gọi `ExpireMultipartUploads`: nhận các phiên quá hạn, abort
   multipart, huỷ phiên FileService (nhả quota), audit `document.upload_session_expired` với actor `system`.
   Abort trên storage là best-effort: lỗi chỉ ghi log WARN `documents: multipart GC abort failed`
