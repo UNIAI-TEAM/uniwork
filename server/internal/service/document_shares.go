@@ -107,7 +107,7 @@ func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, docume
 		return db.DocumentShare{}, err
 	}
 	var out db.DocumentShare
-	err := s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err := s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
@@ -348,7 +348,7 @@ func (s *DocumentService) validateSharePrincipal(ctx context.Context, q *db.Quer
 // RevokeDocumentShare ends one live share. The row stays with revoked_at
 // set: the table is the history of who had access.
 func (s *DocumentService) RevokeDocumentShare(ctx context.Context, actor Actor, documentID, shareID string) error {
-	return s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	return s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteAllowed, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}

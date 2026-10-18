@@ -38,6 +38,8 @@ type DocumentDTO struct {
 	ArchivedAt          *string                 `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
 	ArchivedBy          *string                 `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	PurgeAfter          *string                 `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
+	ShelvedAt           *string                 `json:"shelved_at,omitempty" description:"Mốc lưu trữ (kho lưu trữ, chỉ đọc); khác archived_at (thùng rác)" example:"2026-10-17T09:00:00Z"`
+	ShelvedBy           *string                 `json:"shelved_by,omitempty" description:"ULID người/agent đã lưu trữ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedBy           string                  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedByKind       string                  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
 	UpdatedBy           string                  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
@@ -206,6 +208,8 @@ type DocumentSummaryDTO struct {
 	ArchivedAt    *string                     `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
 	ArchivedBy    *string                     `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	PurgeAfter    *string                     `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
+	ShelvedAt     *string                     `json:"shelved_at,omitempty" description:"Mốc lưu trữ (kho lưu trữ); hàng Thùng rác vẫn mang trường này nếu mục từng lưu trữ" example:"2026-10-17T09:00:00Z"`
+	ShelvedBy     *string                     `json:"shelved_by,omitempty" description:"ULID người/agent đã lưu trữ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedBy     string                      `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedByKind string                      `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
 	UpdatedBy     string                      `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`

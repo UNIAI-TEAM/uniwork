@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useDocumentComments } from "@uniwork/core/documents/hooks-comments";
 import { isMyFolder, type Document } from "@uniwork/core/types/document";
+import { DocumentShelvedBadge } from "./document-shelved-banner";
 import { DocumentPageIcon } from "./document-page-icon";
 import { useDocumentPageMetadata, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 
@@ -12,6 +13,8 @@ interface DocumentPageHeaderProps {
   wsId: string;
   doc: Document;
   editable: boolean;
+  /** The document sits in "Lưu trữ": an Archived label stands beside the title. */
+  shelved?: boolean;
   titleRef?: RefObject<HTMLTextAreaElement | null>;
   metadataRef?: RefObject<DocumentPageMetadataHandle | null>;
   onTitleChange: (title: string) => void;
@@ -23,7 +26,7 @@ interface DocumentPageHeaderProps {
   onStatusChange?: (status: DocumentPageMetadataStatus) => void;
 }
 
-export function DocumentPageHeader({ wsId, doc, editable, titleRef, onTitleChange, onFocusBody,
+export function DocumentPageHeader({ wsId, doc, editable, shelved = false, titleRef, onTitleChange, onFocusBody,
   metadataRef, canPersist, getRevision, onPendingChange, onSaved, onStatusChange }: DocumentPageHeaderProps) {
   const { t, i18n } = useTranslation();
   const ownRef = useRef<HTMLTextAreaElement>(null);
@@ -86,8 +89,9 @@ export function DocumentPageHeader({ wsId, doc, editable, titleRef, onTitleChang
           }}
         />
       ) : <h1 className="break-words text-display-sm font-semibold tracking-tight sm:text-display">{(myFolder ? t("documents.home.my_folder.label") : doc.title) || t("documents.detail.untitled")}</h1>}
-      {time || comments.data ? (
+      {time || comments.data || shelved ? (
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
+          {shelved ? <DocumentShelvedBadge /> : null}
           {time ? <time dateTime={doc.updated_at} title={date?.toLocaleString(i18n.language)}>
             {author ? t("documents.page_ui.updated_by", { time, name: author }) : t("documents.page_ui.updated_at", { time })}
           </time> : null}

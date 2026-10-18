@@ -96,6 +96,8 @@ LEFT JOIN document_versions cv
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): a shelved share leaves the shared-with-me list.
+  AND d.shelved_at IS NULL
   AND d.owner_id IS NULL
   AND (sqlc.narg(format)::text IS NULL
        OR d.kind = 'folder'

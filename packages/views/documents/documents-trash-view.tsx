@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef } from "react";
 import { ArchiveRestore, ShieldAlert, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { canManageTrashed, type DocumentTreeNode } from "@uniwork/core/types/document";
+import { canManageTrashed, isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
 import type { Member } from "@uniwork/core/types/workspace";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -238,7 +239,16 @@ export function DocumentsTrashView({
                   <DocumentTypeIcon format={folder ? "folder" : rowFormat(documentRow(doc))} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
                   <span className="min-w-0 flex-1">
                     {/* TV-12: the truncated name still reads in full on hover. */}
-                    <span title={title} className="block truncate text-body font-medium text-foreground">{title}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span title={title} className="block min-w-0 truncate text-body font-medium text-foreground">{title}</span>
+                      {/* U-11: a shelved row that also sits in the trash keeps its
+                          label — "Đã lưu trữ" beside the title (Q-UI3: shelved_at rides trash rows). */}
+                      {isShelved(doc) ? (
+                        <Badge variant="secondary" className="shrink-0 text-caption">
+                          {t("documents.shelved_list.badge")}
+                        </Badge>
+                      ) : null}
+                    </span>
                     {origin ? <span className="block truncate text-caption text-muted-foreground">{origin}</span> : null}
                     {/* Narrow widths carry the meta the columns have not joined
                         yet (RESTORE-01): deleted-at + countdown below 40rem,

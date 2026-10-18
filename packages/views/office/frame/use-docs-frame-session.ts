@@ -10,9 +10,10 @@ import { officeFrameKeys, useOfficeFrameSourceToken, useOfficeFrameToken } from 
 import type { OfficeFrameSourceToken, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameToken, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
-import type { FileMeta, ProtocolErrorShape, TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
+import type { FileMeta, ProtocolErrorShape } from "@uniwork/core/office/docs-frame-protocol";
 import {
   armWatchdog,
+  createShelvedLock,
   attachFrameBundleProbe,
   lockAwareSave,
   onSizeEvents,
@@ -21,6 +22,7 @@ import {
   saveBlockedMaxBytes,
   saveCopyHandler,
   shapeOf,
+  shelvedGuard,
   toFrameLimits,
   unauthorized,
   type DocsFrameBundleFailure,
@@ -31,14 +33,14 @@ import {
   type DocsFrameSessionOptions,
   type DocsFrameSizeWarning,
   type DocsFrameStatus,
-  hostSaveCauseError,
   type FrameLife,
   type HostSaveWatch,
 } from "./docs-frame-session-model";
 import { composeFrameInit } from "./docs-frame-init";
+import { useShelvedFlag } from "./use-shelved-flag";
 import { deliverFrameDownload, frameDownloadMaxBytes } from "./frame-download";
 import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave } from "./frame-remote-version";
-import { createFrameApiProxy } from "./frame-api-proxy";
+import { createFrameApiProxy, createFrameTokenLoader } from "./frame-api-proxy";
 import { createFirstSaveGate } from "./first-save-gate";
 import { useFrameRemote } from "./use-frame-remote-source";
 import { onCloseRequestedEvent, runHostSave } from "./frame-close-requested";
@@ -67,12 +69,15 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const sourceTokenQuery = useOfficeFrameSourceToken(wsId, scopeId, { enabled: isSource });
   const tokenQuery = isSource ? sourceTokenQuery : docTokenQuery;
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
-  // Every module honours the minted token's can_edit, so a view-only user is treated as
-  // readonly even when the page did not say so. Not holding the page's edit lock (acquiring,
-  // someone else, lost) is view-only too (UNI-1645). A source has no lock to hold.
+  // Every module honours the minted token's can_edit, so a view-only user is treated as readonly even
+  // when the page did not say so; a shelved document's token says it (ARCHIVE-01 §3). A save the
+  // server refused with document_shelved makes the live session read-only too, without a reload.
+  // Not holding the page's edit lock (acquiring, someone else, lost) is view-only too (UNI-1645).
+  // A source has no lock to hold: it is view-only already and never reads one.
   const editLock = isSource ? null : options.editLock;
+  const { shelved, shelvedRef, setShelved } = useShelvedFlag(scopeId);
   const lockedOut = editLock != null && !editLock.held;
-  const viewOnly = isSource || options.readonly || tokenQuery.data?.can_edit === false || lockedOut;
+  const viewOnly = isSource || options.readonly || tokenQuery.data?.can_edit === false || shelved || lockedOut;
   const copyRefused = isSource || options.readonly || tokenQuery.data?.can_edit === false;
   const editLockId = editLock?.held ? editLock.lockId : undefined;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
@@ -92,6 +97,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   // Latest values for callbacks that live as long as the endpoint.
   const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource, renameName: undefined as { id: string; name: string } | undefined });
   latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource, renameName: latest.current.renameName };
+  // Once the document is known to be shelved its refusals are already told (onShelved): no second toast.
+  const reportError = useCallback((error: ProtocolErrorShape, fatal = false) => {
+    if (shelvedRef.current && (error.code === "forbidden" || error.code === "conflict")) return;
+    latest.current.options.onError(error, { fatal });
+  }, [shelvedRef]);
   // The current frame was initialised read-only because the lock was not held: holding it later
   // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
   const initLockedOut = useRef(false);
@@ -179,20 +189,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       });
     };
 
-    const currentToken = async (): Promise<TokenPayload> => {
-      const { options: { wsId: ws }, scopeId: doc, isSource: source } = latest.current;
-      // The cache may hold a token this render has not seen yet.
-      const cached = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
-        source ? officeFrameKeys.sourceToken(ws, doc) : officeFrameKeys.token(ws, doc),
-      );
-      if (cached) return docsFrameToken(cached);
-      // The first mint may still be in flight: join it rather than mint twice.
-      const { data } = await latest.current.refetch({ cancelRefetch: false });
-      if (!data) throw unauthorized();
-      return docsFrameToken(data);
-    };
+    const currentToken = createFrameTokenLoader(latest, queryClient);
     const proxy = createFrameApiProxy(latest, currentToken);
 
+    // The document went to "Lưu trữ" under the open frame: read-only from now on, the frame and its content
+    // stay as they are, the page reads the document again and says so once.
+    const lockShelved = createShelvedLock({ life, shelvedRef, setShelved, latest, queryClient });
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
     const rawSaveCopy = proxy("api.saveCopy", true, (api) => api.saveCopy);
     const saveCopy: typeof rawSaveCopy = async (payload, context) => {
@@ -205,7 +207,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // read-only) and the frame hears the same refusal the host gives a viewer, so it opens no
     // conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
     const lockAware = lockAwareSave(upload, (fields) => latest.current.editLock?.onLocked(fields));
-    const save = remoteAwareSave(lockAware, remote, applyBlock);
+    // The shelved guard sits outside the remote-version wrapper, which must see the raw 409, not a refusal.
+    const save = shelvedGuard(remoteAwareSave(lockAware, remote, applyBlock), lockShelved);
     // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
     // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session
     // that replaced it keeps its own state.
@@ -285,7 +288,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         const minted = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
           source ? officeFrameKeys.sourceToken(current.wsId, doc) : officeFrameKeys.token(current.wsId, doc),
         );
-        const { init, lockedOut, downloadMaxBytes } = await composeFrameInit({ module, frameToken, current, doc, name, uid, minted, limits, source, editLock: lock });
+        const { init, lockedOut, downloadMaxBytes } = await composeFrameInit({ module, frameToken, current, doc, name, uid, minted, limits, source, editLock: lock, shelved: shelvedRef.current });
         initLockedOut.current = lockedOut;
         initDownloadMaxBytes.current = downloadMaxBytes;
         return init;
@@ -366,8 +369,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.saveCopy": saveCopyHandler({ remote, latest, queryClient, run: saveCopy }),
         "api.recents": proxy("api.recents", false, (api) => api.recents),
         "api.export": proxy("api.export", false, (api) => api.export),
-        "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),
-        "api.images.upload": proxy("api.images.upload", true, (api) => api.uploadImage),
+        "api.attachments.add": shelvedGuard(proxy("api.attachments.add", true, (api) => api.addAttachments), lockShelved),
+        "api.images.upload": shelvedGuard(proxy("api.images.upload", true, (api) => api.uploadImage), lockShelved),
         // A read of the user's own document, so a viewer may ask too.
         "api.assets.resolve": proxy("api.assets.resolve", false, (api) => api.resolveAssets),
         // The conflict dialog's "download my version": bytes only; name, type and size are the host's.
@@ -457,7 +460,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       // reaches the host only as this event: a toast here would say it twice.
       if (error.code === "conflict" && !isFatal) return;
       if (error.code === "too_large" && !isFatal && saveBlockedOpen.current) return;
-      latest.current.options.onError(error, { fatal: isFatal });
+      reportError(error, isFatal);
     });
     onCloseRequestedEvent(endpoint, {
       isLiveAndReady: () => life.state === "live" && booted && !frameDocGone,
@@ -491,7 +494,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (remoteRef.current === remote) remoteRef.current = null;
       setHost(null);
     };
-  }, [applyBlock, attempt, fileId, isSource, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, wsId]);
+  }, [applyBlock, attempt, fileId, frameOrigin, heldReasons, iframeRef, isSource, module, queryClient, remoteRef, reportError, setShelved, shelvedRef, wsId]);
 
   // The lock arrived after the frame opened read-only ("Edit now", a handover, the first R2):
   // re-attach it in edit mode.
@@ -517,8 +520,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
 
   const save = useCallback(
     (reason: "user" | "navigate"): Promise<DocsFrameSaveOutcome> =>
-      runHostSave({ reason, host, frameLife, hostSave, firstSaveGate, modalOpen, savedOnce, saveBlockedOpen, latest, setSaveState, setSaveBlocked }),
-    [host],
+      runHostSave({ reason, host, frameLife, hostSave, firstSaveGate, modalOpen, savedOnce, saveBlockedOpen, latest, reportError, setSaveState, setSaveBlocked }),
+    [host, reportError],
   );
   pageSave.current = save;
 

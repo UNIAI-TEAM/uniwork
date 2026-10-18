@@ -24,7 +24,7 @@ import (
 // (view). A repeat returns the existing row without auditing.
 func (s *DocumentService) FavoriteDocument(ctx context.Context, actor Actor, documentID string) (db.DocumentFavorite, error) {
 	var out db.DocumentFavorite
-	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, _ DocumentAccess) error {
+	err := s.withDocumentMutationOnShelved(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, _ DocumentAccess) error {
 		// Favorites are a person's bookmarks: an agent passes the view gate but
 		// never writes one (ADR 0010). Checked after the gate, so a caller who
 		// cannot see the document still learns nothing.
@@ -66,7 +66,7 @@ func (s *DocumentService) FavoriteDocument(ctx context.Context, actor Actor, doc
 // UnfavoriteDocument removes the caller's favorite (view). A missing row is
 // a no-op and audits nothing.
 func (s *DocumentService) UnfavoriteDocument(ctx context.Context, actor Actor, documentID string) error {
-	return s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, _ DocumentAccess) error {
+	return s.withDocumentMutationOnShelved(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, _ DocumentAccess) error {
 		if actor.Kind != audit.KindHuman {
 			return ErrForbidden
 		}

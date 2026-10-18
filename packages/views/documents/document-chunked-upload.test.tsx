@@ -1762,6 +1762,56 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
     expect(messageSpy).not.toHaveBeenCalled();
   });
 
+  // RAR-15: the upload picks up an earlier resume record; when the server
+  // answers the session-status read with 409 document_shelved the dialog must
+  // show the shelved copy, not the "resume the upload" one — the write can
+  // never land on an archived document.
+  it("surfaces a create-time 409 document_shelved as the shelved copy even with an open resume record (RAR-15)", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "create-409.pdf");
+    saveResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET, {
+      session_id: "sess-shelved-1",
+      expires_at: "2099-01-01T00:00:00Z",
+      idempotency_key: "idem-shelved-1",
+    });
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === "/api/v1/upload-sessions/sess-shelved-1" && method === "GET") {
+        throw new ApiError("document is shelved", "document_shelved", 409, undefined, undefined, "read_only");
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        throw new ApiError("document is shelved", "document_shelved", 409, undefined, undefined, "read_only");
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    render(wrap(<DocumentFileView wsId={WS} doc={createdFileDoc(DOC_ID)} readonly={false} />));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    await screen.findByText(t("documents.upload.size_hint", { max: "150 MB" }));
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    fireEvent.change(input, { target: { files: [bigFile] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(t("documents.shelved_doc.write_blocked"));
+    expect(alert).not.toHaveTextContent(t("documents.upload.failed_resumable"));
+    expect(alert).not.toHaveTextContent("document is shelved");
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    // The refusal is not a cleared session: the resume record stays, so this
+    // path really ran with resumable: true.
+    expect(findResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET)).not.toBeNull();
+  });
+
   it("takes no edit-lock pre-check for small files at or below the chunked threshold", async () => {
     const calls: string[] = [];
     const smallFile = makePdfFile(THRESHOLD, "at-threshold.pdf");

@@ -186,6 +186,10 @@ var feedDocumentActions = map[string]bool{
 	"document.moved":            true,
 	"document.archived":         true,
 	"document.restored":         true,
+	// ARCHIVE-01: the shelf transition reaches the client as an upsert
+	// carrying shelved - desktop flips the file read-only on it.
+	"document.shelved":          true,
+	"document.unshelved":        true,
 	"document.deleted":          true,
 	"document.asset_uploaded":   true,
 	"document.shared":           true,
@@ -230,6 +234,9 @@ type DocumentChangeFeedRow struct {
 	// Archived marks an archived document: still an upsert, so archive and
 	// restore are distinct from delete.
 	Archived bool
+	// Shelved marks a shelved document (ARCHIVE-01): also an upsert, so a
+	// shelve or unshelve reaches the client as a state change, not a removal.
+	Shelved bool
 	// Removal is the reason; empty on an upsert.
 	Removal string
 }
@@ -401,7 +408,8 @@ func (s *DocumentChangesService) feedRows(ctx context.Context, q *db.Queries, cs
 			ID: d.ID, OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
 			Kind: d.Kind, Revision: d.Revision, CurrentVersion: d.CurrentVersion,
 			FileVersionID: d.FileVersionID, ArchivedAt: d.ArchivedAt,
-			OwnerID: d.OwnerID, Visibility: d.Visibility, AclOwnerID: d.AclOwnerID,
+			ShelvedAt: d.ShelvedAt,
+			OwnerID:   d.OwnerID, Visibility: d.Visibility, AclOwnerID: d.AclOwnerID,
 			WorkspaceLevel: d.WorkspaceLevel,
 		}
 	}
@@ -499,6 +507,7 @@ func upsertRow(doc db.Document) DocumentChangeFeedRow {
 		DocumentID: doc.ID, ChangeKind: DocumentChangeKindUpsert, Kind: doc.Kind,
 		Revision: doc.Revision, CurrentVersion: doc.CurrentVersion,
 		FileVersionID: doc.FileVersionID.String, Archived: doc.ArchivedAt.Valid,
+		Shelved: doc.ShelvedAt.Valid,
 	}
 }
 

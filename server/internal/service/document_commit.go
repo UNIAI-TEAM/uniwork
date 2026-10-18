@@ -326,6 +326,12 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	if err := decideFileSave(doc, current); err != nil {
 		return DocumentFileResult{}, false, err
 	}
+	// A shelved document is read-only (addendum §3): refuse before the
+	// intent claim writes a row; the save gate inside the transaction
+	// answers the same for a shelve that lands after this check.
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentFileResult{}, false, err
+	}
 	// office_sync_write hides new sync commits only (G5-07, X-03): it gates
 	// the desktop device session's path, never the web host or the web frame;
 	// a replay above and the intent lookup keep answering while it is off.
@@ -632,6 +638,11 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 	}
 	if replay != nil {
 		return replayWithAccess(replay.Body, current)
+	}
+	// A shelved document is read-only (addendum §3): restore is a write, so
+	// it refuses here; the save gate answers the same under the row lock.
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentFileResult{}, err
 	}
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
 	var res DocumentFileResult

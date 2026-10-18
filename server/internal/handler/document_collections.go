@@ -51,6 +51,14 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		}
 		in.Archived = v
 	}
+	if raw := strings.TrimSpace(q.Get("shelved")); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "shelved must be 0/1 or true/false")
+			return in, false
+		}
+		in.Shelved = v
+	}
 	for _, f := range []struct {
 		name string
 		dst  *time.Time
@@ -272,6 +280,45 @@ func (h *handlers) purgeDocument(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// shelveDocument is POST /documents/{documentID}/shelve (ARCHIVE-01): the
+// live, not-yet-shelved subtree moves to the read-only shelf in one
+// transaction after the manage check on every node - the trash command's own
+// gate, so below manage on an invisible row the answer is 404/403 alike.
+func (h *handlers) shelveDocument(w http.ResponseWriter, r *http.Request) {
+	h.documentShelveCommand(w, r, false)
+}
+
+// unshelveDocument is POST /documents/{documentID}/unshelve (ARCHIVE-01):
+// the item and its same-batch shelved descendants the caller manages come
+// back; position in the tree never moved.
+func (h *handlers) unshelveDocument(w http.ResponseWriter, r *http.Request) {
+	h.documentShelveCommand(w, r, true)
+}
+
+func (h *handlers) documentShelveCommand(w http.ResponseWriter, r *http.Request, unshelve bool) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	actor := service.Human(middleware.UserID(r.Context()))
+	documentID := chi.URLParam(r, "documentID")
+	in := service.ArchiveDocumentInput{IdempotencyKey: r.Header.Get("Idempotency-Key")}
+	var (
+		res service.DocumentArchiveResult
+		err error
+	)
+	if unshelve {
+		res, err = h.Documents.UnshelveDocument(r.Context(), actor, documentID, in)
+	} else {
+		res, err = h.Documents.ShelveDocument(r.Context(), actor, documentID, in)
+	}
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, documentArchiveSDO(res))
+}
+
 func (h *handlers) documentLifecycleCommand(w http.ResponseWriter, r *http.Request, restore bool) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -404,6 +451,16 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 	if doc.PurgeAfter.Valid {
 		after := doc.PurgeAfter.Time.UTC().Format(time.RFC3339)
 		out.PurgeAfter = &after
+	}
+	// ARCHIVE-01 (spec Q-UI3): shelved_at/shelved_by ride on every list row,
+	// trash rows included, so the trash list can show the "Đã lưu trữ" label.
+	if doc.ShelvedAt.Valid {
+		at := doc.ShelvedAt.Time.UTC().Format(time.RFC3339)
+		out.ShelvedAt = &at
+	}
+	if doc.ShelvedBy.Valid && doc.ShelvedBy.String != "" {
+		by := doc.ShelvedBy.String
+		out.ShelvedBy = &by
 	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)

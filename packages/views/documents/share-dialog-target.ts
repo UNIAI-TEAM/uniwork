@@ -14,7 +14,7 @@ import type { Document, DocumentAccessLevel } from "@uniwork/core/types/document
  */
 export type ShareDialogTarget = Pick<
   Document,
-  "id" | "workspace_id" | "visibility" | "owner_kind" | "organization_id" | "archived_at"
+  "id" | "workspace_id" | "visibility" | "owner_kind" | "organization_id" | "archived_at" | "shelved_at"
 > & {
   my_level?: DocumentAccessLevel | "";
   title?: string;

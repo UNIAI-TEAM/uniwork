@@ -120,7 +120,7 @@ func (q *Queries) DocumentAccessLoggedSince(ctx context.Context, arg DocumentAcc
 
 const getDocumentByID = `-- name: GetDocumentByID :one
 
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 FROM documents
 WHERE id = $1
 `
@@ -179,6 +179,10 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id string) (Document, err
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
 		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
 	)
 	return i, err
 }
@@ -593,7 +597,7 @@ func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAc
 }
 
 const listDocumentShareCandidates = `-- name: ListDocumentShareCandidates :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, c.created_at
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, c.created_at
 FROM (
   SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
   FROM document_shares s
@@ -616,6 +620,8 @@ LEFT JOIN document_versions cv
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
 WHERE d.archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): a shelved share leaves the shared-with-me list.
+  AND d.shelved_at IS NULL
   AND d.owner_id IS NULL
   AND ($4::text IS NULL
        OR d.kind = 'folder'
@@ -739,6 +745,10 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 			&i.Document.ContentRevision,
 			&i.Document.WorkspaceLevel,
 			&i.Document.SystemKind,
+			&i.Document.ShelvedAt,
+			&i.Document.ShelvedBy,
+			&i.Document.ShelvedByKind,
+			&i.Document.ShelveBatchID,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -862,7 +872,7 @@ func (q *Queries) ListLiveDocumentShareLinks(ctx context.Context, arg ListLiveDo
 }
 
 const lockDocumentByID = `-- name: LockDocumentByID :one
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 FROM documents
 WHERE id = $1
 FOR UPDATE
@@ -918,6 +928,10 @@ func (q *Queries) LockDocumentByID(ctx context.Context, id string) (Document, er
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
 		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
 	)
 	return i, err
 }
