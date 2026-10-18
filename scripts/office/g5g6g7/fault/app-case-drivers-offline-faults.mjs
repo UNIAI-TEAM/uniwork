@@ -608,7 +608,12 @@ async function fl09(ctx) {
     own("unlock of the keyring", () => ctx.vm.keyring.unlock());
     const lock = ctx.vm.keyring.lock();
     if (!lock.ok) return blocked(lock.line);
+    // CL3-1: the locked collection makes the second launch ask for the keyring password; the wrapper's stub
+    // answers that prompt with a cancel (INJECTED), the way a user who dismisses the dialog does. The first
+    // launch had an unlocked keyring and no prompt: the count is read here and again after the second launch.
+    const promptsBefore = ctx.vm.keyring.prompts();
     const second = await ctx.launch({ requireSignIn: false });
+    const promptsAfter = ctx.vm.keyring.prompts();
     await armOpenCut(ctx);
     const boundary = (await ctx.proxyLog()).length;
     const opened = await offlineOpen(second, doc.id);
@@ -636,6 +641,15 @@ async function fl09(ctx) {
     const log = await ctx.proxyLog();
     const after = collectOfflineState(storeArgs(ctx, [doc.id]));
     writeStoreEvidence(ctx.runDirOut(), { before, faulted: faultedState, after });
+    // a fact about the harness, not an assertion: the row claims nothing about the prompt UI itself
+    writeFileSync(join(ctx.runDirOut(), "keyring-prompt-injected.json"), `${JSON.stringify({
+      injected: true,
+      by: "app-keyring-prompter.py (harness-owned org.gnome.keyring.SystemPrompter)",
+      answer: "cancel",
+      promptsAnsweredBeforeSecondLaunch: promptsBefore.answered,
+      promptsAnsweredAfterSecondLaunch: promptsAfter.answered,
+    }, null, 2)}
+`);
     return {
       documentId: doc.id,
       assertions: [

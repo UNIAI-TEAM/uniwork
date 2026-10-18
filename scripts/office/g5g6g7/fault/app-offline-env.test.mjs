@@ -197,10 +197,15 @@ test("REAL_VM.keyring.available names the BLOCKED line while the wrapper's chann
   try {
     assert.match(REAL_VM.keyring.available(), /APP_KEYRING_CTL is not set/);
     process.env.APP_KEYRING_CTL = "/run/ctl";
+    // the control channel alone is not enough: no prompt stub = a second launch that stalls (CL3-1)
+    delete process.env.APP_KEYRING_PROMPTER_LOG;
+    assert.match(REAL_VM.keyring.available(), /APP_KEYRING_PROMPTER_LOG is not set/);
+    process.env.APP_KEYRING_PROMPTER_LOG = "/run/prompter.log";
     assert.equal(REAL_VM.keyring.available(), null);
   } finally {
     if (saved === undefined) delete process.env.APP_KEYRING_CTL;
     else process.env.APP_KEYRING_CTL = saved;
+    delete process.env.APP_KEYRING_PROMPTER_LOG;
   }
 });
 

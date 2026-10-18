@@ -98,6 +98,10 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     sparseFails: false,
     faketimeInstalled: true,
     keyringControl: true,
+    // the wrapper's prompt stub (app-keyring-prompter.py) and the prompts it answered (CL3-1)
+    keyringPrompter: true,
+    keyringPrompts: 0,
+    lockDismissals: 0,
     keyringLockFails: false,
     fillLeavesBytes: null,
     visible: new Set(),
@@ -389,7 +393,10 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     findFaketime: () => (world.faketimeInstalled ? { path: faketimeLibrary } : { line: "libfaketime is not installed on the runner VM (apt-get install -y libfaketime)" }),
     faketimeEnv,
     keyring: {
-      available: () => (world.keyringControl ? null : "APP_KEYRING_CTL is not set: run the runner as `APP_KEYRING_CONTROL=1 dbus-run-session -- bash app-keyring.sh`"),
+      available: () => (!world.keyringControl
+        ? "APP_KEYRING_CTL is not set: run the runner as `APP_KEYRING_CONTROL=1 dbus-run-session -- bash app-keyring.sh`"
+        : world.keyringPrompter ? null : "APP_KEYRING_PROMPTER_LOG is not set: the keyring wrapper did not start its unlock-prompt stub"),
+      prompts: () => ({ available: world.keyringPrompter, answered: world.keyringPrompts }),
       lock: () => {
         world.vmCalls.push(["keyring", "lock"]);
         if (world.keyringLockFails) return { ok: false, line: "the keyring wrapper answered lock with: fail: the collection is still unlocked after Lock" };
@@ -430,6 +437,9 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     aiOffice: {
       accountStatus: async () => ({ loggedIn: Boolean(world.signedInAs), state: world.signedInAs ? "signed-in" : "signed-out", profile: world.signedInAs ? { accountId: world.signedInAs } : undefined }),
       accountLogout: async () => world.product.signOut(),
+      // the S11 locks (none in the fake): the dismiss the harness sends after the S11 shot (CL3-2)
+      uniworkLocks: async () => [],
+      dismissUniworkLock: async () => { world.lockDismissals += 1; },
     },
     dispatchEvent: () => true,
   };
@@ -509,7 +519,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
           isVisible: async () => world.alive && world.visible.has(selector),
         }),
         waitForFunction: async (fn, arg) => { if (!(await inPage(fn, arg))) throw new Error("timeout"); },
-        waitForSelector: async (selector) => { if (!world.alive || !(world.visible.has(selector) || (selector === SYNC_PANE_SELECTOR && !world.paneMissing))) throw new Error(`selector ${selector} never appeared`); },
+        reload: async () => {},
+        waitForSelector: async (selector, opts = {}) => { if (opts.state === "detached" || selector === ".sidebar-dock") return; if (!world.alive || !(world.visible.has(selector) || (selector === SYNC_PANE_SELECTOR && !world.paneMissing))) throw new Error(`selector ${selector} never appeared`); },
         screenshot: async () => Buffer.from("PNG"),
       },
     };
@@ -524,6 +535,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       }
     }
     world.keyringBroken = world.keyringSticky && world.keyringLocked;
+    // a process born on a locked collection asks the user to unlock it: the stub answers cancel (CL3-1)
+    if (world.keyringLocked && world.keyringPrompter) world.keyringPrompts += 1;
     world.sessions.push(session);
     return session;
   };

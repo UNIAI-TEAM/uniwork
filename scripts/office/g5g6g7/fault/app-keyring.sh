@@ -31,6 +31,17 @@
 #
 #   APP_KEYRING_CONTROL=1 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh \
 #     node scripts/office/g5g6g7/fault/app-cases.mjs --case FL-09 --run-dir .harness-run
+#
+# The unlock prompt (G7-03b fix6 CL3-1, INJECTED): a locked collection makes the
+# daemon ask the user through org.gnome.keyring.SystemPrompter. A real desktop shows
+# the dialog and the user answers or cancels it; here nobody can, the activated
+# gcr-prompter logs "couldn't connect to session bus" and never replies, and the app
+# stalls in the Secret Service call (Playwright electron.launch times out). Control
+# mode therefore owns that bus name with app-keyring-prompter.py, which cancels every
+# prompt like a user who dismisses the dialog. It never unlocks the collection and
+# never sees a password; each prompt it answered is one JSON line in the file
+# APP_KEYRING_PROMPTER_LOG (exported): a fact about the harness, not about the prompt
+# UI. Needs python3 with the gi module (apt-get install -y python3-gi).
 set -u
 [ "$#" -gt 0 ] || { echo "usage: dbus-run-session -- bash $0 <command> [args...]" >&2; exit 2; }
 [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || { echo "BLOCKED: no D-Bus session bus; run it as: dbus-run-session -- bash $0 ..." >&2; exit 77; }
@@ -44,6 +55,7 @@ export XDG_DATA_HOME="$WORK/data" XDG_RUNTIME_DIR="$WORK/run"
 mkdir -p -m 700 "$XDG_DATA_HOME" "$XDG_RUNTIME_DIR"
 GKD_PID=""
 CTL_PID=""
+PROMPTER_PID=""
 # the daemon of the moment: control-mode unlock replaces it, from the control loop's own subshell
 GKD_PID_FILE="$WORK/gkd.pid"
 cleanup() {
@@ -51,6 +63,7 @@ cleanup() {
     kill "$CTL_PID" 2> /dev/null || true
     wait "$CTL_PID" 2> /dev/null || true
   fi
+  [ -z "$PROMPTER_PID" ] || kill "$PROMPTER_PID" 2> /dev/null || true
   current="$(cat "$GKD_PID_FILE" 2> /dev/null || true)"
   for pid in $current $GKD_PID; do
     kill "$pid" 2> /dev/null || true
@@ -161,7 +174,27 @@ keyring_ctl_loop() {
     printf '%s\n' "$reply" > "$WORK/ctl.out"
   done
 }
+# the user who dismisses the unlock dialog (see the header); started before anything can lock the collection
+start_prompter() {
+  if ! command -v python3 > /dev/null 2>&1 || ! python3 -I -c "import gi" 2> /dev/null; then
+    echo "BLOCKED: control mode needs python3 with gi to answer the keyring unlock prompt (apt-get install -y python3-gi)" >&2
+    return 1
+  fi
+  : > "$WORK/prompter.log"
+  python3 -I "$(dirname "$0")/app-keyring-prompter.py" "$WORK/prompter.log" > "$WORK/prompter.out" 2>&1 &
+  PROMPTER_PID=$!
+  for _ in $(seq 1 20); do
+    grep -q 'APP_KEYRING_PROMPTER ready' "$WORK/prompter.out" 2> /dev/null && return 0
+    kill -0 "$PROMPTER_PID" 2> /dev/null || break
+    sleep 0.25
+  done
+  echo "BLOCKED: the keyring prompt stub did not take org.gnome.keyring.SystemPrompter; its output:" >&2
+  cat "$WORK/prompter.out" >&2 || true
+  return 1
+}
 if [ "${APP_KEYRING_CONTROL:-}" = 1 ]; then
+  start_prompter || exit 77
+  export APP_KEYRING_PROMPTER_LOG="$WORK/prompter.log"
   mkfifo "$WORK/ctl.in" "$WORK/ctl.out"
   export APP_KEYRING_CTL="$WORK/ctl"
   keyring_ctl_loop &

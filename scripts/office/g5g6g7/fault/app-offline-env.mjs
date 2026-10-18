@@ -6,7 +6,7 @@
 // (child_process.spawnSync shaped) so the logic is unit-tested without a VM.
 
 import { spawnSync } from "node:child_process";
-import { closeSync, existsSync, ftruncateSync, mkdirSync, openSync, readdirSync, rmSync, statSync, statfsSync, writeSync } from "node:fs";
+import { closeSync, existsSync, ftruncateSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, statfsSync, writeSync } from "node:fs";
 import { join } from "node:path";
 
 const sh = (run, command, args, options = {}) => {
@@ -208,6 +208,39 @@ export function keyringControl(action, { env = process.env, run = spawnSync } = 
 }
 
 /**
+ * The unlock prompts the wrapper's stub (`app-keyring-prompter.py`, INJECTED) has
+ * answered so far with a cancel, read from the file the wrapper exports as
+ * `APP_KEYRING_PROMPTER_LOG` (one JSON line per event). A fact about the harness,
+ * never a claim about the prompt UI: `{available:false}` without the file.
+ */
+export function keyringPrompts({ env = process.env, read = readFileSync } = {}) {
+  const file = env.APP_KEYRING_PROMPTER_LOG;
+  if (!file) return { available: false, answered: 0 };
+  let text = "";
+  try {
+    text = String(read(file, "utf8"));
+  } catch {
+    return { available: false, answered: 0 };
+  }
+  const events = text.split(/\r?\n/).filter(Boolean).map((line) => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return null;
+    }
+  });
+  return { available: true, answered: events.filter((event) => event?.event === "prompt").length };
+}
+
+/** null while the wrapper's control channel and its prompt stub are there, else the BLOCKED line */
+function keyringAvailable(env = process.env) {
+  if (!env.APP_KEYRING_CTL) return keyringControl("lock", { env, run: () => ({ status: 1 }) }).line;
+  // without the stub the second launch would sit in the Secret Service call until the launch timed out
+  if (!env.APP_KEYRING_PROMPTER_LOG) return "APP_KEYRING_PROMPTER_LOG is not set: the keyring wrapper did not start its unlock-prompt stub (app-keyring.sh control mode, python3-gi)";
+  return null;
+}
+
+/**
  * The runner VM as the W2 drivers see it (`ctx.vm`): the real probes and helpers
  * above. A test passes fakes with the same names, so no driver shells out itself.
  */
@@ -221,8 +254,8 @@ export const REAL_VM = Object.freeze({
   findFaketime,
   faketimeEnv,
   keyring: Object.freeze({
-    /** null while the wrapper's control channel is there, else the BLOCKED line */
-    available: () => (process.env.APP_KEYRING_CTL ? null : keyringControl("lock", { run: () => ({ status: 1 }) }).line),
+    available: () => keyringAvailable(),
+    prompts: () => keyringPrompts(),
     lock: () => keyringControl("lock"),
     unlock: () => keyringControl("unlock"),
   }),
