@@ -12,7 +12,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS, CHAT_FIELD_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH, CHAT_FIELD_CLASS } from "./chat-dialog-look";
 import { ChatGroupAvatarPicker } from "./chat-group-avatar-editor";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
@@ -119,12 +119,12 @@ export function CreateGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.form}`}>
         <FormDialogHeader
           title={t("chat.create_group_title")}
           description={t("chat.create_group_description")}
         />
-        <FormDialogBody>
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
           <div className="flex items-center gap-5">
             <ChatGroupAvatarPicker file={avatar} onFileChange={setAvatar} name={groupName} />
             <div className="min-w-0 flex-1 space-y-2">

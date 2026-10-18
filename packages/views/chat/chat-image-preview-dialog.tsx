@@ -10,7 +10,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { initialsOf } from "./chat-initials";
-import { formatMessageDateTime } from "./chat-message-time";
+import { formatMessageDay, formatMessageTime } from "./chat-message-time";
 
 /** A soft round control on the dark stage (canvas: a white wash). */
 const STAGE_CONTROL = "rounded-full bg-foreground/10 text-foreground hover:bg-foreground/20 hover:text-foreground";
@@ -64,7 +64,7 @@ export function ChatImagePreviewDialog({
         overlayClassName="bg-black/70"
         onKeyDown={onKeyDown}
         // The photo sits on the dark palette (.dark re-themes this subtree) whatever the app theme.
-        className="dark flex max-h-[calc(100dvh-2rem)] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl bg-background p-0 text-foreground sm:max-w-4xl [&_[data-slot=dialog-close]]:top-3 [&_[data-slot=dialog-close]]:right-3 [&_[data-slot=dialog-close]]:size-11 [&_[data-slot=dialog-close]]:rounded-lg"
+        className="dark flex max-h-[calc(100dvh-2rem)] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl bg-background p-0 text-foreground sm:max-w-210 [&_[data-slot=dialog-close]]:top-3 [&_[data-slot=dialog-close]]:right-3 [&_[data-slot=dialog-close]]:size-11 [&_[data-slot=dialog-close]]:rounded-lg [&_[data-slot=dialog-close]_svg]:size-5"
       >
         <DialogTitle className="sr-only">{name}</DialogTitle>
         <div className="flex min-h-17 shrink-0 items-center gap-3 py-3 pr-16 pl-5">
@@ -78,9 +78,15 @@ export function ChatImagePreviewDialog({
                 className={chatPersonFaceClass(sender.userId)}
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-body font-bold">{sender.name}</p>
+                <p className="truncate font-display text-body-lg font-bold">{sender.name}</p>
                 <p className="truncate text-caption text-muted-foreground tabular-nums">
-                  {formatMessageDateTime(sender.ts, i18n.language)}
+                  {t("chat.image_viewer_sent_at", {
+                    day: formatMessageDay(sender.ts, i18n.language, {
+                      today: t("chat.day_today"),
+                      yesterday: t("chat.sidebar_yesterday"),
+                    }),
+                    time: formatMessageTime(sender.ts, i18n.language),
+                  })}
                 </p>
               </div>
             </>

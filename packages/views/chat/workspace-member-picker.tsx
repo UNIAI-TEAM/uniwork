@@ -130,7 +130,8 @@ export function WorkspaceMemberSearchField({
           type="search"
           autoComplete="off"
           aria-describedby={hint ? hintId : undefined}
-          className={cn(CHAT_FIELD_CLASS, "pl-10.5", hasQuery ? "pr-12" : "pr-3.5")}
+          // Our own clear button replaces the browser's search ×.
+          className={cn(CHAT_FIELD_CLASS, "pl-10.5 [&::-webkit-search-cancel-button]:appearance-none", hasQuery ? "pr-12" : "pr-3.5")}
         />
         {hasQuery ? (
           <Button
@@ -225,6 +226,8 @@ export function WorkspaceMemberPickerList({
   actionIcon,
   nameOnly = false,
   selectedUserIds,
+  lockedUserIds,
+  lockedLabel,
   onPick,
   listRef,
 }: {
@@ -244,6 +247,9 @@ export function WorkspaceMemberPickerList({
   nameOnly?: boolean;
   /** Checkbox rows (canvas create-group/channel): a pick toggles, and picked rows stay, ticked. */
   selectedUserIds?: ReadonlySet<string>;
+  /** Checkbox rows already in the room: ticked, greyed, not pickable, with `lockedLabel` at the end. */
+  lockedUserIds?: ReadonlySet<string>;
+  lockedLabel?: string;
   onPick: (contact: ChatContact) => void;
   /** From useMemberPickerFocus: lets ↓ in the search field reach the rows. */
   listRef?: RefObject<HTMLDivElement | null>;
@@ -291,7 +297,8 @@ export function WorkspaceMemberPickerList({
           const contact = memberToChatContact(member);
           // A names-only screen never falls back to the email local part.
           const label = nameOnly ? member.display_name.trim() || t("chat.workspace_member_unnamed") : memberDisplayLabel(member);
-          const checked = selectedUserIds?.has(member.user_id);
+          const locked = Boolean(lockedUserIds?.has(member.user_id));
+          const checked = locked || selectedUserIds?.has(member.user_id);
           return (
             <li key={member.user_id} className="first:*:rounded-t-[14px] last:*:rounded-b-[14px]">
               <button
@@ -299,38 +306,62 @@ export function WorkspaceMemberPickerList({
                 data-member-picker-row=""
                 role={selectedUserIds ? "checkbox" : undefined}
                 aria-checked={selectedUserIds ? Boolean(checked) : undefined}
+                aria-disabled={locked || undefined}
                 tabIndex={index === tabStop ? 0 : -1}
                 onFocus={() => setFocusIndex(index)}
                 className={cn(
                   "group flex w-full items-center gap-3 py-2 text-left transition-colors hover:bg-surface-hover [--row-fill:var(--surface)] hover:[--row-fill:var(--surface-hover)]",
                   selectedUserIds ? "min-h-14 px-3.5" : "min-h-15 pr-2 pl-3.5",
-                  checked && "bg-surface-hover [--row-fill:var(--surface-hover)]",
+                  checked &&
+                    !locked &&
+                    "bg-brand-subtle/40 [--row-fill:color-mix(in_srgb,var(--brand-subtle)_40%,var(--surface))]",
+                  locked && "cursor-default hover:bg-surface hover:[--row-fill:var(--surface)]",
                 )}
-                onClick={() => onPick(contact)}
+                onClick={() => {
+                  if (!locked) onPick(contact);
+                }}
               >
                 {selectedUserIds ? (
                   <span
                     aria-hidden
                     className={cn(
                       "flex size-5.5 shrink-0 items-center justify-center rounded-[7px] border-2",
-                      checked ? "border-primary bg-primary text-primary-foreground" : "border-input bg-surface text-transparent",
+                      locked
+                        ? "border-transparent bg-input/40 text-primary-foreground"
+                        : checked
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input bg-surface text-transparent",
                     )}
                   >
                     <Check strokeWidth={3.2} className="size-3.5" />
                   </span>
                 ) : null}
-                <MemberFace
-                  userId={member.user_id}
-                  label={label}
-                  avatarUrl={memberAvatarUrl(member.avatar_url)}
-                  small={Boolean(selectedUserIds)}
-                />
+                <span className={cn("inline-flex shrink-0", locked && "opacity-50")}>
+                  <MemberFace
+                    userId={member.user_id}
+                    label={label}
+                    avatarUrl={memberAvatarUrl(member.avatar_url)}
+                    small={Boolean(selectedUserIds)}
+                  />
+                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body-lg font-medium text-foreground">{label}</span>
+                  <span
+                    className={cn(
+                      "block truncate text-body-lg font-medium",
+                      locked ? "text-muted-foreground" : "text-foreground",
+                    )}
+                  >
+                    {label}
+                  </span>
                   {nameOnly ? null : (
                     <span className="block truncate text-label text-muted-foreground">{member.email}</span>
                   )}
                 </span>
+                {locked && lockedLabel ? (
+                  <span className="shrink-0 rounded-full bg-muted px-2.5 text-caption leading-6 font-semibold text-muted-foreground">
+                    {lockedLabel}
+                  </span>
+                ) : null}
                 {selectedUserIds ? null : (actionIcon ?? <MemberRowActionMark icon={UserPlus} />)}
               </button>
             </li>

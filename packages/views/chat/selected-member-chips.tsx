@@ -61,7 +61,7 @@ export function SelectedMemberChips({
       {title || summary ? (
         <div className="flex items-baseline justify-between gap-2">
           {title ? (
-            <p id={titleId} className="text-label font-medium text-foreground">
+            <p id={titleId} className="text-label font-semibold text-foreground">
               {title}
             </p>
           ) : (
@@ -102,7 +102,7 @@ export function SelectedMemberChips({
                   data-chip-remove=""
                   onClick={() => remove(member.user_id, index)}
                 >
-                  <X aria-hidden />
+                  <X aria-hidden className="size-3.75" strokeWidth={2.4} />
                 </Button>
               </li>
             );

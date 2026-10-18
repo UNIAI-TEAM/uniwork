@@ -25,7 +25,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS, CHAT_FIELD_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_FIELD_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
@@ -191,7 +191,7 @@ export function CreateChannelDialog({
           title={t("chat.channel.create_title")}
           description={t("chat.channel.create_description")}
         />
-        <FormDialogBody className="space-y-5">
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
           <div className="space-y-2">
             <CountedLabel htmlFor="channel-name" label={t("chat.channel.name_label")} length={name.length} max={NAME_MAX} />
             <div className="relative">

@@ -15,9 +15,15 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS, CHAT_FIELD_INPUT_CLASS, CHAT_FIELD_TEXTAREA_CLASS } from "./chat-dialog-look";
+import {
+  CHAT_DIALOG_BODY_CLASS,
+  CHAT_DIALOG_CLASS,
+  CHAT_FIELD_CLASS,
+  CHAT_FIELD_TEXTAREA_CLASS,
+  CHAT_LABEL_CLASS,
+} from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
-import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
+import { ChatCharCounter, ChatFormFooterNote, RequiredMark } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
 
 const FORM_ID = "chat-create-post-form";
@@ -91,7 +97,7 @@ export function ChatCreatePostDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-137.5`}>
         <FormDialogHeader title={t("chat.post_create_title")} description={t("chat.post_create_description")} />
 
         <form
@@ -102,23 +108,22 @@ export function ChatCreatePostDialog({
             handleCreate();
           }}
         >
-          <FormDialogBody className="space-y-5">
+          <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
-                <Label htmlFor="post-title" className="text-label font-semibold">
+                <Label htmlFor="post-title" className={CHAT_LABEL_CLASS}>
                   {t("chat.post_title_label")}
                   <RequiredMark />
                 </Label>
-                <ChatCharCounter id="post-title-count" length={title.length} max={POST_TITLE_MAX_LENGTH} />
+                <ChatCharCounter id="post-title-count" length={title.length} max={POST_TITLE_MAX_LENGTH} always />
               </div>
               <Input
                 id="post-title"
-                variant="subtle"
-                className={CHAT_FIELD_INPUT_CLASS}
+                className={`${CHAT_FIELD_CLASS} font-semibold`}
                 value={title}
                 maxLength={POST_TITLE_MAX_LENGTH}
                 aria-required
-                aria-describedby={nearLimit(title.length, POST_TITLE_MAX_LENGTH) ? "post-title-count" : undefined}
+                aria-describedby="post-title-count"
                 placeholder={t("chat.post_title_placeholder")}
                 onChange={(event) => {
                   setTitle(event.target.value);
@@ -135,20 +140,20 @@ export function ChatCreatePostDialog({
 
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
-                <Label htmlFor="post-body" className="text-label font-semibold">
+                <Label htmlFor="post-body" className={CHAT_LABEL_CLASS}>
                   {t("chat.post_body_label")}
                   <RequiredMark />
                 </Label>
-                <ChatCharCounter id="post-body-count" length={body.length} max={POST_BODY_MAX_LENGTH} />
+                <ChatCharCounter id="post-body-count" length={body.length} max={POST_BODY_MAX_LENGTH} always />
               </div>
               <Textarea
                 id="post-body"
-                className={CHAT_FIELD_TEXTAREA_CLASS}
+                className={`${CHAT_FIELD_TEXTAREA_CLASS} min-h-53 max-h-96`}
                 value={body}
                 maxLength={POST_BODY_MAX_LENGTH}
                 rows={8}
                 aria-required
-                aria-describedby={nearLimit(body.length, POST_BODY_MAX_LENGTH) ? "post-body-count" : undefined}
+                aria-describedby="post-body-count"
                 placeholder={t("chat.post_body_placeholder")}
                 onChange={(event) => {
                   setBody(event.target.value);

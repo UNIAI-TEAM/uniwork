@@ -10,9 +10,15 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS, CHAT_FIELD_INPUT_CLASS, CHAT_FIELD_TEXTAREA_CLASS } from "./chat-dialog-look";
+import {
+  CHAT_DIALOG_BODY_CLASS,
+  CHAT_DIALOG_CLASS,
+  CHAT_DIALOG_WIDTH,
+  CHAT_FIELD_TEXTAREA_CLASS,
+  CHAT_LABEL_CLASS,
+} from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
-import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
+import { ChatCharCounter, ChatFormFooterNote, RequiredMark } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
 
 const FORM_ID = "chat-create-note-form";
@@ -72,7 +78,7 @@ export function ChatCreateNoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.narrow}`}>
         <FormDialogHeader title={t("chat.note_create_title")} description={t("chat.note_create_description")} />
 
         <form
@@ -83,23 +89,23 @@ export function ChatCreateNoteDialog({
             handleCreate();
           }}
         >
-          <FormDialogBody className="space-y-5">
+          <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
-                <Label htmlFor="note-body" className="text-label font-semibold">
+                <Label htmlFor="note-body" className={CHAT_LABEL_CLASS}>
                   {t("chat.note_body_label")}
                   <RequiredMark />
                 </Label>
-                <ChatCharCounter id="note-body-count" length={body.length} max={NOTE_BODY_MAX_LENGTH} />
+                <ChatCharCounter id="note-body-count" length={body.length} max={NOTE_BODY_MAX_LENGTH} always />
               </div>
               <Textarea
                 id="note-body"
-                className={CHAT_FIELD_TEXTAREA_CLASS}
+                className={`${CHAT_FIELD_TEXTAREA_CLASS} min-h-42.5 max-h-80`}
                 value={body}
                 maxLength={NOTE_BODY_MAX_LENGTH}
                 rows={6}
                 aria-required
-                aria-describedby={nearLimit(body.length, NOTE_BODY_MAX_LENGTH) ? "note-body-count" : undefined}
+                aria-describedby="note-body-count"
                 placeholder={t("chat.note_body_placeholder")}
                 onChange={(event) => {
                   setBody(event.target.value);

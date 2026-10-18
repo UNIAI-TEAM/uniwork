@@ -26,9 +26,20 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { DateTimeField } from "../common/datetime-field";
 import { toDateOnly } from "../common/date-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS, CHAT_FIELD_INPUT_CLASS, CHAT_FIELD_TEXTAREA_CLASS } from "./chat-dialog-look";
+import {
+  CHAT_DATETIME_CLASS,
+  CHAT_DAY_FORMAT,
+  CHAT_DIALOG_BODY_CLASS,
+  CHAT_DIALOG_CLASS,
+  CHAT_DIALOG_WIDTH,
+  CHAT_FIELD_CLASS,
+  CHAT_FIELD_TEXTAREA_CLASS,
+  CHAT_LABEL_CLASS,
+  CHAT_SECTION_LABEL_CLASS,
+  CHAT_SWITCH_CLASS,
+} from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
-import { ChatFormFooterNote } from "./chat-form-parts";
+import { ChatFormFooterNote, renderChatDateTrigger } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
 
 type PollOption = { id: number; value: string };
@@ -54,6 +65,7 @@ export function ChatCreatePollDialog({
   workspaceId,
   roomId,
   canPinToTop,
+  destination,
   onCreated,
 }: {
   open: boolean;
@@ -62,6 +74,8 @@ export function ChatCreatePollDialog({
   roomId: string;
   /** Same gate as notes and posts: the server refuses a pinned poll without it. */
   canPinToTop: boolean;
+  /** "Gửi vào nhóm Ra mắt UniWork Q4": where the poll lands, said in the footer once it is ready. */
+  destination?: string;
   onCreated?: () => void;
 }) {
   const { t } = useTranslation();
@@ -155,20 +169,20 @@ export function ChatCreatePollDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.form}`}>
         <FormDialogHeader title={t("chat.poll_create_title")} description={t("chat.poll_create_description")} />
 
-        <FormDialogBody className="space-y-5">
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
-              <Label htmlFor="poll-question" className="text-label font-semibold">{t("chat.poll_question_label")}</Label>
+              <Label htmlFor="poll-question" className={CHAT_LABEL_CLASS}>{t("chat.poll_question_label")}</Label>
               <span id="poll-question-count" className="text-caption tabular-nums text-muted-foreground">
                 {question.length}/{POLL_QUESTION_MAX_LENGTH}
               </span>
             </div>
             <Textarea
               id="poll-question"
-              className={CHAT_FIELD_TEXTAREA_CLASS}
+              className={`${CHAT_FIELD_TEXTAREA_CLASS} min-h-22 max-h-40`}
               value={question}
               maxLength={POLL_QUESTION_MAX_LENGTH}
               rows={3}
@@ -179,7 +193,7 @@ export function ChatCreatePollDialog({
           </div>
 
           <FieldSet className="gap-2">
-            <FieldLegend variant="label" className="mb-0 text-label font-semibold">
+            <FieldLegend variant="label" className="mb-0 text-label font-semibold text-foreground">
               {t("chat.poll_options_label")}
             </FieldLegend>
             <FieldDescription className="text-caption" aria-live="polite">
@@ -191,11 +205,10 @@ export function ChatCreatePollDialog({
               {options.map((option, index) => {
                 const label = t("chat.poll_option_placeholder", { index: index + 1 });
                 return (
-                  <li key={option.id} className="flex items-center gap-1.5">
+                  <li key={option.id} className="flex items-center gap-1">
                     <Input
                       id={optionInputId(option.id)}
-                      variant="subtle"
-                      className={CHAT_FIELD_INPUT_CLASS}
+                      className={CHAT_FIELD_CLASS}
                       value={option.value}
                       maxLength={POLL_OPTION_MAX_LENGTH}
                       placeholder={label}
@@ -206,12 +219,12 @@ export function ChatCreatePollDialog({
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon-sm"
-                        className="shrink-0 text-muted-foreground"
+                        size="icon-lg"
+                        className="size-11 shrink-0 rounded-lg text-muted-foreground"
                         aria-label={t("chat.poll_remove_option", { index: index + 1 })}
                         onClick={() => removeOption(option.id)}
                       >
-                        <X aria-hidden />
+                        <X aria-hidden className="size-4.5" />
                       </Button>
                     ) : null}
                   </li>
@@ -224,17 +237,17 @@ export function ChatCreatePollDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 self-start rounded-full pr-3 pl-2 text-body font-semibold text-brand hover:text-brand"
+                className="-ml-1 h-9 self-start rounded-full pr-3 pl-2 text-body font-semibold text-brand hover:text-brand"
                 onClick={addOption}
               >
-                <Plus aria-hidden />
+                <Plus aria-hidden className="size-4.5" />
                 {t("chat.poll_add_option")}
               </Button>
             ) : null}
           </FieldSet>
 
           <div className="space-y-2">
-            <Label htmlFor="poll-deadline" id="poll-deadline-label" className="text-label font-semibold">
+            <Label htmlFor="poll-deadline" id="poll-deadline-label" className={CHAT_LABEL_CLASS}>
               {t("chat.poll_deadline_label")}
             </Label>
             <div
@@ -249,6 +262,9 @@ export function ChatCreatePollDialog({
                 minDate={toDateOnly(new Date())}
                 hourLabel={t("common.hour")}
                 minuteLabel={t("common.minute")}
+                className={CHAT_DATETIME_CLASS}
+                dateFormatOptions={CHAT_DAY_FORMAT}
+                renderDateTrigger={renderChatDateTrigger}
               />
             </div>
             {deadlineError ? (
@@ -262,48 +278,52 @@ export function ChatCreatePollDialog({
             ) : null}
           </div>
 
-          <FieldSet className="gap-0 border-t border-border pt-4">
-            <legend className="mb-1 text-caption font-semibold tracking-wider text-muted-foreground uppercase">
-              {t("chat.poll_advanced_settings")}
-            </legend>
-            <PinToTopRow
-              id="poll-setting-pin"
-              label={t("chat.poll_setting_pin_top")}
-              checked={settings.pinToTop}
-              onCheckedChange={(value) => toggleSetting("pinToTop", value)}
-              disabledReason={canPinToTop ? undefined : t("chat.poll_pin_forbidden")}
-            />
-            <PollSettingRow
-              id="poll-setting-multiple"
-              label={t("chat.poll_setting_multiple")}
-              checked={settings.allowMultiple}
-              onCheckedChange={(value) => toggleSetting("allowMultiple", value)}
-            />
-            <PollSettingRow
-              id="poll-setting-add-options"
-              label={t("chat.poll_setting_add_options")}
-              checked={settings.allowAddOptions}
-              onCheckedChange={(value) => toggleSetting("allowAddOptions", value)}
-            />
-          </FieldSet>
+          <div className="border-t border-border pt-4">
+            <FieldSet className="gap-0">
+              <legend className={`mb-1 ${CHAT_SECTION_LABEL_CLASS}`}>
+                {t("chat.poll_advanced_settings")}
+              </legend>
+              <PinToTopRow
+                id="poll-setting-pin"
+                label={t("chat.poll_setting_pin_top")}
+                checked={settings.pinToTop}
+                onCheckedChange={(value) => toggleSetting("pinToTop", value)}
+                disabledReason={canPinToTop ? undefined : t("chat.poll_pin_forbidden")}
+              />
+              <PollSettingRow
+                id="poll-setting-multiple"
+                label={t("chat.poll_setting_multiple")}
+                checked={settings.allowMultiple}
+                onCheckedChange={(value) => toggleSetting("allowMultiple", value)}
+              />
+              <PollSettingRow
+                id="poll-setting-add-options"
+                label={t("chat.poll_setting_add_options")}
+                checked={settings.allowAddOptions}
+                onCheckedChange={(value) => toggleSetting("allowAddOptions", value)}
+              />
+            </FieldSet>
+          </div>
 
-          <FieldSet className="gap-0 border-t border-border pt-4">
-            <legend className="mb-1 text-caption font-semibold tracking-wider text-muted-foreground uppercase">
-              {t("chat.poll_anonymous_title")}
-            </legend>
-            <PollSettingRow
-              id="poll-setting-hide-results"
-              label={t("chat.poll_setting_hide_results")}
-              checked={settings.hideResultsUntilVote}
-              onCheckedChange={(value) => toggleSetting("hideResultsUntilVote", value)}
-            />
-            <PollSettingRow
-              id="poll-setting-hide-voters"
-              label={t("chat.poll_setting_hide_voters")}
-              checked={settings.hideVoters}
-              onCheckedChange={(value) => toggleSetting("hideVoters", value)}
-            />
-          </FieldSet>
+          <div className="border-t border-border pt-4">
+            <FieldSet className="gap-0">
+              <legend className={`mb-1 ${CHAT_SECTION_LABEL_CLASS}`}>
+                {t("chat.poll_anonymous_title")}
+              </legend>
+              <PollSettingRow
+                id="poll-setting-hide-results"
+                label={t("chat.poll_setting_hide_results")}
+                checked={settings.hideResultsUntilVote}
+                onCheckedChange={(value) => toggleSetting("hideResultsUntilVote", value)}
+              />
+              <PollSettingRow
+                id="poll-setting-hide-voters"
+                label={t("chat.poll_setting_hide_voters")}
+                checked={settings.hideVoters}
+                onCheckedChange={(value) => toggleSetting("hideVoters", value)}
+              />
+            </FieldSet>
+          </div>
         </FormDialogBody>
 
         <FormDialogFooter
@@ -317,7 +337,9 @@ export function ChatCreatePollDialog({
           leading={
             submitError || !canCreate ? (
               <ChatFormFooterNote error={submitError} hint={canCreate ? null : t("chat.poll_submit_hint")} />
-            ) : undefined
+            ) : (
+              destination
+            )
           }
         />
       </FormDialogContent>
@@ -343,7 +365,7 @@ function PollSettingRow({
       <Label id={labelId} htmlFor={id} className="font-normal text-body-lg text-foreground">
         {label}
       </Label>
-      <Switch id={id} aria-labelledby={labelId} checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch id={id} aria-labelledby={labelId} checked={checked} onCheckedChange={onCheckedChange} className={CHAT_SWITCH_CLASS} />
     </div>
   );
 }

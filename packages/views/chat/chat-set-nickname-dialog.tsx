@@ -9,7 +9,14 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import {
+  CHAT_DIALOG_BODY_CLASS,
+  CHAT_DIALOG_CLASS,
+  CHAT_DIALOG_COMPACT_CLASS,
+  CHAT_DIALOG_WIDTH,
+  CHAT_FIELD_CLASS,
+  CHAT_LABEL_CLASS,
+} from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 
 const MAX_NICKNAME_LENGTH = 64;
@@ -70,14 +77,14 @@ export function ChatSetNicknameDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_COMPACT_CLASS} ${CHAT_DIALOG_WIDTH.field}`}>
         <FormDialogHeader
           title={t("chat.nickname_title")}
           description={t("chat.nickname_description", { name: targetLabel })}
         />
-        <FormDialogBody className="space-y-2">
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-1.5 pb-0`}>
           <div className="flex items-baseline justify-between gap-3">
-            <Label htmlFor="chat-nickname" className="text-label font-semibold">{t("chat.nickname_label")}</Label>
+            <Label htmlFor="chat-nickname" className={CHAT_LABEL_CLASS}>{t("chat.nickname_label")}</Label>
             <span id="chat-nickname-count" className="text-caption tabular-nums text-muted-foreground">
               {nickname.length}/{MAX_NICKNAME_LENGTH}
             </span>
@@ -87,6 +94,7 @@ export function ChatSetNicknameDialog({
             value={nickname}
             maxLength={MAX_NICKNAME_LENGTH}
             placeholder={targetLabel}
+            className={CHAT_FIELD_CLASS}
             aria-describedby={error ? "chat-nickname-count chat-nickname-error" : "chat-nickname-count"}
             aria-invalid={error ? true : undefined}
             onChange={(event) => {
@@ -118,7 +126,7 @@ export function ChatSetNicknameDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="-ml-2.5 text-muted-foreground"
+                className="-ml-4 text-muted-foreground"
                 disabled={setNickname.isPending}
                 onClick={() => {
                   setNicknameValue("");

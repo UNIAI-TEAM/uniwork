@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Clock } from "lucide-react";
+import { AlarmClock, Check, Repeat } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
@@ -20,22 +20,30 @@ import {
 } from "@uniwork/core/chat/reminder-utils";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { Select } from "@uniwork/ui/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { DateTimeField } from "../common/datetime-field";
 import { toDateOnly } from "../common/date-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS, CHAT_FIELD_INPUT_CLASS, CHAT_FIELD_TEXTAREA_CLASS } from "./chat-dialog-look";
+import {
+  CHAT_DATETIME_CLASS,
+  CHAT_DAY_FORMAT,
+  CHAT_DIALOG_BODY_CLASS,
+  CHAT_DIALOG_CLASS,
+  CHAT_FIELD_TEXTAREA_CLASS,
+  CHAT_LABEL_CLASS,
+  CHAT_SELECT_TRIGGER_CLASS,
+} from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
-import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
+import { ChatCharCounter, ChatFormFooterNote, nearLimit, renderChatDateTrigger, RequiredMark } from "./chat-form-parts";
 
 const QUICK_PRESETS: ReminderQuickPreset[] = ["15m", "30m", "tomorrow_9", "custom"];
 
 /** A time preset is its own pill; the picked one takes the brand wash. */
 const CHIP =
-  "h-9 gap-1.5 rounded-full border border-transparent bg-muted px-3.5 text-body font-semibold text-muted-foreground pointer-coarse:h-11 " +
-  "hover:bg-surface-hover hover:text-foreground aria-pressed:border-brand/30 aria-pressed:bg-brand-subtle aria-pressed:text-brand-subtle-foreground";
+  "h-9 gap-1.5 rounded-full border border-transparent bg-muted px-3.5 text-body font-semibold text-foreground pointer-coarse:h-11 " +
+  "hover:bg-surface-hover aria-pressed:border-brand/25 aria-pressed:bg-brand-subtle aria-pressed:pl-2.5 aria-pressed:text-brand-subtle-foreground";
 
 function presetLabelKey(preset: ReminderQuickPreset): string {
   switch (preset) {
@@ -61,14 +69,10 @@ function resolveRemindAt(preset: ReminderQuickPreset, customAt: string, now: Dat
   return preset === "custom" ? parseDatetimeLocalValue(customAt) : remindAtFromPreset(preset, now);
 }
 
-/** "GMT+7" for the viewer's zone in the app locale, so a picked hour is never ambiguous. */
-function timeZoneLabel(date: Date, locale: string): string {
+/** "Asia/Ho_Chi_Minh": the viewer's zone, so a picked hour is never ambiguous. */
+function timeZoneLabel(): string {
   try {
-    return (
-      new Intl.DateTimeFormat(locale, { timeZoneName: "short" })
-        .formatToParts(date)
-        .find((part) => part.type === "timeZoneName")?.value ?? ""
-    );
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
   } catch {
     return "";
   }
@@ -125,7 +129,7 @@ export function ChatCreateReminderDialog({
   }, [open, preset]);
 
   const remindAtDate = useMemo(() => resolveRemindAt(preset, customAt, now), [customAt, preset, now]);
-  const zone = timeZoneLabel(remindAtDate ?? now, i18n.language);
+  const zone = timeZoneLabel();
 
   const scheduleLabel = useMemo(() => {
     if (!remindAtDate) return "";
@@ -136,8 +140,8 @@ export function ChatCreateReminderDialog({
     if (isTomorrow(now, remindAtDate)) {
       return t("chat.reminder_schedule_tomorrow", { time });
     }
-    const date = remindAtDate.toLocaleString(i18n.language, { dateStyle: "medium", timeStyle: "short" });
-    return t("chat.reminder_schedule_date", { date });
+    const date = remindAtDate.toLocaleDateString(i18n.language, CHAT_DAY_FORMAT);
+    return t("chat.reminder_schedule_on", { date, time });
   }, [remindAtDate, now, t, i18n.language]);
 
   const canCreate = canSubmitReminder(body, remindAtDate);
@@ -190,13 +194,13 @@ export function ChatCreateReminderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-xl`}>
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-137.5`}>
         <FormDialogHeader title={t("chat.reminder_create_title")} description={t("chat.reminder_create_description")} />
 
-        <FormDialogBody className="space-y-5">
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
-              <Label htmlFor="reminder-body" className="text-label font-semibold">
+              <Label htmlFor="reminder-body" className={CHAT_LABEL_CLASS}>
                 {t("chat.reminder_body_label")}
                 <RequiredMark />
               </Label>
@@ -204,7 +208,7 @@ export function ChatCreateReminderDialog({
             </div>
             <Textarea
               id="reminder-body"
-              className={CHAT_FIELD_TEXTAREA_CLASS}
+              className={`${CHAT_FIELD_TEXTAREA_CLASS} min-h-27 max-h-60`}
               value={body}
               maxLength={REMINDER_BODY_MAX_LENGTH}
               rows={4}
@@ -236,6 +240,7 @@ export function ChatCreateReminderDialog({
             >
               {QUICK_PRESETS.map((item) => (
                 <ToggleGroupItem key={item} value={item} className={CHIP}>
+                  {item === preset ? <Check aria-hidden className="size-4" strokeWidth={2.4} /> : null}
                   {t(presetLabelKey(item))}
                 </ToggleGroupItem>
               ))}
@@ -244,7 +249,7 @@ export function ChatCreateReminderDialog({
 
           {showCustomPicker ? (
             <div className="space-y-2">
-              <Label htmlFor="reminder-at" className="text-label font-semibold">{t("chat.reminder_datetime_label")}</Label>
+              <Label htmlFor="reminder-at" className={CHAT_LABEL_CLASS}>{t("chat.reminder_datetime_label")}</Label>
               <div role="group" aria-describedby={timeInPast ? "reminder-at-error" : zone ? "reminder-at-zone" : undefined}>
                 <DateTimeField
                   id="reminder-at"
@@ -253,6 +258,9 @@ export function ChatCreateReminderDialog({
                   minDate={toDateOnly(now)}
                   hourLabel={t("common.hour")}
                   minuteLabel={t("common.minute")}
+                  className={CHAT_DATETIME_CLASS}
+                  dateFormatOptions={CHAT_DAY_FORMAT}
+                  renderDateTrigger={renderChatDateTrigger}
                 />
               </div>
               {zone ? (
@@ -266,30 +274,33 @@ export function ChatCreateReminderDialog({
                 </p>
               ) : null}
             </div>
-          ) : (
-            <div className="space-y-2">
-              <p id="reminder-at-summary-label" className="text-label font-semibold text-foreground">
-                {t("chat.reminder_scheduled_label")}
-              </p>
-              <output
-                aria-labelledby="reminder-at-summary-label"
-                className="flex min-h-11 items-center gap-2.5 rounded-lg bg-tint-teal px-3.5 py-2.5 text-body text-foreground"
-              >
-                <Clock className="size-4 shrink-0 text-tint-teal-foreground" aria-hidden />
-                <span className="font-semibold">{scheduleLabel}</span>
-                {zone ? <span className="text-caption text-muted-foreground">{zone}</span> : null}
-              </output>
-            </div>
-          )}
+          ) : null}
+
+          {/* The moment the reminder fires, one line under the picker (canvas): 12px below it, not 20. */}
+          {scheduleLabel ? (
+            <output className="-mt-2 flex min-h-11 items-center gap-2.5 rounded-lg bg-tint-teal px-3.5 py-2.5 text-body text-foreground">
+              <AlarmClock className="size-4.5 shrink-0 text-tint-teal-foreground" aria-hidden />
+              <span>
+                {t("chat.reminder_scheduled_label")} <strong className="font-semibold">{scheduleLabel}</strong>
+              </span>
+            </output>
+          ) : null}
 
           <div className="space-y-2">
-            <Label htmlFor="reminder-repeat" className="text-label font-semibold">{t("chat.reminder_repeat_label")}</Label>
-            <Select
-              id="reminder-repeat"
-              value={repeat}
-              onValueChange={(value) => setRepeat(value as ReminderRepeat)}
-              items={repeatItems}
-            />
+            <Label htmlFor="reminder-repeat" className={CHAT_LABEL_CLASS}>{t("chat.reminder_repeat_label")}</Label>
+            <Select value={repeat} onValueChange={(value) => setRepeat(value as ReminderRepeat)} items={repeatItems}>
+              <SelectTrigger id="reminder-repeat" className={CHAT_SELECT_TRIGGER_CLASS}>
+                <Repeat aria-hidden className="size-4.5 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {repeatItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </FormDialogBody>
 

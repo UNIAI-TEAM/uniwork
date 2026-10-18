@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ExternalLink } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
 import type { TaskPatch } from "@uniwork/core/api/endpoints/tasks";
@@ -9,11 +9,12 @@ import { useTask, useUpdateTask } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Label } from "@uniwork/ui/components/ui/label";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
 import { AppLink } from "../navigation";
-import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_LABEL_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatTaskPeekFields, chatTaskTitleInput } from "./chat-task-peek-fields";
 import { useChatTaskNav } from "./use-chat-task-nav";
@@ -133,12 +134,12 @@ export function ChatTaskPeekDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-2xl`}>
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-162`}>
         <div data-testid="chat-task-peek-dialog" className="contents">
           <FormDialogHeader title={identifier} description={t("chat.link.peek_description")} />
 
           {task ? (
-            <div className="mt-3 flex min-h-13 items-center justify-between gap-3 border-y border-border py-1 pr-4 pl-5">
+            <div className="mt-4 flex min-h-13 items-center justify-between gap-3 border-y border-border py-1 pr-4 pl-6">
               <PeekSaveStatus state={saveState} />
               {href && canLink ? (
                 <AppLink
@@ -146,14 +147,14 @@ export function ChatTaskPeekDialog({
                   onClick={() => onOpenChange(false)}
                   className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-secondary pr-3.5 pl-3 text-body font-semibold text-secondary-foreground transition-colors hover:bg-secondary/80"
                 >
-                  <ExternalLink aria-hidden className="size-3.5" />
+                  <ArrowUpRight aria-hidden className="size-4" />
                   {t("chat.link.open_task_page")}
                 </AppLink>
               ) : null}
             </div>
           ) : null}
 
-          <FormDialogBody className="max-h-[min(80vh,44rem)] pb-6">
+          <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} max-h-[min(80vh,44rem)] space-y-3.5 pb-6`}>
             {isLoading ? <PeekSkeleton label={t("chat.link.task_loading")} /> : null}
 
             {notFound ? (
@@ -195,16 +196,20 @@ export function ChatTaskPeekDialog({
                   className={chatTaskTitleInput}
                 />
 
-                <Textarea
-                  id={`chat-task-desc-${task.id}`}
-                  aria-label={t("tasks.description")}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={commitDescription}
-                  rows={8}
-                  placeholder={t("tasks.detail.description_placeholder")}
-                  className="min-h-40 resize-none border-transparent bg-transparent px-1 leading-relaxed hover:border-border dark:bg-transparent"
-                />
+                <div className="space-y-1.5">
+                  <Label htmlFor={`chat-task-desc-${task.id}`} className={CHAT_LABEL_CLASS}>
+                    {t("tasks.description")}
+                  </Label>
+                  <Textarea
+                    id={`chat-task-desc-${task.id}`}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    onBlur={commitDescription}
+                    rows={8}
+                    placeholder={t("tasks.detail.description_placeholder")}
+                    className="-mx-2 min-h-49 w-[calc(100%+1rem)] resize-none rounded-control border-transparent bg-transparent px-2 py-1.5 leading-[23px] hover:border-border md:text-body-lg dark:bg-transparent"
+                  />
+                </div>
               </>
             ) : null}
           </FormDialogBody>

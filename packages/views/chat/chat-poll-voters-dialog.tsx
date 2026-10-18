@@ -12,7 +12,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { cn } from "@uniwork/ui/lib/utils";
 import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./chat-dialog-look";
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { chatPersonFaceClass } from "./chat-person-card";
@@ -42,16 +42,19 @@ function PollVoterList({ voterIds, names }: { voterIds: string[]; names: VoterNa
           names.currentUserId,
           names.youLabel,
         );
+        const isYou = label === names.youLabel;
+        // "Bạn" in words, but the face keeps the viewer's own initials (canvas).
+        const faceName = isYou ? resolvePollVoterLabel(userId, names.nameContext, "", names.youLabel) : label;
         return (
           <li key={userId} className="flex min-w-0 items-center gap-2.5">
             <ActorAvatar
-              name={label}
-              initials={initialsOf(label)}
+              name={faceName}
+              initials={initialsOf(faceName)}
               avatarUrl={resolveAvatarUrlFromNameContext(names.nameContext, userId)}
               size="fluid"
               className={cn("size-7 text-micro", chatPersonFaceClass(userId))}
             />
-            <span className="truncate text-body text-foreground">{label}</span>
+            <span className={cn("truncate text-body text-foreground", isYou && "font-semibold")}>{label}</span>
           </li>
         );
       })}
@@ -100,7 +103,7 @@ function PollOptionVotersSection({
           aria-valuenow={percent}
           aria-valuemin={0}
           aria-valuemax={100}
-          className="block h-1.25 overflow-hidden rounded-full bg-muted"
+          className={cn("block h-1.5 overflow-hidden rounded-full", mine ? "bg-brand-subtle" : "bg-muted")}
         >
           <span
             className={cn("block h-full rounded-full", mine ? "bg-brand" : "bg-faint-foreground/70")}
@@ -152,13 +155,13 @@ export function ChatPollVotersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="md" className={CHAT_DIALOG_CLASS}>
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.narrow}`}>
         <FormDialogHeader
           title={focusedOption ? focusedOption.label : t("chat.poll_voters_title")}
           description={question}
         />
 
-        <FormDialogBody className="space-y-3">
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-2.5 pt-4.5 pb-6`}>
           <p className="text-micro font-semibold tracking-wider text-muted-foreground uppercase tabular-nums">
             {focusedOption
               ? t("chat.poll_voters_option_count", { count: focusedOption.votes })
