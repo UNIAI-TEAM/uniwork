@@ -7847,9 +7847,7 @@
       "closeMenu": "Close menu",
       "solutions": "Solutions",
       "why": "Why UniWork",
-      "office": "Office",
-      "unichat": "UniChat",
-      "unichatDescription": "Chat for work, on desktop and mobile."
+      "apps": "Apps"
     },
     "cta": {
       "start": "Get started",
@@ -8923,48 +8921,168 @@
     },
     "unichat": {
       "hero": {
-        "title": "UniChat",
-        "sub": "Chat for work. Your team's messages, channels and calls sit next to the work in UniWork, on desktop and mobile.",
-        "download": "Download UniChat"
+        "eyebrow": "UniChat · for desktop and phone",
+        "line1": "Chat it out,",
+        "line2": "the work has a home.",
+        "sub": "UniChat is your UniWork workspace chat in an app of its own. Messages become tasks, channels link to projects, calls come with summaries. Same account, same messages, same work.",
+        "download": "Download UniChat",
+        "web": "Open chat on the web",
+        "also": "Also for {{list}}.",
+        "allBuilds": "See every build"
       },
-      "points": {
-        "title": "When the conversation ends, the work has a place",
-        "sub": "UniChat is your UniWork workspace chat in its own app: the same account, the same messages, the same tasks.",
+      "stage": {
+        "label": "UniChat on desktop and phone. Khánh Vy asks who will take the onboarding design, Mai An takes it, and the message becomes task DEMO-111, in progress; the phone updates at the same time.",
+        "replay": "Replay",
+        "caption": "Fictional demo data · No customer records",
+        "chats": "Chat",
+        "search": "Search",
+        "tabs": {
+          "all": "All",
+          "direct": "Direct",
+          "groups": "Groups",
+          "channels": "Channels"
+        },
+        "filters": {
+          "all": "Any",
+          "unread": "Unread",
+          "mentions": "Mentions"
+        },
+        "catchUp": {
+          "title": "Quick catch-up",
+          "body": "You're all caught up. UNI will summarise new messages."
+        },
+        "channel": "onboarding-launch",
+        "design": "design",
+        "members": "6 members",
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "monday": "Mon",
+        "you": "You",
+        "messages": {
+          "review": "Let's lock the design review for Monday morning.",
+          "ask": "The onboarding design needs to be ready by Friday so the team can review it. Who can take it?",
+          "reply": "I'll take it. Making it a task so everyone can follow."
+        },
+        "previews": {
+          "reply": "I'll take it.",
+          "ask": "The onboarding design needs…",
+          "review": "Let's lock the design review…",
+          "file": "Sending you the feedback file",
+          "poll": "Poll: Monday review time?",
+          "voice": "Voice message",
+          "calendar": "Next week's meetings are updated",
+          "thanks": "Thanks, I'll send the rest tomorrow",
+          "missed": "Missed call"
+        },
+        "createTask": "Create task",
+        "task": "Prepare the onboarding design for the team to review.",
+        "taskStatus": "In progress",
+        "read": "Seen",
+        "composer": "Type a message…",
+        "phoneTabs": {
+          "chats": "Chat",
+          "calls": "Calls",
+          "contacts": "People",
+          "settings": "Settings"
+        }
+      },
+      "story": {
+        "eyebrow": "Features",
+        "title": "Every conversation ends up as work.",
+        "sub": "No more copying messages onto a task board, no more asking \"who's on this?\".",
         "task": {
           "title": "Messages become tasks",
-          "description": "Create a task from a message or link an existing one. The task card shows under the message and leads back to the conversation."
+          "body": "Create a task from a message or link an existing one. The task card shows under the message and leads back to the conversation."
         },
         "project": {
           "title": "Channels linked to projects",
-          "description": "Link a channel to a project so the conversation and the project's work sit side by side."
+          "body": "Link a channel to a project so the conversation and the project's work sit side by side."
         },
         "followUp": {
           "title": "Follow-ups and reminders",
-          "description": "Mark a message to follow up later, or set a reminder that posts in the channel at the time you pick."
+          "body": "Mark a message to follow up later, or set a reminder that posts in the channel at the time you pick."
         },
         "call": {
           "title": "Calls with recording and summary",
-          "description": "Start a voice or video call from the conversation. A recorded call can be summarized by AI for the team to read later."
+          "body": "Start a voice or video call from the conversation. A recorded call can be summarized by AI for the team to read later."
         },
-        "preview": "See the chat interface in UniWork"
+        "stage": {
+          "dialogTitle": "Create task from message",
+          "titleField": "Title",
+          "projectField": "Project (optional)",
+          "project": "Onboarding 2.0",
+          "cancel": "Cancel",
+          "create": "Create task",
+          "projectTasks": "Project tasks",
+          "t108": "Lock the 4-step sign-up flow",
+          "t111": "Prepare the onboarding design",
+          "t114": "Write the welcome email",
+          "done": "Done",
+          "doing": "In progress",
+          "todo": "To do",
+          "reminder": "Reminder · 4:00 PM today",
+          "reminderBody": "Finalize the pilot user list before the welcome email goes out.",
+          "followUps": "Follow-ups",
+          "fu1": "Resend last week's sign-up numbers",
+          "fu1When": "Today",
+          "fu2": "Feedback on the welcome screen",
+          "fu2When": "Monday",
+          "call": "Voice call · 18 min",
+          "callMeta": "Recorded · 4 participants",
+          "summary": "Call summary",
+          "summaryMeta": "Generated from the recording · 10:42",
+          "s1": "Lock the 4-step sign-up flow and drop the plan picker.",
+          "s2": "Mai An sends the design before Friday.",
+          "s3": "Khánh Vy reviews on Monday morning."
+        },
+        "also": {
+          "label": "And more",
+          "voice": "Voice messages",
+          "poll": "Polls",
+          "stickers": "Stickers and GIFs",
+          "threads": "Threaded replies",
+          "pins": "Pinned messages",
+          "search": "Search in a conversation"
+        }
+      },
+      "devices": {
+        "eyebrow": "One chat everywhere",
+        "title": "Read on your phone, reply on your desktop.",
+        "body": "The same chat whether you open it on the web or in UniChat. UniChat focuses on chat; tasks, meetings and documents still open in full on the web.",
+        "web": "Web",
+        "webBody": "Chat in UniWork, nothing to install",
+        "desktop": "Desktop",
+        "desktopBody": "macOS, Windows and Linux",
+        "phone": "Phone",
+        "phoneBody": "iPhone and Android, with push notifications"
+      },
+      "data": {
+        "eyebrow": "Your team's data",
+        "title": "Messages stay in your team's workspace.",
+        "body": "Stored in your team's UniWork workspace under your organization's permissions, just as when you chat on the web.",
+        "account": "One UniWork account",
+        "accountBody": "Sign in through the browser, no separate account",
+        "workspace": "Only your workspaces",
+        "workspaceBody": "You see just the workspaces you belong to",
+        "revoke": "Access ends with membership",
+        "revokeBody": "Deactivated members can no longer get in"
+      },
+      "closing": {
+        "line1": "Bring your team's conversations",
+        "line2": "next to the work."
       },
       "download": {
         "title": "Download UniChat",
         "version": "Desktop version {{version}}",
         "requirements": "Requires: {{value}}",
         "unsigned": "This build is not code-signed, so your operating system may warn you the first time you open it.",
-        "unavailable": "UniChat for desktop is not released yet. Meanwhile, you can chat with your team on the web in UniWork."
+        "unavailable": "UniChat for desktop is not released yet. Meanwhile, you can chat with your team on the web in UniWork.",
+        "eyebrow": "Download",
+        "sub": "Sign in with your UniWork account and see exactly the workspaces you belong to."
       },
       "installersError": "Couldn't load the installer list. Check your connection and try again.",
       "retry": "Try again",
       "mobile": {
-        "ios": "iPhone",
-        "android": "Android",
-        "appStore": "App Store",
-        "googlePlay": "Google Play",
-        "testflight": "TestFlight",
-        "playInternal": "Google Play (testing)",
-        "pilot": "Test build: only people invited to the test group can install it.",
         "unavailable": "UniChat for mobile is not released yet."
       },
       "faq": {
@@ -8976,10 +9094,168 @@
         "q3": "Where are my team's messages stored?",
         "a3": "In your team's UniWork workspace, under your organization's permissions, just as when you chat on the web.",
         "q4": "How do I install UniChat on my phone?",
-        "a4": "When the mobile app is released, App Store and Google Play buttons appear under Download UniChat. During testing, only invited people can install it through TestFlight or Google Play."
+        "a4": "When the mobile app is released, App Store and Google Play buttons appear under Download UniChat. During testing, only invited people can install it through TestFlight or Google Play.",
+        "eyebrow": "FAQ",
+        "sub": "Want to see UniChat with UniWork for your team?"
       },
-      "security": "See how UniWork handles data and access",
-      "closing": "Bring your team's conversations next to the work."
+      "security": "See how UniWork handles data and access"
+    },
+    "apps": {
+      "menu": {
+        "title": "UniWork apps · one account",
+        "all": "All apps and downloads",
+        "device": "Your device · {{os}}",
+        "download": "Download",
+        "phones": "UniChat for iPhone and Android",
+        "web": "Nothing to install: open UniWork on the web"
+      },
+      "catalog": {
+        "web": {
+          "name": "UniWork on the web",
+          "short": "UniWork",
+          "kicker": "On the web",
+          "description": "Tasks, projects, meetings, documents and chat in one place.",
+          "tagline": "Tasks, projects, meetings, documents, chat and AI in one workspace.",
+          "point1": "Nothing to install, runs in the browser",
+          "point2": "Where the other apps connect",
+          "strip": "Tasks, projects, meetings and documents in the browser.",
+          "open": "Open UniWork",
+          "more": "See features"
+        },
+        "office": {
+          "name": "UniWork Office",
+          "kicker": "Desktop",
+          "description": "Write documents, spreadsheets and presentations with AI, connected to your workspace.",
+          "tagline": "Create documents, spreadsheets and presentations with AI. Connected to your UniWork workspace.",
+          "point1": "Docs, Sheets, Slides, PDF, HTML, Markdown",
+          "point2": "Edit files on your computer without a connection",
+          "strip": "Documents, spreadsheets and slides with AI on your computer.",
+          "phoneSub": "On your phone, open and edit files in UniWork's Documents."
+        },
+        "unichat": {
+          "name": "UniChat",
+          "kicker": "Desktop and phone",
+          "description": "Chat for work, on desktop and mobile.",
+          "tagline": "Chat for work: messages become tasks, channels link to projects, calls come with summaries.",
+          "point1": "The same messages as chat on the web",
+          "point2": "Voice and video calls right in the conversation",
+          "strip": "Chat for work, on desktop and mobile.",
+          "pilot": "iPhone and Android builds"
+        },
+        "personal": {
+          "name": "Office for Personal",
+          "description": "An edition for individual use."
+        }
+      },
+      "status": {
+        "pilot": "Pilot",
+        "phonePilot": "Phones: pilot",
+        "development": "In development"
+      },
+      "platform": {
+        "web": "Browser",
+        "macos": "macOS",
+        "windows": "Windows",
+        "linux": "Linux",
+        "ios": "iPhone",
+        "android": "Android"
+      },
+      "learn": "Learn more",
+      "downloadFor": "Download for {{os}}",
+      "bar": {
+        "apps": "Apps",
+        "label": "On the {{app}} page",
+        "overview": "Overview",
+        "features": "Features",
+        "editors": "Editors",
+        "download": "Download",
+        "faq": "FAQ",
+        "all": "All apps",
+        "short": "Get",
+        "sections": "Page sections"
+      },
+      "download": {
+        "device": "Your device",
+        "title": "{{app}} for {{os}}",
+        "macHelp": "Not sure which chip your Mac has? Open the Apple menu › About This Mac.",
+        "pilotSub": "A pilot build, for people invited to the test group.",
+        "storeSub": "Sign in with your UniWork account after installing.",
+        "open": "Open {{store}}",
+        "noBuild": "{{app}} isn't available for {{os}} yet",
+        "openWeb": "Open UniWork on the web",
+        "others": "Other platforms",
+        "webInstead": "Meanwhile, you can use it on the web in UniWork.",
+        "phonePilot": "Test build: only people invited to the test group can install it.",
+        "phoneUnavailable": "UniChat for mobile is not released yet.",
+        "error": "Couldn't load the installer list. Check your connection and try again.",
+        "retry": "Try again"
+      },
+      "base": {
+        "title": "One UniWork underneath",
+        "sub": "Every app reads from the same place.",
+        "account": "One account",
+        "workspace": "The same workspaces",
+        "permissions": "Your organization's permissions",
+        "data": "Your team's data"
+      },
+      "other": {
+        "eyebrow": "The UniWork ecosystem",
+        "title": "Same account, more to use",
+        "all": "All apps"
+      },
+      "hub": {
+        "eyebrow": "UniWork apps",
+        "title1": "One account.",
+        "title2": "Everywhere you work.",
+        "sub": "UniWork runs on the web. The apps take it to your desktop and phone, with the same account, workspaces and permissions.",
+        "cta": "See downloads for {{os}}",
+        "ctaAny": "See downloads",
+        "web": "Open UniWork on the web",
+        "cardsEyebrow": "The apps",
+        "cardsTitle": "Pick where you work. The work stays one.",
+        "downloadEyebrow": "Downloads",
+        "downloadTitle": "Every build, one table.",
+        "phoneTitle": "For this {{os}}",
+        "device": "Your device: {{os}}",
+        "matrix": {
+          "caption": "Each app's builds by operating system",
+          "app": "App",
+          "web": "Web",
+          "none": "No build",
+          "webOnly": "Nothing to install. Open it in the browser on desktop and phone.",
+          "officeWeb": "Open files in Documents",
+          "chatWeb": "Chat in UniWork",
+          "loading": "Loading the builds"
+        },
+        "phone": {
+          "webSub": "Nothing to install. Open it in the browser.",
+          "desktop": "Desktop builds"
+        },
+        "note": "Versions, system requirements and install notes are on each app's page. An empty cell means the app has no build for that system yet.",
+        "pilotNote": "The phone builds are in pilot: only people invited to the test group can install them.",
+        "faq": {
+          "eyebrow": "FAQ",
+          "title": "Frequently asked questions",
+          "q1": "Do I have to install anything?",
+          "a1": "No. Everything runs on the web in UniWork. Install UniWork Office if you write documents, spreadsheets or slides on your computer; install UniChat if you want your team's chat in an app of its own on desktop and phone.",
+          "q2": "Does each app need its own account?",
+          "a2": "No. They all use your UniWork account, sign in through the browser and show exactly the workspaces you belong to.",
+          "q3": "Where does the data live?",
+          "a3": "Your team's documents, messages and tasks live in its UniWork workspace, under your organization's permissions. Files you open from your computer in UniWork Office stay on your computer.",
+          "q4": "Is there a phone app yet?",
+          "a4": "UniChat has iPhone and Android builds in pilot: only invited people can install them through TestFlight or Google Play. On a phone you can still open UniWork in the browser."
+        },
+        "closing1": "Start on the web.",
+        "closing2": "Take it everywhere.",
+        "open": "Open UniWork",
+        "downloads": "See downloads"
+      },
+      "store": {
+        "appStore": "App Store",
+        "testflight": "TestFlight",
+        "googlePlay": "Google Play",
+        "playInternal": "Google Play (testing)"
+      }
     }
   },
   "documents": {

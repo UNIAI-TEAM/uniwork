@@ -4,6 +4,7 @@ export const RESERVED_SLUGS = [
   "about",
   "admin",
   "api",
+  "apps",
   "assets",
   "auth",
   "calendar",

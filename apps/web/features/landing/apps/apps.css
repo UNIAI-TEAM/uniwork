@@ -1,0 +1,158 @@
+/*
+ * The apps family (UNI-1913): shared pieces of /apps, /apps/office and
+ * /apps/unichat. Colours are tokens only; the selectors carry .marketing-site
+ * so they outrank marketing-pages.css's page-wide heading and paragraph rules.
+ */
+.marketing-site.apps-site main { padding-top: 96px; }
+.apps-site section[id] { scroll-margin-top: 168px; }
+
+/* The recurring mark: a label drawn like the chat's day separator. */
+.marketing-site .app-pill { display: inline-flex; width: fit-content; align-items: center; min-height: 30px; margin: 0; padding: 0 14px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: 13px; font-weight: 600; line-height: 1.2; letter-spacing: 0; }
+/* The product's own message bubble as a type device: the sender's corner tighter. */
+.app-bubble { display: inline-block; padding: .12em .3em .1em; margin-left: -.06em; border-radius: .4em .12em .4em .4em; background: var(--brand-subtle); color: var(--foreground); }
+.app-bubble.is-closing { margin-left: 0; border-radius: .4em .4em .12em .4em; }
+.app-tag { display: inline-flex; align-items: center; min-height: 22px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; font-style: normal; font-weight: 600; white-space: nowrap; }
+.app-tag.is-pilot { background: var(--brand-subtle); color: var(--brand-subtle-foreground); }
+.app-tag.is-dev { background: var(--warning-soft); color: var(--warning-soft-foreground); }
+.marketing-site .app-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--brand); font-weight: 600; }
+.app-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.app-link svg { width: 16px; height: 16px; }
+.app-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.app-actions > a { min-height: 52px; padding-inline: 22px; border-radius: 12px; gap: 10px; font-size: var(--text-body-lg); font-weight: 600; }
+.app-actions > a svg { width: 18px; height: 18px; }
+
+.app-icon { flex: none; border-radius: 22.4%; }
+.app-icon-tile { display: grid; place-items: center; background: var(--muted); }
+.app-icon-office { position: relative; overflow: hidden; display: block; }
+.app-icon-office img { position: absolute; max-width: none; }
+.app-icon-office.is-muted { opacity: .5; }
+
+.marketing-site .app-section { padding-top: 168px; }
+.marketing-site .app-h2 { margin: 0; font-size: clamp(32px, 4.2vw, 58px); line-height: 1.1; font-weight: 800; letter-spacing: -.038em; text-wrap: balance; }
+.marketing-site .app-lead { margin: 0; max-width: 62ch; font-size: clamp(17px, 1.4vw, 20px); line-height: 1.6; color: var(--muted-foreground); text-wrap: pretty; }
+.app-section-head { display: flex; flex-direction: column; gap: 20px; max-width: 780px; }
+
+/* Sticky app bar, under the floating site header. */
+.app-bar { position: sticky; top: 92px; z-index: 40; margin-top: 4px; background: var(--background); border-block: 1px solid var(--border); }
+/* The site header floats as a dock; this strip fills the gap above the bar so the page never scrolls through it. */
+.app-bar::before { content: ""; position: absolute; inset: -93px 0 100%; background: var(--background); }
+.app-bar-inner { display: flex; align-items: center; gap: 24px; min-height: 56px; }
+.app-bar-crumb { display: flex; align-items: center; gap: 8px; font-size: var(--text-body); color: var(--muted-foreground); }
+.app-bar-root { display: inline-flex; align-items: center; min-height: 44px; color: var(--muted-foreground); }
+.app-bar-root:hover { color: var(--foreground); }
+.app-bar-sep { width: 14px; height: 14px; }
+.app-bar-name, .app-bar-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-body-lg); font-weight: 700; color: var(--foreground); }
+.app-bar-toggle { display: none; min-height: 44px; padding: 0 6px; border: 0; background: none; cursor: pointer; }
+.app-bar-toggle svg:last-child { width: 16px; height: 16px; transition: transform .2s; }
+.app-bar-toggle[aria-expanded="true"] svg:last-child { transform: rotate(180deg); }
+.app-bar-links { display: flex; gap: 2px; margin-left: auto; }
+.app-bar-links a { position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; font-size: var(--text-body); color: var(--muted-foreground); }
+.app-bar-links a:hover, .app-bar-links a[aria-current="true"] { color: var(--foreground); }
+.app-bar-links a[aria-current="true"]::after { content: ""; position: absolute; inset-inline: 12px; bottom: 5px; height: 2px; border-radius: 2px; background: var(--brand); }
+.app-bar-cta { min-height: 44px; gap: 8px; border-radius: 10px; padding-inline: 16px; }
+.app-bar-cta svg { width: 16px; height: 16px; }
+.app-bar-cta-short { display: none; }
+.app-bar-sheet { display: flex; flex-direction: column; padding: 8px; border-top: 1px solid var(--border); background: var(--surface-raised); box-shadow: 0 14px 30px -18px color-mix(in srgb, var(--landing-deep) 50%, transparent); }
+.app-bar-sheet a { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 12px; border-radius: 10px; font-size: var(--text-body-lg); color: var(--foreground); }
+.app-bar-sheet a[aria-current="true"] { background: var(--brand-subtle); color: var(--brand-subtle-foreground); font-weight: 600; }
+.app-bar-sheet a svg { width: 16px; height: 16px; }
+
+/* Download band: a quiet ground that sets the downloads apart from the story. */
+.marketing-site .app-download-band { margin-top: 168px; padding-block: 128px; border-block: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 60%, var(--background)); }
+.app-download-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 40px; }
+.app-download-head .app-lead { max-width: 44ch; font-size: var(--text-body-lg); }
+
+/* Download block: the visitor's platform as a card, every other build as a chip. */
+.app-dl { display: flex; flex-direction: column; gap: 16px; margin-top: 44px; }
+.app-dl-featured { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px 40px; padding: 32px 36px; border-radius: 24px; border: 1px solid var(--input); background: var(--surface-raised); }
+.app-dl-featured.is-skeleton { min-height: 132px; border-color: var(--border); background: var(--muted); }
+.app-dl-featured-copy { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.app-dl-os { display: grid; place-items: center; width: 64px; height: 64px; flex: none; border-radius: 18px; background: var(--brand-subtle); color: var(--brand-subtle-foreground); }
+.app-dl-os svg { width: 28px; height: 28px; }
+.is-missing .app-dl-os { background: var(--muted); color: var(--muted-foreground); }
+.marketing-site .app-dl-own { margin: 0 0 4px; font-size: var(--text-caption); font-weight: 600; line-height: 1.4; color: var(--brand); }
+.marketing-site .app-dl-featured h3 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 800; letter-spacing: -.025em; }
+.marketing-site .app-dl-sub { margin: 4px 0 0; font-size: var(--text-body); line-height: 1.5; color: var(--muted-foreground); }
+.app-dl-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.app-dl-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.app-dl-button { min-height: 52px; gap: 10px; border-radius: 12px; padding-inline: 20px; font-size: var(--text-body-lg); font-weight: 600; }
+.app-dl-button svg { width: 18px; height: 18px; }
+.marketing-site .app-dl-help { margin: 0; font-size: var(--text-caption); line-height: 1.5; color: var(--muted-foreground); }
+.app-dl-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.app-dl-chip { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-raised); color: var(--foreground); font-size: var(--text-body); }
+.app-dl-chip:hover { border-color: var(--input); background: var(--surface-hover); }
+.app-dl-chip svg { width: 16px; height: 16px; color: var(--muted-foreground); }
+.app-dl-chip strong { font-weight: 600; }
+.app-dl-chip span { font-size: var(--text-caption); color: var(--muted-foreground); }
+.app-dl-chip.is-skeleton { width: 140px; border-color: transparent; background: var(--muted); }
+.app-dl-notes { display: flex; flex-wrap: wrap; gap: 12px 40px; margin-top: 8px; }
+.marketing-site .app-dl-note { display: flex; align-items: flex-start; gap: 10px; max-width: 58ch; margin: 0; font-size: var(--text-caption); line-height: 1.6; color: var(--muted-foreground); }
+.app-dl-note svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+.app-dl-message { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 28px 32px; border-radius: 20px; border: 1px solid var(--input); background: var(--surface-raised); }
+.marketing-site .app-dl-message p { margin: 0; max-width: 58ch; font-size: var(--text-body-lg); line-height: 1.6; color: var(--foreground); }
+.app-dl-message-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--muted); color: var(--muted-foreground); }
+.app-dl-message-icon.is-error { background: var(--destructive-soft); color: var(--destructive-soft-foreground); }
+.app-dl-message-icon svg { width: 20px; height: 20px; }
+
+/* More apps. */
+.app-other { display: flex; flex-direction: column; gap: 20px; padding: 32px; border-radius: 24px; border: 1px solid var(--border); background: var(--landing-stage-soft); }
+.app-other-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 20px; }
+.app-other-head > div { display: flex; flex-direction: column; gap: 12px; }
+.marketing-site .app-other-head h2 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 800; letter-spacing: -.03em; }
+.app-other-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.app-other-card { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 16px; align-items: center; min-height: 88px; padding: 16px 20px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface-raised); color: var(--foreground); }
+.app-other-card:hover { border-color: var(--input); background: var(--surface-hover); }
+.app-other-card strong { display: block; font-size: var(--text-title-sm); font-weight: 700; }
+.app-other-card small { display: block; font-size: var(--text-body); color: var(--muted-foreground); }
+.app-other-card > svg { width: 16px; height: 16px; color: var(--faint-foreground); }
+
+/* FAQ: label and title beside the questions. */
+.app-faq-grid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 40px 96px; align-items: start; }
+.app-faq-head { display: flex; flex-direction: column; gap: 20px; }
+.marketing-site .app-faq-head h2 { margin: 0; font-size: clamp(32px, 4.2vw, 58px); line-height: 1.1; font-weight: 800; letter-spacing: -.038em; }
+.marketing-site .app-faq-head p { margin: 0; font-size: var(--text-body-lg); line-height: 1.6; color: var(--muted-foreground); }
+.app-faq-list { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.app-faq-list [data-slot="accordion-item"] { border-color: var(--border); }
+.marketing-site .app-faq-q { min-height: 76px; align-items: center; padding-block: 20px; font-size: 18px; font-weight: 600; line-height: 1.4; }
+.marketing-site .app-faq-a { margin: 0; max-width: 62ch; padding: 0 48px 24px 0; font-size: 15.5px; line-height: 1.65; color: var(--muted-foreground); }
+
+/* Closing. */
+.app-closing { padding-block: 176px 160px; }
+.app-closing-inner { display: flex; flex-direction: column; align-items: center; gap: 36px; text-align: center; }
+.marketing-site .app-closing h2 { max-width: 16ch; margin: 0; font-size: clamp(32px, 4.2vw, 58px); line-height: 1.15; font-weight: 800; letter-spacing: -.038em; text-wrap: balance; }
+.app-closing .app-actions { justify-content: center; }
+
+@media (max-width: 1099px) {
+  .app-bar-links { display: none; }
+  .app-bar-cta { margin-left: auto; }
+  .app-faq-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 820px) {
+  .app-other-list { grid-template-columns: minmax(0, 1fr); }
+  .app-dl-actions, .app-dl-buttons { align-items: stretch; width: 100%; }
+  .app-dl-buttons > a { flex: 1 1 100%; }
+}
+@media (max-width: 767px) {
+  .marketing-site.apps-site main { padding-top: 84px; }
+  .app-bar { top: 80px; }
+  .app-bar::before { top: -81px; }
+  .app-bar-inner { min-height: 52px; gap: 12px; }
+  .app-bar-crumb { display: none; }
+  .app-bar-toggle { display: inline-flex; }
+  .app-bar-cta-long { display: none; }
+  .app-bar-cta-short { display: inline; }
+  .marketing-site .app-section { padding-top: 112px; }
+  .marketing-site .app-download-band { margin-top: 112px; padding-block: 80px; }
+  .app-dl-featured { padding: 22px; border-radius: 20px; }
+  .app-dl-featured-copy { align-items: flex-start; }
+  .app-dl-os { width: 52px; height: 52px; border-radius: 14px; }
+  .marketing-site .app-dl-featured h3 { font-size: 22px; }
+  .app-other { padding: 20px; border-radius: 20px; }
+  .marketing-site .app-faq-q { min-height: 64px; font-size: 16px; }
+  .marketing-site .app-faq-a { padding-right: 0; }
+  .app-closing { padding-block: 120px 112px; }
+  .app-actions > a { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-bar-toggle svg:last-child { transition: none; }
+}

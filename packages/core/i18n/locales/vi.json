@@ -7842,9 +7842,7 @@
       "closeMenu": "Đóng menu",
       "solutions": "Giải pháp",
       "why": "Vì sao UniWork",
-      "office": "Office",
-      "unichat": "UniChat",
-      "unichatDescription": "Chat cho công việc, trên máy tính và điện thoại."
+      "apps": "Ứng dụng"
     },
     "cta": {
       "start": "Bắt đầu ngay",
@@ -8918,48 +8916,168 @@
     },
     "unichat": {
       "hero": {
-        "title": "UniChat",
-        "sub": "Chat cho công việc. Tin nhắn, kênh và cuộc gọi của nhóm nằm cạnh việc cần làm trong UniWork, trên máy tính và điện thoại.",
-        "download": "Tải UniChat"
+        "eyebrow": "UniChat · cho máy tính và điện thoại",
+        "line1": "Nhắn xong,",
+        "line2": "việc đã có chỗ.",
+        "sub": "UniChat là chat của workspace UniWork trong một ứng dụng riêng. Tin nhắn thành việc, kênh gắn với dự án, cuộc gọi có tóm tắt. Cùng tài khoản, cùng tin nhắn, cùng việc.",
+        "download": "Tải UniChat",
+        "web": "Mở chat trên web",
+        "also": "Có cả bản {{list}}.",
+        "allBuilds": "Xem mọi bản cài"
       },
-      "points": {
-        "title": "Trao đổi xong, việc đã có chỗ",
-        "sub": "UniChat là chat của workspace UniWork trong một ứng dụng riêng: cùng tài khoản, cùng tin nhắn, cùng việc.",
+      "stage": {
+        "label": "UniChat trên máy tính và điện thoại. Khánh Vy hỏi ai nhận bản thiết kế onboarding, Mai An nhận, và tin nhắn được tạo thành việc DEMO-111 đang làm; điện thoại cập nhật cùng lúc.",
+        "replay": "Phát lại",
+        "caption": "Dữ liệu hư cấu minh họa · Không sử dụng dữ liệu khách hàng",
+        "chats": "Trò chuyện",
+        "search": "Tìm kiếm",
+        "tabs": {
+          "all": "Tất cả",
+          "direct": "Riêng",
+          "groups": "Nhóm",
+          "channels": "Kênh"
+        },
+        "filters": {
+          "all": "Mọi tin",
+          "unread": "Chưa đọc",
+          "mentions": "Nhắc tên"
+        },
+        "catchUp": {
+          "title": "Bắt kịp nhanh",
+          "body": "Bạn đã đọc hết. UNI sẽ tóm tắt khi có tin mới."
+        },
+        "channel": "ra-mắt-onboarding",
+        "design": "thiết-kế",
+        "members": "6 thành viên",
+        "today": "Hôm nay",
+        "yesterday": "Hôm qua",
+        "monday": "T2",
+        "you": "Bạn",
+        "messages": {
+          "review": "Chốt lịch review bản thiết kế vào sáng thứ Hai nhé.",
+          "ask": "Bản thiết kế onboarding cần xong trước thứ Sáu để cả đội góp ý. Ai nhận giúp mình?",
+          "reply": "Mình nhận nhé. Tạo việc luôn để cả đội theo dõi."
+        },
+        "previews": {
+          "reply": "Mình nhận nhé.",
+          "ask": "Bản thiết kế onboarding cần…",
+          "review": "Chốt lịch review bản thiết kế…",
+          "file": "Gửi bạn file góp ý nhé",
+          "poll": "Bình chọn: Giờ review thứ Hai?",
+          "voice": "Tin nhắn thoại",
+          "calendar": "Lịch họp tuần sau đã cập nhật",
+          "thanks": "Cảm ơn, mai mình gửi tiếp",
+          "missed": "Cuộc gọi nhỡ"
+        },
+        "createTask": "Tạo việc",
+        "task": "Chuẩn bị bản thiết kế onboarding để cả đội xem.",
+        "taskStatus": "Đang làm",
+        "read": "Đã xem",
+        "composer": "Nhập tin nhắn…",
+        "phoneTabs": {
+          "chats": "Trò chuyện",
+          "calls": "Cuộc gọi",
+          "contacts": "Danh bạ",
+          "settings": "Cài đặt"
+        }
+      },
+      "story": {
+        "eyebrow": "Tính năng",
+        "title": "Mọi cuộc trao đổi đều quy về việc.",
+        "sub": "Không còn chép tin nhắn sang bảng việc, không còn hỏi lại \"ai đang làm cái này\".",
         "task": {
           "title": "Tin nhắn thành việc",
-          "description": "Tạo việc từ một tin nhắn hoặc gắn việc có sẵn. Thẻ việc hiện ngay dưới tin và dẫn về đúng cuộc trò chuyện."
+          "body": "Tạo việc từ một tin nhắn hoặc gắn việc có sẵn. Thẻ việc hiện ngay dưới tin và dẫn về đúng cuộc trò chuyện."
         },
         "project": {
           "title": "Kênh gắn với dự án",
-          "description": "Gắn kênh với một dự án để cuộc trao đổi và công việc của dự án ở cạnh nhau."
+          "body": "Gắn kênh với một dự án để cuộc trao đổi và công việc của dự án ở cạnh nhau."
         },
         "followUp": {
           "title": "Theo dõi và nhắc việc",
-          "description": "Đánh dấu tin cần theo dõi sau, hoặc đặt lời nhắc gửi vào kênh đúng giờ bạn chọn."
+          "body": "Đánh dấu tin cần theo dõi sau, hoặc đặt lời nhắc gửi vào kênh đúng giờ bạn chọn."
         },
         "call": {
           "title": "Gọi có ghi âm và tóm tắt",
-          "description": "Gọi thoại hoặc video ngay trong cuộc trò chuyện. Cuộc gọi được ghi âm có thể được AI tóm tắt để cả nhóm đọc lại."
+          "body": "Gọi thoại hoặc video ngay trong cuộc trò chuyện. Cuộc gọi được ghi âm có thể được AI tóm tắt để cả nhóm đọc lại."
         },
-        "preview": "Xem giao diện chat trong UniWork"
+        "stage": {
+          "dialogTitle": "Tạo việc từ tin nhắn",
+          "titleField": "Tiêu đề",
+          "projectField": "Dự án (tùy chọn)",
+          "project": "Onboarding 2.0",
+          "cancel": "Hủy",
+          "create": "Tạo việc",
+          "projectTasks": "Việc của dự án",
+          "t108": "Chốt luồng đăng ký 4 bước",
+          "t111": "Chuẩn bị bản thiết kế onboarding",
+          "t114": "Viết email chào mừng",
+          "done": "Hoàn thành",
+          "doing": "Đang làm",
+          "todo": "Cần làm",
+          "reminder": "Lời nhắc · 16:00 hôm nay",
+          "reminderBody": "Nhớ chốt danh sách người dùng thử trước khi gửi email chào mừng.",
+          "followUps": "Theo dõi",
+          "fu1": "Gửi lại số liệu đăng ký tuần trước",
+          "fu1When": "Hôm nay",
+          "fu2": "Góp ý màn hình chào mừng",
+          "fu2When": "Thứ Hai",
+          "call": "Cuộc gọi thoại · 18 phút",
+          "callMeta": "Đã ghi âm · 4 người tham gia",
+          "summary": "Tóm tắt cuộc gọi",
+          "summaryMeta": "Tạo từ bản ghi · 10:42",
+          "s1": "Chốt luồng đăng ký 4 bước, bỏ bước chọn gói.",
+          "s2": "Mai An gửi bản thiết kế trước thứ Sáu.",
+          "s3": "Khánh Vy review vào sáng thứ Hai."
+        },
+        "also": {
+          "label": "Và cả",
+          "voice": "Tin nhắn thoại",
+          "poll": "Bình chọn",
+          "stickers": "Sticker và GIF",
+          "threads": "Trả lời theo luồng",
+          "pins": "Ghim tin",
+          "search": "Tìm trong cuộc trò chuyện"
+        }
+      },
+      "devices": {
+        "eyebrow": "Ở đâu cũng là một",
+        "title": "Đọc trên điện thoại, trả lời trên máy tính.",
+        "body": "Cùng một chat, dù bạn mở trên web hay trong UniChat. UniChat chỉ tập trung vào chat; việc, cuộc họp và tài liệu vẫn mở đầy đủ trên web.",
+        "web": "Web",
+        "webBody": "Chat trong UniWork, không cần cài",
+        "desktop": "Máy tính",
+        "desktopBody": "macOS, Windows và Linux",
+        "phone": "Điện thoại",
+        "phoneBody": "iPhone và Android, có thông báo đẩy"
+      },
+      "data": {
+        "eyebrow": "Dữ liệu của nhóm",
+        "title": "Tin nhắn ở lại trong workspace của nhóm.",
+        "body": "Lưu trong workspace UniWork của nhóm và theo phân quyền của tổ chức, như khi bạn chat trên web.",
+        "account": "Một tài khoản UniWork",
+        "accountBody": "Đăng nhập qua trình duyệt, không cần tài khoản riêng",
+        "workspace": "Đúng workspace của bạn",
+        "workspaceBody": "Chỉ thấy các workspace bạn là thành viên",
+        "revoke": "Hết quyền là hết truy cập",
+        "revokeBody": "Thành viên bị vô hiệu hóa không vào được nữa"
+      },
+      "closing": {
+        "line1": "Đưa cuộc trò chuyện của nhóm",
+        "line2": "về cạnh công việc."
       },
       "download": {
         "title": "Tải UniChat",
         "version": "Bản máy tính {{version}}",
         "requirements": "Yêu cầu: {{value}}",
         "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
-        "unavailable": "UniChat chưa phát hành bản cho máy tính. Trong lúc chờ, bạn vẫn chat với nhóm trên web trong UniWork."
+        "unavailable": "UniChat chưa phát hành bản cho máy tính. Trong lúc chờ, bạn vẫn chat với nhóm trên web trong UniWork.",
+        "eyebrow": "Tải về",
+        "sub": "Đăng nhập bằng tài khoản UniWork và thấy đúng các workspace bạn là thành viên."
       },
       "installersError": "Không tải được danh sách bản cài đặt. Kiểm tra kết nối rồi thử lại.",
       "retry": "Thử lại",
       "mobile": {
-        "ios": "iPhone",
-        "android": "Android",
-        "appStore": "App Store",
-        "googlePlay": "Google Play",
-        "testflight": "TestFlight",
-        "playInternal": "Google Play (thử nghiệm)",
-        "pilot": "Bản thử nghiệm: chỉ người được mời vào nhóm thử mới cài được.",
         "unavailable": "UniChat chưa phát hành bản cho điện thoại."
       },
       "faq": {
@@ -8971,10 +9089,168 @@
         "q3": "Tin nhắn của nhóm được lưu ở đâu?",
         "a3": "Trong workspace UniWork của nhóm và theo phân quyền của tổ chức, như khi bạn chat trên web.",
         "q4": "Cài UniChat trên điện thoại thế nào?",
-        "a4": "Khi bản điện thoại được phát hành, nút App Store và Google Play hiện ở mục Tải UniChat. Trong giai đoạn thử nghiệm, chỉ người được mời mới cài được qua TestFlight hoặc Google Play."
+        "a4": "Khi bản điện thoại được phát hành, nút App Store và Google Play hiện ở mục Tải UniChat. Trong giai đoạn thử nghiệm, chỉ người được mời mới cài được qua TestFlight hoặc Google Play.",
+        "eyebrow": "Hỏi đáp",
+        "sub": "Cần xem UniChat chạy cùng UniWork với đội của bạn?"
       },
-      "security": "Xem cách UniWork xử lý dữ liệu và quyền truy cập",
-      "closing": "Đưa cuộc trò chuyện của nhóm về cạnh công việc."
+      "security": "Xem cách UniWork xử lý dữ liệu và quyền truy cập"
+    },
+    "apps": {
+      "menu": {
+        "title": "Ứng dụng UniWork · một tài khoản",
+        "all": "Tất cả ứng dụng và bản tải",
+        "device": "Máy của bạn · {{os}}",
+        "download": "Tải",
+        "phones": "UniChat cho iPhone và Android",
+        "web": "Không cài gì: mở UniWork trên web"
+      },
+      "catalog": {
+        "web": {
+          "name": "UniWork trên web",
+          "short": "UniWork",
+          "kicker": "Trên web",
+          "description": "Việc, dự án, cuộc họp, tài liệu và chat trong một nơi.",
+          "tagline": "Việc, dự án, cuộc họp, tài liệu, chat và AI trong một workspace.",
+          "point1": "Không cần cài, mở trong trình duyệt",
+          "point2": "Nơi các ứng dụng khác nối về",
+          "strip": "Việc, dự án, cuộc họp và tài liệu trong trình duyệt.",
+          "open": "Mở UniWork",
+          "more": "Xem tính năng"
+        },
+        "office": {
+          "name": "UniWork Office",
+          "kicker": "Máy tính",
+          "description": "Soạn tài liệu, bảng tính và bài trình bày với AI, nối với workspace.",
+          "tagline": "Soạn thảo tài liệu, bảng tính và bài trình bày với AI. Kết nối cùng workspace UniWork.",
+          "point1": "Văn bản, Bảng tính, Trình chiếu, PDF, HTML, Markdown",
+          "point2": "Sửa file trên máy không cần kết nối",
+          "strip": "Tài liệu, bảng tính và trình chiếu với AI trên máy tính.",
+          "phoneSub": "Trên điện thoại, mở và sửa file trong mục Tài liệu của UniWork."
+        },
+        "unichat": {
+          "name": "UniChat",
+          "kicker": "Máy tính và điện thoại",
+          "description": "Chat cho công việc, trên máy tính và điện thoại.",
+          "tagline": "Chat cho công việc: tin nhắn thành việc, kênh gắn dự án, cuộc gọi có tóm tắt.",
+          "point1": "Cùng tin nhắn với chat trên web",
+          "point2": "Gọi thoại và video ngay trong cuộc trò chuyện",
+          "strip": "Chat cho công việc, trên máy tính và điện thoại.",
+          "pilot": "Bản iPhone và Android"
+        },
+        "personal": {
+          "name": "Office for Personal",
+          "description": "Phiên bản dành cho nhu cầu cá nhân."
+        }
+      },
+      "status": {
+        "pilot": "Thử nghiệm",
+        "phonePilot": "Điện thoại: thử nghiệm",
+        "development": "Đang phát triển"
+      },
+      "platform": {
+        "web": "Trình duyệt",
+        "macos": "macOS",
+        "windows": "Windows",
+        "linux": "Linux",
+        "ios": "iPhone",
+        "android": "Android"
+      },
+      "learn": "Tìm hiểu",
+      "downloadFor": "Tải cho {{os}}",
+      "bar": {
+        "apps": "Ứng dụng",
+        "label": "Trong trang {{app}}",
+        "overview": "Tổng quan",
+        "features": "Tính năng",
+        "editors": "Trình soạn thảo",
+        "download": "Tải về",
+        "faq": "Hỏi đáp",
+        "all": "Tất cả ứng dụng",
+        "short": "Tải",
+        "sections": "Mục trong trang"
+      },
+      "download": {
+        "device": "Máy của bạn",
+        "title": "{{app}} cho {{os}}",
+        "macHelp": "Không rõ máy Mac dùng chip nào? Mở menu Apple › Giới thiệu về máy Mac.",
+        "pilotSub": "Bản thử nghiệm, dành cho người được mời vào nhóm thử.",
+        "storeSub": "Đăng nhập bằng tài khoản UniWork sau khi cài.",
+        "open": "Mở {{store}}",
+        "noBuild": "{{app}} chưa có bản cho {{os}}",
+        "openWeb": "Mở UniWork trên web",
+        "others": "Nền tảng khác",
+        "webInstead": "Trong lúc chờ, bạn vẫn dùng được trên web trong UniWork.",
+        "phonePilot": "Bản thử nghiệm: chỉ người được mời vào nhóm thử mới cài được.",
+        "phoneUnavailable": "UniChat chưa phát hành bản cho điện thoại.",
+        "error": "Không tải được danh sách bản cài đặt. Kiểm tra kết nối rồi thử lại.",
+        "retry": "Thử lại"
+      },
+      "base": {
+        "title": "Nền UniWork chung",
+        "sub": "Ứng dụng nào cũng đọc cùng một nơi.",
+        "account": "Một tài khoản",
+        "workspace": "Cùng workspace",
+        "permissions": "Phân quyền của tổ chức",
+        "data": "Dữ liệu của nhóm"
+      },
+      "other": {
+        "eyebrow": "Hệ sinh thái UniWork",
+        "title": "Cùng tài khoản, dùng thêm",
+        "all": "Tất cả ứng dụng"
+      },
+      "hub": {
+        "eyebrow": "Ứng dụng UniWork",
+        "title1": "Một tài khoản.",
+        "title2": "Mọi nơi bạn làm việc.",
+        "sub": "UniWork chạy trên web. Các ứng dụng đưa nó lên máy tính và điện thoại, cùng tài khoản, cùng workspace, cùng phân quyền.",
+        "cta": "Xem bản tải cho {{os}}",
+        "ctaAny": "Xem bản tải",
+        "web": "Mở UniWork trên web",
+        "cardsEyebrow": "Các ứng dụng",
+        "cardsTitle": "Chọn nơi làm việc. Công việc vẫn là một.",
+        "downloadEyebrow": "Tải về",
+        "downloadTitle": "Mọi bản cài, một bảng.",
+        "phoneTitle": "Cho chiếc {{os}} này",
+        "device": "Máy của bạn: {{os}}",
+        "matrix": {
+          "caption": "Bản cài của từng ứng dụng theo hệ điều hành",
+          "app": "Ứng dụng",
+          "web": "Web",
+          "none": "Không có bản",
+          "webOnly": "Không cần cài. Mở trong trình duyệt trên máy tính và điện thoại.",
+          "officeWeb": "Mở file trong mục Tài liệu",
+          "chatWeb": "Mục Chat trong UniWork",
+          "loading": "Đang tải danh sách bản cài"
+        },
+        "phone": {
+          "webSub": "Không cần cài. Mở trong trình duyệt.",
+          "desktop": "Bản cho máy tính"
+        },
+        "note": "Phiên bản, yêu cầu hệ thống và ghi chú cài đặt ở trang của từng ứng dụng. Ô trống là ứng dụng chưa có bản cho hệ điều hành đó.",
+        "pilotNote": "Bản điện thoại đang thử nghiệm: chỉ người được mời vào nhóm thử mới cài được.",
+        "faq": {
+          "eyebrow": "Hỏi đáp",
+          "title": "Câu hỏi thường gặp",
+          "q1": "Tôi có phải cài ứng dụng nào không?",
+          "a1": "Không bắt buộc. Mọi thứ chạy trên web trong UniWork. Cài UniWork Office nếu bạn soạn tài liệu, bảng tính hay trình chiếu trên máy; cài UniChat nếu muốn chat của nhóm có ứng dụng riêng trên máy tính và điện thoại.",
+          "q2": "Mỗi ứng dụng có cần tài khoản riêng không?",
+          "a2": "Không. Tất cả dùng tài khoản UniWork, đăng nhập qua trình duyệt, và thấy đúng các workspace bạn là thành viên.",
+          "q3": "Dữ liệu nằm ở đâu?",
+          "a3": "Tài liệu, tin nhắn và việc của nhóm nằm trong workspace UniWork, theo phân quyền của tổ chức. File bạn mở từ máy tính trong UniWork Office vẫn ở trên máy bạn.",
+          "q4": "Đã có bản cho điện thoại chưa?",
+          "a4": "UniChat có bản iPhone và Android đang thử nghiệm: chỉ người được mời mới cài được qua TestFlight hoặc Google Play. Trên điện thoại, bạn vẫn mở UniWork trong trình duyệt."
+        },
+        "closing1": "Bắt đầu trên web.",
+        "closing2": "Mang theo ở mọi nơi.",
+        "open": "Mở UniWork",
+        "downloads": "Xem bản tải"
+      },
+      "store": {
+        "appStore": "App Store",
+        "testflight": "TestFlight",
+        "googlePlay": "Google Play",
+        "playInternal": "Google Play (thử nghiệm)"
+      }
     }
   },
   "documents": {

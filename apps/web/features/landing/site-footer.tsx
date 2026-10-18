@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { Logo } from "@uniwork/ui/brand";
 import { ANCHORS, href } from "./anchors";
+import { APP_CATALOG } from "./apps/catalog";
 import { Container } from "./layout-primitives";
 import { SOLUTIONS, SOLUTION_KEYS } from "./solutions";
 import { siteInformation } from "../../platform/site-information";
@@ -53,15 +54,17 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
-              <Link className={LINK} href={paths.office()}>
-                {t("landing.nav.office")}
+              <Link className={LINK} href={paths.apps.root()}>
+                {t("landing.nav.apps")}
               </Link>
             </li>
-            <li>
-              <Link className={LINK} href={paths.unichat()}>
-                {t("landing.nav.unichat")}
-              </Link>
-            </li>
+            {APP_CATALOG.filter((app) => app.installers).map((app) => (
+              <li key={app.key}>
+                <Link className={LINK} href={app.href}>
+                  {t(`landing.apps.catalog.${app.key}.name`)}
+                </Link>
+              </li>
+            ))}
           </ul>
         </nav>
 

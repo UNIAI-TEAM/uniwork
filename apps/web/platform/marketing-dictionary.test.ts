@@ -23,7 +23,7 @@ describe("public dictionary boundary", () => {
     expect(JSON.stringify(dictionary).length).toBeLessThan(JSON.stringify(full).length);
   });
   it("keeps Office installer labels and omits unrelated landing sections on lean pages", async () => {
-    const dictionary = await loadMarketingDictionary("vi", "/office");
+    const dictionary = await loadMarketingDictionary("vi", "/apps/office");
     const full = await loadDictionary("vi");
     expect(dictionary).toHaveProperty("office.desktop.install.os.windows");
     expect(dictionary).toHaveProperty("landing.office.hero");
@@ -32,14 +32,26 @@ describe("public dictionary boundary", () => {
     expect(JSON.stringify(dictionary).length).toBeLessThan(JSON.stringify(full.landing).length);
   });
   it("serves the UniChat page its own copy and the installer labels, and only there", async () => {
-    const dictionary = await loadMarketingDictionary("vi", "/unichat");
+    const dictionary = await loadMarketingDictionary("vi", "/apps/unichat");
     const full = await loadDictionary("vi");
-    expect(dictionary).toHaveProperty("landing.unichat.hero.title");
+    expect(dictionary).toHaveProperty("landing.unichat.hero.line1");
+    expect(dictionary).toHaveProperty("landing.apps.bar.download");
     expect(dictionary).toHaveProperty("office.desktop.install.fmt.mac_arm");
     expect(dictionary).not.toHaveProperty("landing.office.hero");
     expect(dictionary).not.toHaveProperty("chat");
     expect(JSON.stringify(dictionary).length).toBeLessThan(JSON.stringify(full.landing).length);
-    expect(await loadMarketingDictionary("vi", "/office")).not.toHaveProperty("landing.unichat");
+    expect(await loadMarketingDictionary("vi", "/apps/office")).not.toHaveProperty("landing.unichat");
+  });
+  it("gives the apps hub and every lean page the Apps menu copy, without an app's own page copy", async () => {
+    const hub = await loadMarketingDictionary("vi", "/apps");
+    expect(hub).toHaveProperty("landing.apps.hub.title1");
+    expect(hub).toHaveProperty("landing.apps.catalog.unichat.name");
+    // The hub lists phone builds and its own load error without UniChat's page copy.
+    expect(hub).toHaveProperty("landing.apps.store.testflight");
+    expect(hub).toHaveProperty("landing.apps.download.error");
+    expect(hub).not.toHaveProperty("landing.unichat");
+    expect(hub).not.toHaveProperty("landing.office.hero");
+    expect(await loadMarketingDictionary("vi", "/security")).toHaveProperty("landing.apps.menu.all");
   });
   it("also supplies the standalone email preview without the account connection wizard", async () => {
     const dictionary = await loadMarketingDictionary("vi", "/features/email");

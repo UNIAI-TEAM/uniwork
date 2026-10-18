@@ -47,6 +47,9 @@ const scrollIntoView = vi.fn();
 let root: Root;
 let container: HTMLDivElement;
 
+// jsdom's own user agent names the host system, so the visitor is pinned to Windows.
+const WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
 async function render(config: unknown): Promise<void> {
   request.mockResolvedValue(config);
   await act(async () => { root.render(createElement(QueryProvider, null, createElement(OfficePage))); });
@@ -56,6 +59,7 @@ const hrefs = (selector: string) => [...container.querySelectorAll<HTMLAnchorEle
 const tick = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
 beforeEach(async () => {
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS);
   Element.prototype.scrollIntoView = scrollIntoView;
   await setLocale("vi");
   container = document.createElement("div");
@@ -85,11 +89,13 @@ describe("the Office page", () => {
 
   it("offers every published variant in the catalogue, without guessed download links", async () => {
     await render({ flags: {}, office_installers: installers });
-    expect(hrefs(".office-download-columns a[download]")).toEqual(installers.stable.map(row => row.url));
+    // The visitor's Windows build leads; every other published variant follows as a chip.
+    expect(hrefs("#office-download [data-featured=windows] a[download]")).toEqual([installers.stable[2]!.url]);
+    expect(hrefs("#office-download .app-dl-chip")).toEqual([installers.stable[0]!.url, installers.stable[1]!.url, installers.stable[3]!.url]);
     expect(container.querySelector(".office-hero-actions a")?.getAttribute("href")).toBe("#office-download");
     expect(hrefs(".office-hero-actions a")).toContain("/request-demo");
-    expect(container.querySelector(".office-download-column[data-office-os=windows] small")?.textContent).toContain("chưa ký số");
-    expect(container.querySelector("#office-download-title")?.parentElement?.textContent).toContain("Phiên bản 1.2.0");
+    expect(container.querySelector("#office-download .app-dl-notes")?.textContent).toBe(viMessages.landing.office.download.unsigned);
+    expect(container.querySelector("#office-download [data-featured] .app-dl-sub")?.textContent).toContain("Phiên bản 1.2.0");
   });
 
   it("keeps the page usable when no installers are published", async () => {
@@ -138,11 +144,11 @@ describe("the Office page", () => {
     request.mockReturnValue(new Promise(done => { resolve = done; }));
     await act(async () => { root.render(createElement(QueryProvider, null, createElement(OfficePage))); });
     await tick();
-    expect(container.querySelectorAll(".office-download-columns[aria-busy] .office-download-column")).toHaveLength(3);
+    expect(container.querySelectorAll("#office-download .app-dl[aria-busy] .app-dl-featured.is-skeleton")).toHaveLength(1);
     expect(container.querySelectorAll("[download], [role=alert], [role=status]")).toHaveLength(0);
     await act(async () => { resolve({ flags: {}, office_installers: installers }); });
     await tick();
-    expect(container.querySelector(".office-download-columns")?.hasAttribute("aria-busy")).toBe(false);
+    expect(container.querySelector("#office-download .app-dl")?.hasAttribute("aria-busy")).toBe(false);
     expect(container.querySelectorAll("[download]")).toHaveLength(4);
   });
 
@@ -182,18 +188,28 @@ describe("the Office page", () => {
     // The six-tab preview sits in the hero; the installers are not repeated there.
     expect(hero?.querySelector("#office-editors [role=tablist]")).not.toBeNull();
     expect(hero?.querySelector("[download]")).toBeNull();
-    expect(hero?.querySelector(".office-hero-downloads")).toBeNull();
+  });
+
+  it("sits in the apps family: the app bar over its sections, and the other apps at the foot", async () => {
+    await render({ flags: {}, office_installers: installers });
+    const bar = container.querySelector("[data-app-bar=office]");
+    expect(bar?.querySelector(".app-bar-root")?.getAttribute("href")).toBe(paths.apps.root());
+    expect(hrefs("[data-app-bar=office] .app-bar-links a")).toEqual(["#office-business", "#office-editors", "#office-download", "#office-faq"]);
+    for (const id of ["office-business", "office-editors", "office-download", "office-faq"]) expect(container.querySelector(`#${id}`)).not.toBeNull();
+    expect(bar?.querySelector(".app-bar-cta")?.getAttribute("href")).toBe("#office-download");
+    expect(bar?.querySelector(".app-bar-cta-long")?.textContent).toBe("Tải dùng thử");
+    expect(hrefs(".app-other-card")).toEqual([paths.root(), paths.apps.unichat()]);
   });
 
 
   it("lists every published Linux format and leaves out the one that is not published", async () => {
     const both = [...installers.stable, { platform: "linux-x64-appimage", kind: ".AppImage", url: url("UniWork-Office-1.2.0.AppImage"), version: "1.2.0" }];
     await render({ flags: {}, office_installers: { stable: both } });
-    expect(hrefs(".office-download-column[data-office-os=linux] a")).toEqual([url("UniWork-Office-1.2.0-amd64.deb"), url("UniWork-Office-1.2.0.AppImage")]);
+    expect(hrefs(".app-dl-chip[data-office-os=linux]")).toEqual([url("UniWork-Office-1.2.0-amd64.deb"), url("UniWork-Office-1.2.0.AppImage")]);
     act(() => root.unmount());
     root = createRoot(container);
     await render({ flags: {}, office_installers: { stable: both.filter((row) => row.platform !== "linux-x64-deb") } });
-    expect(hrefs(".office-download-column[data-office-os=linux] a")).toEqual([url("UniWork-Office-1.2.0.AppImage")]);
+    expect(hrefs(".app-dl-chip[data-office-os=linux]")).toEqual([url("UniWork-Office-1.2.0.AppImage")]);
   });
 
 
@@ -201,7 +217,8 @@ describe("the Office page", () => {
     vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
     vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(0);
     await render({ flags: {}, office_installers: installers });
-    expect(container.querySelectorAll("img")).toHaveLength(0);
+    // Only the editor preview: the app icons beside the page are not screenshots.
+    expect(container.querySelectorAll(".office-tabs img")).toHaveLength(0);
     expect(container.querySelectorAll(".office-preview-error[role=status]")).toHaveLength(2);
     expect(container.querySelector(".office-preview-error")?.textContent).toBe("Không tải được ảnh xem trước. Tải lại trang để thử lại.");
   });

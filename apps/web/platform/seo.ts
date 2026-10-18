@@ -47,7 +47,7 @@ export function pageStructuredData(path: string, locale: SupportedLocale, origin
   const absolute = (href: string) => new URL(marketingHref(href, locale), origin).href;
   const organizationId = `${origin}/#organization`;
   const websiteId = `${origin}/#website`;
-  const parent = path.startsWith("/features/") ? "/features" : path.startsWith("/learn/") ? "/learn" : path.startsWith("/solutions/") ? "/solutions" : null;
+  const parent = path.startsWith("/features/") ? "/features" : path.startsWith("/learn/") ? "/learn" : path.startsWith("/solutions/") ? "/solutions" : path.startsWith("/apps/") ? "/apps" : null;
   const crumbs = [{ name: "UniWork", item: absolute("/") }, ...(parent ? [{ name: seoCopy(marketingRoute(parent)!.key, locale).title, item: absolute(parent) }] : []), ...(path !== "/" ? [{ name: copy.title, item: absolute(path) }] : [])];
   const graph: Record<string, unknown>[] = [
     { "@type": "Organization", "@id": organizationId, name: siteInformation.name, url: origin, logo: `${origin}/icon.svg`, ...(siteInformation.legalName ? { legalName: siteInformation.legalName } : {}), ...(siteInformation.supportEmail ? { email: siteInformation.supportEmail } : {}) },
@@ -55,7 +55,7 @@ export function pageStructuredData(path: string, locale: SupportedLocale, origin
     { "@type": "WebPage", "@id": `${absolute(path)}#webpage`, url: absolute(path), name: copy.title, description: copy.description, inLanguage: locale, isPartOf: { "@id": websiteId } },
     { "@type": "BreadcrumbList", itemListElement: crumbs.map((crumb, index) => ({ "@type": "ListItem", position: index + 1, ...crumb })) },
   ];
-  const app = path === "/office" ? { name: "UniWork Office", operatingSystem: "Windows, macOS, Linux" } : path === "/unichat" ? { name: "UniChat", operatingSystem: "Windows, macOS, Linux, iOS, Android" } : null;
+  const app = path === "/apps/office" ? { name: "UniWork Office", operatingSystem: "Windows, macOS, Linux" } : path === "/apps/unichat" ? { name: "UniChat", operatingSystem: "Windows, macOS, Linux, iOS, Android" } : null;
   if (app) graph.push({ "@type": "SoftwareApplication", ...app, url: absolute(path), applicationCategory: "BusinessApplication", description: copy.description, publisher: { "@id": organizationId } });
   return { "@context": "https://schema.org", "@graph": graph };
 }
