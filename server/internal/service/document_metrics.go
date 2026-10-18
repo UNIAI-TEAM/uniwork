@@ -42,6 +42,10 @@ const (
 	documentOutcomeError       = "error"
 )
 
+// documentOutcomeUnchanged is a file commit whose bytes equal the current
+// version (UNI-1900): 200 with that version, not a new one and not an error.
+const documentOutcomeUnchanged = "unchanged"
+
 // documentOutcomeLocked is a save refused by the edit lock (423
 // document_locked, UNI-1645): not a lost base race, never a conflict.
 const documentOutcomeLocked = "locked"
