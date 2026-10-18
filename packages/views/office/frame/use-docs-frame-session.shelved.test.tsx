@@ -116,6 +116,30 @@ describe("UI-AR5 the Office frame of a shelved document", () => {
     expect(frame.onError).not.toHaveBeenCalled();
   });
 
+  it("still answers api.saveCopy after the document went shelved mid-session (UNI-1892)", async () => {
+    const save409 = vi.fn(async () => ({ ok: false as const, error: shelvedShape() }));
+    const saveCopy = vi.fn(async (_payload: unknown, _call: unknown) => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const frame = setup({ api: { save: save409, saveCopy } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+
+    // The shelve lands under the open frame: a save refused with document_shelved turns it read-only.
+    const refused = save(frame);
+    expect((await frame.answered(refused)).error?.code).toBe("forbidden");
+    await waitFor(() => expect(frame.hook.result.current.viewOnly).toBe(true));
+
+    // The server accepts a copy whose source is shelved (withDocumentMutationOnShelved's
+    // shelveWriteAllowed covers "the copy's source lock", document_copy.go), so copyRefused does
+    // not include shelved: a copy of the archived document still runs, like a locked-out tab's.
+    const copyId = frame.request("api.saveCopy", { name: "Plan (copy)", data: new Uint8Array([1, 2]).buffer });
+    expect((await frame.answered(copyId)).payload).toEqual({ documentId: "doc-copy-1", title: "Plan (copy)" });
+    expect(saveCopy).toHaveBeenCalledTimes(1);
+
+    // …while the document itself stays read-only: a second save still refuses in the host.
+    const again = save(frame);
+    expect((await frame.answered(again)).error?.code).toBe("forbidden");
+    expect(save409).toHaveBeenCalledTimes(1);
+  });
+
   it("recognises the refusal when the upload step throws it", async () => {
     const throwing = vi.fn(async () => { throw new DocsProtocolError(shelvedShape()); });
     const frame = setup({ api: { save: throwing } as unknown as Partial<DocsFrameApi> });
