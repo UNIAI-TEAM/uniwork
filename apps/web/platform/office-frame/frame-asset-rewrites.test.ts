@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { officeFrameAssetRewrites } from "./frame-asset-rewrites.mjs";
 
-/** The route pattern a rule's source is, as a matcher: `:p(re)` becomes `(re)`, `:p*` a catch-all. */
+/** The route pattern a rule's source is, as a matcher: `:p(re)` becomes `(re)`, `:p*` a catch-all of zero or more segments. */
 function sourceMatcher(source: string): RegExp {
-  return new RegExp(`^${source.replace(/:(\w+)\(([^)]+)\)/g, "($2)").replace(/:(\w+)\*/g, "(.+)")}$`);
+  return new RegExp(`^${source.replace(/:(\w+)\(([^)]+)\)/g, "($2)").replace(/:(\w+)\*/g, "(.*)")}$`);
 }
 
 describe("officeFrameAssetRewrites", () => {
