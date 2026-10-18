@@ -16,6 +16,7 @@ import { describe, it } from 'node:test';
 import { VERDICT, blockedVerdict, failVerdict, passVerdict } from './oracles.mjs';
 import { ROW_EXIT, getRowById } from './rows.mjs';
 import { runG708Matrix } from './run-g7-08.mjs';
+import { bindDryRunStubRoutes } from './preconditions.mjs';
 import { runWebMatrixRow } from './web-driver.mjs';
 import { evaluateWireObservation, InterruptedAiTurnError, interruptionFromTurn } from './wire-observe.mjs';
 
@@ -241,10 +242,23 @@ describe('G7-08 real-run wire observation drives the matrix stop', () => {
     }
   });
 
-  it('w2i: a driver-observed frame-AI POST to the web origin is BLOCKED frame_ai_wrong_origin naming both origins and never counted as a model call', async () => {
+  it('w2j: a driver-observed frame-AI POST on the web origin passes the origin guard (usage is then judged on the wire)', async () => {
     const p = fakePage();
     const verdict = await runWebMatrixRow({ rowId: 'X-R1', host: 'web' }, {
-      apiOrigin: 'http://api.test',
+      webOrigin: 'http://web.test',
+      injectedPage: p,
+      injectedRowBody: async () => {
+        p.emit('request', fakeReq(MODEL_URL));
+      },
+    });
+    assert.notEqual(verdict.reason, 'frame_ai_wrong_origin');
+    assert.equal(verdict.reason, 'missing_usage_on_model_call', 'a request without a response is an unknown, not a pass');
+  });
+
+  it('w2j: a driver-observed frame-AI POST on a third origin is BLOCKED frame_ai_wrong_origin naming both origins and never counted as a model call', async () => {
+    const p = fakePage();
+    const verdict = await runWebMatrixRow({ rowId: 'X-R1', host: 'web' }, {
+      webOrigin: 'http://app.test',
       injectedPage: p,
       injectedRowBody: async () => {
         p.emit('request', fakeReq(MODEL_URL));
@@ -253,8 +267,19 @@ describe('G7-08 real-run wire observation drives the matrix stop', () => {
     assert.equal(verdict.status, VERDICT.BLOCKED);
     assert.equal(verdict.exitCode, ROW_EXIT.BLOCKED);
     assert.equal(verdict.reason, 'frame_ai_wrong_origin');
-    assert.equal(verdict.details.expectedOrigin, 'http://api.test');
+    assert.equal(verdict.details.expectedOrigin, 'http://app.test');
     assert.equal(verdict.details.observedOrigin, 'http://web.test');
     assert.equal(verdict.usage.modelCalls, 0);
+  });
+
+  it('w2j: the dry-run stub routes are bound on the web (frame) origin, not the API origin', async () => {
+    const routed = [];
+    const page = { route: async (glob) => { routed.push(glob); } };
+    const fetchImpl = async () => ({ json: async () => ({ access_token: 'a', token: 't' }) });
+    await bindDryRunStubRoutes({
+      page, frameAiOrigin: 'http://web.test', fetchImpl, stub: { url: 'http://stub.test' }, documentId: 'D1', rowId: 'X-R1', wireResponses: [],
+    });
+    assert.ok(routed.length >= 7, 'credentials, cloud, models and the four model-call routes');
+    for (const glob of routed) assert.ok(glob.startsWith('http://web.test/api/v1/office-frame/documents/*/ai/'), glob);
   });
 });

@@ -110,14 +110,14 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/uniwork/models'), true);
     assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/uploads'), false);
 
-    // R4-1 + w2i: the dry-run stub globs are built on the harness's absolute API origin, never
-    // `**`, so a frame-AI POST to the web origin is not intercepted by the stub.
-    const apiGlobs = modelCallRouteGlobs('http://api.test');
-    assert.deepEqual(apiGlobs, [
-      'http://api.test/api/v1/office-frame/documents/*/ai/uniwork/chat/completions',
-      'http://api.test/api/v1/office-frame/documents/*/ai/byok/*/chat/completions',
-      'http://api.test/api/v1/office-frame/documents/*/ai/byok/*/messages',
-      'http://api.test/api/v1/office-frame/documents/*/ai/byok/*/generate',
+    // R4-1 + w2j: the dry-run stub globs are built on the origin the frame POSTs to (the app/web
+    // origin, never `**`), so a POST to any other origin is not intercepted by the stub.
+    const frameGlobs = modelCallRouteGlobs('http://web.test');
+    assert.deepEqual(frameGlobs, [
+      'http://web.test/api/v1/office-frame/documents/*/ai/uniwork/chat/completions',
+      'http://web.test/api/v1/office-frame/documents/*/ai/byok/*/chat/completions',
+      'http://web.test/api/v1/office-frame/documents/*/ai/byok/*/messages',
+      'http://web.test/api/v1/office-frame/documents/*/ai/byok/*/generate',
     ]);
     assert.deepEqual(modelCallRouteGlobs(''), []);
     assert.deepEqual(modelCallRouteGlobs('not a url'), []);
@@ -132,12 +132,12 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
       '/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages',
       '/api/v1/office-frame/documents/D1/ai/byok/gemini/generate',
     ]) {
-      assert.equal(apiGlobs.some((glob) => globRe(glob).test(`http://api.test${tail}`)), true, `${tail} matches on API origin`);
-      assert.equal(apiGlobs.some((glob) => globRe(glob).test(`http://web.test${tail}`)), false, `${tail} is not intercepted on web origin`);
+      assert.equal(frameGlobs.some((glob) => globRe(glob).test(`http://web.test${tail}`)), true, `${tail} matches on the frame origin`);
+      assert.equal(frameGlobs.some((glob) => globRe(glob).test(`http://api.test${tail}`)), false, `${tail} is not intercepted on another origin`);
       assert.equal(isModelCompletionPath(tail), true);
     }
     assert.equal(
-      apiGlobs.some((glob) => globRe(glob).test('http://api.test/api/v1/office-frame/documents/D1/ai/openai/chat/completions')),
+      frameGlobs.some((glob) => globRe(glob).test('http://web.test/api/v1/office-frame/documents/D1/ai/openai/chat/completions')),
       false,
       'the stub does not arm on a path no route serves',
     );
@@ -439,7 +439,7 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     assert.equal(withFinish.wire.unobserved, false);
   });
 
-  it('w2i: a frame-AI POST to any origin other than apiOrigin is BLOCKED frame_ai_wrong_origin and never counted as a model call', async () => {
+  it('w2j: a frame-AI POST on the web origin is the expected path - its response is observed and the usage counted', async () => {
     const page = makeFakePage();
     const requests = [];
     const responses = [];
@@ -452,19 +452,68 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     );
     await settle();
 
+    const ok = evaluateWireObservation({
+      requests, responses, aiPaths, frameAiOrigin: 'http://web.test', sawTurnEffects: true,
+    });
+    assert.equal(ok.unobserved, false);
+    assert.equal(ok.reason, null);
+    assert.equal(ok.modelCalls, 1);
+    assert.equal(ok.inputTokens, 99);
+    assert.equal(ok.outputTokens, 11);
+  });
+
+  it('w2j: a frame-AI POST on an origin that is not the web origin is BLOCKED frame_ai_wrong_origin and never counted', async () => {
+    const page = makeFakePage();
+    const requests = [];
+    const responses = [];
+    const aiPaths = [];
+    const { settle } = observeModelWire(page, { requests, responses, aiPaths });
+    const thirdHost = OPENAI_URL.replace('http://web.test', 'http://third.test');
+    page.emit('request', fakeRequest('POST', thirdHost, '{}'));
+    page.emit(
+      'response',
+      fakeResponse(200, thirdHost, 'data: {"usage":{"prompt_tokens":99,"completion_tokens":11}}\n\ndata: [DONE]\n'),
+    );
+    await settle();
+
     const wrong = evaluateWireObservation({
-      requests,
-      responses,
-      aiPaths,
-      apiOrigin: 'http://api.test',
-      sawTurnEffects: true,
+      requests, responses, aiPaths, frameAiOrigin: 'http://web.test', sawTurnEffects: true,
     });
     assert.equal(wrong.unobserved, true);
     assert.equal(wrong.reason, 'frame_ai_wrong_origin');
     assert.equal(wrong.modelCalls, 0, 'a wrong-origin POST is never counted as a model call');
     assert.equal(wrong.inputTokens, 0);
     assert.equal(wrong.outputTokens, 0);
-    assert.equal(wrong.detail.expectedOrigin, 'http://api.test');
-    assert.equal(wrong.detail.observedOrigin, 'http://web.test');
+    assert.equal(wrong.detail.expectedOrigin, 'http://web.test');
+    assert.equal(wrong.detail.observedOrigin, 'http://third.test');
+  });
+
+  it('w2j: a direct API-origin POST is not the frame path - BLOCKED frame_ai_wrong_origin (the frame is same-origin, connect-src self)', () => {
+    const wrong = evaluateWireObservation({
+      requests: [{ origin: 'http://api.test', path: '/x/ai/uniwork/chat/completions', shape: 'openai', body: {} }],
+      responses: [{ origin: 'http://api.test', status: 200, shape: 'openai', usage: { prompt_tokens: 1, completion_tokens: 1 }, toolCallNames: [] }],
+      aiPaths: [{ origin: 'http://api.test', path: '/x/ai/uniwork/chat/completions' }],
+      frameAiOrigin: 'http://web.test',
+    });
+    assert.equal(wrong.reason, 'frame_ai_wrong_origin');
+    assert.equal(wrong.modelCalls, 0);
+  });
+
+  it('w2j: a web-origin HTML 404 (the real1 failure) is BLOCKED as missing usage, never a zero-token success', async () => {
+    const page = makeFakePage();
+    const requests = [];
+    const responses = [];
+    const aiPaths = [];
+    const { settle } = observeModelWire(page, { requests, responses, aiPaths });
+    page.emit('request', fakeRequest('POST', OPENAI_URL, '{}'));
+    page.emit('response', fakeResponse(404, OPENAI_URL, '<!DOCTYPE html><html><body>404</body></html>'));
+    await settle();
+
+    const out = evaluateWireObservation({
+      requests, responses, aiPaths, frameAiOrigin: 'http://web.test', sawTurnEffects: true,
+    });
+    assert.equal(out.unobserved, true);
+    assert.equal(out.reason, 'missing_usage_on_model_call');
+    assert.ok(out.missingUsageCalls >= 1);
   });
 });
