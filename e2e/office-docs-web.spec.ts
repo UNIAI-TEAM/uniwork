@@ -1,8 +1,8 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { e2eBaseUrl } from "./api-url";
+import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 import {
-  listVersions, openSeededDocument, readPinnedFrame, releaseSeededEditLock, seedDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
+  listVersions, openSeededDocument, readPinnedFrame, releaseSeededEditLock, seedDocx, seedUntitledDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
 } from "./office-docs-web-fixtures";
 import { expectFrameNotice } from "./office-module-web-fixtures";
 
@@ -197,6 +197,53 @@ test.describe("open, edit, save", () => {
     const latest = (await listVersions(request, token, copyId)).reduce((a, b) => (b.version > a.version ? b : a));
     expect(await versionBodyXml(request, token, copyId, latest.version)).toContain(second);
     expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
+  });
+
+  test("the first save of a never-saved blank names it before it uploads (UNI-1847, SAVE-01)", async ({ page, request, browser }) => {
+    // Seed through a throwaway context so this test's blank does not share the suite's document.
+    const context = await browser.newContext({ baseURL: baseUrl });
+    let blank: SeededDocx;
+    try {
+      blank = await seedUntitledDocx(await context.newPage(), baseUrl, `docs-web-blank-${Date.now().toString(36)}`);
+    } finally {
+      await context.close();
+    }
+    await signInAs(page, blank.account.email);
+    await openSeededDocument(page, blank);
+
+    const editor = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
+    await expect(editor).toBeVisible({ timeout: 60_000 });
+    await editor.click();
+    await page.keyboard.press("Control+s");
+
+    // The page asks for a name before any upload leaves the frame.
+    const dialog = page.getByRole("dialog", { name: "Đặt tên tài liệu" });
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    const input = dialog.getByLabel("Tên tài liệu");
+    await expect(input).toHaveValue("untitled.docx");
+    const title = `Kế hoạch ${Date.now().toString(36)}`;
+    await input.fill(title);
+    await dialog.getByRole("button", { name: "Lưu" }).click();
+    await expect(dialog).toBeHidden({ timeout: 30_000 });
+
+    // The title changed on the server and the save went through as a new version.
+    await expect.poll(
+      async () => (await listVersions(request, blank.account.token, blank.documentId)).length,
+      { timeout: 60_000, intervals: [1_000] },
+    ).toBeGreaterThan(0);
+    const detail = await request.get(`${e2eApiUrl}/api/v1/documents/${blank.documentId}`, {
+      headers: { authorization: `Bearer ${blank.account.token}` },
+    });
+    expect(detail.ok(), `document detail: HTTP ${detail.status()}`).toBeTruthy();
+    const { document } = (await detail.json()) as { document: { title: string } };
+    expect(document.title).toBe(title);
+
+    // Named now: the next save asks nothing and stores another version.
+    await editor.click();
+    await page.keyboard.type(".");
+    await page.keyboard.press("Control+s");
+    await expect(page.getByRole("dialog", { name: "Đặt tên tài liệu" })).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("05-first-save-named.png") });
   });
 
   test("an inserted image passes the frame CSP and is stored in the docx", async ({ page, request }) => {
