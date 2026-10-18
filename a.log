@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -4; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+80d82cdf302cfcc2cf5d2989611c4a9437a0f2b1
+d4c9abdeefe5a5f4c920710d258372bfedc81f1e
+80d82cdf3 chore: merge G5-G7 root into the G6-10 sweep (UNI-1375)
+d4c9abdee chore: merge AI-PLAN-UW r3 spec v0.5.7 + boards + READINESS (UNI-1910, ec53c2748) into the G5-G7 root
+ec53c2748 docs(ai): address BE review round 3 of the v0.5.6 billing spec (UNI-1910)
+46ef85bf9 docs(ai): drop the create-dialog hide switch and draw the unapplied invoice (UNI-1910)
+
+SYNCED_EXIT=0

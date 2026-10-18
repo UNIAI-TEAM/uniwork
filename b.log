@@ -1,0 +1,5 @@
+$ git diff --name-only origin/feature/UNI-923-office-g5-g6-g7 HEAD; echo; echo "DIFF_LISTED_EXIT=0"
+scripts/office/instruction-pack-tools.test.mjs
+server/internal/handler/dto/sdo/error_class_test.go
+
+DIFF_LISTED_EXIT=0

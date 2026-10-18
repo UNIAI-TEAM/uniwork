@@ -1,0 +1,15 @@
+$ node --test scripts/office/instruction-pack-tools.test.mjs 2>&1 | tail -12; rc=${PIPESTATUS[0]}; echo; echo "PACK_TOOLS_TEST_EXIT=$rc"
+  ---
+  duration_ms: 0.627796
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 72.235169
+
+PACK_TOOLS_TEST_EXIT=0

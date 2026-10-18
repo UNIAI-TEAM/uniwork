@@ -1,0 +1,4 @@
+$ cd server && go test ./internal/handler/dto/sdo/... -count=1 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "GO_SDO_TEST_EXIT=$rc"
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.018s
+
+GO_SDO_TEST_EXIT=0
