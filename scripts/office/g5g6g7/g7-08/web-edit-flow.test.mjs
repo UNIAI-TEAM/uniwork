@@ -74,6 +74,35 @@ describe('G7-08 w2e2 runEditStage', () => {
     }
   });
 
+  it('w2m: a second Save that sends no commit is satisfied when the version count is unchanged', async () => {
+    const noCommit = { status: 'timeout', reason: 'no frame commit within the bound (save state saved)' };
+    const saves = [{ status: 'saved', versionId: 'V2', revision: '2', version: 2 }, noCommit];
+    const out = await runEditStage(ctx(), makeIo({ saves, counts: [2, 2] }));
+    assert.equal(out.stop, undefined);
+    assert.deepEqual(out.details.secondSave, { commitSent: false, versionsDelta: 0 });
+    assert.equal(out.observed.doubleClickVersionsCreated, 0);
+    const order = io => io.calls.map((c) => c[0]);
+    const io = makeIo({ saves, counts: [2, 2] });
+    await runEditStage(ctx(), io);
+    assert.deepEqual(order(io).slice(-4, -1), ['webSave', 'count', 'head'], 'the count is read after the second Save bound');
+  });
+
+  it('w2m: a second Save that committed records commitSent true', async () => {
+    const out = await runEditStage(ctx(), makeIo({ counts: [2, 2] }));
+    assert.deepEqual(out.details.secondSave, { commitSent: true, versionsDelta: 0 });
+  });
+
+  it('w2m: no commit but an unreadable count stays BLOCKED, and a new version is the duplicate', async () => {
+    const noCommit = { status: 'timeout', reason: 'no frame commit within the bound' };
+    const saves = [{ status: 'saved', versionId: 'V2', revision: '2', version: 2 }, noCommit];
+    const blocked = await runEditStage(ctx(), makeIo({ saves, counts: [2, null] }));
+    assert.equal(blocked.stop.status, 'BLOCKED');
+    assert.equal(blocked.stop.reason, 'missing_version_list');
+    const dup = await runEditStage(ctx(), makeIo({ saves, counts: [2, 3] }));
+    assert.equal(dup.observed.doubleClickVersionsCreated, 1);
+    assert.deepEqual(dup.details.secondSave, { commitSent: false, versionsDelta: 1 });
+  });
+
   it('R2-1: a failed first Save is a FAIL and no second Save is sent', async () => {
     const io = makeIo({ saves: [{ status: 'error', httpStatus: 409 }] });
     const out = await runEditStage(ctx(), io);

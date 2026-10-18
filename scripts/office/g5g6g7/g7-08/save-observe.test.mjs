@@ -166,6 +166,28 @@ describe('G7-08 w2e save-observe pure helpers', () => {
       );
     }
 
+    // w2m: a second Save of a clean document that sends NO commit within the bound is the
+    // expected "0 extra versions" - only when the server's version count confirms it.
+    const noCommit = { status: 'timeout', reason: 'no frame commit within the bound (the frame was not dirty; save state saved)' };
+    const quiet = buildEditSaveObservation({ ...base, doubleSave: { presses: 2, first: { status: 'saved' }, second: noCommit } });
+    assert.equal(quiet.ok, true);
+    assert.equal(quiet.observed.doubleClickVersionsCreated, 0);
+    assert.deepEqual(quiet.observed.secondSave, { commitSent: false, versionsDelta: 0 });
+    // ...a second Save that did commit records that, with its delta.
+    assert.deepEqual(ok.observed.secondSave, { commitSent: true, versionsDelta: 0 });
+    // ...a version that appeared although no commit was seen stays the duplicate FAIL (delta > 0).
+    const sneaky = buildEditSaveObservation({ ...base, versionsAfterSecondSave: 3, doubleSave: { presses: 2, first: { status: 'saved' }, second: noCommit } });
+    assert.equal(sneaky.ok, true);
+    assert.deepEqual(sneaky.observed.secondSave, { commitSent: false, versionsDelta: 1 });
+    assert.equal(sneaky.observed.doubleClickVersionsCreated, 1);
+    // ...an unreadable count fails closed, no-commit or not.
+    for (const counts of [{ versionsAfterSecondSave: undefined }, { versionsAfterFirstSave: null }]) {
+      assert.equal(
+        buildEditSaveObservation({ ...base, ...counts, doubleSave: { presses: 2, first: { status: 'saved' }, second: noCommit } }).reason,
+        'missing_version_list',
+      );
+    }
+
     // A failed first Save names its own reason.
     assert.equal(
       buildEditSaveObservation({ ...base, doubleSave: { presses: 2, first: { status: 'error', httpStatus: 409 }, second: { status: 'saved' } } }).reason,
