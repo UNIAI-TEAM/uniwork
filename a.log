@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+bdf3b1441b90043b526cadc0c74f3bc42b4e2b6a
+bdf3b1441 fix(documents): retry the frame save once on an expired staged upload (UNI-1900)
+e06cac176 test(documents): pin frame-save retry on expired staged upload (UNI-1900)
+ec05dc956 fix(documents): drop the expired-upload replay and restage paths (UNI-1900)
+888135675 fix(documents): restage an upload key whose previous staged file expired (UNI-1900)
+a4aea8cee fix(documents): replay the stored save answer when the upload no longer resolves (UNI-1900)
+14b2dc146 fix(alerts): exclude unchanged saves from the Office conflict ratio
+1332d57a4 fix(documents): refuse a consumed upload before the identical-bytes no-op
+5afd5a0d6 test(documents): commit changed bytes where a test expects a new file version
