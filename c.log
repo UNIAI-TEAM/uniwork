@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+6ee9e9e1c291df06d7a721fef35f881a2c44ab0a
+6ee9e9e1c fix(documents): keep the office_txt_open hook unconditional in the document host
+7416c56e7 fix(documents): say "checking" for a .txt while the organization answer is pending
+5574f691f fix(documents): close a live .txt editor through the leave guards when office_txt_open turns off
+348fdec9e fix(documents): read office_txt_open with the organization's answer (UNI-1813)
