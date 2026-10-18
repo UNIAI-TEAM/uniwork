@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+a06398dc60cc5770b881ee4ef5167e49b8501c0d
+cbc4d36d1ccaa65bc9f2005ffcc9e4f3fca13f6b
+a06398dc6 test(e2e): give the ux-floor second writer different bytes from v1 (UNI-1917)
+d7d6e6845 chore: merge HOST-PRINT (UNI-1911, ae9789e62) into the G5-G7 root
+ae9789e62 chore: merge G5-G7 root 9768cf8d4 into UNI-1911 host print
+9768cf8d4 test(e2e): open the common level only after the per-person popup closes (UNI-1784)
+a605e291f chore: merge AI-PLAN-UW billing spec v0.5.3 + boards g-j (UNI-1910, 7dc9ec3a4) into the G5-G7 root
+4a55de90f chore: merge FU-SHARING P0 revoke fix (UNI-1914, 2d0b03889) into the G5-G7 root
+
+SYNCED_EXIT=1

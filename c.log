@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/views test > /tmp/uxl-views.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL" /tmp/uxl-views.log | tail -n 20; echo; echo "VIEWS_TEST_EXIT=$rc"
+ Test Files  624 passed (624)
+      Tests  5706 passed (5706)
+
+VIEWS_TEST_EXIT=0
