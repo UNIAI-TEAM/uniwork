@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { FilePlus, Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChunkedUploadProgress } from "@uniwork/core/documents/chunked-upload";
@@ -98,6 +98,14 @@ export function DocumentUploadDialog({
         : 0
       : 0;
   const showResumeHint = Boolean(file && !isChunkedActive && hasResumable?.(file));
+
+  const submitRef = useRef<HTMLButtonElement | null>(null);
+  // A chunked refusal lands after the progress block unmounts and the submit
+  // button remounts: the node that had focus is gone, so put it back on
+  // Upload — the same place a refusal found up front leaves the user (L-2).
+  useEffect(() => {
+    if (open && error && !isBusy) submitRef.current?.focus();
+  }, [open, error, isBusy]);
 
   useEffect(() => {
     setShareWithWorkspace(false);
@@ -271,7 +279,12 @@ export function DocumentUploadDialog({
                 {t("documents.upload.checking")}
               </Button>
             ) : (
-              <Button type="submit" disabled={!file || pending} aria-busy={pending || undefined}>
+              <Button
+                ref={submitRef}
+                type="submit"
+                disabled={!file || pending}
+                aria-busy={pending || undefined}
+              >
                 {pending ? (
                   <>
                     <Spinner aria-hidden role="presentation" />

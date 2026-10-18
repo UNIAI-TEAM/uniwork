@@ -1563,6 +1563,67 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
     }
   });
 
+  it("moves focus to the Upload button after a commit-time 423 refusal", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "commit-423.pdf");
+    const fields = { holder_id: "u2", holder_name: "Bình", held_by_me: false };
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-commit-423",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-commit-423/complete" && method === "POST") {
+        return {
+          upload_id: "up-commit-423",
+          checksum_sha256: "b".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        throw new ApiError("đang bị khóa", "document_locked", 423, undefined, fields);
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const partNum = Number(/part-(\d+)/.exec(String(input))?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    const refused = vi.fn();
+    const off = onWriteRefused(DOC_ID, refused);
+    try {
+      await openDialogAndSubmit(bigFile);
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(t("documents.upload.document_locked"));
+      expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`);
+      // The submit button remounted when the progress block unmounted; the
+      // refusal must leave focus inside the dialog, on Upload.
+      expect(screen.getByRole("button", { name: t("documents.upload.submit") })).toHaveFocus();
+    } finally {
+      off();
+    }
+  });
+
   it("takes no edit-lock pre-check for small files at or below the chunked threshold", async () => {
     const calls: string[] = [];
     const smallFile = makePdfFile(THRESHOLD, "at-threshold.pdf");
