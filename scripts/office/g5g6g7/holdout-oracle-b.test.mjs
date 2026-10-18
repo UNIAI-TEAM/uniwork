@@ -636,3 +636,182 @@ describe('item 8 (round h, H-1): a plain report number may trace to a percent le
     assert.equal(verdict(pct40, mkAsk('Change 40% from 50 to 70.', { numbers: [40] }, cells)), 'pass', 'X6');
   });
 });
+
+// ---------- round i (review-g712-21 + the USER request-echo decision of 2026-10-18) ----------
+
+describe('item 9 (round i, I-1): a number echoed from the question never fails an answer and never credits anything', () => {
+  const asked = (en, value = 25) => mkCase({
+    query: { vi: 'Trong 10 ngày, giá trị là bao nhiêu?', en },
+    tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
+    expected: { numeric: [{ name: 'v', value, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: value }, structural: [], writes: 0, text: 'x' },
+  });
+  const cell = (value) => ({ toolResults: [{ name: 'read_range', text: readResult({ A1: value }) }] });
+  const within10 = asked('Within 10 days, what is the value?');
+
+  it('passes a prose echo of a question figure next to a correct traced answer', () => {
+    assert.equal(verdict(within10, mkAsk('Within 10 days the value is 25.', { numbers: [25] }, cell(25))), 'pass');
+    assert.equal(verdict(within10, mkAsk('Trong 10 ngày, giá trị là 25.', { numbers: [25] }, cell(25))), 'pass');
+  });
+
+  it('still fails a prose figure that the question does not state', () => {
+    assert.equal(verdict(within10, mkAsk('Within 11 days the value is 25.', { numbers: [25] }, cell(25))), 'fail');
+  });
+
+  it('never credits an expected numeric: an echo that is the only figure of the slot fails', () => {
+    const ten = asked('Within 10 days, what is the value?', 10);
+    assert.equal(verdict(ten, mkAsk('The value is 10.', { numbers: [] }, cell(25))), 'fail');
+    assert.equal(verdict(ten, mkAsk('The value is 10.', { numbers: [] }, { toolResults: [{ name: 'read_range', text: readResult({}) }] })), 'fail');
+  });
+
+  it('gives report.numbers no exemption: an echoed figure of the reporting line must still trace', () => {
+    assert.equal(verdict(within10, mkAsk('Within 10 days the value is 25.', { numbers: [25, 10] }, cell(25))), 'fail');
+    const ten = asked('Within 10 days, what is the value?', 10);
+    assert.equal(verdict(ten, mkAsk('The value is 10.', { numbers: [10] }, { toolResults: [{ name: 'read_range', text: readResult({}) }] })), 'fail', 'X1 shape');
+    assert.equal(verdict(ten, mkAsk('The value is 10.', { numbers: [10] }, cell(10))), 'pass', 'the control: the read returns it');
+  });
+
+  it('is not an echo when the unit or marker differs from the one in the question', () => {
+    assert.equal(verdict(within10, mkAsk('Within 10k days the value is 25.', { numbers: [25] }, cell(25))), 'fail', '10k against a bare 10');
+    assert.equal(verdict(within10, mkAsk('Within 10% of days the value is 25.', { numbers: [25] }, cell(25))), 'fail', '10% against a bare 10');
+    const marked = asked('Within 10k days, what is the value?');
+    assert.equal(verdict(marked, mkAsk('Within 10k days the value is 25.', { numbers: [25] }, cell(25))), 'pass', 'the same marker is an echo');
+    assert.equal(verdict(marked, mkAsk('Within 10 days the value is 25.', { numbers: [25] }, cell(25))), 'fail', 'a bare 10 against 10k');
+  });
+});
+
+describe('item 10 (round i, R21-1): the heading-level label digit is no count', () => {
+  const headings = { blocks: [{ index: 0, style: 'Heading2', preview: 'Alpha' }, { index: 1, style: 'Heading2', preview: 'Beta' }, { index: 2, style: 'Heading2', preview: 'Gamma' }] };
+  const h2 = (value) => countCaseOf({ id: 'HO-DOCX-994', format: 'docx', anchor: 'heading_level_2', value, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
+  const dAsk = (text, report, result = headings) => readAsk('get_document_context', 'docs', result, text, report);
+  const h2Item = (value) => ({ kind: 'count', anchor: 'heading_level_2', value });
+
+  it('keeps the correct answer, the label digit of its own wording included', () => {
+    assert.equal(verdict(h2(3), dAsk('There are 3 level 2 headings.', { numbers: [3], items: [h2Item(3)] })), 'pass');
+    assert.equal(verdict(h2(3), dAsk('There are 3 headings level 2.', { numbers: [3], items: [h2Item(3)] })), 'pass');
+    assert.equal(verdict(h2(3), dAsk('Counted.', { items: [h2Item(3)] })), 'pass', 'items only');
+  });
+
+  it('fails the level digit claimed as the count: 2 against three level 2 headings (C02, C03)', () => {
+    assert.equal(verdict(h2(2), dAsk('Counted.', { numbers: [2], items: [h2Item(2)] })), 'fail');
+    assert.equal(verdict(h2(2), dAsk('Counted.', { items: [h2Item(2)] })), 'fail', 'the items-only fill never takes a label digit');
+  });
+
+  it('fails a level digit for a kind the read does not hold (C27)', () => {
+    assert.equal(verdict(h2(2), dAsk('Budget 2.', { numbers: [2], items: [h2Item(2)] }, { blocks: [{ index: 0, style: 'Normal', preview: 'Body' }] })), 'fail');
+  });
+
+  it('never credits the label digit as a report.numbers value or a stray prose figure', () => {
+    const four = { blocks: [1, 2, 3, 4].map((i) => ({ index: i, style: 'Heading2', preview: `H${i}` })) };
+    assert.equal(verdict(h2(4), dAsk('There are 4 level 2 headings.', { numbers: [4], items: [h2Item(4)] }, four)), 'pass');
+    assert.equal(verdict(h2(4), dAsk('There are 4 level 2 headings.', { numbers: [4, 2], items: [h2Item(4)] }, four)), 'fail', 'numbers 4 and 2');
+    assert.equal(verdict(h2(4), dAsk('There are 4 level 2 headings. Budget 2.', { numbers: [4], items: [h2Item(4)] }, four)), 'fail', 'a stray 2 in the prose');
+  });
+});
+
+describe('item 11 (round i, R21-2): a kind is named only by a closed phrase beside the figure', () => {
+  const slides = { slideCount: 3, slides: [{ index: 1, texts: ['alpha'] }, { index: 2, texts: ['beta'] }, { index: 3, texts: ['gamma'] }] };
+  const lookup = (tool, op, format, result, text, over = {}) => {
+    const c = mkCase({
+      id: 'HO-PPTX-995',
+      format,
+      category: 'lookup',
+      tools: { allowed: [op], required: [op] },
+      expected: { numeric: [{ name: 'v', value: 3, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { v: 3 }, structural: [], writes: 0, text: 'x' },
+    });
+    return verdict(c, readAsk(tool, format === 'pptx' ? 'slides' : 'docs', result, text, { numbers: [3] }, over));
+  };
+  const doc = { paragraphCount: 3, blocks: [{ preview: 'Alpha' }, { preview: 'Beta' }, { preview: 'Gamma' }] };
+
+  it('does not slide onto an unrelated word after the figure (C07)', () => {
+    assert.equal(lookup('read_slide', 'read_slide', 'pptx', slides, 'Budget 3 while reviewing slides.'), 'fail');
+    assert.equal(lookup('read_slide', 'read_slide', 'pptx', slides, 'The budget is 3 and the slides are done.'), 'fail');
+  });
+
+  it('names nothing for a modified kind, before or after the figure (C08)', () => {
+    assert.equal(lookup('get_document_context', 'read_document', 'docx', doc, 'There are 3 changed paragraphs.'), 'fail');
+    assert.equal(lookup('get_document_context', 'read_document', 'docx', doc, 'The number of changed paragraphs is 3.'), 'fail');
+  });
+
+  it('keeps the closed phrases: "3 slides", "slides: 3", "number of sheets is 3"', () => {
+    assert.equal(lookup('read_slide', 'read_slide', 'pptx', slides, 'There are 3 slides.'), 'pass');
+    assert.equal(lookup('read_slide', 'read_slide', 'pptx', slides, 'Slides: 3.'), 'pass');
+    assert.equal(lookup('read_slide', 'read_slide', 'pptx', slides, 'The number of slides is 3.'), 'pass');
+    assert.equal(lookup('get_document_context', 'read_document', 'docx', doc, 'There are 3 paragraphs in the document.'), 'pass');
+  });
+});
+
+describe('item 12 (round i, R21-3): a count mark belongs to its item, and a percent claim never takes the count-only path', () => {
+  const four = { paragraphCount: 5, blocks: [{ style: 'Heading2', preview: 'A' }, { style: 'Heading2', preview: 'B' }, { style: 'Heading2', preview: 'C' }, { style: 'Normal', preview: 'x' }, { style: 'Normal', preview: 'y' }] };
+  it('does not let a wrong heading count borrow the true count of another named kind (C04)', () => {
+    const c = countCaseOf({ id: 'HO-DOCX-996', format: 'docx', anchor: 'heading_level_2', value: 5, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
+    const items = [{ kind: 'count', anchor: 'heading_level_2', value: 5 }, { kind: 'count', anchor: 'paragraphs', value: 5 }];
+    assert.equal(verdict(c, readAsk('get_document_context', 'docs', four, 'Counted.', { numbers: [5], items })), 'fail');
+    const paragraphs = countCaseOf({ id: 'HO-DOCX-997', format: 'docx', anchor: 'paragraphs', value: 5, numericName: 'paragraphCount', tool: 'get_document_context', op: 'read_document' });
+    assert.equal(verdict(paragraphs, readAsk('get_document_context', 'docs', four, 'Counted.', { numbers: [5], items: [items[1]] })), 'pass', 'the control: the item is backed');
+  });
+  it('keeps a same-valued percent leaf traceable beside a count item (C29)', () => {
+    const slideCase = countCaseOf({ id: 'HO-PPTX-998', format: 'pptx', anchor: 'slides', value: 3, numericName: 'slideCount', tool: 'read_slide', op: 'read_slide' });
+    const result = { slideCount: 3, slides: [{ texts: ['Rate 3%'] }, { texts: ['Beta'] }, { texts: ['Gamma'] }] };
+    assert.equal(verdict(slideCase, readAsk('read_slide', 'slides', result, 'There are 3 slides. Rate 3%.', { numbers: [3], items: [{ kind: 'count', anchor: 'slides', value: 3 }] })), 'pass');
+  });
+});
+
+describe('item 13 (round i, R21-4): markdown fences close by mark and run length, comments and inline code hold no heading', () => {
+  const mdCase = countCaseOf({ id: 'HO-MD-990', format: 'md', anchor: 'heading_level_2', value: 1, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
+  const mdAsk = (lines, module = 'markdown', tool = 'get_document_context') => readAsk(tool, module, { lines }, 'Counted.', { numbers: [1], items: [{ kind: 'count', anchor: 'heading_level_2', value: 1 }] });
+  it('fails a heading inside a fence that a different mark or a shorter run did not close (C13, C14)', () => {
+    assert.equal(verdict(mdCase, mdAsk(['```text', '~~~', '## Alpha', '```'])), 'fail');
+    assert.equal(verdict(mdCase, mdAsk(['````text', '```', '## Alpha', '````'])), 'fail');
+  });
+  it('fails a heading tag inside inline code or an HTML comment (C15, C16)', () => {
+    assert.equal(verdict(mdCase, mdAsk(['Literal `<h2>Alpha</h2>` example.'])), 'fail');
+    const htmlCase = countCaseOf({ id: 'HO-HTML-990', format: 'html', anchor: 'heading_level_2', value: 1, numericName: 'heading2Count', tool: 'read_source', op: 'read_document' });
+    assert.equal(verdict(htmlCase, readAsk('read_source', 'html', { lines: ['<!-- <h2>Alpha</h2> -->'] }, 'Counted.', { numbers: [1], items: [{ kind: 'count', anchor: 'heading_level_2', value: 1 }] })), 'fail');
+    assert.equal(verdict(htmlCase, readAsk('read_source', 'html', { lines: ['<!--', '<h2>Alpha</h2>', '-->'] }, 'Counted.', { numbers: [1], items: [{ kind: 'count', anchor: 'heading_level_2', value: 1 }] })), 'fail', 'a multi-line comment');
+  });
+  it('keeps real headings and the two fence controls (C11, C12)', () => {
+    assert.equal(verdict(mdCase, mdAsk(['## Alpha'])), 'pass');
+    assert.equal(verdict(mdCase, mdAsk(['```', '## Alpha', '```'])), 'fail', 'an ordinary fence');
+    assert.equal(verdict(mdCase, mdAsk(['~~~~', '## Alpha', '~~~~~', '## Beta'])), 'pass', 'a longer run closes, the heading after it counts');
+    const htmlCase = countCaseOf({ id: 'HO-HTML-991', format: 'html', anchor: 'heading_level_2', value: 1, numericName: 'heading2Count', tool: 'read_source', op: 'read_document' });
+    assert.equal(verdict(htmlCase, readAsk('read_source', 'html', { lines: ['<h2>Alpha</h2>'] }, 'Counted.', { numbers: [1], items: [{ kind: 'count', anchor: 'heading_level_2', value: 1 }] })), 'pass');
+  });
+});
+
+describe('item 14 (round i, R21-5): the percent-leaf exception reaches read leaves and compute results only', () => {
+  const edit = mkCase({
+    category: 'edit',
+    tools: { allowed: ['read_sheet_list', 'read_range', 'write_range'], required: ['write_range'] },
+    expected: { numeric: [{ name: 'v', value: 25, tolerance: 0, rounding: 'none', unit: '%' }], structural: [], writes: 1, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: 25 }, structural: [], writes: 1, text: 'x' },
+  });
+  const wrote = (value) => mkAsk('Done.', { numbers: [25] }, {
+    calls: [{ name: 'propose_operations' }],
+    writes: 1,
+    writeLog: [{ name: 'propose_operations', applied: true, args: { operations: [{ range: 'SheetZ!A1', value }] } }],
+    toolResults: [],
+  });
+  it('fails a plain report 25 against an applied write "25%" (H15), and passes it against a plain write', () => {
+    assert.equal(verdict(edit, wrote('25%')), 'fail');
+    assert.equal(verdict(edit, wrote(25)), 'pass');
+  });
+  it('keeps the read leaf and the compute result (H01, H16)', () => {
+    const pctCase = mkCase({
+      tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
+      expected: { numeric: [{ name: 'v', value: 25, tolerance: 0, rounding: 'none', unit: '%' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { v: 25 }, structural: [], writes: 0, text: 'x' },
+    });
+    assert.equal(verdict(pctCase, mkAsk('Done.', { numbers: [25] }, { toolResults: [{ name: 'read_range', text: readResult({ A1: '25%' }) }] })), 'pass');
+    const compute = mkCase({
+      expected: { numeric: [{ name: 'v', value: 25, tolerance: 0, rounding: 'none', unit: '%' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { v: 25 }, structural: [], writes: 0, text: 'x' },
+    });
+    const withCompute = mkAsk('Done.', { numbers: [25] }, {
+      calls: [{ name: 'read_range' }, { name: 'aggregate_range' }],
+      toolResults: [{ name: 'read_range', text: readResult({}) }, { name: 'aggregate_range', text: JSON.stringify({ sum: '25%' }) }],
+    });
+    assert.equal(verdict(compute, withCompute), 'pass');
+  });
+});
