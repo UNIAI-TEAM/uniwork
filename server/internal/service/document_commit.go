@@ -271,20 +271,6 @@ func resolveUpload(ctx context.Context, fs files.Service, scope files.Scope, upl
 	return res[0].File, nil
 }
 
-// uploadNoLongerResolvable reports the resolveUpload refusals a stored ledger
-// answer may override (R1-2 case 1): the staged upload is gone - its 24h claim
-// window closed, the collector took it, or its session was canceled - or the id
-// is unknown to this scope. It reads the mapped shape resolveUpload returns,
-// not the file service's own: every other refusal (a storage outage, a mode
-// mismatch) keeps its own answer.
-func uploadNoLongerResolvable(err error) bool {
-	if errors.Is(err, ErrNotFound) {
-		return true
-	}
-	var ce CodedError
-	return errors.As(err, &ce) && ce.Code == "document_upload_invalid"
-}
-
 // CommitFileVersion is the file save path (see the file comment for the
 // order). The answer is the same on a replay of the same key and payload.
 func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, error) {
@@ -319,28 +305,6 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
 	file, err := resolveUpload(ctx, fs, scope, in.UploadID)
 	if err != nil {
-		// R1-2 case 1: the no-op below leaves its upload staged, so a retry
-		// after the 24h claim window (or a collector sweep) can no longer
-		// resolve it while the ledger still holds the 200. The same key and
-		// actor must hear that stored answer rather than the upload's own
-		// refusal - the intent lookup already says committed, and a frame
-		// Save derives its key from the bytes alone (docs-frame-api.ts), so
-		// the next day's unchanged Save would otherwise fail. The peek keeps
-		// the actor check but drops the fingerprint, which cannot be
-		// recomputed without the file: the same key from the same actor with
-		// different bytes replays the stored answer instead of
-		// idempotency_payload_mismatch. That trade is deliberate and only on
-		// this branch - the normal path still fingerprints after
-		// resolveUpload succeeds.
-		if in.IdempotencyKey != "" && uploadNoLongerResolvable(err) {
-			replay, rerr := PeekIdempotent(ctx, s.q, doc.OrganizationID, doc.WorkspaceID,
-				idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, IdempotencyOptions{})
-			if rerr == nil && replay != nil {
-				s.intentCounters().IncOfficeIdempotentReplay()
-				res, rerr := replayWithAccess(replay.Body, current)
-				return res, false, rerr
-			}
-		}
 		return DocumentFileResult{}, false, err
 	}
 	opts := IdempotencyOptions{
